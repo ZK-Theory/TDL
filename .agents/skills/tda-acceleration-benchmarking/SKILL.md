@@ -55,8 +55,10 @@ Accept an acceleration only if ALL hold:
    concurrency (memory-bandwidth contention, not core count). A memory-
    bandwidth-bound kernel can scale *negatively* under joblib/loky (exact W2
    EMD did here, and loky repeatedly stalled): when it does, the reliable lever
-   is not a parallel backend but **independent serial processes over disjoint
-   input blocks** — block-partition the work, one process per block.
+   is not a parallel backend but **serial processes over disjoint input
+   blocks**, queued through a bounded pool of reusable worker processes capped
+   at the preflight-selected safe worker count (see step 3) — block-partition
+   the work; never spawn one process per block regardless of block count.
 3. Try the lowest-risk improvement first (vectorise → process pool → out-of-
    core → new backend → GPU/cloud). When using a process pool, cap concurrent
    processes at the **preflight-selected safe worker count** (from

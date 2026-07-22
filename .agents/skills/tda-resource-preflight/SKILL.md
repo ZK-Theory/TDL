@@ -104,9 +104,12 @@ Write `resource_preflight_<task>_<YYYY-MM-DD>.json` alongside the run plan:
                 "selection_criterion": "lowest safe p75-projected wall time",
                 "checkpointing": true, "resume_supported": true,
                 "progress_reporting": true,
-                "operator_patience": null,
-                "heartbeat_cadence": null,
-                "heartbeat_delivery": null},
+                "operator_patience_s": null,
+                "progress_cadence_s": null,
+                "checkpoint_cadence_s": null,
+                "heartbeat_cadence_s": null,
+                "heartbeat_delivery": null,
+                "launch_heartbeat": {"emitted_at": null, "status": null}},
   "benchmark": {"harness_is_production_entry_point": null,
                  "candidate_results": [],
                  "sweep_call_count": null,
@@ -118,6 +121,14 @@ Write `resource_preflight_<task>_<YYYY-MM-DD>.json` alongside the run plan:
   "validation_commands": []
 }
 ```
+
+Responsiveness fields are self-auditing: `*_s` values are integer **seconds**;
+`progress_cadence_s` and `checkpoint_cadence_s` are recorded separately (a shared
+value may be repeated) so an audit sees both without external context.
+`heartbeat_cadence_s` must be `< operator_patience_s`. `launch_heartbeat.emitted_at`
+is an ISO-8601 UTC timestamp and `launch_heartbeat.status` is one of
+`emitted` / `missing` — the run is auditable for responsiveness only when both
+are populated.
 
 ## WSL Background Compute
 
@@ -172,9 +183,9 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
   shrink B or L, they are pre-registered parameters.
 - Memory per worker × workers exceeds the machine — reject that candidate and
   select a safe lower count, or move to out-of-core.
-- Heartbeat cadence is absent, equals or exceeds `operator_patience`, or no
-  launch heartbeat is recorded — the run is not auditable for responsiveness;
-  fix the preflight record before dispatching.
+- `heartbeat_cadence_s` is absent, equals or exceeds `operator_patience_s`, or
+  `launch_heartbeat` has no `emitted_at`/`status` recorded — the run is not
+  auditable for responsiveness; fix the preflight record before dispatching.
 
 ## Related Skills
 
