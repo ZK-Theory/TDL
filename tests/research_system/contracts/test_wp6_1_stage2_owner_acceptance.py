@@ -95,12 +95,12 @@ def test_wp6_1_stage2_owner_acceptance_rejects_immutable_git_substitution(
     def substituted_run(args: list[str], *args_: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         result = real_run(args, *args_, **kwargs)
         if args == ["git", "show", target]:
-            return subprocess.CompletedProcess(
-                args,
-                0,
-                stdout=result.stdout.replace(b"wp6-1-schema-identities", b"wp6-1-schema-alias", 1),
-                stderr=b"",
+            result.stdout = result.stdout.replace(
+                b"wp6-1-schema-identities",
+                b"wp6-1-schema-alias",
+                1,
             )
+            result.stderr = b""
         return result
 
     monkeypatch.setattr(validation.subprocess, "run", substituted_run)
