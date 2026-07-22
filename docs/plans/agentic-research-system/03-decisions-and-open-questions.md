@@ -593,6 +593,37 @@ identities, and reviewed commit before any T2 implementation brief may issue.<br
 **Affected specifications:** W2 command/event/versioning contract; W7 provider
 command/receipt contract; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
 
+### P-038 - WP6.2 T2 R1 remediation authority
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-037 only to close the exact R1 contract gaps; the three command families,
+ordered event batches, sole-writer rule, and immutable accepted bytes remain unchanged<br>
+**Decision:** Authorize one bounded remediation of the rejected T2 authority-addendum
+candidate. The remediation introduces an explicit Receipt 2.0 proof surface; rebuildable
+idempotency and payload hashes on all five T2 event envelopes; a typed and evidence-
+producing eight-seam pre-issue secret boundary; semantic cross-field identity and
+authority validation; integer token-ceiling and cost-reconciliation arithmetic; complete
+W7 ProviderCommand/ProviderReceipt 2.0 crosswalks; exact lowercase UUIDv7 enforcement;
+and an independent machine-readable completeness oracle. Accepted W7 `pcmd_` and
+`prcp_` prefixes remain scoped exceptions, while new T2 first-class identities use the
+three-letter prefixes fixed in the ruling.<br>
+**Exact accepted proposal:**
+`proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md` at manager commit
+`02f7b0b951b2141fb08374bbfcb3bcc368938907`, Git blob
+`64dc129bd8147728fe007d31db54b512d633eb1f`, raw-byte SHA-256
+`e309b56b8d2142791171e6cfab5150f43cb2c4339d923204d64e36d12479fa52`.<br>
+**Boundary:** Candidate `1144d6a6d0feb28473fb540d41ff03bff79eec24` remains immutable
+rejected history. P-038 authorizes one contract/addendum remediation cycle and one fresh
+independent R2 review only. It authorizes no runtime implementation, live provider call,
+T3/T4, T1b, eligibility transition, result, claim, or accepted-artifact rewrite.<br>
+**Remaining gate:** The author returns one new immutable candidate and exact-state
+handback. A fresh independent reviewer receives no author or manager conversation
+history. Stephen must accept the exact remediated paths, blobs, raw-byte hashes,
+candidate commit, and approving verdict before any T2 implementation brief may issue.<br>
+**Affected specifications:** P-037; W2 receipt/event/idempotency contracts; W7 provider
+command/receipt contracts; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at

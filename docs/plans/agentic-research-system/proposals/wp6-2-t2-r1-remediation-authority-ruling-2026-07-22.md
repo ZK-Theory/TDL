@@ -1,10 +1,24 @@
 # WP6.2 T2 R1 Remediation Authority Ruling
 
 **Date:** 2026-07-22
-**Decision ID:** P-038 (proposed)
-**Status:** PROPOSED - pending Stephen's exact acceptance
+**Decision ID:** P-038
+**Status:** ACCEPTED by Stephen on 2026-07-22
 **Amends:** P-037 only to close the R1 contract gaps
 **Scope:** one T2 contract/addendum remediation and fresh independent R2; no runtime
+
+## Owner acceptance
+
+Stephen accepted this ruling at its pre-acceptance identity on 2026-07-22:
+
+| Item | Accepted identity |
+|---|---|
+| Manager commit | `02f7b0b951b2141fb08374bbfcb3bcc368938907` |
+| Proposal Git blob | `64dc129bd8147728fe007d31db54b512d633eb1f` |
+| Proposal raw-byte SHA-256 | `e309b56b8d2142791171e6cfab5150f43cb2c4339d923204d64e36d12479fa52` |
+
+The acceptance authorizes exactly one bounded contract/addendum remediation cycle and
+one fresh independent R2 review under the ruling below. It does not accept the future
+remediated candidate or authorize runtime implementation.
 
 ## Decision required
 
@@ -17,7 +31,7 @@ remediate those findings without invention by the author.
 Accepting this proposal authorizes one bounded author remediation cycle and one fresh
 independent R2 review. It does not accept the remediated candidate in advance.
 
-## Proposed ruling
+## Accepted ruling
 
 ### 1. Command family and immutable history
 
