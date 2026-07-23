@@ -67,6 +67,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md) | Durable R1 `rework_required` verdict for exact T2 authority-addendum candidate `1144d6a6`; four Critical and three Major findings |
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md) | Final static R3 acceptance of candidate `391a9275`; zero Critical, Major, or Minor findings |
 | [reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md](reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md) | P-040 exact-byte owner acceptance of final WP6.2 T2 candidate `391a9275`, grounded in the zero-finding static R3 verdict; no runtime authority |
+| [reviews/wp6-2-t2-integration-seam-review-2026-07-23.md](reviews/wp6-2-t2-integration-seam-review-2026-07-23.md) | Independent zero-finding acceptance of exact T2 integration subject `57cec488`; provenance-only descendants do not expand the verdict |
 
 ## Handover prompts
 
@@ -77,6 +78,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | W3 authoring continuity brief; retained as provenance after P-028 acceptance |
 | [handoffs/04-p0-review-and-implementation-handover-prompt.md](handoffs/04-p0-review-and-implementation-handover-prompt.md) | Fresh-agent entry point for the P0 plan review gate and explicitly approved foundation implementation |
 | [handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md](handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md) | Exact final T2 candidate byte identities, validation evidence, and hard stops |
+| [handoffs/trials/gate6-wp6-2-t2-integration-exact-state-handback.md](handoffs/trials/gate6-wp6-2-t2-integration-exact-state-handback.md) | Compact exact-state handback for T2 integration PR #158; no runtime or downstream authority |
 
 ## Governing constraints
 
