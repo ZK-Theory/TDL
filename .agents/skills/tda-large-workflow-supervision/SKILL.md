@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when exact-state handbacks, fresh-task rotation, bounded context inheritance, or one-cycle delivery control are needed.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: optional
   lanes: []
   roles:
@@ -29,12 +29,12 @@ through the relevant tier-1 or tier-2 skill.
    `certify` or `deliver` before loading workflow state.
 2. Reject numbered APM skills, `.apm` campaign state, the APM Memory Bank, and
    APM guides/checkers. Leave any foreign APM state untouched.
-3. Set one vertical action, an exact subject, a context budget, and a rotation
-   trigger. Default rotation is first auto-compaction or approximately 80k live
-   input tokens, whichever comes first.
-4. Select at most two primary skills. Load a conditional skill only when its
-   named artifact or assurance trigger exists. The required research-observer
-   meta-skill does not count against this budget.
+3. Set one vertical action, an exact subject, and an observable rotation
+   trigger. Rotate after actual compaction when the current task is no longer a
+   reliable continuation surface; do not use an estimated token threshold.
+4. Load only the skills required by the action or an observed assurance
+   trigger, and record why each is needed. A fixed skill count is not evidence
+   of context or token efficiency.
 5. Read only OPEN observations matching selected skills plus active
    cross-cutting principles; never dump the complete observation log into the
    task context.
@@ -73,18 +73,20 @@ Every implementer or reviewer dispatch records:
 - workflow and supervision phase; lifecycle phase;
 - exact base, subject, branch, writable root, and write owner;
 - one deliverable, allowed paths, forbidden paths, and hard stops;
-- context mode, rotation condition, and fork policy;
-- at most two primary skills and triggered conditional skills;
+- context mode, observable rotation condition, and fork policy;
+- required skills and the reason or trigger for each;
 - focused, candidate-head, and integration validation boundaries;
 - external-review owner, file-count limit, and permitted author-review cycles;
 - research-value disposition for each blocking non-research control; and
 - management, candidate, review, and integration branch roles plus merge strategy.
 
-Self-contained implementers and independent reviewers receive no parent history
-(`fork_turns="none"` in Codex). A small positive fork is allowed only for a direct
-continuation with a recorded reason. Full-history inheritance is exceptional and
-forbidden after compaction. An implementer owns one vertical deliverable and at
-most one author-review-remediation cycle; a new semantic subject gets a fresh task.
+Independent reviewers receive no parent history (`fork_turns="none"` in Codex).
+For implementation, choose the least costly context mode that still carries the
+required evidence: a fresh task for a new or independence-sensitive subject, or
+a bounded continuation when replaying the same evidence would cost more. Record
+the reason. Never use full-history inheritance after actual compaction. An
+implementer owns one vertical deliverable and at most one
+author-review-remediation cycle; a new semantic subject gets a fresh task.
 
 A proposed second remediation is a rescope event, not an automatic continuation.
 Stop for finding triage and owner ruling; any authorized exception uses a new exact
@@ -116,10 +118,9 @@ exact current Git/worktree state, decisions, unresolved findings, validation
 evidence, one next action, and hard stops. Repository and owner records remain
 authoritative; the packet is a continuity aid, not self-attestation.
 
-Also record available efficiency evidence: task/turn count, active duration,
-context mode, compactions, inherited turns, validation invocations, regenerated
-artifacts, remediation count, external-review waits, and true/false stops. State
-when exact token telemetry is unavailable; never replace it with an estimate.
+Do not burden the producer handoff with self-reported efficiency metrics. Audit
+token efficiency separately from session JSONL and `ccusage codex session` (or
+equivalent billing telemetry), using stable task/session identifiers.
 
 ## Self-Test Prompts
 
@@ -144,11 +145,11 @@ when exact token telemetry is unavailable; never replace it with an estimate.
 - [ ] Standalone identity and supervision phase declared.
 - [ ] One vertical action and exact subject frozen.
 - [ ] Packet/delta verified without unnecessary campaign replay.
-- [ ] Context, fork, skill, validation, and review-cycle budgets recorded.
+- [ ] Context mode, observable rotation trigger, required skills, validation,
+      and review-cycle boundary recorded.
 - [ ] Existing artifacts certified before any regeneration.
 - [ ] Research-value, branch topology, merge strategy, and PR file cap recorded.
 - [ ] Neutral exact-state handback emitted at completion or rotation.
-- [ ] Efficiency proxies and unavailable telemetry stated without estimation.
 
 ## Escalate Or Stop When
 

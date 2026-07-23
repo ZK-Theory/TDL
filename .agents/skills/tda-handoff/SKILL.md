@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: core
   lanes: []
   roles:
@@ -50,9 +50,8 @@ vault daily note via `vault-sync`, not the handoff.
 ## Open risks
 ## Suggested skills
 ## Next actions
-## Rotation evidence          (budget/compaction trigger, when applicable)
+## Rotation evidence          (actual compaction/owner stop, when applicable)
 ## Branch / integration state (roles, base, merge strategy, PR path count)
-## Efficiency evidence        (turns, duration, tests, regeneration, waits)
 ## Do-not-do list
 ## Sensitive information redacted
 ```
@@ -79,13 +78,12 @@ resuming), it must additionally: bound scope with explicit hard stops
 **blocking**, not advisory; and repeat the `results/` provenance rule above.
 An open-ended handoff is read maximally by an autonomous agent.
 
-For a standalone large workflow, handoff is also required at first
-auto-compaction or the declared context-budget threshold. Record one next
-vertical action, exact Git/worktree identities, unresolved findings, validation
-evidence, and hard stops; do not copy plans, reviews, or logs into the packet.
-For a completed delivery cycle, also record remediation count, true/false stops,
-external-review waits, validation invocations, regenerated artifacts, and exact
-token telemetry when available. If unavailable, say so rather than estimating.
+For a standalone large workflow, hand off when actual compaction or an owner stop
+makes another task the better continuation surface. Record one next vertical
+action, exact Git/worktree identities, unresolved findings, validation evidence,
+and hard stops; do not copy plans, reviews, or logs into the packet. Measure
+token efficiency separately from session JSONL and billing/token telemetry;
+producer self-reporting is not required in this continuity artifact.
 Before a PR handoff, record the merge-base changed-path count and the external
 review cap; CodeRabbit's hard limit is 100 files.
 
@@ -102,8 +100,8 @@ review cap; CodeRabbit's hard limit is 100 files.
 - [ ] Open risks and suggested next skills included.
 - [ ] Do-not-do list tailored to the task.
 - [ ] Dispatch-safety elements present if an autonomous agent consumes it.
-- [ ] Large-workflow closeout includes branch/integration state, PR file count,
-      and available efficiency evidence without invented telemetry.
+- [ ] Large-workflow closeout includes the required branch/integration state
+      and PR file count.
 - [ ] Sensitive details redacted (no UKDA data excerpts, no credentials).
 
 ## Escalate Or Stop When
@@ -116,4 +114,4 @@ review cap; CodeRabbit's hard limit is 100 files.
 
 `tda-task-brief-from-plan` (when the next session's work deserves a formal
 brief) · `commit-log` · `vault-sync` · the numbered APM handoff skills for
-APM agents Â· `tda-large-workflow-supervision` (context-budget rotation).
+APM agents Â· `tda-large-workflow-supervision` (observable rotation).

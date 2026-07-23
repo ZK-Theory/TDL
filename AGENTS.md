@@ -132,34 +132,12 @@ For every Codex worktree dispatch that will write:
 
 ## Large-workflow context discipline
 
-For multi-stage, review-heavy campaigns such as ARS work packages:
-
-- Declare the workflow system first. For `standalone`, do not load APM skills,
-  state, Memory Bank, guides, or checkers.
-- Keep current campaign state in a compact exact-state artifact. Rotate the
-  coordinating task at first auto-compaction or approximately 80k live input
-  tokens; do not use compaction as long-term continuity.
-- Give self-contained implementers and independent reviewers no parent
-  conversation history (`fork_turns="none"` in Codex). Use a bounded positive
-  fork only for a direct continuation with a recorded reason. Full-history
-  inheritance is exceptional and forbidden after compaction.
-- Each dispatch records lifecycle phase, context mode and budget, at most two
-  primary skills, conditional skills, external-review owner, exact subject, one
-  deliverable, validation ladder, and hard stops.
-- Apply the P-039 research-value gate before non-research assurance becomes
-  blocking. Runtime-only evidence defaults to the runtime stage; a proposed
-  second remediation stops for rescope, owner ruling, and a fresh task.
-- Declare management, candidate, review, and integration branch roles. Preserve
-  exact accepted subjects through integration unless re-authorized. Before
-  external review, count merge-base changed paths; CodeRabbit's hard limit is
-  100 files, so split dependency-safely when necessary.
-- Keep polling and external-review monitoring outside substantive supervisor,
-  author, and reviewer tasks. Stephen triggers and monitors CodeRabbit unless he
-  explicitly delegates that operation in the current task.
-- Certify existing deterministic artifacts before authorizing regeneration.
-
-Use `tda-large-workflow-supervision` for the operating procedure and
-`docs/guides/large-workflow-supervision.md` for dispatch and rotation examples.
+Use `tda-large-workflow-supervision` as the single canonical operating procedure
+for standalone multi-stage, review-heavy campaigns. The guide at
+`docs/guides/large-workflow-supervision.md` contains examples only. Do not treat
+estimated token thresholds, fixed skill counts, or producer self-reporting as
+evidence of token efficiency; audit that separately from session JSONL and
+billing/token telemetry.
 
 ## After editing
 
