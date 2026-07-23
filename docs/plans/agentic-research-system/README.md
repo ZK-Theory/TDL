@@ -52,6 +52,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | Gate 3 v0.2 identity, ownership, two-stage ordering, failure, and freeze manifest accepted under P-030 |
 | [design/07-runtime-adapters-and-policy-parity.md](design/07-runtime-adapters-and-policy-parity.md) | W7 v0.2 canonical policy, provider adapter, receipt, parity, token-accounting, and upgrade interfaces; accepted under P-030 |
 | [design/08-resource-checkpoint-and-operations.md](design/08-resource-checkpoint-and-operations.md) | W8 v0.2 proportional resources, leases, checkpoints, stop/resume, recovery, backup, and operator interfaces; accepted under P-030 |
+| [design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md](design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md) | P-040 accepted exact T2 contract/addendum bytes after zero-finding R3 review; no runtime authority |
 | [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
 | [reviews/adversarial-review-reconciliation-2026-06-29.md](reviews/adversarial-review-reconciliation-2026-06-29.md) | Stephen-approved dispositions, evidence-timing reconciliation, and integration authority |
 | [reviews/w1-w2-w6-review-acceptance-2026-06-30.md](reviews/w1-w2-w6-review-acceptance-2026-06-30.md) | Dated acceptance record closing the W1/W2/W6 review gates without authorizing implementation |
@@ -69,7 +70,9 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md) | R5 independent approval of exact WP6 remediation commit `fe5f1d40bc8f05f061317c677b5891cea0711249`; zero findings |
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md) | Durable R1 `rework_required` verdict and manager triage for exact T2 authority-addendum candidate `1144d6a6`; four Critical and three Major findings |
 | [reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md](reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md) | Manager triage of corrected R2 `rework_required` report, separating retained research-system integrity findings from premature security/runtime assurance |
+| [reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md) | Final static R3 acceptance of candidate `391a9275`; zero Critical, Major, or Minor findings |
 | [reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md](reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md) | P-040 exact-byte owner acceptance of final WP6.2 T2 candidate `391a9275`, grounded in the zero-finding static R3 verdict; no runtime authority |
+| [reviews/wp6-2-t2-integration-seam-review-2026-07-23.md](reviews/wp6-2-t2-integration-seam-review-2026-07-23.md) | Independent zero-finding acceptance of exact T2 integration subject `57cec488`; later remediation requires separate review |
 
 ## Handover prompts
 
@@ -88,6 +91,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [handoffs/10-wp6-2-t2-standalone-context-budget-v2-prompt.md](handoffs/10-wp6-2-t2-standalone-context-budget-v2-prompt.md) | Corrected standalone V2 prompt for one WP6.2 T2 delivery, independent review, and bounded remediation cycle |
 | [handoffs/11-wp6-2-t2-authority-addendum-authoring-prompt.md](handoffs/11-wp6-2-t2-authority-addendum-authoring-prompt.md) | Fresh standalone contract-authoring prompt for the P-037 T2 authority addendum, strict identities, tests, and exact review handback |
 | [handoffs/trials/gate6-wp6-2-t2-context-budget-v2-exact-state-handback.md](handoffs/trials/gate6-wp6-2-t2-context-budget-v2-exact-state-handback.md) | Exact V2 standalone delivery-preflight handback preserved byte-for-byte; stops on missing T2 transition authority |
+| [handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md](handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md) | Exact final T2 candidate byte identities, validation evidence, and hard stops |
+| [handoffs/trials/gate6-wp6-2-t2-integration-exact-state-handback.md](handoffs/trials/gate6-wp6-2-t2-integration-exact-state-handback.md) | Compact exact-state handback for T2 integration PR #158; no runtime or downstream authority |
 
 ## Governing constraints
 

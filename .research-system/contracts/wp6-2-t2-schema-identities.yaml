@@ -1,0 +1,432 @@
+schema_id: ars://contracts/wp6-2-t2-schema-identities
+schema_version: 1.0.0
+manifest_id: wp6-2-t2-schema-identities
+manifest_version: 1.0.0
+status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
+self_identity:
+  repository_path: .research-system/contracts/wp6-2-t2-schema-identities.yaml
+  schema_id: ars://contracts/wp6-2-t2-schema-identities
+  schema_version: 1.0.0
+  hash_binding: external_exact_state_review_and_owner_acceptance_only
+candidate_lifecycle:
+  review_status: pending_fresh_independent_review
+  acceptance_status: pending_stephen_exact_hash_acceptance
+  runtime_implementation_authorized: false
+protected_baseline:
+  start_revision: 69a0fee6171fc25f936c8e3e03343bfbd0338440
+  protected_path_count: 220
+  path_blob_rawsha_map_sha256: 74c911466203f64277b2189c5fc2455c5644fa24818193cac33c19bed4e5c84c
+  membership_contract_path: .research-system/contracts/wp6-2-t2-protected-membership.yaml
+  command_tree: 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea
+  event_tree: 154ffc4bdde82fe903718734687e7a62797b1f69
+  core_tree: b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46
+  receipt_1_0_0_blob: f204b3b71d6839bc866ba1251c8b87cc814ee0ce
+  provider_command_1_0_0_blob: 9eb58609b9703674912e64f019db3cd4fb147a9c
+  provider_receipt_1_0_0_blob: 8ac904e6c0b16e45034bcdc2221970d6a3ef13a8
+artifacts:
+- artifact_role: line_ending_control
+  repository_path: .gitattributes
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: 6798d947a17f851b93cfa769182027cc778b801f
+  raw_utf8_lf_sha256: 28c231d9269b811d3d0b9e7379b941fa07ca47064d032e86650433ddc54307dc
+- artifact_role: authority_catalogue
+  repository_path: .research-system/contracts/wp6-2-t2-cost-grant-authority-catalogue.yaml
+  canonical_schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue
+  schema_version: 1.0.0
+  git_blob_id: 702de343a8df50244ac8992c10b4e39612837ff1
+  raw_utf8_lf_sha256: 292189e791e75cf12003db44eca7b3ccd101c51a85b3d7d5bd7c8f7aaa3197f9
+- artifact_role: normative_crosswalk
+  repository_path: .research-system/contracts/wp6-2-t2-normative-crosswalk.yaml
+  canonical_schema_id: ars://contracts/wp6-2-t2-normative-crosswalk
+  schema_version: 1.0.0
+  git_blob_id: c47fd6bcdbcbbfe3d266646a4ad433d71041971b
+  raw_utf8_lf_sha256: c03350d240cdf42efd6847effe41fa453ed3943780493be367b6d401686825bb
+- artifact_role: protected_membership_contract
+  repository_path: .research-system/contracts/wp6-2-t2-protected-membership.yaml
+  canonical_schema_id: ars://contracts/wp6-2-t2-protected-membership
+  schema_version: 1.0.0
+  git_blob_id: e682ef7860b6d7fab5eaeb80bdeaea7a6401aaca
+  raw_utf8_lf_sha256: 9e71924d9cfc9610490ffa6fe9bad15f5aa3c6cf32ef2f473a5fabf5497df64e
+- artifact_role: authority_catalogue_schema
+  repository_path: .research-system/schemas/contracts/wp6-2-t2-cost-grant-authority-catalogue.schema.json
+  canonical_schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue
+  schema_version: 1.0.0
+  git_blob_id: 9010d7487b0ac6aef1268af6591d4b0b43473250
+  raw_utf8_lf_sha256: 82a9209990878978bc73bae75750bb7a14a5aa37e9d49e91043076bd65aba0d3
+- artifact_role: normative_crosswalk_schema
+  repository_path: .research-system/schemas/contracts/wp6-2-t2-normative-crosswalk.schema.json
+  canonical_schema_id: ars://contracts/wp6-2-t2-normative-crosswalk
+  schema_version: 1.0.0
+  git_blob_id: 40a67f619ede306472e67371dc6fbd2f648cb92b
+  raw_utf8_lf_sha256: 82b3ed8e7b0cc45b29e14620520e50953f8bbe348276cb20cf23a9dfb8579f61
+- artifact_role: protected_membership_schema
+  repository_path: .research-system/schemas/contracts/wp6-2-t2-protected-membership.schema.json
+  canonical_schema_id: ars://contracts/wp6-2-t2-protected-membership
+  schema_version: 1.0.0
+  git_blob_id: a137ddb69fd9726cd5903857979518d81aadb0b4
+  raw_utf8_lf_sha256: dfc24cc47eff86f4ff8681a02355f18a2e2d5ba35045383f1809eb0c181d1ec6
+- artifact_role: identity_manifest_schema
+  repository_path: .research-system/schemas/contracts/wp6-2-t2-schema-identities.schema.json
+  canonical_schema_id: ars://contracts/wp6-2-t2-schema-identities
+  schema_version: 1.0.0
+  git_blob_id: d598190b17a40faff8345cf8564ee9b7419c2261
+  raw_utf8_lf_sha256: 31decbc46b5aecf4814d73f937d449991718bd9ff6885f2bb6ed7b34a243375d
+- artifact_role: record_schema
+  repository_path: .research-system/schemas/core/receipt-v2.schema.json
+  canonical_schema_id: ars://core/receipt/v2
+  schema_version: 2.0.0
+  git_blob_id: f511cbdef59022a45d7d47d1906037d0dca8fab3
+  raw_utf8_lf_sha256: 73cbf235bbc225c4ad6aff67d97a34560f106fd673937f010408401cc9fd2b86
+- artifact_role: command_schema
+  repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
+  canonical_schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
+  schema_version: 1.0.0
+  git_blob_id: 429c678d87e0f73a01658ac053f55e12c23fb400
+  raw_utf8_lf_sha256: b89f7e363c9081a4e74286f70ceef727fbb3cdf8a7a515f373f26126c2ae08c6
+- artifact_role: command_schema
+  repository_path: .research-system/schemas/wp6-2-t2/commands/issue-cost-grant.schema.json
+  canonical_schema_id: ars://wp6-2/t2/command/IssueCostGrant
+  schema_version: 1.0.0
+  git_blob_id: ac8fb56f101e0cd2edc7334f67a2e19dce53638d
+  raw_utf8_lf_sha256: e777b932e95a073fc9ca066079840b54eb73471ad40a7bad0d8443685738d403
+- artifact_role: command_schema
+  repository_path: .research-system/schemas/wp6-2-t2/commands/record-provider-receipt.schema.json
+  canonical_schema_id: ars://wp6-2/t2/command/RecordProviderReceipt
+  schema_version: 1.0.0
+  git_blob_id: aef84300aed35983b46c757683377493d63189bc
+  raw_utf8_lf_sha256: f4985a57fbc362a1af69aacdfb8d5e6e3b6e05eccc96e1a66e059c09c6c3bdb6
+- artifact_role: record_schema
+  repository_path: .research-system/schemas/wp6-2-t2/cost-grant.schema.json
+  canonical_schema_id: ars://wp6-2/t2/cost-grant
+  schema_version: 1.0.0
+  git_blob_id: fead292bfa53f7d5d6c348ab78f6f9ea099f5f22
+  raw_utf8_lf_sha256: f40b7cc24c80224d56e0c8ad1bb44e10f7667315d32a221748e4f25aa735a633
+- artifact_role: event_schema
+  repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-issued.schema.json
+  canonical_schema_id: ars://wp6-2/t2/event/CostGrantIssued
+  schema_version: 1.0.0
+  git_blob_id: 267a2c81c08f6a71949fb7d2365d60f368746a17
+  raw_utf8_lf_sha256: aa2436e33c06915ae6b3e4f5f7bc47e2a61b18c63e07ef9f750aaf3f8a41ef35
+- artifact_role: event_schema
+  repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reconciled.schema.json
+  canonical_schema_id: ars://wp6-2/t2/event/CostGrantReconciled
+  schema_version: 1.0.0
+  git_blob_id: fad79c8c57ad1d8f4db3023acdc0cff17e4dda46
+  raw_utf8_lf_sha256: a126b91cf8329db268d2d99fd5dd3e9df62ab6ddb264a23f2945b5e604980873
+- artifact_role: event_schema
+  repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
+  canonical_schema_id: ars://wp6-2/t2/event/CostGrantReserved
+  schema_version: 1.0.0
+  git_blob_id: d28175aedae02d39df40e6661a05f54e2b9499eb
+  raw_utf8_lf_sha256: b86f616ee41673e16cc974a866694f49fe57a40725c3fc7ca3f6f841d68eaeb5
+- artifact_role: event_schema
+  repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
+  canonical_schema_id: ars://wp6-2/t2/event/ProviderCommandIssued
+  schema_version: 1.0.0
+  git_blob_id: ce1c79158309614679e2427641d78787cda0f709
+  raw_utf8_lf_sha256: f57f5f9df19441c7a067f7353e60de6a4c13aefdb7fce1ad1d1c5f2f9e818e25
+- artifact_role: event_schema
+  repository_path: .research-system/schemas/wp6-2-t2/events/provider-receipt-recorded.schema.json
+  canonical_schema_id: ars://wp6-2/t2/event/ProviderReceiptRecorded
+  schema_version: 1.0.0
+  git_blob_id: fd0169bc5b675741f8470cb8e3aadaa3a753d0fe
+  raw_utf8_lf_sha256: 110169c5d44262a57de4f61fb629cd3da89bda3f5d91e96dde97307b947df37f
+- artifact_role: record_schema
+  repository_path: .research-system/schemas/wp6-2-t2/provider-command-v2.schema.json
+  canonical_schema_id: ars://adapters/provider-command/v2
+  schema_version: 2.0.0
+  git_blob_id: 0a9f9f399b7ee04ec10a6aeb934d2945136ac9d7
+  raw_utf8_lf_sha256: 81278f2d6e070629b3e409ffca4d2cc0efea299110ab4a8977ee201db7e7223e
+- artifact_role: record_schema
+  repository_path: .research-system/schemas/wp6-2-t2/provider-receipt-v2.schema.json
+  canonical_schema_id: ars://adapters/provider-receipt/v2
+  schema_version: 2.0.0
+  git_blob_id: a46682e4fa4c3db37013324c228c2e03a21f403c
+  raw_utf8_lf_sha256: b5ad7d0b1d58d3b4f37ff70859058f27c57518446b08f2769d0c2d4b5e675f95
+- artifact_role: record_schema
+  repository_path: .research-system/schemas/wp6-2-t2/secret-reference.schema.json
+  canonical_schema_id: ars://wp6-2/t2/secret-reference
+  schema_version: 1.0.0
+  git_blob_id: ea76a55b1874d442b595929998cc3477d20738a7
+  raw_utf8_lf_sha256: 3e40ed84cdf8cbad3bc67985d11425de33250064e7d77ea4f02399bcd906ce5b
+- artifact_role: authority_addendum
+  repository_path: docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: 052eb24806f28eeab33234ce839d855b4288d0f7
+  raw_utf8_lf_sha256: 42409dc287ce2aaba1bb18c64aa18333221bfc393da8b8066e47bef453f6d65c
+- artifact_role: contract_test
+  repository_path: tests/research_system/contracts/test_wp6_2_t2_authority_contract.py
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: 0e9429aef35a61e4621412f6c4ce17fbc5088d8d
+  raw_utf8_lf_sha256: 4d35340efe26779723963088ab4797219c8c02365c623dfc7f785c44b12a94a9
+- artifact_role: contract_test
+  repository_path: tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: f21b0739d390cf8072d071a23cf8c9d2dfefbad4
+  raw_utf8_lf_sha256: cc0316e68401fcd6e2e0d160ac7d8b132fe6f4d1b3b7dd7a48fcd5be5198c849
+- artifact_role: semantic_validator
+  repository_path: tests/research_system/contracts/wp6_2_t2_authority_validation.py
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: 33ee525640f2425aab33845d3877be5c8bf4e2fd
+  raw_utf8_lf_sha256: bb193a32833bc7196e962c6fe3fc90bc84d442cf077a553da4a4d694a4f62e9e
+- artifact_role: independent_oracle
+  repository_path: tests/research_system/contracts/wp6_2_t2_expectations.py
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: 3eb69499b896b235d28f9803c6a8a70f972e49fb
+  raw_utf8_lf_sha256: 6bf374af0f95c0834ad7b2473ebd3af58eea625ccf4b5669b75f3a3e89176f83
+- artifact_role: schema_materializer
+  repository_path: tests/research_system/contracts/wp6_2_t2_schema_materializer.py
+  canonical_schema_id: null
+  schema_version: null
+  git_blob_id: e83100340a27e7678114d81b52f4683a69a5dfe9
+  raw_utf8_lf_sha256: 32aebdce8d03833fa82274b6136ff8747f2fcb87c42b63840ccbde9e7a492121
+authority_rows:
+- key: cost_grant.issue
+  ordered_event_set:
+  - CostGrantIssued
+  reducers:
+  - cost_grant_reducer@1.0.0
+  projections:
+  - cost_grant_balance_projection@1.0.0
+  - cost_grant_authorization_projection@1.0.0
+  stream_write_set:
+  - cost_grant
+  authority:
+    scope: wp6.2.t2.cost-grant.issue
+    subject: resource_grant
+    subject_fields:
+    - cost_grant_id
+    - cost_grant_revision
+    - cost_grant_hash
+    - resource_grant_id
+    - resource_grant_revision
+    - resource_grant_hash
+    - task_id
+    - task_revision
+    - task_hash
+    - dispatch_id
+    - dispatch_revision
+    - dispatch_hash
+    - attempt_id
+    - attempt_revision
+    - attempt_hash
+    - provider_command_id
+    - provider_command_revision
+    - provider_command_hash
+    - secret_reference_id
+    - secret_reference_revision
+    - secret_reference_hash
+  receipt:
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: canonical_ordered_CostGrantIssued_proof
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
+  test_identity:
+    positive: pos_issue_cost_grant
+    negative:
+    - neg_stale_cost_grant_stream_version
+    - neg_idempotency_payload_conflict
+    - neg_accepted_command_replay
+    - neg_reducer_missing
+    - neg_projection_missing
+    - neg_schema_alias_substitution
+    - neg_schema_version_substitution
+    - neg_schema_hash_substitution
+    - neg_provider_command_v1_mutation
+    - neg_provider_receipt_v1_mutation
+    - neg_wp6_1_t1a_protected_bytes_mutation
+- key: provider_issue.authorize
+  ordered_event_set:
+  - CostGrantReserved
+  - ProviderCommandIssued
+  reducers:
+  - cost_grant_reducer@1.0.0
+  - provider_command_reducer@2.0.0
+  projections:
+  - cost_grant_balance_projection@1.0.0
+  - provider_command_lifecycle_projection@2.0.0
+  stream_write_set:
+  - cost_grant
+  - provider_command
+  authority:
+    scope: wp6.2.t2.provider.issue
+    subject: cost_grant_provider_command
+    subject_fields:
+    - cost_grant_id
+    - cost_grant_revision
+    - cost_grant_hash
+    - resource_grant_id
+    - resource_grant_revision
+    - resource_grant_hash
+    - task_id
+    - task_revision
+    - task_hash
+    - dispatch_id
+    - dispatch_revision
+    - dispatch_hash
+    - attempt_id
+    - attempt_revision
+    - attempt_hash
+    - provider_command_id
+    - provider_command_revision
+    - provider_command_hash
+    - secret_reference_id
+    - secret_reference_revision
+    - secret_reference_hash
+    - reservation_id
+    - reservation_revision
+    - reservation_hash
+  receipt:
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: one_atomic_two_event_proof_before_invocation
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
+  test_identity:
+    positive: pos_authorize_provider_issue_atomic
+    negative:
+    - neg_secret_reference_missing
+    - neg_secret_reference_wrong_type
+    - neg_secret_reference_expired
+    - neg_secret_reference_revoked
+    - neg_secret_reference_identity_mismatch
+    - neg_cost_grant_missing
+    - neg_cost_grant_wrong_type
+    - neg_cost_grant_zero
+    - neg_cost_grant_exhausted
+    - neg_cost_grant_expired
+    - neg_cost_grant_revoked
+    - neg_cost_grant_identity_mismatch
+    - neg_cost_grant_insufficient_balance
+    - neg_provider_command_identity_mismatch
+    - neg_concurrent_over_reservation
+    - neg_stale_cost_grant_stream_version
+    - neg_stale_provider_command_stream_version
+    - neg_idempotency_payload_conflict
+    - neg_accepted_command_replay
+    - neg_atomic_event_order_swap
+    - neg_atomic_batch_partial
+    - neg_reducer_missing
+    - neg_projection_missing
+    - neg_schema_alias_substitution
+    - neg_schema_version_substitution
+    - neg_schema_hash_substitution
+- key: provider_receipt.record
+  ordered_event_set:
+  - ProviderReceiptRecorded
+  - CostGrantReconciled
+  reducers:
+  - provider_command_reducer@2.0.0
+  - cost_grant_reducer@1.0.0
+  projections:
+  - provider_command_lifecycle_projection@2.0.0
+  - provider_receipt_binding_projection@2.0.0
+  - cost_grant_balance_projection@1.0.0
+  stream_write_set:
+  - provider_command
+  - cost_grant
+  authority:
+    scope: wp6.2.t2.provider.receipt.record
+    subject: issued_provider_command_reservation
+    subject_fields:
+    - provider_command_id
+    - provider_command_revision
+    - provider_command_hash
+    - resource_grant_id
+    - resource_grant_revision
+    - resource_grant_hash
+    - task_id
+    - task_revision
+    - task_hash
+    - dispatch_id
+    - dispatch_revision
+    - dispatch_hash
+    - attempt_id
+    - attempt_revision
+    - attempt_hash
+    - provider_receipt_id
+    - provider_receipt_revision
+    - provider_receipt_hash
+    - cost_grant_id
+    - cost_grant_revision
+    - cost_grant_hash
+    - reservation_id
+    - reservation_revision
+    - reservation_hash
+    - secret_reference_id
+    - secret_reference_revision
+    - secret_reference_hash
+  receipt:
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: one_atomic_receipt_and_reconciliation_proof_with_exact_actuals
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
+  test_identity:
+    positive: pos_record_provider_receipt_atomic
+    negative:
+    - neg_provider_receipt_identity_mismatch
+    - neg_provider_receipt_incomplete
+    - neg_reconciliation_actuals_invalid
+    - neg_stale_cost_grant_stream_version
+    - neg_stale_provider_command_stream_version
+    - neg_idempotency_payload_conflict
+    - neg_accepted_command_replay
+    - neg_atomic_event_order_swap
+    - neg_atomic_batch_partial
+    - neg_reducer_missing
+    - neg_projection_missing
+    - neg_schema_alias_substitution
+    - neg_schema_version_substitution
+    - neg_schema_hash_substitution
+test_identities:
+  expected_set_path: tests/research_system/contracts/wp6_2_t2_expectations.py
+  semantic_validator_path: tests/research_system/contracts/wp6_2_t2_authority_validation.py
+  binding_test_paths:
+  - tests/research_system/contracts/test_wp6_2_t2_authority_contract.py
+  - tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py
+  positive_tests:
+  - pos_issue_cost_grant
+  - pos_authorize_provider_issue_atomic
+  - pos_record_provider_receipt_atomic
+  negative_tests:
+  - neg_secret_reference_missing
+  - neg_secret_reference_wrong_type
+  - neg_secret_reference_expired
+  - neg_secret_reference_revoked
+  - neg_secret_reference_identity_mismatch
+  - neg_cost_grant_missing
+  - neg_cost_grant_wrong_type
+  - neg_cost_grant_zero
+  - neg_cost_grant_exhausted
+  - neg_cost_grant_expired
+  - neg_cost_grant_revoked
+  - neg_cost_grant_identity_mismatch
+  - neg_cost_grant_insufficient_balance
+  - neg_provider_command_identity_mismatch
+  - neg_provider_receipt_identity_mismatch
+  - neg_provider_receipt_incomplete
+  - neg_reconciliation_actuals_invalid
+  - neg_concurrent_over_reservation
+  - neg_stale_cost_grant_stream_version
+  - neg_stale_provider_command_stream_version
+  - neg_idempotency_payload_conflict
+  - neg_accepted_command_replay
+  - neg_atomic_event_order_swap
+  - neg_atomic_batch_partial
+  - neg_reducer_missing
+  - neg_projection_missing
+  - neg_schema_alias_substitution
+  - neg_schema_version_substitution
+  - neg_schema_hash_substitution
+  - neg_provider_command_v1_mutation
+  - neg_provider_receipt_v1_mutation
+  - neg_wp6_1_t1a_protected_bytes_mutation
+hash_dependency_graph:
+- leaf_exact_bytes_to_identity_manifest
+- identity_manifest_to_external_independent_review
+- external_independent_review_to_stephen_exact_hash_acceptance

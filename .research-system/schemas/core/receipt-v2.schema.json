@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/receipt/v2",
+  "title": "ARS Receipt 2.0 exact T2 proof surface",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "receipt_id",
+    "outcome",
+    "command_type",
+    "command_id",
+    "idempotency_key_hash",
+    "payload_hash",
+    "event_batch_id",
+    "events",
+    "stable_reason",
+    "unmet_preconditions",
+    "original_accepted_receipt_hash",
+    "outcome_binding_hash",
+    "new_event_count",
+    "new_invocation_count"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://core/receipt/v2"
+    },
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^rcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "outcome": {
+      "enum": [
+        "accepted",
+        "duplicate",
+        "rejected",
+        "conflict"
+      ]
+    },
+    "command_type": {
+      "enum": [
+        "IssueCostGrant",
+        "AuthorizeProviderIssue",
+        "RecordProviderReceipt"
+      ]
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "idempotency_key_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_batch_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "transaction_position",
+          "stream_id",
+          "prior_stream_version",
+          "resulting_stream_version"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "event_type": {
+            "enum": [
+              "CostGrantIssued",
+              "CostGrantReserved",
+              "ProviderCommandIssued",
+              "ProviderReceiptRecorded",
+              "CostGrantReconciled"
+            ]
+          },
+          "transaction_position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stream_id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "string",
+                "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "prior_stream_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resulting_stream_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "stable_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "unmet_preconditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "original_accepted_receipt_hash": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outcome_binding_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "new_event_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "new_invocation_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "outcome": {
+          "const": "accepted"
+        },
+        "event_batch_id": {
+          "type": "string",
+          "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "events": {
+          "minItems": 1
+        },
+        "stable_reason": {
+          "type": "null"
+        },
+        "unmet_preconditions": {
+          "maxItems": 0
+        },
+        "original_accepted_receipt_hash": {
+          "type": "null"
+        },
+        "new_event_count": {
+          "minimum": 1
+        },
+        "new_invocation_count": {
+          "const": 0
+        }
+      }
+    },
+    {
+      "properties": {
+        "outcome": {
+          "const": "duplicate"
+        },
+        "event_batch_id": {
+          "type": "string",
+          "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "events": {
+          "minItems": 1
+        },
+        "stable_reason": {
+          "type": "null"
+        },
+        "unmet_preconditions": {
+          "maxItems": 0
+        },
+        "original_accepted_receipt_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "new_event_count": {
+          "const": 0
+        },
+        "new_invocation_count": {
+          "const": 0
+        }
+      }
+    },
+    {
+      "properties": {
+        "outcome": {
+          "enum": [
+            "rejected",
+            "conflict"
+          ]
+        },
+        "event_batch_id": {
+          "type": "null"
+        },
+        "events": {
+          "maxItems": 0
+        },
+        "stable_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unmet_preconditions": {
+          "minItems": 1
+        },
+        "original_accepted_receipt_hash": {
+          "type": "null"
+        },
+        "new_event_count": {
+          "const": 0
+        },
+        "new_invocation_count": {
+          "const": 0
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "x-successor-of": {
+    "schema_id": "ars://core/receipt",
+    "schema_version": "1.0.0"
+  },
+  "x-major-version-dispatch": "exact_major_version_required",
+  "x-duplicate-proof": "outcome_binding_hash_and_ordered_events_equal_original_accepted_receipt"
+}

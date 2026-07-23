@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t2-cost-grant-authority-catalogue",
+  "title": "WP6.2 T2 cost-grant authority catalogue",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "catalogue_id",
+    "catalogue_version",
+    "status",
+    "governing_decision",
+    "authority_addendum_path",
+    "writer",
+    "transition_family_closed",
+    "idempotency_tuple",
+    "replay_rule",
+    "versioning_rule",
+    "universal_rejection_effects",
+    "stable_rejection_codes",
+    "negative_controls",
+    "protected_predecessors",
+    "rows"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-2-t2-cost-grant-authority-catalogue"},
+    "schema_version": {"const": "1.0.0"},
+    "catalogue_id": {"const": "wp6-2-t2-cost-grant-authority-catalogue"},
+    "catalogue_version": {"const": "1.0.0"},
+    "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"},
+    "governing_decision": {"const": "P-037_and_P-038_as_amended_by_P-039"},
+    "authority_addendum_path": {"type": "string", "minLength": 1},
+    "writer": {"const": "research_system.command.service.CommandService"},
+    "transition_family_closed": {"const": true},
+    "idempotency_tuple": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "actor_id"},
+        {"const": "authority_scope"},
+        {"const": "command_type"},
+        {"const": "idempotency_key"}
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "replay_rule": {"type": "string", "minLength": 20},
+    "versioning_rule": {"type": "string", "minLength": 20},
+    "universal_rejection_effects": {
+      "type": "object",
+      "required": ["canonical_event_count", "provider_invocation_count", "automatic_retry"],
+      "properties": {
+        "canonical_event_count": {"const": 0},
+        "provider_invocation_count": {"const": 0},
+        "automatic_retry": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "stable_rejection_codes": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "negative_controls": {
+      "type": "object",
+      "propertyNames": {"pattern": "^neg_[a-z0-9_]+$"},
+      "additionalProperties": {"type": ["string", "null"], "pattern": "^[a-z0-9_]+$"},
+      "minProperties": 1
+    },
+    "protected_predecessors": {"$ref": "#/$defs/protected_predecessors"},
+    "rows": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/row"},
+      "minItems": 3,
+      "maxItems": 3
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "schema_identity": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "schema_id",
+        "schema_version",
+        "git_blob_id",
+        "raw_utf8_lf_sha256"
+      ],
+      "properties": {
+        "repository_path": {"type": "string", "minLength": 1},
+        "schema_id": {"type": "string", "pattern": "^ars://"},
+        "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "git_blob_id": {"$ref": "#/$defs/git_blob"},
+        "raw_utf8_lf_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "event_schema_identity": {
+      "type": "object",
+      "required": [
+        "event_type",
+        "repository_path",
+        "schema_id",
+        "schema_version",
+        "git_blob_id",
+        "raw_utf8_lf_sha256"
+      ],
+      "properties": {
+        "event_type": {"type": "string", "minLength": 1},
+        "repository_path": {"type": "string", "minLength": 1},
+        "schema_id": {"type": "string", "pattern": "^ars://"},
+        "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "git_blob_id": {"$ref": "#/$defs/git_blob"},
+        "raw_utf8_lf_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "write_set_item": {
+      "type": "object",
+      "required": ["stream_role", "stream_id_field", "expected_version_field"],
+      "properties": {
+        "stream_role": {"enum": ["cost_grant", "provider_command"]},
+        "stream_id_field": {"type": "string", "minLength": 1},
+        "expected_version_field": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "receipt_binding": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "accepted_rule", "duplicate_rule"],
+      "properties": {
+        "schema_id": {"const": "ars://core/receipt/v2"},
+        "schema_version": {"const": "2.0.0"},
+        "accepted_rule": {"type": "string", "minLength": 10},
+        "duplicate_rule": {"type": "string", "minLength": 10}
+      },
+      "additionalProperties": false
+    },
+    "atomic_batch": {
+      "type": "object",
+      "required": ["required", "transaction_count", "ordered_event_types"],
+      "properties": {
+        "required": {"const": true},
+        "transaction_count": {"type": "integer", "minimum": 1, "maximum": 2},
+        "ordered_event_types": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "row": {
+      "type": "object",
+      "required": [
+        "key",
+        "command_type",
+        "command_schema_identity",
+        "ordered_events",
+        "event_schema_bindings",
+        "target_stream_role",
+        "write_set",
+        "write_set_contract",
+        "authority_scope",
+        "authority_subject",
+        "authority_subject_fields",
+        "reducers",
+        "projections",
+        "concurrency_rule",
+        "expiry_revocation_rule",
+        "receipt_binding",
+        "atomic_batch",
+        "positive_test",
+        "negative_tests"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z_]+\\.[a-z_]+$"},
+        "command_type": {"enum": ["IssueCostGrant", "AuthorizeProviderIssue", "RecordProviderReceipt"]},
+        "command_schema_identity": {"$ref": "#/$defs/schema_identity"},
+        "ordered_events": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "event_schema_bindings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/event_schema_identity"},
+          "minItems": 1,
+          "maxItems": 2
+        },
+        "target_stream_role": {"enum": ["cost_grant", "provider_command"]},
+        "write_set": {
+          "type": "array",
+          "items": {"enum": ["cost_grant", "provider_command"]},
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "write_set_contract": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/write_set_item"},
+          "minItems": 1,
+          "maxItems": 2
+        },
+        "authority_scope": {"type": "string", "pattern": "^wp6\\.2\\.t2\\."},
+        "authority_subject": {"type": "string", "minLength": 1},
+        "authority_subject_fields": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "reducers": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9_]+@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "projections": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9_]+@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "concurrency_rule": {"type": "string", "minLength": 20},
+        "expiry_revocation_rule": {"type": "string", "minLength": 20},
+        "receipt_binding": {"$ref": "#/$defs/receipt_binding"},
+        "atomic_batch": {"$ref": "#/$defs/atomic_batch"},
+        "positive_test": {"type": "string", "pattern": "^pos_[a-z0-9_]+$"},
+        "negative_tests": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^neg_[a-z0-9_]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "protected_path_blob": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id"],
+      "properties": {
+        "repository_path": {"type": "string", "minLength": 1},
+        "git_blob_id": {"$ref": "#/$defs/git_blob"}
+      },
+      "additionalProperties": false
+    },
+    "protected_predecessors": {
+      "type": "object",
+      "required": [
+        "command_tree",
+        "event_tree",
+        "core_tree",
+        "receipt_1_0_0",
+        "provider_command_1_0_0",
+        "provider_receipt_1_0_0"
+      ],
+      "properties": {
+        "command_tree": {"$ref": "#/$defs/git_blob"},
+        "event_tree": {"$ref": "#/$defs/git_blob"},
+        "core_tree": {"$ref": "#/$defs/git_blob"},
+        "receipt_1_0_0": {"$ref": "#/$defs/protected_path_blob"},
+        "provider_command_1_0_0": {"$ref": "#/$defs/protected_path_blob"},
+        "provider_receipt_1_0_0": {"$ref": "#/$defs/protected_path_blob"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

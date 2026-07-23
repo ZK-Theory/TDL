@@ -1,0 +1,82 @@
+schema_id: ars://contracts/wp6-2-t2-normative-crosswalk
+schema_version: 1.0.0
+crosswalk_id: wp6-2-t2-r3-normative-crosswalk
+status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
+authorities:
+- W2
+- W7
+- W8
+- 06b
+- P-037
+- P-038
+- P-039
+- R2
+oracle_source: tests/research_system/contracts/wp6_2_t2_expectations.py#EXPECTED_CROSSWALK
+rows:
+- finding_id: C1
+  authority_refs: [W2, P-037, P-038]
+  schema_properties:
+  - ars://core/receipt/v2#/properties/outcome
+  - ars://core/receipt/v2#/properties/events
+  - ars://core/receipt/v2#/properties/original_accepted_receipt_hash
+  semantic_validators: [validate_receipt_v2]
+  positive_tests: [test_r3_receipt_v2_enforces_complete_ordered_proof]
+  negative_tests: [test_r3_red_c1_receipt_v2_rejects_internally_inconsistent_proof]
+- finding_id: C2
+  authority_refs: [W2, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/event/*#/properties/idempotency_key_hash
+  - ars://wp6-2/t2/event/*#/properties/actor_id
+  - ars://wp6-2/t2/event/*#/properties/authority_scope
+  - ars://wp6-2/t2/event/*#/properties/command_type
+  - ars://wp6-2/t2/event/*#/properties/idempotency_key
+  - ars://wp6-2/t2/event/*#/properties/payload_hash
+  semantic_validators: [rebuild_idempotency_index]
+  positive_tests: [test_rebuild_idempotency_index_from_canonical_event_bytes]
+  negative_tests: [test_r3_red_c2_logical_tuple_collision_is_command_id_independent]
+- finding_id: C3
+  authority_refs: [W7, 06b, P-039]
+  schema_properties:
+  - ars://wp6-2/t2/secret-reference#/strict_opaque_metadata_and_exact_binding
+  semantic_validators: [validate_t2_authority_contract]
+  positive_tests: [test_secret_reference_remains_strict_opaque_metadata]
+  negative_tests: [test_r3_red_c3_obsolete_evidence_system_is_absent_from_t2_surface]
+- finding_id: C4
+  authority_refs: [W2, P-037, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/command/*#/x-semantic-validation
+  - ars://wp6-2/t2/command/RecordProviderReceipt#/properties/payload
+  semantic_validators: [validate_command_relations]
+  positive_tests: [test_command_relations_positive_fixtures]
+  negative_tests: [test_command_relations_counterexamples]
+- finding_id: M1
+  authority_refs: [W8, P-037, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/cost-grant#/properties/rate_evidence
+  - ars://wp6-2/t2/event/CostGrantReconciled#/properties/payload
+  semantic_validators: [validate_t2_authority_cost_gate]
+  positive_tests: [test_t2_authority_cost_gate_composes_schema_arithmetic_and_evidence]
+  negative_tests: [test_t2_authority_cost_gate_rejects_each_cross_object_evidence_difference]
+- finding_id: M2
+  authority_refs: [W7, P-039]
+  schema_properties:
+  - ars://adapters/provider-command/v2#/x-t2-validation-scope=t2_authority_cost_subset
+  - ars://adapters/provider-receipt/v2#/x-t2-validation-scope=t2_authority_cost_subset
+  semantic_validators: [validate_provider_receipt_gates]
+  positive_tests: [test_provider_successors_cover_exact_t2_authority_cost_subset]
+  negative_tests: [test_r3_red_m2_provider_successors_are_labeled_exact_t2_subset]
+- finding_id: M3
+  authority_refs: [W2, W7, P-038]
+  schema_properties:
+  - ars://core/receipt/v2#/properties/events/items/properties/stream_id
+  semantic_validators: [validate_receipt_v2, validate_canonical_id]
+  positive_tests: [test_receipt_v2_permitted_stream_prefixes]
+  negative_tests: [test_r3_red_m3_receipt_stream_id_uses_canonical_permitted_prefix]
+- finding_id: I1
+  authority_refs: [P-039, R2]
+  schema_properties:
+  - ars://contracts/wp6-2-t2-protected-membership#/properties/members
+  - ars://contracts/wp6-2-t2-normative-crosswalk#/properties/rows
+  semantic_validators: [validate_protected_membership_contract, validate_crosswalk]
+  positive_tests: [test_protected_membership_recomputes_exact_live_set]
+  negative_tests: [test_r3_red_i1_protected_membership_is_explicit_and_omission_sensitive]
