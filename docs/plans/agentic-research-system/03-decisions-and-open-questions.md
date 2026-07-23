@@ -700,6 +700,34 @@ action requires separate authority.<br>
 **Affected specifications:** P-037; P-038; P-039; W2 receipt/event/idempotency; W7 T2
 authority/cost subset; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
 
+### P-041 - WP6.2 T2 rate-mode boundary exact-byte acceptance
+
+**Date:** 2026-07-23<br>
+**Status:** Accepted by Stephen<br>
+**Decision:** Accept exact commit
+`2048f6470a9542db967186cc260d235c3373de2e`, tree
+`1be775711befa047c7baa36fa485e5690b2277f1`, for its exact six-path bytes only.
+The accepted rule keeps reservation cost as a non-negative integer, requires
+`metered` reservations to be at least one, and requires
+`zero_cost_authorized` reservations to equal zero at both the
+`AuthorizeProviderIssue` command and mandatory `CostGrantReserved` event
+boundaries.<br>
+**Review evidence:**
+`reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md`; fresh independent
+verdict `accept` with 0 Critical, 0 Major, and 0 Minor findings. Six directly
+relevant boundary cases passed; the review ran no package-wide or
+framework-wide suite.<br>
+**Exact acceptance record:**
+`reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md` records
+Stephen's direct confirmation and the complete candidate path/blob/raw-SHA-256
+tuple.<br>
+**Boundary:** This decision accepts contract/schema/test bytes only. It grants
+no runtime T2 implementation, credential resolution, provider call, T3/T4,
+T1b, eligibility transition, result, claim, publication, PR merge, or Gate 6
+transition authority.<br>
+**Affected specifications:** P-037; P-040; W2 receipt/event/idempotency; W7 T2
+authority/cost subset; W8 resource/cost boundary; WP6.2 T2.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at

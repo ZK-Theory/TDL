@@ -73,6 +73,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r3-review-2026-07-22.md) | Final static R3 acceptance of candidate `391a9275`; zero Critical, Major, or Minor findings |
 | [reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md](reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md) | P-040 exact-byte owner acceptance of final WP6.2 T2 candidate `391a9275`, grounded in the zero-finding static R3 verdict; no runtime authority |
 | [reviews/wp6-2-t2-integration-seam-review-2026-07-23.md](reviews/wp6-2-t2-integration-seam-review-2026-07-23.md) | Independent zero-finding acceptance of exact T2 integration subject `57cec488`; later remediation requires separate review |
+| [reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md) | Fresh changed-elements-only acceptance of exact rate-mode boundary candidate `2048f647`; zero findings and six directly relevant boundary cases |
+| [reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md) | P-041 exact-byte owner acceptance of the six-path rate-mode boundary candidate; no runtime authority |
 
 ## Handover prompts
 
