@@ -25,6 +25,41 @@ _STREAM_ROLES = {
     "AuthorizeProviderIssue": ("cost_grant", "provider_command"),
     "RecordProviderReceipt": ("provider_command", "cost_grant"),
 }
+_SUBJECT_STEMS = {
+    "IssueCostGrant": (
+        "cost_grant",
+        "resource_grant",
+        "task",
+        "dispatch",
+        "attempt",
+        "provider_command",
+        "secret_reference",
+        "rate_evidence",
+    ),
+    "AuthorizeProviderIssue": (
+        "cost_grant",
+        "resource_grant",
+        "task",
+        "dispatch",
+        "attempt",
+        "provider_command",
+        "secret_reference",
+        "reservation",
+        "rate_evidence",
+    ),
+    "RecordProviderReceipt": (
+        "provider_command",
+        "resource_grant",
+        "task",
+        "dispatch",
+        "attempt",
+        "provider_receipt",
+        "cost_grant",
+        "reservation",
+        "secret_reference",
+        "rate_evidence",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -170,9 +205,9 @@ def _duplicate_receipt(accepted: T2Receipt) -> T2Receipt:
     ).to_record()
     duplicate["idempotency_key_hash"] = source["idempotency_key_hash"]
     duplicate["events"] = source["events"]
-    binding = dict(duplicate)
-    binding.pop("outcome_binding_hash")
-    duplicate["outcome_binding_hash"] = sha256_hex(canonical_bytes(binding))
+    # Receipt 2.0 binds a duplicate to the exact original accepted outcome
+    # proof, even though the duplicate reports zero new effects.
+    duplicate["outcome_binding_hash"] = source["outcome_binding_hash"]
     return T2Receipt(duplicate)
 
 
@@ -196,12 +231,65 @@ def _lookup(service: Any, kind: str, object_id: str, revision: int) -> Mapping[s
 def _triple_matches(
     record: Mapping[str, Any], kind: str, stem: str, payload: Mapping[str, Any]
 ) -> bool:
-    return (
-        record.get("kind") == kind
-        and record.get(f"{stem}_id") == payload.get(f"{stem}_id")
-        and record.get(f"{stem}_revision") == payload.get(f"{stem}_revision")
-        and record.get(f"{stem}_hash") == payload.get(f"{stem}_hash")
+    record_id = record.get(f"{stem}_id", record.get("id"))
+    record_revision = record.get(f"{stem}_revision", record.get("revision"))
+    record_hash = record.get(
+        f"{stem}_hash",
+        record.get("content_hash", record.get("revision_hash")),
     )
+    record_kind = record.get("kind")
+    return (
+        (record_kind == kind or (kind == "provider_receipt" and record.get("schema_id") == "ars://adapters/provider-receipt/v2"))
+        and record_id == payload.get(f"{stem}_id")
+        and record_revision == payload.get(f"{stem}_revision")
+        and record_hash == payload.get(f"{stem}_hash")
+    )
+
+
+def _subject_reason(command_type: str, stem: str) -> str:
+    if stem == "cost_grant":
+        return "cost_grant_identity_mismatch"
+    if stem == "provider_command":
+        return "provider_command_identity_mismatch"
+    if stem == "provider_receipt":
+        return "provider_receipt_identity_mismatch"
+    if stem == "secret_reference":
+        return "secret_reference_identity_mismatch"
+    if command_type == "RecordProviderReceipt":
+        return "provider_receipt_identity_mismatch"
+    return "schema_identity_mismatch"
+
+
+def _subject_gate(service: Any, envelope: Mapping[str, Any]) -> str | None:
+    """Bind every applicable payload triple to an independently resolved record."""
+    command_type = str(envelope["command_type"])
+    payload = envelope["payload"]
+    for stem in _SUBJECT_STEMS[command_type]:
+        record = _lookup(
+            service,
+            stem,
+            payload[f"{stem}_id"],
+            payload[f"{stem}_revision"],
+        )
+        if record is None or not _triple_matches(record, stem, stem, payload):
+            return _subject_reason(command_type, stem)
+    zero = payload.get("zero_cost_authority")
+    if isinstance(zero, Mapping):
+        record = _lookup(
+            service,
+            "zero_cost_authority",
+            str(zero.get("subject_id")),
+            int(zero.get("subject_revision", 0)),
+        )
+        if (
+            record is None
+            or record.get("kind") != "zero_cost_authority"
+            or record.get("id") != zero.get("subject_id")
+            or record.get("revision") != zero.get("subject_revision")
+            or record.get("content_hash") != zero.get("subject_hash")
+        ):
+            return "schema_identity_mismatch"
+    return None
 
 
 def _current(record: Mapping[str, Any], now: datetime) -> bool:
@@ -420,6 +508,9 @@ def _issue_semantics(service: Any, envelope: Mapping[str, Any], now: datetime) -
     payload = envelope["payload"]
     if envelope["write_set"][0]["expected_stream_version"] != 0:
         return "stale_stream_version"
+    subject_error = _subject_gate(service, envelope)
+    if subject_error is not None:
+        return subject_error
     resource = _lookup(
         service, "resource_grant", payload["resource_grant_id"], payload["resource_grant_revision"]
     )
@@ -541,6 +632,9 @@ def _authorize_semantics(
             return "cost_grant_exhausted"
         if not _current(override, now):
             return "cost_grant_expired"
+    subject_error = _subject_gate(service, envelope)
+    if subject_error is not None:
+        return subject_error
     try:
         if _parse_time(grant["expires_at"]) <= now:
             return "cost_grant_expired"
@@ -597,6 +691,9 @@ def _record_semantics(
         return "reconciliation_actuals_invalid"
     if payload["provider_receipt_id"] in state["provider_receipts"]:
         return "provider_receipt_identity_mismatch"
+    subject_error = _subject_gate(service, envelope)
+    if subject_error is not None:
+        return subject_error
     provider_receipt = _lookup(
         service,
         "provider_receipt",
@@ -614,6 +711,46 @@ def _record_semantics(
         return "schema_identity_mismatch"
     if payload["receipt_complete"] is not True:
         return "provider_receipt_incomplete"
+    try:
+        service.schemas.validate(
+            "ars://adapters/provider-receipt/v2",
+            provider_receipt,
+        )
+    except SchemaError:
+        return "provider_receipt_identity_mismatch"
+    receipt_command = provider_receipt["command_binding"]["provider_command"]
+    if (
+        receipt_command.get("id"),
+        receipt_command.get("revision"),
+        receipt_command.get("content_hash"),
+    ) != (
+        payload["provider_command_id"],
+        payload["provider_command_revision"],
+        payload["provider_command_hash"],
+    ):
+        return "provider_receipt_identity_mismatch"
+    receipt_authority = provider_receipt["authority_binding"]
+    for stem in (
+        "resource_grant",
+        "task",
+        "dispatch",
+        "attempt",
+        "cost_grant",
+        "reservation",
+        "secret_reference",
+        "provider_receipt",
+    ):
+        triple = receipt_authority[stem]
+        if (
+            triple.get("id"),
+            triple.get("revision"),
+            triple.get("content_hash"),
+        ) != (
+            payload[f"{stem}_id"],
+            payload[f"{stem}_revision"],
+            payload[f"{stem}_hash"],
+        ):
+            return "provider_receipt_identity_mismatch"
     if (
         envelope["write_set"][0]["expected_stream_version"]
         != payload["provider_command_revision"]
@@ -641,6 +778,38 @@ def _record_semantics(
             )
     actual = payload["actual_tokens"]
     reserved = payload["reserved_token_ceilings"]
+    receipt_accounting = provider_receipt["token_accounting"]
+    if (
+        (
+            receipt_accounting.get("actual_input_tokens"),
+            receipt_accounting.get("actual_output_tokens"),
+            receipt_accounting.get("actual_total_tokens"),
+            receipt_accounting.get("reserved_cost_microunits"),
+            receipt_accounting.get("consumed_cost_microunits"),
+            receipt_accounting.get("refund_cost_microunits"),
+            receipt_accounting.get("currency"),
+            receipt_accounting.get("rate_evidence_id"),
+            receipt_accounting.get("rate_evidence_revision"),
+            receipt_accounting.get("rate_evidence_hash"),
+            provider_receipt.get("terminal_outcome", {}).get("status"),
+            provider_receipt.get("completeness", {}).get("complete"),
+        )
+        != (
+            actual["input_tokens"],
+            actual["output_tokens"],
+            actual["total_tokens"],
+            payload["reserved_cost_microunits"],
+            payload["consumed_cost_microunits"],
+            payload["refund_cost_microunits"],
+            payload["currency"],
+            payload["rate_evidence_id"],
+            payload["rate_evidence_revision"],
+            payload["rate_evidence_hash"],
+            payload["provider_terminal_status"],
+            payload["receipt_complete"],
+        )
+    ):
+        return "reconciliation_actuals_invalid"
     if (
         actual["total_tokens"] != actual["input_tokens"] + actual["output_tokens"]
         or reserved != reservation["reserved_tokens"]
@@ -840,17 +1009,6 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             rejected = _receipt(envelope, "rejected", stable_reason="schema_hash_mismatch")
             service.schemas.validate("ars://core/receipt/v2", rejected.to_record())
             return service.receipts.write_t2(rejected)
-        stored = service.receipts.load_t2(command.command_id)
-        if stored is not None:
-            if stored.payload_hash != command.payload_hash:
-                return _receipt(envelope, "conflict", stable_reason="idempotency_conflict")
-            if stored.status == "accepted":
-                duplicate = _duplicate_receipt(stored)
-                service.schemas.validate(
-                    "ars://core/receipt/v2", duplicate.to_record()
-                )
-                return duplicate
-            return stored
         snapshot = service.ledger.snapshot()
         from research_system.projection.replay import replay
 
@@ -865,6 +1023,68 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             command_type,
             envelope["idempotency_key"],
         )
+        stored = service.receipts.load_t2(command.command_id)
+        if stored is not None:
+            try:
+                service.schemas.validate(
+                    "ars://core/receipt/v2",
+                    stored.to_record(),
+                )
+            except SchemaError as exc:
+                raise IntegrityError("stored Receipt 2.0 is schema-invalid") from exc
+            matching = next(
+                (
+                    events
+                    for events in batches.values()
+                    if events[0]["command_id"] == command.command_id
+                ),
+                None,
+            )
+            if stored.status == "accepted":
+                if matching is None:
+                    raise IntegrityError(
+                        "stored accepted Receipt 2.0 has no ledger proof"
+                    )
+                reconstructed = _accepted_receipt(matching[0], matching)
+                if stored.to_record() != reconstructed.to_record():
+                    raise IntegrityError(
+                        "stored Receipt 2.0 differs from ledger proof"
+                    )
+                first = matching[0]
+                existing_scope = (
+                    first["actor_id"],
+                    first["authority_scope"],
+                    first["command_type"],
+                    first["idempotency_key"],
+                )
+                if (
+                    existing_scope != scope
+                    or first["command_id"] != command.command_id
+                    or first["payload_hash"] != command.payload_hash
+                ):
+                    return _receipt(
+                        envelope,
+                        "conflict",
+                        stable_reason="idempotency_conflict",
+                    )
+                duplicate = _duplicate_receipt(stored)
+                service.schemas.validate(
+                    "ars://core/receipt/v2",
+                    duplicate.to_record(),
+                )
+                return duplicate
+            if (
+                stored.record["command_type"] != command_type
+                or stored.payload_hash != command.payload_hash
+                or stored.record["idempotency_key_hash"]
+                != sha256_hex(command.idempotency_key.encode("utf-8"))
+            ):
+                return _receipt(
+                    envelope,
+                    "conflict",
+                    stable_reason="idempotency_conflict",
+                )
+            return stored
         for events in batches.values():
             first = events[0]
             existing_scope = (

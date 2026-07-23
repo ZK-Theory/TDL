@@ -10,6 +10,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
 from research_system.command.t2 import T2Receipt
+from research_system.errors import IntegrityError
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
@@ -55,38 +56,223 @@ NOW = datetime(2026, 7, 23, 12, tzinfo=UTC)
 SCHEMAS = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
 
 
+def _subject(
+    kind: str,
+    subject_id: str,
+    revision: int,
+    content_hash: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "id": subject_id,
+        "revision": revision,
+        "content_hash": content_hash,
+        f"{kind}_id": subject_id,
+        f"{kind}_revision": revision,
+        f"{kind}_hash": content_hash,
+        **extra,
+    }
+
+
+def _resolved_provider_receipt(
+    *,
+    actual_input: int = 4,
+    actual_output: int = 2,
+    reserved_cost: int = 20,
+    consumed_cost: int = 8,
+) -> dict[str, Any]:
+    actual_total = actual_input + actual_output
+    reservation_id = "crs_019f8d10-0002-7000-8000-000000000002"
+
+    def triple(subject_id: str, revision: int, content_hash: str) -> dict[str, Any]:
+        return {
+            "id": subject_id,
+            "revision": revision,
+            "content_hash": content_hash,
+        }
+
+    return {
+        "schema_id": "ars://adapters/provider-receipt/v2",
+        "schema_version": "2.0.0",
+        "provider_receipt_id": PROVIDER_RECEIPT_ID,
+        "revision": 1,
+        "revision_hash": DIGESTS["receipt"],
+        "command_binding": {
+            "provider_command": triple(PROVIDER_COMMAND_ID, 1, DIGESTS["provider"]),
+            "w2_command": triple(
+                "cmd_019f8d10-0090-7000-8000-000000000090",
+                1,
+                sha256_hex(b"w2-command"),
+            ),
+            "idempotency_key_hash": sha256_hex(b"provider-call"),
+            "payload_hash": sha256_hex(b"provider-payload"),
+        },
+        "provider_binding": {
+            "provider": "claude",
+            "provider_identity": triple(
+                f"prv_{UUIDS['route']}", 1, DIGESTS["route"]
+            ),
+            "model": triple(f"mdl_{UUIDS['route']}", 1, DIGESTS["route"]),
+            "profile": triple(
+                f"prf_{UUIDS['profile']}", 1, DIGESTS["profile"]
+            ),
+            "adapter": triple(f"adp_{UUIDS['route']}", 1, DIGESTS["route"]),
+            "policy": triple(f"pol_{UUIDS['route']}", 1, DIGESTS["route"]),
+        },
+        "authority_binding": {
+            "task": triple(TASK_ID, 1, DIGESTS["task"]),
+            "dispatch": triple(DISPATCH_ID, 1, DIGESTS["dispatch"]),
+            "attempt": triple(ATTEMPT_ID, 1, DIGESTS["attempt"]),
+            "resource_grant": triple(
+                RESOURCE_GRANT_ID, 1, DIGESTS["resource"]
+            ),
+            "cost_grant": triple(COST_GRANT_ID, 2, DIGESTS["cost"]),
+            "reservation": triple(
+                reservation_id,
+                1,
+                sha256_hex(reservation_id.encode()),
+            ),
+            "secret_reference": triple(
+                SECRET_REFERENCE_ID, 1, DIGESTS["secret"]
+            ),
+            "provider_receipt": triple(
+                PROVIDER_RECEIPT_ID, 1, DIGESTS["receipt"]
+            ),
+        },
+        "delivery_binding": {
+            "disposition": "proven",
+            "rendered_payload_hash": sha256_hex(b"rendered"),
+            "delivered_context_hash": sha256_hex(b"context"),
+        },
+        "timestamps": {
+            "issued_at": "2026-07-23T12:00:00Z",
+            "terminal_at": "2026-07-23T12:00:01Z",
+        },
+        "token_accounting": {
+            "actual_input_tokens": actual_input,
+            "actual_output_tokens": actual_output,
+            "actual_total_tokens": actual_total,
+            "accounting_method": "provider_receipt_exact",
+            "reserved_cost_microunits": reserved_cost,
+            "consumed_cost_microunits": consumed_cost,
+            "refund_cost_microunits": reserved_cost - consumed_cost,
+            "currency": "GBP",
+            "rate_evidence_id": RATE_EVIDENCE_ID,
+            "rate_evidence_revision": 1,
+            "rate_evidence_hash": DIGESTS["rate"],
+        },
+        "terminal_outcome": {"status": "terminal", "normalized_error": None},
+        "outputs": {
+            "references": [],
+            "aggregate_hash": sha256_hex(b"outputs"),
+        },
+        "lifecycle_evidence": {
+            "retry_count": 0,
+            "duplicate_of_receipt": None,
+            "reconciliation": {
+                "subject_id": f"rec_{UUIDS['receipt']}",
+                "subject_revision": 1,
+                "subject_hash": DIGESTS["receipt"],
+            },
+        },
+        "evidence_disposition": {
+            "redaction": "secret_and_restricted_material_removed",
+            "omission_declarations": [],
+        },
+        "completeness": {
+            "complete": True,
+            "reconciliation_gate_satisfied": True,
+            "diagnostic_only": False,
+        },
+    }
+
+
 class Records:
     def __init__(self) -> None:
+        reservation_id = "crs_019f8d10-0002-7000-8000-000000000002"
         self.values: dict[tuple[str, str, int], dict[str, Any]] = {
-            ("resource_grant", RESOURCE_GRANT_ID, 1): {
-                "kind": "resource_grant",
-                "resource_grant_id": RESOURCE_GRANT_ID,
-                "resource_grant_revision": 1,
-                "resource_grant_hash": DIGESTS["resource"],
-                "status": "active",
-                "expires_at": "2026-07-24T00:00:00Z",
-            },
+            ("resource_grant", RESOURCE_GRANT_ID, 1): _subject(
+                "resource_grant",
+                RESOURCE_GRANT_ID,
+                1,
+                DIGESTS["resource"],
+                status="active",
+                expires_at="2026-07-24T00:00:00Z",
+            ),
             ("authority_grant", AUTHORITY_GRANT_ID, 1): {
                 "kind": "authority_grant",
                 "authority_grant_id": AUTHORITY_GRANT_ID,
                 "status": "active",
                 "expires_at": "2026-07-24T00:00:00Z",
             },
-            ("secret_reference", SECRET_REFERENCE_ID, 1): {
-                "kind": "secret_reference",
-                "secret_reference_id": SECRET_REFERENCE_ID,
-                "secret_reference_revision": 1,
-                "secret_reference_hash": DIGESTS["secret"],
-                "status": "active",
-                "expires_at": "2026-07-24T00:00:00Z",
-                "allowed_scope": "wp6.2.t2.provider.issue",
+            ("secret_reference", SECRET_REFERENCE_ID, 1): _subject(
+                "secret_reference",
+                SECRET_REFERENCE_ID,
+                1,
+                DIGESTS["secret"],
+                status="active",
+                expires_at="2026-07-24T00:00:00Z",
+                allowed_scope="wp6.2.t2.provider.issue",
+            ),
+            ("task", TASK_ID, 1): _subject(
+                "task", TASK_ID, 1, DIGESTS["task"]
+            ),
+            ("dispatch", DISPATCH_ID, 1): _subject(
+                "dispatch", DISPATCH_ID, 1, DIGESTS["dispatch"]
+            ),
+            ("attempt", ATTEMPT_ID, 1): _subject(
+                "attempt", ATTEMPT_ID, 1, DIGESTS["attempt"]
+            ),
+            ("provider_command", PROVIDER_COMMAND_ID, 1): _subject(
+                "provider_command",
+                PROVIDER_COMMAND_ID,
+                1,
+                DIGESTS["provider"],
+            ),
+            ("cost_grant", COST_GRANT_ID, 1): _subject(
+                "cost_grant",
+                COST_GRANT_ID,
+                1,
+                DIGESTS["cost"],
+                status="active",
+                expires_at="2026-07-24T00:00:00Z",
+            ),
+            ("cost_grant", COST_GRANT_ID, 2): _subject(
+                "cost_grant",
+                COST_GRANT_ID,
+                2,
+                DIGESTS["cost"],
+                status="active",
+                expires_at="2026-07-24T00:00:00Z",
+            ),
+            ("reservation", reservation_id, 1): _subject(
+                "reservation",
+                reservation_id,
+                1,
+                sha256_hex(reservation_id.encode()),
+            ),
+            ("rate_evidence", RATE_EVIDENCE_ID, 1): _subject(
+                "rate_evidence",
+                RATE_EVIDENCE_ID,
+                1,
+                DIGESTS["rate"],
+            ),
+            (
+                "zero_cost_authority",
+                ZERO_AUTHORITY["subject_id"],
+                1,
+            ): {
+                "kind": "zero_cost_authority",
+                "id": ZERO_AUTHORITY["subject_id"],
+                "revision": 1,
+                "content_hash": DIGESTS["zero"],
             },
-            ("provider_receipt", PROVIDER_RECEIPT_ID, 1): {
-                "kind": "provider_receipt",
-                "provider_receipt_id": PROVIDER_RECEIPT_ID,
-                "provider_receipt_revision": 1,
-                "provider_receipt_hash": DIGESTS["receipt"],
-            },
+            (
+                "provider_receipt",
+                PROVIDER_RECEIPT_ID,
+                1,
+            ): _resolved_provider_receipt(),
         }
 
     def __call__(self, kind: str, object_id: str, revision: int) -> dict[str, Any] | None:
@@ -365,6 +551,13 @@ def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_pat
     duplicate = service.submit(record)
     assert duplicate.status == "duplicate"
     assert duplicate.events == accepted[2].events
+    assert (
+        duplicate.record["outcome_binding_hash"]
+        == accepted[2].record["outcome_binding_hash"]
+    )
+    assert duplicate.record["original_accepted_receipt_hash"] == sha256_hex(
+        canonical_bytes(accepted[2].to_record())
+    )
     assert duplicate.record["new_event_count"] == 0
     assert len(list(ledger.iter_batches())) == 3
     assert invocations["count"] == 0
@@ -432,6 +625,46 @@ def test_exact_replay_and_idempotency_conflicts_are_command_specific(tmp_path: P
     assert service.submit(changed).record["stable_reason"] == "idempotency_conflict"
     assert len(tuple(ledger.iter_batches())) == 1
     assert accepted.status == "accepted"
+
+
+def test_accepted_command_id_payload_cannot_replay_under_different_scope_tuple(
+    tmp_path: Path,
+) -> None:
+    service, ledger, _, _ = _service(tmp_path)
+    command = issue_command()
+    assert service.submit(command).status == "accepted"
+
+    changed_actor = deepcopy(command)
+    changed_actor["actor_id"] = ACTORS["actor-b"]
+    actor_result = service.submit(changed_actor)
+    assert actor_result.status == "conflict"
+    assert actor_result.record["stable_reason"] == "idempotency_conflict"
+
+    changed_key = deepcopy(command)
+    changed_key["idempotency_key"] = "different-key"
+    key_result = service.submit(changed_key)
+    assert key_result.status == "conflict"
+    assert key_result.record["stable_reason"] == "idempotency_conflict"
+    assert len(tuple(ledger.iter_batches())) == 1
+
+
+def test_stored_receipt_proof_is_reconstructed_from_ledger_before_duplicate(
+    tmp_path: Path,
+) -> None:
+    service, ledger, receipts, _ = _service(tmp_path)
+    command = issue_command()
+    accepted = service.submit(command)
+    corrupted = accepted.to_record()
+    corrupted["events"][0]["resulting_stream_version"] = 2
+    binding = dict(corrupted)
+    binding.pop("outcome_binding_hash")
+    corrupted["outcome_binding_hash"] = sha256_hex(canonical_bytes(binding))
+    path = receipts.receipts_root / f"{command['command_id']}.json"
+    path.write_bytes(canonical_bytes(corrupted))
+
+    with pytest.raises(IntegrityError, match="differs from ledger proof"):
+        service.submit(command)
+    assert len(tuple(ledger.iter_batches())) == 1
 
 
 @pytest.mark.parametrize(
@@ -550,6 +783,9 @@ def test_zero_cost_mode_and_reconcile_after_lifecycle_expiry(tmp_path: Path) -> 
     assert service.submit(issue_command(zero_cost=True)).status == "accepted"
     authorize = authorize_command(zero_cost=True)
     assert service.submit(authorize).status == "accepted"
+    records.values[
+        ("provider_receipt", PROVIDER_RECEIPT_ID, 1)
+    ] = _resolved_provider_receipt(reserved_cost=0, consumed_cost=0)
     records.values[("secret_reference", SECRET_REFERENCE_ID, 1)]["revoked"] = True
     records.values[("resource_grant", RESOURCE_GRANT_ID, 1)]["expires_at"] = "2026-07-23T11:00:00Z"
     receipt = service.submit(record_command(authorize, zero_cost=True))
@@ -558,6 +794,35 @@ def test_zero_cost_mode_and_reconcile_after_lifecycle_expiry(tmp_path: Path) -> 
     assert reconciled["consumed_cost_microunits"] == 0
     assert reconciled["refund_cost_microunits"] == 0
     assert reconciled["remaining_cost_microunits"] == 100
+
+
+@pytest.mark.parametrize("mutation", ["actuals", "cost", "status"])
+def test_conflicting_independently_resolved_provider_receipt_rejects_atomically(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    service, ledger, _, records = _service(tmp_path)
+    assert service.submit(issue_command()).status == "accepted"
+    authorize = authorize_command()
+    assert service.submit(authorize).status == "accepted"
+    resolved = records.values[("provider_receipt", PROVIDER_RECEIPT_ID, 1)]
+    if mutation == "actuals":
+        resolved["token_accounting"]["actual_input_tokens"] = 5
+        resolved["token_accounting"]["actual_total_tokens"] = 7
+    elif mutation == "cost":
+        resolved["token_accounting"]["consumed_cost_microunits"] = 9
+        resolved["token_accounting"]["refund_cost_microunits"] = 11
+    else:
+        resolved["terminal_outcome"]["status"] = "blocked"
+
+    result = service.submit(record_command(authorize))
+    assert result.status == "rejected"
+    assert result.record["stable_reason"] == "reconciliation_actuals_invalid"
+    assert len(tuple(ledger.iter_batches())) == 2
+    assert not any(
+        event["event_type"] == "ProviderReceiptRecorded"
+        for event in ledger.iter_events()
+    )
 
 
 @pytest.mark.parametrize(
