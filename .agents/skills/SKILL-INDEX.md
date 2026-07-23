@@ -23,8 +23,7 @@
   lane-touching output through research-assurance triage).
 - **Tier 3 — optional workflow layer** (carry the Tier 3 constraint; may not
   create claims, result artifacts, or contract-bearing implementations
-  directly), including `tda-large-workflow-supervision` for standalone
-  multi-stage campaigns.
+  directly).
 
 ## Routing Table
 
@@ -42,7 +41,6 @@
 | Speculative hypothesis, future-paper branching | `tda-research-ideation-lab` |
 | Multi-branch decision needing risk analysis | `tda-scenario-stress-test` |
 | Creating/reviewing/refactoring a skill | `tda-skill-authoring-workbench` |
-| Large standalone campaign, context rotation, exact-state packet | `tda-large-workflow-supervision` |
 | Git safety, hook coverage, agent write boundaries | `tda-agent-safety-guardrails` |
 | Study material, exercises, Lean/Manim drills | `tda-learning-scaffold` |
 | Web page, talk, poster from a stable result | `tda-paper-dissemination-pack` |
