@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from jsonschema import Draft202012Validator
 
 from tests.research_system.contracts import wp6_2_t2_authority_validation as validation
 from tests.research_system.contracts.wp6_2_t2_authority_validation import (
@@ -861,6 +862,110 @@ def test_t2_authority_cost_gate_composes_schema_arithmetic_and_evidence() -> Non
         provider_receipt=provider_receipt,
         reconciliation=reconciliation,
     )
+
+
+def test_zero_cost_authorization_accepts_zero_reservation_end_to_end() -> None:
+    cost_grant, reservation, provider_receipt, reconciliation = _authority_cost_fixtures()
+    suffix = "018f47a2-9b3c-7def-8abc-0123456789ab"
+    digest = "a" * 64
+    zero_cost_authority = {
+        "subject_id": f"zca_{suffix}",
+        "subject_revision": 1,
+        "subject_hash": digest,
+    }
+    rate_fields = {
+        "input_microunits_per_million_tokens": 0,
+        "output_microunits_per_million_tokens": 0,
+        "rate_mode": "zero_cost_authorized",
+        "zero_cost_authority": zero_cost_authority,
+    }
+
+    cost_grant["rate_evidence"].update(
+        {
+            "mode": "zero_cost_authorized",
+            **rate_fields,
+        }
+    )
+    cost_grant["rate_evidence"].pop("rate_mode")
+    reservation.update(
+        {
+            "reserved_cost_microunits": 0,
+            **rate_fields,
+        }
+    )
+    provider_receipt["token_accounting"].update(
+        {
+            "reserved_cost_microunits": 0,
+            "consumed_cost_microunits": 0,
+            "refund_cost_microunits": 0,
+        }
+    )
+    reconciliation.update(
+        {
+            "reserved_cost_microunits": 0,
+            "consumed_cost_microunits": 0,
+            "refund_cost_microunits": 0,
+            "refund_disposition": "fully_consumed",
+            **rate_fields,
+        }
+    )
+    command_payload = {
+        "cost_grant_id": f"cgr_{suffix}",
+        "cost_grant_revision": 1,
+        "cost_grant_hash": digest,
+        "resource_grant_id": f"rgr_{suffix}",
+        "resource_grant_revision": 1,
+        "resource_grant_hash": digest,
+        "task_id": f"tsk_{suffix}",
+        "task_revision": 1,
+        "task_hash": digest,
+        "dispatch_id": f"dsp_{suffix}",
+        "dispatch_revision": 1,
+        "dispatch_hash": digest,
+        "attempt_id": f"att_{suffix}",
+        "attempt_revision": 1,
+        "attempt_hash": digest,
+        "reservation_id": f"crs_{suffix}",
+        "reservation_revision": 1,
+        "reservation_hash": digest,
+        "provider_command_id": f"pcmd_{suffix}",
+        "provider_command_revision": 1,
+        "provider_command_hash": digest,
+        "secret_reference_id": f"srf_{suffix}",
+        "secret_reference_revision": 1,
+        "secret_reference_hash": digest,
+        "requested_tokens": reservation["reserved_tokens"],
+        "reserved_cost_microunits": 0,
+        "expected_available_microunits": 1000,
+        "currency": reservation["currency"],
+        "rate_evidence_id": reservation["rate_evidence_id"],
+        "rate_evidence_revision": reservation["rate_evidence_revision"],
+        "rate_evidence_hash": reservation["rate_evidence_hash"],
+        **rate_fields,
+        "rendered_payload_hash": digest,
+    }
+
+    command_schema = json.loads(
+        (REPO_ROOT / SCHEMA_IDENTITIES["AuthorizeProviderIssue"]["path"]).read_text(encoding="utf-8")
+    )
+    command_validator = Draft202012Validator(command_schema["properties"]["payload"])
+    assert not list(command_validator.iter_errors(command_payload))
+    validation.validate_t2_authority_cost_gate(
+        REPO_ROOT,
+        cost_grant=cost_grant,
+        reservation=reservation,
+        provider_receipt=provider_receipt,
+        reconciliation=reconciliation,
+    )
+
+    command_payload["reserved_cost_microunits"] = -1
+    assert any(error.validator == "minimum" for error in command_validator.iter_errors(command_payload))
+    reservation_schema = json.loads(
+        (REPO_ROOT / SCHEMA_IDENTITIES["CostGrantReserved"]["path"]).read_text(encoding="utf-8")
+    )
+    reservation_validator = Draft202012Validator(reservation_schema["properties"]["payload"])
+    reservation["reserved_cost_microunits"] = -1
+    assert any(error.validator == "minimum" for error in reservation_validator.iter_errors(reservation))
 
 
 @pytest.mark.parametrize(

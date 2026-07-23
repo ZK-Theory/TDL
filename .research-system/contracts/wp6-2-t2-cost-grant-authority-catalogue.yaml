@@ -186,8 +186,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
     schema_id: ars://wp6-2/t2/event/CostGrantReserved
     schema_version: 1.0.0
-    git_blob_id: d28175aedae02d39df40e6661a05f54e2b9499eb
-    raw_utf8_lf_sha256: b86f616ee41673e16cc974a866694f49fe57a40725c3fc7ca3f6f841d68eaeb5
+    git_blob_id: 8b6e484299fe54431eb6aba77e8ff0bf42a0b7bf
+    raw_utf8_lf_sha256: 42c158665c50086448205a69385aa474ee221eaa978612a28b97f8d2240511d4
   - event_type: ProviderCommandIssued
     repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
     schema_id: ars://wp6-2/t2/event/ProviderCommandIssued

@@ -910,7 +910,7 @@ def _event_payloads() -> dict[str, dict[str, Any]]:
             "reservation_id": _id("crs"),
             "provider_command_id": _id("pcmd"),
             "reserved_tokens": _token_amounts(minimum=0),
-            "reserved_cost_microunits": {"type": "integer", "minimum": 1},
+            "reserved_cost_microunits": {"type": "integer", "minimum": 0},
             "remaining_cost_microunits": {"type": "integer", "minimum": 0},
             "currency": _string(pattern="^[A-Z]{3}$"),
             "rate_evidence_id": _canonical_id(),
