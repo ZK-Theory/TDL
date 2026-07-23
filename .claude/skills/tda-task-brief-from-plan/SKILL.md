@@ -2,7 +2,7 @@
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: core
   lanes: []
   roles:
@@ -37,9 +37,9 @@ One concrete outcome.
 - Supervision phase: certify | deliver
 - Lifecycle phase: plan | materialize | implement | review | remediate | integrate
 - Context mode: fresh | bounded continuation
-- Context budget: <tokens or observable rotation condition>
+- Rotation condition: <observable condition; no estimated token threshold>
 - Fork policy: none | <small positive count with reason>
-- Primary skills: <maximum two>
+- Required skills: <skill -> purpose>
 - Conditional skills: <trigger -> skill>
 - External-review owner: Stephen | not applicable
 - Author-review cycle: <integer, normally 1>
@@ -47,7 +47,6 @@ One concrete outcome.
 - Merge strategy: <preserve accepted ancestor; no squash unless re-authorized>
 - External-review file cap: <integer; CodeRabbit hard limit 100>
 - Research-value disposition: <required now | deferred stage | separately elevated>
-- Efficiency evidence: <duration/turn/compaction/test metrics available at closeout>
 
 ## Non-goals
 What this task must not do.
@@ -114,10 +113,10 @@ When the agent must stop and ask or escalate.
 - **Workflow identity comes first.** A standalone brief must not route through
   APM skills, `.apm` campaign state, the APM Memory Bank, or APM guides/checkers.
   Use `tda-large-workflow-supervision` for large standalone campaigns.
-- **Budget context deliberately.** Use at most two primary skills and make
-  secondary skills conditional on a named artifact or assurance trigger. A
-  self-contained implementer or independent reviewer starts without parent
-  conversation history; any bounded continuation records why it is needed.
+- **Choose context deliberately.** Load only skills required by the work or a
+  named assurance trigger. Independent reviewers start without parent history.
+  For implementers, choose fresh context or a bounded continuation according to
+  which carries the required evidence with less replay, and record why.
 - **Canonical transition closure** is mandatory before implementation of
   canonical state. Resolve every proposed mutation to an accepted writer,
   exact command/event/schema identity, reducer/projection and stream owner,
@@ -142,8 +141,8 @@ When the agent must stop and ask or escalate.
 ## Completion Checklist
 
 - [ ] Task is vertical; target paper identified.
-- [ ] Workflow system, lifecycle/supervision phase, context/fork budget, skill
-      budget, external-review owner, and cycle limit recorded.
+- [ ] Workflow system, lifecycle/supervision phase, context/fork policy,
+      required skills, external-review owner, and cycle limit recorded.
 - [ ] Assurance lanes marked; contract requirement resolved upstream.
 - [ ] Canonical-transition closure recorded for every canonical mutation, or
       the task stops before implementation.
