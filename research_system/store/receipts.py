@@ -7,6 +7,7 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
+from research_system.command.t2 import T2Receipt
 from research_system.errors import ConflictError, IdempotencyConflictError
 
 
@@ -160,6 +161,36 @@ class ReceiptStore:
                 return receipt
             raise ConflictError(f'receipt already exists: {receipt.command_id}')
         temporary = self.runtime_root / f'{receipt.command_id}.receipt.tmp'
+        if not temporary.exists() or temporary.read_bytes() != data:
+            with temporary.open('wb') as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        self._after_temp_fsync(temporary)
+        self._publish(temporary, target)
+        self._after_publish(target)
+        return receipt
+
+    def load_t2(self, command_id: str) -> T2Receipt | None:
+        path = self.receipts_root / f'{command_id}.json'
+        if not path.exists():
+            return None
+        try:
+            record = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConflictError('invalid Receipt 2.0') from exc
+        if not isinstance(record, dict) or record.get('schema_id') != 'ars://core/receipt/v2':
+            raise ConflictError('invalid Receipt 2.0')
+        return T2Receipt.from_record(record)
+
+    def write_t2(self, receipt: T2Receipt) -> T2Receipt:
+        target = self.receipts_root / f'{receipt.command_id}.json'
+        data = canonical_bytes(receipt.to_record())
+        if target.exists():
+            if target.read_bytes() == data:
+                return receipt
+            raise ConflictError(f'receipt already exists: {receipt.command_id}')
+        temporary = self.runtime_root / f'{receipt.command_id}.receipt-v2.tmp'
         if not temporary.exists() or temporary.read_bytes() != data:
             with temporary.open('wb') as handle:
                 handle.write(data)
