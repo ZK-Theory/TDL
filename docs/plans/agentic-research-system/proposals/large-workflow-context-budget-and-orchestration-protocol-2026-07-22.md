@@ -1,9 +1,11 @@
 # Large-Workflow Context Budget and Orchestration Protocol
 
 **Date:** 2026-07-22
-**Status:** ADVISORY INTEGRATION APPROVED by Stephen on 2026-07-22; active as
-guidance, not a mandatory checker or convention lock. Completed-cycle v1.1
-revisions are proposed by the 2026-07-23 assessment.
+**Status:** HISTORICAL ADVISORY. Superseded as operating guidance by
+`tda-large-workflow-supervision` v1.2 after the 2026-07-23 session-evidence
+review. Retained to preserve the original proposal and trial rationale; do not
+use its estimated token threshold, fixed skill count, producer efficiency
+reporting, or blanket fresh-implementer rule for dispatch.
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
 **Workflow system:** Standalone TDL supervision. APM lifecycle, Memory Bank, skills,
 state, guides, and checkers are out of scope and remain unchanged.

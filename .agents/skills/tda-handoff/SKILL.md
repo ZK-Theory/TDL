@@ -114,4 +114,4 @@ review cap; CodeRabbit's hard limit is 100 files.
 
 `tda-task-brief-from-plan` (when the next session's work deserves a formal
 brief) · `commit-log` · `vault-sync` · the numbered APM handoff skills for
-APM agents Â· `tda-large-workflow-supervision` (observable rotation).
+APM agents · `tda-large-workflow-supervision` (observable rotation).

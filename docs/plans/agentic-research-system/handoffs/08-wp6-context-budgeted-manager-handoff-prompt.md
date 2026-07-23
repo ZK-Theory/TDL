@@ -1,5 +1,11 @@
 # WP6 Context-Budgeted Manager Handoff Prompt
 
+> [!CAUTION]
+> **HISTORICAL — DO NOT DISPATCH OR COPY.** This prompt preserves the original
+> WP6 trial record and contains efficiency controls withdrawn after the session-
+> evidence review. Use `tda-large-workflow-supervision` v1.2 and a new bounded
+> task brief instead. The historical body below is not current authority.
+
 **Created:** 2026-07-22
 **State snapshot:** `origin/main` and GitHub PR metadata refreshed 2026-07-22
 **Purpose:** Start a fresh coordinating Manager for the remaining WP6 work without

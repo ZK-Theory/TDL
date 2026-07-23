@@ -1,5 +1,11 @@
 # WP6.2 T2 Authority-Addendum Authoring Prompt
 
+> [!CAUTION]
+> **HISTORICAL — DO NOT DISPATCH OR COPY.** P-039 superseded this prompt's T2
+> assurance scope, and P-040 records completion and exact-byte acceptance. The
+> broad README allowance and earlier context envelope below are preserved only
+> as evidence of the original dispatch, not as current write authority.
+
 **Created:** 2026-07-22
 **Decision authority:** P-037 and the accepted T2 ruling dated 2026-07-22
 **Workflow system:** Standalone TDL supervision; not APM

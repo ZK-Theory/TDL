@@ -1,5 +1,11 @@
 # WP6.2 T2 Standalone Context-Budget V2 Prompt
 
+> [!CAUTION]
+> **HISTORICAL — DO NOT DISPATCH OR COPY.** This V2 trial prompt contains the
+> withdrawn estimated-token threshold and blanket context rules. Its completed
+> handback remains evidence; current work uses `tda-large-workflow-supervision`
+> v1.2 and a newly named handback path.
+
 **Created:** 2026-07-22
 **Trial:** `gate6-wp6-2-t2-context-budget-v2`
 **Purpose:** Test delivery supervision from the certified V1 packet without replaying

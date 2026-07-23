@@ -1,7 +1,12 @@
 # WP6.1 Closure and WP6.2 Context-Budget Trial Handoff
 
+> [!CAUTION]
+> **HISTORICAL — DO NOT DISPATCH OR COPY.** This completed trial handoff contains
+> withdrawn efficiency controls. It remains only as evidence of what was tested;
+> use `tda-large-workflow-supervision` v1.2 for current work.
+
 **Created:** 2026-07-22
-**Status:** V1 completed; superseded for continuation by handoff 10
+**Status:** Historical V1 record; superseded for all continuation
 **Purpose:** Close the existing WP6.1 review stack without importing its accumulated
 context into the first context-budgeted Manager trial, then trial the proposed method
 on WP6.2 and return an exact-state handback for assessment.
