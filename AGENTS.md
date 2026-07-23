@@ -130,6 +130,15 @@ For every Codex worktree dispatch that will write:
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.
 - When a task prompt specifies an allowed prefix family, choose from that family and keep the subject within the same project convention.
 
+## Large-workflow context discipline
+
+Use `tda-large-workflow-supervision` as the single canonical operating procedure
+for standalone multi-stage, review-heavy campaigns. The guide at
+`docs/guides/large-workflow-supervision.md` contains examples only. Do not treat
+estimated token thresholds, fixed skill counts, or producer self-reporting as
+evidence of token efficiency; audit that separately from session JSONL and
+billing/token telemetry.
+
 ## After editing
 
 If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed — the next `Grep` or `Read` picks up the change directly from disk.

@@ -559,6 +559,147 @@ alter the reviewed requirements.<br>
 **Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
 Gate 6 launch and dispatch-planning controls.
 
+### P-037 - WP6.2 T2 cost-grant authority and versioning
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-035/P-036 by supplying the previously missing T2 canonical-transition
+authority; does not alter the accepted WP6.1/T1a bytes or the WP6.2 dependency graph<br>
+**Decision:** The existing project-wide `CommandService` remains the sole canonical
+writer. A separately content-addressed WP6.2 T2 authority addendum must define exactly
+these command families: `IssueCostGrant -> CostGrantIssued`;
+`AuthorizeProviderIssue -> [CostGrantReserved, ProviderCommandIssued]` as one atomic
+ordered batch; and `RecordProviderReceipt -> [ProviderReceiptRecorded,
+CostGrantReconciled]` as one atomic ordered batch. Replay returns the original receipt
+and emits no duplicate reservation, issue, provider invocation, receipt,
+reconciliation, or refund. No direct or second cost writer is permitted.<br>
+**Versioning rule:** New `SecretReference`, `CostGrant`, command, and event identities
+begin at `1.0.0`. A required-field expansion of accepted `ProviderCommand` or
+`ProviderReceipt` uses an explicit `2.0.0` successor; `1.1.0` is reserved for genuinely
+optional backward-compatible additions. Historical schemas and records are never
+rewritten.<br>
+**Evidence:** The V2 exact-state handback and its assessment verified that P-020 and W2
+already settle writer ownership and general versioning, while the accepted 06d
+catalogue and current `CommandService` omit the exact T2 transition family. Stephen's
+2026-07-22 reply `Approve both` accepted the dedicated ruling together with the
+standalone-workflow advisory integration.<br>
+**Boundary:** This decision authorizes contract/addendum authorship and fresh
+independent review only. It authorizes no runtime implementation, T3/T4, live provider
+call, T1b, eligibility transition, result, claim, or mutation of accepted WP6.1/T1a
+artifacts.<br>
+**Transport clarification (2026-07-23):** P-037's atomic ordered batches are atomic
+only within `CommandService`; they do not make the external provider transport atomic
+or eliminate its crash window. P-037 does not settle whether `ProviderCommandIssued`
+records dispatch intent or a completed invocation, and it defines no accepted
+outbox/idempotent-dispatch protocol. Runtime provider work remains blocked until a
+separate accepted authority resolves that seam. The exact accepted P-037 proposal is
+preserved unchanged.<br>
+**Remaining gate:** Fresh independent review followed by Stephen's acceptance of the
+exact addendum and identity-manifest repository paths, Git blobs, raw-byte SHA-256
+identities, and reviewed commit before any T2 implementation brief may issue.<br>
+**Affected specifications:** W2 command/event/versioning contract; W7 provider
+command/receipt contract; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
+### P-038 - WP6.2 T2 R1 remediation authority
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-037 only to close the exact R1 contract gaps; the three command families,
+ordered event batches, sole-writer rule, and immutable accepted bytes remain unchanged<br>
+**Decision:** Authorize one bounded remediation of the rejected T2 authority-addendum
+candidate. The remediation introduces an explicit Receipt 2.0 proof surface; rebuildable
+idempotency and payload hashes on all five T2 event envelopes; a typed and evidence-
+producing eight-seam pre-issue secret boundary; semantic cross-field identity and
+authority validation; integer token-ceiling and cost-reconciliation arithmetic; complete
+W7 ProviderCommand/ProviderReceipt 2.0 crosswalks; exact lowercase UUIDv7 enforcement;
+and an independent machine-readable completeness oracle. Accepted W7 `pcmd_` and
+`prcp_` prefixes remain scoped exceptions, while new T2 first-class identities use the
+three-letter prefixes fixed in the ruling.<br>
+**Exact accepted proposal:**
+`proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md` at manager commit
+`02f7b0b951b2141fb08374bbfcb3bcc368938907`, Git blob
+`64dc129bd8147728fe007d31db54b512d633eb1f`, raw-byte SHA-256
+`e309b56b8d2142791171e6cfab5150f43cb2c4339d923204d64e36d12479fa52`.<br>
+**Boundary:** Candidate `1144d6a6d0feb28473fb540d41ff03bff79eec24` remains immutable
+rejected history. P-038 authorizes one contract/addendum remediation cycle and one fresh
+independent R2 review only. It authorizes no runtime implementation, live provider call,
+T3/T4, T1b, eligibility transition, result, claim, or accepted-artifact rewrite.<br>
+**Remaining gate:** The author returns one new immutable candidate and exact-state
+handback. A fresh independent reviewer receives no author or manager conversation
+history. Stephen must accept the exact remediated paths, blobs, raw-byte hashes,
+candidate commit, and approving verdict before any T2 implementation brief may issue.<br>
+**Affected specifications:** P-037; W2 receipt/event/idempotency contracts; W7 provider
+command/receipt contracts; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
+### P-039 - WP6.2 T2 research-first scope and final remediation
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-038's C3/M2 scope and evidence timing; preserves P-037's three command
+families, ordered event batches, sole-writer rule, and immutable accepted bytes<br>
+**Decision:** Apply a research-value gate before non-research assurance becomes blocking:
+name the protected research asset, concrete failure path, insufficiency of existing
+controls, cheapest adequate control, evidentiary lifecycle stage, and bounded effort.
+Prioritize mathematical/statistical/result assurance, data/provenance/reproducibility,
+then minimal operational enablement. General hardening is separately justified and
+defaults to at most 10% of the dispatched workflow budget.<br>
+**T2 scope correction:** Retain strict opaque `SecretReference` metadata and exact
+authority binding, but remove `PreIssueEvidenceManifest` and eight-seam scanner/sentinel
+evidence as T2 blocking artifacts; defer that runtime evidence to T3/T4 against actual
+adapter surfaces. Validate only the P-037 authority/cost/provenance subset of
+ProviderCommand/ProviderReceipt 2.0 at T2; defer complete W7 runtime qualification to
+T3/T4.<br>
+**Final-cycle authority:** Authorize one final contract-only remediation of corrected R2
+findings C1, C2, C4, M1, M3, and I1, plus the explicit C3/M2 scope reduction, followed
+by one fresh static R3. If R3 remains `rework_required`, stop; no third remediation cycle
+is authorized.<br>
+**Exact accepted proposal:**
+`proposals/wp6-2-t2-research-first-scope-and-r3-remediation-ruling-2026-07-22.md` at
+manager commit `1301d8a5f089d27270c36b216967000a35472efc`, Git blob
+`1c6703b37579a0ffa35bfec0f9cccc7180a37f79`, raw-byte SHA-256
+`959ebeafa67368ffc87592134fd9c0caf385b4b562278789273563844295492f`.<br>
+**Execution closure:** P-040 and
+`reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md` supply the immutable R3
+candidate commit/tree, changed-path set, artifact blob/raw-hash identities, exact
+reviewer subject, review identity, and owner acceptance. This later external record
+closes the binding omission without rewriting the accepted P-039 bytes.<br>
+**Boundary:** No runtime code, credential resolution, provider call, T3/T4, T1b,
+eligibility, result, claim, publication, accepted-artifact mutation, reviewer-authored
+security probing, or third remediation cycle is authorized.<br>
+**Affected specifications:** P-038; W2 receipt/event/idempotency; W7 T2 subset and later
+runtime qualification; W8 cost boundary; WP6.2 T2; large-workflow assurance budgeting.
+
+### P-040 - WP6.2 T2 exact-byte contract acceptance
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Closes:** P-037's exact addendum, identity-manifest, reviewed-commit, and owner-
+acceptance gate<br>
+**Decision:** Accept the WP6.2 T2 contract/addendum candidate commit
+`391a92753d7f746fa91a6b5455c9ce0fd01baa52`, tree
+`0254c5416925126412867d61b3045ee1563abd0c`, for its exact bytes only. The
+candidate contains exactly 27 changed paths: 26 present blobs and the P-039-authorized
+deletion of the T2 pre-issue evidence manifest. The external decision record, rather
+than mutation of the accepted candidate, supplies the accepted lifecycle state.<br>
+**Review evidence:** Final static R3 review commit
+`655f4173db93447a068adc6e92621455c4abc85d`; report Git blob
+`1ad44c1f79ea9738f8ff5e2369bab3a32b4f940d`; raw-byte SHA-256
+`17906c4ae1916840dfe94aab3f5991d17e8037940802ec1338c49b53f9506fd8`;
+verdict `accept` with 0 Critical, 0 Major, and 0 Minor findings, 135/135 focused
+tests, 102/102 contracts, and independent reproduction of the 220-member protected
+aggregate.<br>
+**Exact acceptance record:**
+`reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md` records Stephen's direct
+confirmation and the exact candidate, handback, authority-addendum, catalogue,
+crosswalk, protected-membership, schema-identity, and R3-report identities.<br>
+**Boundary:** This closes the contract-candidate review and owner-acceptance gate only.
+It authorizes no runtime implementation, credential resolution, provider call, T3/T4,
+T1b, eligibility transition, result, claim, publication, accepted-artifact mutation,
+PR merge, or further Gate 6 transition. A later implementation brief or integration
+action requires separate authority.<br>
+**Affected specifications:** P-037; P-038; P-039; W2 receipt/event/idempotency; W7 T2
+authority/cost subset; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at

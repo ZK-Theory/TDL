@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.0.0"
+  version: "1.2.0"
   tier: core
   lanes: []
   roles:
@@ -22,10 +22,15 @@ entry.
 
 ## Where It Goes
 
-Write to `.apm/memory/handoffs/YYYY-MM-DD-<task>.md` (gitignored runtime
-state), or wherever the receiving runtime can read. Session commentary worth
-preserving long-term goes to the vault daily note via `vault-sync`, not the
-handoff.
+For `workflow_system: standalone`, write to the explicitly authorized neutral
+repository path, normally the active project's existing `handoffs/` directory.
+If the project has no handoff directory, use `docs/handoffs/` only when that
+path is in scope; otherwise return the handback in the final response and ask
+the receiver to place it. Never default standalone state into `.apm`.
+
+APM work does not use this skill: its numbered APM handoff skills own paths and
+Memory Bank state. Session commentary worth preserving long-term goes to the
+vault daily note via `vault-sync`, not the handoff.
 
 ## Handoff Document
 
@@ -35,6 +40,8 @@ handoff.
 ## Purpose of next session
 ## Active paper / project
 ## Current state
+## Workflow system            (standalone; otherwise use the owning workflow)
+## Packet predecessor         (path plus content identity, when applicable)
 ## Files and artifacts        (paths, not content)
 ## Commands run               (exact, re-runnable)
 ## Contracts and validation   (what is bound, what passed)
@@ -43,6 +50,8 @@ handoff.
 ## Open risks
 ## Suggested skills
 ## Next actions
+## Rotation evidence          (actual compaction/owner stop, when applicable)
+## Branch / integration state (roles, base, merge strategy, PR path count)
 ## Do-not-do list
 ## Sensitive information redacted
 ```
@@ -69,9 +78,20 @@ resuming), it must additionally: bound scope with explicit hard stops
 **blocking**, not advisory; and repeat the `results/` provenance rule above.
 An open-ended handoff is read maximally by an autonomous agent.
 
+For a standalone large workflow, hand off when actual compaction or an owner stop
+makes another task the better continuation surface. Record one next vertical
+action, exact Git/worktree identities, unresolved findings, validation evidence,
+and hard stops; do not copy plans, reviews, or logs into the packet. Measure
+token efficiency separately from session JSONL and billing/token telemetry;
+producer self-reporting is not required in this continuity artifact.
+Before a PR handoff, record the merge-base changed-path count and the external
+review cap; CodeRabbit's hard limit is 100 files.
+
 ## Completion Checklist
 
 - [ ] Active paper / project identified.
+- [ ] Workflow system and neutral path are explicit; standalone state is not
+      stored under `.apm`.
 - [ ] State summarized without duplicating artifacts — paths and commands
       only.
 - [ ] Contracts / validation status and result-provenance status included
@@ -80,6 +100,8 @@ An open-ended handoff is read maximally by an autonomous agent.
 - [ ] Open risks and suggested next skills included.
 - [ ] Do-not-do list tailored to the task.
 - [ ] Dispatch-safety elements present if an autonomous agent consumes it.
+- [ ] Large-workflow closeout includes the required branch/integration state
+      and PR file count.
 - [ ] Sensitive details redacted (no UKDA data excerpts, no credentials).
 
 ## Escalate Or Stop When
@@ -92,4 +114,4 @@ An open-ended handoff is read maximally by an autonomous agent.
 
 `tda-task-brief-from-plan` (when the next session's work deserves a formal
 brief) · `commit-log` · `vault-sync` · the numbered APM handoff skills for
-APM agents.
+APM agents · `tda-large-workflow-supervision` (observable rotation).

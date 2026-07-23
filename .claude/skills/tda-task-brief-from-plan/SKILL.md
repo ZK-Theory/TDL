@@ -2,7 +2,7 @@
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
 metadata:
-  version: "1.0.0"
+  version: "1.2.0"
   tier: core
   lanes: []
   roles:
@@ -31,6 +31,22 @@ P01-A | P01-B | P04 | FIN-01 | infrastructure
 
 ## Goal
 One concrete outcome.
+
+## Execution context
+- Workflow system: standalone | apm
+- Supervision phase: certify | deliver
+- Lifecycle phase: plan | materialize | implement | review | remediate | integrate
+- Context mode: fresh | bounded continuation
+- Rotation condition: <observable condition; no estimated token threshold>
+- Fork policy: none | <small positive count with reason>
+- Required skills: <skill -> purpose>
+- Conditional skills: <trigger -> skill>
+- External-review owner: Stephen | not applicable
+- Author-review cycle: <integer, normally 1>
+- Branch role / integration base: <candidate|review|integration> / <exact ref>
+- Merge strategy: <preserve accepted ancestor; no squash unless re-authorized>
+- External-review file cap: <integer; CodeRabbit hard limit 100>
+- Research-value disposition: <required now | deferred stage | separately elevated>
 
 ## Non-goals
 What this task must not do.
@@ -94,10 +110,46 @@ When the agent must stop and ask or escalate.
   (a coding rule, a library behaviour, a checkpoint schema), the brief
   includes a verification step — no speculative foundations.
 
+- **Workflow identity comes first.** A standalone brief must not route through
+  APM skills, `.apm` campaign state, the APM Memory Bank, or APM guides/checkers.
+  Use `tda-large-workflow-supervision` for large standalone campaigns.
+- **Choose context deliberately.** Load only skills required by the work or a
+  named assurance trigger. Independent reviewers start without parent history.
+  For implementers, choose fresh context or a bounded continuation according to
+  which carries the required evidence with less replay, and record why.
+- **Canonical transition closure** is mandatory before implementation of
+  canonical state. Resolve every proposed mutation to an accepted writer,
+  exact command/event/schema identity, reducer/projection and stream owner,
+  idempotency/concurrency rule, and schema-version disposition. A missing row
+  requires a separately reviewed authority addendum; the implementer must not
+  invent it.
+- **Research-value closure** precedes blocking non-research assurance. Record
+  the protected research asset, credible failure, insufficiency of current
+  controls, cheapest adequate control, evidence stage, and bounded effort/stop.
+  Runtime-only evidence defaults to runtime integration; general hardening may
+  not consume more than 10% without Stephen's explicit elevation.
+- **Integration is a separate lifecycle phase.** Declare management, candidate,
+  review, and integration branch roles and preserve an exact accepted candidate
+  as a reachable ancestor. Before external review, compute the merge-base file
+  count. CodeRabbit cannot review more than 100 files; target at most 90 and
+  split dependency-safely when the hard limit would be exceeded.
+- A second remediation cycle is a stop for finding rescope and owner ruling,
+  followed by a fresh task if authorized; it is not a bounded continuation.
+- Stephen triggers and monitors CodeRabbit unless he explicitly delegates that
+  operation in the current task. Do not place review polling in the brief.
+
 ## Completion Checklist
 
 - [ ] Task is vertical; target paper identified.
+- [ ] Workflow system, lifecycle/supervision phase, context/fork policy,
+      required skills, external-review owner, and cycle limit recorded.
 - [ ] Assurance lanes marked; contract requirement resolved upstream.
+- [ ] Canonical-transition closure recorded for every canonical mutation, or
+      the task stops before implementation.
+- [ ] Blocking non-research assurance has a proportional research-value and
+      lifecycle-stage disposition.
+- [ ] Branch roles, integration base/strategy, external-review file cap, and
+      second-cycle stop are explicit.
 - [ ] Inputs and outputs named by path.
 - [ ] Acceptance criteria machine-checkable where possible.
 - [ ] Validation commands listed.
@@ -115,6 +167,9 @@ When the agent must stop and ask or escalate.
 - The work is outcome-contingent on a decision rule — that is a
   pre-registration, so route to `pre-reg-to-dispatch`.
 
+- The proposed PR exceeds the external reviewer's file cap and no
+  dependency-safe stack has been declared.
+
 ## Related Skills
 
 `pre-reg-to-dispatch` (pre-registered runs) · `research-assurance-triage`
@@ -122,7 +177,9 @@ When the agent must stop and ask or escalate.
 authoring) · `tda-resource-preflight` · `tda-handoff` (carrying an
 unfinished brief across sessions) · any tier-2 specialist skill as a
 dispatch target (routing table: the SKILL-INDEX in the authoring tree) ·
-`tda-light-task-triage` (low-risk chores that do not need a brief).
+`tda-light-task-triage` (low-risk chores that do not need a brief) and
+`tda-large-workflow-supervision` (standalone multi-stage supervision).
+
 ## Assurance-lane disposition
 
 For every assurance lane named or implied by a plan, record an explicit disposition: required now, deferred with owner and gate, not applicable with rationale, or prohibited only for explicitly out-of-scope lanes with an authorized rationale. Bind each required lane to its authority source, producer, evidence, acceptance condition, and failure state; do not treat aggregate coverage prose as per-lane closure.
