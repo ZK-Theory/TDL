@@ -14,14 +14,17 @@ CodeRabbit remediation
 
 - Branch: `codex/wp6-2-t2-integration`.
 - Current-main subject incorporated:
-  `3cc6f2a1f7a90dfd77f8bdae0de9e2c5f934a66d`.
+  `6c7d8dfdfcf875b02fa3a0b89bf84c29f711f0c2`. The initially reviewed base
+  `3cc6f2a1f7a90dfd77f8bdae0de9e2c5f934a66d` remains an ancestor.
 - Exact independently reviewed integration subject:
   `57cec488f1311342848515078a7abf7b28c14fcc`.
 - Pre-remediation handback wrapper:
   `88d496755a7872267fb311fca03204f0c9224469`.
-- Final remediation wrapper head: `SELF`, the later commit whose tree contains
-  this handback. The final Manager response binds its exact SHA without
-  creating a self-reference.
+- CodeRabbit remediation commit:
+  `211dc7cd26ce7ef59280057fcf7ca536b99f35f7`.
+- Final current-main merge wrapper head: `SELF`, the later commit whose tree
+  contains this handback. The final Manager response binds its exact SHA
+  without creating a self-reference.
 - Accepted candidate ancestor:
   `391a92753d7f746fa91a6b5455c9ce0fd01baa52`, tree
   `0254c5416925126412867d61b3045ee1563abd0c`, parent
@@ -56,9 +59,14 @@ Deterministic materialization changed only five paths: the schema,
 materializer, contract test, authority catalogue identity, and identity
 manifest. A second materialization was idempotent.
 
+After that remediation, current main advanced through merged PR #157 and
+GitHub reported PR #158 as conflicting. Current main was merged mechanically:
+its workflow files are exact main bytes, while the ARS index retains only the
+T2 navigation added by PR #158. This branch did not alter or manage PR #157.
+
 ## Integration evidence
 
-- Pull-request delta at the final remediation head: 40 paths, below the target
+- Pull-request delta at the final current-main merge head: 34 paths, below the target
   of 90 and hard limit of 100.
 - Excluded path and added-content scans: zero hits.
 - Independent seam review: `accept`; 0 Critical, 0 Major, 0 Minor.

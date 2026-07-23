@@ -587,6 +587,13 @@ standalone-workflow advisory integration.<br>
 independent review only. It authorizes no runtime implementation, T3/T4, live provider
 call, T1b, eligibility transition, result, claim, or mutation of accepted WP6.1/T1a
 artifacts.<br>
+**Transport clarification (2026-07-23):** P-037's atomic ordered batches are atomic
+only within `CommandService`; they do not make the external provider transport atomic
+or eliminate its crash window. P-037 does not settle whether `ProviderCommandIssued`
+records dispatch intent or a completed invocation, and it defines no accepted
+outbox/idempotent-dispatch protocol. Runtime provider work remains blocked until a
+separate accepted authority resolves that seam. The exact accepted P-037 proposal is
+preserved unchanged.<br>
 **Remaining gate:** Fresh independent review followed by Stephen's acceptance of the
 exact addendum and identity-manifest repository paths, Git blobs, raw-byte SHA-256
 identities, and reviewed commit before any T2 implementation brief may issue.<br>
@@ -651,11 +658,16 @@ is authorized.<br>
 manager commit `1301d8a5f089d27270c36b216967000a35472efc`, Git blob
 `1c6703b37579a0ffa35bfec0f9cccc7180a37f79`, raw-byte SHA-256
 `959ebeafa67368ffc87592134fd9c0caf385b4b562278789273563844295492f`.<br>
+**Execution closure:** P-040 and
+`reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md` supply the immutable R3
+candidate commit/tree, changed-path set, artifact blob/raw-hash identities, exact
+reviewer subject, review identity, and owner acceptance. This later external record
+closes the binding omission without rewriting the accepted P-039 bytes.<br>
 **Boundary:** No runtime code, credential resolution, provider call, T3/T4, T1b,
 eligibility, result, claim, publication, accepted-artifact mutation, reviewer-authored
 security probing, or third remediation cycle is authorized.<br>
 **Affected specifications:** P-038; W2 receipt/event/idempotency; W7 T2 subset and later
-runtime qualification; W8 cost boundary; WP6.2 T2 authority governance.
+runtime qualification; W8 cost boundary; WP6.2 T2; large-workflow assurance budgeting.
 
 ### P-040 - WP6.2 T2 exact-byte contract acceptance
 

@@ -125,6 +125,7 @@ SYNC_SKILLS: set[str] = {
     "tda-learning-scaffold",
     "tda-paper-dissemination-pack",
     "tda-light-task-triage",
+    "tda-large-workflow-supervision",
     # Lean / Leanstral proof orchestration (2026-07-21)
     "lean-proof",
     # Runtime-agnostic complements to plugin-owned (read-only) skills — the
