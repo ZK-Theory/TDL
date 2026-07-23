@@ -272,6 +272,10 @@ class EventLedger:
             stream_versions[stream_id] = stream_version
             event_id = new_id("event")
             recorded_at_text = recorded_at.isoformat().replace("+00:00", "Z")
+            t2_event = str(candidate.get("schema_id", "")).startswith(
+                "ars://wp6-2/t2/event/"
+            )
+            transaction_index = offset if t2_event else offset + 1
             if draft is None and event_type == "ReleaseGateDecisionPublished":
                 raise ArsError("release publication requires a ledger event finalizer")
             if draft is not None and "payload" in candidate:
@@ -283,12 +287,12 @@ class EventLedger:
                 stream_version=stream_version,
                 global_position=next_position + offset,
                 transaction_id=transaction_id,
-                transaction_index=offset + 1,
+                transaction_index=transaction_index,
                 transaction_count=count,
                 recorded_at=recorded_at_text,
             )
             payload = dict(draft.finalize_payload(allocated)) if draft is not None else candidate.pop("payload", {})
-            if draft is None:
+            if draft is None and not t2_event:
                 internal_key = f"ledger-internal:{transaction_id}:{offset + 1}"
                 candidate.setdefault("schema_id", f"ars://core/event/{event_type}")
                 candidate.setdefault("schema_version", "1.0.0")
@@ -309,7 +313,7 @@ class EventLedger:
                 "stream_version": stream_version,
                 "global_position": next_position + offset,
                 "transaction_id": transaction_id,
-                "transaction_index": offset + 1,
+                "transaction_index": transaction_index,
                 "transaction_count": count,
                 "recorded_at": recorded_at_text,
                 "payload": payload,
@@ -326,14 +330,24 @@ class EventLedger:
                 ):
                     raise ArsError("release event finalizer violated ledger allocation")
             prehash = {**event, "event_hash": "0" * 64}
-            self.schemas.validate("ars://core/event", prehash)
-            event_schema = f"ars://core/event/{event_type}"
-            if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+            event_schema = (
+                candidate["schema_id"]
+                if t2_event
+                else f"ars://core/event/{event_type}"
+            )
+            if t2_event:
                 self.schemas.validate(event_schema, prehash)
+            else:
+                self.schemas.validate("ars://core/event", prehash)
+                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+                    self.schemas.validate(event_schema, prehash)
             event["event_hash"] = sha256_hex(canonical_bytes(event))
-            self.schemas.validate("ars://core/event", event)
-            if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+            if t2_event:
                 self.schemas.validate(event_schema, event)
+            else:
+                self.schemas.validate("ars://core/event", event)
+                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+                    self.schemas.validate(event_schema, event)
             previous_hash = event["event_hash"]
             events.append(event)
         date_root = self.events_root / f"{recorded_at.year:04d}" / f"{recorded_at.month:02d}"

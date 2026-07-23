@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from research_system.command.models import Command, Receipt
+from research_system.command.t2 import T2_COMMAND_TYPES, T2Receipt, submit_t2
 from research_system.errors import (
     ArsError,
     ConflictError,
@@ -108,6 +109,7 @@ class CommandService:
         release_lock_timeout_seconds: float = 300.0,
         monotonic: Callable[[], float] | None = None,
         lock_wait: Callable[[float], None] | None = None,
+        t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
@@ -122,6 +124,7 @@ class CommandService:
         self.release_lock_timeout_seconds = release_lock_timeout_seconds
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
+        self.t2_authority_resolver = t2_authority_resolver
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: (
             Callable[
@@ -171,10 +174,12 @@ class CommandService:
         self,
         envelope: dict[str, Any],
         release_append: Callable[..., dict[str, Any]] | None = None,
-    ) -> Receipt:
+    ) -> Receipt | T2Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
         if release_append is None:
             raise ArsError("CommandService.submit requires its guarded release continuation")
+        if envelope.get("command_type") in T2_COMMAND_TYPES:
+            return submit_t2(self, envelope)
         self.schemas.validate("ars://core/command", envelope)
         if envelope.get("command_type") == "RevokeAuthorityGrant":
             self.schemas.validate(

@@ -8,6 +8,7 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import reduce_task
+from research_system.command.t2 import apply_t2_event
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -59,6 +60,8 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     streams = updated.setdefault('streams', {})
     stream_id = event['stream_id']
     event_type = event['event_type']
+    if str(event.get('schema_id', '')).startswith('ars://wp6-2/t2/event/'):
+        return apply_t2_event(updated, event)
     if event_type == 'AuthorityRootInitialized':
         payload = event['payload']
         if set(payload) != {
@@ -352,22 +355,29 @@ def replay(
     stream_versions: dict[str, int] = {}
     transaction_id: str | None = None
     transaction_count = 0
-    transaction_index = 0
+    transaction_seen = 0
+    transaction_zero_based = False
     for source in events:
         event = deepcopy(source)
         position = event.get('global_position')
         release_event = event.get('event_type') == 'ReleaseGateDecisionPublished'
+        t2_event = str(event.get('schema_id', '')).startswith(
+            'ars://wp6-2/t2/event/'
+        )
         if release_event and schema_registry is None:
             raise IntegrityError('release event schema validator unavailable')
         if schema_registry is not None:
             try:
-                schema_registry.validate('ars://core/event', event)
+                if t2_event:
+                    schema_registry.validate(event['schema_id'], event)
+                else:
+                    schema_registry.validate('ars://core/event', event)
                 if release_event:
                     schema_registry.validate(
                         'ars://core/event/ReleaseGateDecisionPublished',
                         event,
                     )
-                else:
+                elif not t2_event:
                     payload_schema = f"{event.get('schema_id')}/payload"
                     if schema_registry.contains(payload_schema):
                         schema_registry.validate(payload_schema, event.get('payload'))
@@ -378,8 +388,9 @@ def replay(
         if _major(event) != supported_major:
             raise IntegrityError(f'unsupported major at {position}')
         schema_id = event.get('schema_id')
-        if not isinstance(schema_id, str) or not schema_id.startswith(
-            'ars://core/event/'
+        if not isinstance(schema_id, str) or not (
+            schema_id.startswith('ars://core/event/')
+            or schema_id.startswith('ars://wp6-2/t2/event/')
         ):
             raise IntegrityError(f'unknown event schema at {position}')
         if position != state['last_position'] + 1:
@@ -400,20 +411,24 @@ def replay(
         stream_versions[stream_id] = expected_stream_version
         current_transaction = event.get('transaction_id')
         if current_transaction != transaction_id:
-            if transaction_id is not None and transaction_index != transaction_count:
+            if transaction_id is not None and transaction_seen != transaction_count:
                 raise IntegrityError('incomplete event transaction')
             transaction_id = current_transaction
             transaction_count = event.get('transaction_count')
-            transaction_index = 0
+            transaction_seen = 0
+            transaction_zero_based = t2_event
         if event.get('transaction_count') != transaction_count:
             raise IntegrityError('event transaction count mismatch')
-        transaction_index += 1
-        if event.get('transaction_index') != transaction_index:
+        if t2_event != transaction_zero_based:
+            raise IntegrityError('mixed transaction index convention')
+        expected_index = transaction_seen if transaction_zero_based else transaction_seen + 1
+        if event.get('transaction_index') != expected_index:
             raise IntegrityError('event transaction index gap or overlap')
+        transaction_seen += 1
         state = apply_event(state, event)
         state['last_position'] = position
         state['last_hash'] = event['event_hash']
-    if transaction_id is not None and transaction_index != transaction_count:
+    if transaction_id is not None and transaction_seen != transaction_count:
         raise IntegrityError('incomplete event transaction')
     return state
 
