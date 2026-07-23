@@ -176,8 +176,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
     schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
     schema_version: 1.0.0
-    git_blob_id: 20c3ce15caf1356db64232cbf6a68fa53a97b91c
-    raw_utf8_lf_sha256: 7191cd7e601baed07cc93af4452ab7e7f57271aa43aecb7c0d7b4f800c88c25d
+    git_blob_id: 429c678d87e0f73a01658ac053f55e12c23fb400
+    raw_utf8_lf_sha256: b89f7e363c9081a4e74286f70ceef727fbb3cdf8a7a515f373f26126c2ae08c6
   ordered_events:
   - CostGrantReserved
   - ProviderCommandIssued

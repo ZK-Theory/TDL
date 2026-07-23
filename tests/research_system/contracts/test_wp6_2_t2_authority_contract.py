@@ -234,8 +234,13 @@ def test_r1_red_c4_relational_invariants_are_normative() -> None:
 def test_r1_red_m1_cost_modes_and_integer_formula_are_bound() -> None:
     schema = _load_json(SCHEMA_IDENTITIES["cost_grant"]["path"])
     rate_evidence = schema["properties"]["rate_evidence"]
-    assert set(rate_evidence["oneOf"][0]["properties"]["mode"]["const"] for _ in [0]) == {"metered"}
+    assert rate_evidence["oneOf"][0]["properties"]["mode"]["const"] == "metered"
     assert rate_evidence["oneOf"][1]["properties"]["mode"]["const"] == "zero_cost_authorized"
+    authorize_schema = _load_json(SCHEMA_IDENTITIES["AuthorizeProviderIssue"]["path"])
+    assert authorize_schema["properties"]["payload"]["properties"]["reserved_cost_microunits"] == {
+        "type": "integer",
+        "minimum": 0,
+    }
     assert schema["x-cost-formula"] == (
         "ceil_div(actual_input_tokens*input_microunits_per_million_tokens,1000000)"
         "+ceil_div(actual_output_tokens*output_microunits_per_million_tokens,1000000)"

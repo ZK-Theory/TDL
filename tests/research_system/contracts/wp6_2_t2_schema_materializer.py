@@ -749,7 +749,7 @@ def _authorize_payload() -> dict[str, Any]:
             "secret_reference_revision": {"type": "integer", "minimum": 1},
             "secret_reference_hash": dict(HASH),
             "requested_tokens": _token_amounts(minimum=0),
-            "reserved_cost_microunits": {"type": "integer", "minimum": 1},
+            "reserved_cost_microunits": {"type": "integer", "minimum": 0},
             "expected_available_microunits": {"type": "integer", "minimum": 1},
             "currency": _string(pattern="^[A-Z]{3}$"),
             "rate_evidence_id": _canonical_id(),

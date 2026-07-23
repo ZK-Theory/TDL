@@ -327,7 +327,7 @@
         },
         "reserved_cost_microunits": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "expected_available_microunits": {
           "type": "integer",
