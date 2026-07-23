@@ -34,8 +34,8 @@ artifacts:
   repository_path: .research-system/contracts/wp6-2-t2-cost-grant-authority-catalogue.yaml
   canonical_schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue
   schema_version: 1.0.0
-  git_blob_id: 702de343a8df50244ac8992c10b4e39612837ff1
-  raw_utf8_lf_sha256: 292189e791e75cf12003db44eca7b3ccd101c51a85b3d7d5bd7c8f7aaa3197f9
+  git_blob_id: ddc142344278d4628b8e70d5de1c5924896600d1
+  raw_utf8_lf_sha256: 9220565626125fc33eb187e8e340f9a96f3c887efe080935613d51ad48257482
 - artifact_role: normative_crosswalk
   repository_path: .research-system/contracts/wp6-2-t2-normative-crosswalk.yaml
   canonical_schema_id: ars://contracts/wp6-2-t2-normative-crosswalk
@@ -82,8 +82,8 @@ artifacts:
   repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
   canonical_schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
   schema_version: 1.0.0
-  git_blob_id: 429c678d87e0f73a01658ac053f55e12c23fb400
-  raw_utf8_lf_sha256: b89f7e363c9081a4e74286f70ceef727fbb3cdf8a7a515f373f26126c2ae08c6
+  git_blob_id: 0f28ab00a4fa29de8f20d3760ef264fd69993f5f
+  raw_utf8_lf_sha256: d0c62b6db974b5d69325450d24779a16c805e11a8edd96dbb054a4850a3a8085
 - artifact_role: command_schema
   repository_path: .research-system/schemas/wp6-2-t2/commands/issue-cost-grant.schema.json
   canonical_schema_id: ars://wp6-2/t2/command/IssueCostGrant
@@ -118,8 +118,8 @@ artifacts:
   repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
   canonical_schema_id: ars://wp6-2/t2/event/CostGrantReserved
   schema_version: 1.0.0
-  git_blob_id: d28175aedae02d39df40e6661a05f54e2b9499eb
-  raw_utf8_lf_sha256: b86f616ee41673e16cc974a866694f49fe57a40725c3fc7ca3f6f841d68eaeb5
+  git_blob_id: 991a2db89461242465ceeff45d3cf5ba44d3de2b
+  raw_utf8_lf_sha256: c9fbe9632429a986c6a9924fb6e170f9d97cc69bda97f779c2a2647c775e2305
 - artifact_role: event_schema
   repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
   canonical_schema_id: ars://wp6-2/t2/event/ProviderCommandIssued
@@ -166,8 +166,8 @@ artifacts:
   repository_path: tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: f21b0739d390cf8072d071a23cf8c9d2dfefbad4
-  raw_utf8_lf_sha256: cc0316e68401fcd6e2e0d160ac7d8b132fe6f4d1b3b7dd7a48fcd5be5198c849
+  git_blob_id: bf12b00792f8388ab2661a920f6e7623fe0d841f
+  raw_utf8_lf_sha256: 0d9fb0dd04f3cd3e79c4b58b8f03dc49d150ddad352830b1058234a4f8a5bf9c
 - artifact_role: semantic_validator
   repository_path: tests/research_system/contracts/wp6_2_t2_authority_validation.py
   canonical_schema_id: null
@@ -184,8 +184,8 @@ artifacts:
   repository_path: tests/research_system/contracts/wp6_2_t2_schema_materializer.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: e83100340a27e7678114d81b52f4683a69a5dfe9
-  raw_utf8_lf_sha256: 32aebdce8d03833fa82274b6136ff8747f2fcb87c42b63840ccbde9e7a492121
+  git_blob_id: 8b430299ed148ead4264d10901bc3e6da3deedfb
+  raw_utf8_lf_sha256: 20d5981cd3793c0a4c29a564ce28b5ce382e211c7c681bb2e22f55e8779c651e
 authority_rows:
 - key: cost_grant.issue
   ordered_event_set:
