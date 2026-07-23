@@ -176,8 +176,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
     schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
     schema_version: 1.0.0
-    git_blob_id: 429c678d87e0f73a01658ac053f55e12c23fb400
-    raw_utf8_lf_sha256: b89f7e363c9081a4e74286f70ceef727fbb3cdf8a7a515f373f26126c2ae08c6
+    git_blob_id: 0f28ab00a4fa29de8f20d3760ef264fd69993f5f
+    raw_utf8_lf_sha256: d0c62b6db974b5d69325450d24779a16c805e11a8edd96dbb054a4850a3a8085
   ordered_events:
   - CostGrantReserved
   - ProviderCommandIssued
@@ -186,8 +186,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
     schema_id: ars://wp6-2/t2/event/CostGrantReserved
     schema_version: 1.0.0
-    git_blob_id: 8b6e484299fe54431eb6aba77e8ff0bf42a0b7bf
-    raw_utf8_lf_sha256: 42c158665c50086448205a69385aa474ee221eaa978612a28b97f8d2240511d4
+    git_blob_id: 991a2db89461242465ceeff45d3cf5ba44d3de2b
+    raw_utf8_lf_sha256: c9fbe9632429a986c6a9924fb6e170f9d97cc69bda97f779c2a2647c775e2305
   - event_type: ProviderCommandIssued
     repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
     schema_id: ars://wp6-2/t2/event/ProviderCommandIssued

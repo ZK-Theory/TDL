@@ -235,7 +235,35 @@
           ]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "rate_mode": {
+                "const": "metered"
+              }
+            },
+            "required": [
+              "rate_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reserved_cost_microunits": {
+                "minimum": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reserved_cost_microunits": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ]
     },
     "previous_event_hash": {
       "type": "string",

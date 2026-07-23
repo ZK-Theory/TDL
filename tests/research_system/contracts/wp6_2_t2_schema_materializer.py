@@ -43,6 +43,29 @@ def _closed(properties: dict[str, Any], *, required: list[str] | None = None) ->
     }
 
 
+def _reserved_cost_mode_constraint() -> dict[str, Any]:
+    return {
+        "allOf": [
+            {
+                "if": {
+                    "properties": {"rate_mode": {"const": "metered"}},
+                    "required": ["rate_mode"],
+                },
+                "then": {
+                    "properties": {
+                        "reserved_cost_microunits": {"minimum": 1},
+                    }
+                },
+                "else": {
+                    "properties": {
+                        "reserved_cost_microunits": {"const": 0},
+                    }
+                },
+            }
+        ]
+    }
+
+
 def _ordered_constants(values: list[str]) -> dict[str, Any]:
     return {
         "type": "array",
@@ -722,7 +745,7 @@ def _issue_payload() -> dict[str, Any]:
 
 
 def _authorize_payload() -> dict[str, Any]:
-    return _closed(
+    payload = _closed(
         {
             "cost_grant_id": _id("cgr"),
             "cost_grant_revision": {"type": "integer", "minimum": 1},
@@ -762,6 +785,8 @@ def _authorize_payload() -> dict[str, Any]:
             "rendered_payload_hash": dict(HASH),
         }
     )
+    payload.update(_reserved_cost_mode_constraint())
+    return payload
 
 
 def _receipt_payload() -> dict[str, Any]:
@@ -922,6 +947,7 @@ def _event_payloads() -> dict[str, dict[str, Any]]:
             "zero_cost_authority": {"oneOf": [_content_ref(), {"type": "null"}]},
         }
     )
+    reserved.update(_reserved_cost_mode_constraint())
     command_issued = _closed(
         {
             "provider_command_id": _id("pcmd"),
