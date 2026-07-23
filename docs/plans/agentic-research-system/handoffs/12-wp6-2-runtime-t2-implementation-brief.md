@@ -12,7 +12,9 @@ credential or invoking a provider
 
 Dispatch only from a branch pre-created at the then-current accepted `main`.
 The minimum certified base is PR #159 merge commit
-`d390a072480d2e4c9e28fdb8f19cbd7770e6078e`.
+`d390a072480d2e4c9e28fdb8f19cbd7770e6078e`. Record the implementation
+branch's exact immutable dispatch-base SHA before work begins; never use a
+later-moving `origin/main` ref as the final diff-proof base.
 
 The following accepted identities are immutable inputs:
 
@@ -98,12 +100,14 @@ For every command:
   semantic relations;
 - reconstruct idempotency from the exact tuple
   `(actor_id, authority_scope, command_type, idempotency_key)`;
-- return the original accepted Receipt 2.0 binding on exact replay, with zero
-  new events or other effects;
+- treat a submission as exact replay only when that full tuple, `command_id`,
+  and `payload_hash` all match the accepted submission, then return its original
+  Receipt 2.0 binding with zero new events or other effects;
 - return the catalogue's stable rejected/conflict outcome with zero events for
   any failed precondition or identity/version conflict;
-- ensure a same-tuple different-command or different-payload submission is an
-  idempotency conflict;
+- ensure the same full tuple with a different `command_id` or `payload_hash` is
+  an idempotency conflict. A different `command_type` forms a different tuple
+  and is not a cross-command conflict under this accepted contract;
 - produce the exact reducers and projections named by the accepted catalogue,
   including replay/rebuild behaviour from ledger events alone.
 
@@ -202,9 +206,11 @@ specific failure supplies a concrete reason, and record that reason.
 Before handback, repeat the direct accepted Git-blob and raw-byte SHA-256
 comparison for the effective immutable set defined in section 1: non-superseded
 P-040 paths, the P-041 six-path tuple, and T1a. A no-diff result against the
-dispatch base is insufficient. Recount `origin/main...candidate`; the
-changed-path set must stay within the authorized surface and below the 15-path
-target.
+dispatch base is insufficient. Recount
+`<recorded-immutable-dispatch-base>...candidate`, never
+`origin/main...candidate`. The changed-path set must stay within the authorized
+surface and contain no more than 15 paths; any expansion requires the
+research-value justification and manager approval specified above.
 
 ## 6. Assurance and research-value boundary
 
