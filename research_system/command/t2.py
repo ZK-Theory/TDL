@@ -7,9 +7,7 @@ from typing import Any, Mapping
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError, SchemaError
 
-T2_COMMAND_TYPES = frozenset(
-    {"IssueCostGrant", "AuthorizeProviderIssue", "RecordProviderReceipt"}
-)
+T2_COMMAND_TYPES = frozenset({"IssueCostGrant", "AuthorizeProviderIssue", "RecordProviderReceipt"})
 _EVENT_ORDER = {
     "IssueCostGrant": ("CostGrantIssued",),
     "AuthorizeProviderIssue": ("CostGrantReserved", "ProviderCommandIssued"),
@@ -90,10 +88,7 @@ class T2Receipt:
         return tuple(dict(item) for item in self.record["events"])
 
     def to_record(self) -> dict[str, Any]:
-        return {
-            key: [dict(item) for item in value] if key == "events" else value
-            for key, value in self.record.items()
-        }
+        return {key: [dict(item) for item in value] if key == "events" else value for key, value in self.record.items()}
 
     @classmethod
     def from_record(cls, record: Mapping[str, Any]) -> T2Receipt:
@@ -156,9 +151,7 @@ def _receipt(
         "outcome": outcome,
         "command_type": envelope["command_type"],
         "command_id": envelope["command_id"],
-        "idempotency_key_hash": sha256_hex(
-            str(envelope["idempotency_key"]).encode("utf-8")
-        ),
+        "idempotency_key_hash": sha256_hex(str(envelope["idempotency_key"]).encode("utf-8")),
         "payload_hash": envelope["payload_hash"],
         "event_batch_id": event_batch_id,
         "events": proof,
@@ -175,9 +168,7 @@ def _receipt(
     return T2Receipt(record)
 
 
-def _accepted_receipt(
-    envelope: Mapping[str, Any], events: list[dict[str, Any]]
-) -> T2Receipt:
+def _accepted_receipt(envelope: Mapping[str, Any], events: list[dict[str, Any]]) -> T2Receipt:
     return _receipt(
         envelope,
         "accepted",
@@ -228,9 +219,7 @@ def _lookup(service: Any, kind: str, object_id: str, revision: int) -> Mapping[s
     return value if isinstance(value, Mapping) else None
 
 
-def _triple_matches(
-    record: Mapping[str, Any], kind: str, stem: str, payload: Mapping[str, Any]
-) -> bool:
+def _triple_matches(record: Mapping[str, Any], kind: str, stem: str, payload: Mapping[str, Any]) -> bool:
     record_id = record.get(f"{stem}_id", record.get("id"))
     record_revision = record.get(f"{stem}_revision", record.get("revision"))
     record_hash = record.get(
@@ -239,7 +228,10 @@ def _triple_matches(
     )
     record_kind = record.get("kind")
     return (
-        (record_kind == kind or (kind == "provider_receipt" and record.get("schema_id") == "ars://adapters/provider-receipt/v2"))
+        (
+            record_kind == kind
+            or (kind == "provider_receipt" and record.get("schema_id") == "ars://adapters/provider-receipt/v2")
+        )
         and record_id == payload.get(f"{stem}_id")
         and record_revision == payload.get(f"{stem}_revision")
         and record_hash == payload.get(f"{stem}_hash")
@@ -296,7 +288,16 @@ def _current(record: Mapping[str, Any], now: datetime) -> bool:
     if record.get("revoked") is True or record.get("status") == "revoked":
         return False
     expires_at = record.get("expires_at")
-    return expires_at is None or _parse_time(expires_at) > now
+    if expires_at is None:
+        return True
+    # Reject resolver-provided records whose expires_at is not a well-formed
+    # timezone-aware ISO 8601 string rather than letting _parse_time raise.
+    if not isinstance(expires_at, str):
+        return False
+    try:
+        return _parse_time(expires_at) > now
+    except ValueError:
+        return False
 
 
 def _evidence_covers(payload: Mapping[str, Any], evidence: object) -> bool:
@@ -328,9 +329,7 @@ def _evidence_covers(payload: Mapping[str, Any], evidence: object) -> bool:
     }
     zero = payload.get("zero_cost_authority")
     if isinstance(zero, Mapping):
-        required.add(
-            (zero.get("subject_id"), zero.get("subject_revision"), zero.get("subject_hash"))
-        )
+        required.add((zero.get("subject_id"), zero.get("subject_revision"), zero.get("subject_hash")))
     return required.issubset(supplied)
 
 
@@ -363,15 +362,28 @@ def _rate_valid(payload: Mapping[str, Any], *, actual: bool = False) -> bool:
 
 
 def _ceil_cost(input_tokens: int, output_tokens: int, input_rate: int, output_rate: int) -> int:
-    return (
-        (input_tokens * input_rate + 999_999) // 1_000_000
-        + (output_tokens * output_rate + 999_999) // 1_000_000
-    )
+    return (input_tokens * input_rate + 999_999) // 1_000_000 + (output_tokens * output_rate + 999_999) // 1_000_000
 
 
-def reduce_cost_grant(
-    state: Mapping[str, Any] | None, event: Mapping[str, Any]
-) -> dict[str, Any]:
+def reduce_cost_grant(state: Mapping[str, Any] | None, event: Mapping[str, Any]) -> dict[str, Any]:
+    """Reduce a cost-grant stream by one T2 event.
+
+    Args:
+        state: Current cost-grant projection state, or ``None`` if the stream
+            has not yet been opened.
+        event: A T2 ledger event whose ``event_type`` is one of
+            ``CostGrantIssued``, ``CostGrantReserved``, or
+            ``CostGrantReconciled``.
+
+    Returns:
+        Updated cost-grant state dictionary containing the merged reservation
+        table, available balance, and stream version.
+
+    Raises:
+        IntegrityError: If the event violates stream-lifecycle invariants (e.g.
+            issuing into an existing stream, or transitioning a stream that has
+            not been opened).
+    """
     payload = dict(event["payload"])
     event_type = event["event_type"]
     if event_type == "CostGrantIssued":
@@ -425,9 +437,23 @@ def reduce_cost_grant(
     raise IntegrityError(f"unsupported cost grant event: {event_type}")
 
 
-def reduce_provider_command(
-    state: Mapping[str, Any] | None, event: Mapping[str, Any]
-) -> dict[str, Any]:
+def reduce_provider_command(state: Mapping[str, Any] | None, event: Mapping[str, Any]) -> dict[str, Any]:
+    """Reduce a provider-command stream by one T2 event.
+
+    Args:
+        state: Current provider-command projection state, or ``None`` if the
+            stream has not yet been opened.
+        event: A T2 ledger event whose ``event_type`` is one of
+            ``ProviderCommandIssued`` or ``ProviderReceiptRecorded``.
+
+    Returns:
+        Updated provider-command state dictionary carrying the command identity,
+        current status, and stream version.
+
+    Raises:
+        IntegrityError: If the event violates stream-lifecycle invariants (e.g.
+            recording a receipt before the command has been issued).
+    """
     payload = dict(event["payload"])
     if event["event_type"] == "ProviderCommandIssued":
         if state is not None:
@@ -449,6 +475,26 @@ def reduce_provider_command(
 
 
 def apply_t2_event(state: dict[str, Any], event: Mapping[str, Any]) -> dict[str, Any]:
+    """Apply one T2 ledger event to a mutable global T2 projection state.
+
+    Dispatches the event to the appropriate sub-reducer (``reduce_cost_grant``
+    or ``reduce_provider_command``) and maintains the denormalised ``streams``
+    index so callers can look up any stream by ID without knowing its type.
+
+    Args:
+        state: Mutable global T2 projection dictionary with ``cost_grants``,
+            ``provider_commands``, ``provider_receipts``, and ``streams`` sub-
+            dictionaries, as produced by ``_t2_projection``.
+        event: A validated T2 ledger event with a recognised ``event_type``.
+
+    Returns:
+        The same ``state`` dictionary after in-place mutation, returned for
+        convenience.
+
+    Raises:
+        IntegrityError: If the event type is not recognised, or if a sub-
+            reducer detects a stream-lifecycle violation.
+    """
     event_type = event["event_type"]
     if event_type in {"CostGrantIssued", "CostGrantReserved", "CostGrantReconciled"}:
         grants = state.setdefault("cost_grants", {})
@@ -466,10 +512,9 @@ def apply_t2_event(state: dict[str, Any], event: Mapping[str, Any]) -> dict[str,
             receipts[receipt_id] = dict(event["payload"])
     else:
         raise IntegrityError(f"unsupported T2 event type: {event_type}")
-    state.setdefault("streams", {})[event["stream_id"]] = (
-        state.get("cost_grants", {}).get(event["stream_id"])
-        or state.get("provider_commands", {}).get(event["stream_id"])
-    )
+    state.setdefault("streams", {})[event["stream_id"]] = state.get("cost_grants", {}).get(
+        event["stream_id"]
+    ) or state.get("provider_commands", {}).get(event["stream_id"])
     return state
 
 
@@ -487,9 +532,7 @@ def _common_semantics(envelope: Mapping[str, Any]) -> str | None:
     write_set = envelope["write_set"]
     if envelope.get("authority_scope") != _SCOPES[command_type]:
         return "schema_identity_mismatch"
-    if [entry.get("stream_role") for entry in write_set] != list(
-        _STREAM_ROLES[command_type]
-    ):
+    if [entry.get("stream_role") for entry in write_set] != list(_STREAM_ROLES[command_type]):
         return "schema_identity_mismatch"
     expected_ids = {
         "cost_grant": payload.get("cost_grant_id"),
@@ -511,12 +554,8 @@ def _issue_semantics(service: Any, envelope: Mapping[str, Any], now: datetime) -
     subject_error = _subject_gate(service, envelope)
     if subject_error is not None:
         return subject_error
-    resource = _lookup(
-        service, "resource_grant", payload["resource_grant_id"], payload["resource_grant_revision"]
-    )
-    authority = _lookup(
-        service, "authority_grant", envelope["authority_grant_id"], 1
-    )
+    resource = _lookup(service, "resource_grant", payload["resource_grant_id"], payload["resource_grant_revision"])
+    authority = _lookup(service, "authority_grant", envelope["authority_grant_id"], 1)
     if resource is None or not _triple_matches(resource, "resource_grant", "resource_grant", payload):
         return "schema_identity_mismatch"
     if authority is None or authority.get("kind") != "authority_grant":
@@ -539,11 +578,9 @@ def _authorize_semantics(
 ) -> str | None:
     payload = envelope["payload"]
     if (
-        envelope["write_set"][0]["expected_stream_version"]
-        != payload["cost_grant_revision"]
+        envelope["write_set"][0]["expected_stream_version"] != payload["cost_grant_revision"]
         or envelope["write_set"][1]["expected_stream_version"] != 0
-        or payload["reservation_id"]
-        != "crs_" + str(envelope["command_id"]).split("_", 1)[1]
+        or payload["reservation_id"] != "crs_" + str(envelope["command_id"]).split("_", 1)[1]
     ):
         return "schema_identity_mismatch"
     grant = state["cost_grants"].get(payload["cost_grant_id"])
@@ -569,9 +606,7 @@ def _authorize_semantics(
     ):
         if any(grant.get(f"{stem}_{part}") != payload.get(f"{stem}_{part}") for part in ("id", "revision", "hash")):
             return (
-                "provider_command_identity_mismatch"
-                if stem == "provider_command"
-                else "cost_grant_identity_mismatch"
+                "provider_command_identity_mismatch" if stem == "provider_command" else "cost_grant_identity_mismatch"
             )
     secret = _lookup(
         service,
@@ -602,23 +637,17 @@ def _authorize_semantics(
         payload["resource_grant_id"],
         payload["resource_grant_revision"],
     )
-    authority = _lookup(
-        service, "authority_grant", envelope["authority_grant_id"], 1
-    )
+    authority = _lookup(service, "authority_grant", envelope["authority_grant_id"], 1)
     if (
         resource is None
-        or not _triple_matches(
-            resource, "resource_grant", "resource_grant", payload
-        )
+        or not _triple_matches(resource, "resource_grant", "resource_grant", payload)
         or authority is None
         or authority.get("kind") != "authority_grant"
         or not _current(resource, now)
         or not _current(authority, now)
     ):
         return "schema_identity_mismatch"
-    override = _lookup(
-        service, "cost_grant", payload["cost_grant_id"], payload["cost_grant_revision"]
-    )
+    override = _lookup(service, "cost_grant", payload["cost_grant_id"], payload["cost_grant_revision"])
     if override is not None:
         if override.get("kind") != "cost_grant":
             return "cost_grant_wrong_type"
@@ -658,8 +687,7 @@ def _authorize_semantics(
     if (
         payload["currency"] != grant["currency"]
         or any(
-            payload[f"rate_evidence_{part}"] != grant[f"rate_evidence_{part}"]
-            for part in ("id", "revision", "hash")
+            payload[f"rate_evidence_{part}"] != grant[f"rate_evidence_{part}"] for part in ("id", "revision", "hash")
         )
         or not _rate_valid(payload)
     ):
@@ -676,9 +704,7 @@ def _authorize_semantics(
     return None
 
 
-def _record_semantics(
-    service: Any, envelope: Mapping[str, Any], state: Mapping[str, Any]
-) -> str | None:
+def _record_semantics(service: Any, envelope: Mapping[str, Any], state: Mapping[str, Any]) -> str | None:
     payload = envelope["payload"]
     command = state["provider_commands"].get(payload["provider_command_id"])
     grant = state["cost_grants"].get(payload["cost_grant_id"])
@@ -752,10 +778,8 @@ def _record_semantics(
         ):
             return "provider_receipt_identity_mismatch"
     if (
-        envelope["write_set"][0]["expected_stream_version"]
-        != payload["provider_command_revision"]
-        or envelope["write_set"][1]["expected_stream_version"]
-        != payload["cost_grant_revision"]
+        envelope["write_set"][0]["expected_stream_version"] != payload["provider_command_revision"]
+        or envelope["write_set"][1]["expected_stream_version"] != payload["cost_grant_revision"]
         or command.get("version") != payload["provider_command_revision"]
         or grant.get("version") != payload["cost_grant_revision"]
         or command.get("provider_command_hash") != payload["provider_command_hash"]
@@ -780,34 +804,31 @@ def _record_semantics(
     reserved = payload["reserved_token_ceilings"]
     receipt_accounting = provider_receipt["token_accounting"]
     if (
-        (
-            receipt_accounting.get("actual_input_tokens"),
-            receipt_accounting.get("actual_output_tokens"),
-            receipt_accounting.get("actual_total_tokens"),
-            receipt_accounting.get("reserved_cost_microunits"),
-            receipt_accounting.get("consumed_cost_microunits"),
-            receipt_accounting.get("refund_cost_microunits"),
-            receipt_accounting.get("currency"),
-            receipt_accounting.get("rate_evidence_id"),
-            receipt_accounting.get("rate_evidence_revision"),
-            receipt_accounting.get("rate_evidence_hash"),
-            provider_receipt.get("terminal_outcome", {}).get("status"),
-            provider_receipt.get("completeness", {}).get("complete"),
-        )
-        != (
-            actual["input_tokens"],
-            actual["output_tokens"],
-            actual["total_tokens"],
-            payload["reserved_cost_microunits"],
-            payload["consumed_cost_microunits"],
-            payload["refund_cost_microunits"],
-            payload["currency"],
-            payload["rate_evidence_id"],
-            payload["rate_evidence_revision"],
-            payload["rate_evidence_hash"],
-            payload["provider_terminal_status"],
-            payload["receipt_complete"],
-        )
+        receipt_accounting.get("actual_input_tokens"),
+        receipt_accounting.get("actual_output_tokens"),
+        receipt_accounting.get("actual_total_tokens"),
+        receipt_accounting.get("reserved_cost_microunits"),
+        receipt_accounting.get("consumed_cost_microunits"),
+        receipt_accounting.get("refund_cost_microunits"),
+        receipt_accounting.get("currency"),
+        receipt_accounting.get("rate_evidence_id"),
+        receipt_accounting.get("rate_evidence_revision"),
+        receipt_accounting.get("rate_evidence_hash"),
+        provider_receipt.get("terminal_outcome", {}).get("status"),
+        provider_receipt.get("completeness", {}).get("complete"),
+    ) != (
+        actual["input_tokens"],
+        actual["output_tokens"],
+        actual["total_tokens"],
+        payload["reserved_cost_microunits"],
+        payload["consumed_cost_microunits"],
+        payload["refund_cost_microunits"],
+        payload["currency"],
+        payload["rate_evidence_id"],
+        payload["rate_evidence_revision"],
+        payload["rate_evidence_hash"],
+        payload["provider_terminal_status"],
+        payload["receipt_complete"],
     ):
         return "reconciliation_actuals_invalid"
     if (
@@ -857,9 +878,7 @@ def _event_envelope(
         "authority_scope": envelope["authority_scope"],
         "command_type": envelope["command_type"],
         "idempotency_key": envelope["idempotency_key"],
-        "idempotency_key_hash": sha256_hex(
-            str(envelope["idempotency_key"]).encode("utf-8")
-        ),
+        "idempotency_key_hash": sha256_hex(str(envelope["idempotency_key"]).encode("utf-8")),
         "payload_hash": envelope["payload_hash"],
         "correlation_id": envelope["correlation_id"],
         "causation_id": envelope["causation_id"] or envelope["command_id"],
@@ -869,9 +888,7 @@ def _event_envelope(
     }
 
 
-def _events_for(
-    envelope: Mapping[str, Any], state: Mapping[str, Any]
-) -> list[dict[str, Any]]:
+def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[dict[str, Any]]:
     payload = envelope["payload"]
     if envelope["command_type"] == "IssueCostGrant":
         return [
@@ -1033,23 +1050,15 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             except SchemaError as exc:
                 raise IntegrityError("stored Receipt 2.0 is schema-invalid") from exc
             matching = next(
-                (
-                    events
-                    for events in batches.values()
-                    if events[0]["command_id"] == command.command_id
-                ),
+                (events for events in batches.values() if events[0]["command_id"] == command.command_id),
                 None,
             )
             if stored.status == "accepted":
                 if matching is None:
-                    raise IntegrityError(
-                        "stored accepted Receipt 2.0 has no ledger proof"
-                    )
+                    raise IntegrityError("stored accepted Receipt 2.0 has no ledger proof")
                 reconstructed = _accepted_receipt(matching[0], matching)
                 if stored.to_record() != reconstructed.to_record():
-                    raise IntegrityError(
-                        "stored Receipt 2.0 differs from ledger proof"
-                    )
+                    raise IntegrityError("stored Receipt 2.0 differs from ledger proof")
                 first = matching[0]
                 existing_scope = (
                     first["actor_id"],
@@ -1076,8 +1085,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             if (
                 stored.record["command_type"] != command_type
                 or stored.payload_hash != command.payload_hash
-                or stored.record["idempotency_key_hash"]
-                != sha256_hex(command.idempotency_key.encode("utf-8"))
+                or stored.record["idempotency_key_hash"] != sha256_hex(command.idempotency_key.encode("utf-8"))
             ):
                 return _receipt(
                     envelope,
@@ -1094,10 +1102,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
                 first["idempotency_key"],
             )
             if existing_scope == scope:
-                if (
-                    first["command_id"] == command.command_id
-                    and first["payload_hash"] == command.payload_hash
-                ):
+                if first["command_id"] == command.command_id and first["payload_hash"] == command.payload_hash:
                     accepted = _accepted_receipt(envelope, events)
                     persisted = service.receipts.load_t2(command.command_id)
                     if persisted is not None and persisted != accepted:
@@ -1105,19 +1110,13 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
                     if persisted is None:
                         service.receipts.write_t2(accepted)
                     duplicate = _duplicate_receipt(accepted)
-                    service.schemas.validate(
-                        "ars://core/receipt/v2", duplicate.to_record()
-                    )
+                    service.schemas.validate("ars://core/receipt/v2", duplicate.to_record())
                     return duplicate
-                conflict = _receipt(
-                    envelope, "conflict", stable_reason="idempotency_conflict"
-                )
+                conflict = _receipt(envelope, "conflict", stable_reason="idempotency_conflict")
                 service.schemas.validate("ars://core/receipt/v2", conflict.to_record())
                 return service.receipts.write_t2(conflict)
             if first["command_id"] == command.command_id:
-                conflict = _receipt(
-                    envelope, "conflict", stable_reason="idempotency_conflict"
-                )
+                conflict = _receipt(envelope, "conflict", stable_reason="idempotency_conflict")
                 service.schemas.validate("ars://core/receipt/v2", conflict.to_record())
                 return service.receipts.write_t2(conflict)
         common_error = _common_semantics(envelope)
@@ -1130,17 +1129,13 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             command_type == "AuthorizeProviderIssue"
             and envelope["payload"]["cost_grant_id"] not in state["cost_grants"]
         ):
-            rejected = _receipt(
-                envelope, "rejected", stable_reason="cost_grant_missing"
-            )
+            rejected = _receipt(envelope, "rejected", stable_reason="cost_grant_missing")
             service.schemas.validate("ars://core/receipt/v2", rejected.to_record())
             return service.receipts.write_t2(rejected)
         for entry in envelope["write_set"]:
             observed = snapshot.stream_versions.get(entry["stream_id"], 0)
             if observed != entry["expected_stream_version"]:
-                conflict = _receipt(
-                    envelope, "conflict", stable_reason="stale_stream_version"
-                )
+                conflict = _receipt(envelope, "conflict", stable_reason="stale_stream_version")
                 service.schemas.validate("ars://core/receipt/v2", conflict.to_record())
                 return service.receipts.write_t2(conflict)
         now = service.clock()

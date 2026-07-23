@@ -110,13 +110,9 @@ def _resolved_provider_receipt(
         },
         "provider_binding": {
             "provider": "claude",
-            "provider_identity": triple(
-                f"prv_{UUIDS['route']}", 1, DIGESTS["route"]
-            ),
+            "provider_identity": triple(f"prv_{UUIDS['route']}", 1, DIGESTS["route"]),
             "model": triple(f"mdl_{UUIDS['route']}", 1, DIGESTS["route"]),
-            "profile": triple(
-                f"prf_{UUIDS['profile']}", 1, DIGESTS["profile"]
-            ),
+            "profile": triple(f"prf_{UUIDS['profile']}", 1, DIGESTS["profile"]),
             "adapter": triple(f"adp_{UUIDS['route']}", 1, DIGESTS["route"]),
             "policy": triple(f"pol_{UUIDS['route']}", 1, DIGESTS["route"]),
         },
@@ -124,21 +120,15 @@ def _resolved_provider_receipt(
             "task": triple(TASK_ID, 1, DIGESTS["task"]),
             "dispatch": triple(DISPATCH_ID, 1, DIGESTS["dispatch"]),
             "attempt": triple(ATTEMPT_ID, 1, DIGESTS["attempt"]),
-            "resource_grant": triple(
-                RESOURCE_GRANT_ID, 1, DIGESTS["resource"]
-            ),
+            "resource_grant": triple(RESOURCE_GRANT_ID, 1, DIGESTS["resource"]),
             "cost_grant": triple(COST_GRANT_ID, 2, DIGESTS["cost"]),
             "reservation": triple(
                 reservation_id,
                 1,
                 sha256_hex(reservation_id.encode()),
             ),
-            "secret_reference": triple(
-                SECRET_REFERENCE_ID, 1, DIGESTS["secret"]
-            ),
-            "provider_receipt": triple(
-                PROVIDER_RECEIPT_ID, 1, DIGESTS["receipt"]
-            ),
+            "secret_reference": triple(SECRET_REFERENCE_ID, 1, DIGESTS["secret"]),
+            "provider_receipt": triple(PROVIDER_RECEIPT_ID, 1, DIGESTS["receipt"]),
         },
         "delivery_binding": {
             "disposition": "proven",
@@ -215,15 +205,9 @@ class Records:
                 expires_at="2026-07-24T00:00:00Z",
                 allowed_scope="wp6.2.t2.provider.issue",
             ),
-            ("task", TASK_ID, 1): _subject(
-                "task", TASK_ID, 1, DIGESTS["task"]
-            ),
-            ("dispatch", DISPATCH_ID, 1): _subject(
-                "dispatch", DISPATCH_ID, 1, DIGESTS["dispatch"]
-            ),
-            ("attempt", ATTEMPT_ID, 1): _subject(
-                "attempt", ATTEMPT_ID, 1, DIGESTS["attempt"]
-            ),
+            ("task", TASK_ID, 1): _subject("task", TASK_ID, 1, DIGESTS["task"]),
+            ("dispatch", DISPATCH_ID, 1): _subject("dispatch", DISPATCH_ID, 1, DIGESTS["dispatch"]),
+            ("attempt", ATTEMPT_ID, 1): _subject("attempt", ATTEMPT_ID, 1, DIGESTS["attempt"]),
             ("provider_command", PROVIDER_COMMAND_ID, 1): _subject(
                 "provider_command",
                 PROVIDER_COMMAND_ID,
@@ -280,7 +264,10 @@ class Records:
         return None if value is None else dict(value)
 
 
-def _service(tmp_path: Path, records: Records | None = None) -> tuple[CommandService, EventLedger, ReceiptStore, Records]:
+def _service(
+    tmp_path: Path,
+    records: Records | None = None,
+) -> tuple[CommandService, EventLedger, ReceiptStore, Records]:
     root = tmp_path / "control"
     root.mkdir()
     resolver = records or Records()
@@ -394,7 +381,12 @@ def issue_command(*, zero_cost: bool = False) -> dict[str, Any]:
     )
 
 
-def authorize_command(*, zero_cost: bool = False, command_uuid: str = "019f8d10-0002-7000-8000-000000000002", key: str = "authorize-provider") -> dict[str, Any]:
+def authorize_command(
+    *,
+    zero_cost: bool = False,
+    command_uuid: str = "019f8d10-0002-7000-8000-000000000002",
+    key: str = "authorize-provider",
+) -> dict[str, Any]:
     reservation_id = f"crs_{command_uuid}"
     payload = {
         "cost_grant_id": COST_GRANT_ID,
@@ -544,20 +536,13 @@ def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_pat
     projected = replay(ledger.iter_events(), schema_registry=service.schemas)
     assert projected["cost_grants"][COST_GRANT_ID]["available_cost_microunits"] == 92
     assert projected["provider_commands"][PROVIDER_COMMAND_ID]["status"] == "receipt_recorded"
-    rebuilt = rebuild_projection(
-        ledger.iter_events(), tmp_path / "projection.json", service.schemas
-    )
+    rebuilt = rebuild_projection(ledger.iter_events(), tmp_path / "projection.json", service.schemas)
     assert rebuilt == projected
     duplicate = service.submit(record)
     assert duplicate.status == "duplicate"
     assert duplicate.events == accepted[2].events
-    assert (
-        duplicate.record["outcome_binding_hash"]
-        == accepted[2].record["outcome_binding_hash"]
-    )
-    assert duplicate.record["original_accepted_receipt_hash"] == sha256_hex(
-        canonical_bytes(accepted[2].to_record())
-    )
+    assert duplicate.record["outcome_binding_hash"] == accepted[2].record["outcome_binding_hash"]
+    assert duplicate.record["original_accepted_receipt_hash"] == sha256_hex(canonical_bytes(accepted[2].to_record()))
     assert duplicate.record["new_event_count"] == 0
     assert len(list(ledger.iter_batches())) == 3
     assert invocations["count"] == 0
@@ -588,7 +573,22 @@ def test_atomic_append_failure_publishes_no_partial_batch(tmp_path: Path, monkey
     monkeypatch.setattr(ledger, "_after_batch_fsync", crash)
     with pytest.raises(OSError, match="pre-publication"):
         service.submit(authorize_command())
+    # No partial batch must have been written.
     assert tuple(ledger.iter_events()) == before
+
+    # After removing the fault the ledger must accept the next natural command
+    # (authorize_command reads the cost grant from ledger state; the resolver
+    # holds all other required records) and the ledger must be consistent.
+    monkeypatch.undo()
+    result = service.submit(authorize_command())
+    assert result.status == "accepted"
+    all_events = tuple(ledger.iter_events())
+    assert all_events[: len(before)] == before
+    assert len(all_events) == len(before) + 2
+    assert [e["event_type"] for e in all_events[len(before) :]] == [
+        "CostGrantReserved",
+        "ProviderCommandIssued",
+    ]
 
 
 def test_stale_multi_stream_and_over_reservation_have_one_winner(tmp_path: Path) -> None:
@@ -677,9 +677,7 @@ def test_stored_receipt_proof_is_reconstructed_from_ledger_before_duplicate(
         ("identity", "secret_reference_identity_mismatch"),
     ],
 )
-def test_secret_reference_lifecycle_rejections(
-    tmp_path: Path, mutation: str, reason: str
-) -> None:
+def test_secret_reference_lifecycle_rejections(tmp_path: Path, mutation: str, reason: str) -> None:
     service, ledger, _, records = _service(tmp_path)
     assert service.submit(issue_command()).status == "accepted"
     key = ("secret_reference", SECRET_REFERENCE_ID, 1)
@@ -725,11 +723,7 @@ def test_cost_grant_preconditions(tmp_path: Path, mutation: str, reason: str) ->
                 "cost_grant_revision": 1,
                 "cost_grant_hash": DIGESTS["cost"],
                 "status": mutation if mutation in {"zero", "exhausted", "revoked"} else "active",
-                "expires_at": (
-                    "2026-07-24T00:00:00Z"
-                    if mutation != "expired"
-                    else "2026-07-23T11:00:00Z"
-                ),
+                "expires_at": ("2026-07-24T00:00:00Z" if mutation != "expired" else "2026-07-23T11:00:00Z"),
             }
     if mutation == "insufficient":
         command["payload"]["reserved_cost_microunits"] = 101
@@ -753,9 +747,7 @@ def test_cost_grant_preconditions(tmp_path: Path, mutation: str, reason: str) ->
         ("rate", "schema_identity_mismatch"),
     ],
 )
-def test_identity_and_rate_evidence_mismatches(
-    tmp_path: Path, mutation: str, reason: str
-) -> None:
+def test_identity_and_rate_evidence_mismatches(tmp_path: Path, mutation: str, reason: str) -> None:
     service, ledger, _, _ = _service(tmp_path)
     assert service.submit(issue_command()).status == "accepted"
     command = authorize_command()
@@ -783,9 +775,9 @@ def test_zero_cost_mode_and_reconcile_after_lifecycle_expiry(tmp_path: Path) -> 
     assert service.submit(issue_command(zero_cost=True)).status == "accepted"
     authorize = authorize_command(zero_cost=True)
     assert service.submit(authorize).status == "accepted"
-    records.values[
-        ("provider_receipt", PROVIDER_RECEIPT_ID, 1)
-    ] = _resolved_provider_receipt(reserved_cost=0, consumed_cost=0)
+    records.values[("provider_receipt", PROVIDER_RECEIPT_ID, 1)] = _resolved_provider_receipt(
+        reserved_cost=0, consumed_cost=0
+    )
     records.values[("secret_reference", SECRET_REFERENCE_ID, 1)]["revoked"] = True
     records.values[("resource_grant", RESOURCE_GRANT_ID, 1)]["expires_at"] = "2026-07-23T11:00:00Z"
     receipt = service.submit(record_command(authorize, zero_cost=True))
@@ -819,10 +811,7 @@ def test_conflicting_independently_resolved_provider_receipt_rejects_atomically(
     assert result.status == "rejected"
     assert result.record["stable_reason"] == "reconciliation_actuals_invalid"
     assert len(tuple(ledger.iter_batches())) == 2
-    assert not any(
-        event["event_type"] == "ProviderReceiptRecorded"
-        for event in ledger.iter_events()
-    )
+    assert not any(event["event_type"] == "ProviderReceiptRecorded" for event in ledger.iter_events())
 
 
 @pytest.mark.parametrize(
@@ -835,9 +824,7 @@ def test_conflicting_independently_resolved_provider_receipt_rejects_atomically(
         ("provider_receipt_hash", "f" * 64),
     ],
 )
-def test_receipt_actuals_bounds_and_identity_rejections(
-    tmp_path: Path, field: str, value: Any
-) -> None:
+def test_receipt_actuals_bounds_and_identity_rejections(tmp_path: Path, field: str, value: Any) -> None:
     service, ledger, _, _ = _service(tmp_path)
     assert service.submit(issue_command()).status == "accepted"
     authorize = authorize_command()
