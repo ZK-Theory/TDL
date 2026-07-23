@@ -655,7 +655,7 @@ manager commit `1301d8a5f089d27270c36b216967000a35472efc`, Git blob
 eligibility, result, claim, publication, accepted-artifact mutation, reviewer-authored
 security probing, or third remediation cycle is authorized.<br>
 **Affected specifications:** P-038; W2 receipt/event/idempotency; W7 T2 subset and later
-runtime qualification; W8 cost boundary; WP6.2 T2; large-workflow assurance budgeting.
+runtime qualification; W8 cost boundary; WP6.2 T2 authority governance.
 
 ### P-040 - WP6.2 T2 exact-byte contract acceptance
 
