@@ -122,6 +122,10 @@ def validate_outcome_command(command: Mapping[str, Any]) -> None:
         write_set[1].get("expected_version") == command.get("expected_cost_grant_stream_version"),
         "outcome_cost_version_mismatch",
     )
+    validate_reconciliation(
+        command.get("reconciliation", {}),
+        expected_reservation=command.get("reservation", {}),
+    )
 
 
 def _event_hash(event: Mapping[str, Any]) -> str:
@@ -192,6 +196,12 @@ def validate_event_batch(
         events[1]["payload"].get("live_provider_receipt") == command["live_provider_receipt"], "event_receipt_join"
     )
     _require(events[2]["payload"].get("reservation") == command["reservation"], "event_reservation_join")
+    event_reconciliation = events[2]["payload"]
+    _require(
+        all(event_reconciliation.get(key) == value for key, value in command["reconciliation"].items()),
+        "event_reconciliation_join",
+    )
+    validate_reconciliation(event_reconciliation, expected_reservation=command["reservation"])
 
 
 def validate_dependency_graph(
@@ -315,36 +325,84 @@ def validate_outcome(observation: Mapping[str, Any]) -> None:
         _require(observation.get("refund_count") == 0, "uncertain_silent_refund")
 
 
-def validate_reconciliation(record: Mapping[str, Any]) -> None:
+def validate_reconciliation(
+    record: Mapping[str, Any],
+    *,
+    expected_reservation: Mapping[str, Any],
+) -> None:
     reserved = record.get("reserved_cost_microunits")
     consumed = record.get("consumed_cost_microunits")
     refund = record.get("refund_cost_microunits")
     _require(isinstance(reserved, int) and not isinstance(reserved, bool) and reserved >= 0, "cost_invalid")
-    mode = record.get("rate_mode")
-    if mode == "uncertain":
-        _require(consumed is None and refund is None, "uncertain_cost_invented")
-        _require(record.get("disposition") in {"reserved", "conservatively_consumed"}, "uncertain_disposition")
-        _require(record.get("actuals_proven") is False, "uncertain_actuals_proven")
-        _require(record.get("total_tokens") is None, "uncertain_total_tokens")
-        return
-    _require(isinstance(consumed, int) and not isinstance(consumed, bool), "cost_invalid")
-    _require(isinstance(refund, int) and not isinstance(refund, bool), "cost_invalid")
-    _require(0 <= consumed <= reserved and refund == reserved - consumed, "cost_reconciliation_invalid")
     reservation = record.get("accepted_reservation", {})
-    _require(record.get("actuals_proven") is True, "exact_actuals_unproven")
-    _require(record.get("disposition") == "exact", "exact_disposition_invalid")
+    _require(reservation.get("reservation") == expected_reservation, "reservation_identity_mismatch")
     _require(reserved == reservation.get("reserved_cost_microunits"), "reservation_cost_mismatch")
     _require(record.get("currency") == reservation.get("currency"), "reservation_currency_mismatch")
     _require(record.get("rate_evidence") == reservation.get("rate_evidence"), "rate_evidence_mismatch")
     _require(
-        record.get("cost_ceiling_microunits") == reservation.get("cost_ceiling_microunits"), "cost_ceiling_mismatch"
+        record.get("cost_ceiling_microunits") == reservation.get("cost_ceiling_microunits"),
+        "cost_ceiling_mismatch",
     )
+    _require(reserved <= record.get("cost_ceiling_microunits"), "reservation_above_cost_ceiling")
+    pre_reconciliation_available = reservation.get("pre_reconciliation_remaining_cost_microunits")
+    _require(
+        isinstance(pre_reconciliation_available, int)
+        and not isinstance(pre_reconciliation_available, bool)
+        and 0 <= pre_reconciliation_available <= record.get("cost_ceiling_microunits"),
+        "pre_reconciliation_balance_invalid",
+    )
+    for field in (
+        "reserved_input_tokens",
+        "reserved_output_tokens",
+        "total_token_ceiling",
+        "input_rate",
+        "output_rate",
+    ):
+        value = record.get(field)
+        _require(isinstance(value, int) and not isinstance(value, bool) and value >= 0, f"{field}_invalid")
+        _require(value == reservation.get(field), f"reservation_{field}_mismatch")
+    _require(
+        record.get("total_token_ceiling") == record.get("reserved_input_tokens") + record.get("reserved_output_tokens"),
+        "total_token_ceiling_invalid",
+    )
+    _require(
+        record.get("zero_cost_authority") == reservation.get("zero_cost_authority"), "zero_cost_authority_mismatch"
+    )
+    mode = record.get("rate_mode")
+    if mode == "uncertain":
+        _require(record.get("actuals_proven") is False, "uncertain_actuals_proven")
+        _require(
+            record.get("input_tokens") is None
+            and record.get("output_tokens") is None
+            and record.get("total_tokens") is None,
+            "uncertain_tokens_invented",
+        )
+        disposition = record.get("disposition")
+        _require(disposition in {"reserved", "conservatively_consumed"}, "uncertain_disposition")
+        if disposition == "reserved":
+            _require(consumed is None and refund is None, "uncertain_cost_invented")
+            _require(record.get("remaining_cost_microunits") is None, "uncertain_remaining_invented")
+        else:
+            _require(consumed == reserved and refund == 0, "uncertain_conservative_cost_invalid")
+            _require(
+                record.get("remaining_cost_microunits") == pre_reconciliation_available,
+                "uncertain_conservative_remaining_invalid",
+            )
+        return
+    _require(isinstance(consumed, int) and not isinstance(consumed, bool), "cost_invalid")
+    _require(isinstance(refund, int) and not isinstance(refund, bool), "cost_invalid")
+    _require(0 <= consumed <= reserved and refund == reserved - consumed, "cost_reconciliation_invalid")
+    _require(record.get("actuals_proven") is True, "exact_actuals_unproven")
+    _require(record.get("disposition") == "exact", "exact_disposition_invalid")
     _require(consumed <= record.get("cost_ceiling_microunits"), "consumed_above_cost_ceiling")
     _require(
-        record.get("remaining_cost_microunits")
-        == reservation.get("pre_reconciliation_remaining_cost_microunits") - consumed,
+        record.get("remaining_cost_microunits") == pre_reconciliation_available + refund,
         "remaining_cost_invalid",
     )
+    _require(
+        record.get("remaining_cost_microunits") <= record.get("cost_ceiling_microunits"), "remaining_above_cost_ceiling"
+    )
+    _require(mode == reservation.get("rate_mode"), "reservation_rate_mode_mismatch")
     if mode == "zero_cost_authorized":
         _require(reserved == consumed == refund == 0, "zero_cost_nonzero")
         _require(record.get("zero_cost_authority") is not None, "zero_cost_authority_missing")
@@ -368,11 +426,6 @@ def validate_reconciliation(record: Mapping[str, Any]) -> None:
         _require(input_tokens <= record.get("reserved_input_tokens"), "input_token_ceiling")
         _require(output_tokens <= record.get("reserved_output_tokens"), "output_token_ceiling")
         _require(record.get("total_tokens") == input_tokens + output_tokens, "total_tokens_invalid")
-        _require(
-            record.get("total_token_ceiling")
-            == record.get("reserved_input_tokens") + record.get("reserved_output_tokens"),
-            "total_token_ceiling_invalid",
-        )
 
 
 def _content_hash(value: Mapping[str, Any]) -> str:

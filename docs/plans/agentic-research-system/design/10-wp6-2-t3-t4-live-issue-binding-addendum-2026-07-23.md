@@ -258,6 +258,17 @@ expiry or revocation does not strand reconciliation for an accepted
 invocation. Exact replay returns the original accepted outcome and creates no
 second invocation, evidence, receipt, reconciliation, or refund.
 
+The accepted reservation records the post-reservation available balance.
+Reconciliation therefore sets remaining balance to that available balance plus
+the refund; for available 90, reserved 10, consumed 2, and refund 8, the only
+valid remaining balance is 98, not 88. Every outcome mode joins the reservation
+identity, currency, rate evidence, rates, token and cost ceilings, and zero-cost
+authority before applying its disposition. For `uncertain` plus `reserved`,
+actual tokens, consumed cost, refund, and remaining balance are all pending
+(`null`). For `uncertain` plus `conservatively_consumed`, actual tokens remain
+unknown, consumed cost equals the full reservation, refund is zero, and
+remaining balance equals the post-reservation available balance.
+
 ## 9. Dependency graph and provider separation
 
 For `A -> B`, B directly hashes or binds A. The complete direct graph is:

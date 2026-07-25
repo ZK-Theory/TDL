@@ -554,17 +554,7 @@ def test_command_identity_joins_and_global_tail_are_independent_semantics() -> N
     with pytest.raises(Exception):
         validate_claim_command(omitted, repo_root=REPO_ROOT)
 
-    outcome = {
-        "target_stream_id": f"pinv_{UUID7}",
-        "invocation_id": f"pinv_{UUID7}",
-        "expected_invocation_stream_version": 1,
-        "expected_cost_grant_stream_version": 2,
-        "cost_grant": triple("cgr"),
-        "write_set": [
-            {"stream_role": "provider_invocation", "stream_id": f"pinv_{UUID7}", "expected_version": 1},
-            {"stream_role": "cost_grant", "stream_id": f"cgr_{UUID7}", "expected_version": 2},
-        ],
-    }
+    outcome = valid_outcome_command()
     validate_outcome_command(outcome)
     duplicated = clone(outcome)
     duplicated["write_set"][1]["stream_role"] = "provider_invocation"
@@ -590,6 +580,16 @@ def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> 
         expected_global_tail=42,
         expected_previous_hash=DIGEST,
     )
+    invalid_command = clone(command)
+    invalid_command["reconciliation"]["remaining_cost_microunits"] = 88
+    with pytest.raises(LiveIssueContractError):
+        validate_event_batch(
+            invalid_command,
+            events,
+            expected_event_types=expected,
+            expected_global_tail=42,
+            expected_previous_hash=DIGEST,
+        )
     for mutation in ("command_id", "correlation_id", "payload_hash", "stream_id", "event_order"):
         invalid = clone(events)
         if mutation == "event_order":
@@ -763,7 +763,12 @@ def test_inert_orphan_and_exact_replay_have_no_second_effects() -> None:
 
 def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
     valid = valid_reconciliation()
-    validate_reconciliation(valid)
+    expected_reservation = valid["accepted_reservation"]["reservation"]
+    validate_reconciliation(valid, expected_reservation=expected_reservation)
+    subtraction_result = clone(valid)
+    subtraction_result["remaining_cost_microunits"] = 88
+    with pytest.raises(LiveIssueContractError):
+        validate_reconciliation(subtraction_result, expected_reservation=expected_reservation)
     for mutation in ("bad_refund", "bad_remaining", "unproven_actuals"):
         invalid = clone(valid)
         if mutation == "bad_refund":
@@ -774,18 +779,51 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
         else:
             invalid["actuals_proven"] = False
         with pytest.raises(LiveIssueContractError):
-            validate_reconciliation(invalid)
-    validate_reconciliation(
+            validate_reconciliation(invalid, expected_reservation=expected_reservation)
+
+    uncertain = clone(valid)
+    uncertain.update(
         {
             "rate_mode": "uncertain",
-            "reserved_cost_microunits": 5,
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
             "consumed_cost_microunits": None,
             "refund_cost_microunits": None,
+            "remaining_cost_microunits": None,
             "disposition": "reserved",
             "actuals_proven": False,
-            "total_tokens": None,
         }
     )
+    validate_reconciliation(uncertain, expected_reservation=expected_reservation)
+
+    uncertain_consumed = clone(uncertain)
+    uncertain_consumed.update(
+        {
+            "consumed_cost_microunits": 10,
+            "refund_cost_microunits": 0,
+            "remaining_cost_microunits": 90,
+            "disposition": "conservatively_consumed",
+        }
+    )
+    validate_reconciliation(uncertain_consumed, expected_reservation=expected_reservation)
+
+    for mutation in ("reservation", "currency", "rate_evidence", "rates", "ceilings", "remaining"):
+        invalid = clone(uncertain)
+        if mutation == "reservation":
+            invalid["accepted_reservation"]["reservation"] = triple("other")
+        elif mutation == "currency":
+            invalid["currency"] = "GBP_MICRO"
+        elif mutation == "rate_evidence":
+            invalid["rate_evidence"] = triple("other")
+        elif mutation == "rates":
+            invalid["input_rate"] = 2_000_000
+        elif mutation == "ceilings":
+            invalid["total_token_ceiling"] = 999
+        else:
+            invalid["remaining_cost_microunits"] = 98
+        with pytest.raises(LiveIssueContractError):
+            validate_reconciliation(invalid, expected_reservation=expected_reservation)
 
 
 @pytest.mark.parametrize(
