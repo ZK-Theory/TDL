@@ -36,13 +36,13 @@
       }
     },
     "artifacts": {
-      "type": "array", "minItems": 11, "maxItems": 11,
+      "type": "array", "minItems": 17, "maxItems": 17,
       "items": {
         "type": "object",
         "required": ["role", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
         "additionalProperties": false,
         "properties": {
-          "role": {"enum": ["record", "resolver_receipt", "evidence", "receipt_successor", "command", "event", "trusted_authority_catalogue"]},
+          "role": {"enum": ["record", "resolver_receipt", "evidence", "receipt_successor", "command", "event", "trusted_authority_catalogue", "reducer", "projection"]},
           "path": {"type": "string", "pattern": "^\\.research-system/schemas/(wp6-2-live-issue|contracts)/"},
           "schema_id": {"type": "string", "pattern": "^ars://"},
           "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},

@@ -76,6 +76,12 @@ previous/event hashes. Global positions are contiguous from the accepted
 tail; transaction membership and ordered indices are exact. `event_hash` is
 reconstructed as SHA-256 of
 `"ars:w2:event:v1\0" || canonical_json(all event fields except event_hash)`.
+Outcome admission validates the command and all three events as one transition:
+their command identity, actor/authority and correlation/causation lineage,
+idempotency and payload identity, transaction membership, global positions,
+provider-invocation/cost-grant stream roles, stream versions, claim/evidence
+references, receipt/reservation references, event order, and hash chain must
+join exactly.
 
 The intent hash is:
 
@@ -162,8 +168,10 @@ identities, exact intent hash, provider family, requested scope, isolated auth
 context, provider process/session context, checked expiry/revocation state and
 time, and the declaration `contains_credential_bytes = false`.
 
-The coordinator validates the proof against an independently loaded trusted
-resolver-authority manifest and the named resolver store before claim. The
+The coordinator first verifies the trusted-resolver catalogue's raw-byte
+SHA-256 against the independently bound identity manifest, then loads the
+matching registered authority and resolver-store record internally. Neither
+authority nor store record is accepted as a caller oracle. The
 receipt binds the resolver-store and record triples plus a trust-root,
 signing-key, domain-separated signed-preimage hash and independent
 verification-evidence hash. Caller-supplied resolver or trust-root values are
@@ -211,6 +219,10 @@ Evidence identity is deterministic rather than caller-chosen:
 LiveIssueBinding, CredentialUseReceipt, invocation_observation_key)`. The
 store inserts the first object, treats the same key and same bytes as an exact
 duplicate, and rejects the same key with different bytes as a conflict.
+Receipt eligibility resolves that exact evidence object from its store,
+recomputes its content hash, validates its deterministic identity, and joins
+provider-native identity, model/version/profile/credential selection,
+delivery proof, terminal lifecycle, token accounting, and receipt fields.
 
 ## 8. Outcome, evidence orphan, and replay
 
@@ -234,7 +246,8 @@ true`, and proven exact accounting. Uncertain, unproven, incomplete, or
 
 Metered reconciliation binds the accepted reservation triple, reserved token
 ceilings, actual tokens, integer input/output rates, currency, rate-evidence
-triple, zero-cost authority, cost ceiling, and remaining balance in both the
+triple, zero-cost authority, total tokens and total ceiling, cost ceiling,
+pre-reconciliation balance, and remaining balance in both the
 outcome command and reconciliation event. It retains exact P-037--P-041
 integer ceiling arithmetic: consumed cost is the sum of the separately
 ceiling-divided input and output products; actual tokens do not exceed their
@@ -261,9 +274,11 @@ Its transitive closure is acyclic. No edge returns from
 CredentialUseReceipt to LiveIssueBinding or claim_intent_hash.
 
 The identity manifest records the Git blob and raw UTF-8/LF SHA-256 for every
-leaf schema. The catalogue independently binds every command, event, reducer,
-and projection reference to a typed schema identity/version and those exact
-bytes; unbound names or byte drift are invalid.
+leaf schema. Each of the three reducers and three projections has its own
+strict component schema carrying its exact typed reference. The catalogue
+independently binds every command, event, reducer, and projection reference to
+that leaf schema identity/version and exact bytes; meta-schema aliases,
+unbound names, or byte drift are invalid.
 
 The shared coordinator owns ordering only. Claude and Codex keep separate
 renderers, native evidence parsers, canaries, negative matrices, and bounded

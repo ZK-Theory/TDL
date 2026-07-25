@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from jsonschema import Draft202012Validator
 
 
 class LiveIssueContractError(ValueError):
@@ -22,9 +23,22 @@ def canonical_json(value: Mapping[str, Any]) -> bytes:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+def _load_identity_bound_yaml(repo_root: Path, relative_path: str) -> Mapping[str, Any]:
+    identity_path = repo_root / ".research-system/contracts/wp6-2-t3-t4-live-issue-schema-identities.yaml"
+    identities = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+    matches = [row for row in identities["contract_artifacts"] if row["path"] == relative_path]
+    _require(len(matches) == 1, "registered_contract_identity_not_unique")
+    raw = (repo_root / relative_path).read_bytes()
+    _require(
+        hashlib.sha256(raw).hexdigest() == matches[0]["raw_utf8_lf_sha256"],
+        "registered_contract_byte_mismatch",
+    )
+    return yaml.safe_load(raw)
+
+
 def load_trusted_resolver_authority(repo_root: Path, resolver_id: str) -> Mapping[str, Any]:
     path = repo_root / ".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml"
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document = _load_identity_bound_yaml(repo_root, path.relative_to(repo_root).as_posix())
     _require(document.get("coordinator_authoritative") is False, "coordinator_marked_authoritative")
     matches = [authority for authority in document["authorities"] if authority["resolver"]["id"] == resolver_id]
     _require(len(matches) == 1, "trusted_resolver_authority_not_unique")
@@ -55,7 +69,7 @@ def compute_final_claim_payload(
     return preimage, hashlib.sha256(domain + canonical_json(preimage)).hexdigest()
 
 
-def validate_claim_command(claim: Mapping[str, Any]) -> None:
+def validate_claim_command(claim: Mapping[str, Any], *, repo_root: Path) -> None:
     invocation_id = claim.get("invocation_id")
     _require(claim.get("target_stream_id") == invocation_id, "claim_target_mismatch")
     write_set = claim.get("write_set")
@@ -73,6 +87,17 @@ def validate_claim_command(claim: Mapping[str, Any]) -> None:
         and set(claim["expected_ledger_tail_hash"]) <= set("0123456789abcdef"),
         "claim_global_tail_missing",
     )
+    schema = json.loads(
+        (
+            repo_root / ".research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    Draft202012Validator(schema).validate(claim)
+    _, intent_hash = compute_claim_intent(claim, preimage_fields=schema["x-intent-preimage-fields"])
+    _require(claim.get("claim_intent_hash") == intent_hash, "claim_intent_hash_mismatch")
+    final_fields = [field for field in schema["properties"] if field in claim and field != "payload_hash"]
+    _, final_hash = compute_final_claim_payload(claim, preimage_fields=final_fields)
+    _require(claim.get("payload_hash") == final_hash, "claim_payload_hash_mismatch")
 
 
 def validate_outcome_command(command: Mapping[str, Any]) -> None:
@@ -105,16 +130,32 @@ def _event_hash(event: Mapping[str, Any]) -> str:
 
 
 def validate_event_batch(
+    command: Mapping[str, Any],
     events: Sequence[Mapping[str, Any]],
     *,
+    expected_event_types: Sequence[str],
     expected_global_tail: int,
     expected_previous_hash: str,
 ) -> None:
-    _require(bool(events), "event_batch_empty")
+    validate_outcome_command(command)
+    _require(len(events) == len(expected_event_types) == 3, "event_batch_count")
+    _require([event.get("event_type") for event in events] == list(expected_event_types), "event_order")
     transaction_id = events[0].get("transaction_id")
     count = len(events)
     previous_hash = expected_previous_hash
     for index, event in enumerate(events):
+        for field in (
+            "command_id",
+            "command_type",
+            "correlation_id",
+            "causation_id",
+            "actor_id",
+            "authority_grant_id",
+            "authority_scope",
+            "idempotency_key",
+            "payload_hash",
+        ):
+            _require(event.get(field) == command.get(field), f"event_{field}_mismatch")
         _require(event.get("transaction_id") == transaction_id, "event_transaction_mismatch")
         _require(event.get("transaction_index") == index, "event_transaction_index")
         _require(event.get("transaction_count") == count, "event_transaction_count")
@@ -128,6 +169,29 @@ def validate_event_batch(
         _require(event.get("previous_event_hash") == previous_hash, "event_hash_chain")
         _require(event.get("event_hash") == _event_hash(event), "event_hash_invalid")
         previous_hash = event["event_hash"]
+    invocation_stream = command["invocation_id"]
+    cost_stream = command["cost_grant"]["id"]
+    _require(
+        [event["stream_id"] for event in events] == [invocation_stream, invocation_stream, cost_stream],
+        "event_stream_roles",
+    )
+    _require(
+        events[0]["prior_stream_version"] == command["expected_invocation_stream_version"], "event_invocation_prior"
+    )
+    _require(events[1]["prior_stream_version"] == events[0]["resulting_stream_version"], "event_invocation_sequence")
+    _require(events[2]["prior_stream_version"] == command["expected_cost_grant_stream_version"], "event_cost_prior")
+    for event in events:
+        _require(event.get("stream_version") == event.get("resulting_stream_version"), "event_stream_version_alias")
+    common_claim = command["claim"]
+    common_evidence = command["invocation_evidence"]
+    for event in events:
+        payload = event["payload"]
+        _require(payload.get("claim") == common_claim, "event_claim_join")
+        _require(payload.get("invocation_evidence") == common_evidence, "event_evidence_join")
+    _require(
+        events[1]["payload"].get("live_provider_receipt") == command["live_provider_receipt"], "event_receipt_join"
+    )
+    _require(events[2]["payload"].get("reservation") == command["reservation"], "event_reservation_join")
 
 
 def validate_dependency_graph(
@@ -163,11 +227,17 @@ def validate_dependency_graph(
 
 
 def validate_credential_receipt(
+    repo_root: Path,
     receipt: Mapping[str, Any],
-    *,
-    trusted_authority: Mapping[str, Any],
-    resolver_store_record: Mapping[str, Any],
 ) -> None:
+    trusted_authority = load_trusted_resolver_authority(repo_root, receipt.get("resolver", {}).get("id", ""))
+    records = [
+        record
+        for record in trusted_authority["resolver_store_records"]
+        if record["identity"] == receipt.get("resolver_store_record")
+    ]
+    _require(len(records) == 1, "credential_receipt_store_record_not_registered")
+    resolver_store_record = records[0]
     _require(receipt.get("owner") == "named_credential_resolver", "credential_receipt_wrong_owner")
     _require(receipt.get("contains_credential_bytes") is False, "credential_bytes_present")
     _require(
@@ -254,13 +324,31 @@ def validate_reconciliation(record: Mapping[str, Any]) -> None:
     if mode == "uncertain":
         _require(consumed is None and refund is None, "uncertain_cost_invented")
         _require(record.get("disposition") in {"reserved", "conservatively_consumed"}, "uncertain_disposition")
+        _require(record.get("actuals_proven") is False, "uncertain_actuals_proven")
+        _require(record.get("total_tokens") is None, "uncertain_total_tokens")
         return
     _require(isinstance(consumed, int) and not isinstance(consumed, bool), "cost_invalid")
     _require(isinstance(refund, int) and not isinstance(refund, bool), "cost_invalid")
     _require(0 <= consumed <= reserved and refund == reserved - consumed, "cost_reconciliation_invalid")
+    reservation = record.get("accepted_reservation", {})
+    _require(record.get("actuals_proven") is True, "exact_actuals_unproven")
+    _require(record.get("disposition") == "exact", "exact_disposition_invalid")
+    _require(reserved == reservation.get("reserved_cost_microunits"), "reservation_cost_mismatch")
+    _require(record.get("currency") == reservation.get("currency"), "reservation_currency_mismatch")
+    _require(record.get("rate_evidence") == reservation.get("rate_evidence"), "rate_evidence_mismatch")
+    _require(
+        record.get("cost_ceiling_microunits") == reservation.get("cost_ceiling_microunits"), "cost_ceiling_mismatch"
+    )
+    _require(consumed <= record.get("cost_ceiling_microunits"), "consumed_above_cost_ceiling")
+    _require(
+        record.get("remaining_cost_microunits")
+        == reservation.get("pre_reconciliation_remaining_cost_microunits") - consumed,
+        "remaining_cost_invalid",
+    )
     if mode == "zero_cost_authorized":
         _require(reserved == consumed == refund == 0, "zero_cost_nonzero")
         _require(record.get("zero_cost_authority") is not None, "zero_cost_authority_missing")
+        _require(record.get("input_rate") == record.get("output_rate") == 0, "zero_cost_rates_nonzero")
     else:
         _require(mode == "metered", "rate_mode_invalid")
         input_tokens = record.get("input_tokens")
@@ -279,10 +367,71 @@ def validate_reconciliation(record: Mapping[str, Any]) -> None:
         _require(consumed == expected, "metered_cost_formula_invalid")
         _require(input_tokens <= record.get("reserved_input_tokens"), "input_token_ceiling")
         _require(output_tokens <= record.get("reserved_output_tokens"), "output_token_ceiling")
-        reservation = record.get("accepted_reservation", {})
-        _require(reserved == reservation.get("reserved_cost_microunits"), "reservation_cost_mismatch")
-        _require(record.get("currency") == reservation.get("currency"), "reservation_currency_mismatch")
-        _require(record.get("rate_evidence") == reservation.get("rate_evidence"), "rate_evidence_mismatch")
+        _require(record.get("total_tokens") == input_tokens + output_tokens, "total_tokens_invalid")
+        _require(
+            record.get("total_token_ceiling")
+            == record.get("reserved_input_tokens") + record.get("reserved_output_tokens"),
+            "total_token_ceiling_invalid",
+        )
+
+
+def _content_hash(value: Mapping[str, Any]) -> str:
+    preimage = {key: item for key, item in value.items() if key != "content_hash"}
+    return hashlib.sha256(canonical_json(preimage)).hexdigest()
+
+
+def validate_live_provider_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    evidence_store: Mapping[str, Mapping[str, Any]],
+) -> None:
+    reference = receipt["invocation_evidence"]
+    evidence = evidence_store.get(reference["id"])
+    _require(evidence is not None, "receipt_evidence_unresolved")
+    _require(evidence.get("revision") == reference["revision"], "receipt_evidence_revision")
+    _require(_content_hash(evidence) == evidence.get("content_hash") == reference["hash"], "receipt_evidence_content")
+    validate_evidence_uniqueness(evidence)
+    selection = evidence["actual_selection"]
+    native = evidence["native_identity"]
+    delivery = evidence["delivery"]
+    accounting = evidence["accounting"]
+    provider = selection["provider_family"]
+    required_native = ("request_id", "response_id") if provider == "claude" else ("thread_id", "response_id")
+    if receipt["research_eligibility"] == "eligible" or receipt["complete"] is True:
+        _require(receipt["outcome"] == "terminal", "eligible_outcome")
+        _require(evidence["terminal"]["lifecycle"] == "observed", "eligible_evidence_lifecycle")
+        _require(
+            all(isinstance(native[field], str) and native[field] for field in required_native),
+            "eligible_native_identity",
+        )
+        _require(
+            all(
+                selection[field] is True
+                for field in (
+                    "provider_proven",
+                    "model_proven",
+                    "version_proven",
+                    "profile_proven",
+                    "credential_context_proven",
+                )
+            ),
+            "eligible_selection_unproven",
+        )
+        _require(delivery["disposition"] == "proven" and bool(delivery["proof_fields"]), "eligible_delivery")
+        _require(accounting["actuals_proven"] is True and accounting["rate_mode"] != "uncertain", "eligible_accounting")
+        expected_selection = {
+            "provider_family": selection["provider_family"],
+            "model": selection["model"],
+            "version": selection["version"],
+            "profile": selection["profile"],
+            "credential_context_id": selection["credential_context_id"],
+            "all_proven": True,
+        }
+        _require(receipt["actual_selection"] == expected_selection, "receipt_selection_join")
+        _require(receipt["delivery"] == delivery["disposition"], "receipt_delivery_join")
+        for field in ("rate_mode", "actuals_proven", "input_tokens", "output_tokens", "cost_microunits"):
+            receipt_field = "consumed_cost_microunits" if field == "cost_microunits" else field
+            _require(receipt["accounting"][receipt_field] == accounting[field], f"receipt_accounting_{field}_join")
 
 
 def validate_live_issue_binding(binding: Mapping[str, Any]) -> None:

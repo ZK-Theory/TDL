@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/reducer/provider-invocation",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "component_type", "stream_role", "accepted_event_types"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/reducer/provider-invocation"},
+    "schema_version": {"const": "1.0.0"},
+    "component_type": {"const": "reducer"},
+    "stream_role": {"const": "provider_invocation"},
+    "accepted_event_types": {"const": ["LiveProviderInvocationClaimed", "ProviderInvocationOutcomeRecorded", "LiveProviderReceiptRecorded"]}
+  },
+  "additionalProperties": false,
+  "x-component-reference": "provider_invocation_reducer@1.0.0",
+  "x-component-kind": "reducer"
+}

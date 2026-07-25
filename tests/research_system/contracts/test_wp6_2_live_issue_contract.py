@@ -15,12 +15,16 @@ from tests.research_system.contracts.wp6_2_live_issue_fixtures import (
     DIGEST,
     UUID7,
     clone,
-    resolver_store_record,
     triple,
     trusted_resolver_authority,
     valid_claim,
     valid_credential_receipt,
+    valid_live_provider_receipt,
     valid_live_issue_binding,
+    valid_outcome_command,
+    valid_outcome_events,
+    valid_provider_invocation_evidence,
+    valid_reconciliation,
 )
 from tests.research_system.contracts.wp6_2_live_issue_expectations import (
     ADDENDUM_PATH,
@@ -50,6 +54,7 @@ from tests.research_system.contracts.wp6_2_live_issue_validation import (
     validate_evidence_uniqueness,
     validate_event_batch,
     validate_live_issue_binding,
+    validate_live_provider_receipt,
     validate_native_binding,
     validate_no_secret_material,
     validate_outcome,
@@ -186,6 +191,9 @@ def test_every_catalogue_reference_binds_actual_schema_identity_and_bytes() -> N
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$id"] == row["schema_id"]
         assert schema["properties"]["schema_version"]["const"] == row["schema_version"]
+        if row["reference_kind"] in {"reducer", "projection"}:
+            assert schema["x-component-reference"] == row["reference"]
+            assert schema["x-component-kind"] == row["reference_kind"]
         assert hashlib.sha256(path.read_bytes()).hexdigest() == row["raw_utf8_lf_sha256"]
         blob = subprocess.run(
             ["git", "hash-object", f"--path={row['path']}", row["path"]],
@@ -215,7 +223,7 @@ def test_reviewed_six_adversarial_escapes_are_rejected() -> None:
     distinct_ids = clone(claim)
     distinct_ids["target_stream_id"] = f"pinv_{UUID7[:-1]}c"
     with pytest.raises(LiveIssueContractError):
-        validate_claim_command(distinct_ids)
+        validate_claim_command(distinct_ids, repo_root=REPO_ROOT)
 
     malformed_uuid = clone(claim)
     malformed_uuid["command_id"] = "cmd_not-a-uuid"
@@ -380,13 +388,8 @@ def test_credential_receipt_schema_and_semantics_reject_fabrication_and_drift() 
     )
     assert not list(validator.iter_errors(valid))
     trusted = load_trusted_resolver_authority(REPO_ROOT, "resolver.local")
-    assert trusted == trusted_resolver_authority()
-    store_record = resolver_store_record()
-    validate_credential_receipt(
-        valid,
-        trusted_authority=trusted,
-        resolver_store_record=store_record,
-    )
+    assert trusted["resolver"] == trusted_resolver_authority()["resolver"]
+    validate_credential_receipt(REPO_ROOT, valid)
     mutations = {
         "owner": "coordinator",
         "resolver_trust_root": {"id": "wrong", "revision": 1, "hash": DIGEST},
@@ -403,28 +406,20 @@ def test_credential_receipt_schema_and_semantics_reject_fabrication_and_drift() 
         mutated = clone(valid)
         mutated[field] = replacement
         with pytest.raises(LiveIssueContractError):
-            validate_credential_receipt(
-                mutated,
-                trusted_authority=trusted,
-                resolver_store_record=store_record,
-            )
+            validate_credential_receipt(REPO_ROOT, mutated)
 
     fabricated = clone(valid)
     fabricated["claim_intent_hash"] = ALT_DIGEST
     with pytest.raises(LiveIssueContractError):
-        validate_credential_receipt(
-            fabricated,
-            trusted_authority=trusted,
-            resolver_store_record=store_record,
-        )
-    wrong_store = clone(store_record)
-    wrong_store["identity"] = triple("rsr", digest=ALT_DIGEST)
+        validate_credential_receipt(REPO_ROOT, fabricated)
+    wrong_store = clone(valid)
+    wrong_store["resolver_store_record"] = triple("rsr", digest=ALT_DIGEST)
     with pytest.raises(LiveIssueContractError):
-        validate_credential_receipt(
-            valid,
-            trusted_authority=trusted,
-            resolver_store_record=wrong_store,
-        )
+        validate_credential_receipt(REPO_ROOT, wrong_store)
+    unregistered = clone(valid)
+    unregistered["resolver"]["id"] = "resolver.unregistered"
+    with pytest.raises(LiveIssueContractError):
+        validate_credential_receipt(REPO_ROOT, unregistered)
 
 
 def test_intent_preimage_is_literal_complete_and_excludes_exact_six_fields() -> None:
@@ -502,14 +497,62 @@ def test_final_payload_hash_is_domain_separated_complete_and_non_recursive() -> 
     assert changed != digest
 
 
+def test_eligible_receipt_requires_content_checked_provider_evidence() -> None:
+    evidence = valid_provider_invocation_evidence()
+    receipt = valid_live_provider_receipt()
+    Draft202012Validator(_schema("provider_invocation_evidence")).validate(evidence)
+    Draft202012Validator(_schema("live_provider_receipt_v3")).validate(receipt)
+    store = {evidence["provider_invocation_evidence_id"]: evidence}
+    validate_live_provider_receipt(receipt, evidence_store=store)
+
+    with pytest.raises(LiveIssueContractError):
+        validate_live_provider_receipt(receipt, evidence_store={})
+    for mutation in ("native", "delivery", "selection", "accounting", "lifecycle"):
+        invalid_evidence = clone(evidence)
+        if mutation == "native":
+            invalid_evidence["native_identity"]["request_id"] = None
+        elif mutation == "delivery":
+            invalid_evidence["delivery"]["disposition"] = "unproven"
+        elif mutation == "selection":
+            invalid_evidence["actual_selection"]["model_proven"] = False
+        elif mutation == "accounting":
+            invalid_evidence["accounting"]["actuals_proven"] = False
+        else:
+            invalid_evidence["terminal"]["lifecycle"] = "uncertain"
+        invalid_evidence["content_hash"] = hashlib.sha256(
+            json.dumps(
+                {key: value for key, value in invalid_evidence.items() if key != "content_hash"},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        invalid_receipt = clone(receipt)
+        invalid_receipt["invocation_evidence"]["hash"] = invalid_evidence["content_hash"]
+        with pytest.raises(LiveIssueContractError):
+            validate_live_provider_receipt(
+                invalid_receipt,
+                evidence_store={invalid_evidence["provider_invocation_evidence_id"]: invalid_evidence},
+            )
+
+
 def test_command_identity_joins_and_global_tail_are_independent_semantics() -> None:
     claim = valid_claim()
-    validate_claim_command(claim)
+    validate_claim_command(claim, repo_root=REPO_ROOT)
     for field in ("target_stream_id", "expected_ledger_tail_hash"):
         mutated = clone(claim)
         mutated[field] = "wrong"
         with pytest.raises(LiveIssueContractError):
-            validate_claim_command(mutated)
+            validate_claim_command(mutated, repo_root=REPO_ROOT)
+
+    for field in ("claim_intent_hash", "provider_family"):
+        invalid = clone(claim)
+        invalid[field] = ALT_DIGEST if field.endswith("hash") else "codex"
+        with pytest.raises(LiveIssueContractError):
+            validate_claim_command(invalid, repo_root=REPO_ROOT)
+    omitted = clone(claim)
+    omitted.pop("provider_family")
+    with pytest.raises(Exception):
+        validate_claim_command(omitted, repo_root=REPO_ROOT)
 
     outcome = {
         "target_stream_id": f"pinv_{UUID7}",
@@ -530,45 +573,39 @@ def test_command_identity_joins_and_global_tail_are_independent_semantics() -> N
 
 
 def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> None:
-    key = "outcome-key-1"
-    event = {
-        "schema_id": "ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded",
-        "schema_version": "1.0.0",
-        "event_type": "ProviderInvocationOutcomeRecorded",
-        "event_id": f"evt_{UUID7}",
-        "project_id": "project-1",
-        "stream_id": f"pinv_{UUID7}",
-        "stream_version": 2,
-        "prior_stream_version": 1,
-        "resulting_stream_version": 2,
-        "global_position": 43,
-        "transaction_id": f"txn_{UUID7}",
-        "transaction_index": 0,
-        "transaction_count": 1,
-        "command_id": f"cmd_{UUID7}",
-        "command_type": "RecordLiveProviderInvocationOutcome",
-        "correlation_id": "correlation-1",
-        "causation_id": "causation-1",
-        "actor_id": f"act_{UUID7}",
-        "authority_grant_id": f"agr_{UUID7}",
-        "authority_scope": "wp6.2.live-issue.outcome.record",
-        "idempotency_key": key,
-        "idempotency_key_hash": hashlib.sha256(key.encode()).hexdigest(),
-        "payload_hash": DIGEST,
-        "occurred_at": "2026-07-25T20:00:00Z",
-        "recorded_at": "2026-07-25T20:00:01Z",
-        "previous_event_hash": DIGEST,
-        "payload": {"outcome": "terminal"},
-    }
-    event["event_hash"] = hashlib.sha256(
-        b"ars:w2:event:v1\0" + json.dumps(event, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    validate_event_batch([event], expected_global_tail=42, expected_previous_hash=DIGEST)
-    for field in ("global_position", "idempotency_key_hash", "previous_event_hash", "event_hash"):
-        invalid = clone(event)
-        invalid[field] = ALT_DIGEST if field.endswith("hash") else 44
+    command = valid_outcome_command()
+    events = valid_outcome_events()
+    expected = ["ProviderInvocationOutcomeRecorded", "LiveProviderReceiptRecorded", "LiveCostGrantReconciled"]
+    Draft202012Validator(_schema("record_outcome_command")).validate(command)
+    for schema_name, event in zip(
+        ("outcome_event", "receipt_event", "reconciliation_event"),
+        events,
+        strict=True,
+    ):
+        Draft202012Validator(_schema(schema_name)).validate(event)
+    validate_event_batch(
+        command,
+        events,
+        expected_event_types=expected,
+        expected_global_tail=42,
+        expected_previous_hash=DIGEST,
+    )
+    for mutation in ("command_id", "correlation_id", "payload_hash", "stream_id", "event_order"):
+        invalid = clone(events)
+        if mutation == "event_order":
+            invalid[0], invalid[1] = invalid[1], invalid[0]
+        elif mutation == "stream_id":
+            invalid[2]["stream_id"] = command["invocation_id"]
+        else:
+            invalid[1][mutation] = ALT_DIGEST if mutation.endswith("hash") else "divergent"
         with pytest.raises(LiveIssueContractError):
-            validate_event_batch([invalid], expected_global_tail=42, expected_previous_hash=DIGEST)
+            validate_event_batch(
+                command,
+                invalid,
+                expected_event_types=expected,
+                expected_global_tail=42,
+                expected_previous_hash=DIGEST,
+            )
 
 
 def test_binding_argv_and_token_gates_are_exact_and_relational() -> None:
@@ -725,60 +762,19 @@ def test_inert_orphan_and_exact_replay_have_no_second_effects() -> None:
 
 
 def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
-    validate_reconciliation(
-        {
-            "rate_mode": "metered",
-            "reserved_cost_microunits": 5,
-            "consumed_cost_microunits": 3,
-            "refund_cost_microunits": 2,
-            "disposition": "exact",
-            "input_tokens": 1_000_000,
-            "output_tokens": 1_000_000,
-            "input_rate": 1,
-            "output_rate": 2,
-            "reserved_input_tokens": 1_000_000,
-            "reserved_output_tokens": 1_000_000,
-            "currency": "USD_MICRO",
-            "rate_evidence": triple("rate"),
-            "accepted_reservation": {
-                "reserved_cost_microunits": 5,
-                "currency": "USD_MICRO",
-                "rate_evidence": triple("rate"),
-            },
-        }
-    )
-    invalid = {
-        "rate_mode": "metered",
-        "reserved_cost_microunits": 10,
-        "consumed_cost_microunits": 10,
-        "refund_cost_microunits": 10,
-        "disposition": "exact",
-        "input_tokens": 1,
-        "output_tokens": 1,
-        "input_rate": 5_000_000,
-        "output_rate": 5_000_000,
-        "reserved_input_tokens": 1,
-        "reserved_output_tokens": 1,
-        "currency": "USD_MICRO",
-        "rate_evidence": triple("rate"),
-        "accepted_reservation": {
-            "reserved_cost_microunits": 10,
-            "currency": "USD_MICRO",
-            "rate_evidence": triple("rate"),
-        },
-    }
-    with pytest.raises(LiveIssueContractError):
-        validate_reconciliation(invalid)
-    validate_reconciliation(
-        {
-            "rate_mode": "zero_cost_authorized",
-            "reserved_cost_microunits": 0,
-            "consumed_cost_microunits": 0,
-            "refund_cost_microunits": 0,
-            "disposition": "exact",
-            "zero_cost_authority": {"id": "authority-1", "revision": 1, "hash": DIGEST},
-        }
-    )
+    valid = valid_reconciliation()
+    validate_reconciliation(valid)
+    for mutation in ("bad_refund", "bad_remaining", "unproven_actuals"):
+        invalid = clone(valid)
+        if mutation == "bad_refund":
+            invalid["consumed_cost_microunits"] = 10
+            invalid["refund_cost_microunits"] = 10
+        elif mutation == "bad_remaining":
+            invalid["remaining_cost_microunits"] = 999
+        else:
+            invalid["actuals_proven"] = False
+        with pytest.raises(LiveIssueContractError):
+            validate_reconciliation(invalid)
     validate_reconciliation(
         {
             "rate_mode": "uncertain",
@@ -786,6 +782,8 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
             "consumed_cost_microunits": None,
             "refund_cost_microunits": None,
             "disposition": "reserved",
+            "actuals_proven": False,
+            "total_tokens": None,
         }
     )
 

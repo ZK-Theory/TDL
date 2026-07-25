@@ -10,7 +10,7 @@
       "type": "array", "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["resolver", "resolver_trust_root", "resolver_store", "allowed_signing_key_ids", "attested_fields"],
+        "required": ["resolver", "resolver_trust_root", "resolver_store", "allowed_signing_key_ids", "resolver_store_records", "attested_fields"],
         "properties": {
           "resolver": {
             "type": "object", "required": ["id", "version"],
@@ -20,6 +20,26 @@
           "resolver_trust_root": {"$ref": "#/$defs/triple"},
           "resolver_store": {"$ref": "#/$defs/triple"},
           "allowed_signing_key_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "resolver_store_records": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["identity", "secret_reference", "credential_class", "claim_command_id", "invocation_id", "claim_intent_hash", "provider_family", "requested_scope", "isolated_auth_context_id", "provider_process_context", "verification_evidence_hash"],
+              "properties": {
+                "identity": {"$ref": "#/$defs/triple"}, "secret_reference": {"$ref": "#/$defs/triple"},
+                "credential_class": {"type": "string", "minLength": 1},
+                "claim_command_id": {"type": "string", "minLength": 1},
+                "invocation_id": {"type": "string", "minLength": 1},
+                "claim_intent_hash": {"$ref": "#/$defs/hash"},
+                "provider_family": {"enum": ["claude", "codex"]},
+                "requested_scope": {"type": "string", "minLength": 1},
+                "isolated_auth_context_id": {"type": "string", "minLength": 1},
+                "provider_process_context": {"type": "string", "minLength": 1},
+                "verification_evidence_hash": {"$ref": "#/$defs/hash"}
+              },
+              "additionalProperties": false
+            }
+          },
           "attested_fields": {
             "const": ["resolver", "resolver_trust_root", "resolver_store", "resolver_store_record", "secret_reference", "credential_class", "claim_command_id", "invocation_id", "claim_intent_hash", "provider_family", "requested_scope", "isolated_auth_context_id", "provider_process_context", "checked_at", "expiry_state", "revocation_state", "contains_credential_bytes"]
           }
@@ -27,11 +47,12 @@
         "additionalProperties": false
       }
     },
-    "load_rule": {"const": "validator_loads_this_manifest_and_the_named_resolver_store_independently_of_the_command_coordinator"},
+    "load_rule": {"const": "validator_content_hashes_this_registered_catalogue_then_loads_the_matching_resolver_store_record_internally"},
     "coordinator_authoritative": {"const": false}
   },
   "additionalProperties": false,
   "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "triple": {
       "type": "object", "required": ["id", "revision", "hash"],
       "properties": {"id": {"type": "string", "minLength": 1}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
