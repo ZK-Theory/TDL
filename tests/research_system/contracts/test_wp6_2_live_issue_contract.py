@@ -967,13 +967,21 @@ def _git_head_blob_records(paths: list[str]) -> dict[str, tuple[str, bytes]]:
     stream = io.BytesIO(process.stdout)
     records: dict[str, tuple[str, bytes]] = {}
     for path in paths:
-        object_id, object_type, size_text = stream.readline().decode().strip().split()
+        header = stream.readline().decode().strip()
+        assert not header.endswith(" missing"), f"stale manifest path: {path}"
+        object_id, object_type, size_text = header.split()
         assert object_type == "blob", path
         raw = stream.read(int(size_text))
         assert stream.read(1) == b"\n", path
         records[path] = (object_id, raw)
     assert stream.read() == b""
     return records
+
+
+def test_git_head_blob_records_reports_stale_manifest_path() -> None:
+    path = ".research-system/contracts/does-not-exist.yaml"
+    with pytest.raises(AssertionError, match=f"stale manifest path: {path}"):
+        _git_head_blob_records([path])
 
 
 @pytest.mark.slow
@@ -1025,6 +1033,9 @@ def test_review_schema_annotations_and_relations_are_enforced() -> None:
     assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
     invalid_catalogue = clone(catalogue)
     invalid_catalogue["transitions"][1]["ordered_write_set"] = ["provider_invocation", "provider_invocation"]
+    assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
+    invalid_catalogue = clone(catalogue)
+    invalid_catalogue["intent"]["excluded_fields"][-1] = "unexpected_field"
     assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
 
     claimed_schema = _schema("claimed_event")

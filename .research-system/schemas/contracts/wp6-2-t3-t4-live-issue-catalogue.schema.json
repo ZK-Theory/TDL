@@ -35,7 +35,18 @@
         "domain_separator": {"type": "string"},
         "canonicalization": {"type": "string"},
         "construction": {"type": "string"},
-        "excluded_fields": {"type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true, "items": {"type": "string"}},
+        "excluded_fields": {
+          "type": "array",
+          "const": [
+            "claim_intent_hash",
+            "credential_use_receipt_id",
+            "credential_use_receipt_revision",
+            "credential_use_receipt_hash",
+            "payload_hash",
+            "submitted_at",
+            "recorded_at"
+          ]
+        },
         "final_payload_hash_covers_intent_and_credential_receipt": {"const": true}
       },
       "additionalProperties": false

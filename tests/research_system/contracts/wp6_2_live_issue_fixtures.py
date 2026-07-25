@@ -5,6 +5,8 @@ import hashlib
 import json
 from typing import Any
 
+from tests.research_system.contracts.wp6_2_live_issue_expectations import INTENT_EXCLUDED_FIELDS
+
 DIGEST = "a" * 64
 ALT_DIGEST = "b" * 64
 UUID7 = "018f47a2-9b3c-7def-8abc-0123456789ab"
@@ -511,16 +513,7 @@ def valid_claim() -> dict[str, Any]:
         },
         "submitted_at": "2026-07-25T20:00:00Z",
     }
-    excluded = {
-        "claim_intent_hash",
-        "credential_use_receipt_id",
-        "credential_use_receipt_revision",
-        "credential_use_receipt_hash",
-        "payload_hash",
-        "submitted_at",
-        "recorded_at",
-    }
-    intent_fields = [key for key in command if key not in excluded]
+    intent_fields = [key for key in command if key not in INTENT_EXCLUDED_FIELDS]
     intent_preimage = {field: command[field] for field in intent_fields}
     command["claim_intent_hash"] = hashlib.sha256(
         b"ars:wp6-2:live-claim-intent:v1\0"
