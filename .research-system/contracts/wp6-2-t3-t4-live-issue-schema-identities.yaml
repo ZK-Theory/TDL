@@ -18,8 +18,8 @@ artifacts:
   path: .research-system/schemas/wp6-2-live-issue/live-issue-binding.schema.json
   schema_id: ars://wp6-2/live-issue/LiveIssueBinding
   schema_version: 1.0.0
-  git_blob_id: 52d0cefec20c466a54a7aa54b7680607b7e6232e
-  raw_utf8_lf_sha256: 95204ccbb7ed08e9f0f487d3e78f377d8c8ec928eab00c6d5fbee126cd21c874
+  git_blob_id: 85c0d799b0179c7b7a2d2f1a249d5469dee3e1f9
+  raw_utf8_lf_sha256: 181e16aed4e7a8f1e1914010e01ebac88860f8071153a021fc8c4a03cefd98b1
 - role: resolver_receipt
   path: .research-system/schemas/wp6-2-live-issue/credential-use-receipt.schema.json
   schema_id: ars://wp6-2/live-issue/CredentialUseReceipt
@@ -30,44 +30,44 @@ artifacts:
   path: .research-system/schemas/wp6-2-live-issue/provider-invocation-evidence.schema.json
   schema_id: ars://wp6-2/live-issue/ProviderInvocationEvidence
   schema_version: 1.0.0
-  git_blob_id: 0e6db10f80a12978e6cc60543ba04ebe4a8d1cf9
-  raw_utf8_lf_sha256: 3e285c8921a1a8fa5f9092b89762fca38ceed76a838e0b75b916a23dea95ad87
+  git_blob_id: 292b41c547b182f594a794141f7c71261ffebb78
+  raw_utf8_lf_sha256: e5aff26e725e81cb3b1751ba15aab843acfa82f8ebdd4d47a0122579678a1f46
 - role: receipt_successor
   path: .research-system/schemas/wp6-2-live-issue/live-provider-receipt-v3.schema.json
   schema_id: ars://adapters/provider-receipt/v3
   schema_version: 3.0.0
-  git_blob_id: 2ee7e642e68f48f204ba920d18adef679eeca432
-  raw_utf8_lf_sha256: aae1fd0e55e9fd8974d7b56fe0ac9e866c64ab765811335af790fc181503cf56
+  git_blob_id: 9583da41aea234e48880d06db9c04c4906687907
+  raw_utf8_lf_sha256: da5592e5e8d3f06f137bb1b0af3b239a18b0220ce7ab80e38370ae5e24daff92
 - role: command
   path: .research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json
   schema_id: ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation
   schema_version: 1.0.0
-  git_blob_id: 0986b502beb086d58c39f6db7dd6bb25262c7c3f
-  raw_utf8_lf_sha256: 627c0468319ff39fae9b08e76898377518dba29f5f8e7a4f94146a55ef2e4919
+  git_blob_id: dca623778a3f9bc27ecd2737987dd567490cf87e
+  raw_utf8_lf_sha256: 526d887d44f8692c4878d863b7431f46db37241899900fd25be613871a01948c
 - role: command
   path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json
   schema_id: ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome
   schema_version: 1.0.0
-  git_blob_id: 59df0f42c0e27cef5849507ed03c011c7ce1b2f3
-  raw_utf8_lf_sha256: 68dbaea7ed737c69dabd5d337731bcd0b7fc7a740cf2ccc71e02717075180893
+  git_blob_id: ab5fa6bafafe03d649125b82fca4041d658ff119
+  raw_utf8_lf_sha256: 9c67ce56e67bf3b3d8301c5da9e5c0c5567396f23a3c6b15fe1566b6f8067379
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed
   schema_version: 1.0.0
-  git_blob_id: 6668bd8e29f397fef78577407914c8a0a7b93824
-  raw_utf8_lf_sha256: 9d76c3467eb956a8150daff21a66d0749c2a641d880cffd451cc6179c6505ddf
+  git_blob_id: b7f76482111e92acf186c94fcd182c6d2aaacff5
+  raw_utf8_lf_sha256: db2ae0aa3717b3d19d0c5f3ba21d2af3859ad20f4ea14ba0eee9a6bce9963aa0
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/provider-invocation-outcome-recorded.schema.json
   schema_id: ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded
   schema_version: 1.0.0
-  git_blob_id: 39034f917be0ba2eca12512ae0802766aa1886c0
-  raw_utf8_lf_sha256: 08c54e0c4542c8f64432aacf463ea7ca47219a4582a68f601603e61e5c7505e7
+  git_blob_id: 155ffa17f0ea7b3172b757c6c0e566804ceb1cb0
+  raw_utf8_lf_sha256: 7451553bbe50cde8f886f4b56ef9822c19905ee9cc65efd0a0a76fc15bccd0c7
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-provider-receipt-recorded.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded
   schema_version: 1.0.0
-  git_blob_id: 01ca70f19f01eea7a20725795e42c29d1e9bf971
-  raw_utf8_lf_sha256: 1779baf61f3b232ea64a9a07b0cdb62109f7b46f09b29775dcd1334e0db2cae9
+  git_blob_id: 08f60fba3fbe7d28b43d3ca15b6186cfdef096a7
+  raw_utf8_lf_sha256: 27f912a1e828002208dc3d4bb0ed2c3bf38b98a7485423b1f418df4191cab00e
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-cost-grant-reconciled.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveCostGrantReconciled
@@ -78,8 +78,8 @@ artifacts:
   path: .research-system/schemas/contracts/wp6-2-t3-t4-trusted-resolver-authorities.schema.json
   schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
   schema_version: 1.0.0
-  git_blob_id: fe8795e12ad2726c100a4374d632e5299b583638
-  raw_utf8_lf_sha256: 6111ae63cd3408d31738a2a8cb74a89b98c6fc326ebc27d2d4b85bc78539c1d3
+  git_blob_id: 2a8f39afd0405404d5f6baad5d7637cd8dc6867d
+  raw_utf8_lf_sha256: 46b645c68e4a3fa0028704d58dbd1b216cdbdeab6e30d74199ac43297348deae
 - role: reducer
   path: .research-system/schemas/wp6-2-live-issue/components/provider-invocation-reducer.schema.json
   schema_id: ars://wp6-2/live-issue/reducer/provider-invocation
@@ -121,14 +121,14 @@ contract_artifacts:
   path: .research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml
   schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
   schema_version: 1.0.0
-  git_blob_id: 9535ab134085b4184d7c006671aa7aace7fa717b
-  raw_utf8_lf_sha256: faf610bc103afb36908e9221de01520221561a2d414ddb2ad2e7741283d8c721
+  git_blob_id: 6f42f6f06594962d544c4b81af511fcd79b25430
+  raw_utf8_lf_sha256: fb5ee7abda98929018d2061cd0f50f31e9b7295d5ed048653700d184c5ea50d8
 - role: reservation_authority_catalogue
   path: .research-system/contracts/wp6-2-t3-t4-live-issue-catalogue.yaml
   schema_id: ars://contracts/wp6-2-t3-t4-live-issue-catalogue
   schema_version: 1.0.0
-  git_blob_id: 19c4eef794f232acd52f42218dd5aea8d9602050
-  raw_utf8_lf_sha256: f79476b510ec07ea01419fd8cb4f7d97938b524f7d1a8a776c2c2b8c817287d0
+  git_blob_id: 7e0cd065b8522fbebe3b8e85f5ec7f201e587175
+  raw_utf8_lf_sha256: 6b9edf5cb67ce6eccde5a1749e0872a432e1ece8bd3852baa542f64b67ee6ee5
 tests:
   expected_set: tests/research_system/contracts/wp6_2_live_issue_expectations.py
   fixtures: tests/research_system/contracts/wp6_2_live_issue_fixtures.py

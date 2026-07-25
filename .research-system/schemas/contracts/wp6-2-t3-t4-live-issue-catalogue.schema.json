@@ -35,7 +35,7 @@
         "domain_separator": {"type": "string"},
         "canonicalization": {"type": "string"},
         "construction": {"type": "string"},
-        "excluded_fields": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+        "excluded_fields": {"type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true, "items": {"type": "string"}},
         "final_payload_hash_covers_intent_and_credential_receipt": {"const": true}
       },
       "additionalProperties": false
@@ -90,7 +90,7 @@
           "writer": {"const": "research_system.command.service.CommandService"},
           "stream_role": {"const": "provider_invocation"},
           "concurrency_rule": {"type": "string"},
-          "ordered_write_set": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"enum": ["provider_invocation", "cost_grant"]}},
+          "ordered_write_set": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"enum": ["provider_invocation", "cost_grant"]}},
           "ordered_events": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}},
           "reducers": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
           "projections": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
@@ -109,6 +109,24 @@
             "additionalProperties": false
           }
         },
+        "oneOf": [
+          {
+            "properties": {
+              "key": {"const": "live_provider_invocation.claim"},
+              "command_type": {"const": "ClaimLiveProviderInvocation"},
+              "command_schema_id": {"const": "ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation"},
+              "authority_scope": {"const": "wp6.2.live-issue.claim"}
+            }
+          },
+          {
+            "properties": {
+              "key": {"const": "live_provider_invocation.outcome.record"},
+              "command_type": {"const": "RecordLiveProviderInvocationOutcome"},
+              "command_schema_id": {"const": "ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome"},
+              "authority_scope": {"const": "wp6.2.live-issue.outcome.record"}
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },

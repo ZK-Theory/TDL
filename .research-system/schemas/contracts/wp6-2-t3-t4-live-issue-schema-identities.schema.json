@@ -15,7 +15,7 @@
     "manifest_version": {"const": "1.0.0"},
     "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_identity_acceptance"},
     "candidate_identity_binding": {"const": "external_exact_state_review_and_owner_acceptance_only"},
-    "dispatch_base": {"pattern": "^[0-9a-f]{40}$"},
+    "dispatch_base": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "accepted_predecessors": {
       "type": "object",
       "required": [
@@ -26,13 +26,13 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "p040_candidate": {"pattern": "^[0-9a-f]{40}$"},
-        "p041_candidate": {"pattern": "^[0-9a-f]{40}$"},
-        "t1a_subject": {"pattern": "^[0-9a-f]{40}$"},
-        "t1a_protocol_git_blob": {"pattern": "^[0-9a-f]{40}$"},
-        "t1a_protocol_raw_sha256": {"pattern": "^[0-9a-f]{64}$"},
-        "accepted_t2_contract_test_git_blob": {"pattern": "^[0-9a-f]{40}$"},
-        "accepted_t2_contract_test_raw_sha256": {"pattern": "^[0-9a-f]{64}$"}
+        "p040_candidate": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "p041_candidate": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "t1a_subject": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "t1a_protocol_git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "t1a_protocol_raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "accepted_t2_contract_test_git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "accepted_t2_contract_test_raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
     },
     "artifacts": {

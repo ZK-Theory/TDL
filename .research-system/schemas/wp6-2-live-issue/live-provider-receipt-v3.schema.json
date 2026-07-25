@@ -99,5 +99,5 @@
     }
   },
   "x-predecessor": "ars://adapters/provider-receipt/v2",
-  "x-predecessor_immutable": true
+  "x-predecessor-immutable": true
 }

@@ -36,10 +36,24 @@
         "outcome": {"enum": ["terminal", "timed_out", "cancelled", "blocked", "duplicate", "uncertain", "not_invoked"]},
         "research_eligibility": {"enum": ["eligible", "ineligible"]}
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {"enum": ["uncertain", "not_invoked", "timed_out", "cancelled", "blocked"]}
+            }
+          },
+          "then": {
+            "properties": {
+              "research_eligibility": {"const": "ineligible"}
+            }
+          }
+        }
+      ]
     }
   },
   "additionalProperties": false,
   "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}},
-  "x-semantic-validation": ["resulting_stream_version_equals_prior_plus_one", "uncertain_and_not_invoked_ineligible"]
+  "x-semantic-validation": ["resulting_stream_version_equals_prior_plus_one", "nonterminal_and_unproven_outcomes_ineligible"]
 }

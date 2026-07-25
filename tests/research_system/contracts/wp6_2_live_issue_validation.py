@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 
 
 class LiveIssueContractError(ValueError):
@@ -17,6 +17,10 @@ class LiveIssueContractError(ValueError):
 def _require(condition: bool, code: str) -> None:
     if not condition:
         raise LiveIssueContractError(code)
+
+
+def _is_non_bool_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -80,8 +84,10 @@ def validate_claim_command(claim: Mapping[str, Any], *, repo_root: Path) -> None
         write_set[0].get("expected_version") == claim.get("expected_stream_version"),
         "claim_write_set_version_mismatch",
     )
+    expected_global_position = claim.get("expected_global_position")
     _require(
-        claim.get("expected_global_position") >= 0
+        _is_non_bool_int(expected_global_position)
+        and expected_global_position >= 0
         and isinstance(claim.get("expected_ledger_tail_hash"), str)
         and len(claim["expected_ledger_tail_hash"]) == 64
         and set(claim["expected_ledger_tail_hash"]) <= set("0123456789abcdef"),
@@ -92,7 +98,10 @@ def validate_claim_command(claim: Mapping[str, Any], *, repo_root: Path) -> None
             repo_root / ".research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json"
         ).read_text(encoding="utf-8")
     )
-    Draft202012Validator(schema).validate(claim)
+    try:
+        Draft202012Validator(schema).validate(claim)
+    except ValidationError as exc:
+        raise LiveIssueContractError("claim_schema_invalid") from exc
     _, intent_hash = compute_claim_intent(claim, preimage_fields=schema["x-intent-preimage-fields"])
     _require(claim.get("claim_intent_hash") == intent_hash, "claim_intent_hash_mismatch")
     final_fields = [field for field in schema["properties"] if field in claim and field != "payload_hash"]
@@ -139,6 +148,11 @@ def validate_outcome_command(command: Mapping[str, Any], *, repo_root: Path) -> 
         write_set[1].get("expected_version") == command.get("expected_cost_grant_stream_version"),
         "outcome_cost_version_mismatch",
     )
+    expected_global_position = command.get("expected_global_position")
+    _require(
+        _is_non_bool_int(expected_global_position) and expected_global_position >= 0,
+        "outcome_global_position_missing",
+    )
     authority = load_authoritative_reservation(repo_root, command.get("reservation", {}))
     _require(command.get("cost_grant") == authority.get("cost_grant"), "reservation_cost_grant_mismatch")
     _require(command.get("provider_command") == authority.get("provider_command"), "reservation_command_mismatch")
@@ -182,8 +196,12 @@ def validate_event_batch(
         _require(event.get("transaction_index") == index, "event_transaction_index")
         _require(event.get("transaction_count") == count, "event_transaction_count")
         _require(event.get("global_position") == expected_global_tail + index + 1, "event_global_position")
+        prior_stream_version = event.get("prior_stream_version")
+        resulting_stream_version = event.get("resulting_stream_version")
         _require(
-            event.get("resulting_stream_version") == event.get("prior_stream_version") + 1,
+            _is_non_bool_int(prior_stream_version)
+            and _is_non_bool_int(resulting_stream_version)
+            and resulting_stream_version == prior_stream_version + 1,
             "event_stream_version",
         )
         expected_key_hash = hashlib.sha256(event["idempotency_key"].encode("utf-8")).hexdigest()
@@ -362,7 +380,9 @@ def validate_reconciliation(
         record.get("cost_ceiling_microunits") == reservation.get("cost_ceiling_microunits"),
         "cost_ceiling_mismatch",
     )
-    _require(reserved <= record.get("cost_ceiling_microunits"), "reservation_above_cost_ceiling")
+    cost_ceiling = record.get("cost_ceiling_microunits")
+    _require(_is_non_bool_int(cost_ceiling) and cost_ceiling >= 0, "cost_ceiling_invalid")
+    _require(reserved <= cost_ceiling, "reservation_above_cost_ceiling")
     pre_reconciliation_available = reservation.get("pre_reconciliation_remaining_cost_microunits")
     _require(
         isinstance(pre_reconciliation_available, int)
@@ -384,6 +404,10 @@ def validate_reconciliation(
         record.get("total_token_ceiling") == record.get("reserved_input_tokens") + record.get("reserved_output_tokens"),
         "total_token_ceiling_invalid",
     )
+    expected_reserved = (record.get("reserved_input_tokens") * record.get("input_rate") + 999_999) // 1_000_000
+    expected_reserved += (record.get("reserved_output_tokens") * record.get("output_rate") + 999_999) // 1_000_000
+    _require(reserved == expected_reserved, "reserved_cost_formula_invalid")
+    _require(pre_reconciliation_available == cost_ceiling - reserved, "pre_reconciliation_balance_mismatch")
     _require(
         record.get("zero_cost_authority") == reservation.get("zero_cost_authority"), "zero_cost_authority_mismatch"
     )
