@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation",
+  "title": "ClaimLiveProviderInvocation 1.0",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "command_type", "command_id", "actor_id",
+    "authority_scope", "idempotency_key", "correlation_id", "causation_id",
+    "target_stream_id", "expected_stream_version", "write_set",
+    "expected_global_position", "expected_ledger_tail_hash", "invocation_id",
+    "claim_intent_hash", "payload_hash", "accepted_t2_receipt",
+    "accepted_t2_ledger_transaction", "cost_grant_reserved_event",
+    "provider_command_issued_event", "provider_command", "cost_grant",
+    "reservation", "secret_reference", "task", "dispatch", "attempt",
+    "resource_grant", "route", "profile", "context", "policy", "adapter",
+    "live_issue_binding", "resolver_trust_root", "resolver_requirement",
+    "credential_use_receipt_id", "credential_use_receipt_revision",
+    "credential_use_receipt_hash", "provider_family", "normalized_operation",
+    "preflight_hashes", "expected_object_versions", "submitted_at"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation"},
+    "schema_version": {"const": "1.0.0"},
+    "command_type": {"const": "ClaimLiveProviderInvocation"},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f-]{36}$"},
+    "actor_id": {"type": "string", "minLength": 1},
+    "authority_scope": {"const": "wp6.2.live-issue.claim"},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": "string", "minLength": 1},
+    "target_stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+    "expected_stream_version": {"const": 0},
+    "write_set": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "prefixItems": [{
+        "type": "object", "required": ["stream_role", "stream_id", "expected_version"],
+        "properties": {
+          "stream_role": {"const": "provider_invocation"},
+          "stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+          "expected_version": {"const": 0}
+        },
+        "additionalProperties": false
+      }],
+      "items": false
+    },
+    "expected_global_position": {"type": "integer", "minimum": 0},
+    "expected_ledger_tail_hash": {"$ref": "#/$defs/hash"},
+    "invocation_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+    "claim_intent_hash": {"$ref": "#/$defs/hash"},
+    "payload_hash": {"$ref": "#/$defs/hash"},
+    "accepted_t2_receipt": {"$ref": "#/$defs/triple"},
+    "accepted_t2_ledger_transaction": {"$ref": "#/$defs/versioned_triple"},
+    "cost_grant_reserved_event": {"$ref": "#/$defs/versioned_triple"},
+    "provider_command_issued_event": {"$ref": "#/$defs/versioned_triple"},
+    "provider_command": {"$ref": "#/$defs/triple"},
+    "cost_grant": {"$ref": "#/$defs/triple"},
+    "reservation": {"$ref": "#/$defs/triple"},
+    "secret_reference": {"$ref": "#/$defs/triple"},
+    "task": {"$ref": "#/$defs/triple"},
+    "dispatch": {"$ref": "#/$defs/triple"},
+    "attempt": {"$ref": "#/$defs/triple"},
+    "resource_grant": {"$ref": "#/$defs/triple"},
+    "route": {"$ref": "#/$defs/triple"},
+    "profile": {"$ref": "#/$defs/triple"},
+    "context": {"$ref": "#/$defs/triple"},
+    "policy": {"$ref": "#/$defs/triple"},
+    "adapter": {"$ref": "#/$defs/triple"},
+    "live_issue_binding": {"$ref": "#/$defs/triple"},
+    "resolver_trust_root": {"$ref": "#/$defs/triple"},
+    "resolver_requirement": {
+      "type": "object",
+      "required": [
+        "resolver_id", "resolver_version", "credential_class",
+        "credential_scope", "isolated_auth_context_id"
+      ],
+      "properties": {
+        "resolver_id": {"type": "string", "minLength": 1},
+        "resolver_version": {"type": "string", "minLength": 1},
+        "credential_class": {"type": "string", "minLength": 1},
+        "credential_scope": {"type": "string", "minLength": 1},
+        "isolated_auth_context_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "credential_use_receipt_id": {"type": "string", "pattern": "^cur_[0-9a-f-]{36}$"},
+    "credential_use_receipt_revision": {"type": "integer", "minimum": 1},
+    "credential_use_receipt_hash": {"$ref": "#/$defs/hash"},
+    "provider_family": {"enum": ["claude", "codex"]},
+    "normalized_operation": {"type": "string", "minLength": 1},
+    "preflight_hashes": {
+      "type": "object", "minProperties": 5,
+      "additionalProperties": {"$ref": "#/$defs/hash"}
+    },
+    "expected_object_versions": {
+      "type": "object", "minProperties": 10,
+      "additionalProperties": {"type": ["integer", "string"]}
+    },
+    "submitted_at": {"type": "string", "format": "date-time"},
+    "recorded_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    },
+    "versioned_triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash", "stream_version"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"$ref": "#/$defs/hash"},
+        "stream_version": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-intent-domain-separator": "ars:wp6-2:live-claim-intent:v1\\u0000",
+  "x-intent-preimage-fields": [
+    "schema_id", "schema_version", "command_type", "command_id", "actor_id",
+    "authority_scope", "idempotency_key", "correlation_id", "causation_id",
+    "target_stream_id", "expected_stream_version", "write_set",
+    "expected_global_position", "expected_ledger_tail_hash", "invocation_id",
+    "accepted_t2_receipt", "accepted_t2_ledger_transaction",
+    "cost_grant_reserved_event", "provider_command_issued_event",
+    "provider_command", "cost_grant", "reservation", "secret_reference", "task",
+    "dispatch", "attempt", "resource_grant", "route", "profile", "context",
+    "policy", "adapter", "live_issue_binding", "resolver_trust_root",
+    "resolver_requirement", "provider_family", "normalized_operation",
+    "preflight_hashes", "expected_object_versions"
+  ],
+  "x-intent-excluded-fields": [
+    "credential_use_receipt_id", "credential_use_receipt_revision",
+    "credential_use_receipt_hash", "payload_hash", "submitted_at", "recorded_at"
+  ],
+  "x-semantic-validation": [
+    "newly_accepted_non_duplicate_T2_issue", "exact_T2_transaction_and_ordered_events",
+    "independent_canonical_object_resolution", "independent_policy_compilation",
+    "native_selector_and_argv_derivation", "credential_receipt_trust_and_intent_binding",
+    "intent_hash_reconstruction", "completed_payload_hash_reconstruction",
+    "writer_lock_preflight_and_version_revalidation", "exactly_one_concurrent_claim"
+  ]
+}

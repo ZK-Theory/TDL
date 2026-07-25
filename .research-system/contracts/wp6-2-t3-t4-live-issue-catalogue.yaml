@@ -1,0 +1,143 @@
+schema_id: ars://contracts/wp6-2-t3-t4-live-issue-catalogue
+schema_version: 1.0.0
+catalogue_id: wp6-2-t3-t4-live-issue-catalogue
+catalogue_version: 1.0.0
+status: proposed_pending_fresh_independent_review_and_stephen_exact_identity_acceptance
+dispatch_base: 2291b5d4736ad604ce9763d9c677e707970ef14e
+writer: research_system.command.service.CommandService
+coordinator: research_system.live_issue.coordinator.LiveIssueCoordinator
+object_owner: research_system.store.canonical_objects.CanonicalObjectStore
+provider_call_authorized: false
+automatic_retry: false
+accepted_t2_predecessor_immutable: true
+idempotency_tuple:
+- actor_id
+- authority_scope
+- command_type
+- idempotency_key
+intent:
+  domain_separator: "ars:wp6-2:live-claim-intent:v1\0"
+  canonicalization: RFC8785_canonical_json_UTF8
+  construction: explicit_schema_allowlist_never_delete_arbitrary_caller_keys
+  excluded_fields:
+  - credential_use_receipt_id
+  - credential_use_receipt_revision
+  - credential_use_receipt_hash
+  - payload_hash
+  - submitted_at
+  - recorded_at
+  final_payload_hash_covers_intent_and_credential_receipt: true
+dependency_graph:
+  edge_meaning: A_to_B_means_B_directly_hashes_or_binds_A
+  direct_edges:
+  - [LiveIssueBinding, claim_intent_hash]
+  - [claim_intent_hash, CredentialUseReceipt]
+  - [claim_intent_hash, completed_claim_payload_hash]
+  - [LiveIssueBinding, completed_claim_payload_hash]
+  - [CredentialUseReceipt, completed_claim_payload_hash]
+  forbidden_edges:
+  - [CredentialUseReceipt, LiveIssueBinding]
+  - [CredentialUseReceipt, claim_intent_hash]
+  acyclic: true
+transitions:
+- key: live_provider_invocation.claim
+  command_type: ClaimLiveProviderInvocation
+  command_schema_id: ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation
+  authority_scope: wp6.2.live-issue.claim
+  writer: research_system.command.service.CommandService
+  stream_role: provider_invocation
+  concurrency_rule: create_deterministic_invocation_stream_at_expected_version_zero_exactly_one_winner
+  ordered_write_set: [provider_invocation]
+  ordered_events: [LiveProviderInvocationClaimed]
+  reducers: [provider_invocation_reducer@1.0.0]
+  projections: [provider_invocation_lifecycle_projection@1.0.0]
+  accepted_precondition: newly_accepted_non_duplicate_AuthorizeProviderIssue_Receipt_2_0
+  lock_revalidation: accepted_T2_batch_objects_policy_preflight_hashes_versions_expiry_revocation_and_tail
+  rejection_effects: {event_count: 0, invocation_count: 0, canonical_object_writes: 0}
+- key: live_provider_invocation.outcome.record
+  command_type: RecordLiveProviderInvocationOutcome
+  command_schema_id: ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome
+  authority_scope: wp6.2.live-issue.outcome.record
+  writer: research_system.command.service.CommandService
+  stream_role: provider_invocation
+  concurrency_rule: exact_claim_version_and_cost_grant_version_one_atomic_batch
+  ordered_write_set: [provider_invocation, cost_grant]
+  ordered_events:
+  - ProviderInvocationOutcomeRecorded
+  - LiveProviderReceiptRecorded
+  - LiveCostGrantReconciled
+  reducers:
+  - provider_invocation_reducer@1.0.0
+  - live_provider_receipt_reducer@3.0.0
+  - cost_grant_reducer@1.0.0
+  projections:
+  - provider_invocation_lifecycle_projection@1.0.0
+  - live_provider_receipt_binding_projection@3.0.0
+  - cost_grant_balance_projection@1.0.0
+  accepted_precondition: exact_claim_and_verified_content_addressed_invocation_evidence
+  orphan_rule: published_evidence_without_ledger_commit_is_inert
+  replay_rule: return_original_outcome_reuse_same_evidence_zero_new_effects
+  rejection_effects: {event_count: 0, invocation_count: 0, canonical_object_writes: 0}
+invocation_states:
+  not_invoked:
+    eligibility: ineligible
+    evidence: process_or_session_creation_independently_proved_not_started
+    automatic_retry: false
+  observed:
+    eligibility: evidence_dependent
+    evidence: provider_outcome_and_accounting_observed
+    automatic_retry: false
+  uncertain:
+    eligibility: ineligible
+    evidence: execution_extent_not_provable
+    automatic_retry: false
+    cost_rule: remain_reserved_or_conservatively_consume_never_invent_actuals_or_silently_refund
+credential_receipt:
+  owner: named_credential_resolver
+  coordinator_may_construct: false
+  project_store_before_claim: false
+  trust_root_source: independently_configured
+  contains_credential_bytes: false
+evidence:
+  constructor: research_system.live_issue.coordinator.LiveIssueCoordinator
+  source: actual_process_and_provider_observations_not_command_assertions
+  publication: idempotent_content_addressed
+  forbidden_content:
+  - raw_credentials
+  - hidden_reasoning
+  - unrestricted_transcripts
+  - secret_sentinels
+cost:
+  metered_formula: ceil_div(input_tokens_times_input_rate,1000000)_plus_ceil_div(output_tokens_times_output_rate,1000000)
+  zero_cost_rule: exact_zero_cost_authority_triple_and_zero_rates
+  uncertainty_rule: reserved_or_conservatively_consumed_never_silent_refund
+  post_expiry_revocation_rule: reconcile_previously_accepted_claim
+provider_separation:
+  shared: coordinator_order_and_contract
+  separate:
+  - renderer
+  - native_evidence_parser
+  - canary
+  - negative_matrix
+  - bounded_smoke_evidence
+stable_rejections:
+- accepted_t2_issue_missing
+- accepted_t2_issue_duplicate
+- accepted_t2_batch_mismatch
+- claim_already_exists
+- stale_stream_version
+- idempotency_conflict
+- canonical_object_mismatch
+- policy_derivation_mismatch
+- native_selector_mismatch
+- argv_profile_mismatch
+- preflight_hash_mismatch
+- credential_receipt_untrusted
+- credential_receipt_stale
+- credential_scope_mismatch
+- credential_context_mismatch
+- expiry_or_revocation_failed
+- secret_scan_failed
+- evidence_identity_mismatch
+- outcome_incomplete
+- cost_reconciliation_invalid

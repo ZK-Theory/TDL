@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/ProviderInvocationEvidence",
+  "title": "ProviderInvocationEvidence 1.0",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "provider_invocation_evidence_id", "revision",
+    "content_hash", "claim", "live_issue_binding", "actual_argv_profile_hash",
+    "cwd", "root", "redacted_environment_hash", "redacted_config_hash",
+    "credential_use_receipt", "timestamps", "native_identity",
+    "actual_selection", "delivery", "terminal", "actions", "outputs",
+    "accounting", "secret_scans", "source_declaration"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/ProviderInvocationEvidence"},
+    "schema_version": {"const": "1.0.0"},
+    "provider_invocation_evidence_id": {"type": "string", "pattern": "^piev_[0-9a-f-]{36}$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "content_hash": {"$ref": "#/$defs/hash"},
+    "claim": {"$ref": "#/$defs/triple"},
+    "live_issue_binding": {"$ref": "#/$defs/triple"},
+    "actual_argv_profile_hash": {"$ref": "#/$defs/hash"},
+    "cwd": {"type": "string", "minLength": 1},
+    "root": {"type": "string", "minLength": 1},
+    "redacted_environment_hash": {"$ref": "#/$defs/hash"},
+    "redacted_config_hash": {"$ref": "#/$defs/hash"},
+    "credential_use_receipt": {"$ref": "#/$defs/triple"},
+    "timestamps": {
+      "type": "object",
+      "required": ["attempted_at", "completed_at"],
+      "properties": {
+        "attempted_at": {"type": "string", "format": "date-time"},
+        "completed_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "native_identity": {
+      "type": "object",
+      "required": ["request_id", "session_id", "thread_id", "response_id"],
+      "properties": {
+        "request_id": {"type": ["string", "null"]},
+        "session_id": {"type": ["string", "null"]},
+        "thread_id": {"type": ["string", "null"]},
+        "response_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "actual_selection": {
+      "type": "object",
+      "required": [
+        "provider_family", "provider_proven", "model", "model_proven",
+        "version", "version_proven", "profile", "profile_proven"
+      ],
+      "properties": {
+        "provider_family": {"enum": ["claude", "codex"]},
+        "provider_proven": {"type": "boolean"},
+        "model": {"type": ["string", "null"]},
+        "model_proven": {"type": "boolean"},
+        "version": {"type": ["string", "null"]},
+        "version_proven": {"type": "boolean"},
+        "profile": {"type": ["string", "null"]},
+        "profile_proven": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "delivery": {
+      "type": "object",
+      "required": ["payload_hash", "context_hash", "disposition", "proof_fields"],
+      "properties": {
+        "payload_hash": {"$ref": "#/$defs/hash"},
+        "context_hash": {"$ref": "#/$defs/hash"},
+        "disposition": {"enum": ["proven", "unproven", "not_delivered"]},
+        "proof_fields": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "terminal": {
+      "type": "object",
+      "required": ["lifecycle", "native_class", "exit_code", "cancelled", "timed_out", "error_class"],
+      "properties": {
+        "lifecycle": {"enum": ["not_invoked", "observed", "uncertain"]},
+        "native_class": {"type": ["string", "null"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "cancelled": {"type": "boolean"},
+        "timed_out": {"type": "boolean"},
+        "error_class": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "actions": {
+      "type": "object",
+      "required": ["attempted", "allowed", "denied"],
+      "properties": {
+        "attempted": {"type": "array", "items": {"type": "string"}},
+        "allowed": {"type": "array", "items": {"type": "string"}},
+        "denied": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "outputs": {"type": "array", "items": {"$ref": "#/$defs/triple"}},
+    "accounting": {
+      "type": "object",
+      "required": [
+        "method", "input_tokens", "output_tokens", "actuals_proven",
+        "omissions", "rate_mode", "cost_microunits"
+      ],
+      "properties": {
+        "method": {"type": "string", "minLength": 1},
+        "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "actuals_proven": {"type": "boolean"},
+        "omissions": {"type": "array", "items": {"type": "string"}},
+        "rate_mode": {"enum": ["metered", "zero_cost_authorized", "uncertain"]},
+        "cost_microunits": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "secret_scans": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["seam", "status", "evidence_hash"],
+        "properties": {
+          "seam": {"type": "string", "minLength": 1},
+          "status": {"const": "clear"},
+          "evidence_hash": {"$ref": "#/$defs/hash"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_declaration": {"const": "actual_process_and_provider_observations_not_command_assertions"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-content-address": "sha256_RFC8785_canonical_json_excluding_content_hash",
+  "x-idempotent-publication-owner": "research_system.store.canonical_objects.CanonicalObjectStore",
+  "x-forbidden-content": ["raw_credentials", "hidden_reasoning", "unrestricted_transcripts", "secret_sentinels"]
+}

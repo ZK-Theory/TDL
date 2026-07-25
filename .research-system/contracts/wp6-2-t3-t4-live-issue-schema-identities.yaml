@@ -1,0 +1,61 @@
+schema_id: ars://contracts/wp6-2-t3-t4-live-issue-schema-identities
+schema_version: 1.0.0
+manifest_id: wp6-2-t3-t4-live-issue-schema-identities
+manifest_version: 1.0.0
+status: proposed_pending_fresh_independent_review_and_stephen_exact_identity_acceptance
+candidate_identity_binding: external_exact_state_review_and_owner_acceptance_only
+dispatch_base: 2291b5d4736ad604ce9763d9c677e707970ef14e
+accepted_predecessors:
+  p040_candidate: 391a92753d7f746fa91a6b5455c9ce0fd01baa52
+  p041_candidate: 2048f6470a9542db967186cc260d235c3373de2e
+  t1a_subject: 599050b0809ed63a69e1a9ce6ac491b61f7ad33e
+  t1a_protocol_git_blob: 4c9721a047c9b66912b9786a3b983c6f84e5ab00
+  t1a_protocol_raw_sha256: e9512bef147d0de9bc9103b20eb1ede8b927979bfe43dd85e61fb6c27f05efda
+  accepted_t2_contract_test_git_blob: 0e9429aef35a61e4621412f6c4ce17fbc5088d8d
+  accepted_t2_contract_test_raw_sha256: 4d35340efe26779723963088ab4797219c8c02365c623dfc7f785c44b12a94a9
+artifacts:
+- role: record
+  path: .research-system/schemas/wp6-2-live-issue/live-issue-binding.schema.json
+  schema_id: ars://wp6-2/live-issue/LiveIssueBinding
+  schema_version: 1.0.0
+- role: resolver_receipt
+  path: .research-system/schemas/wp6-2-live-issue/credential-use-receipt.schema.json
+  schema_id: ars://wp6-2/live-issue/CredentialUseReceipt
+  schema_version: 1.0.0
+- role: evidence
+  path: .research-system/schemas/wp6-2-live-issue/provider-invocation-evidence.schema.json
+  schema_id: ars://wp6-2/live-issue/ProviderInvocationEvidence
+  schema_version: 1.0.0
+- role: receipt_successor
+  path: .research-system/schemas/wp6-2-live-issue/live-provider-receipt-v3.schema.json
+  schema_id: ars://adapters/provider-receipt/v3
+  schema_version: 3.0.0
+- role: command
+  path: .research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json
+  schema_id: ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation
+  schema_version: 1.0.0
+- role: command
+  path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json
+  schema_id: ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome
+  schema_version: 1.0.0
+- role: event
+  path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json
+  schema_id: ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed
+  schema_version: 1.0.0
+- role: event
+  path: .research-system/schemas/wp6-2-live-issue/events/provider-invocation-outcome-recorded.schema.json
+  schema_id: ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded
+  schema_version: 1.0.0
+- role: event
+  path: .research-system/schemas/wp6-2-live-issue/events/live-provider-receipt-recorded.schema.json
+  schema_id: ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded
+  schema_version: 1.0.0
+- role: event
+  path: .research-system/schemas/wp6-2-live-issue/events/live-cost-grant-reconciled.schema.json
+  schema_id: ars://wp6-2/live-issue/event/LiveCostGrantReconciled
+  schema_version: 1.0.0
+tests:
+  expected_set: tests/research_system/contracts/wp6_2_live_issue_expectations.py
+  fixtures: tests/research_system/contracts/wp6_2_live_issue_fixtures.py
+  semantic_validator: tests/research_system/contracts/wp6_2_live_issue_validation.py
+  focused_test: tests/research_system/contracts/test_wp6_2_live_issue_contract.py

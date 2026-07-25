@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed",
+  "title": "LiveProviderInvocationClaimed 1.0",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "event_type", "event_id", "stream_id", "prior_stream_version", "resulting_stream_version", "transaction_position", "command_id", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed"},
+    "schema_version": {"const": "1.0.0"},
+    "event_type": {"const": "LiveProviderInvocationClaimed"},
+    "event_id": {"type": "string", "pattern": "^evt_[0-9a-f-]{36}$"},
+    "stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+    "prior_stream_version": {"const": 0},
+    "resulting_stream_version": {"const": 1},
+    "transaction_position": {"const": 0},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f-]{36}$"},
+    "payload": {
+      "type": "object",
+      "required": ["invocation_id", "claim_intent_hash", "live_issue_binding", "credential_use_receipt", "accepted_t2_receipt"],
+      "properties": {
+        "invocation_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+        "claim_intent_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "live_issue_binding": {"$ref": "#/$defs/triple"},
+        "credential_use_receipt": {"$ref": "#/$defs/triple"},
+        "accepted_t2_receipt": {"$ref": "#/$defs/triple"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}}
+}

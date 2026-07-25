@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded",
+  "title": "LiveProviderReceiptRecorded 1.0",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "event_type", "event_id", "stream_id", "transaction_position", "command_id", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded"},
+    "schema_version": {"const": "1.0.0"},
+    "event_type": {"const": "LiveProviderReceiptRecorded"},
+    "event_id": {"type": "string", "pattern": "^evt_[0-9a-f-]{36}$"},
+    "stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+    "transaction_position": {"const": 1},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f-]{36}$"},
+    "payload": {
+      "type": "object",
+      "required": ["live_provider_receipt", "claim", "invocation_evidence"],
+      "properties": {
+        "live_provider_receipt": {"$ref": "#/$defs/triple"},
+        "claim": {"$ref": "#/$defs/triple"},
+        "invocation_evidence": {"$ref": "#/$defs/triple"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}}
+}

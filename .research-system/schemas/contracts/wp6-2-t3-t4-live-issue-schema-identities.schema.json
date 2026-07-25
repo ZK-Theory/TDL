@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t3-t4-live-issue-schema-identities",
+  "title": "WP6.2 T3/T4 live-issue schema identity manifest",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "manifest_id", "manifest_version", "status",
+    "candidate_identity_binding", "dispatch_base", "accepted_predecessors",
+    "artifacts", "tests"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-live-issue-schema-identities"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"const": "wp6-2-t3-t4-live-issue-schema-identities"},
+    "manifest_version": {"const": "1.0.0"},
+    "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_identity_acceptance"},
+    "candidate_identity_binding": {"const": "external_exact_state_review_and_owner_acceptance_only"},
+    "dispatch_base": {"pattern": "^[0-9a-f]{40}$"},
+    "accepted_predecessors": {
+      "type": "object",
+      "required": [
+        "p040_candidate", "p041_candidate", "t1a_subject",
+        "t1a_protocol_git_blob", "t1a_protocol_raw_sha256",
+        "accepted_t2_contract_test_git_blob",
+        "accepted_t2_contract_test_raw_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "p040_candidate": {"pattern": "^[0-9a-f]{40}$"},
+        "p041_candidate": {"pattern": "^[0-9a-f]{40}$"},
+        "t1a_subject": {"pattern": "^[0-9a-f]{40}$"},
+        "t1a_protocol_git_blob": {"pattern": "^[0-9a-f]{40}$"},
+        "t1a_protocol_raw_sha256": {"pattern": "^[0-9a-f]{64}$"},
+        "accepted_t2_contract_test_git_blob": {"pattern": "^[0-9a-f]{40}$"},
+        "accepted_t2_contract_test_raw_sha256": {"pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 10, "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["role", "path", "schema_id", "schema_version"],
+        "additionalProperties": false,
+        "properties": {
+          "role": {"enum": ["record", "resolver_receipt", "evidence", "receipt_successor", "command", "event"]},
+          "path": {"type": "string", "pattern": "^\\.research-system/schemas/wp6-2-live-issue/"},
+          "schema_id": {"type": "string", "pattern": "^ars://"},
+          "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+        }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "required": ["expected_set", "fixtures", "semantic_validator", "focused_test"],
+      "additionalProperties": false,
+      "properties": {
+        "expected_set": {"type": "string"},
+        "fixtures": {"type": "string"},
+        "semantic_validator": {"type": "string"},
+        "focused_test": {"type": "string"}
+      }
+    }
+  },
+  "additionalProperties": false
+}

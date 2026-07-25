@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/provider-receipt/v3",
+  "title": "Live ProviderReceipt 3.0",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "provider_receipt_id", "revision",
+    "content_hash", "claim", "invocation_evidence", "live_issue_binding",
+    "accepted_t2_receipt", "provider_command", "reservation",
+    "actual_selection", "delivery", "outcome", "accounting",
+    "research_eligibility", "complete"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/provider-receipt/v3"},
+    "schema_version": {"const": "3.0.0"},
+    "provider_receipt_id": {"type": "string", "pattern": "^prcp_[0-9a-f-]{36}$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "content_hash": {"$ref": "#/$defs/hash"},
+    "claim": {"$ref": "#/$defs/triple"},
+    "invocation_evidence": {"$ref": "#/$defs/triple"},
+    "live_issue_binding": {"$ref": "#/$defs/triple"},
+    "accepted_t2_receipt": {"$ref": "#/$defs/triple"},
+    "provider_command": {"$ref": "#/$defs/triple"},
+    "reservation": {"$ref": "#/$defs/triple"},
+    "actual_selection": {
+      "type": "object",
+      "required": ["provider_family", "model", "version", "profile", "credential_context_id", "all_proven"],
+      "properties": {
+        "provider_family": {"enum": ["claude", "codex"]},
+        "model": {"type": ["string", "null"]},
+        "version": {"type": ["string", "null"]},
+        "profile": {"type": ["string", "null"]},
+        "credential_context_id": {"type": ["string", "null"]},
+        "all_proven": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "delivery": {"enum": ["proven", "unproven", "not_delivered"]},
+    "outcome": {"enum": ["terminal", "timed_out", "cancelled", "blocked", "duplicate", "uncertain", "not_invoked"]},
+    "accounting": {
+      "type": "object",
+      "required": ["rate_mode", "actuals_proven", "input_tokens", "output_tokens", "consumed_cost_microunits", "disposition"],
+      "properties": {
+        "rate_mode": {"enum": ["metered", "zero_cost_authorized", "uncertain"]},
+        "actuals_proven": {"type": "boolean"},
+        "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "consumed_cost_microunits": {"type": ["integer", "null"], "minimum": 0},
+        "disposition": {"enum": ["exact", "reserved", "conservatively_consumed"]}
+      },
+      "additionalProperties": false
+    },
+    "research_eligibility": {"enum": ["eligible", "ineligible"]},
+    "complete": {"type": "boolean"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-predecessor": "ars://adapters/provider-receipt/v2",
+  "x-predecessor_immutable": true
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded",
+  "title": "ProviderInvocationOutcomeRecorded 1.0",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "event_type", "event_id", "stream_id", "prior_stream_version", "resulting_stream_version", "transaction_position", "command_id", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded"},
+    "schema_version": {"const": "1.0.0"},
+    "event_type": {"const": "ProviderInvocationOutcomeRecorded"},
+    "event_id": {"type": "string", "pattern": "^evt_[0-9a-f-]{36}$"},
+    "stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f-]{36}$"},
+    "prior_stream_version": {"type": "integer", "minimum": 1},
+    "resulting_stream_version": {"type": "integer", "minimum": 2},
+    "transaction_position": {"const": 0},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f-]{36}$"},
+    "payload": {
+      "type": "object",
+      "required": ["claim", "invocation_evidence", "outcome", "research_eligibility"],
+      "properties": {
+        "claim": {"$ref": "#/$defs/triple"},
+        "invocation_evidence": {"$ref": "#/$defs/triple"},
+        "outcome": {"enum": ["terminal", "timed_out", "cancelled", "blocked", "duplicate", "uncertain", "not_invoked"]},
+        "research_eligibility": {"enum": ["eligible", "ineligible"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}},
+  "x-semantic-validation": ["resulting_stream_version_equals_prior_plus_one", "uncertain_and_not_invoked_ineligible"]
+}
