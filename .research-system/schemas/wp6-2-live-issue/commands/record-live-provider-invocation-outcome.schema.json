@@ -132,6 +132,9 @@
       "additionalProperties": false
     }
   },
+  "x-final-payload-domain-separator": "ars:wp6-2:live-outcome-payload:v1\u0000",
+  "x-final-payload-excluded-fields": ["payload_hash"],
+  "x-final-payload-preimage-rule": "all_present_top_level_fields_except_payload_hash_with_lexicographically_sorted_keys",
   "x-ordered-events": [
     "ProviderInvocationOutcomeRecorded",
     "LiveProviderReceiptRecorded",

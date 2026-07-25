@@ -5,6 +5,8 @@ import hashlib
 import json
 from typing import Any
 
+from tests.research_system.contracts.wp6_2_live_issue_expectations import INTENT_EXCLUDED_FIELDS
+
 DIGEST = "a" * 64
 ALT_DIGEST = "b" * 64
 UUID7 = "018f47a2-9b3c-7def-8abc-0123456789ab"
@@ -80,17 +82,25 @@ def trusted_resolver_authority() -> dict[str, Any]:
             "revocation_state",
             "contains_credential_bytes",
         ],
+        "runtime_verification_only_attested_fields": [
+            "checked_at",
+            "expiry_state",
+            "revocation_state",
+            "contains_credential_bytes",
+        ],
     }
 
 
 def resolver_store_record() -> dict[str, Any]:
     receipt = valid_credential_receipt()
+    runtime_only = set(trusted_resolver_authority()["runtime_verification_only_attested_fields"])
     return {
         "identity": receipt["resolver_store_record"],
         **{
             field: receipt[field]
             for field in trusted_resolver_authority()["attested_fields"]
-            if field not in {"resolver", "resolver_trust_root", "resolver_store", "resolver_store_record"}
+            if field
+            not in {"resolver", "resolver_trust_root", "resolver_store", "resolver_store_record"} | runtime_only
         },
         "verification_evidence_hash": ALT_DIGEST,
     }
@@ -234,9 +244,9 @@ def valid_reservation_authority() -> dict[str, Any]:
         "total_token_ceiling": 20,
         "input_rate": 1_000_000,
         "output_rate": 1_000_000,
-        "reserved_cost_microunits": 10,
+        "reserved_cost_microunits": 20,
         "cost_ceiling_microunits": 100,
-        "pre_reconciliation_remaining_cost_microunits": 90,
+        "pre_reconciliation_remaining_cost_microunits": 80,
         "currency": "USD_MICRO",
         "rate_evidence": rate,
         "zero_cost_authority": None,
@@ -260,9 +270,9 @@ def valid_reconciliation() -> dict[str, Any]:
         "rate_evidence": authority["rate_evidence"],
         "zero_cost_authority": None,
         "cost_ceiling_microunits": 100,
-        "reserved_cost_microunits": 10,
+        "reserved_cost_microunits": 20,
         "consumed_cost_microunits": 2,
-        "refund_cost_microunits": 8,
+        "refund_cost_microunits": 18,
         "remaining_cost_microunits": 98,
         "disposition": "exact",
         "actuals_proven": True,
@@ -503,15 +513,7 @@ def valid_claim() -> dict[str, Any]:
         },
         "submitted_at": "2026-07-25T20:00:00Z",
     }
-    excluded = {
-        "credential_use_receipt_id",
-        "credential_use_receipt_revision",
-        "credential_use_receipt_hash",
-        "payload_hash",
-        "submitted_at",
-        "recorded_at",
-    }
-    intent_fields = [key for key in command if key not in excluded and key != "claim_intent_hash"]
+    intent_fields = [key for key in command if key not in INTENT_EXCLUDED_FIELDS]
     intent_preimage = {field: command[field] for field in intent_fields}
     command["claim_intent_hash"] = hashlib.sha256(
         b"ars:wp6-2:live-claim-intent:v1\0"

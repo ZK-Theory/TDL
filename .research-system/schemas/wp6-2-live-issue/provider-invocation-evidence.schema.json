@@ -186,7 +186,7 @@
   },
   "x-content-address": "sha256_RFC8785_canonical_json_excluding_content_hash",
   "x-uniqueness-preimage-fields": ["claim", "live_issue_binding", "credential_use_receipt", "invocation_observation_key"],
-  "x-uniqueness-domain-separator": "ars:wp6-2:provider-invocation-evidence:v1\\u0000",
+  "x-uniqueness-domain-separator": "ars:wp6-2:provider-invocation-evidence:v1\u0000",
   "x-store-semantics": "same uniqueness key and same content is duplicate/reuse; same key and different content is conflict; a second object is forbidden",
   "x-idempotent-publication-owner": "research_system.store.canonical_objects.CanonicalObjectStore",
   "x-forbidden-content": ["raw_credentials", "hidden_reasoning", "unrestricted_transcripts", "secret_sentinels"]

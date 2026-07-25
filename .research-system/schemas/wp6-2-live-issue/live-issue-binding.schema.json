@@ -11,7 +11,7 @@
   "properties": {
     "schema_id": {"const": "ars://wp6-2/live-issue/LiveIssueBinding"},
     "schema_version": {"const": "1.0.0"},
-    "live_issue_binding_id": {"type": "string", "pattern": "^lib_[0-9a-f-]{36}$"},
+    "live_issue_binding_id": {"type": "string", "pattern": "^lib_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "revision": {"type": "integer", "minimum": 1},
     "content_hash": {"$ref": "#/$defs/hash"},
     "policy": {

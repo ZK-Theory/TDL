@@ -10,7 +10,7 @@
       "type": "array", "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["resolver", "resolver_trust_root", "resolver_store", "allowed_signing_key_ids", "resolver_store_records", "attested_fields"],
+        "required": ["resolver", "resolver_trust_root", "resolver_store", "allowed_signing_key_ids", "resolver_store_records", "attested_fields", "runtime_verification_only_attested_fields"],
         "properties": {
           "resolver": {
             "type": "object", "required": ["id", "version"],
@@ -42,6 +42,9 @@
           },
           "attested_fields": {
             "const": ["resolver", "resolver_trust_root", "resolver_store", "resolver_store_record", "secret_reference", "credential_class", "claim_command_id", "invocation_id", "claim_intent_hash", "provider_family", "requested_scope", "isolated_auth_context_id", "provider_process_context", "checked_at", "expiry_state", "revocation_state", "contains_credential_bytes"]
+          },
+          "runtime_verification_only_attested_fields": {
+            "const": ["checked_at", "expiry_state", "revocation_state", "contains_credential_bytes"]
           }
         },
         "additionalProperties": false

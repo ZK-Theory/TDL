@@ -42,6 +42,6 @@
   },
   "additionalProperties": false,
   "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}}
-  ,"x-event-hash-domain-separator": "ars:w2:event:v1\\u0000",
-  "x-event-hash-preimage": "all top-level fields except event_hash in schema property order"
+  ,"x-event-hash-domain-separator": "ars:w2:event:v1\u0000",
+  "x-event-hash-preimage": "all top-level fields except event_hash with lexicographically sorted keys"
 }

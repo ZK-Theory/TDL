@@ -50,5 +50,10 @@ authorities:
       - expiry_state
       - revocation_state
       - contains_credential_bytes
+    runtime_verification_only_attested_fields:
+      - checked_at
+      - expiry_state
+      - revocation_state
+      - contains_credential_bytes
 load_rule: validator_content_hashes_this_registered_catalogue_then_loads_the_matching_resolver_store_record_internally
 coordinator_authoritative: false

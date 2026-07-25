@@ -11,8 +11,8 @@
     "event_id": {"type": "string", "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "project_id": {"type": "string", "minLength": 1},
     "stream_id": {"type": "string", "pattern": "^pinv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "stream_version": {"type": "integer", "minimum": 2},
-    "prior_stream_version": {"type": "integer", "minimum": 1}, "resulting_stream_version": {"type": "integer", "minimum": 2},
+    "stream_version": {"type": "integer", "minimum": 3},
+    "prior_stream_version": {"type": "integer", "minimum": 2}, "resulting_stream_version": {"type": "integer", "minimum": 3},
     "global_position": {"type": "integer", "minimum": 1},
     "transaction_id": {"type": "string", "pattern": "^txn_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "transaction_index": {"const": 1}, "transaction_count": {"const": 3},
@@ -38,5 +38,6 @@
     }
   },
   "additionalProperties": false,
-  "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}}
+  "$defs": {"triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}},
+  "x-semantic-validation": ["resulting_stream_version_equals_prior_plus_one"]
 }

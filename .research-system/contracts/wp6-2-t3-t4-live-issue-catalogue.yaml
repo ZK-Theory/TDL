@@ -20,6 +20,7 @@ intent:
   canonicalization: RFC8785_canonical_json_UTF8
   construction: explicit_schema_allowlist_never_delete_arbitrary_caller_keys
   excluded_fields:
+  - claim_intent_hash
   - credential_use_receipt_id
   - credential_use_receipt_revision
   - credential_use_receipt_hash
@@ -49,18 +50,18 @@ reservation_authorities:
   total_token_ceiling: 20
   input_rate: 1000000
   output_rate: 1000000
-  reserved_cost_microunits: 10
+  reserved_cost_microunits: 20
   cost_ceiling_microunits: 100
-  pre_reconciliation_remaining_cost_microunits: 90
+  pre_reconciliation_remaining_cost_microunits: 80
   currency: USD_MICRO
   rate_evidence: {id: rate_018f47a2-9b3c-7def-8abc-0123456789ab, revision: 1, hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
   zero_cost_authority: null
 reference_bindings:
-- {reference_kind: command, reference: ClaimLiveProviderInvocation, path: .research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json, schema_id: "ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation", schema_version: 1.0.0, git_blob_id: 0986b502beb086d58c39f6db7dd6bb25262c7c3f, raw_utf8_lf_sha256: 627c0468319ff39fae9b08e76898377518dba29f5f8e7a4f94146a55ef2e4919}
-- {reference_kind: command, reference: RecordLiveProviderInvocationOutcome, path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json, schema_id: "ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome", schema_version: 1.0.0, git_blob_id: 59df0f42c0e27cef5849507ed03c011c7ce1b2f3, raw_utf8_lf_sha256: 68dbaea7ed737c69dabd5d337731bcd0b7fc7a740cf2ccc71e02717075180893}
-- {reference_kind: event, reference: LiveProviderInvocationClaimed, path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json, schema_id: "ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed", schema_version: 1.0.0, git_blob_id: 6668bd8e29f397fef78577407914c8a0a7b93824, raw_utf8_lf_sha256: 9d76c3467eb956a8150daff21a66d0749c2a641d880cffd451cc6179c6505ddf}
-- {reference_kind: event, reference: ProviderInvocationOutcomeRecorded, path: .research-system/schemas/wp6-2-live-issue/events/provider-invocation-outcome-recorded.schema.json, schema_id: "ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded", schema_version: 1.0.0, git_blob_id: 39034f917be0ba2eca12512ae0802766aa1886c0, raw_utf8_lf_sha256: 08c54e0c4542c8f64432aacf463ea7ca47219a4582a68f601603e61e5c7505e7}
-- {reference_kind: event, reference: LiveProviderReceiptRecorded, path: .research-system/schemas/wp6-2-live-issue/events/live-provider-receipt-recorded.schema.json, schema_id: "ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded", schema_version: 1.0.0, git_blob_id: 01ca70f19f01eea7a20725795e42c29d1e9bf971, raw_utf8_lf_sha256: 1779baf61f3b232ea64a9a07b0cdb62109f7b46f09b29775dcd1334e0db2cae9}
+- {reference_kind: command, reference: ClaimLiveProviderInvocation, path: .research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json, schema_id: "ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation", schema_version: 1.0.0, git_blob_id: dca623778a3f9bc27ecd2737987dd567490cf87e, raw_utf8_lf_sha256: 526d887d44f8692c4878d863b7431f46db37241899900fd25be613871a01948c}
+- {reference_kind: command, reference: RecordLiveProviderInvocationOutcome, path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json, schema_id: "ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome", schema_version: 1.0.0, git_blob_id: ab5fa6bafafe03d649125b82fca4041d658ff119, raw_utf8_lf_sha256: 9c67ce56e67bf3b3d8301c5da9e5c0c5567396f23a3c6b15fe1566b6f8067379}
+- {reference_kind: event, reference: LiveProviderInvocationClaimed, path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json, schema_id: "ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed", schema_version: 1.0.0, git_blob_id: b7f76482111e92acf186c94fcd182c6d2aaacff5, raw_utf8_lf_sha256: db2ae0aa3717b3d19d0c5f3ba21d2af3859ad20f4ea14ba0eee9a6bce9963aa0}
+- {reference_kind: event, reference: ProviderInvocationOutcomeRecorded, path: .research-system/schemas/wp6-2-live-issue/events/provider-invocation-outcome-recorded.schema.json, schema_id: "ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded", schema_version: 1.0.0, git_blob_id: 155ffa17f0ea7b3172b757c6c0e566804ceb1cb0, raw_utf8_lf_sha256: 7451553bbe50cde8f886f4b56ef9822c19905ee9cc65efd0a0a76fc15bccd0c7}
+- {reference_kind: event, reference: LiveProviderReceiptRecorded, path: .research-system/schemas/wp6-2-live-issue/events/live-provider-receipt-recorded.schema.json, schema_id: "ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded", schema_version: 1.0.0, git_blob_id: 08f60fba3fbe7d28b43d3ca15b6186cfdef096a7, raw_utf8_lf_sha256: 27f912a1e828002208dc3d4bb0ed2c3bf38b98a7485423b1f418df4191cab00e}
 - {reference_kind: event, reference: LiveCostGrantReconciled, path: .research-system/schemas/wp6-2-live-issue/events/live-cost-grant-reconciled.schema.json, schema_id: "ars://wp6-2/live-issue/event/LiveCostGrantReconciled", schema_version: 1.0.0, git_blob_id: 98364fdd899a529e971811fe3eccfb19d473be14, raw_utf8_lf_sha256: 12ad6d27e02d3a4596e575f61da7634cf16b4b6b774275cbb5a0501484101afc}
 - {reference_kind: reducer, reference: "provider_invocation_reducer@1.0.0", path: .research-system/schemas/wp6-2-live-issue/components/provider-invocation-reducer.schema.json, schema_id: "ars://wp6-2/live-issue/reducer/provider-invocation", schema_version: 1.0.0, git_blob_id: bc3cdf6e97e0dcdaaddca6eacf2bb7361d95a8fa, raw_utf8_lf_sha256: 183b27fce5be7395887f13dced665cb03e386478d4bf8f096972374976f3e67c}
 - {reference_kind: reducer, reference: "live_provider_receipt_reducer@3.0.0", path: .research-system/schemas/wp6-2-live-issue/components/live-provider-receipt-reducer.schema.json, schema_id: "ars://wp6-2/live-issue/reducer/live-provider-receipt", schema_version: 3.0.0, git_blob_id: 9d5c52c6fdf15d13dfea8dc89e0c15aaaa07d4ae, raw_utf8_lf_sha256: 2c648fae3c70fd18f79637a409c4f301a344041814e2b081f78f1602e4cc8e57}

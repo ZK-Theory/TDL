@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
 from copy import deepcopy
@@ -424,7 +425,7 @@ def test_credential_receipt_schema_and_semantics_reject_fabrication_and_drift() 
         validate_credential_receipt(REPO_ROOT, unregistered)
 
 
-def test_intent_preimage_is_literal_complete_and_excludes_exact_six_fields() -> None:
+def test_intent_preimage_is_literal_complete_and_excludes_exact_seven_fields() -> None:
     schema = _schema("claim_command")
     claim = valid_claim()
     Draft202012Validator(
@@ -434,7 +435,7 @@ def test_intent_preimage_is_literal_complete_and_excludes_exact_six_fields() -> 
     fields = schema["x-intent-preimage-fields"]
     assert set(schema["x-intent-excluded-fields"]) == INTENT_EXCLUDED_FIELDS
     assert not (set(fields) & INTENT_EXCLUDED_FIELDS)
-    required_intent_fields = set(schema["required"]) - INTENT_EXCLUDED_FIELDS - {"claim_intent_hash"}
+    required_intent_fields = set(schema["required"]) - INTENT_EXCLUDED_FIELDS
     assert set(fields) == required_intent_fields
     preimage, digest = compute_claim_intent(claim, preimage_fields=fields)
     assert set(preimage) == set(fields)
@@ -553,8 +554,16 @@ def test_command_identity_joins_and_global_tail_are_independent_semantics() -> N
             validate_claim_command(invalid, repo_root=REPO_ROOT)
     omitted = clone(claim)
     omitted.pop("provider_family")
-    with pytest.raises(Exception):
+    with pytest.raises(LiveIssueContractError):
         validate_claim_command(omitted, repo_root=REPO_ROOT)
+    for command_factory, validator in (
+        (valid_claim, validate_claim_command),
+        (valid_outcome_command, validate_outcome_command),
+    ):
+        missing_position = command_factory()
+        missing_position.pop("expected_global_position")
+        with pytest.raises(LiveIssueContractError):
+            validator(missing_position, repo_root=REPO_ROOT)
 
     outcome = valid_outcome_command()
     validate_outcome_command(outcome, repo_root=REPO_ROOT)
@@ -779,7 +788,7 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
         invalid = clone(valid)
         if mutation == "bad_refund":
             invalid["consumed_cost_microunits"] = 10
-            invalid["refund_cost_microunits"] = 10
+            invalid["refund_cost_microunits"] = 11
         elif mutation == "bad_remaining":
             invalid["remaining_cost_microunits"] = 999
         else:
@@ -806,9 +815,9 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
     uncertain_consumed = clone(uncertain)
     uncertain_consumed.update(
         {
-            "consumed_cost_microunits": 10,
+            "consumed_cost_microunits": 20,
             "refund_cost_microunits": 0,
-            "remaining_cost_microunits": 90,
+            "remaining_cost_microunits": 80,
             "disposition": "conservatively_consumed",
         }
     )
@@ -947,41 +956,115 @@ def test_secret_material_and_sentinels_are_rejected_across_evidence() -> None:
             validate_no_secret_material({**clean, **mutation}, sentinels=["SENTINEL_SECRET_VALUE"])
 
 
-def _git_blob_bytes(revision: str, path: str) -> bytes:
-    return subprocess.run(
-        ["git", "show", f"{revision}:{path}"],
+def _git_head_blob_records(paths: list[str]) -> dict[str, tuple[str, bytes]]:
+    process = subprocess.run(
+        ["git", "cat-file", "--batch"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
-    ).stdout
+        input="".join(f"HEAD:{path}\n" for path in paths).encode(),
+    )
+    stream = io.BytesIO(process.stdout)
+    records: dict[str, tuple[str, bytes]] = {}
+    for path in paths:
+        header = stream.readline().decode().strip()
+        assert not header.endswith(" missing"), f"stale manifest path: {path}"
+        object_id, object_type, size_text = header.split()
+        assert object_type == "blob", path
+        raw = stream.read(int(size_text))
+        assert stream.read(1) == b"\n", path
+        records[path] = (object_id, raw)
+    assert stream.read() == b""
+    return records
 
 
+def test_git_head_blob_records_reports_stale_manifest_path() -> None:
+    path = ".research-system/contracts/does-not-exist.yaml"
+    with pytest.raises(AssertionError, match=f"stale manifest path: {path}"):
+        _git_head_blob_records([path])
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+@pytest.mark.validation
 def test_accepted_t2_wp6_1_t1a_bytes_remain_exact() -> None:
     protected = _load_yaml(".research-system/contracts/wp6-2-t2-protected-membership.yaml")
     assert len(protected["members"]) == protected["protected_path_count"] == 220
+    identities = _load_yaml(".research-system/contracts/wp6-2-t2-schema-identities.yaml")
+    paths = [member["repository_path"] for member in protected["members"]]
+    paths.extend(artifact["repository_path"] for artifact in identities["artifacts"])
+    records = _git_head_blob_records(paths)
     for member in protected["members"]:
         path = member["repository_path"]
-        blob = subprocess.run(
-            ["git", "rev-parse", f"HEAD:{path}"],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        raw = _git_blob_bytes("HEAD", path)
+        blob, raw = records[path]
         assert blob == member["git_blob_id"], path
         assert hashlib.sha256(raw).hexdigest() == member["raw_git_blob_sha256"], path
 
-    identities = _load_yaml(".research-system/contracts/wp6-2-t2-schema-identities.yaml")
     for artifact in identities["artifacts"]:
         path = artifact["repository_path"]
-        raw = _git_blob_bytes("HEAD", path)
-        blob = subprocess.run(
-            ["git", "rev-parse", f"HEAD:{path}"],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        blob, raw = records[path]
         assert blob == artifact["git_blob_id"], path
         assert hashlib.sha256(raw).hexdigest() == artifact["raw_utf8_lf_sha256"], path
+
+
+def test_review_schema_annotations_and_relations_are_enforced() -> None:
+    catalogue = _load_yaml(CATALOGUE_PATH)
+    catalogue_schema = _load_json(CATALOGUE_SCHEMA_PATH)
+    claim_schema = _schema("claim_command")
+    outcome_schema = _schema("record_outcome_command")
+    identity_manifest = _load_yaml(IDENTITY_MANIFEST_PATH)
+    identity_schema = _load_json(IDENTITY_MANIFEST_SCHEMA_PATH)
+
+    assert claim_schema["x-intent-domain-separator"] == catalogue["intent"]["domain_separator"]
+    assert claim_schema["x-final-payload-domain-separator"].endswith("\0")
+    assert _schema("provider_invocation_evidence")["x-uniqueness-domain-separator"].endswith("\0")
+    assert outcome_schema["x-final-payload-domain-separator"].endswith("\0")
+    assert outcome_schema["x-final-payload-excluded-fields"] == ["payload_hash"]
+
+    invalid_identity = clone(identity_manifest)
+    invalid_identity["dispatch_base"] = 1
+    assert list(Draft202012Validator(identity_schema).iter_errors(invalid_identity))
+    invalid_identity = clone(identity_manifest)
+    invalid_identity["accepted_predecessors"]["p040_candidate"] = 1
+    assert list(Draft202012Validator(identity_schema).iter_errors(invalid_identity))
+
+    invalid_catalogue = clone(catalogue)
+    invalid_catalogue["transitions"][0]["command_type"] = "RecordLiveProviderInvocationOutcome"
+    assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
+    invalid_catalogue = clone(catalogue)
+    invalid_catalogue["transitions"][1]["ordered_write_set"] = ["provider_invocation", "provider_invocation"]
+    assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
+    invalid_catalogue = clone(catalogue)
+    invalid_catalogue["intent"]["excluded_fields"][-1] = "unexpected_field"
+    assert list(Draft202012Validator(catalogue_schema).iter_errors(invalid_catalogue))
+
+    claimed_schema = _schema("claimed_event")
+    assert claimed_schema["x-event-hash-domain-separator"].endswith("\0")
+    assert "lexicographically sorted" in claimed_schema["x-event-hash-preimage"]
+
+    receipt_event_schema = _schema("receipt_event")
+    receipt_event = valid_outcome_events()[1]
+    receipt_event["stream_version"] = 2
+    receipt_event["resulting_stream_version"] = 2
+    assert list(Draft202012Validator(receipt_event_schema).iter_errors(receipt_event))
+    assert "resulting_stream_version_equals_prior_plus_one" in receipt_event_schema["x-semantic-validation"]
+
+    outcome_event_schema = _schema("outcome_event")
+    outcome_event = valid_outcome_events()[0]
+    outcome_event["payload"]["outcome"] = "timed_out"
+    outcome_event["payload"]["research_eligibility"] = "eligible"
+    assert list(Draft202012Validator(outcome_event_schema).iter_errors(outcome_event))
+
+    binding_schema = _schema("live_issue_binding")
+    invalid_binding = valid_live_issue_binding()
+    invalid_binding["live_issue_binding_id"] = "lib_" + "a" * 36
+    assert list(Draft202012Validator(binding_schema).iter_errors(invalid_binding))
+
+    receipt_schema = _schema("live_provider_receipt_v3")
+    assert receipt_schema["x-predecessor-immutable"] is True
+    assert "x-predecessor_immutable" not in receipt_schema
+
+    trusted = load_trusted_resolver_authority(REPO_ROOT, "resolver.local")
+    runtime_only = set(trusted["runtime_verification_only_attested_fields"])
+    assert runtime_only == {"checked_at", "expiry_state", "revocation_state", "contains_credential_bytes"}
+    assert runtime_only.isdisjoint(trusted["resolver_store_records"][0])

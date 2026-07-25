@@ -248,7 +248,7 @@ Metered reconciliation binds the accepted reservation triple, reserved token
 ceilings, actual tokens, integer input/output rates, currency, rate-evidence
 triple, zero-cost authority, total tokens and total ceiling, cost ceiling,
 pre-reconciliation balance, and remaining balance in both the
-outcome command and reconciliation event. It retains exact P-037--P-041
+outcome command and reconciliation event. It retains exact P-037–P-041
 integer ceiling arithmetic: consumed cost is the sum of the separately
 ceiling-divided input and output products; actual tokens do not exceed their
 reserved ceilings; refund is exactly reserved minus consumed. Thus reserved

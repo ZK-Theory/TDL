@@ -126,6 +126,7 @@ EXPECTED_DIRECT_DEPENDENCY_EDGES = {
 }
 
 INTENT_EXCLUDED_FIELDS = {
+    "claim_intent_hash",
     "credential_use_receipt_id",
     "credential_use_receipt_revision",
     "credential_use_receipt_hash",

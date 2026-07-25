@@ -148,7 +148,7 @@
       "additionalProperties": false
     }
   },
-  "x-intent-domain-separator": "ars:wp6-2:live-claim-intent:v1\\u0000",
+  "x-intent-domain-separator": "ars:wp6-2:live-claim-intent:v1\u0000",
   "x-intent-preimage-fields": [
     "schema_id", "schema_version", "command_type", "command_id", "actor_id",
     "on_behalf_of_actor_id", "authority_grant_id", "reason", "evidence_refs",
@@ -164,12 +164,13 @@
     "preflight_hashes", "expected_object_versions"
   ],
   "x-intent-excluded-fields": [
+    "claim_intent_hash",
     "credential_use_receipt_id", "credential_use_receipt_revision",
     "credential_use_receipt_hash", "payload_hash", "submitted_at", "recorded_at"
   ],
-  "x-final-payload-domain-separator": "ars:wp6-2:live-claim-payload:v1\\u0000",
+  "x-final-payload-domain-separator": "ars:wp6-2:live-claim-payload:v1\u0000",
   "x-final-payload-excluded-fields": ["payload_hash"],
-  "x-final-payload-preimage-rule": "all_present_top_level_fields_except_payload_hash_in_schema_property_order",
+  "x-final-payload-preimage-rule": "all_present_top_level_fields_except_payload_hash_with_lexicographically_sorted_keys",
   "x-semantic-validation": [
     "newly_accepted_non_duplicate_T2_issue", "exact_T2_transaction_and_ordered_events",
     "independent_canonical_object_resolution", "independent_policy_compilation",
