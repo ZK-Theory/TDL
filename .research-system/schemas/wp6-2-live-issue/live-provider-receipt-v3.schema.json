@@ -13,7 +13,7 @@
   "properties": {
     "schema_id": {"const": "ars://adapters/provider-receipt/v3"},
     "schema_version": {"const": "3.0.0"},
-    "provider_receipt_id": {"type": "string", "pattern": "^prcp_[0-9a-f-]{36}$"},
+    "provider_receipt_id": {"type": "string", "pattern": "^prcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "revision": {"type": "integer", "minimum": 1},
     "content_hash": {"$ref": "#/$defs/hash"},
     "claim": {"$ref": "#/$defs/triple"},
@@ -54,6 +54,37 @@
     "complete": {"type": "boolean"}
   },
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"anyOf": [{"properties": {"research_eligibility": {"const": "eligible"}}}, {"properties": {"complete": {"const": true}}}]},
+      "then": {
+        "properties": {
+          "actual_selection": {
+            "properties": {
+              "model": {"type": "string", "minLength": 1}, "version": {"type": "string", "minLength": 1},
+              "profile": {"type": "string", "minLength": 1}, "credential_context_id": {"type": "string", "minLength": 1},
+              "all_proven": {"const": true}
+            }
+          },
+          "delivery": {"const": "proven"}, "outcome": {"const": "terminal"},
+          "accounting": {"properties": {"actuals_proven": {"const": true}, "disposition": {"const": "exact"}}},
+          "research_eligibility": {"const": "eligible"}, "complete": {"const": true}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"outcome": {"enum": ["uncertain", "not_invoked", "timed_out", "cancelled", "blocked"]}}},
+      "then": {"properties": {"research_eligibility": {"const": "ineligible"}, "complete": {"const": false}}}
+    },
+    {
+      "if": {"properties": {"delivery": {"enum": ["unproven", "not_delivered"]}}},
+      "then": {"properties": {"research_eligibility": {"const": "ineligible"}, "complete": {"const": false}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"all_proven": {"const": false}}}}},
+      "then": {"properties": {"research_eligibility": {"const": "ineligible"}, "complete": {"const": false}}}
+    }
+  ],
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "triple": {

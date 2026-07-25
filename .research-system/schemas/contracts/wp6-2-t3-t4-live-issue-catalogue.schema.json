@@ -8,7 +8,7 @@
     "dispatch_base", "writer", "coordinator", "object_owner",
     "provider_call_authorized", "automatic_retry",
     "accepted_t2_predecessor_immutable", "idempotency_tuple", "intent",
-    "dependency_graph", "transitions", "invocation_states",
+    "dependency_graph", "reference_bindings", "transitions", "invocation_states",
     "credential_receipt", "evidence", "cost", "provider_separation",
     "stable_rejections"
   ],
@@ -50,6 +50,23 @@
         "acyclic": {"const": true}
       },
       "additionalProperties": false
+    },
+    "reference_bindings": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["reference_kind", "reference", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
+        "properties": {
+          "reference_kind": {"enum": ["command", "event", "reducer", "projection"]},
+          "reference": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "pattern": "^\\.research-system/schemas/"},
+          "schema_id": {"type": "string", "pattern": "^ars://"},
+          "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "raw_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      }
     },
     "transitions": {
       "type": "array", "minItems": 2, "maxItems": 2,

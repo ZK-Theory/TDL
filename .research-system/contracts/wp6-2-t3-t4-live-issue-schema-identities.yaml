@@ -18,42 +18,75 @@ artifacts:
   path: .research-system/schemas/wp6-2-live-issue/live-issue-binding.schema.json
   schema_id: ars://wp6-2/live-issue/LiveIssueBinding
   schema_version: 1.0.0
+  git_blob_id: 52d0cefec20c466a54a7aa54b7680607b7e6232e
+  raw_utf8_lf_sha256: 95204ccbb7ed08e9f0f487d3e78f377d8c8ec928eab00c6d5fbee126cd21c874
 - role: resolver_receipt
   path: .research-system/schemas/wp6-2-live-issue/credential-use-receipt.schema.json
   schema_id: ars://wp6-2/live-issue/CredentialUseReceipt
   schema_version: 1.0.0
+  git_blob_id: 113060c77fae8c9abf5c18ad54b55f695f4491dd
+  raw_utf8_lf_sha256: b13758d69fcb39410b973c5337cb571841e1ef271da70fff4af64f2a86c54487
 - role: evidence
   path: .research-system/schemas/wp6-2-live-issue/provider-invocation-evidence.schema.json
   schema_id: ars://wp6-2/live-issue/ProviderInvocationEvidence
   schema_version: 1.0.0
+  git_blob_id: 0e6db10f80a12978e6cc60543ba04ebe4a8d1cf9
+  raw_utf8_lf_sha256: 3e285c8921a1a8fa5f9092b89762fca38ceed76a838e0b75b916a23dea95ad87
 - role: receipt_successor
   path: .research-system/schemas/wp6-2-live-issue/live-provider-receipt-v3.schema.json
   schema_id: ars://adapters/provider-receipt/v3
   schema_version: 3.0.0
+  git_blob_id: 2ee7e642e68f48f204ba920d18adef679eeca432
+  raw_utf8_lf_sha256: aae1fd0e55e9fd8974d7b56fe0ac9e866c64ab765811335af790fc181503cf56
 - role: command
   path: .research-system/schemas/wp6-2-live-issue/commands/claim-live-provider-invocation.schema.json
   schema_id: ars://wp6-2/live-issue/command/ClaimLiveProviderInvocation
   schema_version: 1.0.0
+  git_blob_id: 0986b502beb086d58c39f6db7dd6bb25262c7c3f
+  raw_utf8_lf_sha256: 627c0468319ff39fae9b08e76898377518dba29f5f8e7a4f94146a55ef2e4919
 - role: command
   path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json
   schema_id: ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome
   schema_version: 1.0.0
+  git_blob_id: 5b1b44dba6164093e824e2e58d2546f531f4f91a
+  raw_utf8_lf_sha256: 4a0f4723588aaafde9937eaf613beb067174fb7973ccd25bad47c773f290be0d
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed
   schema_version: 1.0.0
+  git_blob_id: 6668bd8e29f397fef78577407914c8a0a7b93824
+  raw_utf8_lf_sha256: 9d76c3467eb956a8150daff21a66d0749c2a641d880cffd451cc6179c6505ddf
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/provider-invocation-outcome-recorded.schema.json
   schema_id: ars://wp6-2/live-issue/event/ProviderInvocationOutcomeRecorded
   schema_version: 1.0.0
+  git_blob_id: 39034f917be0ba2eca12512ae0802766aa1886c0
+  raw_utf8_lf_sha256: 08c54e0c4542c8f64432aacf463ea7ca47219a4582a68f601603e61e5c7505e7
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-provider-receipt-recorded.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveProviderReceiptRecorded
   schema_version: 1.0.0
+  git_blob_id: 01ca70f19f01eea7a20725795e42c29d1e9bf971
+  raw_utf8_lf_sha256: 1779baf61f3b232ea64a9a07b0cdb62109f7b46f09b29775dcd1334e0db2cae9
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-cost-grant-reconciled.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveCostGrantReconciled
   schema_version: 1.0.0
+  git_blob_id: fe938fa18ba5fc295eafe364cf999658d04e0073
+  raw_utf8_lf_sha256: 156842f66e8cd436b390eb20ce27d39530a1698881b0958b0f2e257e38b479f9
+- role: trusted_authority_catalogue
+  path: .research-system/schemas/contracts/wp6-2-t3-t4-trusted-resolver-authorities.schema.json
+  schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
+  schema_version: 1.0.0
+  git_blob_id: d257973f8827edd34b4a68725a6dcc14304801cf
+  raw_utf8_lf_sha256: bb1aa80f9b8ec7c105a330e4a0c30ba54ab49e9c43e12dbbea826f5293efec03
+contract_artifacts:
+- role: trusted_authority_manifest
+  path: .research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml
+  schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
+  schema_version: 1.0.0
+  git_blob_id: 3cb7a165d170a28c88d7950162c855e1e38f56fe
+  raw_utf8_lf_sha256: 9ea91c61a1ec5f13e1b13d373b479021909d6651c22f554dd535bc79416d351d
 tests:
   expected_set: tests/research_system/contracts/wp6_2_live_issue_expectations.py
   fixtures: tests/research_system/contracts/wp6_2_live_issue_fixtures.py

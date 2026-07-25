@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
+import json
 from typing import Any
 
 DIGEST = "a" * 64
@@ -13,7 +15,7 @@ def triple(stem: str, *, digest: str = DIGEST) -> dict[str, Any]:
 
 
 def valid_credential_receipt() -> dict[str, Any]:
-    return {
+    receipt = {
         "schema_id": "ars://wp6-2/live-issue/CredentialUseReceipt",
         "schema_version": "1.0.0",
         "credential_use_receipt_id": f"cur_{UUID7}",
@@ -22,6 +24,8 @@ def valid_credential_receipt() -> dict[str, Any]:
         "owner": "named_credential_resolver",
         "resolver": {"id": "resolver.local", "version": "1.0.0"},
         "resolver_trust_root": triple("rtr"),
+        "resolver_store": triple("rst"),
+        "resolver_store_record": triple("rsr"),
         "secret_reference": triple("srf"),
         "credential_class": "api_token",
         "claim_command_id": f"cmd_{UUID7}",
@@ -36,6 +40,60 @@ def valid_credential_receipt() -> dict[str, Any]:
         "revocation_state": "not_revoked",
         "contains_credential_bytes": False,
     }
+    fields = trusted_resolver_authority()["attested_fields"]
+    preimage = {field: receipt[field] for field in fields}
+    signed_hash = hashlib.sha256(
+        b"ars:wp6-2:credential-use-receipt:v1\0" + json.dumps(preimage, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    receipt["authority_attestation"] = {
+        "trust_root": triple("rtr"),
+        "signing_key_id": "resolver-signing-key-1",
+        "algorithm": "resolver-store-attestation-v1",
+        "signed_preimage_hash": signed_hash,
+        "verification_evidence_hash": ALT_DIGEST,
+    }
+    return receipt
+
+
+def trusted_resolver_authority() -> dict[str, Any]:
+    return {
+        "resolver": {"id": "resolver.local", "version": "1.0.0"},
+        "resolver_trust_root": triple("rtr"),
+        "resolver_store": triple("rst"),
+        "allowed_signing_key_ids": ["resolver-signing-key-1"],
+        "attested_fields": [
+            "resolver",
+            "resolver_trust_root",
+            "resolver_store",
+            "resolver_store_record",
+            "secret_reference",
+            "credential_class",
+            "claim_command_id",
+            "invocation_id",
+            "claim_intent_hash",
+            "provider_family",
+            "requested_scope",
+            "isolated_auth_context_id",
+            "provider_process_context",
+            "checked_at",
+            "expiry_state",
+            "revocation_state",
+            "contains_credential_bytes",
+        ],
+    }
+
+
+def resolver_store_record() -> dict[str, Any]:
+    receipt = valid_credential_receipt()
+    return {
+        "identity": receipt["resolver_store_record"],
+        **{
+            field: receipt[field]
+            for field in trusted_resolver_authority()["attested_fields"]
+            if field not in {"resolver", "resolver_trust_root", "resolver_store", "resolver_store_record"}
+        },
+        "verification_evidence_hash": ALT_DIGEST,
+    }
 
 
 def valid_claim() -> dict[str, Any]:
@@ -44,7 +102,11 @@ def valid_claim() -> dict[str, Any]:
         "schema_version": "1.0.0",
         "command_type": "ClaimLiveProviderInvocation",
         "command_id": f"cmd_{UUID7}",
-        "actor_id": "actor-1",
+        "actor_id": f"act_{UUID7}",
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": f"agr_{UUID7}",
+        "reason": "claim one authorized live provider invocation",
+        "evidence_refs": [triple("evi")],
         "authority_scope": "wp6.2.live-issue.claim",
         "idempotency_key": "live-issue-key-1",
         "correlation_id": "correlation-1",
@@ -104,11 +166,14 @@ def valid_claim() -> dict[str, Any]:
         "provider_family": "claude",
         "normalized_operation": "messages.create",
         "preflight_hashes": {
-            "policy": DIGEST,
-            "argv": DIGEST,
+            "policy_projection": DIGEST,
+            "argv_profile": DIGEST,
             "payload": DIGEST,
             "context": DIGEST,
             "secret_scan": DIGEST,
+            "resolver_receipt": DIGEST,
+            "native_selector": DIGEST,
+            "live_issue_binding": DIGEST,
         },
         "expected_object_versions": {
             name: 1
@@ -124,13 +189,35 @@ def valid_claim() -> dict[str, Any]:
                 "route",
                 "profile",
                 "context",
-                "policy",
+                "policy_bundle",
+                "applicability_manifest",
                 "adapter",
                 "live_issue_binding",
+                "resolver_trust_root",
+                "ledger_transaction",
             )
         },
         "submitted_at": "2026-07-25T20:00:00Z",
     }
+    excluded = {
+        "credential_use_receipt_id",
+        "credential_use_receipt_revision",
+        "credential_use_receipt_hash",
+        "payload_hash",
+        "submitted_at",
+        "recorded_at",
+    }
+    intent_fields = [key for key in command if key not in excluded and key != "claim_intent_hash"]
+    intent_preimage = {field: command[field] for field in intent_fields}
+    command["claim_intent_hash"] = hashlib.sha256(
+        b"ars:wp6-2:live-claim-intent:v1\0"
+        + json.dumps(intent_preimage, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    final_preimage = {key: value for key, value in command.items() if key != "payload_hash"}
+    command["payload_hash"] = hashlib.sha256(
+        b"ars:wp6-2:live-claim-payload:v1\0"
+        + json.dumps(final_preimage, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return command
 
 
@@ -169,7 +256,15 @@ def valid_live_issue_binding() -> dict[str, Any]:
         "argv_profile": {
             "adapter_revision": "adapter-1",
             "executable": "claude",
-            "ordered_flags": ["--model", "claude-native-model"],
+            "ordered_flags": [
+                "--model",
+                "claude-native-model",
+                "--profile",
+                "research",
+                "--reasoning",
+                "standard",
+            ],
+            "profile_selector": "research",
             "model_flag": "--model=claude-native-model",
             "profile_flag": "--profile=research",
             "reasoning_flag": "--reasoning=standard",

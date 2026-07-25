@@ -7,6 +7,8 @@ IDENTITY_MANIFEST_PATH = ".research-system/contracts/wp6-2-t3-t4-live-issue-sche
 IDENTITY_MANIFEST_SCHEMA_PATH = (
     ".research-system/schemas/contracts/wp6-2-t3-t4-live-issue-schema-identities.schema.json"
 )
+TRUSTED_RESOLVER_PATH = ".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml"
+TRUSTED_RESOLVER_SCHEMA_PATH = ".research-system/schemas/contracts/wp6-2-t3-t4-trusted-resolver-authorities.schema.json"
 
 EXPECTED_TRANSITIONS = {
     "live_provider_invocation.claim": {
@@ -76,6 +78,11 @@ EXPECTED_SCHEMA_IDENTITIES = {
     "reconciliation_event": (
         ".research-system/schemas/wp6-2-live-issue/events/" "live-cost-grant-reconciled.schema.json",
         "ars://wp6-2/live-issue/event/LiveCostGrantReconciled",
+        "1.0.0",
+    ),
+    "trusted_resolver_authorities": (
+        TRUSTED_RESOLVER_SCHEMA_PATH,
+        "ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities",
         "1.0.0",
     ),
 }

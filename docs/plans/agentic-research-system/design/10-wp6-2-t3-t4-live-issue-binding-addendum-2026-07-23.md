@@ -60,6 +60,23 @@ normalized operation; deterministic invocation identity; complete W2 tuple;
 preflight hashes and expected versions; resolver trust-root requirements; and
 the resolver-owned `CredentialUseReceipt` triple.
 
+Both commands carry the complete accepted W2 authority/rationale/evidence and
+lineage/concurrency envelope. Command, actor, authority-grant, invocation,
+transaction, and event identities use the exact UUIDv7 grammar. The claim
+write set is exactly `[provider_invocation]`; the outcome write set is exactly
+`[provider_invocation, cost_grant]`. Target, invocation, write-set stream, and
+expected-version values must join exactly. The expected global position and
+ledger-tail hash are revalidated under the writer lock.
+
+Every emitted event carries the complete W2 replay envelope: project and
+stream versions, global position, transaction identity/index/count, command
+and correlation/causation lineage, actor and authority grant/scope,
+idempotency key and its SHA-256, payload hash, occurrence/recording times, and
+previous/event hashes. Global positions are contiguous from the accepted
+tail; transaction membership and ordered indices are exact. `event_hash` is
+reconstructed as SHA-256 of
+`"ars:w2:event:v1\0" || canonical_json(all event fields except event_hash)`.
+
 The intent hash is:
 
 ```text
@@ -78,10 +95,19 @@ hashes and versions. It excludes exactly the CredentialUseReceipt
 identity/revision/hash, the completed payload hash, and submission/recording
 timestamps. It is never derived by deleting arbitrary keys from caller input.
 
-The final W2 payload hash covers every completed claim field, including the
-intent hash and CredentialUseReceipt triple. Changing an intent field
+The final W2 payload hash is reconstructed as SHA-256 of
+`"ars:wp6-2:live-claim-payload:v1\0" || canonical_json(all present top-level
+claim fields except payload_hash)`. Its own field is therefore explicitly
+excluded. It covers the intent hash and CredentialUseReceipt triple. Changing an intent field
 invalidates the resolver proof. Changing only the resolver-receipt triple
 leaves the intent hash unchanged but invalidates the completed payload binding.
+
+The preflight map contains exactly policy projection, argv profile, payload,
+context, secret scan, resolver receipt, native selector, and live-issue
+binding hashes. The expected-version map contains exactly provider command,
+cost grant, reservation, secret reference, task, dispatch, attempt, resource
+grant, route, profile, context, policy bundle, applicability manifest,
+adapter, live-issue binding, resolver trust root, and ledger transaction.
 
 All object resolution, policy compilation, argv and payload construction,
 expiry/revocation checks, resolver-proof validation, and secret scans happen
@@ -110,6 +136,12 @@ expiry, revocation, or tail binding rejects with zero effects.
   expected payload/context hashes, and exact ProviderReceipt proof needed for
   `delivery = proven`.
 
+The ordered argv is nonempty and provider-specific: it contains exactly the
+accepted model, profile selector, and Claude `--reasoning` or Codex
+`--reasoning-effort` pair in contract order. Each token-gate result equals
+`count <= ceiling`, and both gate ceilings remain within the delivery
+ceilings; contradictory booleans and over-ceiling counts reject.
+
 Canonical policy is recompiled from independently resolved bundle and manifest
 inputs. A caller-supplied projection and caller-supplied identity cannot vouch
 for one another. A provider whose native CLI cannot bind the accepted model,
@@ -130,8 +162,12 @@ identities, exact intent hash, provider family, requested scope, isolated auth
 context, provider process/session context, checked expiry/revocation state and
 time, and the declaration `contains_credential_bytes = false`.
 
-The coordinator validates the proof against an independently configured trust
-root before claim. Until claim commits, the proof remains resolver-owned and is
+The coordinator validates the proof against an independently loaded trusted
+resolver-authority manifest and the named resolver store before claim. The
+receipt binds the resolver-store and record triples plus a trust-root,
+signing-key, domain-separated signed-preimage hash and independent
+verification-evidence hash. Caller-supplied resolver or trust-root values are
+never an authority oracle. Until claim commits, the proof remains resolver-owned and is
 not published in the project canonical store. Coordinator-fabricated,
 wrong-root, stale, wrong-scope, wrong-provider, wrong-context, wrong-claim,
 expired, or revoked proof rejects with zero project-canonical effects.
@@ -158,7 +194,9 @@ process/provider observations, not command assertions. It binds the claim and
 LiveIssueBinding triples; actual argv hash, cwd/root and redacted
 environment/config evidence; CredentialUseReceipt triple; timestamps;
 provider-native request/session/thread/response identities; actual
-provider/model/version/profile proof or explicit inability to prove each;
+provider/model/version/profile/credential-context proof or explicit inability
+to prove each; provider-discriminated native identity (Claude request and
+response, or Codex thread and response);
 payload/context delivery evidence; terminal/error class; exit,
 cancellation/timeout; attempted/allowed/denied tools/actions; output
 references/hashes; token/accounting method, omissions and integer cost
@@ -166,6 +204,13 @@ calculation; and per-seam secret-scan dispositions required by 06b section 4.
 
 Raw credentials, hidden reasoning, unrestricted transcripts, and sentinels are
 forbidden.
+
+Evidence identity is deterministic rather than caller-chosen:
+`piev_` plus SHA-256 of
+`"ars:wp6-2:provider-invocation-evidence:v1\0" || canonical_json(claim,
+LiveIssueBinding, CredentialUseReceipt, invocation_observation_key)`. The
+store inserts the first object, treats the same key and same bytes as an exact
+duplicate, and rejects the same key with different bytes as a conflict.
 
 ## 8. Outcome, evidence orphan, and replay
 
@@ -181,7 +226,20 @@ live ProviderReceipt 3.0, and cost reconciliation. It represents terminal,
 timed-out, cancelled, blocked, duplicate, uncertain, and not-invoked outcomes
 without manufacturing completeness or token actuals.
 
-Metered reconciliation retains T2 integer ceiling arithmetic. An accepted
+Receipt `eligible` or `complete` is possible only for a terminal outcome with
+provider-discriminated native identity, non-null proven model/version/profile
+and credential context, proven nonempty delivery evidence, `all_proven =
+true`, and proven exact accounting. Uncertain, unproven, incomplete, or
+`all_proven = false` evidence is necessarily ineligible and incomplete.
+
+Metered reconciliation binds the accepted reservation triple, reserved token
+ceilings, actual tokens, integer input/output rates, currency, rate-evidence
+triple, zero-cost authority, cost ceiling, and remaining balance in both the
+outcome command and reconciliation event. It retains exact P-037--P-041
+integer ceiling arithmetic: consumed cost is the sum of the separately
+ceiling-divided input and output products; actual tokens do not exceed their
+reserved ceilings; refund is exactly reserved minus consumed. Thus reserved
+10, consumed 10, refund 10 is invalid. An accepted
 `zero_cost_authorized` path pins zero rates and its authority triple. Later
 expiry or revocation does not strand reconciliation for an accepted
 invocation. Exact replay returns the original accepted outcome and creates no
@@ -201,6 +259,11 @@ CredentialUseReceipt -> completed_claim_payload_hash
 
 Its transitive closure is acyclic. No edge returns from
 CredentialUseReceipt to LiveIssueBinding or claim_intent_hash.
+
+The identity manifest records the Git blob and raw UTF-8/LF SHA-256 for every
+leaf schema. The catalogue independently binds every command, event, reducer,
+and projection reference to a typed schema identity/version and those exact
+bytes; unbound names or byte drift are invalid.
 
 The shared coordinator owns ordering only. Claude and Codex keep separate
 renderers, native evidence parsers, canaries, negative matrices, and bounded

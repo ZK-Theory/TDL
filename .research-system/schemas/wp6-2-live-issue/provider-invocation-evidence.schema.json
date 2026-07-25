@@ -5,7 +5,8 @@
   "type": "object",
   "required": [
     "schema_id", "schema_version", "provider_invocation_evidence_id", "revision",
-    "content_hash", "claim", "live_issue_binding", "actual_argv_profile_hash",
+    "content_hash", "claim", "live_issue_binding", "invocation_observation_key",
+    "evidence_uniqueness_key", "actual_argv_profile_hash",
     "cwd", "root", "redacted_environment_hash", "redacted_config_hash",
     "credential_use_receipt", "timestamps", "native_identity",
     "actual_selection", "delivery", "terminal", "actions", "outputs",
@@ -14,11 +15,13 @@
   "properties": {
     "schema_id": {"const": "ars://wp6-2/live-issue/ProviderInvocationEvidence"},
     "schema_version": {"const": "1.0.0"},
-    "provider_invocation_evidence_id": {"type": "string", "pattern": "^piev_[0-9a-f-]{36}$"},
+    "provider_invocation_evidence_id": {"type": "string", "pattern": "^piev_[0-9a-f]{64}$"},
     "revision": {"type": "integer", "minimum": 1},
     "content_hash": {"$ref": "#/$defs/hash"},
     "claim": {"$ref": "#/$defs/triple"},
     "live_issue_binding": {"$ref": "#/$defs/triple"},
+    "invocation_observation_key": {"type": "string", "minLength": 1},
+    "evidence_uniqueness_key": {"$ref": "#/$defs/hash"},
     "actual_argv_profile_hash": {"$ref": "#/$defs/hash"},
     "cwd": {"type": "string", "minLength": 1},
     "root": {"type": "string", "minLength": 1},
@@ -49,7 +52,8 @@
       "type": "object",
       "required": [
         "provider_family", "provider_proven", "model", "model_proven",
-        "version", "version_proven", "profile", "profile_proven"
+        "version", "version_proven", "profile", "profile_proven",
+        "credential_context_id", "credential_context_proven"
       ],
       "properties": {
         "provider_family": {"enum": ["claude", "codex"]},
@@ -59,7 +63,9 @@
         "version": {"type": ["string", "null"]},
         "version_proven": {"type": "boolean"},
         "profile": {"type": ["string", "null"]},
-        "profile_proven": {"type": "boolean"}
+        "profile_proven": {"type": "boolean"},
+        "credential_context_id": {"type": ["string", "null"]},
+        "credential_context_proven": {"type": "boolean"}
       },
       "additionalProperties": false
     },
@@ -70,7 +76,11 @@
         "payload_hash": {"$ref": "#/$defs/hash"},
         "context_hash": {"$ref": "#/$defs/hash"},
         "disposition": {"enum": ["proven", "unproven", "not_delivered"]},
-        "proof_fields": {"type": "object"}
+        "proof_fields": {
+          "type": "object",
+          "propertyNames": {"enum": ["request_id", "response_id", "thread_id", "status", "payload_acknowledgement"]},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
       },
       "additionalProperties": false
     },
@@ -131,6 +141,36 @@
     "source_declaration": {"const": "actual_process_and_provider_observations_not_command_assertions"}
   },
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"delivery": {"properties": {"disposition": {"const": "proven"}}}}},
+      "then": {"properties": {"delivery": {"properties": {"proof_fields": {"minProperties": 2}}}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"provider_family": {"const": "claude"}, "provider_proven": {"const": true}}}}},
+      "then": {"properties": {"native_identity": {"properties": {"request_id": {"type": "string", "minLength": 1}, "response_id": {"type": "string", "minLength": 1}}, "required": ["request_id", "response_id"]}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"provider_family": {"const": "codex"}, "provider_proven": {"const": true}}}}},
+      "then": {"properties": {"native_identity": {"properties": {"thread_id": {"type": "string", "minLength": 1}, "response_id": {"type": "string", "minLength": 1}}, "required": ["thread_id", "response_id"]}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"model_proven": {"const": true}}}}},
+      "then": {"properties": {"actual_selection": {"properties": {"model": {"type": "string", "minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"version_proven": {"const": true}}}}},
+      "then": {"properties": {"actual_selection": {"properties": {"version": {"type": "string", "minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"profile_proven": {"const": true}}}}},
+      "then": {"properties": {"actual_selection": {"properties": {"profile": {"type": "string", "minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"actual_selection": {"properties": {"credential_context_proven": {"const": true}}}}},
+      "then": {"properties": {"actual_selection": {"properties": {"credential_context_id": {"type": "string", "minLength": 1}}}}}
+    }
+  ],
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "triple": {
@@ -145,6 +185,9 @@
     }
   },
   "x-content-address": "sha256_RFC8785_canonical_json_excluding_content_hash",
+  "x-uniqueness-preimage-fields": ["claim", "live_issue_binding", "credential_use_receipt", "invocation_observation_key"],
+  "x-uniqueness-domain-separator": "ars:wp6-2:provider-invocation-evidence:v1\\u0000",
+  "x-store-semantics": "same uniqueness key and same content is duplicate/reuse; same key and different content is conflict; a second object is forbidden",
   "x-idempotent-publication-owner": "research_system.store.canonical_objects.CanonicalObjectStore",
   "x-forbidden-content": ["raw_credentials", "hidden_reasoning", "unrestricted_transcripts", "secret_sentinels"]
 }

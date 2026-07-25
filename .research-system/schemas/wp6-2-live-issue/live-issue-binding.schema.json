@@ -70,14 +70,15 @@
     "argv_profile": {
       "type": "object",
       "required": [
-        "adapter_revision", "executable", "ordered_flags", "model_flag",
+        "adapter_revision", "executable", "ordered_flags", "profile_selector", "model_flag",
         "profile_flag", "reasoning_flag", "sandbox", "cwd", "root", "network",
         "tools", "permissions", "environment_allowlist", "prohibited_options"
       ],
       "properties": {
         "adapter_revision": {"type": "string", "minLength": 1},
-        "executable": {"type": "string", "minLength": 1},
-        "ordered_flags": {"type": "array", "items": {"type": "string"}},
+        "executable": {"enum": ["claude", "codex"]},
+        "ordered_flags": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"type": "string", "minLength": 1}},
+        "profile_selector": {"type": "string", "minLength": 1},
         "model_flag": {"type": "string", "minLength": 1},
         "profile_flag": {"type": "string", "minLength": 1},
         "reasoning_flag": {"type": "string", "minLength": 1},

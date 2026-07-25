@@ -6,7 +6,7 @@
   "required": [
     "schema_id", "schema_version", "manifest_id", "manifest_version", "status",
     "candidate_identity_binding", "dispatch_base", "accepted_predecessors",
-    "artifacts", "tests"
+    "artifacts", "contract_artifacts", "tests"
   ],
   "properties": {
     "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-live-issue-schema-identities"},
@@ -36,17 +36,35 @@
       }
     },
     "artifacts": {
-      "type": "array", "minItems": 10, "maxItems": 10,
+      "type": "array", "minItems": 11, "maxItems": 11,
       "items": {
         "type": "object",
-        "required": ["role", "path", "schema_id", "schema_version"],
+        "required": ["role", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
         "additionalProperties": false,
         "properties": {
-          "role": {"enum": ["record", "resolver_receipt", "evidence", "receipt_successor", "command", "event"]},
-          "path": {"type": "string", "pattern": "^\\.research-system/schemas/wp6-2-live-issue/"},
+          "role": {"enum": ["record", "resolver_receipt", "evidence", "receipt_successor", "command", "event", "trusted_authority_catalogue"]},
+          "path": {"type": "string", "pattern": "^\\.research-system/schemas/(wp6-2-live-issue|contracts)/"},
           "schema_id": {"type": "string", "pattern": "^ars://"},
-          "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+          "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "raw_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
         }
+      }
+    },
+    "contract_artifacts": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["role", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
+        "properties": {
+          "role": {"const": "trusted_authority_manifest"},
+          "path": {"const": ".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml"},
+          "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities"},
+          "schema_version": {"const": "1.0.0"},
+          "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "raw_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
       }
     },
     "tests": {
