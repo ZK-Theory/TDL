@@ -52,18 +52,34 @@
       }
     },
     "contract_artifacts": {
-      "type": "array", "minItems": 1, "maxItems": 1,
+      "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true,
       "items": {
         "type": "object",
         "required": ["role", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
         "properties": {
-          "role": {"const": "trusted_authority_manifest"},
-          "path": {"const": ".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml"},
-          "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities"},
+          "role": {"enum": ["trusted_authority_manifest", "reservation_authority_catalogue"]},
+          "path": {"enum": [".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml", ".research-system/contracts/wp6-2-t3-t4-live-issue-catalogue.yaml"]},
+          "schema_id": {"enum": ["ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities", "ars://contracts/wp6-2-t3-t4-live-issue-catalogue"]},
           "schema_version": {"const": "1.0.0"},
           "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
           "raw_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
         },
+        "oneOf": [
+          {
+            "properties": {
+              "role": {"const": "trusted_authority_manifest"},
+              "path": {"const": ".research-system/contracts/wp6-2-t3-t4-trusted-resolver-authorities.yaml"},
+              "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities"}
+            }
+          },
+          {
+            "properties": {
+              "role": {"const": "reservation_authority_catalogue"},
+              "path": {"const": ".research-system/contracts/wp6-2-t3-t4-live-issue-catalogue.yaml"},
+              "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-live-issue-catalogue"}
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },

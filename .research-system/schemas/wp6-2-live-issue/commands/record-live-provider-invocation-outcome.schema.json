@@ -11,7 +11,7 @@
     "expected_invocation_stream_version", "expected_cost_grant_stream_version",
     "expected_global_position", "expected_ledger_tail_hash",
     "write_set", "claim", "invocation_evidence", "live_provider_receipt",
-    "cost_grant", "reservation", "outcome", "reconciliation", "submitted_at"
+    "provider_command", "cost_grant", "reservation", "outcome", "reconciliation", "submitted_at"
   ],
   "properties": {
     "schema_id": {"const": "ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome"},
@@ -45,6 +45,7 @@
     "claim": {"$ref": "#/$defs/triple"},
     "invocation_evidence": {"$ref": "#/$defs/triple"},
     "live_provider_receipt": {"$ref": "#/$defs/triple"},
+    "provider_command": {"$ref": "#/$defs/triple"},
     "cost_grant": {"$ref": "#/$defs/triple"},
     "reservation": {"$ref": "#/$defs/triple"},
     "outcome": {"enum": ["terminal", "timed_out", "cancelled", "blocked", "duplicate", "uncertain", "not_invoked"]},
@@ -110,9 +111,11 @@
     },
     "reservation_authority": {
       "type": "object",
-      "required": ["reservation", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
+      "required": ["reservation", "cost_grant", "provider_command", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
       "properties": {
         "reservation": {"$ref": "#/$defs/triple"},
+        "cost_grant": {"$ref": "#/$defs/triple"},
+        "provider_command": {"$ref": "#/$defs/triple"},
         "rate_mode": {"enum": ["metered", "zero_cost_authorized"]},
         "reserved_input_tokens": {"type": "integer", "minimum": 0},
         "reserved_output_tokens": {"type": "integer", "minimum": 0},

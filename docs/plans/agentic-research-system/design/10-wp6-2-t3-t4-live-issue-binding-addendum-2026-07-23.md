@@ -269,6 +269,15 @@ actual tokens, consumed cost, refund, and remaining balance are all pending
 unknown, consumed cost equals the full reservation, refund is zero, and
 remaining balance equals the post-reservation available balance.
 
+The outcome command and complete event-batch validators do not treat the
+embedded reservation snapshot as authority. They resolve the exact
+reservation identity/revision/hash triple from the independently
+content-addressed live-issue catalogue, then require full equality for the
+accepted reservation snapshot and its cost-grant/provider-command linkage,
+amount, post-reservation balance, currency, rates and rate evidence, token and
+cost ceilings, and zero-cost authority. A caller cannot retain the reservation
+triple while substituting mutually consistent reconciliation inputs.
+
 ## 9. Dependency graph and provider separation
 
 For `A -> B`, B directly hashes or binds A. The complete direct graph is:

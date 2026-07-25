@@ -63,9 +63,11 @@
     "triple": {"type": "object", "required": ["id", "revision", "hash"], "properties": {"id": {"type": "string"}, "revision": {"type": ["integer", "string"]}, "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false},
     "reservation_authority": {
       "type": "object",
-      "required": ["reservation", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
+      "required": ["reservation", "cost_grant", "provider_command", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
       "properties": {
         "reservation": {"$ref": "#/$defs/triple"},
+        "cost_grant": {"$ref": "#/$defs/triple"},
+        "provider_command": {"$ref": "#/$defs/triple"},
         "rate_mode": {"enum": ["metered", "zero_cost_authorized"]},
         "reserved_input_tokens": {"type": "integer", "minimum": 0},
         "reserved_output_tokens": {"type": "integer", "minimum": 0},

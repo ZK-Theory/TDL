@@ -8,7 +8,7 @@
     "dispatch_base", "writer", "coordinator", "object_owner",
     "provider_call_authorized", "automatic_retry",
     "accepted_t2_predecessor_immutable", "idempotency_tuple", "intent",
-    "dependency_graph", "reference_bindings", "transitions", "invocation_states",
+    "dependency_graph", "reservation_authorities", "reference_bindings", "transitions", "invocation_states",
     "credential_receipt", "evidence", "cost", "provider_separation",
     "stable_rejections"
   ],
@@ -50,6 +50,10 @@
         "acyclic": {"const": true}
       },
       "additionalProperties": false
+    },
+    "reservation_authorities": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {"$ref": "#/$defs/reservation_authority"}
     },
     "reference_bindings": {
       "type": "array", "minItems": 12, "maxItems": 12,
@@ -180,6 +184,38 @@
     "edge": {
       "type": "array", "minItems": 2, "maxItems": 2,
       "items": {"type": "string", "minLength": 1}
+    },
+    "triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "reservation_authority": {
+      "type": "object",
+      "required": ["reservation", "cost_grant", "provider_command", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
+      "properties": {
+        "reservation": {"$ref": "#/$defs/triple"},
+        "cost_grant": {"$ref": "#/$defs/triple"},
+        "provider_command": {"$ref": "#/$defs/triple"},
+        "rate_mode": {"enum": ["metered", "zero_cost_authorized"]},
+        "reserved_input_tokens": {"type": "integer", "minimum": 0},
+        "reserved_output_tokens": {"type": "integer", "minimum": 0},
+        "total_token_ceiling": {"type": "integer", "minimum": 0},
+        "input_rate": {"type": "integer", "minimum": 0},
+        "output_rate": {"type": "integer", "minimum": 0},
+        "reserved_cost_microunits": {"type": "integer", "minimum": 0},
+        "cost_ceiling_microunits": {"type": "integer", "minimum": 0},
+        "pre_reconciliation_remaining_cost_microunits": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "minLength": 1},
+        "rate_evidence": {"$ref": "#/$defs/triple"},
+        "zero_cost_authority": {"anyOf": [{"$ref": "#/$defs/triple"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
     },
     "invocation_state": {
       "type": "object",

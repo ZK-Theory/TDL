@@ -25,6 +25,7 @@ from tests.research_system.contracts.wp6_2_live_issue_fixtures import (
     valid_outcome_events,
     valid_provider_invocation_evidence,
     valid_reconciliation,
+    valid_reservation_authority,
 )
 from tests.research_system.contracts.wp6_2_live_issue_expectations import (
     ADDENDUM_PATH,
@@ -44,6 +45,7 @@ from tests.research_system.contracts.wp6_2_live_issue_validation import (
     compute_claim_intent,
     compute_final_claim_payload,
     load_trusted_resolver_authority,
+    load_authoritative_reservation,
     validate_claim_command,
     validate_claim_arbitration,
     validate_credential_receipt,
@@ -555,11 +557,11 @@ def test_command_identity_joins_and_global_tail_are_independent_semantics() -> N
         validate_claim_command(omitted, repo_root=REPO_ROOT)
 
     outcome = valid_outcome_command()
-    validate_outcome_command(outcome)
+    validate_outcome_command(outcome, repo_root=REPO_ROOT)
     duplicated = clone(outcome)
     duplicated["write_set"][1]["stream_role"] = "provider_invocation"
     with pytest.raises(LiveIssueContractError):
-        validate_outcome_command(duplicated)
+        validate_outcome_command(duplicated, repo_root=REPO_ROOT)
 
 
 def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> None:
@@ -576,6 +578,7 @@ def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> 
     validate_event_batch(
         command,
         events,
+        repo_root=REPO_ROOT,
         expected_event_types=expected,
         expected_global_tail=42,
         expected_previous_hash=DIGEST,
@@ -586,6 +589,7 @@ def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> 
         validate_event_batch(
             invalid_command,
             events,
+            repo_root=REPO_ROOT,
             expected_event_types=expected,
             expected_global_tail=42,
             expected_previous_hash=DIGEST,
@@ -602,6 +606,7 @@ def test_event_batch_replay_global_tail_and_hash_chain_are_reconstructible() -> 
             validate_event_batch(
                 command,
                 invalid,
+                repo_root=REPO_ROOT,
                 expected_event_types=expected,
                 expected_global_tail=42,
                 expected_previous_hash=DIGEST,
@@ -763,12 +768,13 @@ def test_inert_orphan_and_exact_replay_have_no_second_effects() -> None:
 
 def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
     valid = valid_reconciliation()
-    expected_reservation = valid["accepted_reservation"]["reservation"]
-    validate_reconciliation(valid, expected_reservation=expected_reservation)
+    authority = load_authoritative_reservation(REPO_ROOT, valid["accepted_reservation"]["reservation"])
+    assert authority == valid_reservation_authority()
+    validate_reconciliation(valid, authoritative_reservation=authority)
     subtraction_result = clone(valid)
     subtraction_result["remaining_cost_microunits"] = 88
     with pytest.raises(LiveIssueContractError):
-        validate_reconciliation(subtraction_result, expected_reservation=expected_reservation)
+        validate_reconciliation(subtraction_result, authoritative_reservation=authority)
     for mutation in ("bad_refund", "bad_remaining", "unproven_actuals"):
         invalid = clone(valid)
         if mutation == "bad_refund":
@@ -779,7 +785,7 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
         else:
             invalid["actuals_proven"] = False
         with pytest.raises(LiveIssueContractError):
-            validate_reconciliation(invalid, expected_reservation=expected_reservation)
+            validate_reconciliation(invalid, authoritative_reservation=authority)
 
     uncertain = clone(valid)
     uncertain.update(
@@ -795,7 +801,7 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
             "actuals_proven": False,
         }
     )
-    validate_reconciliation(uncertain, expected_reservation=expected_reservation)
+    validate_reconciliation(uncertain, authoritative_reservation=authority)
 
     uncertain_consumed = clone(uncertain)
     uncertain_consumed.update(
@@ -806,7 +812,7 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
             "disposition": "conservatively_consumed",
         }
     )
-    validate_reconciliation(uncertain_consumed, expected_reservation=expected_reservation)
+    validate_reconciliation(uncertain_consumed, authoritative_reservation=authority)
 
     for mutation in ("reservation", "currency", "rate_evidence", "rates", "ceilings", "remaining"):
         invalid = clone(uncertain)
@@ -823,7 +829,53 @@ def test_metered_zero_cost_and_uncertain_reconciliation() -> None:
         else:
             invalid["remaining_cost_microunits"] = 98
         with pytest.raises(LiveIssueContractError):
-            validate_reconciliation(invalid, expected_reservation=expected_reservation)
+            validate_reconciliation(invalid, authoritative_reservation=authority)
+
+
+def test_reservation_authority_paired_substitutions_fail_composed_entry_points() -> None:
+    expected = ["ProviderInvocationOutcomeRecorded", "LiveProviderReceiptRecorded", "LiveCostGrantReconciled"]
+
+    def substituted(case: str) -> dict[str, object]:
+        command = valid_outcome_command()
+        authority = command["reconciliation"]["accepted_reservation"]
+        reconciliation = command["reconciliation"]
+        if case == "amount":
+            authority["reserved_cost_microunits"] = reconciliation["reserved_cost_microunits"] = 12
+            reconciliation["refund_cost_microunits"] = 10
+            reconciliation["remaining_cost_microunits"] = 100
+        elif case == "balance":
+            authority["pre_reconciliation_remaining_cost_microunits"] = 80
+            reconciliation["remaining_cost_microunits"] = 88
+        elif case == "currency":
+            authority["currency"] = reconciliation["currency"] = "GBP_MICRO"
+        elif case == "rates":
+            authority["input_rate"] = reconciliation["input_rate"] = 2_000_000
+            reconciliation["consumed_cost_microunits"] = 3
+            reconciliation["refund_cost_microunits"] = 7
+            reconciliation["remaining_cost_microunits"] = 97
+        elif case == "rate_evidence":
+            authority["rate_evidence"] = reconciliation["rate_evidence"] = triple("other")
+        elif case == "token_ceiling":
+            authority["reserved_output_tokens"] = reconciliation["reserved_output_tokens"] = 20
+            authority["total_token_ceiling"] = reconciliation["total_token_ceiling"] = 30
+        elif case == "cost_ceiling":
+            authority["cost_ceiling_microunits"] = reconciliation["cost_ceiling_microunits"] = 200
+        return command
+
+    for case in ("amount", "balance", "currency", "rates", "rate_evidence", "token_ceiling", "cost_ceiling"):
+        command = substituted(case)
+        assert command["reservation"] == triple("rsv")
+        with pytest.raises(LiveIssueContractError):
+            validate_outcome_command(command, repo_root=REPO_ROOT)
+        with pytest.raises(LiveIssueContractError):
+            validate_event_batch(
+                command,
+                valid_outcome_events(),
+                repo_root=REPO_ROOT,
+                expected_event_types=expected,
+                expected_global_tail=42,
+                expected_previous_hash=DIGEST,
+            )
 
 
 @pytest.mark.parametrize(

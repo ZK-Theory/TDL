@@ -222,25 +222,32 @@ def valid_live_provider_receipt() -> dict[str, Any]:
     }
 
 
-def valid_reconciliation() -> dict[str, Any]:
+def valid_reservation_authority() -> dict[str, Any]:
     rate = triple("rate")
     return {
+        "reservation": triple("rsv"),
+        "cost_grant": triple("cgr"),
+        "provider_command": triple("pcmd"),
         "rate_mode": "metered",
-        "accepted_reservation": {
-            "reservation": triple("rsv"),
-            "rate_mode": "metered",
-            "reserved_input_tokens": 10,
-            "reserved_output_tokens": 10,
-            "total_token_ceiling": 20,
-            "input_rate": 1_000_000,
-            "output_rate": 1_000_000,
-            "reserved_cost_microunits": 10,
-            "cost_ceiling_microunits": 100,
-            "pre_reconciliation_remaining_cost_microunits": 90,
-            "currency": "USD_MICRO",
-            "rate_evidence": rate,
-            "zero_cost_authority": None,
-        },
+        "reserved_input_tokens": 10,
+        "reserved_output_tokens": 10,
+        "total_token_ceiling": 20,
+        "input_rate": 1_000_000,
+        "output_rate": 1_000_000,
+        "reserved_cost_microunits": 10,
+        "cost_ceiling_microunits": 100,
+        "pre_reconciliation_remaining_cost_microunits": 90,
+        "currency": "USD_MICRO",
+        "rate_evidence": rate,
+        "zero_cost_authority": None,
+    }
+
+
+def valid_reconciliation() -> dict[str, Any]:
+    authority = valid_reservation_authority()
+    return {
+        "rate_mode": "metered",
+        "accepted_reservation": authority,
         "reserved_input_tokens": 10,
         "reserved_output_tokens": 10,
         "total_token_ceiling": 20,
@@ -250,7 +257,7 @@ def valid_reconciliation() -> dict[str, Any]:
         "input_rate": 1_000_000,
         "output_rate": 1_000_000,
         "currency": "USD_MICRO",
-        "rate_evidence": rate,
+        "rate_evidence": authority["rate_evidence"],
         "zero_cost_authority": None,
         "cost_ceiling_microunits": 100,
         "reserved_cost_microunits": 10,
@@ -296,6 +303,7 @@ def valid_outcome_command() -> dict[str, Any]:
             "hash": evidence["content_hash"],
         },
         "live_provider_receipt": triple("prcp"),
+        "provider_command": triple("pcmd"),
         "cost_grant": triple("cgr"),
         "reservation": triple("rsv"),
         "outcome": "terminal",

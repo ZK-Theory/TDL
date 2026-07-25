@@ -48,8 +48,8 @@ artifacts:
   path: .research-system/schemas/wp6-2-live-issue/commands/record-live-provider-invocation-outcome.schema.json
   schema_id: ars://wp6-2/live-issue/command/RecordLiveProviderInvocationOutcome
   schema_version: 1.0.0
-  git_blob_id: b8eb575f06c29a5fc3ba5b3123c1a383d34a69fb
-  raw_utf8_lf_sha256: 4890f5c578c04aaf87c5fd1b44e315c7437fd4c076fc27c86a022c9fa581cffd
+  git_blob_id: 59df0f42c0e27cef5849507ed03c011c7ce1b2f3
+  raw_utf8_lf_sha256: 68dbaea7ed737c69dabd5d337731bcd0b7fc7a740cf2ccc71e02717075180893
 - role: event
   path: .research-system/schemas/wp6-2-live-issue/events/live-provider-invocation-claimed.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveProviderInvocationClaimed
@@ -72,8 +72,8 @@ artifacts:
   path: .research-system/schemas/wp6-2-live-issue/events/live-cost-grant-reconciled.schema.json
   schema_id: ars://wp6-2/live-issue/event/LiveCostGrantReconciled
   schema_version: 1.0.0
-  git_blob_id: 009bef1478519ea82720202671d95f39a347b558
-  raw_utf8_lf_sha256: 741eca6c9fb50cfceca4ef12c5528f64cc36d78284f2a04a71b330f45a207db2
+  git_blob_id: 98364fdd899a529e971811fe3eccfb19d473be14
+  raw_utf8_lf_sha256: 12ad6d27e02d3a4596e575f61da7634cf16b4b6b774275cbb5a0501484101afc
 - role: trusted_authority_catalogue
   path: .research-system/schemas/contracts/wp6-2-t3-t4-trusted-resolver-authorities.schema.json
   schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
@@ -123,6 +123,12 @@ contract_artifacts:
   schema_version: 1.0.0
   git_blob_id: 9535ab134085b4184d7c006671aa7aace7fa717b
   raw_utf8_lf_sha256: faf610bc103afb36908e9221de01520221561a2d414ddb2ad2e7741283d8c721
+- role: reservation_authority_catalogue
+  path: .research-system/contracts/wp6-2-t3-t4-live-issue-catalogue.yaml
+  schema_id: ars://contracts/wp6-2-t3-t4-live-issue-catalogue
+  schema_version: 1.0.0
+  git_blob_id: 19c4eef794f232acd52f42218dd5aea8d9602050
+  raw_utf8_lf_sha256: f79476b510ec07ea01419fd8cb4f7d97938b524f7d1a8a776c2c2b8c817287d0
 tests:
   expected_set: tests/research_system/contracts/wp6_2_live_issue_expectations.py
   fixtures: tests/research_system/contracts/wp6_2_live_issue_fixtures.py

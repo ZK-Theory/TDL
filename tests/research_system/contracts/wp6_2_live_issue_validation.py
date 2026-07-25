@@ -100,7 +100,24 @@ def validate_claim_command(claim: Mapping[str, Any], *, repo_root: Path) -> None
     _require(claim.get("payload_hash") == final_hash, "claim_payload_hash_mismatch")
 
 
-def validate_outcome_command(command: Mapping[str, Any]) -> None:
+def load_authoritative_reservation(
+    repo_root: Path,
+    reservation_identity: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    catalogue = _load_identity_bound_yaml(
+        repo_root,
+        ".research-system/contracts/wp6-2-t3-t4-live-issue-catalogue.yaml",
+    )
+    matches = [
+        record
+        for record in catalogue.get("reservation_authorities", [])
+        if record.get("reservation") == reservation_identity
+    ]
+    _require(len(matches) == 1, "reservation_authority_not_unique")
+    return matches[0]
+
+
+def validate_outcome_command(command: Mapping[str, Any], *, repo_root: Path) -> None:
     invocation_id = command.get("invocation_id")
     write_set = command.get("write_set")
     _require(command.get("target_stream_id") == invocation_id, "outcome_target_mismatch")
@@ -122,10 +139,10 @@ def validate_outcome_command(command: Mapping[str, Any]) -> None:
         write_set[1].get("expected_version") == command.get("expected_cost_grant_stream_version"),
         "outcome_cost_version_mismatch",
     )
-    validate_reconciliation(
-        command.get("reconciliation", {}),
-        expected_reservation=command.get("reservation", {}),
-    )
+    authority = load_authoritative_reservation(repo_root, command.get("reservation", {}))
+    _require(command.get("cost_grant") == authority.get("cost_grant"), "reservation_cost_grant_mismatch")
+    _require(command.get("provider_command") == authority.get("provider_command"), "reservation_command_mismatch")
+    validate_reconciliation(command.get("reconciliation", {}), authoritative_reservation=authority)
 
 
 def _event_hash(event: Mapping[str, Any]) -> str:
@@ -137,11 +154,12 @@ def validate_event_batch(
     command: Mapping[str, Any],
     events: Sequence[Mapping[str, Any]],
     *,
+    repo_root: Path,
     expected_event_types: Sequence[str],
     expected_global_tail: int,
     expected_previous_hash: str,
 ) -> None:
-    validate_outcome_command(command)
+    validate_outcome_command(command, repo_root=repo_root)
     _require(len(events) == len(expected_event_types) == 3, "event_batch_count")
     _require([event.get("event_type") for event in events] == list(expected_event_types), "event_order")
     transaction_id = events[0].get("transaction_id")
@@ -201,7 +219,8 @@ def validate_event_batch(
         all(event_reconciliation.get(key) == value for key, value in command["reconciliation"].items()),
         "event_reconciliation_join",
     )
-    validate_reconciliation(event_reconciliation, expected_reservation=command["reservation"])
+    authority = load_authoritative_reservation(repo_root, command["reservation"])
+    validate_reconciliation(event_reconciliation, authoritative_reservation=authority)
 
 
 def validate_dependency_graph(
@@ -328,14 +347,14 @@ def validate_outcome(observation: Mapping[str, Any]) -> None:
 def validate_reconciliation(
     record: Mapping[str, Any],
     *,
-    expected_reservation: Mapping[str, Any],
+    authoritative_reservation: Mapping[str, Any],
 ) -> None:
     reserved = record.get("reserved_cost_microunits")
     consumed = record.get("consumed_cost_microunits")
     refund = record.get("refund_cost_microunits")
     _require(isinstance(reserved, int) and not isinstance(reserved, bool) and reserved >= 0, "cost_invalid")
     reservation = record.get("accepted_reservation", {})
-    _require(reservation.get("reservation") == expected_reservation, "reservation_identity_mismatch")
+    _require(reservation == authoritative_reservation, "reservation_authority_mismatch")
     _require(reserved == reservation.get("reserved_cost_microunits"), "reservation_cost_mismatch")
     _require(record.get("currency") == reservation.get("currency"), "reservation_currency_mismatch")
     _require(record.get("rate_evidence") == reservation.get("rate_evidence"), "rate_evidence_mismatch")
