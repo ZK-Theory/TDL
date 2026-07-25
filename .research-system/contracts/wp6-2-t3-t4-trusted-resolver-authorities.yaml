@@ -1,0 +1,54 @@
+schema_id: ars://contracts/wp6-2-t3-t4-trusted-resolver-authorities
+schema_version: 1.0.0
+authorities:
+  - resolver:
+      id: resolver.local
+      version: 1.0.0
+    resolver_trust_root:
+      id: rtr_018f47a2-9b3c-7def-8abc-0123456789ab
+      revision: 1
+      hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    resolver_store:
+      id: rst_018f47a2-9b3c-7def-8abc-0123456789ab
+      revision: 1
+      hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    allowed_signing_key_ids:
+      - resolver-signing-key-1
+    resolver_store_records:
+      - identity:
+          id: rsr_018f47a2-9b3c-7def-8abc-0123456789ab
+          revision: 1
+          hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        secret_reference:
+          id: srf_018f47a2-9b3c-7def-8abc-0123456789ab
+          revision: 1
+          hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        credential_class: api_token
+        claim_command_id: cmd_018f47a2-9b3c-7def-8abc-0123456789ab
+        invocation_id: pinv_018f47a2-9b3c-7def-8abc-0123456789ab
+        claim_intent_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        provider_family: claude
+        requested_scope: provider.invoke
+        isolated_auth_context_id: auth-context-1
+        provider_process_context: process-session-1
+        verification_evidence_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    attested_fields:
+      - resolver
+      - resolver_trust_root
+      - resolver_store
+      - resolver_store_record
+      - secret_reference
+      - credential_class
+      - claim_command_id
+      - invocation_id
+      - claim_intent_hash
+      - provider_family
+      - requested_scope
+      - isolated_auth_context_id
+      - provider_process_context
+      - checked_at
+      - expiry_state
+      - revocation_state
+      - contains_credential_bytes
+load_rule: validator_content_hashes_this_registered_catalogue_then_loads_the_matching_resolver_store_record_internally
+coordinator_authoritative: false

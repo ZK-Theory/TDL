@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/live-issue/projection/cost-grant-balance",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "component_type", "source_event_types", "balance_fields"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-2/live-issue/projection/cost-grant-balance"},
+    "schema_version": {"const": "1.0.0"},
+    "component_type": {"const": "projection"},
+    "source_event_types": {"const": ["LiveCostGrantReconciled"]},
+    "balance_fields": {"const": ["consumed_cost_microunits", "refund_cost_microunits", "remaining_cost_microunits"]}
+  },
+  "additionalProperties": false,
+  "x-component-reference": "cost_grant_balance_projection@1.0.0",
+  "x-component-kind": "projection"
+}

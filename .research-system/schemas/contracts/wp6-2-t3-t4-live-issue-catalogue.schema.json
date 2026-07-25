@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t3-t4-live-issue-catalogue",
+  "title": "WP6.2 T3/T4 live-issue authority catalogue",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "catalogue_id", "catalogue_version", "status",
+    "dispatch_base", "writer", "coordinator", "object_owner",
+    "provider_call_authorized", "automatic_retry",
+    "accepted_t2_predecessor_immutable", "idempotency_tuple", "intent",
+    "dependency_graph", "reservation_authorities", "reference_bindings", "transitions", "invocation_states",
+    "credential_receipt", "evidence", "cost", "provider_separation",
+    "stable_rejections"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-2-t3-t4-live-issue-catalogue"},
+    "schema_version": {"const": "1.0.0"},
+    "catalogue_id": {"const": "wp6-2-t3-t4-live-issue-catalogue"},
+    "catalogue_version": {"const": "1.0.0"},
+    "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_identity_acceptance"},
+    "dispatch_base": {"const": "2291b5d4736ad604ce9763d9c677e707970ef14e"},
+    "writer": {"const": "research_system.command.service.CommandService"},
+    "coordinator": {"const": "research_system.live_issue.coordinator.LiveIssueCoordinator"},
+    "object_owner": {"const": "research_system.store.canonical_objects.CanonicalObjectStore"},
+    "provider_call_authorized": {"const": false},
+    "automatic_retry": {"const": false},
+    "accepted_t2_predecessor_immutable": {"const": true},
+    "idempotency_tuple": {
+      "const": ["actor_id", "authority_scope", "command_type", "idempotency_key"]
+    },
+    "intent": {
+      "type": "object",
+      "required": ["domain_separator", "canonicalization", "construction", "excluded_fields", "final_payload_hash_covers_intent_and_credential_receipt"],
+      "properties": {
+        "domain_separator": {"type": "string"},
+        "canonicalization": {"type": "string"},
+        "construction": {"type": "string"},
+        "excluded_fields": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+        "final_payload_hash_covers_intent_and_credential_receipt": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "dependency_graph": {
+      "type": "object",
+      "required": ["edge_meaning", "direct_edges", "forbidden_edges", "acyclic"],
+      "properties": {
+        "edge_meaning": {"type": "string"},
+        "direct_edges": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/edge"}},
+        "forbidden_edges": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/edge"}},
+        "acyclic": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "reservation_authorities": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {"$ref": "#/$defs/reservation_authority"}
+    },
+    "reference_bindings": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["reference_kind", "reference", "path", "schema_id", "schema_version", "git_blob_id", "raw_utf8_lf_sha256"],
+        "properties": {
+          "reference_kind": {"enum": ["command", "event", "reducer", "projection"]},
+          "reference": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "pattern": "^\\.research-system/schemas/"},
+          "schema_id": {"type": "string", "pattern": "^ars://"},
+          "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "raw_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "transitions": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "key", "command_type", "command_schema_id", "authority_scope",
+          "writer", "stream_role", "concurrency_rule", "ordered_write_set",
+          "ordered_events", "reducers", "projections", "accepted_precondition",
+          "rejection_effects"
+        ],
+        "properties": {
+          "key": {"enum": ["live_provider_invocation.claim", "live_provider_invocation.outcome.record"]},
+          "command_type": {"enum": ["ClaimLiveProviderInvocation", "RecordLiveProviderInvocationOutcome"]},
+          "command_schema_id": {"type": "string", "pattern": "^ars://wp6-2/live-issue/command/"},
+          "authority_scope": {"enum": ["wp6.2.live-issue.claim", "wp6.2.live-issue.outcome.record"]},
+          "writer": {"const": "research_system.command.service.CommandService"},
+          "stream_role": {"const": "provider_invocation"},
+          "concurrency_rule": {"type": "string"},
+          "ordered_write_set": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"enum": ["provider_invocation", "cost_grant"]}},
+          "ordered_events": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}},
+          "reducers": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "projections": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "accepted_precondition": {"type": "string"},
+          "lock_revalidation": {"type": "string"},
+          "orphan_rule": {"type": "string"},
+          "replay_rule": {"type": "string"},
+          "rejection_effects": {
+            "type": "object",
+            "required": ["event_count", "invocation_count", "canonical_object_writes"],
+            "properties": {
+              "event_count": {"const": 0},
+              "invocation_count": {"const": 0},
+              "canonical_object_writes": {"const": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "invocation_states": {
+      "type": "object",
+      "required": ["not_invoked", "observed", "uncertain"],
+      "properties": {
+        "not_invoked": {"$ref": "#/$defs/invocation_state"},
+        "observed": {"$ref": "#/$defs/invocation_state"},
+        "uncertain": {
+          "allOf": [
+            {"$ref": "#/$defs/invocation_state"},
+            {
+              "type": "object",
+              "required": ["cost_rule"],
+              "properties": {"cost_rule": {"type": "string"}}
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "credential_receipt": {
+      "type": "object",
+      "required": ["owner", "coordinator_may_construct", "project_store_before_claim", "trust_root_source", "contains_credential_bytes"],
+      "properties": {
+        "owner": {"const": "named_credential_resolver"},
+        "coordinator_may_construct": {"const": false},
+        "project_store_before_claim": {"const": false},
+        "trust_root_source": {"const": "independently_configured"},
+        "contains_credential_bytes": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["constructor", "source", "publication", "forbidden_content"],
+      "properties": {
+        "constructor": {"const": "research_system.live_issue.coordinator.LiveIssueCoordinator"},
+        "source": {"const": "actual_process_and_provider_observations_not_command_assertions"},
+        "publication": {"const": "idempotent_content_addressed"},
+        "forbidden_content": {"type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "cost": {
+      "type": "object",
+      "required": ["metered_formula", "zero_cost_rule", "uncertainty_rule", "post_expiry_revocation_rule"],
+      "properties": {
+        "metered_formula": {"type": "string"},
+        "zero_cost_rule": {"type": "string"},
+        "uncertainty_rule": {"type": "string"},
+        "post_expiry_revocation_rule": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "provider_separation": {
+      "type": "object",
+      "required": ["shared", "separate"],
+      "properties": {
+        "shared": {"const": "coordinator_order_and_contract"},
+        "separate": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "stable_rejections": {
+      "type": "array", "minItems": 10, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 3}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "edge": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "triple": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["integer", "string"]},
+        "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "reservation_authority": {
+      "type": "object",
+      "required": ["reservation", "cost_grant", "provider_command", "rate_mode", "reserved_input_tokens", "reserved_output_tokens", "total_token_ceiling", "input_rate", "output_rate", "reserved_cost_microunits", "cost_ceiling_microunits", "pre_reconciliation_remaining_cost_microunits", "currency", "rate_evidence", "zero_cost_authority"],
+      "properties": {
+        "reservation": {"$ref": "#/$defs/triple"},
+        "cost_grant": {"$ref": "#/$defs/triple"},
+        "provider_command": {"$ref": "#/$defs/triple"},
+        "rate_mode": {"enum": ["metered", "zero_cost_authorized"]},
+        "reserved_input_tokens": {"type": "integer", "minimum": 0},
+        "reserved_output_tokens": {"type": "integer", "minimum": 0},
+        "total_token_ceiling": {"type": "integer", "minimum": 0},
+        "input_rate": {"type": "integer", "minimum": 0},
+        "output_rate": {"type": "integer", "minimum": 0},
+        "reserved_cost_microunits": {"type": "integer", "minimum": 0},
+        "cost_ceiling_microunits": {"type": "integer", "minimum": 0},
+        "pre_reconciliation_remaining_cost_microunits": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "minLength": 1},
+        "rate_evidence": {"$ref": "#/$defs/triple"},
+        "zero_cost_authority": {"anyOf": [{"$ref": "#/$defs/triple"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "invocation_state": {
+      "type": "object",
+      "required": ["eligibility", "evidence", "automatic_retry"],
+      "properties": {
+        "eligibility": {"enum": ["eligible", "ineligible", "evidence_dependent"]},
+        "evidence": {"type": "string"},
+        "automatic_retry": {"const": false},
+        "cost_rule": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
