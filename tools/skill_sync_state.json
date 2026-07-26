@@ -1,6 +1,6 @@
 {
   "adversarial-design-review": {
-    "SKILL.md": "63a3b5dcccf15e249696023408787769a4c58ba64bfd131a37204719c243675a"
+    "SKILL.md": "c10d74e03f474e43eb41540009de82ae173c5c3e97c03be6773f996d2fe1439d"
   },
   "assay": {
     "SKILL.md": "952be58bf4ea1782077c63c45b4cf6de819a91e5915e545dcbe3c3c747c6e664"
@@ -12,7 +12,7 @@
     "SKILL.md": "86296694503feb21e337ac907e09315dc46fcc325140a97abae8ee1ccae03c6a"
   },
   "contract-first-tdd": {
-    "SKILL.md": "ec88c8e6936fc0c5fefa608dca353f5c7c74a789a31872c63046500a23a987de"
+    "SKILL.md": "801e6fd5b82c593070cb9c036a085ffbbe54885c2b27747f479bf989f7604cf8"
   },
   "executing-plans-extras": {
     "SKILL.md": "ac00ff404577696109c5fdf0e0117fe2e15b16c5dcb68921b976586b2f550bd7",
@@ -38,13 +38,13 @@
     "SKILL.md": "284f2de6ea95a2bd1b1743cb257cdd161274d3d6a591a94ddae7203aa13d954e"
   },
   "null-operation-invariance-audit": {
-    "SKILL.md": "715b7647c50e06d1d78210bd0ae1163840ccfb61ea34d716d9f7f216ab335f0f"
+    "SKILL.md": "c33c1e2b77dfd6e43895d045a10450dbc4c1c1dc944b186781776c90f8e482fa"
   },
   "panel-estimand-audit": {
     "SKILL.md": "e0a6187e6f370fdaccdc3f78c5e408458668a7d76bf0c3c061ceea2fd1b1f217"
   },
   "paper-claim-trace": {
-    "SKILL.md": "e61abaa5a0bba55e0ee702b3e101f16acd0b3abc37284aef55da1d0b8925a475"
+    "SKILL.md": "abb4f5cf5aa499aaa2248faf8ed09854046adcdded8641fbf9feee719a96e267"
   },
   "paper-draft": {
     "SKILL.md": "67062db20b7adf3754f28ce1ab67a711d07235588c2efb2248c4e453b548ac86"
@@ -56,7 +56,7 @@
     "SKILL.md": "b29f7496c58e2b595ffe4cb2633e74f5f15202d1dad844c7f4005b3da248420d"
   },
   "pre-reg-to-dispatch": {
-    "SKILL.md": "00633f2a3c50ebca67f16d2ee3e068b43713be1ab49fe62d77775fcd803b9099"
+    "SKILL.md": "c9113b76308f40c41ff4dde94a45243c36ab67dfe2e62da58be2464b22cda0cf"
   },
   "representation-freeze-audit": {
     "SKILL.md": "b9fabd83f38b1c595e0d455ced9a7d21020c9a8008c40befecdafae448137d86"
@@ -68,10 +68,10 @@
     "SKILL.md": "84466f21221d2181b2f3aed92177f338a43155d8daec07082d7a2a4cb1fac0ed"
   },
   "result-provenance-review": {
-    "SKILL.md": "99d7c0a48bbb5af6ef0f09bcd4f96206635ef2701ffc95dd1367a3292e74427e"
+    "SKILL.md": "45cd4223406009e586d824aff11a72e534e268fd16e31707bdaa7ecc7e4c88e1"
   },
   "schema-contract-design": {
-    "SKILL.md": "aa49b23a9cb4f11c5ba01562f337b43d04751f5f1d012c24310c140ec59bb040"
+    "SKILL.md": "9beacbc1fb34c52a66cea48e621bab48b91fb7c4c8633156c453597dd21dc04d"
   },
   "scout-review": {
     "SKILL.md": "816feb82455c1b59661389ea37a22344c35cb40b17537835394aea2df9093e6e"
@@ -150,7 +150,7 @@
     "SKILL.md": "44370b1ec16a014ca1c655b62d9258638cf1516121e46bdee26b551e3bf7d5b1"
   },
   "tda-resource-preflight": {
-    "SKILL.md": "1e1d4f52247de50b9c8413035cf070d7e60e5c2a9431b430ef4c7fc26ff1b2e5"
+    "SKILL.md": "fa24b4638375f6ce13266052d2c955a65b593fb33b06dbd59ae7224ebbc26440"
   },
   "tda-scenario-stress-test": {
     "SKILL.md": "3c3267aad5b495a7d5868486756c0532fec1a8d8bacc7e475ea71305cdc9f546"
@@ -177,20 +177,20 @@
     "SKILL.md": "196ab58f1d44a3fc3d82d99a8e95cb1087c5917291adf1872a4c66eae37daa06"
   },
   "using-git-worktrees-extras": {
-    "SKILL.md": "0b43b108614a074eeb1ac43d453ae52def15e6a6f9d0a8dd7fd21228e6613f20",
+    "SKILL.md": "5fc6ccd3982f3b7e4426ad3dbc30500a5b6c97694e34dffc0e8e683d6b11ffe0",
     "agents/openai.yaml": "8f6b64afe9c1d5d729d83b90c31c356bc6ccfcf2ceb44f2aedc7de94e965024d"
   },
   "validate-topology": {
     "SKILL.md": "15f309d1e94ad26c0973277dd83117c262f81499321288ffbbc41cfb54feacf6"
   },
   "vault-sync": {
-    "SKILL.md": "cc8da9db73f9e71539deafefd241134eaef2f57479710581d8175c7b70af6cd1"
+    "SKILL.md": "b503fd34a55370bc0a820764f8931491e7a5b6df7b46f9d755fb335b30050313"
   },
   "wasserstein-audit": {
     "SKILL.md": "80c9b3179d16aee0311250d328e5f5b914d026c63574bd132471d7411d7531a5"
   },
   "writing-plans-extras": {
-    "SKILL.md": "5b3479d5a54ad15f3a9a16ad5de307af6afea0c9af18fb31b254d13f08fffaa6",
+    "SKILL.md": "5088ceb2a2097aaf48a1e4f71e6544c317b0d02f1bf4b07fd1c77e624ad33b44",
     "agents/openai.yaml": "2869fe664b3fbb07e1a7d97e5af8a12f50fc1905d695364f3c6ee4e87660d88f"
   }
 }

@@ -109,6 +109,10 @@ Requirements block:
 - Forbid writing toy/synthetic/illustrative output to `results/` — that tree is for
   real, provenance-tracked compute only; toy compute stays in a scratch path or
   uncommitted.
+- Pre-author every fallback deliverable named by a stop rule: exact statement,
+  exact constants, and the authority that accepted it. A downstream executor
+  may select an accepted branch; it may not invent a weaker claim when a branch
+  fails.
 
 Without these, an autonomous Worker reads the Task Prompt maximally, and a
 date-stamped synthetic file in `results/` is a landmine by review time.

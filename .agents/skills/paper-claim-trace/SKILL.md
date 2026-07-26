@@ -39,6 +39,12 @@ For each claim, table entry, figure caption, and limitation in the draft:
 5. **Disclosure completeness.** Cascade effects, pre-reg amendments, and
    superseded analyses that affect the claim are disclosed in the limitations or
    methods text.
+6. **Freeze and refresh the audit state.** Record the audited commit in the
+   deliverable and re-check `origin/main` before finalising any verdict that
+   depends on file presence; if it moved, re-pin and re-evaluate those verdicts.
+   Before authoring a mandated output, run `git check-ignore` on its path and
+   record the intended whitelist/force-add route rather than discovering an
+   ignored deliverable at commit time.
 
 ## Output Format
 

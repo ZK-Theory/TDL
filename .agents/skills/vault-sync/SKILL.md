@@ -61,6 +61,12 @@ entry:
 
 Read-reconcile-place, never blind-prepend.
 
+When a `[RESULT]` entry says a premise was validated but its findings also say
+"despite", "contradicts", or otherwise falsify a premise in a cited plan or
+assessment, the entry must name the correction action: a dated erratum in the
+source or an explicit owner decision to leave it unchanged. A PASS entry may
+not silently preserve the upstream premise it disproves.
+
 ---
 
 ## Computational-Log entry format

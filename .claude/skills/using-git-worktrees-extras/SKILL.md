@@ -89,6 +89,17 @@ the runtime workspace. Do not retry from the orchestrating task.
   final sync — a later `uv sync --no-install-package <pkg>` removes the
   seeded copy, since uv's satisfaction check is name+version, not
   provenance.
+  The seed source is direction-agnostic: when the main venv was rebuilt, a
+  surviving worktree venv was the authoritative source. For PETLS specifically,
+  use `uv sync --all-extras --no-install-package petls`, then copy every payload
+  named by the installed distribution's `RECORD` (package, dist-info, and any
+  `include`/`lib` files). Verify through the repository import guard:
+  `python -c "from trajectory_tda.topology import persistent_laplacian as pl;
+  print(pl.PETLS_AVAILABLE, pl.PETLS_BACKEND_NAME)"`. Never use bare
+  `import petls` as the Windows probe; the module guard adds the required MSYS2
+  UCRT64 DLL directory, so the bare import is a false negative. The
+  `--all-extras` is required because the minimal sync can silently omit
+  `pytest-cov`, which the contract gate needs.
 - **`manager_dispatch_check`'s contract sub-check is not worktree-venv-safe.**
   It shells `uv run python .claude/hooks/contract_binding_check.py
 --validate-only` with `cwd=<worktree>` and no `--no-sync`; a brand-new

@@ -46,8 +46,10 @@ for small deterministic unit tests and trivial calculations.
    and re-caveat it verbally.
 3. Apply known repo constraints:
    - Exact Wasserstein-2 (gudhi) holds the GIL — joblib's `threading` backend
-     yields ZERO parallelism for it. Use the default `loky` (process) backend
-     and budget memory per worker.
+     yields ZERO parallelism for it. Do not therefore assume `loky` will scale:
+     this kernel can be memory-bandwidth-bound and showed negative process
+     scaling. Measure serial first, then sweep a bounded process count with
+     memory headroom recorded.
    - At L = 5000 scale, exact W2 runs ~5–10 s per diagram pair; multiply out
      before promising a wall time.
    - Before choosing a thread-based parallel design, build an execution-locus
@@ -63,6 +65,14 @@ for small deterministic unit tests and trivial calculations.
    count; select the feasible count with the lowest projected wall time. If a
    lower count wins because extra processes contend for RAM, CPU, I/O, or the
    backend, record that evidence rather than forcing a larger count.
+   For a variable-cost kernel, time at least eight distinct units drawn from the
+   actual inputs and report median, min/max, and p75. An inherited per-unit timing
+   is a prior to re-measure, not a constant. If the new rate differs by more than
+   2x, record the discrepancy in the preflight artifact.
+   Do not repeatedly construct `joblib.Parallel` pools with NumPy arrays in
+   `initializer` `initargs`: executor reuse compares those arrays and can fail
+   only on the second batch. Use one reusable
+   `concurrent.futures.ProcessPoolExecutor` for array-valued worker state.
 5. Require, non-negotiably: the preflight-selected worker count and wall-time
    budget, chunked checkpointing with resume, progress reporting, date-suffixed
    outputs that never overwrite, recorded seeds, and a stated wall-time

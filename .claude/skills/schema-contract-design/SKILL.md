@@ -84,6 +84,11 @@ check into a binding contract.
 9. **Verify.** Run `uv run python .claude/hooks/contract_binding_check.py --validate-only`.
    New hardening gates warn by default during retrofit; use `--enforce` only when
    intentionally testing the future blocking mode.
+10. **Derive mutable file identities live.** A regression test must not hardcode
+    the pre-change blob/hash of a file the same change edits. Ask Git at runtime
+    through an independent invocation path, and query the active EOL/filter
+    regime instead of assuming `core.autocrlf`. The independent path is the
+    trust boundary; a stale literal is not.
 
 ## Output Format
 

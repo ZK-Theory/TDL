@@ -94,6 +94,25 @@ Work through each item against the result under review:
     X in passing. State the evidence class explicitly: bit-for-bit reproduction
     settles a vintage claim; mtime or architecture reasoning alone is
     provisional until reproduced, and must be labelled as such.
+16. **Exact solver identity and live re-derivation.** When a solver has an
+    approximate or greedy fallback, record the backend identity, version, and
+    exactness evidence in-band and abort if the exact backend required by the
+    claim is absent. A reproduction gate must recompute through the fresh code
+    path; comparing a value copied from an artifact back to that artifact is
+    self-reference, not validation. Use theorem-derived impossibility bounds
+    where available to reject plausible-looking fallback values cheaply.
+17. **Date facts from artifacts, guarantees from locks.** A dependency lockfile
+    dates when an environment became guaranteed, not when a dependency first
+    became present. Establish result eras from surviving outputs, independent
+    reproduction under candidate conventions, and natural experiments across
+    the suspected boundary. If no artifact survives, report the era
+    unverifiable; record any present-to-guaranteed interval as a fragile window.
+18. **Checkout-independent identity.** For committed text or binary inputs, bind
+    identity to the Git blob (`git rev-parse HEAD:<path>` / `git hash-object`),
+    not `sha256` of working-tree bytes that `core.autocrlf` may rewrite.
+    Gitignored intermediates have no blob and retain byte SHA-256/vintage rules.
+    Diagnose a clean-file hash mismatch with `git ls-files --eol` before
+    inferring drift.
 
 ## Output Format
 

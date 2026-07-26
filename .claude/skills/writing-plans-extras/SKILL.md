@@ -31,6 +31,11 @@ Before defining tasks:
    - disposition: work package, test, review authority, explicit deferral, or out of scope.
 4. Trace every obligation to a numbered plan task or a named, justified deferral. Never silently drop a hit because it sits outside the primary interface section.
 5. Surface contradictions, missing owners, and unresolved approval gates before presenting the plan as executable.
+6. Sweep every child/sub-plan for owner-touchpoint preconditions ("requires
+   owner approval before X", "must be recorded before Y") and hoist each into
+   the governing master gate checklist with its source cited. A precondition
+   that remains only in child prose has no forcing function for the acceptance
+   runner.
 
 ## Plan Integration
 

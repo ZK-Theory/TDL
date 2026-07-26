@@ -93,6 +93,11 @@ inflating a Minor into a Major.
      diversity, feasibility), check it is proven *before* the expensive/irreversible step
      it governs, not deferred to a later routing/review stage where failure wastes
      completed work.
+   - **Executable contingencies.** For every fallback or stop-rule branch, check
+     that executing it does not require an act reserved to an absent authority
+     (statement authorship, bar-setting, or owner approval). Under an authorship
+     split, every fallback deliverable must already contain the exact reviewed
+     statement and constants; "use a weaker result" is not executable authority.
 3. **Cross-spec consistency matrix.** Build *invariant → enforcement point → test*. Flag
    any invariant with no enforcement, any critical mechanism with no test, any test
    requiring a record the schema does not define, and inconsistent terms / identifiers /

@@ -18,6 +18,14 @@ the test statistic invariant to the null operation? A permutation null that does
 not change the quantity it permutes cannot reject anything — the null draws pile
 onto the observed value.
 
+This audit is not design-time-only. Run it the first time an inherited null is
+cited in a manuscript, rebuilt, migrated across a solver/convention boundary, or
+classified in a supersession manifest—each event re-affirms trust in the number.
+For the cheap witness, name the object the statistic consumes and the object the
+shuffle perturbs, run one draw, and assert that the downstream consumed object
+changes. Negative-control p-values pinned near 0.5 across scales or eras are a
+vacuity warning, not evidence that the control is healthy.
+
 ## Core Check
 
 0. **Static trace, before any compute.** Write the statistic as T(input-object).

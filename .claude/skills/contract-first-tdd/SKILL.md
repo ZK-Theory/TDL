@@ -54,6 +54,18 @@ internals, so they survive refactors.
    `must_assert` clause.
 9. Run the contract binding check, integration checks, and the result-schema /
    provenance checks if outputs changed.
+10. If the designated independent oracle is not on the base branch, make the
+    enforcing test self-contained (for example, brute-force tiny-input
+    re-derivation). An optional cross-check may skip when a production solver is
+    absent; the only enforcing oracle may not.
+11. When a fixture pins a file hash, length, or byte diff, derive the expected
+    value from the on-disk bytes after writing (`path.read_bytes()`), or write
+    with explicit newline control. Do not hash the in-memory string and assume
+    Windows text-mode output preserved it byte-for-byte.
+12. State which object namespace an immutable-byte proof reads: working tree,
+    index, explicit revision, or committed `HEAD`. A pre-commit test that reads
+    `HEAD` cannot certify a staged restoration; label that run non-certifying
+    and require a post-commit run against the frozen candidate.
 
 ## Guardrails
 
