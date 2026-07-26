@@ -757,6 +757,13 @@ live-provider runtime behavior remains disabled. Reactivation requires a new
 owner decision and independently reviewed plan.<br>
 **Evidence:** `reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md`;
 `implementation/06g-wp6-owner-operated-session-amendment.md`.<br>
+**Post-merge acceptance:** Stephen merged the remediated PR #165 tree
+`9f94eb81de182c564714af6cb7b15298ff13f919` and instructed closure of the
+acceptance gate. The external record
+`reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md`
+sets the effective amendment status to `accepted_for_governing_planning`
+without rewriting the reviewed 06g candidate snapshot. This permits KAN-56
+WP6.3 readiness assessment, not WP6.3 implementation.<br>
 **Boundary:** This decision authorizes plan and dependency correction only. It
 does not authorize provider invocation, credential access, runtime
 implementation, Gate 6 acceptance, pilot initialization, eligibility

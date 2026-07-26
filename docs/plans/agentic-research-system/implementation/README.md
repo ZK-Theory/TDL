@@ -20,11 +20,11 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (P-042 owner direction accepted; revised execution path pending 06g consistency review and acceptance)
+## WP6 suite (P-042/06g accepted for governing planning; WP6.3 readiness gate next)
 
 1. [WP6 master — historical Gate 6 launch-basis snapshot](06-wp6-gate6-readiness-and-integration-plan.md) (exact revision `fe5f1d40` preserved under P-036)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
-3. [WP6 owner-operated external-session amendment](06g-wp6-owner-operated-session-amendment.md) (`owner_direction_accepted_review_pending`; no dispatch authority)
+3. [WP6 owner-operated external-session amendment](06g-wp6-owner-operated-session-amendment.md) (effective status `accepted_for_governing_planning` via the [external acceptance record](../reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md); embedded pending status is the reviewed candidate snapshot)
 4. [WP6.2 — historical live-capability plan](06b-wp6-2-live-capability-plan.md) (direct-provider execution deferred by P-042)
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
@@ -36,11 +36,11 @@ in the WP6 master plan; their dispatch plans are written when their gates approa
 Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
 2026-07-17) in
 [../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
-P-042 records the accepted owner direction to supersede the direct-provider
-WP6.2 sequence. The proposed first-release path, WP6.1 plus WP6.3 into WP6.4 and
-Gate 6, remains non-dispatchable until the 06g fresh consistency review and
-acceptance gate complete. ARS does not invoke Claude or Codex or handle their
-OAuth credentials.
+P-042 and the 06g acceptance record supersede the direct-provider WP6.2
+sequence. The governing first-release dependency path is WP6.1 plus WP6.3 into
+WP6.4 and Gate 6. KAN-56 must separately confirm WP6.3 Gate A/readiness before
+implementation; this acceptance is not WP6.3 runtime authority. ARS does not
+invoke Claude or Codex or handle their OAuth credentials.
 
 ## Execution rule
 

@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042 owner direction recorded, with the 06g execution amendment pending fresh review and acceptance; runtime remains gated<br>
+**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042/06g accepted for governing planning, with WP6.3 readiness assessment next; runtime remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -32,10 +32,10 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/large-workflow-context-budget-v2-trial-assessment-2026-07-22.md](reviews/large-workflow-context-budget-v2-trial-assessment-2026-07-22.md) | Historical V2 evidence only; later session telemetry superseded its efficiency conclusions |
 | [reviews/large-workflow-completed-cycle-assessment-2026-07-23.md](reviews/large-workflow-completed-cycle-assessment-2026-07-23.md) | Completed-cycle `approve_advisory_v1_1_with_revisions` assessment: research-value intake, second-cycle rescope, integration lanes, validation hygiene, prospective metrics, and CodeRabbit's 100-file PR limit |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
-| [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Historical owner-approved WP6 launch-basis snapshot at exact reviewed revision `fe5f1d40`; active dispatch remains gated by the pending 06g amendment review and acceptance |
+| [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Historical owner-approved WP6 launch-basis snapshot at exact reviewed revision `fe5f1d40`; P-042/06g now supplies the governing planning amendment |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
 | [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Owner-approved WP6.2 dispatch-plan content at exact reviewed revision `fe5f1d40`: live adapters, parity, threshold policy, and evaluated model profiles; future evidence gates remain |
-| [implementation/06g-wp6-owner-operated-session-amendment.md](implementation/06g-wp6-owner-operated-session-amendment.md) | P-042 owner-operated-session amendment at `owner_direction_accepted_review_pending`; proposed execution path has no dispatch authority before fresh consistency review and acceptance |
+| [implementation/06g-wp6-owner-operated-session-amendment.md](implementation/06g-wp6-owner-operated-session-amendment.md) | Reviewed P-042 owner-operated-session candidate; effective status is `accepted_for_governing_planning` through the external acceptance record, while the embedded pending field remains snapshot-qualified |
 | [implementation/06d-wp6-1-owner-source-catalogue.md](implementation/06d-wp6-1-owner-source-catalogue.md) | Normative WP6.1 104-row complete-binding catalogue with versioned schema identities, authority subjects, atomic claim, and correction mapping |
 | [implementation/06e-wp6-2-live-replacement-map.md](implementation/06e-wp6-2-live-replacement-map.md) | Normative WP6.2 literal 51-row frozen-predecessor/live-successor map |
 | [implementation/06f-wp6-2-p1-activation-contract.md](implementation/06f-wp6-2-p1-activation-contract.md) | Normative WP6.2 independent expected-source and descriptor-hash contract for the 11+43 P1 closure |
@@ -78,6 +78,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md) | Fresh changed-elements-only acceptance of exact rate-mode boundary candidate `2048f647`; zero findings and six directly relevant boundary cases |
 | [reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md) | P-041 exact-byte owner acceptance of the six-path rate-mode boundary candidate; no runtime authority |
 | [reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md](reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md) | P-042 blast-radius review: high planning impact, low code impact, and a fail-closed runtime disposition |
+| [reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md](reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md) | Exact-tree post-merge acceptance of the 06g governing planning amendment; permits KAN-56 readiness assessment but grants no runtime authority |
 
 ## Handover prompts
 
