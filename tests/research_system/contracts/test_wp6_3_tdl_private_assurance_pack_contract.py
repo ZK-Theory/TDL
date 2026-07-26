@@ -1,6 +1,7 @@
 import hashlib
 import inspect
 import json
+import re
 import subprocess
 from collections.abc import Callable
 from copy import deepcopy
@@ -394,9 +395,16 @@ class _FixtureRecordAuthority:
 
 
 def _resolve_current_repository_subject(path: Path) -> dict:
-    """Resolve current canonical bytes without accepting a caller-supplied equality oracle."""
+    """Resolve current working-tree bytes through Git's configured clean filter.
+
+    ``git hash-object -w`` intentionally persists the filtered blob in the local
+    object database so the returned object ID can be read back as canonical bytes.
+    CI therefore gains one unreachable blob per distinct working-tree candidate.
+    """
     repo_relative_path = _repo_relative_path(path)
     working_tree_bytes = path.read_bytes()
+    # Persistence is intentional: the subsequent read must use Git's canonical blob,
+    # not the checkout representation supplied by the filesystem.
     blob_oid = (
         subprocess.check_output(
             ["git", "hash-object", "-w", "--path", repo_relative_path, "--stdin"],
@@ -421,16 +429,25 @@ def _current_reference_subjects(contract: dict) -> dict[str, dict]:
     }
 
 
-def _validate_reference_semantic_compatibility() -> None:
-    skill_text = (ROOT / ".agents" / "skills" / "validate-topology" / "SKILL.md").read_text(encoding="utf-8")
-    formula_contract = _load_yaml(ROOT / "contracts" / "stochastic-tests" / "monte-carlo-permutation-p-value.yaml")
+def _validate_reference_semantic_compatibility(contract: dict) -> None:
+    reference_rows = {
+        row["reference_id"]: row for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
+    }
+    skill_path = ROOT / reference_rows["skill/validate-topology"]["repository_path"]
+    formula_path = ROOT / reference_rows["contract/stochastic-tests/monte-carlo-permutation-p-value"]["repository_path"]
+    skill_text = skill_path.read_text(encoding="utf-8")
+    formula_contract = _load_yaml(formula_path)
+    required_skill_terms = ("p = (r + 1) / (n + 1)", "pvalue_null_draws", "effect_null_pairs")
+    forbidden_skill_patterns = [
+        invariant["expression"].removeprefix("forbidden_skill_regex:")
+        for invariant in formula_contract["formula"]["invariants"]
+        if invariant["expression"].startswith("forbidden_skill_regex:")
+    ]
     if (
         formula_contract["formula"]["expression"] != "p = (r + 1) / (n + 1)"
-        or "p = (r + 1) / (n + 1)" not in skill_text
-        or "pvalue_null_draws" not in skill_text
-        or "effect_null_pairs" not in skill_text
-        or "p-value = proportion of null-null distances" in skill_text
-        or "500 null-null pairs is sufficient" in skill_text
+        or len(forbidden_skill_patterns) != 2
+        or any(term not in skill_text for term in required_skill_terms)
+        or any(re.search(pattern, skill_text, flags=re.IGNORECASE) for pattern in forbidden_skill_patterns)
     ):
         raise CandidatePackError("current reference snapshot is semantically incompatible with the pinned p-value")
 
@@ -512,7 +529,7 @@ def _resolve_authority_phase(
     }
     if snapshot.reference_subjects != contract_references:
         raise CandidatePackError(f"current reference snapshot differs during {phase}")
-    _validate_reference_semantic_compatibility()
+    _validate_reference_semantic_compatibility(contract)
     return snapshot
 
 
@@ -520,12 +537,14 @@ def _resolve_contract_authority(
     trusted_contract_resolver: ContractAuthorityResolver | None = None,
 ) -> tuple[bytes, dict, dict]:
     """Resolve contract bytes from Git, or an explicit trusted hypothetical-fixture seam."""
-    resolver = trusted_contract_resolver or (
-        lambda: (
-            _git_blob_bytes(_resolve_current_repository_subject(CONTRACT_PATH)["git_blob"]),
-            _resolve_current_repository_subject(CONTRACT_PATH)["git_blob"],
-        )
-    )
+    if trusted_contract_resolver is None:
+        current_subject = _resolve_current_repository_subject(CONTRACT_PATH)
+
+        def resolver() -> tuple[bytes, str]:
+            return _git_blob_bytes(current_subject["git_blob"]), current_subject["git_blob"]
+
+    else:
+        resolver = trusted_contract_resolver
     raw_contract_bytes, trusted_contract_blob = resolver()
     computed_contract_blob = _git_blob_id_without_filters(raw_contract_bytes)
     if computed_contract_blob != trusted_contract_blob:
@@ -591,11 +610,11 @@ def _assert_all_object_schemas_are_closed(schema: dict) -> None:
 
 @lru_cache(maxsize=1)
 def _external_schema_artifact() -> tuple[dict, str, str]:
-    """Resolve and parse the contract's external record schema from its frozen Git blob.
+    """Resolve and parse the external schema through the current Git-filtered blob.
 
-    R3-M1: uses the Git-object oracle (``_resolve_committed_bytes``), not
-    ``Path.read_bytes()`` — portable across CRLF and LF checkouts because it never
-    depends on the current checkout's line-ending representation.
+    ``_resolve_current_repository_subject`` filters the working-tree bytes,
+    ``_git_blob_bytes`` reads back that canonical object, and JSON parsing consumes
+    those bytes. This remains portable across CRLF and LF checkout representations.
     """
     subject = _resolve_current_repository_subject(CONTRACT_SCHEMA_PATH)
     schema_blob = subject["git_blob"]
@@ -1674,9 +1693,14 @@ def _validate_external_acceptance_with_authority(
         or owner["review_record_sha256"] != hash_manifest[review_record_id]
     ):
         raise CandidatePackError("owner decision does not bind the exact independent review")
-    evidence_rows = _rows_by_id(review["obligation_evidence_rows"], "obligation_id", "two-key evidence")
+    evidence_rows: dict[tuple[str, str], dict] = {}
+    for row in review["obligation_evidence_rows"]:
+        row_key = (row["lane_id"], row["obligation_id"])
+        if row_key in evidence_rows:
+            raise CandidatePackError(f"duplicate two-key evidence row: {row_key}")
+        evidence_rows[row_key] = row
     if (
-        set(evidence_rows) != {obligation_id for ids in EXPECTED_OBLIGATION_IDS.values() for obligation_id in ids}
+        set(evidence_rows) != expected_applicability
         or len(evidence_rows) != 69
         or any(
             row["key_a_status"] != "passed"
@@ -1952,7 +1976,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
         assert current_reference_subjects[reference["reference_id"]] == {
             key: reference[key] for key in ("repository_path", "git_blob", "canonical_sha256")
         }
-    _validate_reference_semantic_compatibility()
+    _validate_reference_semantic_compatibility(contract)
     bound_names = set(contract["validation_bindings"]["durable_test_functions"])
     assert bound_names <= set(globals())
     assert set(contract["validation_bindings"]["task_local_unbound_test_functions"]) <= set(globals())
@@ -2533,7 +2557,7 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
     assert "fixture_contract_authority" not in public_acceptance_parameters
     assert "record_store" not in public_acceptance_parameters
     assert "hash_manifest" not in public_acceptance_parameters
-    with pytest.raises(CandidatePackError):
+    with pytest.raises(CandidatePackError, match="stale upstream contract subject"):
         _validate_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
@@ -2616,6 +2640,46 @@ def test_external_schema_identity_resolves_via_git_object_oracle_across_crlf_and
     _external_schema_artifact.cache_clear()
 
 
+def test_default_contract_authority_resolves_current_subject_once(monkeypatch):
+    """The default resolver must reuse one subject snapshot for bytes and metadata."""
+    real_resolver = _resolve_current_repository_subject
+    calls: list[Path] = []
+
+    def counting_resolver(path: Path) -> dict:
+        calls.append(path)
+        return real_resolver(path)
+
+    monkeypatch.setattr(
+        "test_wp6_3_tdl_private_assurance_pack_contract._resolve_current_repository_subject",
+        counting_resolver,
+    )
+    _resolve_contract_authority()
+    assert calls == [CONTRACT_PATH]
+
+
+@pytest.mark.parametrize(
+    "forbidden_wording",
+    [
+        "The p value is the empirical proportion of null-to-null distances.",
+        "Use a fixed 500 null pair diagnostic sample as the p value denominator.",
+    ],
+)
+def test_reference_semantic_compatibility_rejects_forbidden_wording_variations(monkeypatch, forbidden_wording):
+    """Contract-defined forbidden semantics must survive harmless wording variation."""
+    skill_path = ROOT / ".agents" / "skills" / "validate-topology" / "SKILL.md"
+    original_read_text = Path.read_text
+    original_skill_text = skill_path.read_text(encoding="utf-8")
+
+    def read_text_with_forbidden_semantics(path: Path, *args, **kwargs) -> str:
+        if path == skill_path:
+            return f"{original_skill_text}\n{forbidden_wording}\n"
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text_with_forbidden_semantics)
+    with pytest.raises(CandidatePackError, match="semantically incompatible"):
+        _validate_reference_semantic_compatibility(_load_yaml(CONTRACT_PATH))
+
+
 def test_dirty_or_uncommitted_schema_bytes_are_rejected_by_a_distinct_check():
     """R3-M1: dirty/uncommitted candidate bytes must be a separate, explicit rejection
     path from content-identity resolution — a real edit (not a line-ending checkout
@@ -2650,10 +2714,15 @@ def test_upstream_contract_and_schema_subjects_resist_stale_foreign_and_coordina
     # cross-checked here against a fully independent, freshly invoked `git` call, so an
     # edit to either committed file (this remediation edits both) changes what both
     # sides compute together rather than leaving a stale hardcoded expectation behind.
-    independent_contract_subject = _resolve_current_repository_subject(CONTRACT_PATH)
-    independent_contract_blob = independent_contract_subject["git_blob"]
+    independent_contract_path = _repo_relative_path(CONTRACT_PATH)
+    independent_contract_blob = (
+        subprocess.check_output(["git", "rev-parse", f"HEAD:{independent_contract_path}"], cwd=ROOT).decode().strip()
+    )
+    independent_contract_bytes = subprocess.check_output(
+        ["git", "cat-file", "blob", independent_contract_blob], cwd=ROOT
+    )
     assert real_contract_reference["git_blob"] == independent_contract_blob
-    assert real_contract_reference["canonical_sha256"] == independent_contract_subject["canonical_sha256"]
+    assert real_contract_reference["canonical_sha256"] == hashlib.sha256(independent_contract_bytes).hexdigest()
 
     independent_schema_path = _repo_relative_path(SCHEMAS / "assurance" / "assurance-pack.schema.json")
     independent_schema_blob = (
@@ -3023,10 +3092,11 @@ def test_c2_bare_review_verdict_cannot_replace_canonical_requirement_and_two_key
     contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
-    record_store[REVIEW_RECORD_ID]["obligation_evidence_rows"].pop()
+    evidence_rows = record_store[REVIEW_RECORD_ID]["obligation_evidence_rows"]
+    evidence_rows[-1]["obligation_id"] = evidence_rows[0]["obligation_id"]
     raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
 
-    with pytest.raises(CandidatePackError, match="two-key evidence|invalid independent_pack_review"):
+    with pytest.raises(CandidatePackError, match="two-key evidence does not close every required obligation"):
         _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
@@ -3056,9 +3126,30 @@ def test_c2_bare_review_verdict_cannot_replace_canonical_requirement_and_two_key
         )
 
     contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
-    record_store[REVIEW_RECORD_ID]["boundary_fixture_execution_rows"].pop()
     raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
-    with pytest.raises(CandidatePackError, match="two-key evidence|invalid independent_pack_review"):
+    record_store[REVIEW_RECORD_ID]["two_key_closure_sha256"] = "f" * 64
+    _rehash_record(record_store, hash_manifest, REVIEW_RECORD_ID)
+    record_store[OWNER_DECISION_ID]["review_record_sha256"] = hash_manifest[REVIEW_RECORD_ID]
+    record_store[OWNER_DECISION_ID]["two_key_closure_sha256"] = "f" * 64
+    _rehash_record(record_store, hash_manifest, OWNER_DECISION_ID)
+    with pytest.raises(CandidatePackError, match="owner acceptance does not bind exact two-key evidence"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_c2_two_key_evidence_rejects_schema_valid_swapped_lane():
+    """A valid obligation ID cannot close evidence under the wrong lane."""
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    record_store[REVIEW_RECORD_ID]["obligation_evidence_rows"][0]["lane_id"] = "paper_claim"
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+
+    with pytest.raises(CandidatePackError, match="two-key evidence does not close every required obligation"):
         _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,

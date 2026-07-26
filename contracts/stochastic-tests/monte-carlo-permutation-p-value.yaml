@@ -46,6 +46,10 @@ formula:
       expression: "n == pvalue_null_draws == min(B, total_pairs) and effect_null_pairs != n_null_pairs_cap does not define n"
     - claim: "The exposed bookkeeping field pvalue_null_draws MUST equal n (the p-value denominator minus 1) for every output cell."
       expression: "pvalue_null_draws == n"
+    - claim: "validate-topology must not define the p-value as a raw null-null distance proportion."
+      expression: 'forbidden_skill_regex:p[\s-]*value\s+(?:is|equals|=)\s+(?:the\s+)?(?:empirical\s+)?proportion\s+of\s+null(?:\s*[-–]?\s*to\s*[-–]?\s*|\s*[-–]\s*)null\s+distances'
+    - claim: "validate-topology must not use a fixed 500-pair diagnostic sample as the p-value denominator."
+      expression: 'forbidden_skill_regex:(?:fixed\s+)?500\s+null(?:\s*[-–]\s*|\s+)pairs?(?:\s+diagnostic)?(?:\s+sample)?\s+(?:as|for)\s+(?:the\s+)?p[\s-]*value\s+denominator'
 
 binding:
   test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"
