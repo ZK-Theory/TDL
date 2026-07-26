@@ -728,6 +728,43 @@ transition authority.<br>
 **Affected specifications:** P-037; P-040; W2 receipt/event/idempotency; W7 T2
 authority/cost subset; W8 resource/cost boundary; WP6.2 T2.
 
+### P-042 - Owner-operated external model sessions
+
+**Date:** 2026-07-26<br>
+**Status:** Accepted by Stephen<br>
+**Supersedes:** P-033 and the active first-release sequence in P-035; amends
+the provider-runtime portions of P-029/P-030 and qualifies P-036 without
+changing its accepted historical bytes<br>
+**Decision:** Claude and Codex are user-operated subscription applications
+authenticated through their own OAuth flows. ARS must not invoke either
+provider, spawn its CLI, make a direct provider API call, select a provider on
+the user's behalf, or read/store/resolve/pass OAuth credentials. The authorized
+first-release workflow is operator-mediated: ARS prepares and records bounded
+briefs, task/role and assurance requirements, exact Git subjects, artifacts,
+reviews, decisions, and returned evidence; an authorized operator starts the
+external model session and chooses the application/session.<br>
+**Gate consequence:** Direct Claude/Codex transports, T3/T4 provider issue,
+T1b live calibration, live semantic parity, evaluated provider profiles,
+provider-native receipts, and per-call subscription cost accounting are removed
+from the first-release Gate A/Gate 6 critical path. The 251+51 live composition
+and 54-obligation P1 activation remain historical proposed evidence, not active
+release criteria. The active dependency path is WP6.1 plus WP6.3 into WP6.4 and
+then Gate 6; WP6.5 remains an independent specification lane.<br>
+**Preservation:** P-033/P-035/P-036, the approved WP6/WP6.2 snapshots, accepted
+T2 exact-byte artifacts, proposed T3/T4 contracts, replacement maps, and
+deterministic fake-adapter tests remain immutable historical evidence. Existing
+live-provider runtime behavior remains disabled. Reactivation requires a new
+owner decision and independently reviewed plan.<br>
+**Evidence:** `reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md`;
+`implementation/06g-wp6-owner-operated-session-amendment.md`.<br>
+**Boundary:** This decision authorizes plan and dependency correction only. It
+does not authorize provider invocation, credential access, runtime
+implementation, Gate 6 acceptance, pilot initialization, eligibility
+transition, result, or claim.<br>
+**Affected specifications:** W4 provider routing, W7 provider adapters/parity,
+W8 provider cost/resource boundaries, WP6 master, WP6.2, WP6.3, WP6.4,
+D-G6-2, and D-G6-3.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at
