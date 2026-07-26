@@ -111,14 +111,18 @@ For an operator-initiated model task, ARS evidence must identify:
 
 - the task and requested role;
 - the assurance/review requirement;
+- the authorized operator identity;
+- a stable handoff/session identifier shared by the brief and returned evidence;
 - the exact repository subject (commit/tree/path identities as applicable);
 - the operator-selected session family when relevant to an accepted
   independence rule;
 - the resulting artifacts, test evidence, and review verdict;
+- the reviewer identity and an explicit provenance link to the separate review
+  task or fresh context used for any independent review;
 - the accepting authority and any unresolved findings.
 
-Provider-native invocation receipts, OAuth material, token metering, and
-per-call cost reconciliation are neither required nor permitted.
+Provider-native invocation receipts, OAuth or credential material, token
+metering, and per-call cost reconciliation are neither required nor permitted.
 
 ## 7. Hard stops
 
@@ -132,4 +136,3 @@ authorize:
 - treating an author self-review as independent verification;
 - merging this amendment without a fresh review of its consistency with the
   active WP6 indexes and Jira dependency state.
-
