@@ -20,7 +20,7 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (P-042/06g accepted for governing planning; WP6.3 readiness gate next)
+## WP6 suite (P-042/06g accepted for governing planning; WP6.3 readiness blocked)
 
 1. [WP6 master — historical Gate 6 launch-basis snapshot](06-wp6-gate6-readiness-and-integration-plan.md) (exact revision `fe5f1d40` preserved under P-036)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
@@ -38,9 +38,14 @@ Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
 [../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
 P-042 and the 06g acceptance record supersede the direct-provider WP6.2
 sequence. The governing first-release dependency path is WP6.1 plus WP6.3 into
-WP6.4 and Gate 6. KAN-56 must separately confirm WP6.3 Gate A/readiness before
-implementation; this acceptance is not WP6.3 runtime authority. ARS does not
-invoke Claude or Codex or handle their OAuth credentials.
+WP6.4 and Gate 6. The
+[KAN-56 readiness assessment](../reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md)
+found WP6.3 not ready for implementation: its upstream contract remains
+unaccepted, its six skill identities are stale, two required contract references
+remain pending, and the `assurance_pack` ID kind is unavailable. Gate A A7
+therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
+authorized. ARS does not invoke Claude or Codex or handle their OAuth
+credentials.
 
 ## Execution rule
 
