@@ -25,7 +25,7 @@ schema_def:
       description: "Number of permutations B drawn for the null distribution."
     - name: seed
       type: int
-      description: "RNG seed used for the permutation draws, recorded for reproducibility."
+      description: "Non-negative RNG seed used for the permutation draws, recorded for reproducibility."
     - name: null_model
       type: str
       description: "Null-model label (e.g., 'markov-k', 'order-shuffle', 'stratified-markov'), naming the operation used."
@@ -35,5 +35,6 @@ binding:
   test_function: "test_battery_result_exposes_null_provenance"
   must_assert: >
     The production provenance builder emits markov_order_k (positive int),
-    n_permutations (positive int), seed (int), and the exact null_model token
-    markov-{k}; null, bool, non-int, or non-positive values fail closed.
+    n_permutations (positive int), seed (non-negative int), and the exact
+    null_model token markov-{k}; null, bool, and non-int values fail closed,
+    as do non-positive counts and negative seeds.

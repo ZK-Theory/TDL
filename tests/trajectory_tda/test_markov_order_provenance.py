@@ -34,13 +34,27 @@ def test_battery_result_exposes_null_provenance() -> None:
     invalid_cases = (
         {"markov_order_k": None, "n_permutations": 1000, "seed": 42},
         {"markov_order_k": True, "n_permutations": 1000, "seed": 42},
+        {"markov_order_k": "1", "n_permutations": 1000, "seed": 42},
+        {"markov_order_k": 1.0, "n_permutations": 1000, "seed": 42},
+        {"markov_order_k": 0, "n_permutations": 1000, "seed": 42},
+        {"markov_order_k": -1, "n_permutations": 1000, "seed": 42},
+        {"markov_order_k": 1, "n_permutations": None, "seed": 42},
+        {"markov_order_k": 1, "n_permutations": "1000", "seed": 42},
+        {"markov_order_k": 1, "n_permutations": 1000.0, "seed": 42},
         {"markov_order_k": 1, "n_permutations": 0, "seed": 42},
+        {"markov_order_k": 1, "n_permutations": -1, "seed": 42},
         {"markov_order_k": 1, "n_permutations": True, "seed": 42},
+        {"markov_order_k": 1, "n_permutations": 1000, "seed": None},
+        {"markov_order_k": 1, "n_permutations": 1000, "seed": "42"},
+        {"markov_order_k": 1, "n_permutations": 1000, "seed": 42.0},
+        {"markov_order_k": 1, "n_permutations": 1000, "seed": -1},
         {"markov_order_k": 1, "n_permutations": 1000, "seed": False},
     )
     for invalid in invalid_cases:
         with pytest.raises((TypeError, ValueError)):
             markov_null_provenance(**invalid)
+
+    assert markov_null_provenance(markov_order_k=1, n_permutations=1, seed=0)["seed"] == 0
 
 
 def test_markov_order_provenance_output_validation_dispatch() -> None:

@@ -40,8 +40,8 @@ binding:
   test_file: "tests/trajectory_tda/test_null_operation_invariance.py"
   test_function: "test_null_shuffle_perturbs_persistence_diagram"
   must_assert: >
-    Constructs a minimal case with two state sequences whose embeddings differ.
-    It proves that shuffling pre-embedding then re-embedding yields a persistence
-    diagram with W2 > 0 versus the observed diagram for a non-identity
-    permutation, while shuffling already-embedded rows yields W2 == 0 (the
-    invariance bug), demonstrating that the test distinguishes the two paths.
+    Constructs a case with six trajectories and compares H0 persistence only
+    (dim=0). It proves that a non-identity pre-embedding shuffle followed by
+    re-embedding yields W2 > 0 versus the observed diagram, while shuffling
+    already-embedded rows yields W2 == 0 (the invariance bug), demonstrating
+    that the test distinguishes the two paths.

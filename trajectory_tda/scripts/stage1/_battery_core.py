@@ -61,6 +61,8 @@ def markov_null_provenance(
         raise ValueError("n_permutations must be positive")
     if type(seed) is not int:
         raise TypeError("seed must be an int")
+    if seed < 0:
+        raise ValueError("seed must be non-negative")
     return {
         "markov_order_k": markov_order_k,
         "n_permutations": n_permutations,
