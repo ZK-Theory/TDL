@@ -1,6 +1,5 @@
 id: null-operation-changes-ph-input
 kind: invariant
-pending: true
 
 description: >
   A permutation/shuffle null is only valid if the null operation perturbs the
@@ -42,7 +41,7 @@ binding:
   test_function: "test_null_shuffle_perturbs_persistence_diagram"
   must_assert: >
     Constructs a minimal case with two state sequences whose embeddings differ.
-    Asserts that (a) shuffling pre-embedding then re-embedding yields a
-    persistence diagram with W2 > 0 vs the observed for a non-identity
-    permutation, and (b) shuffling already-embedded rows yields W2 == 0
-    (the invariance bug), demonstrating the test distinguishes the two code paths.
+    It proves that shuffling pre-embedding then re-embedding yields a persistence
+    diagram with W2 > 0 versus the observed diagram for a non-identity
+    permutation, while shuffling already-embedded rows yields W2 == 0 (the
+    invariance bug), demonstrating that the test distinguishes the two paths.

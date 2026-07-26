@@ -39,6 +39,8 @@ from typing import Any
 
 import numpy as np
 
+from trajectory_tda.scripts.stage1._battery_core import markov_null_provenance
+
 logger = logging.getLogger(__name__)
 
 # Live phase-status file: latest current phase is written here (overwritten each
@@ -876,8 +878,11 @@ def main() -> None:
     run_params = {
         "L": args.landmarks,
         "B": args.n_perms,
-        "null_model": f"markov-{DEFAULT_MARKOV_ORDER}",
-        "seed": args.seed,
+        **markov_null_provenance(
+            markov_order_k=DEFAULT_MARKOV_ORDER,
+            n_permutations=args.n_perms,
+            seed=args.seed,
+        ),
         "landscape_k_max": args.k_max,
         "landscape_n_points": args.n_points,
         "pvalue_formula": "(r+1)/(B+1)",
