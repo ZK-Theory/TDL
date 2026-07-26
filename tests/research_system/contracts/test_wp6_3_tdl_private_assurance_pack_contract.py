@@ -418,18 +418,32 @@ def _resolve_current_repository_subject(path: Path) -> dict:
     return {
         "repository_path": repo_relative_path,
         "git_blob": blob_oid,
+        "canonical_blob_bytes": canonical_bytes,
         "canonical_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
     }
 
 
 def _current_reference_subjects(contract: dict) -> dict[str, dict]:
-    return {
-        row["reference_id"]: _resolve_current_repository_subject(ROOT / row["repository_path"])
-        for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
-    }
+    subjects = {}
+    for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]:
+        resolved = _resolve_current_repository_subject(ROOT / row["repository_path"])
+        subjects[row["reference_id"]] = {
+            key: resolved[key] for key in ("repository_path", "git_blob", "canonical_sha256")
+        }
+    return subjects
 
 
 def _validate_reference_semantic_compatibility(contract: dict) -> None:
+    """Verify pinned skill and formula-contract semantics remain compatible.
+
+    Args:
+        contract: The trusted, schema-validated assurance contract whose
+            ``exact_reference_rows`` pin the skill and formula-contract paths.
+
+    Raises:
+        CandidatePackError: If required terms are missing, forbidden semantics
+            are present, or the pinned formula contract has drifted.
+    """
     reference_rows = {
         row["reference_id"]: row for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
     }
@@ -541,7 +555,7 @@ def _resolve_contract_authority(
         current_subject = _resolve_current_repository_subject(CONTRACT_PATH)
 
         def resolver() -> tuple[bytes, str]:
-            return _git_blob_bytes(current_subject["git_blob"]), current_subject["git_blob"]
+            return current_subject["canonical_blob_bytes"], current_subject["git_blob"]
 
     else:
         resolver = trusted_contract_resolver
@@ -612,13 +626,13 @@ def _assert_all_object_schemas_are_closed(schema: dict) -> None:
 def _external_schema_artifact() -> tuple[dict, str, str]:
     """Resolve and parse the external schema through the current Git-filtered blob.
 
-    ``_resolve_current_repository_subject`` filters the working-tree bytes,
-    ``_git_blob_bytes`` reads back that canonical object, and JSON parsing consumes
-    those bytes. This remains portable across CRLF and LF checkout representations.
+    ``_resolve_current_repository_subject`` filters the working-tree bytes and
+    returns the canonical Git object bytes for JSON parsing. This remains portable
+    across CRLF and LF checkout representations.
     """
     subject = _resolve_current_repository_subject(CONTRACT_SCHEMA_PATH)
     schema_blob = subject["git_blob"]
-    schema_bytes = _git_blob_bytes(schema_blob)
+    schema_bytes = subject["canonical_blob_bytes"]
     schema_document = json.loads(schema_bytes.decode("utf-8"))
     Draft202012Validator.check_schema(schema_document)
     return schema_document, schema_blob, subject["canonical_sha256"]
@@ -2643,18 +2657,60 @@ def test_external_schema_identity_resolves_via_git_object_oracle_across_crlf_and
 def test_default_contract_authority_resolves_current_subject_once(monkeypatch):
     """The default resolver must reuse one subject snapshot for bytes and metadata."""
     real_resolver = _resolve_current_repository_subject
+    real_blob_reader = _git_blob_bytes
     calls: list[Path] = []
+    blob_reads: list[str] = []
 
     def counting_resolver(path: Path) -> dict:
         calls.append(path)
         return real_resolver(path)
 
+    def counting_blob_reader(blob_oid: str) -> bytes:
+        blob_reads.append(blob_oid)
+        return real_blob_reader(blob_oid)
+
     monkeypatch.setattr(
         "test_wp6_3_tdl_private_assurance_pack_contract._resolve_current_repository_subject",
         counting_resolver,
     )
+    monkeypatch.setattr(
+        "test_wp6_3_tdl_private_assurance_pack_contract._git_blob_bytes",
+        counting_blob_reader,
+    )
     _resolve_contract_authority()
     assert calls == [CONTRACT_PATH]
+    assert len(blob_reads) == 1
+
+
+def test_external_schema_artifact_reuses_current_subject_blob_bytes(monkeypatch):
+    """The external schema resolver must not fetch its canonical blob twice."""
+    real_resolver = _resolve_current_repository_subject
+    real_blob_reader = _git_blob_bytes
+    subjects: list[dict] = []
+    blob_reads: list[str] = []
+
+    def counting_resolver(path: Path) -> dict:
+        subject = real_resolver(path)
+        subjects.append(subject)
+        return subject
+
+    def counting_blob_reader(blob_oid: str) -> bytes:
+        blob_reads.append(blob_oid)
+        return real_blob_reader(blob_oid)
+
+    monkeypatch.setattr(
+        "test_wp6_3_tdl_private_assurance_pack_contract._resolve_current_repository_subject",
+        counting_resolver,
+    )
+    monkeypatch.setattr(
+        "test_wp6_3_tdl_private_assurance_pack_contract._git_blob_bytes",
+        counting_blob_reader,
+    )
+    _external_schema_artifact.cache_clear()
+    _external_schema_artifact()
+    _external_schema_artifact.cache_clear()
+    assert [subject["repository_path"] for subject in subjects] == [_repo_relative_path(CONTRACT_SCHEMA_PATH)]
+    assert len(blob_reads) == 1
 
 
 @pytest.mark.parametrize(
