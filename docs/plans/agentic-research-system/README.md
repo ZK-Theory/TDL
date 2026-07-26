@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P0 plan suite written and review pending; runtime remains gated<br>
+**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042 replaces direct provider routing with owner-operated sessions; runtime remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -35,6 +35,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Owner-approved WP6 launch-basis plan at exact reviewed revision `fe5f1d40`: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, and consolidation sequencing |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
 | [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Owner-approved WP6.2 dispatch-plan content at exact reviewed revision `fe5f1d40`: live adapters, parity, threshold policy, and evaluated model profiles; future evidence gates remain |
+| [implementation/06g-wp6-owner-operated-session-amendment.md](implementation/06g-wp6-owner-operated-session-amendment.md) | P-042 amendment removing direct provider invocation from the first-release critical path and defining the operator-mediated handoff |
 | [implementation/06d-wp6-1-owner-source-catalogue.md](implementation/06d-wp6-1-owner-source-catalogue.md) | Normative WP6.1 104-row complete-binding catalogue with versioned schema identities, authority subjects, atomic claim, and correction mapping |
 | [implementation/06e-wp6-2-live-replacement-map.md](implementation/06e-wp6-2-live-replacement-map.md) | Normative WP6.2 literal 51-row frozen-predecessor/live-successor map |
 | [implementation/06f-wp6-2-p1-activation-contract.md](implementation/06f-wp6-2-p1-activation-contract.md) | Normative WP6.2 independent expected-source and descriptor-hash contract for the 11+43 P1 closure |
@@ -76,6 +77,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/wp6-2-t2-integration-seam-review-2026-07-23.md](reviews/wp6-2-t2-integration-seam-review-2026-07-23.md) | Independent zero-finding acceptance of exact T2 integration subject `57cec488`; later remediation requires separate review |
 | [reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-review-2026-07-23.md) | Fresh changed-elements-only acceptance of exact rate-mode boundary candidate `2048f647`; zero findings and six directly relevant boundary cases |
 | [reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md) | P-041 exact-byte owner acceptance of the six-path rate-mode boundary candidate; no runtime authority |
+| [reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md](reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md) | P-042 blast-radius review: high planning impact, low code impact, and a fail-closed runtime disposition |
 
 ## Handover prompts
 
@@ -106,8 +108,8 @@ The objective is not to automate research judgment away. It is to make agent act
 3. Separate research validity from software correctness. Passing code tests is necessary but insufficient.
 4. Separate design, implementation, verification, and acceptance authority for epistemically consequential work.
 5. Keep task state and evidence durable outside any one model session or provider-specific harness.
-6. Generate provider adapters from canonical policy rather than maintaining divergent Claude and Codex copies by hand.
-7. Route models by evaluated capability and epistemic risk. Cost savings must not weaken R2/R3 mathematical work.
+6. Keep Claude and Codex as owner-operated subscription applications: ARS must not invoke them or handle their OAuth credentials.
+7. Assign roles and assurance by epistemic risk, while recording operator-selected external sessions and independently verifiable exact-subject evidence.
 8. Prefer focused, independently testable components over a monolithic framework.
 9. Adopt new infrastructure only where historical failure evidence shows it earns its maintenance cost.
 10. Retain human-readable, version-controlled artefacts even if indexed views or a database are later added.
