@@ -11,20 +11,19 @@ authored_by: "Manager 6 (research-assurance implementation, Workstream E)"
 contracts:
   - topology-invariants/null-operation-changes-ph-input
   - stochastic-tests/markov-order-provenance
+  - stochastic-tests/markov-order-provenance-json-validation
   - stochastic-tests/sample-provenance-ledger-block
   - stochastic-tests/sample-provenance-ledger
   - data-provenance/paper-table-source-reconciliation
 
 notes: >
-  The null-operation and Markov-order contracts are pending:true — their binding tests
-  (tests/trajectory_tda/test_null_operation_invariance.py and
-  tests/trajectory_tda/test_markov_order_provenance.py) are not yet authored.
-  Transition out of pending (remove the field) as each binding test lands on the
-  base branch. The sample-provenance ledger contracts are active and bind the
+  The null-operation and Markov-order contracts are active: their binding tests
+  exercise the re-embedding/PH seam and the exact typed provenance producer,
+  while a dedicated output-validation contract dispatches persisted combined
+  Stage-1 battery run_params blocks. The sample-provenance ledger contracts are
+  active and bind the
   2026-06-03b fitted-count provenance rule to panel model-fitting outputs. The
-  markov-order-provenance schema is the definition; the
-  output_validation dispatch wiring it to the battery result glob is added when
-  the schema is exercised against real battery outputs. Already-covered checks
+  markov-order-provenance schema is the definition. Already-covered checks
   (p-value denominator, frozen-loadings comparability, JSON schema completeness)
   are NOT duplicated here — see the T1.36 manifest and the foo-topology schemas.
   The paper-table-source-reconciliation invariant is active (not pending): its

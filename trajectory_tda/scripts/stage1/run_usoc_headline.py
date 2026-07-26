@@ -123,8 +123,11 @@ def main() -> None:
         "run_params": {
             "L": args.L,
             "B": args.B,
-            "null_model": f"markov-{core.DEFAULT_MARKOV_ORDER}",
-            "seed": args.seed,
+            **core.markov_null_provenance(
+                markov_order_k=core.DEFAULT_MARKOV_ORDER,
+                n_permutations=args.B,
+                seed=args.seed,
+            ),
             "landscape_k_max": args.k_max,
             "landscape_n_points": args.n_points,
             "pvalue_formula": "(r+1)/(B+1)",

@@ -1561,7 +1561,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
     assert registry.contains(CONTRACT_SCHEMA_ID)
     assert not registry.contains(LEGACY_GENERIC_PACK_SCHEMA_ID)
     assert contract["status"] == "pending_independent_re_review"
-    assert contract["contract_revision"] == 3
+    assert contract["contract_revision"] == 4
     assert contract["review_gate"]["current_disposition"] == (
         "stop_for_fresh_independent_re_review_and_stephen_acceptance"
     )
@@ -1594,10 +1594,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
         for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
         if not row["pack_acceptance_eligible"]
     }
-    assert pending == {
-        "contract/topology-invariants/null-operation-changes-ph-input",
-        "contract/stochastic-tests/markov-order-provenance",
-    }
+    assert pending == set()
     assert set(contract["required_pack_contract"]["references"]["current_pending_reference_ids"]) == pending
     _validate_pending_reference_relation(contract)
     _external_schema_catalogue(contract)
@@ -1923,9 +1920,26 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     with pytest.raises(CandidatePackError, match="lane reference relation"):
         _validate_proposed_pack(swapped)
 
-    current_pending = _proposed_pack()
+    pending_contract = _load_yaml(CONTRACT_PATH)
+    pending_id = "contract/topology-invariants/null-operation-changes-ph-input"
+    pending_row = next(
+        row
+        for row in pending_contract["required_pack_contract"]["references"]["exact_reference_rows"]
+        if row["reference_id"] == pending_id
+    )
+    pending_row["activation_state"] = "pending"
+    pending_row["pack_acceptance_eligible"] = False
+    pending_contract["required_pack_contract"]["references"]["current_pending_reference_ids"] = [pending_id]
+    pending_resolver = _fixture_contract_authority(pending_contract)
+    _, _, pending_subject = _resolve_contract_authority(pending_resolver)
+    current_pending = _proposed_pack(pending_contract, contract_subject=pending_subject)
     with pytest.raises(CandidatePackError, match="pending reference blocks"):
-        _validate_proposed_pack(current_pending, require_active_references=True)
+        _validate_hypothetical_proposed_pack(
+            current_pending,
+            contract=pending_contract,
+            fixture_contract_authority=pending_resolver,
+            require_active_references=True,
+        )
 
     eligible_contract = _eligible_contract()
     _schema_registry().validate(CONTRACT_SCHEMA_ID, eligible_contract)
@@ -1942,7 +1956,9 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     )
 
     missing_pending = _load_yaml(CONTRACT_PATH)
-    missing_pending["required_pack_contract"]["references"]["current_pending_reference_ids"].pop()
+    missing_row = missing_pending["required_pack_contract"]["references"]["exact_reference_rows"][1]
+    missing_row["activation_state"] = "pending"
+    missing_row["pack_acceptance_eligible"] = False
     missing_pending_resolver = _fixture_contract_authority(missing_pending)
     _, _, missing_pending_subject = _resolve_contract_authority(missing_pending_resolver)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
@@ -2136,6 +2152,10 @@ def test_distribution_currency_and_identity_mutations_fail_closed():
 
 def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority():
     coordinated_contract = _eligible_contract()
+    coordinated_contract["required_pack_contract"]["references"]["exact_reference_rows"][0]["git_blob"] = "7" * 40
+    coordinated_contract["required_pack_contract"]["references"]["exact_reference_rows"][0]["canonical_sha256"] = (
+        "8" * 64
+    )
     coordinated_resolver = _fixture_contract_authority(coordinated_contract)
     _, _, coordinated_subject = _resolve_contract_authority(coordinated_resolver)
     coordinated_candidate = _proposed_pack(

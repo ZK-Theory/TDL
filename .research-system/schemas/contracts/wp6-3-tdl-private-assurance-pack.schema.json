@@ -24,7 +24,7 @@
     "schema_id": {"const": "ars://contracts/wp6-3-tdl-private-assurance-pack"},
     "schema_version": {"const": "1.0.0"},
     "contract_id": {"const": "wp6-3-tdl-private-assurance-pack"},
-    "contract_revision": {"const": 3},
+    "contract_revision": {"const": 4},
     "status": {"const": "pending_independent_re_review"},
     "contract_content_addressing": {"$ref": "#/$defs/contractContentAddressing"},
     "task_assurance_posture": {"$ref": "#/$defs/taskAssurancePosture"},

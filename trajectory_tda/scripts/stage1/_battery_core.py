@@ -43,6 +43,34 @@ DEFAULT_N_POINTS = 200
 DEFAULT_MARKOV_ORDER = 1
 DEFAULT_N_NULL_PAIRS = 500
 
+
+def markov_null_provenance(
+    *,
+    markov_order_k: int,
+    n_permutations: int,
+    seed: int,
+) -> dict[str, int | str]:
+    """Build the exact stochastic-provenance block for a Markov-null battery."""
+    if type(markov_order_k) is not int:
+        raise TypeError("markov_order_k must be an int")
+    if markov_order_k < 1:
+        raise ValueError("markov_order_k must be positive")
+    if type(n_permutations) is not int:
+        raise TypeError("n_permutations must be an int")
+    if n_permutations < 1:
+        raise ValueError("n_permutations must be positive")
+    if type(seed) is not int:
+        raise TypeError("seed must be an int")
+    if seed < 0:
+        raise ValueError("seed must be non-negative")
+    return {
+        "markov_order_k": markov_order_k,
+        "n_permutations": n_permutations,
+        "seed": seed,
+        "null_model": f"markov-{markov_order_k}",
+    }
+
+
 # --- Two-path output roots ---------------------------------------------------
 # Strict separation per APM_RULES "Two-path rule":
 #   WORKTREE — committed deliverables (phase JSONs, scripts, smoke-test outputs)
