@@ -49,8 +49,11 @@ Example: `/validate-topology trajectory_tda results/trajectory_tda_integration/0
 ### Wasserstein-specific
 
 - [ ] W(obs↔null) and W(null↔null) are of comparable magnitude (within ~3×)
-- [ ] p-value = proportion of null-null distances ≥ mean(obs-null distances)
-- [ ] 500 null-null pairs is sufficient for stable p-value at 3 decimal places
+- [ ] Monte Carlo p-value uses the pinned add-one rule `p = (r + 1) / (n + 1)`,
+      where `n == pvalue_null_draws == min(B, total_pairs)`
+- [ ] Keep `effect_null_pairs` (including any diagnostic cap) separate from
+      `pvalue_null_draws`; a fixed 500-pair diagnostic cap never defines the
+      inferential denominator or a universal three-decimal stability guarantee
 
 ### Cross-era replication
 

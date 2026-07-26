@@ -1,7 +1,7 @@
 schema_id: ars://contracts/wp6-3-tdl-private-assurance-pack
 schema_version: '1.0.0'
 contract_id: wp6-3-tdl-private-assurance-pack
-contract_revision: 4
+contract_revision: 5
 status: pending_independent_re_review
 
 contract_content_addressing:
@@ -38,6 +38,20 @@ source_authority:
       git_commit: fe5f1d40bc8f05f061317c677b5891cea0711249
       git_blob: 91d943b3c45381b10b11c86d4836c79d0a862cdb
       canonical_sha256: 016942bb654d5714f7f591e84f873ea243c891e0053e97c6498798c32425a257
+    - source_id: source.w1_v0_3
+      repository_path: docs/plans/agentic-research-system/design/01-system-architecture.md
+      sections: ['6', '9', '14', '16', '18']
+      authority_state: accepted
+      git_commit: eb8ed821eb9e5ea0d61f8e81d4a45b6a93904edb
+      git_blob: 1870cf7c7f86ad2ff380d8f627bca6f5bc53899e
+      canonical_sha256: 32453ceb9180357edfe9e5b22bb3f7923afc18f889a58eb0023e54d01e21011b
+    - source_id: source.w2_v0_3
+      repository_path: docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md
+      sections: ['7', '8', '10', '12', '16', '18']
+      authority_state: accepted
+      git_commit: 45cb12eef85b349cd82035c1c7d4401e76b22c73
+      git_blob: 7e09a9c49605663bb50163840fff3ae4c8212748
+      canonical_sha256: dd5f45ec91cb4c10f0e8d1d99341ad16745bec21f58400b6643285224870f9c6
     - source_id: source.w5_v0_2
       repository_path: docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md
       sections: ['6', '7', '8', '11', '12', '13', '14', '15.1', '16', '17', '18', '19', '20', '21', '22', '23', '24', '28']
@@ -94,6 +108,27 @@ source_authority:
       git_commit: 29ff7cac9a26a63beaa6ab6a4ea0f8fff74ee614
       git_blob: 9347c80afeb375d68e6c7e161d65c8ec3afea8fb
       canonical_sha256: 30122ec3a87e74041a136938ff5e40613c1b2eb9e8af3fca7540d191e0b40ad4
+    - source_id: source.p042_owner_operated_boundary
+      repository_path: docs/plans/agentic-research-system/03-decisions-and-open-questions.md
+      sections: ['P-042']
+      authority_state: accepted
+      git_commit: 53534dd2f0f041541b69d3726b4d16220e7afa7e
+      git_blob: a50fc9bf217a3b38d5a4389b17e8f926ee84d3da
+      canonical_sha256: 702383f868394350a7a8d3b12ca220cd55091142751b7ecb34703ac15f58139f
+    - source_id: source.wp6_06g_owner_operated_amendment
+      repository_path: docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md
+      sections: ['complete file']
+      authority_state: accepted
+      git_commit: b736582d7ab4a3ae9d53c5e3d853e21ad1b180dc
+      git_blob: 49696e5b737f59ab8bd58d18c6e9231b0a61a599
+      canonical_sha256: 72b32de05ac667d6476478bd40d96eee4b68c40de5a344080a211ac39a9d6af6
+    - source_id: source.wp6_06g_owner_acceptance
+      repository_path: docs/plans/agentic-research-system/reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md
+      sections: ['complete file']
+      authority_state: accepted
+      git_commit: 53534dd2f0f041541b69d3726b4d16220e7afa7e
+      git_blob: 6c9d64cf04f00819f0b4c81b9e248b31ca1940c2
+      canonical_sha256: d1039d71acfc302e4515402e797d29f354fe7ffad891dcf637188eb503fa9be6
   missing_authority_diagnosis:
     canonical_pack_schema_missing_at_base: true
     accepted_pack_schema_version_missing_at_base: true
@@ -150,16 +185,10 @@ required_pack_contract:
     required_independent_inputs:
       - accepted_upstream_contract_subject
       - accepted_schema_subject
-      - external_contract_schema_authorship_record
-      - external_independent_contract_review_record
-      - external_independent_schema_review_record
-      - external_stephen_contract_schema_acceptance_record
-      - registered_assurance_pack_object
-      - canonical_authority_and_relationship_records
-      - accepted_assurance_requirement_record
-      - independent_pack_review_record
-      - stephen_owner_acceptance_record
-      - exact_reference_registry_snapshot
+      - trusted_w1_w2_content_addressed_authority_resolver
+      - independently_supplied_authority_root
+      - opaque_external_record_ids
+      - current_exact_reference_snapshot
       - raw_candidate_pack_bytes
       - evaluation_time
     failure_behavior: pack_unconsumable_and_no_acceptance
@@ -197,7 +226,18 @@ required_pack_contract:
     conditionally_required_record_types:
       - obligation_applicability_confirmation
     candidate_may_supply_record_bodies: false
-    record_resolution: canonical_store_by_id_and_exact_hash
+    caller_may_supply_record_hash_oracle: false
+    record_resolution: opaque_ids_via_trusted_content_addressed_authority_resolver
+    authority_root_binding: independently_supplied_root_bound_to_accepted_w1_w2_authority_surface
+    authority_resolution_phases: [load, acceptance, consumption]
+    reference_revalidation: resolve_every_exact_reference_from_current_snapshot_at_every_phase
+    canonical_assurance_requirement_binding: complete_canonical_bytes_identity_task_risks_grade_lanes_and_currency
+    two_key_evidence_closure: exact_per_obligation_key_a_and_key_b_plus_executed_boundary_fixtures
+    required_executed_boundary_fixture_ids:
+      - apf_tested_object_no_op
+      - apf_degenerate_fallback
+      - apf_claim_escalation
+    review_provenance_binding: typed_operators_distinct_task_and_session_stable_handoff_and_fresh_context
     canonical_actor_resolution: every_actor_id_resolves_to_active_canonical_actor_record
     pack_review_and_owner_subject: exact_loader_computed_raw_byte_pack_subject
     review_and_owner_decision_subject_must_match: true
@@ -222,18 +262,18 @@ required_pack_contract:
     schema_document_repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json
     schema_document_byte_surface: git_blob_utf8_lf
     exact_schema_rows:
-      - {record_class: canonical_actor, record_type: canonical_actor, schema_id: 'ars://assurance/records/canonical-actor/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/canonicalActorRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: producer_relationship_evidence, record_type: producer_relationship_evidence, schema_id: 'ars://assurance/records/producer-relationship-evidence/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/producerRelationshipEvidenceRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: contract_schema_authorship, record_type: contract_schema_authorship, schema_id: 'ars://assurance/records/contract-schema-authorship/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/contractSchemaAuthorshipRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: independent_contract_review, record_type: independent_contract_review, schema_id: 'ars://assurance/records/independent-contract-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentContractReviewRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: independent_schema_review, record_type: independent_schema_review, schema_id: 'ars://assurance/records/independent-schema-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentSchemaReviewRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: stephen_contract_schema_acceptance, record_type: stephen_contract_schema_acceptance, schema_id: 'ars://assurance/records/stephen-contract-schema-acceptance/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/stephenContractSchemaAcceptanceRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: accepted_assurance_requirement, record_type: accepted_assurance_requirement, schema_id: 'ars://assurance/records/accepted-assurance-requirement/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/acceptedAssuranceRequirementRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: obligation_applicability_confirmation, record_type: obligation_applicability_confirmation, schema_id: 'ars://assurance/records/obligation-applicability-confirmation/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/obligationApplicabilityConfirmationRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: independent_pack_review, record_type: independent_pack_review, schema_id: 'ars://assurance/records/independent-pack-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentPackReviewRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: stephen_owner_acceptance, record_type: stephen_owner_acceptance, schema_id: 'ars://assurance/records/stephen-owner-acceptance/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/stephenOwnerAcceptanceRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: active_authority_grant, record_type: active_authority_grant, schema_id: 'ars://assurance/records/active-authority-grant/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/activeAuthorityGrantRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
-      - {record_class: registered_pack_object, record_type: registered_pack_object, schema_id: 'ars://assurance/records/registered-pack-object/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/registeredPackObjectRecord', schema_git_blob: '5bddd9c1563419546d778aedf14e8c7d8474d097', schema_canonical_sha256: '8bf5ad019bb2b5644b2c227d556ee1e8198acec70a3fc6054b2a157aedb36de4'}
+      - {record_class: canonical_actor, record_type: canonical_actor, schema_id: 'ars://assurance/records/canonical-actor/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/canonicalActorRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: producer_relationship_evidence, record_type: producer_relationship_evidence, schema_id: 'ars://assurance/records/producer-relationship-evidence/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/producerRelationshipEvidenceRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: contract_schema_authorship, record_type: contract_schema_authorship, schema_id: 'ars://assurance/records/contract-schema-authorship/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/contractSchemaAuthorshipRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: independent_contract_review, record_type: independent_contract_review, schema_id: 'ars://assurance/records/independent-contract-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentContractReviewRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: independent_schema_review, record_type: independent_schema_review, schema_id: 'ars://assurance/records/independent-schema-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentSchemaReviewRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: stephen_contract_schema_acceptance, record_type: stephen_contract_schema_acceptance, schema_id: 'ars://assurance/records/stephen-contract-schema-acceptance/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/stephenContractSchemaAcceptanceRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: accepted_assurance_requirement, record_type: accepted_assurance_requirement, schema_id: 'ars://assurance/records/accepted-assurance-requirement/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/acceptedAssuranceRequirementRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: obligation_applicability_confirmation, record_type: obligation_applicability_confirmation, schema_id: 'ars://assurance/records/obligation-applicability-confirmation/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/obligationApplicabilityConfirmationRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: independent_pack_review, record_type: independent_pack_review, schema_id: 'ars://assurance/records/independent-pack-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentPackReviewRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: stephen_owner_acceptance, record_type: stephen_owner_acceptance, schema_id: 'ars://assurance/records/stephen-owner-acceptance/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/stephenOwnerAcceptanceRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: active_authority_grant, record_type: active_authority_grant, schema_id: 'ars://assurance/records/active-authority-grant/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/activeAuthorityGrantRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
+      - {record_class: registered_pack_object, record_type: registered_pack_object, schema_id: 'ars://assurance/records/registered-pack-object/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/registeredPackObjectRecord', schema_git_blob: 'a80ac7c37541b9ff3ba38fdb4e618970865d7146', schema_canonical_sha256: '35907e75adf84cffb45d3b9e929be4d6bcd23e384c6be21fdf378ecb10b2b533'}
     exact_schema_count: 12
     every_resolved_record_schema_validated: true
     hash_validity_alone_is_sufficient: false
@@ -409,7 +449,7 @@ required_pack_contract:
       - {reference_kind: contract, reference_id: contract/stochastic-tests/markov-order-provenance, repository_path: contracts/stochastic-tests/markov-order-provenance.yaml, git_blob: 8924136e95b618775cc3f5ed9622d2e2eabb5056, canonical_sha256: 15569516f74ef646941764cd42058de737f7dc3a71c3207ee700f225b3a3fddb, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
       - {reference_kind: contract, reference_id: contract/stochastic-tests/monte-carlo-permutation-p-value, repository_path: contracts/stochastic-tests/monte-carlo-permutation-p-value.yaml, git_blob: fc216bdb302e1c92e18ce8965538650256ea5aee, canonical_sha256: c5cd380f3812137ae7c7b587ee588d281f1c5fb5b6bd2e64deb20781dc7413d5, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [stochastic_null, statistical_panel], reference_mode: exact_versioned_reference, inline_body: false}
       - {reference_kind: contract, reference_id: contract/stage1-output-schemas/stage1-output-json-validation, repository_path: contracts/stage1-output-schemas/stage1-output-json-validation.yaml, git_blob: bdd4357e0f02fb2eadcb9c41f7177ad46b98f51d, canonical_sha256: 6177732d2a8a3d2e9754360796a52374d64c5c09d7777e824cf8b047c64d8dcc, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [statistical_panel, output_provenance], reference_mode: exact_versioned_reference, inline_body: false}
-      - {reference_kind: skill, reference_id: skill/validate-topology, repository_path: .agents/skills/validate-topology/SKILL.md, git_blob: 487d883f1df718b1d61139434dfce70ef5fbe05d, canonical_sha256: 15f309d1e94ad26c0973277dd83117c262f81499321288ffbbc41cfb54feacf6, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [topology, stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/validate-topology, repository_path: .agents/skills/validate-topology/SKILL.md, git_blob: 3ba393575a10f44350e2bd444bb8da3124fcf9d2, canonical_sha256: f00969f7b38a6b3205cdb38edaa16b0cf3394819dc7f84e844858dcb747e1845, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [topology, stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
       - {reference_kind: skill, reference_id: skill/statistical-design-audit, repository_path: .agents/skills/statistical-design-audit/SKILL.md, git_blob: 950ce28f1bb1cedd16c18ea4d77e782d24aafed7, canonical_sha256: 86af1700774d1e5b2383f7e25d1109cb88e9327615cbab314e6df5cda89f5e6b, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [stochastic_null, statistical_panel], reference_mode: exact_versioned_reference, inline_body: false}
       - {reference_kind: skill, reference_id: skill/representation-freeze-audit, repository_path: .agents/skills/representation-freeze-audit/SKILL.md, git_blob: efe61fd9a0b77993aa2edb1eaa59bdb1bcaeff4d, canonical_sha256: b9fabd83f38b1c595e0d455ced9a7d21020c9a8008c40befecdafae448137d86, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [representation], reference_mode: exact_versioned_reference, inline_body: false}
       - {reference_kind: skill, reference_id: skill/result-provenance-review, repository_path: .agents/skills/result-provenance-review/SKILL.md, git_blob: 9c82784470c5b867a8c06c6ec0c42b6ef0c5a328, canonical_sha256: 99d7c0a48bbb5af6ef0f09bcd4f96206635ef2701ffc95dd1367a3292e74427e, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [output_provenance, paper_claim], reference_mode: exact_versioned_reference, inline_body: false}
@@ -535,6 +575,10 @@ validation_bindings:
     - test_accepted_requirement_binds_content_subject_and_exact_obligation_applicability_rows
     - test_applicability_decision_times_are_bounded_by_relationship_and_acceptance
     - test_independently_confirmed_not_applicable_is_reachable_and_fails_closed
+    - test_c1_coordinated_full_store_forgery_cannot_supply_bodies_and_hash_oracle
+    - test_c2_bare_review_verdict_cannot_replace_canonical_requirement_and_two_key_closure
+    - test_m1_distinct_actor_uuid_and_asserted_i2_fail_without_fresh_task_provenance
+    - test_m2_coordinated_stale_reference_pin_fails_current_snapshot_revalidation
   task_local_unbound_test_functions:
     - test_scope_stop_future_pack_is_absent_in_remediation_task
 

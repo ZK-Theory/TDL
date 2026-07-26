@@ -60,6 +60,11 @@ CONTRACT_SCHEMA_ACCEPTANCE_ID = "csa_00000000-0000-7000-8000-000000000014"
 CONTRACT_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000015"
 SCHEMA_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000016"
 APPLICABILITY_CONFIRMATION_ID = "apc_00000000-0000-7000-8000-000000000017"
+PRODUCER_TASK_ID = "tsk_00000000-0000-7000-8000-000000000018"
+REVIEW_TASK_ID = "tsk_00000000-0000-7000-8000-000000000019"
+PRODUCER_SESSION_ID = "ses_00000000-0000-7000-8000-00000000001a"
+REVIEW_SESSION_ID = "ses_00000000-0000-7000-8000-00000000001b"
+REVIEW_HANDOFF_ID = "hnd_00000000-0000-7000-8000-00000000001c"
 
 EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "canonical_actor": "ars://assurance/records/canonical-actor/1.0",
@@ -302,7 +307,9 @@ def _resolve_external_contract_reference() -> dict:
     store for ``CONTRACT_PATH`` each time the cache is populated, so it always names
     the actual committed artifact.
     """
-    contract_bytes, contract_blob = _resolve_committed_bytes(CONTRACT_PATH)
+    subject = _resolve_current_repository_subject(CONTRACT_PATH)
+    contract_blob = subject["git_blob"]
+    contract_bytes = _git_blob_bytes(contract_blob)
     return {
         "schema_id": CONTRACT_SCHEMA_ID,
         "schema_version": "1.0.0",
@@ -335,6 +342,9 @@ def _raw_contract_bytes(contract: dict) -> bytes:
 
 ContractAuthorityResolver = Callable[[], tuple[bytes, str]]
 _FIXTURE_AUTHORITY_ISSUER = object()
+_FIXTURE_RECORD_AUTHORITY_ISSUER = object()
+AUTHORITY_SOURCE_IDS = frozenset({"source.w1_v0_3", "source.w2_v0_3"})
+AUTHORITY_PHASES = ("load", "acceptance", "consumption")
 
 
 @dataclass(frozen=True)
@@ -359,11 +369,163 @@ def _require_issued_fixture_authority(authority: _FixtureContractAuthority) -> N
         raise CandidatePackError("hypothetical contract authority was not issued by the fixture factory")
 
 
+@dataclass(frozen=True)
+class _AuthoritySnapshot:
+    snapshot_id: str
+    authority_root_sha256: str
+    w1_w2_authority_subjects: dict[str, dict]
+    record_store: dict[str, dict]
+    record_hashes: dict[str, str]
+    reference_subjects: dict[str, dict]
+
+
+@dataclass
+class _FixtureRecordAuthority:
+    snapshots: tuple[_AuthoritySnapshot, ...]
+    issuer: object
+    call_count: int = 0
+
+    def __call__(self, phase: str) -> _AuthoritySnapshot:
+        if phase not in AUTHORITY_PHASES:
+            raise CandidatePackError(f"unsupported authority resolution phase: {phase}")
+        index = min(self.call_count, len(self.snapshots) - 1)
+        self.call_count += 1
+        return deepcopy(self.snapshots[index])
+
+
+def _resolve_current_repository_subject(path: Path) -> dict:
+    """Resolve current canonical bytes without accepting a caller-supplied equality oracle."""
+    repo_relative_path = _repo_relative_path(path)
+    working_tree_bytes = path.read_bytes()
+    blob_oid = (
+        subprocess.check_output(
+            ["git", "hash-object", "-w", "--path", repo_relative_path, "--stdin"],
+            input=working_tree_bytes,
+            cwd=ROOT,
+        )
+        .decode()
+        .strip()
+    )
+    canonical_bytes = _git_blob_bytes(blob_oid)
+    return {
+        "repository_path": repo_relative_path,
+        "git_blob": blob_oid,
+        "canonical_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
+    }
+
+
+def _current_reference_subjects(contract: dict) -> dict[str, dict]:
+    return {
+        row["reference_id"]: _resolve_current_repository_subject(ROOT / row["repository_path"])
+        for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
+    }
+
+
+def _validate_reference_semantic_compatibility() -> None:
+    skill_text = (ROOT / ".agents" / "skills" / "validate-topology" / "SKILL.md").read_text(encoding="utf-8")
+    formula_contract = _load_yaml(ROOT / "contracts" / "stochastic-tests" / "monte-carlo-permutation-p-value.yaml")
+    if (
+        formula_contract["formula"]["expression"] != "p = (r + 1) / (n + 1)"
+        or "p = (r + 1) / (n + 1)" not in skill_text
+        or "pvalue_null_draws" not in skill_text
+        or "effect_null_pairs" not in skill_text
+        or "p-value = proportion of null-null distances" in skill_text
+        or "500 null-null pairs is sufficient" in skill_text
+    ):
+        raise CandidatePackError("current reference snapshot is semantically incompatible with the pinned p-value")
+
+
+def _authority_snapshot(
+    contract: dict,
+    record_store: dict[str, dict],
+    record_hashes: dict[str, str],
+    *,
+    snapshot_id: str = "auth_00000000-0000-7000-8000-000000000001",
+    reference_subjects: dict[str, dict] | None = None,
+) -> _AuthoritySnapshot:
+    source_rows = {
+        row["source_id"]: {key: row[key] for key in ("repository_path", "git_commit", "git_blob", "canonical_sha256")}
+        for row in contract["source_authority"]["governing_sources"]
+        if row["source_id"] in AUTHORITY_SOURCE_IDS
+    }
+    references = reference_subjects or _current_reference_subjects(contract)
+    root_preimage = {
+        "snapshot_id": snapshot_id,
+        "w1_w2_authority_subjects": source_rows,
+        "record_hashes": record_hashes,
+        "reference_subjects": references,
+    }
+    return _AuthoritySnapshot(
+        snapshot_id=snapshot_id,
+        authority_root_sha256=_canonical_sha256(root_preimage),
+        w1_w2_authority_subjects=deepcopy(source_rows),
+        record_store=deepcopy(record_store),
+        record_hashes=deepcopy(record_hashes),
+        reference_subjects=deepcopy(references),
+    )
+
+
+def _fixture_record_authority(
+    contract: dict,
+    record_store: dict[str, dict],
+    record_hashes: dict[str, str],
+    *,
+    snapshots: tuple[_AuthoritySnapshot, ...] | None = None,
+) -> _FixtureRecordAuthority:
+    issued_snapshots = snapshots or (_authority_snapshot(contract, record_store, record_hashes),)
+    return _FixtureRecordAuthority(issued_snapshots, _FIXTURE_RECORD_AUTHORITY_ISSUER)
+
+
+def _resolve_authority_phase(
+    authority_resolver: _FixtureRecordAuthority,
+    phase: str,
+    contract: dict,
+    *,
+    expected_root: str | None = None,
+) -> _AuthoritySnapshot:
+    if (
+        not isinstance(authority_resolver, _FixtureRecordAuthority)
+        or authority_resolver.issuer is not _FIXTURE_RECORD_AUTHORITY_ISSUER
+    ):
+        raise CandidatePackError("trusted authority resolver was not supplied by the W1/W2 application root")
+    snapshot = authority_resolver(phase)
+    expected_sources = {
+        row["source_id"]: {key: row[key] for key in ("repository_path", "git_commit", "git_blob", "canonical_sha256")}
+        for row in contract["source_authority"]["governing_sources"]
+        if row["source_id"] in AUTHORITY_SOURCE_IDS
+    }
+    if set(expected_sources) != AUTHORITY_SOURCE_IDS or snapshot.w1_w2_authority_subjects != expected_sources:
+        raise CandidatePackError("authority root is not bound to the accepted W1/W2 authority surface")
+    root_preimage = {
+        "snapshot_id": snapshot.snapshot_id,
+        "w1_w2_authority_subjects": snapshot.w1_w2_authority_subjects,
+        "record_hashes": snapshot.record_hashes,
+        "reference_subjects": snapshot.reference_subjects,
+    }
+    if snapshot.authority_root_sha256 != _canonical_sha256(root_preimage):
+        raise CandidatePackError("trusted authority root does not bind its resolved content")
+    if expected_root is not None and snapshot.authority_root_sha256 != expected_root:
+        raise CandidatePackError("authority changed during load, acceptance, or consumption revalidation")
+    contract_references = {
+        row["reference_id"]: {key: row[key] for key in ("repository_path", "git_blob", "canonical_sha256")}
+        for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
+    }
+    if snapshot.reference_subjects != contract_references:
+        raise CandidatePackError(f"current reference snapshot differs during {phase}")
+    _validate_reference_semantic_compatibility()
+    return snapshot
+
+
 def _resolve_contract_authority(
     trusted_contract_resolver: ContractAuthorityResolver | None = None,
 ) -> tuple[bytes, dict, dict]:
     """Resolve contract bytes from Git, or an explicit trusted hypothetical-fixture seam."""
-    resolver = trusted_contract_resolver or (lambda: _resolve_committed_bytes(CONTRACT_PATH))
+    resolver = trusted_contract_resolver or (
+        lambda: (
+            _git_blob_bytes(_resolve_current_repository_subject(CONTRACT_PATH)["git_blob"]),
+            _resolve_current_repository_subject(CONTRACT_PATH)["git_blob"],
+        )
+    )
     raw_contract_bytes, trusted_contract_blob = resolver()
     computed_contract_blob = _git_blob_id_without_filters(raw_contract_bytes)
     if computed_contract_blob != trusted_contract_blob:
@@ -435,10 +597,12 @@ def _external_schema_artifact() -> tuple[dict, str, str]:
     ``Path.read_bytes()`` — portable across CRLF and LF checkouts because it never
     depends on the current checkout's line-ending representation.
     """
-    schema_bytes, schema_blob = _resolve_committed_bytes(CONTRACT_SCHEMA_PATH)
+    subject = _resolve_current_repository_subject(CONTRACT_SCHEMA_PATH)
+    schema_blob = subject["git_blob"]
+    schema_bytes = _git_blob_bytes(schema_blob)
     schema_document = json.loads(schema_bytes.decode("utf-8"))
     Draft202012Validator.check_schema(schema_document)
-    return schema_document, schema_blob, hashlib.sha256(schema_bytes).hexdigest()
+    return schema_document, schema_blob, subject["canonical_sha256"]
 
 
 @lru_cache(maxsize=1)
@@ -855,11 +1019,80 @@ def _obligation_applicability_rows(contract: dict) -> list[dict]:
     ]
 
 
+def _canonical_assurance_requirement(contract: dict, contract_subject: dict) -> dict:
+    requirement = {
+        "schema_id": "ars://assurance/assurance-requirement",
+        "schema_version": "1.0.0",
+        "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
+        "revision": 1,
+        "task_id": PRODUCER_TASK_ID,
+        "task_revision": 1,
+        "requested_risk": "R3",
+        "w5_epistemic_risk_floor": "R3",
+        "action_semantic_risk": "R3",
+        "requirement_relationship_grade": "I2",
+        "lanes": list(contract["required_pack_contract"]["six_lane_closure"]),
+        "currency_hash": _canonical_sha256(
+            {
+                "contract_subject": contract_subject,
+                "governing_sources": contract["source_authority"]["governing_sources"],
+                "references": contract["required_pack_contract"]["references"]["exact_reference_rows"],
+            }
+        ),
+    }
+    requirement["content_hash"] = _canonical_sha256(requirement)
+    return requirement
+
+
+def _obligation_evidence_rows(contract: dict) -> list[dict]:
+    return [
+        {
+            "lane_id": lane_id,
+            "obligation_id": obligation["obligation_id"],
+            "key_a_status": "passed",
+            "key_a_evidence_ids": [obligation["evidence_output_id"]],
+            "key_b_status": "passed",
+            "key_b_evidence_ids": [obligation["review_question_id"]],
+            "forbidden_state_or_claim": "absent",
+        }
+        for lane_id, lane in contract["required_pack_contract"]["lanes"].items()
+        for obligation in lane["required_obligations"]
+    ]
+
+
+def _boundary_fixture_execution_rows() -> list[dict]:
+    return [
+        {
+            "fixture_id": fixture_id,
+            "execution_status": "executed",
+            "expected_outcome": "blocked",
+            "observed_outcome": "blocked",
+            "key_a_status": "passed",
+            "key_b_status": "passed",
+        }
+        for fixture_id in (
+            "apf_tested_object_no_op",
+            "apf_degenerate_fallback",
+            "apf_claim_escalation",
+        )
+    ]
+
+
+def _two_key_closure_sha256(review: dict) -> str:
+    return _canonical_sha256(
+        {
+            "obligation_evidence_rows": review["obligation_evidence_rows"],
+            "boundary_fixture_execution_rows": review["boundary_fixture_execution_rows"],
+        }
+    )
+
+
 def _requirement_content_preimage(requirement: dict) -> dict:
     return {
         "assurance_requirement_id": requirement["assurance_requirement_id"],
         "revision": requirement["revision"],
         "subject_contract": requirement["subject_contract"],
+        "canonical_requirement": requirement["canonical_requirement"],
         "prospective_producer_actor_id": requirement["prospective_producer_actor_id"],
         "obligation_applicability_rows": requirement["obligation_applicability_rows"],
     }
@@ -979,6 +1212,7 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
         "revision": 1,
         "subject_contract": deepcopy(contract_subject),
+        "canonical_requirement": _canonical_assurance_requirement(contract, contract_subject),
         "obligation_applicability_rows": applicability_rows,
         "requirement_author_actor_id": ACT_REQUIREMENT_AUTHOR,
         "scope_reviewer_actor_id": ACT_SCOPE_REVIEWER,
@@ -997,6 +1231,7 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "revision": 1,
         "content_surface": "canonical_json_utf8",
         "canonical_sha256": _canonical_sha256(_requirement_content_preimage(requirement_record)),
+        "canonical_requirement_sha256": _canonical_sha256(requirement_record["canonical_requirement"]),
     }
     requirement_hash = _canonical_sha256(requirement_record)
     pack["assurance_requirement_reference"]["acceptance_record_sha256"] = requirement_hash
@@ -1054,10 +1289,31 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "producer_actor_id": ACT_PRODUCER,
         "relationship_record_id": REVIEW_RELATIONSHIP_ID,
         "minimum_independence_grade": "I2",
+        "operator_provenance": {
+            "producer_operator": {
+                "actor_id": ACT_PRODUCER,
+                "operator_type": "codex_task_agent",
+            },
+            "reviewer_operator": {
+                "actor_id": ACT_SCIENTIFIC_REVIEWER,
+                "operator_type": "codex_task_agent",
+            },
+            "producer_task_id": PRODUCER_TASK_ID,
+            "review_task_id": REVIEW_TASK_ID,
+            "producer_session_id": PRODUCER_SESSION_ID,
+            "review_session_id": REVIEW_SESSION_ID,
+            "handoff_id": REVIEW_HANDOFF_ID,
+            "session_family": "codex_standalone",
+            "context_mode": "fresh_task_no_parent_history",
+            "fork_turns": "none",
+        },
+        "obligation_evidence_rows": _obligation_evidence_rows(contract),
+        "boundary_fixture_execution_rows": _boundary_fixture_execution_rows(),
         "verdict": "pass",
         "review_state": "completed",
         "reviewed_at": "2026-07-18T10:00:00Z",
     }
+    review_record["two_key_closure_sha256"] = _two_key_closure_sha256(review_record)
     review_hash = _canonical_sha256(review_record)
     owner_grant = {
         "record_type": "active_authority_grant",
@@ -1078,6 +1334,7 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "review_record_sha256": review_hash,
         "acceptor_actor_id": ACT_OWNER,
         "authority_grant_id": OWNER_GRANT_ID,
+        "two_key_closure_sha256": review_record["two_key_closure_sha256"],
         "outcome": "accepted",
         "decision_state": "active",
         "decided_at": "2026-07-18T11:00:00Z",
@@ -1128,9 +1385,11 @@ def _refresh_acceptance_chain(pack: dict, record_store: dict[str, dict], hash_ma
     raw_candidate_pack_bytes = _raw_pack_bytes(pack)
     subject = _pack_subject(raw_candidate_pack_bytes, expected_pack=pack)
     record_store[REVIEW_RECORD_ID]["subject"] = deepcopy(subject)
+    record_store[REVIEW_RECORD_ID]["two_key_closure_sha256"] = _two_key_closure_sha256(record_store[REVIEW_RECORD_ID])
     _rehash_record(record_store, hash_manifest, REVIEW_RECORD_ID)
     record_store[OWNER_DECISION_ID]["subject"] = deepcopy(subject)
     record_store[OWNER_DECISION_ID]["review_record_sha256"] = hash_manifest[REVIEW_RECORD_ID]
+    record_store[OWNER_DECISION_ID]["two_key_closure_sha256"] = record_store[REVIEW_RECORD_ID]["two_key_closure_sha256"]
     _rehash_record(record_store, hash_manifest, OWNER_DECISION_ID)
     return raw_candidate_pack_bytes
 
@@ -1192,12 +1451,15 @@ def _validate_external_acceptance_with_authority(
     raw_candidate_pack_bytes: bytes,
     contract: dict,
     trusted_contract_resolver: ContractAuthorityResolver | None,
-    record_store: dict[str, dict],
-    hash_manifest: dict[str, str],
+    authority_resolver: _FixtureRecordAuthority,
     review_record_id: str = REVIEW_RECORD_ID,
     owner_decision_id: str = OWNER_DECISION_ID,
     as_of: datetime = AS_OF,
 ) -> None:
+    load_snapshot = _resolve_authority_phase(authority_resolver, "load", contract)
+    authority_root = load_snapshot.authority_root_sha256
+    record_store = load_snapshot.record_store
+    hash_manifest = load_snapshot.record_hashes
     parsed_pack = _parse_candidate_pack_bytes(raw_candidate_pack_bytes)
     if parsed_pack != pack:
         raise CandidatePackError("raw candidate bytes do not parse to the supplied candidate")
@@ -1292,12 +1554,25 @@ def _validate_external_acceptance_with_authority(
     if requirement["prospective_producer_actor_id"] != pack["producer_actor_id"]:
         raise CandidatePackError("accepted requirement names a different producer")
     requirement_subject = requirement["requirement_subject"]
+    canonical_requirement = requirement["canonical_requirement"]
+    canonical_preimage = {key: value for key, value in canonical_requirement.items() if key != "content_hash"}
     if (
         requirement_subject["assurance_requirement_id"] != requirement["assurance_requirement_id"]
         or requirement_subject["revision"] != requirement["revision"]
         or requirement_subject["canonical_sha256"] != _canonical_sha256(_requirement_content_preimage(requirement))
+        or requirement_subject["canonical_requirement_sha256"] != _canonical_sha256(canonical_requirement)
+        or canonical_requirement["content_hash"] != _canonical_sha256(canonical_preimage)
+        or canonical_requirement["assurance_requirement_id"] != requirement["assurance_requirement_id"]
+        or canonical_requirement["revision"] != requirement["revision"]
+        or canonical_requirement["requested_risk"] != "R3"
+        or canonical_requirement["w5_epistemic_risk_floor"] != "R3"
+        or canonical_requirement["action_semantic_risk"] != "R3"
+        or canonical_requirement["requirement_relationship_grade"] != requirement["minimum_independence_grade"]
+        or canonical_requirement["lanes"] != contract["required_pack_contract"]["six_lane_closure"]
+        or canonical_requirement["currency_hash"]
+        != _canonical_assurance_requirement(contract, accepted_contract_subject)["currency_hash"]
     ):
-        raise CandidatePackError("accepted requirement content subject mismatch")
+        raise CandidatePackError("canonical AssuranceRequirement bytes or identity mismatch")
     expected_applicability = {
         (lane_id, obligation["obligation_id"])
         for lane_id, lane in contract["required_pack_contract"]["lanes"].items()
@@ -1353,6 +1628,14 @@ def _validate_external_acceptance_with_authority(
             if confirmation["confirming_actor_id"] == pack["producer_actor_id"]:
                 raise CandidatePackError("applicability confirmation is not producer-independent")
     review = _resolved_record(contract, record_store, hash_manifest, review_record_id, "independent_pack_review")
+    acceptance_snapshot = _resolve_authority_phase(
+        authority_resolver,
+        "acceptance",
+        contract,
+        expected_root=authority_root,
+    )
+    if acceptance_snapshot.record_store != record_store or acceptance_snapshot.record_hashes != hash_manifest:
+        raise CandidatePackError("authority records changed during acceptance revalidation")
     review_relationship = _resolved_record(
         contract,
         record_store,
@@ -1391,6 +1674,56 @@ def _validate_external_acceptance_with_authority(
         or owner["review_record_sha256"] != hash_manifest[review_record_id]
     ):
         raise CandidatePackError("owner decision does not bind the exact independent review")
+    evidence_rows = _rows_by_id(review["obligation_evidence_rows"], "obligation_id", "two-key evidence")
+    if (
+        set(evidence_rows) != {obligation_id for ids in EXPECTED_OBLIGATION_IDS.values() for obligation_id in ids}
+        or len(evidence_rows) != 69
+        or any(
+            row["key_a_status"] != "passed"
+            or row["key_b_status"] != "passed"
+            or not row["key_a_evidence_ids"]
+            or not row["key_b_evidence_ids"]
+            or row["forbidden_state_or_claim"] != "absent"
+            for row in evidence_rows.values()
+        )
+    ):
+        raise CandidatePackError("two-key evidence does not close every required obligation")
+    fixture_rows = _rows_by_id(
+        review["boundary_fixture_execution_rows"],
+        "fixture_id",
+        "boundary fixture evidence",
+    )
+    if set(fixture_rows) != {
+        "apf_tested_object_no_op",
+        "apf_degenerate_fallback",
+        "apf_claim_escalation",
+    } or any(
+        row["execution_status"] != "executed"
+        or row["expected_outcome"] != "blocked"
+        or row["observed_outcome"] != "blocked"
+        or row["key_a_status"] != "passed"
+        or row["key_b_status"] != "passed"
+        for row in fixture_rows.values()
+    ):
+        raise CandidatePackError("two-key evidence lacks executed boundary fixtures")
+    expected_two_key_root = _two_key_closure_sha256(review)
+    if (
+        review["two_key_closure_sha256"] != expected_two_key_root
+        or owner["two_key_closure_sha256"] != expected_two_key_root
+    ):
+        raise CandidatePackError("owner acceptance does not bind exact two-key evidence")
+    provenance = review["operator_provenance"]
+    if (
+        provenance["producer_operator"] != {"actor_id": pack["producer_actor_id"], "operator_type": "codex_task_agent"}
+        or provenance["reviewer_operator"]
+        != {"actor_id": review["reviewer_actor_id"], "operator_type": "codex_task_agent"}
+        or provenance["producer_task_id"] == provenance["review_task_id"]
+        or provenance["producer_session_id"] == provenance["review_session_id"]
+        or provenance["context_mode"] != "fresh_task_no_parent_history"
+        or provenance["fork_turns"] != "none"
+        or canonical_requirement["task_id"] != provenance["producer_task_id"]
+    ):
+        raise CandidatePackError("review task provenance does not prove a separate fresh context")
     if review["verdict"] != "pass" or owner["outcome"] != "accepted":
         raise CandidatePackError("external review and owner acceptance are both required")
     if review["producer_actor_id"] != pack["producer_actor_id"]:
@@ -1499,14 +1832,21 @@ def _validate_external_acceptance_with_authority(
             raise CandidatePackError("relationship evidence is not current")
     if not _parse_datetime(grant["effective_at"]) <= decided_at <= as_of < _parse_datetime(grant["expires_at"]):
         raise CandidatePackError("owner authority grant is not current")
+    consumption_snapshot = _resolve_authority_phase(
+        authority_resolver,
+        "consumption",
+        contract,
+        expected_root=authority_root,
+    )
+    if consumption_snapshot.record_store != record_store or consumption_snapshot.record_hashes != hash_manifest:
+        raise CandidatePackError("authority records changed during consumption revalidation")
 
 
 def _validate_external_acceptance(
     pack: dict,
     *,
     raw_candidate_pack_bytes: bytes,
-    record_store: dict[str, dict],
-    hash_manifest: dict[str, str],
+    authority_resolver: _FixtureRecordAuthority,
     review_record_id: str = REVIEW_RECORD_ID,
     owner_decision_id: str = OWNER_DECISION_ID,
     as_of: datetime = AS_OF,
@@ -1518,8 +1858,7 @@ def _validate_external_acceptance(
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=trusted_contract,
         trusted_contract_resolver=None,
-        record_store=record_store,
-        hash_manifest=hash_manifest,
+        authority_resolver=authority_resolver,
         review_record_id=review_record_id,
         owner_decision_id=owner_decision_id,
         as_of=as_of,
@@ -1540,13 +1879,13 @@ def _validate_hypothetical_external_acceptance(
 ) -> None:
     """Exercise frozen hypothetical fixtures without exposing authority injection to consumers."""
     _require_issued_fixture_authority(fixture_contract_authority)
+    authority_resolver = _fixture_record_authority(contract, record_store, hash_manifest)
     _validate_external_acceptance_with_authority(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
         trusted_contract_resolver=fixture_contract_authority,
-        record_store=record_store,
-        hash_manifest=hash_manifest,
+        authority_resolver=authority_resolver,
         review_record_id=review_record_id,
         owner_decision_id=owner_decision_id,
         as_of=as_of,
@@ -1561,7 +1900,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
     assert registry.contains(CONTRACT_SCHEMA_ID)
     assert not registry.contains(LEGACY_GENERIC_PACK_SCHEMA_ID)
     assert contract["status"] == "pending_independent_re_review"
-    assert contract["contract_revision"] == 4
+    assert contract["contract_revision"] == 5
     assert contract["review_gate"]["current_disposition"] == (
         "stop_for_fresh_independent_re_review_and_stephen_acceptance"
     )
@@ -1608,13 +1947,12 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
         blob_bytes = subprocess.check_output(["git", "cat-file", "blob", blob], cwd=ROOT)
         assert hashlib.sha256(blob_bytes).hexdigest() == source["canonical_sha256"]
         assert b"\r" not in blob_bytes
+    current_reference_subjects = _current_reference_subjects(contract)
     for reference in contract["required_pack_contract"]["references"]["exact_reference_rows"]:
-        blob = subprocess.check_output(
-            ["git", "rev-parse", f"HEAD:{reference['repository_path']}"], cwd=ROOT, text=True
-        ).strip()
-        assert blob == reference["git_blob"]
-        blob_bytes = subprocess.check_output(["git", "cat-file", "blob", blob], cwd=ROOT)
-        assert hashlib.sha256(blob_bytes).hexdigest() == reference["canonical_sha256"]
+        assert current_reference_subjects[reference["reference_id"]] == {
+            key: reference[key] for key in ("repository_path", "git_blob", "canonical_sha256")
+        }
+    _validate_reference_semantic_compatibility()
     bound_names = set(contract["validation_bindings"]["durable_test_functions"])
     assert bound_names <= set(globals())
     assert set(contract["validation_bindings"]["task_local_unbound_test_functions"]) <= set(globals())
@@ -2193,12 +2531,13 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
     assert "contract" not in public_acceptance_parameters
     assert "trusted_contract_resolver" not in public_acceptance_parameters
     assert "fixture_contract_authority" not in public_acceptance_parameters
+    assert "record_store" not in public_acceptance_parameters
+    assert "hash_manifest" not in public_acceptance_parameters
     with pytest.raises(CandidatePackError):
         _validate_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
-            record_store=record_store,
-            hash_manifest=hash_manifest,
+            authority_resolver=_fixture_record_authority(eligible_contract, record_store, hash_manifest),
         )
     with pytest.raises(TypeError, match="unexpected keyword argument"):
         caller_controlled_authority = {"trusted_contract_resolver": eligible_contract_resolver}
@@ -2206,8 +2545,7 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
         runtime_public_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
-            record_store=record_store,
-            hash_manifest=hash_manifest,
+            authority_resolver=_fixture_record_authority(eligible_contract, record_store, hash_manifest),
             **caller_controlled_authority,
         )
     tampered_pack = deepcopy(pack)
@@ -2232,10 +2570,11 @@ def test_external_schema_identity_resolves_via_git_object_oracle_across_crlf_and
     _external_schema_artifact.cache_clear()
     schema_document, schema_blob, schema_sha256 = _external_schema_artifact()
     repo_relative_path = _repo_relative_path(CONTRACT_SCHEMA_PATH)
+    current_subject = _resolve_current_repository_subject(CONTRACT_SCHEMA_PATH)
     head_blob = _git_head_blob_id(repo_relative_path)
-    assert schema_blob == head_blob
+    assert schema_blob == current_subject["git_blob"]
+    assert schema_sha256 == current_subject["canonical_sha256"]
     committed_bytes = _git_blob_bytes(head_blob)
-    assert schema_sha256 == hashlib.sha256(committed_bytes).hexdigest()
     assert schema_document["$defs"]["canonicalActorRecord"]["$id"] == ("ars://assurance/records/canonical-actor/1.0")
 
     # A CRLF working-tree variant of this exact LF blob: under `core.autocrlf=true` (the
@@ -2311,16 +2650,10 @@ def test_upstream_contract_and_schema_subjects_resist_stale_foreign_and_coordina
     # cross-checked here against a fully independent, freshly invoked `git` call, so an
     # edit to either committed file (this remediation edits both) changes what both
     # sides compute together rather than leaving a stale hardcoded expectation behind.
-    independent_contract_blob = (
-        subprocess.check_output(["git", "rev-parse", f"HEAD:{_repo_relative_path(CONTRACT_PATH)}"], cwd=ROOT)
-        .decode()
-        .strip()
-    )
-    independent_contract_bytes = subprocess.check_output(
-        ["git", "cat-file", "blob", independent_contract_blob], cwd=ROOT
-    )
+    independent_contract_subject = _resolve_current_repository_subject(CONTRACT_PATH)
+    independent_contract_blob = independent_contract_subject["git_blob"]
     assert real_contract_reference["git_blob"] == independent_contract_blob
-    assert real_contract_reference["canonical_sha256"] == hashlib.sha256(independent_contract_bytes).hexdigest()
+    assert real_contract_reference["canonical_sha256"] == independent_contract_subject["canonical_sha256"]
 
     independent_schema_path = _repo_relative_path(SCHEMAS / "assurance" / "assurance-pack.schema.json")
     independent_schema_blob = (
@@ -2665,3 +2998,163 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
             record_store=foreign_records,
             hash_manifest=foreign_hashes,
         )
+
+
+def test_c1_coordinated_full_store_forgery_cannot_supply_bodies_and_hash_oracle():
+    """Caller-fabricated lifecycle bodies plus matching hashes must never be authority."""
+    contract = _load_yaml(CONTRACT_PATH)
+    pack = _proposed_pack(contract)
+    pack, raw_candidate_pack_bytes, fabricated_store, fabricated_hashes = _external_records(pack, contract)
+    fabricated_snapshot = _authority_snapshot(contract, fabricated_store, fabricated_hashes)
+    parameters = inspect.signature(_validate_external_acceptance).parameters
+    assert "record_store" not in parameters
+    assert "hash_manifest" not in parameters
+
+    with pytest.raises(CandidatePackError, match="trusted authority resolver"):
+        _validate_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            authority_resolver=lambda _phase: fabricated_snapshot,
+        )
+
+
+def test_c2_bare_review_verdict_cannot_replace_canonical_requirement_and_two_key_closure():
+    """Acceptance needs canonical AssuranceRequirement bytes and per-obligation W5 closure."""
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
+    record_store[REVIEW_RECORD_ID]["obligation_evidence_rows"].pop()
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+
+    with pytest.raises(CandidatePackError, match="two-key evidence|invalid independent_pack_review"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    canonical_requirement = record_store[REQUIREMENT_RECORD_ID]["canonical_requirement"]
+    canonical_requirement["requested_risk"] = "R2"
+    canonical_requirement["content_hash"] = _canonical_sha256(
+        {key: value for key, value in canonical_requirement.items() if key != "content_hash"}
+    )
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+    with pytest.raises(
+        CandidatePackError, match="canonical AssuranceRequirement|invalid accepted_assurance_requirement"
+    ):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    record_store[REVIEW_RECORD_ID]["boundary_fixture_execution_rows"].pop()
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+    with pytest.raises(CandidatePackError, match="two-key evidence|invalid independent_pack_review"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_m1_distinct_actor_uuid_and_asserted_i2_fail_without_fresh_task_provenance():
+    """Distinct actors and an asserted grade do not prove a separate review context."""
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
+    record_store[REVIEW_RECORD_ID]["operator_provenance"]["review_task_id"] = PRODUCER_TASK_ID
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+
+    with pytest.raises(CandidatePackError, match="review task provenance"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    record_store[REVIEW_RECORD_ID]["operator_provenance"]["review_session_id"] = PRODUCER_SESSION_ID
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+    with pytest.raises(CandidatePackError, match="review task provenance"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_m2_coordinated_stale_reference_pin_fails_current_snapshot_revalidation():
+    """A contract and candidate cannot jointly replace the current reference oracle."""
+    contract = _eligible_contract()
+    validate_topology = next(
+        row
+        for row in contract["required_pack_contract"]["references"]["exact_reference_rows"]
+        if row["reference_id"] == "skill/validate-topology"
+    )
+    validate_topology["git_blob"] = "f" * 40
+    validate_topology["canonical_sha256"] = "f" * 64
+    contract_resolver = _fixture_contract_authority(contract)
+    _, _, contract_subject = _resolve_contract_authority(contract_resolver)
+    pack = _proposed_pack(contract, contract_subject=contract_subject)
+    pack, raw_candidate_pack_bytes, record_store, hash_manifest = _external_records(pack, contract)
+
+    with pytest.raises(CandidatePackError, match="current reference snapshot"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    current_contract = _eligible_contract()
+    current_contract_resolver = _fixture_contract_authority(current_contract)
+    _, _, current_subject = _resolve_contract_authority(current_contract_resolver)
+    current_pack = _proposed_pack(current_contract, contract_subject=current_subject)
+    current_pack, current_raw, current_records, current_hashes = _external_records(current_pack, current_contract)
+    stable_snapshot = _authority_snapshot(current_contract, current_records, current_hashes)
+    changed_references = deepcopy(stable_snapshot.reference_subjects)
+    changed_references["skill/validate-topology"]["canonical_sha256"] = "e" * 64
+    changed_snapshot = _authority_snapshot(
+        current_contract,
+        current_records,
+        current_hashes,
+        snapshot_id="auth_00000000-0000-7000-8000-000000000002",
+        reference_subjects=changed_references,
+    )
+    for snapshots in (
+        (stable_snapshot, changed_snapshot),
+        (stable_snapshot, stable_snapshot, changed_snapshot),
+    ):
+        with pytest.raises(CandidatePackError, match="authority changed during"):
+            _validate_external_acceptance_with_authority(
+                current_pack,
+                raw_candidate_pack_bytes=current_raw,
+                contract=current_contract,
+                trusted_contract_resolver=current_contract_resolver,
+                authority_resolver=_fixture_record_authority(
+                    current_contract,
+                    current_records,
+                    current_hashes,
+                    snapshots=snapshots,
+                ),
+            )
