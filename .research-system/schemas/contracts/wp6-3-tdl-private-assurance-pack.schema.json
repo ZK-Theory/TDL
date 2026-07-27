@@ -245,7 +245,7 @@
     },
     "externalAcceptanceEvidence": {
       "type": "object",
-      "required": ["required_record_types", "conditionally_required_record_types", "candidate_may_supply_record_bodies", "caller_may_supply_record_hash_oracle", "record_resolution", "authority_root_binding", "authority_resolution_phases", "reference_revalidation", "canonical_assurance_requirement_binding", "two_key_evidence_closure", "required_executed_boundary_fixture_ids", "review_provenance_binding", "canonical_actor_resolution", "pack_review_and_owner_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "required_temporal_order", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence", "hash_validity_alone_is_sufficient"],
+      "required": ["required_record_types", "conditionally_required_record_types", "candidate_may_supply_record_bodies", "caller_may_supply_record_hash_oracle", "record_resolution", "authority_root_binding", "authority_resolution_phases", "reference_revalidation", "canonical_assurance_requirement_binding", "two_key_evidence_closure", "required_executed_boundary_fixture_ids", "review_provenance_binding", "review_provenance_required_record_types", "review_provenance_partial_application", "handoff_binding", "operator_model", "canonical_actor_resolution", "pack_review_and_owner_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "required_temporal_order", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence", "hash_validity_alone_is_sufficient"],
       "properties": {
         "required_record_types": {"$ref": "#/$defs/nonEmptyStrings"},
         "conditionally_required_record_types": {
@@ -278,6 +278,42 @@
           "maxItems": 3
         },
         "review_provenance_binding": {"const": "typed_operators_distinct_task_and_session_stable_handoff_and_fresh_context"},
+        "review_provenance_required_record_types": {
+          "type": "array",
+          "items": {"enum": ["independent_contract_review", "independent_schema_review", "independent_pack_review"]},
+          "uniqueItems": true,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "review_provenance_partial_application": {"const": "prohibited"},
+        "handoff_binding": {"const": "single_stable_handoff_id_shared_by_every_review_provenance_record"},
+        "operator_model": {
+          "type": "object",
+          "required": ["provider_neutral", "governing_authority", "session_family_selection", "allowed_agent_operator_types", "allowed_session_families", "review_operator_must_be_agent_operator_type", "human_owner_may_act_as_review_operator", "provider_specific_constraint_requires_contract_rationale"],
+          "properties": {
+            "provider_neutral": {"const": true},
+            "governing_authority": {"const": "p-042/06g-owner-operated-session-amendment"},
+            "session_family_selection": {"const": "operator_selected"},
+            "allowed_agent_operator_types": {
+              "type": "array",
+              "items": {"enum": ["codex_task_agent", "claude_task_agent"]},
+              "uniqueItems": true,
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "allowed_session_families": {
+              "type": "array",
+              "items": {"enum": ["codex_standalone", "claude_standalone"]},
+              "uniqueItems": true,
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "review_operator_must_be_agent_operator_type": {"const": true},
+            "human_owner_may_act_as_review_operator": {"const": false},
+            "provider_specific_constraint_requires_contract_rationale": {"const": true}
+          },
+          "additionalProperties": false
+        },
         "canonical_actor_resolution": {"const": "every_actor_id_resolves_to_active_canonical_actor_record"},
         "pack_review_and_owner_subject": {"const": "exact_loader_computed_raw_byte_pack_subject"},
         "review_and_owner_decision_subject_must_match": {"const": true},
@@ -517,18 +553,19 @@
       "$id": "ars://assurance/records/independent-contract-review/1.0",
       "x-schema-version": "1.0.0",
       "type": "object",
-      "required": ["record_type", "review_record_id", "contract_subject", "pack_schema_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "verdict", "review_state", "reviewed_at"],
+      "required": ["record_type", "review_record_id", "contract_subject", "pack_schema_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "operator_provenance", "verdict", "review_state", "reviewed_at"],
       "properties": {
         "record_type": {"const": "independent_contract_review"},
         "review_record_id": {"type": "string", "pattern": "^crv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
         "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
-        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "reviewer_actor_id": {"type": "string", "pattern": "^act_"},
-        "author_actor_id": {"type": "string", "pattern": "^act_"},
-        "relationship_record_id": {"type": "string", "pattern": "^rel_"},
+        "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "operator_provenance": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/reviewOperatorProvenance"},
         "verdict": {"const": "pass"},
         "review_state": {"const": "completed"},
         "reviewed_at": {"type": "string", "format": "date-time"}
@@ -539,18 +576,19 @@
       "$id": "ars://assurance/records/independent-schema-review/1.0",
       "x-schema-version": "1.0.0",
       "type": "object",
-      "required": ["record_type", "review_record_id", "pack_schema_subject", "contract_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "verdict", "review_state", "reviewed_at"],
+      "required": ["record_type", "review_record_id", "pack_schema_subject", "contract_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "operator_provenance", "verdict", "review_state", "reviewed_at"],
       "properties": {
         "record_type": {"const": "independent_schema_review"},
         "review_record_id": {"type": "string", "pattern": "^srv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
         "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
-        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "reviewer_actor_id": {"type": "string", "pattern": "^act_"},
-        "author_actor_id": {"type": "string", "pattern": "^act_"},
-        "relationship_record_id": {"type": "string", "pattern": "^rel_"},
+        "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "operator_provenance": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/reviewOperatorProvenance"},
         "verdict": {"const": "pass"},
         "review_state": {"const": "completed"},
         "reviewed_at": {"type": "string", "format": "date-time"}
@@ -567,13 +605,13 @@
         "owner_decision_id": {"type": "string", "pattern": "^csa_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
         "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
-        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "contract_review_record_id": {"type": "string", "pattern": "^crv_"},
+        "contract_review_record_id": {"type": "string", "pattern": "^crv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "contract_review_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "schema_review_record_id": {"type": "string", "pattern": "^srv_"},
+        "schema_review_record_id": {"type": "string", "pattern": "^srv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "schema_review_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "acceptor_actor_id": {"type": "string", "pattern": "^act_"},
+        "acceptor_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "outcome": {"const": "accepted"},
         "decision_state": {"const": "active"},
         "decided_at": {"type": "string", "format": "date-time"}
@@ -644,7 +682,7 @@
       "required": ["actor_id", "operator_type"],
       "properties": {
         "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-        "operator_type": {"enum": ["codex_task_agent", "human_owner"]}
+        "operator_type": {"enum": ["codex_task_agent", "claude_task_agent", "human_owner"]}
       },
       "additionalProperties": false
     },
@@ -659,7 +697,7 @@
         "producer_session_id": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "review_session_id": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "handoff_id": {"type": "string", "pattern": "^hnd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-        "session_family": {"const": "codex_standalone"},
+        "session_family": {"enum": ["codex_standalone", "claude_standalone"]},
         "context_mode": {"const": "fresh_task_no_parent_history"},
         "fork_turns": {"const": "none"}
       },
