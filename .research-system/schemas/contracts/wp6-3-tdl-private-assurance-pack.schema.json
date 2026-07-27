@@ -295,18 +295,18 @@
             "governing_authority": {"const": "p-042/06g-owner-operated-session-amendment"},
             "session_family_selection": {"const": "operator_selected"},
             "allowed_agent_operator_types": {
+              "description": "The agent operator types this contract admits. Neutrality is by configuration: the enum is the governance boundary of recognised types, and the contract selects a non-empty subset of it. No maximum, so admitting a further governance-recognised provider is a contract edit, not a schema edit.",
               "type": "array",
               "items": {"enum": ["codex_task_agent", "claude_task_agent"]},
               "uniqueItems": true,
-              "minItems": 2,
-              "maxItems": 2
+              "minItems": 1
             },
             "allowed_session_families": {
+              "description": "The session families this contract admits, selected from the governance boundary enum. Non-empty, no maximum, for the same reason as allowed_agent_operator_types.",
               "type": "array",
               "items": {"enum": ["codex_standalone", "claude_standalone"]},
               "uniqueItems": true,
-              "minItems": 2,
-              "maxItems": 2
+              "minItems": 1
             },
             "review_operator_must_be_agent_operator_type": {"const": true},
             "human_owner_may_act_as_review_operator": {"const": false},
@@ -678,6 +678,7 @@
       "additionalProperties": false
     },
     "typedOperatorIdentity": {
+      "description": "The full operator vocabulary, including the human owner. Governance boundary for any operator identity; not directly usable as a review operator — see agentOperatorIdentity.",
       "type": "object",
       "required": ["actor_id", "operator_type"],
       "properties": {
@@ -686,12 +687,19 @@
       },
       "additionalProperties": false
     },
+    "agentOperatorIdentity": {
+      "description": "An operator identity restricted to agent operator types. Enforces the contract's review_operator_must_be_agent_operator_type / human_owner_may_act_as_review_operator: false at the schema layer, so a human_owner review operator fails before the validator is reached. Narrows typedOperatorIdentity rather than duplicating it, keeping one definition of the operator shape.",
+      "allOf": [{"$ref": "#/$defs/typedOperatorIdentity"}],
+      "properties": {
+        "operator_type": {"enum": ["codex_task_agent", "claude_task_agent"]}
+      }
+    },
     "reviewOperatorProvenance": {
       "type": "object",
       "required": ["producer_operator", "reviewer_operator", "producer_task_id", "review_task_id", "producer_session_id", "review_session_id", "handoff_id", "session_family", "context_mode", "fork_turns"],
       "properties": {
-        "producer_operator": {"$ref": "#/$defs/typedOperatorIdentity"},
-        "reviewer_operator": {"$ref": "#/$defs/typedOperatorIdentity"},
+        "producer_operator": {"$ref": "#/$defs/agentOperatorIdentity"},
+        "reviewer_operator": {"$ref": "#/$defs/agentOperatorIdentity"},
         "producer_task_id": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "review_task_id": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "producer_session_id": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},

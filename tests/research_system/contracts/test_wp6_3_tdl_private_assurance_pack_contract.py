@@ -904,8 +904,18 @@ def _validate_review_operator_provenance(
     """
     evidence = contract["required_pack_contract"]["external_acceptance_evidence"]
     operator_model = evidence["operator_model"]
-    allowed_operator_types = set(operator_model["allowed_agent_operator_types"])
     allowed_session_families = set(operator_model["allowed_session_families"])
+    # Derive the permitted review-operator types from the contract's own prohibitions rather than
+    # equating them with the agent allowlist. The two are the same set only while
+    # review_operator_must_be_agent_operator_type is true and human_owner is barred; reading the
+    # flags keeps the check correct if either is ever relaxed, instead of silently ignoring them.
+    allowed_operator_types = set(operator_model["allowed_agent_operator_types"])
+    if not operator_model["review_operator_must_be_agent_operator_type"]:
+        allowed_operator_types |= {"human_owner"}
+    if operator_model["human_owner_may_act_as_review_operator"]:
+        allowed_operator_types |= {"human_owner"}
+    elif "human_owner" in allowed_operator_types:
+        allowed_operator_types.discard("human_owner")
     provenance = review["operator_provenance"]
     producer_operator = provenance["producer_operator"]
     reviewer_operator = provenance["reviewer_operator"]
@@ -1510,10 +1520,17 @@ def _coordinate_all_external_hashes(pack: dict, record_store: dict[str, dict]) -
     return raw_candidate_pack_bytes, hash_manifest
 
 
-def _eligible_acceptance_fixture() -> (
-    tuple[dict, ContractAuthorityResolver, dict, bytes, dict[str, dict], dict[str, str]]
-):
-    contract = _eligible_contract()
+def _eligible_acceptance_fixture(
+    contract: dict | None = None,
+) -> tuple[dict, ContractAuthorityResolver, dict, bytes, dict[str, dict], dict[str, str]]:
+    """Build an acceptance fixture, optionally over a caller-narrowed contract.
+
+    `contract` lets a test exercise a configuration the repository contract does not currently
+    declare — e.g. an operator model admitting only one session family — so that a value which is
+    schema-valid but contract-disallowed can reach the validator. It is still schema-validated
+    here and still frozen behind the fixture authority seam.
+    """
+    contract = _eligible_contract() if contract is None else deepcopy(contract)
     _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _validate_pending_reference_relation(contract)
     contract_resolver = _fixture_contract_authority(contract)
@@ -3446,8 +3463,13 @@ def test_review_provenance_accepts_any_contract_allowed_session_family_and_agent
     contract = _eligible_contract()
     operator_model = contract["required_pack_contract"]["external_acceptance_evidence"]["operator_model"]
     assert operator_model["provider_neutral"] is True
-    assert set(operator_model["allowed_session_families"]) == {"codex_standalone", "claude_standalone"}
-    assert set(operator_model["allowed_agent_operator_types"]) == {"codex_task_agent", "claude_task_agent"}
+    assert operator_model["session_family_selection"] == "operator_selected"
+    # Neutrality is by configuration: the contract selects a non-empty subset of the governance
+    # enums. Assert the precondition this control depends on — that Claude is currently admitted —
+    # rather than pinning the allowlists to an exact pair, which would make narrowing the
+    # configuration look like a regression.
+    assert "claude_standalone" in operator_model["allowed_session_families"]
+    assert "claude_task_agent" in operator_model["allowed_agent_operator_types"]
 
     for session_family, operator_type in (
         ("claude_standalone", "claude_task_agent"),
@@ -3470,30 +3492,50 @@ def test_review_provenance_accepts_any_contract_allowed_session_family_and_agent
 
 
 def test_review_operator_outside_the_contract_operator_model_is_rejected():
-    """F-2 control: provider-neutral is not unconstrained, and the validator agrees with the schema.
+    """F-2 control: provider-neutral is not unconstrained, at both enforcement layers.
 
-    `human_owner_may_act_as_review_operator: false` bounds the model. `human_owner` is admitted by
-    the schema enum for other uses, so only the validator can reject it as a review operator —
-    this is the case where the schema and the validator previously disagreed. A session family
-    outside `allowed_session_families` is rejected one layer earlier, by the schema enum itself.
+    Two layers, two distinct controls:
+
+    Schema layer — `agentOperatorIdentity` restricts review operators to agent types, so a
+    `human_owner` review operator and a session family outside the governance enum both fail
+    before the validator runs. This is what reconciles the schema with
+    `human_owner_may_act_as_review_operator: false`; previously the schema admitted `human_owner`
+    in this slot and only the validator objected.
+
+    Validator layer — a value inside the governance enum but outside the *contract's* declared
+    allowlist is schema-valid and can only be caught by the contract-level check. Exercised over a
+    contract narrowed to `codex_standalone`, which is what makes the allowlist meaningful rather
+    than decorative.
     """
-    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
-    record_store[REVIEW_RECORD_ID]["operator_provenance"]["reviewer_operator"]["operator_type"] = "human_owner"
+    for field, value in (
+        ("operator_type", "human_owner"),
+        ("session_family", "gemini_standalone"),
+    ):
+        contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+        provenance = record_store[REVIEW_RECORD_ID]["operator_provenance"]
+        if field == "operator_type":
+            provenance["reviewer_operator"]["operator_type"] = value
+        else:
+            provenance["session_family"] = value
+        raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+        with pytest.raises(CandidatePackError, match="invalid independent_pack_review record"):
+            _validate_hypothetical_external_acceptance(
+                pack,
+                raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+                contract=contract,
+                fixture_contract_authority=contract_resolver,
+                record_store=record_store,
+                hash_manifest=hash_manifest,
+            )
+
+    narrowed = _eligible_contract()
+    narrowed_model = narrowed["required_pack_contract"]["external_acceptance_evidence"]["operator_model"]
+    narrowed_model["allowed_session_families"] = ["codex_standalone"]
+    narrowed_model["allowed_agent_operator_types"] = ["codex_task_agent"]
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture(narrowed)
+    record_store[REVIEW_RECORD_ID]["operator_provenance"]["session_family"] = "claude_standalone"
     raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
     with pytest.raises(CandidatePackError, match="pack review task provenance"):
-        _validate_hypothetical_external_acceptance(
-            pack,
-            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
-            contract=contract,
-            fixture_contract_authority=contract_resolver,
-            record_store=record_store,
-            hash_manifest=hash_manifest,
-        )
-
-    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
-    record_store[REVIEW_RECORD_ID]["operator_provenance"]["session_family"] = "gemini_standalone"
-    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
-    with pytest.raises(CandidatePackError, match="operator_provenance.session_family"):
         _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
