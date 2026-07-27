@@ -1,14 +1,19 @@
 .gitattributes text eol=lf
-.research-system/evals/fixtures/** text eol=lf
-.research-system/evals/p0-variant-matrix.yaml text eol=lf
-.research-system/contracts/wp6-1-owner-source-catalogue.yaml text eol=lf
-.research-system/contracts/wp6-1-schema-identities.yaml text eol=lf
-.research-system/schemas/core/commands/** text eol=lf
-.research-system/schemas/core/events/** text eol=lf
-.research-system/schemas/core/receipt-v2.schema.json text eol=lf
-.research-system/contracts/wp6-2-t2-*.yaml text eol=lf
-.research-system/schemas/contracts/wp6-2-t2-*.schema.json text eol=lf
-.research-system/schemas/wp6-2-t2/** text eol=lf
+
+# The contract system declares `canonical_byte_surface: git_blob_utf8_lf`, and its
+# validators hash or assert working-tree bytes against that surface — WP6.1 rejects
+# non-LF artifacts outright ("artifact must use canonical LF bytes"), while WP6.2 and
+# WP6.3 compare `sha256(bytes)` against pinned `*_lf_sha256` values. On a checkout with
+# `core.autocrlf=true` (the Windows default) git materialises these LF blobs as CRLF, so
+# every such contract fails locally while passing on any LF checkout, including CI.
+#
+# These patterns cover the whole class deliberately. This file was previously grown one
+# path at a time as each work package hit the failure, which left WP6.1's
+# stage1-owner-acceptance-record, all of WP6.2 T3/T4, and all of WP6.3 uncovered — 133
+# failing contract tests from a single unset attribute. Every tracked file under these
+# roots is committed pure-LF and non-binary, so this changes no committed content.
+.research-system/** text eol=lf
+tests/research_system/contracts/** text eol=lf
+
 docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md text eol=lf
 docs/plans/agentic-research-system/handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md text eol=lf
-tests/research_system/contracts/*wp6_2_t2* text eol=lf
