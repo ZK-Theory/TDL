@@ -20,6 +20,9 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 # Overridable so the negative controls can widen or narrow the window.
 DAYS="${HANDOFF_SURFACE_DAYS:-21}"
 MAX="${HANDOFF_SURFACE_MAX:-8}"
+if ! [[ "$DAYS" =~ ^[0-9]+$ && "$MAX" =~ ^[0-9]+$ ]]; then
+  exit 0
+fi
 
 # Validate that DAYS and MAX are non-negative integers; fail open on invalid input.
 if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || ! [[ "$MAX" =~ ^[0-9]+$ ]]; then
