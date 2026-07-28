@@ -578,6 +578,8 @@ The contract system declares `canonical_byte_surface: git_blob_utf8_lf`. WP6.1 r
 - Any new contract root that declares a canonical byte surface gets its `.gitattributes` entry **in the same change as the contract**.
 - **After pulling a change to `.gitattributes`, every existing checkout needs a one-time working-tree refresh** — including the primary checkout and each active worktree. Attributes apply on checkout, so files already on disk keep their CRLF and keep failing until refreshed:
 
+  **WARNING:** This command deletes and re-checks out files. Verify your working tree is clean first (`git status`), or stash/commit any uncommitted changes under `.research-system/` and `tests/research_system/contracts/` — they will otherwise be **silently lost**.
+
   ```bash
   git ls-files -z .research-system tests/research_system/contracts | xargs -0 rm -f && git checkout -- .research-system tests/research_system/contracts
   ```
