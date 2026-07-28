@@ -3,11 +3,15 @@
 > **For the implementing Worker:** use contract-first-tdd,
 > research-assurance-triage, and executing-plans-extras. Write one failing
 > public-seam test before each production change. Read
-> `../handoffs/26-research-system-suite-red-briefing.md` in full before
-> starting — it is the reproduced factual baseline this plan builds on.
+> `../handoffs/26-research-system-suite-red-briefing.md` AND
+> `../handoffs/28-research-system-suite-baseline-inventory.md` in full before
+> starting — 26 is the defect briefing; 28 is the measured full-suite baseline
+> this plan's expected outcomes are stated against.
 
-**Status:** PROPOSED — dispatch blocked on gates G-RM-1, G-RM-2, G-RM-3
-(see rm-00 §3) and on the handoff-26 Defect 1–2 fixes landing on `main`.
+**Status:** PROPOSED, reconciled against handoff 28 on 2026-07-28 — gates
+G-RM-1/G-RM-2 closed (P-043/P-044 in the register) and the Defect 1–2 fixes
+are on `main` (PR #176/#179). Dispatch remains blocked only on G-RM-3
+(independent adversarial review of this plan).
 **Goal:** Make `tests/research_system` green and affordable on `main`; close the
 WP6.1 event-schema currency gap in the direction P-043 fixes (producer emits);
 bring `research_system` into the repo's automated quality accounting; and wire a
@@ -20,21 +24,23 @@ validate the submitted command — computed at submit time from registry state,
 never caller-supplied, never hard-coded.
 **Tech stack:** Python 3.13, frozen dataclasses, jsonschema, pytest, ruff;
 existing `research_system.command` / `research_system.store` modules.
-**Owner authorization:** P-043 (pending formal entry; direction accepted
-2026-07-28). The WP6.1 acceptance record for this repair is written against the
+**Owner authorization:** P-043, entered in the decisions register
+2026-07-28. The WP6.1 acceptance record for this repair is written against the
 WP6.1 catalogue, not the RM lane.
 
 ## Global constraints
 
-- All standing constraints of rm-00 §5 apply.
-- Branch `pipe/rm-01-append-path-currency` from approved `main` **after** the
-  handoff-26 Defect 1–2 fixes are merged. Verify before branching:
-  `git log --oneline -5` must show the schema-registry fix commit. If it has not
-  landed, only Task C (config accounting) may proceed, on its own branch
-  `pipe/rm-01-quality-accounting`; Tasks A/B/D wait.
-- **Do not modify** `research_system/schema_registry.py` (owned by the in-flight
-  handoff-26 agent until its PR merges), the WP6.3 accepted-byte files (rm-00
-  §5.4), or any file under `.research-system/schemas/core/events/` — the
+- All standing constraints of rm-00 §5 apply, with one environment
+  correction from handoff 28: **a fresh worktree `.venv` is an empty stub**
+  and the main-repo interpreter lacks `jsonschema`. Provision the worktree
+  venv with `uv sync --all-extras --no-install-package petls`, then run the
+  suite with `uv run --no-sync`. Do not pipe long background runs through
+  `tail` (output buffers until exit).
+- Branch `pipe/rm-01-append-path-currency` from approved `main`. The Defect
+  1–2 fixes are already on `main` (PR #176/#179); confirm with
+  `git log --oneline -10` before branching.
+- **Do not modify** the WP6.3 accepted-byte files (rm-00
+  §5.4) or any file under `.research-system/schemas/core/events/` — the
   generated schemas are the fixed target, not the adjustable variable. If a
   generated event schema itself proves defective (not merely strict), stop
   Partial and escalate; do not relax it.
@@ -55,7 +61,13 @@ tests/research_system/unit/test_command_service.py
 **Create (Task B):**
 
 ~~~text
-docs/plans/agentic-research-system/implementation/rm-01a-suite-inventory-<date>.md
+docs/plans/agentic-research-system/implementation/rm-01a-post-fix-suite-delta-<date>.md
+~~~
+
+**Modify (Task B, guard refresh per handoff 28):**
+
+~~~text
+tests/research_system/unit/test_release_publication.py   # signature guard: Receipt -> Receipt | T2Receipt
 ~~~
 
 **Modify (Task C):**
@@ -82,10 +94,12 @@ actual seam in the PR description and proceed only if the change stays within
 |---|---|---|---|
 | R1-1 | P-043 / handoff 26 Defect 3 | Producer emits the three `command_schema_*` fields; schemas not relaxed | Task A |
 | R1-2 | handoff 26 | 88 files repo-wide require `command_schema_sha256`; fix must cover every producing path, not just `TaskCreated` | Task A Step 3 sweep + Task D matrix |
-| R1-3 | handoff 26 | Full-suite inventory past test 74 has never been observed; record it once affordable | Task B |
+| R1-3 | handoff 28 | Baseline recorded (1515 tests: 1357 pass, 133 fail, 25 error; 156/158 are Defect 3). Post-fix delta run must confirm all 156 move together; any residue is a distinct defect to isolate early | Task B (rescoped) |
+| R1-3a | handoff 28 §"NOT Defect 3" (2) | Stale signature guard pins `CommandService.submit` return as `Receipt`; actual is `Receipt \| T2Receipt`. Refresh it BEFORE Task A so it is a live gate on the exact method being changed | Task B pre-step, executed before Task A Step 3 |
+| R1-3b | handoff 28 §"NOT Defect 3" (1) | `test_every_core_schema_declares_closed_object_contract` red because `receipt-v2.schema.json` is absent from a hand-written 13-name literal; may be a deliberate unreviewed-schema-addition gate | **Owner decision point** — surface in the PR, do not resolve unilaterally |
 | R1-4 | Report 1 F1-A (verified in pyproject.toml:96,103) | `research_system` absent from coverage and ruff first-party | Task C |
 | R1-5 | Observer log Obs. 137 | Append-path divergence needs a pre-merge signal with a negative control | Task D; gate G-RM-6 for wiring location |
-| R1-6 | rm-00 O-RM-10 | No collision with the in-flight `schema_registry.py` agent | Global constraints |
+| R1-6 | rm-00 O-RM-10 (closed) | The `schema_registry.py` collision constraint is discharged: Defects 1–2 landed via PR #176/#179. The file remains outside this plan's scope on ordinary minimal-change grounds | Historical |
 | R1-7 | Vault discipline | `[PIPELINE]` entry in Pipeline-Overview; session daily note if judgement calls arise | Close-out |
 
 ## Research assurance requirements
@@ -118,10 +132,10 @@ actual seam in the PR description and proceed only if the change stays within
   `command_schema_sha256` matches an independently recomputed hash of the
   registered command schema file. This must fail on current `main` with the
   three-required-properties error quoted in handoff 26.
-- [ ] **Step 2 — Run red.**
+- [ ] **Step 2 — Run red** (worktree venv provisioned per Global constraints).
 
 ~~~powershell
-C:/Users/steph/TDL/.venv/Scripts/python.exe -m pytest -q tests/research_system/unit/test_command_service.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/unit/test_command_service.py -o "addopts=" -p no:cacheprovider -p no:cov
 ~~~
 
   Record the failing assertion. A collection error is not the required red.
@@ -136,18 +150,32 @@ C:/Users/steph/TDL/.venv/Scripts/python.exe -m pytest -q tests/research_system/u
   task, it should collect and run). Record results either way.
 - [ ] **Step 5 — Commit.** Subject: `[PIPELINE] P00: emit command-schema identity on the append path (P-043)`.
 
-## Task B: Full-suite inventory (first-ever complete run)
+## Task B: Signature-guard refresh, then post-fix delta run
 
-- [ ] Run the entire `tests/research_system` tree to completion with the
-  handoff-26 direct-interpreter command; use `run_in_background`/checkpointed
-  logging, expect >1 h even after the N+1 fix.
-- [ ] Write `rm-01a-suite-inventory-<YYYY-MM-DD>.md`: pass/fail/error per
-  module, durations, and a defect list with one-line reproductions. Every
-  still-red test gets a disposition: fixed here (only if trivially within Task
-  A's seam), filed as a named follow-up, or explained.
-- [ ] This inventory is evidence, not a gate: RM-01 closes with the inventory
-  *recorded*, not necessarily all-green; remaining reds become owner-visible
-  follow-ups in the PR description and the README row.
+The first-ever complete baseline already exists: handoff 28 (tree `97f447f`,
+1:12:45 wall clock, 1515 tests, every non-pass attributed). Do not re-derive
+it. This task's job is the *delta* against that baseline.
+
+- [ ] **Pre-step (before Task A Step 3, per R1-3a):** update the stale
+  signature guard at `test_release_publication.py` (handoff 28 cites line
+  ~956) from `'Receipt'` to the intended `'Receipt | T2Receipt'` annotation,
+  so it guards `CommandService.submit` live during Task A instead of being
+  known-noise. One-line change; commit with Task A or separately.
+- [ ] After Task A is green: run the full `tests/research_system` tree with
+  the handoff-28 command (`uv run --no-sync python -m pytest
+  tests/research_system -q -o "addopts=" -p no:cacheprovider -p no:cov
+  --no-header -rf --durations=15`), in the provisioned worktree venv,
+  `run_in_background` with file logging (not piped through `tail`); expect
+  roughly an hour.
+- [ ] Write `rm-01a-post-fix-suite-delta-<YYYY-MM-DD>.md` against the
+  handoff-28 baseline: handoff 28 predicts **all 156 Defect-3 cases move
+  together**. Expected end state: 156 flipped green; R1-3a green after the
+  pre-step; R1-3b (`receipt-v2` enumeration) still red pending the owner
+  decision. Any test red outside that prediction is a distinct defect —
+  isolate and file it as a named follow-up, do not fold it into Task A.
+- [ ] The delta record is evidence, not a gate: RM-01 closes with it recorded;
+  R1-3b and any newly isolated defects become owner-visible follow-ups in the
+  PR description and the README row.
 
 ## Task C: Quality accounting
 
@@ -178,7 +206,8 @@ C:/Users/steph/TDL/.venv/Scripts/python.exe -m pytest -q tests/research_system/u
 - Update the lane row in `docs/plans/agentic-research-system/README.md` (RM-01
   status) in the same PR (O-RM-18).
 - Vault: top-of-page `[PIPELINE]` entry in `04-Methods/Pipeline-Overview.md`
-  naming P-043, the seam, and the inventory location; Computational-Log entry
-  not required (no numerical result).
-- PR description lists: actual seam found, sweep results, inventory summary,
-  remaining reds with dispositions.
+  naming P-043, the seam, and the delta-record location; Computational-Log
+  entry not required (no numerical result).
+- PR description lists: actual seam found, sweep results, delta summary vs the
+  handoff-28 baseline, the R1-3b owner decision point, and any newly isolated
+  defects with dispositions.
