@@ -163,6 +163,54 @@ def test_listing_is_capped(tmp_path):
     assert sum(1 for line in result.stdout.splitlines() if line.startswith("  - ")) == 2
 
 
+# Both values contain an 8, which is not an octal digit, so each genuinely
+# distinguishes decimal parsing from octal. A value like "007" would not: it is
+# valid octal and equals 7 either way, so it could never fail.
+@pytest.mark.parametrize("days", ["08", "0008"])
+def test_zero_padded_window_is_read_as_decimal(tmp_path, days):
+    """Regression: a leading zero must not be parsed as octal.
+
+    Shell arithmetic reads ``08`` as a malformed octal literal, which aborted
+    with "value too great for base", left ``$cutoff`` unset, and surfaced
+    nothing -- while still exiting 0, so the hook looked healthy and simply
+    stopped delivering. A plausible override silently disabling the gate is the
+    exact silent-absence mode this hook exists to close.
+    """
+    repo = _repo(tmp_path)
+    _write_handoff(repo, "26-briefing.md", "Suite is red", "somebody")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "add handoff")
+
+    result = _run(repo, HANDOFF_SURFACE_DAYS=days)
+
+    assert result.returncode == 0
+    assert "26-briefing.md" in result.stdout
+    assert "value too great for base" not in result.stderr
+    assert "unbound variable" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("HANDOFF_SURFACE_DAYS", "9" * 20), ("HANDOFF_SURFACE_MAX", "9" * 20)],
+)
+def test_oversized_override_is_rejected_rather_than_overflowing(tmp_path, name, value):
+    """An unbounded value overflows 64-bit arithmetic and inverts the window.
+
+    Before the digit cap, a huge DAYS wrapped the cutoff negative, so every
+    handoff ever written counted as recent -- the filter silently reversed
+    rather than failing.
+    """
+    repo = _repo(tmp_path)
+    _write_handoff(repo, "26-briefing.md", "Suite is red", "somebody")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "add handoff")
+
+    result = _run(repo, **{name: value})
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == ""
+
+
 def test_hook_never_blocks_on_a_broken_repository(tmp_path):
     """Fail-open: advisory hooks must not be able to stop a session starting."""
     missing = tmp_path / "does-not-exist"

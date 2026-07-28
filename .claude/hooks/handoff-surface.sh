@@ -20,14 +20,20 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 # Overridable so the negative controls can widen or narrow the window.
 DAYS="${HANDOFF_SURFACE_DAYS:-21}"
 MAX="${HANDOFF_SURFACE_MAX:-8}"
-if ! [[ "$DAYS" =~ ^[0-9]+$ && "$MAX" =~ ^[0-9]+$ ]]; then
+
+# Digit caps bound the values before any arithmetic: an unbounded integer
+# overflows the 64-bit shell arithmetic below, wrapping the cutoff negative so
+# every handoff ever written is "recent". Six digits is ~2700 years of window.
+if ! [[ "$DAYS" =~ ^[0-9]{1,6}$ ]] || ! [[ "$MAX" =~ ^[0-9]{1,4}$ ]]; then
   exit 0
 fi
 
-# Validate that DAYS and MAX are non-negative integers; fail open on invalid input.
-if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || ! [[ "$MAX" =~ ^[0-9]+$ ]]; then
-  exit 0
-fi
+# Normalise as explicit base 10. Arithmetic contexts read a leading zero as
+# octal, so a plausible override like DAYS=08 is not merely mis-parsed -- it
+# aborts with "value too great for base", leaves $cutoff unset, and silently
+# surfaces nothing while still exiting 0.
+DAYS=$((10#$DAYS))
+MAX=$((10#$MAX))
 
 # -mtime is a poor proxy for "recent" after a fresh clone or a worktree add,
 # both of which reset mtimes wholesale. Prefer git's own last-commit date and
