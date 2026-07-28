@@ -39,13 +39,13 @@ def emit(decision, reason=None):
     print(json.dumps({'hookSpecificOutput': out}))
     sys.exit(0)
 
-# Normalise Windows separators so the path segment match is separator-agnostic.
+# Normalise Windows separators so the .claude/skills/ segment match below is
+# separator-agnostic.
 norm = fp.replace('\\\\', '/')
 
 project_dir = os.environ.get('CLAUDE_PROJECT_DIR', '')
-project_norm = project_dir.replace('\\\\', '/').rstrip('/')
 
-if not project_norm:
+if not project_dir:
     # Can't scope the check without a project root. Raise rather than silently
     # emit('allow') here: the outer '2>/dev/null || { ... }' wrapper below would
     # swallow a stderr message printed from inside this process, so the only way
@@ -53,9 +53,25 @@ if not project_norm:
     # fail-open fallback (which prints to stderr unconditionally) fire instead.
     raise RuntimeError('CLAUDE_PROJECT_DIR is not set — cannot scope the mirror-tree check')
 
-# Only a path inside THIS project (main checkout or a linked worktree under it,
-# e.g. .apm/worktrees/<wt>/) can be the Claude-side mirror tree obs 127 is about.
-in_project = norm == project_norm or norm.startswith(project_norm + '/')
+# Containment via realpath+commonpath, not a string prefix: a lexical compare
+# misses Windows case-insensitivity and '..'/'.'-segments, which would produce
+# a FALSE NEGATIVE (a real mirror-tree edit reading as 'outside the project'
+# and slipping through) — the dangerous direction, unlike obs 127's original
+# false-positive bug. os.path.normcase folds case and separators on Windows.
+def _canon(p):
+    return os.path.normcase(os.path.realpath(p)) if p else ''
+
+real_project = _canon(project_dir)
+real_fp = _canon(fp)
+
+in_project = False
+if real_fp:
+    try:
+        in_project = os.path.commonpath([real_project, real_fp]) == real_project
+    except ValueError:
+        # Different drives (Windows) or an absolute/relative mismatch — treat
+        # as outside the project rather than raising.
+        in_project = False
 
 if in_project and re.search(r'(^|/)\.claude/skills/', norm):
     emit('deny',

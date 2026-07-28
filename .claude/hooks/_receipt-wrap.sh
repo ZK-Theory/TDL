@@ -39,16 +39,21 @@ except Exception:
 " 2>/dev/null)
 
 STDERR_FILE=$(mktemp 2>/dev/null) || STDERR_FILE=""
+STDERR_CAPTURED=1
 if [ -n "$STDERR_FILE" ]; then
   OUTPUT=$(printf '%s' "$INPUT" | "$HOOK_SCRIPT" 2>"$STDERR_FILE")
   STATUS=$?
   STDERR_CONTENT=$(cat "$STDERR_FILE" 2>/dev/null)
   rm -f "$STDERR_FILE" 2>/dev/null
 else
-  # mktemp unavailable — still run the hook, just without stderr capture.
+  # mktemp unavailable — we can still run the hook, but with stderr discarded
+  # we lose the only signal ("FAILING OPEN") that distinguishes a checked
+  # decision from the wrapped hook's own fail-open. Don't silently trust an
+  # unexamined allow in that case — flag it as failed-open below instead.
   OUTPUT=$(printf '%s' "$INPUT" | "$HOOK_SCRIPT" 2>/dev/null)
   STATUS=$?
   STDERR_CONTENT=""
+  STDERR_CAPTURED=0
 fi
 
 # A hook that hit its own internal fallback prints "FAILING OPEN" to stderr
@@ -56,6 +61,8 @@ fi
 # is the only signal distinguishing a checked "allow" from an unchecked one.
 if [ $STATUS -ne 0 ] || printf '%s' "$STDERR_CONTENT" | grep -q 'FAILING OPEN'; then
   DECISION="FAILOPEN(exit=$STATUS)"
+elif [ "$STDERR_CAPTURED" -eq 0 ]; then
+  DECISION="FAILOPEN(stderr-unavailable)"
 else
   # Parse as JSON rather than grep/sed — json.dumps() inserts a space after
   # each colon ("permissionDecision": "deny"), which a naive no-space grep
@@ -72,9 +79,15 @@ except Exception:
   [ -z "$DECISION" ] && DECISION="FAILOPEN(no-decision-in-output)"
 fi
 
+# Strip embedded CR/LF from the file path before it goes into a one-line
+# receipt record — an unsanitised newline would split the record across
+# lines (or forge a fake-looking second entry) in a log meant to be one
+# invocation per line.
+FILE_PATH_SAFE=$(printf '%s' "$FILE_PATH" | tr -d '\r\n')
+
 {
   printf '%s hook=%s decision=%s file=%s\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HOOK_NAME" "$DECISION" "$FILE_PATH" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HOOK_NAME" "$DECISION" "$FILE_PATH_SAFE" \
     >> "$LOG"
 } 2>/dev/null || true
 
