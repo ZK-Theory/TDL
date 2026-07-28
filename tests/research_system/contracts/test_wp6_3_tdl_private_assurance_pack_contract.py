@@ -860,6 +860,32 @@ def _proposed_pack(contract: dict | None = None, *, contract_subject: dict | Non
     }
 
 
+def _assert_test_surface_closure(bindings: dict) -> None:
+    """Assert the contract's declared test surface is closed over this module's test functions.
+
+    Closed, not subset. A subset assertion only proves every declared name exists; it accepts
+    silent shrinkage of the declared enforcement surface, so a control could be deleted — or added
+    and never declared — with no contract-level signal. Requiring equality with the module's actual
+    test surface makes both directions fail closed.
+
+    Shared by the strict-pending contract test and the dedicated closure test so the two cannot
+    drift apart; both pass `contract["validation_bindings"]`.
+    """
+    bound_names = set(bindings["durable_test_functions"])
+    task_local_names = set(bindings["task_local_unbound_test_functions"])
+    assert bound_names <= set(globals())
+    assert task_local_names <= set(globals())
+    assert not bound_names & task_local_names
+    assert bindings["binding_closure"] == "every_defined_test_function_is_declared_durable_or_task_local"
+    defined_test_functions = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
+    declared_test_functions = bound_names | task_local_names
+    assert defined_test_functions == declared_test_functions, (
+        "declared test surface differs from the module's defined test functions: "
+        f"undeclared={sorted(defined_test_functions - declared_test_functions)}, "
+        f"declared-but-absent={sorted(declared_test_functions - defined_test_functions)}"
+    )
+
+
 def _review_operator_provenance(
     *,
     producer_actor_id: str,
@@ -990,6 +1016,12 @@ def _validate_proposed_pack_with_authority(
         raise CandidatePackError("reference ID closure differs from the independent fixture")
     # Bind the declared per-kind reference counts. Previously read by nothing, so the contract could
     # claim 6 and 6 while carrying any number.
+    #
+    # Per-entry reference_kind is deliberately not re-checked here: the pack schema already
+    # constrains each list to its own kind, and more strictly than a kind comparison would — it
+    # pins reference_kind, the reference_id pattern, the repository_path pattern, and
+    # activation_state per list, and rejects a swap before this validator runs. A duplicate check
+    # here would be unreachable, so it could never be given a watched negative.
     references_contract = contract["required_pack_contract"]["references"]
     if len(pack["references"]["contract_references"]) != references_contract["required_contract_reference_count"]:
         raise CandidatePackError("contract reference count differs from the declared requirement")
@@ -2176,23 +2208,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
             key: reference[key] for key in ("repository_path", "git_blob", "canonical_sha256")
         }
     _validate_reference_semantic_compatibility(contract)
-    bindings = contract["validation_bindings"]
-    bound_names = set(bindings["durable_test_functions"])
-    task_local_names = set(bindings["task_local_unbound_test_functions"])
-    assert bound_names <= set(globals())
-    assert task_local_names <= set(globals())
-    assert not bound_names & task_local_names
-    # Closed, not subset. A subset assertion only proves every declared name exists; it accepts
-    # silent shrinkage of the declared enforcement surface, so a control could be deleted — or
-    # added and never declared — with no contract-level signal. Requiring equality with the
-    # module's actual test surface makes both directions fail closed.
-    assert bindings["binding_closure"] == "every_defined_test_function_is_declared_durable_or_task_local"
-    defined_test_functions = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
-    assert defined_test_functions == bound_names | task_local_names, (
-        "declared test surface differs from the module's defined test functions: "
-        f"undeclared={sorted(defined_test_functions - (bound_names | task_local_names))}, "
-        f"declared-but-absent={sorted((bound_names | task_local_names) - defined_test_functions)}"
-    )
+    _assert_test_surface_closure(contract["validation_bindings"])
     _assert_all_object_schemas_are_closed(_load_json(SCHEMAS / "assurance" / "assurance-pack.schema.json"))
     _assert_all_object_schemas_are_closed(
         _load_json(SCHEMAS / "contracts" / "wp6-3-tdl-private-assurance-pack.schema.json")
@@ -3797,12 +3813,7 @@ def test_declared_test_surface_is_closed_not_merely_a_subset():
     """
     contract = _load_yaml(CONTRACT_PATH)
     bindings = contract["validation_bindings"]
-    assert bindings["binding_closure"] == "every_defined_test_function_is_declared_durable_or_task_local"
-    declared = set(bindings["durable_test_functions"]) | set(bindings["task_local_unbound_test_functions"])
-    defined = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
-    assert (
-        defined == declared
-    ), f"undeclared={sorted(defined - declared)}, declared-but-absent={sorted(declared - defined)}"
+    _assert_test_surface_closure(bindings)
     # The controls closing this round's findings are on the durable surface, not merely present.
     for control in (
         "test_review_provenance_is_required_on_every_review_record_type",
