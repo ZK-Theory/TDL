@@ -21,6 +21,11 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 DAYS="${HANDOFF_SURFACE_DAYS:-21}"
 MAX="${HANDOFF_SURFACE_MAX:-8}"
 
+# Validate that DAYS and MAX are non-negative integers; fail open on invalid input.
+if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || ! [[ "$MAX" =~ ^[0-9]+$ ]]; then
+  exit 0
+fi
+
 # -mtime is a poor proxy for "recent" after a fresh clone or a worktree add,
 # both of which reset mtimes wholesale. Prefer git's own last-commit date and
 # fall back to mtime only when git is unavailable.

@@ -41,7 +41,10 @@ def construction_count(monkeypatch):
         original(self, root)
 
     monkeypatch.setattr(SchemaRegistry, "__init__", counting_init)
-    return calls
+    try:
+        yield calls
+    finally:
+        schema_registry_module._registry_for_resolved_root.cache_clear()
 
 
 def test_coverage_load_does_not_rebuild_the_registry_per_fixture(construction_count):
@@ -59,9 +62,9 @@ def test_coverage_load_does_not_rebuild_the_registry_per_fixture(construction_co
     """
     load_p0_coverage(COVERAGE, fixture_root=FIXTURES, schema_root=SCHEMAS)
 
-    assert construction_count["n"] <= MAX_REGISTRY_CONSTRUCTIONS, (
+    assert 1 <= construction_count["n"] <= MAX_REGISTRY_CONSTRUCTIONS, (
         f"{construction_count['n']} SchemaRegistry constructions for "
-        f"{len(FOUNDATION_CASES)} fixtures; expected at most "
+        f"{len(FOUNDATION_CASES)} fixtures; expected at least 1 and at most "
         f"{MAX_REGISTRY_CONSTRUCTIONS}. A per-fixture rebuild has returned."
     )
 
