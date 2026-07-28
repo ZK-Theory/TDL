@@ -1,9 +1,9 @@
 # RM-00: Research Methods Lane — Master Plan
 
-**Status:** PROPOSED — pending (1) Stephen's acceptance of the P-043/P-044 decision
-entries drafted in `../proposals/rm-decision-entry-drafts-2026-07-28.md` and (2) an
-independent adversarial review of this suite. No task in this lane may be dispatched
-before both. This document confers no runtime, provider, migration, pilot, result, or
+**Status:** ACCEPTED FOR PLANNING — P-043 and P-044 entered in the decisions register
+by Stephen's instruction on 2026-07-28 (gates G-RM-1 and G-RM-2 closed). Dispatch of
+each plan remains blocked on its independent adversarial review (gate G-RM-3) and, for
+RM-01, on the handoff-26 Defect 1–2 fixes landing. This document confers no runtime, provider, migration, pilot, result, or
 claim authority.
 **Created:** 2026-07-28
 **Supersedes for execution:** `../proposals/research-methods-integration-plan-2026-07-28.md`

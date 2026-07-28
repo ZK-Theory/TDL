@@ -1,9 +1,9 @@
 # Draft decision entries: P-043 and P-044 (Research Methods lane)
 
 **Created:** 2026-07-28
-**Status:** DRAFT for Stephen. These are proposed register texts. They take
-effect only when Stephen adds them (verbatim or edited) to
-`../03-decisions-and-open-questions.md`; this file itself decides nothing.
+**Status:** EXECUTED — Stephen accepted the proposal on 2026-07-28 and both entries
+were added to `../03-decisions-and-open-questions.md` on his instruction the same day.
+Retained as drafting provenance; the register is the authority.
 The in-conversation acceptances of D-1/D-2/D-3 on 2026-07-28 are the basis;
 these drafts convert them into durable register entries per the folder's
 change discipline ("Planning decisions are recorded in
