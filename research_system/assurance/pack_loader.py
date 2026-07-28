@@ -202,6 +202,32 @@ def _parse_candidate(raw_candidate_pack_bytes: bytes) -> dict:
     return parsed
 
 
+def _require_key(mapping: object, key: str, label: str) -> object:
+    """Read a required key, failing closed instead of leaking ``KeyError``.
+
+    The candidate's own fields are guaranteed by the pack schema, so they are read
+    directly. These are the contract-derived and resolver-derived reads, which a revised
+    contract or a malformed resolver response can omit — and an escaping ``KeyError``
+    would break the documented ``PackUnconsumable``-only failure surface.
+
+    Args:
+        mapping: Value expected to be a mapping.
+        key: Required key.
+        label: Human-readable location used in failure messages.
+
+    Returns:
+        The value at ``key``.
+
+    Raises:
+        PackUnconsumable: If the value is not a mapping or the key is absent.
+    """
+    if not isinstance(mapping, Mapping):
+        raise PackUnconsumable(f"{label} is not a mapping")
+    if key not in mapping:
+        raise PackUnconsumable(f"{label} does not declare {key}")
+    return mapping[key]
+
+
 def _parse_timestamp(value: str, label: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -273,6 +299,8 @@ def _resolve_records(
     Raises:
         PackUnconsumable: If any record is missing, foreign, inactive, or unstable across phases.
     """
+    if not isinstance(required_classes, (list, tuple)) or not all(isinstance(c, str) for c in required_classes):
+        raise PackUnconsumable("contract does not declare required_record_types as a list of record classes")
     missing = [record_class for record_class in required_classes if record_class not in opaque_external_record_ids]
     if missing:
         raise PackUnconsumable(f"no external record id supplied for required classes: {sorted(missing)}")
@@ -346,8 +374,9 @@ def _require_subject_bound_lifecycle(
     Raises:
         PackUnconsumable: If either decision binds a different subject or the order inverts.
     """
-    review = resolved["independent_pack_review"]
-    owner = resolved["stephen_owner_acceptance"]
+    review = _require_key(resolved, "independent_pack_review", "resolved external records")
+    owner = _require_key(resolved, "stephen_owner_acceptance", "resolved external records")
+    review_record_id = _require_key(opaque_external_record_ids, "independent_pack_review", "opaque external record ids")
     expected = {
         "pack_git_blob": subject.pack_git_blob,
         "pack_raw_sha256": subject.pack_raw_sha256,
@@ -358,7 +387,7 @@ def _require_subject_bound_lifecycle(
         observed = record.get("subject")
         if not isinstance(observed, Mapping) or any(observed.get(key) != value for key, value in expected.items()):
             raise PackUnconsumable(f"{label} binds a different subject than the loader computed")
-    if owner.get("review_record_id") != opaque_external_record_ids["independent_pack_review"]:
+    if owner.get("review_record_id") != review_record_id:
         raise PackUnconsumable("owner acceptance does not bind the resolved independent pack review")
 
     reviewed_at = _parse_timestamp(str(review.get("decided_at")), "independent pack review decided_at")
@@ -408,7 +437,7 @@ def validate_tdl_private_pack_for_acceptance(
     )
     _accepted_repository_artifact(_PACK_SCHEMA_PATH, accepted_schema_subject, "pack schema")
     contract = yaml.safe_load(contract_bytes.decode("utf-8"))
-    required = contract["required_pack_contract"]
+    required = _require_key(contract, "required_pack_contract", "upstream contract")
 
     pack = _parse_candidate(raw_candidate_pack_bytes)
 
@@ -422,15 +451,18 @@ def validate_tdl_private_pack_for_acceptance(
 
     _revalidate_references(pack, current_exact_reference_snapshot)
 
-    evidence = required["external_acceptance_evidence"]
+    evidence = _require_key(required, "external_acceptance_evidence", "upstream contract")
+    required_record_types = _require_key(evidence, "required_record_types", "external acceptance evidence")
     resolved = _resolve_records(
-        evidence["required_record_types"],
+        required_record_types,
         opaque_external_record_ids,
         trusted_w1_w2_content_addressed_authority_resolver,
         independently_supplied_authority_root,
     )
-    _require_registered_object(resolved["registered_pack_object"], pack)
-    _require_accepted_requirement(resolved["accepted_assurance_requirement"], pack)
+    _require_registered_object(_require_key(resolved, "registered_pack_object", "resolved external records"), pack)
+    _require_accepted_requirement(
+        _require_key(resolved, "accepted_assurance_requirement", "resolved external records"), pack
+    )
 
     currency = pack["currency"]
     authored_at = _parse_timestamp(currency["authored_at"], "authored_at")

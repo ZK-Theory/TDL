@@ -1897,12 +1897,13 @@ def _validate_external_acceptance_with_authority(
     )
     # As above: `boundaryFixtureExecutionRow` pins execution_status, expected_outcome,
     # observed_outcome, and both key statuses as consts, so only the fixture-id set is
-    # checkable here.
-    if set(fixture_rows) != {
-        "apf_tested_object_no_op",
-        "apf_degenerate_fallback",
-        "apf_claim_escalation",
-    }:
+    # checkable here. Derive that set from the contract's own declaration rather than
+    # restating it: this was the third copy the boundary-set agreement check above exists
+    # to protect, and a literal here would be the one copy nothing compares.
+    declared_boundary_fixture_ids = contract["required_pack_contract"]["external_acceptance_evidence"][
+        "required_executed_boundary_fixture_ids"
+    ]
+    if set(fixture_rows) != set(declared_boundary_fixture_ids):
         raise CandidatePackError("two-key evidence lacks executed boundary fixtures")
     expected_two_key_root = _two_key_closure_sha256(review)
     if (

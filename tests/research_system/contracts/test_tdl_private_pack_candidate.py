@@ -30,6 +30,7 @@ from research_system.assurance import (
     git_blob_id,
     validate_tdl_private_pack_for_acceptance,
 )
+from research_system.assurance.pack_loader import _require_key
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -563,6 +564,21 @@ def test_loader_revalidates_every_reference_against_the_current_snapshot(contrac
             **_loader_kwargs(pack, raw, contract, current_exact_reference_snapshot=absent)
         )
 
+    # The inverse direction: a reference active in the current snapshot that the candidate
+    # never pinned. Without this the candidate could silently under-declare the governed set.
+    widened = _reference_snapshot(pack) | {
+        "contract/unpinned/added-after-authoring": {
+            "git_blob": "6" * 40,
+            "canonical_sha256": "6" * 64,
+            "activation_state": "active",
+            "pack_acceptance_eligible": True,
+        }
+    }
+    with pytest.raises(PackUnconsumable, match="references the candidate omits"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, current_exact_reference_snapshot=widened)
+        )
+
 
 def test_loader_requires_every_declared_external_record_class(contract, candidate):
     pack, raw = candidate
@@ -709,9 +725,28 @@ def test_loader_fails_closed_on_inverted_or_expired_currency(contract, candidate
         validate_tdl_private_pack_for_acceptance(**_loader_kwargs(inverted, raw_inverted, contract))
 
     _, raw = candidate
-    expired_at = _load_yaml(CONTRACT_PATH) and EVALUATION_TIME + timedelta(days=400)
+    expired_at = EVALUATION_TIME + timedelta(days=400)
     with pytest.raises(PackUnconsumable, match="not current at the evaluation time"):
         validate_tdl_private_pack_for_acceptance(**_loader_kwargs(pack, raw, contract, evaluation_time=expired_at))
+
+
+def test_missing_contract_or_record_keys_fail_closed_rather_than_raising_keyerror():
+    """`PackUnconsumable` is documented as the only failure mode; a bare KeyError breaks that.
+
+    These guards are not reachable through the entry point against the currently accepted
+    contract — its bytes are pinned by hash, so the keys are always present. They become
+    reachable across a contract revision, which the contract itself provides for
+    (`supersession_is_immutable`, `durable_states` including `superseded`). Tested directly
+    on the helper for that reason, rather than by feeding the entry point a contract it
+    would reject earlier for the wrong reason.
+    """
+    assert _require_key({"present": 1}, "present", "label") == 1
+
+    with pytest.raises(PackUnconsumable, match="does not declare absent"):
+        _require_key({"present": 1}, "absent", "upstream contract")
+    for not_a_mapping in (None, [], "text", 7):
+        with pytest.raises(PackUnconsumable, match="is not a mapping"):
+            _require_key(not_a_mapping, "any", "resolved external records")
 
 
 def test_loader_requires_a_timezone_aware_evaluation_time(contract, candidate):
