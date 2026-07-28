@@ -44,7 +44,7 @@ Add a machine-checkable state manifest to task prompts and extend
 **Required controls:** existing-deliverable, missing-contract, wrong-root, and
 gitignored-output fixtures.
 
-**Decision requested:** `[ ] APPROVE BLOCKING GATE` · `[ ] APPROVE WARNING FIRST`
+**Decision (2026-07-28, Stephen):** `[ ] APPROVE BLOCKING GATE` · `[x] APPROVE WARNING FIRST`
 · `[ ] DEFER`
 
 ### D2 — Approve collision-resistant observation IDs
@@ -58,7 +58,7 @@ and 85; `max+1` is not concurrency-safe.
 new observations use a timestamp/ULID identifier; historical integer IDs remain
 unchanged and receive suffix annotations only where ambiguity matters.
 
-**Decision requested:** `[ ] APPROVE ULID/TIMESTAMP` · `[ ] REQUIRE LOCKING HELPER`
+**Decision (2026-07-28, Stephen):** `[x] APPROVE ULID/TIMESTAMP` · `[ ] REQUIRE LOCKING HELPER`
 · `[ ] DEFER`
 
 ### D3 — Approve a merge-seam gate
@@ -71,7 +71,7 @@ unchanged and receive suffix annotations only where ambiguity matters.
 The lowest-cost starting point is requiring branches to be current with `main`
 before merge; the strongest option is a merge queue/prospective-merge test.
 
-**Decision requested:** `[ ] REQUIRE UP-TO-DATE BRANCH` · `[ ] MERGE QUEUE`
+**Decision (2026-07-28, Stephen):** `[x] REQUIRE UP-TO-DATE BRANCH` · `[ ] MERGE QUEUE`
 · `[ ] MAIN-PUSH DETECTION ONLY` · `[ ] DEFER`
 
 ### D4 — Approve controls for the two unwatched hook gates
@@ -89,8 +89,41 @@ negative controls and durable evidence that configuration became execution.
   linked-worktree prefixes, and malformed-input fail-open; retain a bounded
   execution receipt in the hook harness.
 
-**Decision requested:** `[ ] APPROVE BOTH` · `[ ] TESTS ONLY, NO RECEIPTS`
+**Decision (2026-07-28, Stephen):** `[x] APPROVE BOTH` · `[ ] TESTS ONLY, NO RECEIPTS`
 · `[ ] DEFER`
+
+## Decisions recorded — 2026-07-28
+
+All four decisions are made; implementation is now four separate bounded tasks,
+none of them started.
+
+| | Decision | Rationale |
+|---|---|---|
+| D1 | **Warning first** | Five new checks straight to blocking would halt legitimate dispatches before any false-positive evidence exists. Promote to blocking once the warning stream is clean. |
+| D2 | **ULID/timestamp** | Removes the race rather than coordinating around it. |
+| D3 | **Require up-to-date branch** | Lowest-cost option available immediately as branch protection. A merge queue would cost a suite run per merge — currently 72 minutes for `tests/research_system` alone. |
+| D4 | **Approve both** | Receipts are what distinguish "configured" from "executed", which is the gap that let a hook sit in `.git/hooks` for 47 days doing nothing. |
+
+### Evidence added since the review
+
+- **D2 is not confined to the observation log.** On 2026-07-28 a handoff was
+  written as `27-…` while `27-wp6-3-pack-implementation-brief.md` already
+  existed on `main`; the collision was caught by chance and renumbered to 28.
+  Whatever identifier scheme is adopted should cover handoff numbering too.
+- **D4 has a live instance.** `install-git-hooks.py`, one of the two gates in
+  scope, crashes when run from a linked worktree: it derives paths from
+  `REPO_ROOT` while `core.hooksPath` points into the main checkout, raising
+  `ValueError: '…\.githooks\pre-commit' is not in the subpath of
+  '…worktrees\<name>'`. The hooks themselves run correctly — verified by
+  actual commits — but the verifier that exists to prove liveness cannot run
+  from a worktree, which is where much of the work happens. Worth folding into
+  the D4 fixture set as a path-resolution control.
+
+### Not covered by this report
+
+Observations 133–136 were logged on 2026-07-28, after the review ran.
+135 and 133 are implemented in PR #181; 134 in PRs #176 and #179; 136
+(a hand-enumerated schema set that went stale) is open and unassigned.
 
 ## Verify and close before designing more work
 
