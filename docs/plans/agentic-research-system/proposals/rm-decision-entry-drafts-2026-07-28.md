@@ -15,7 +15,8 @@ specification").
 ## Proposed entry: P-043 — WP6.1 event-schema currency: producer emits
 
 **Date:** 2026-07-28<br>
-**Status:** PROPOSED (drafted by agent; awaiting Stephen's register entry)<br>
+**Status:** historical draft-time text — superseded by the executed entry in
+`../03-decisions-and-open-questions.md` (Accepted by Stephen, 2026-07-28)<br>
 **Context:** Handoff 26 established, reproduced on a detached worktree at
 `449b0d00`, that 86 generated event schemas under
 `.research-system/schemas/core/events/` (88 files repo-wide) require
@@ -44,7 +45,8 @@ accepted bytes; no invariant drift in the P0 eval corpus.
 ## Proposed entry: P-044 — Research Methods lane (RM)
 
 **Date:** 2026-07-28<br>
-**Status:** PROPOSED (drafted by agent; awaiting Stephen's register entry)<br>
+**Status:** historical draft-time text — superseded by the executed entry in
+`../03-decisions-and-open-questions.md` (Accepted by Stephen, 2026-07-28)<br>
 **Relationship to P-042:** P-042's boundary clause authorizes plan and
 dependency correction only; this entry supplies the new owner decision P-042
 requires before implementation of operator-mediated tooling.<br>

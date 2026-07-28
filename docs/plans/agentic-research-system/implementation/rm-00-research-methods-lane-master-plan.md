@@ -40,7 +40,7 @@ existing W5 domain-pack layer, consistent with the open-source posture.
 
 | Plan | Scope | Depends on | Branch prefix |
 |---|---|---|---|
-| [rm-01-unblock-and-suite-recovery-plan.md](rm-01-unblock-and-suite-recovery-plan.md) | WP6.1 producer-emits repair (P-043), full-suite failure inventory, coverage/lint accounting, append-path smoke gate | P-043 accepted; handoff-26 Defect 1–2 fixes landed (external, in flight) | `pipe/rm-01-*` |
+| [rm-01-unblock-and-suite-recovery-plan.md](rm-01-unblock-and-suite-recovery-plan.md) | WP6.1 producer-emits repair (P-043), post-fix suite delta vs the handoff-28 baseline, coverage/lint accounting, append-path smoke gate | P-043 in register (2026-07-28); Defect 1–2 fixes on `main` (PR #176/#179) — both satisfied | `pipe/rm-01-*` |
 | [rm-02-research-methods-pack-plan.md](rm-02-research-methods-pack-plan.md) | Methods Pack v1: manifest schema, five method assets, registry binding, negative controls | P-044 accepted; no code-path dependency on RM-01 | `pipe/rm-02-*` |
 | [rm-03-brief-export-import-plan.md](rm-03-brief-export-import-plan.md) | `ars brief export` / `ars brief import`, import schemas, typed landing, P-042 negative controls | RM-01 (green append path) AND RM-02 (assets to export) | `pipe/rm-03-*` |
 | [rm-04-verification-execution-and-manuscript-review-plan.md](rm-04-verification-execution-and-manuscript-review-plan.md) | `ars brief verify` execution lane, round-trip support, manuscript-review lane, one pilot | RM-03 | `pipe/rm-04-*` |
@@ -56,8 +56,8 @@ acceptance runner works from this table, not from child prose.
 
 | Gate | What Stephen must do | Blocks | Source |
 |---|---|---|---|
-| G-RM-1 | Accept P-043 (producer emits `command_schema_*`) | RM-01 Task A | proposals/rm-decision-entry-drafts §P-043; handoff 26 Defect 3 |
-| G-RM-2 | Accept P-044 (lane creation, scope, boundary) | all RM dispatches | proposals/rm-decision-entry-drafts §P-044; P-042 boundary clause ("plan and dependency correction only") |
+| G-RM-1 | **CLOSED 2026-07-28** — P-043 entered in the register | RM-01 Task A (unblocked) | 03-decisions §P-043; handoff 26 Defect 3 |
+| G-RM-2 | **CLOSED 2026-07-28** — P-044 entered in the register | all RM dispatches (unblocked at this gate) | 03-decisions §P-044; P-042 boundary clause ("plan and dependency correction only") |
 | G-RM-3 | Accept the adversarial review disposition of this suite (each plan individually reviewable; zero unresolved Critical) | dispatch of the reviewed plan | folder change discipline; house review-then-dispatch practice |
 | G-RM-4 | Accept Methods Pack assets (procedural memory `candidate -> reviewed -> accepted`; only `accepted` assets are exportable by default) | RM-02 close-out; RM-03 pilot export | W3 §13.1–13.2 lifecycle |
 | G-RM-5 | Choose the pilot brief subjects for RM-04 (suggested: one P01 draft section for the review lane; one Markov-ladder conjecture-shaped claim for the counterexample lane) | RM-04 Task 4 | Stephen's steer: TDA as testbed, not definition |
@@ -80,8 +80,8 @@ CLAUDE.md/APM_RULES, CONVENTIONS.md-relevant working rules. Dispositions:
 | O-RM-7 | W3 §13.2 | Procedural memory carries name, version/hash, source path, applicability trigger, compatibility, dependencies, supersession, review state | RM-02 manifest schema fields; contract test |
 | O-RM-8 | W3 §13.1 lifecycle | Memory assets: `candidate -> reviewed -> accepted`; non-accepted excluded from governing use | RM-02 Task 3; exporter default filter (RM-03 Task 2); gate G-RM-4 |
 | O-RM-9 | handoffs/25 + handoff 26 "Do not touch" | `wp6-3-tdl-private-assurance-pack.yaml` and its schema are owner-accepted exact bytes at `449b0d00` | Do-not-touch list in every plan |
-| O-RM-10 | handoff 26 | Defects 1–2 are assigned to an in-flight agent in `schema_registry.py`; two agents in one file will conflict | RM-01 excludes `schema_registry.py`; RM-01 Task B blocked until that work lands |
-| O-RM-11 | handoff 26 Defect 3 | Direction decision required: producer emits vs schema relax | P-043 (producer emits, accepted-in-principle 2026-07-28, formal entry pending); RM-01 Task A |
+| O-RM-10 | handoff 26 | Defects 1–2 were assigned to a then-in-flight agent in `schema_registry.py` | **Discharged** — landed on `main` via PR #176/#179 (handoff 28 provenance); the file stays out of RM-01 scope on minimal-change grounds |
+| O-RM-11 | handoff 26 Defect 3 | Direction decision required: producer emits vs schema relax | **Closed** — P-043 (producer emits) entered in the register 2026-07-28; RM-01 Task A executes it |
 | O-RM-12 | APM_RULES vault discipline | Every task ends with the matching vault entry, top-of-page reverse-chronological | Close-out step in every plan (`[PIPELINE]` → Pipeline-Overview + Computational-Log per mapping) |
 | O-RM-13 | Working rules (CLAUDE.md, memory) | `[PIPELINE] P00:` commit subjects, Co-Authored-By trailer, BOM-free `git commit -F` files, never `--no-verify`, worktree `.env` copy, review-then-merge with CodeRabbit concluded | Global constraints in every plan |
 | O-RM-14 | D-3 acceptance | Provider-neutral naming everywhere | Naming rule above; adversarial-review question for every plan |
@@ -97,11 +97,12 @@ CLAUDE.md/APM_RULES, CONVENTIONS.md-relevant working rules. Dispositions:
    worktree. Worker commits and reports; merges happen only after review.
 2. **Review-then-merge.** CodeRabbit must conclude on the PR before merge; never
    fast-forward a local merge onto `main` (memory: PR #54 incident).
-3. **Environment.** Until RM-01 Task B confirms `uv run` health in fresh worktrees, use
-   the direct interpreter invocation from handoff 26 for pytest:
-   `C:/Users/steph/TDL/.venv/Scripts/python.exe -m pytest -q <target> -o "addopts=" -p no:cacheprovider -p no:cov`.
-   Budget test time using handoff 26's measurements; a silent 11-minute first progress
-   line is normal for large slices.
+3. **Environment (corrected per handoff 28).** A fresh worktree `.venv` is an empty
+   stub and the main-repo interpreter lacks `jsonschema`. Provision each worktree with
+   `uv sync --all-extras --no-install-package petls`, then run pytest via
+   `uv run --no-sync python -m pytest -q <target> -o "addopts=" -p no:cacheprovider -p no:cov`.
+   Budget with handoff 28's measured numbers (full suite ~1:13 h post-N+1-fix); do not
+   pipe long background runs through `tail` — output buffers until exit.
 4. **Do not touch, any plan:** `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`,
    `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`
    (owner-accepted exact bytes); `.research-system/schemas/wp6-2-*/**` (accepted T2

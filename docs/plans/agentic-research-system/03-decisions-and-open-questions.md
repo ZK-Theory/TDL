@@ -787,8 +787,11 @@ validates the WP6.1 materialization, not the runtime append path.<br>
 **Decision:** The runtime producer rises to meet the accepted schemas. The
 command-submission path derives all three fields at submit time from the
 registered command schema actually used to validate the submitted command.
-The generated event schemas are not relaxed. Caller-supplied values for these
-fields are never authoritative.<br>
+`command_schema_sha256` is the SHA-256 digest of the exact schema bytes used
+for that validation — never of a reserialized or reconstructed representation
+— so an independent recomputation from the schema file must reproduce the
+emitted value. The generated event schemas are not relaxed. Caller-supplied
+values for these fields are never authoritative.<br>
 **Rationale:** The fields exist to bind events to exact command-schema
 identities — the WP6.1 binding intent. Relaxing an owner-reviewed generated
 schema family to fit an incomplete producer would weaken an accepted
