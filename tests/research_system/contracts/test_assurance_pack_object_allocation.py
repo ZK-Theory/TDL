@@ -29,26 +29,49 @@ def _assurance_pack_allocations() -> list[dict]:
     return [row for row in _load_yaml(ALLOCATIONS_PATH)["allocations"] if row["id_kind"] == "assurance_pack"]
 
 
-def _sole_allocation() -> dict:
+def _current_allocation() -> dict:
+    # Allocations are append-only: superseding one adds a row rather than editing it, so historical
+    # revisions are expected to accumulate. The current allocation is the highest revision, and only
+    # that revision has to be unique.
     allocations = _assurance_pack_allocations()
-    assert len(allocations) == 1, f"expected exactly one assurance_pack allocation, found {len(allocations)}"
-    return allocations[0]
+    assert allocations, "no assurance_pack allocation"
+    current_revision = max(row["assurance_pack_revision"] for row in allocations)
+    current = [row for row in allocations if row["assurance_pack_revision"] == current_revision]
+    assert len(current) == 1, f"expected one allocation at revision {current_revision}, found {len(current)}"
+    return current[0]
 
 
 def _contract_pack_object() -> dict:
     return _load_yaml(CONTRACT_PATH)["proposed_pack_identity"]["assurance_pack_object"]
 
 
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, cwd=ROOT, text=True)
+
+
 def _git_blob(path: Path) -> str:
     repo_relative = path.relative_to(ROOT).as_posix()
-    completed = subprocess.run(
-        ["git", "hash-object", "--path", repo_relative, str(path)],
-        capture_output=True,
-        check=True,
-        cwd=ROOT,
-        text=True,
-    )
+    completed = _git("hash-object", "--path", repo_relative, str(path))
+    assert completed.returncode == 0, f"git hash-object failed: {completed.stderr.strip()}"
     return completed.stdout.strip()
+
+
+def _blob_at_commit(commit: str, repo_relative: str) -> str | None:
+    """Return the blob id recorded for a path at a commit, or None if the commit is unreachable.
+
+    Args:
+        commit: Commit-ish to resolve the path against.
+        repo_relative: Repository-relative POSIX path.
+
+    Returns:
+        The blob id, or None when history for that commit is not present locally.
+    """
+    completed = _git("rev-parse", f"{commit}:{repo_relative}")
+    return completed.stdout.strip() if completed.returncode == 0 else None
+
+
+def _repository_is_shallow() -> bool:
+    return _git("rev-parse", "--is-shallow-repository").stdout.strip() == "true"
 
 
 def test_assurance_pack_kind_uses_the_contract_declared_owner_prefix():
@@ -73,7 +96,7 @@ def test_assurance_pack_prefix_does_not_collide_with_assurance_requirement():
 
 
 def test_allocated_object_id_is_a_valid_registered_identity():
-    allocated = _sole_allocation()["assurance_pack_id"]
+    allocated = _current_allocation()["assurance_pack_id"]
     assert validate_id(allocated, "assurance_pack") == allocated
 
     # Independently of the registry, the pack schema constrains the field the future candidate
@@ -83,7 +106,7 @@ def test_allocated_object_id_is_a_valid_registered_identity():
 
 
 def test_allocation_agrees_with_the_contract_and_the_pack_schema():
-    allocation = _sole_allocation()
+    allocation = _current_allocation()
     contract = _load_yaml(CONTRACT_PATH)
     pack_identity = contract["proposed_pack_identity"]
     pack_schema_properties = json.loads(PACK_SCHEMA_PATH.read_text(encoding="utf-8"))["properties"]
@@ -100,14 +123,30 @@ def test_allocation_binds_the_unmodified_accepted_contract_subject():
     # The allocation derives its authority from an owner-accepted contract at exact bytes. If the
     # contract is edited, the allocation is no longer authorized by what it claims to be authorized
     # by, and this fails rather than letting the drift pass silently.
-    allocation = _sole_allocation()
+    allocation = _current_allocation()
+    repo_relative = CONTRACT_PATH.relative_to(ROOT).as_posix()
     assert allocation["authorizing_subject_commit"] == ACCEPTED_CONTRACT_SUBJECT
-    assert allocation["authorizing_contract_path"] == CONTRACT_PATH.relative_to(ROOT).as_posix()
+    assert allocation["authorizing_contract_path"] == repo_relative
 
     contract_bytes = CONTRACT_PATH.read_bytes()
     assert b"\r\n" not in contract_bytes, "contract must be LF in the working tree (canonical byte surface)"
     assert hashlib.sha256(contract_bytes).hexdigest() == allocation["authorizing_contract_canonical_sha256"]
     assert _git_blob(CONTRACT_PATH) == allocation["authorizing_contract_git_blob"]
+
+    # The checks above prove the contract has not drifted from what the allocation pins. They do not
+    # prove those pins belong to the commit the allocation names as its authority: updating the pins
+    # to match an edited contract while leaving authorizing_subject_commit stale would pass them.
+    # Resolve the blob at the named commit to close that. Shallow checkouts (CI uses
+    # actions/checkout@v4, which defaults to depth 1) do not carry the object, so the assertion is
+    # conditional on the history being present rather than silently absent.
+    blob_at_subject = _blob_at_commit(ACCEPTED_CONTRACT_SUBJECT, repo_relative)
+    if blob_at_subject is None:
+        assert _repository_is_shallow(), (
+            f"{ACCEPTED_CONTRACT_SUBJECT}:{repo_relative} is unreachable in a full checkout; "
+            "the allocation names a commit this repository does not contain"
+        )
+    else:
+        assert blob_at_subject == allocation["authorizing_contract_git_blob"]
 
 
 def test_allocations_are_unique_per_object_and_per_revision():
