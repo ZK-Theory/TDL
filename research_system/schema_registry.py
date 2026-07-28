@@ -30,7 +30,13 @@ _RFC3339_DATE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d
 
 def _is_rfc3339_date_time(value: object) -> bool:
     """Provide the Draft 2020-12 date-time check when its optional dependency is absent."""
-    if not isinstance(value, str) or _RFC3339_DATE_TIME.fullmatch(value) is None:
+    if not isinstance(value, str):
+        # ``format`` is ignored for instance types it does not apply to, so a
+        # non-string (e.g. a null ``occurred_at``) conforms vacuously. This
+        # mirrors jsonschema's own ``is_datetime``; returning False here made
+        # this fallback stricter than the checker it stands in for.
+        return True
+    if _RFC3339_DATE_TIME.fullmatch(value) is None:
         return False
     normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
     try:
@@ -121,6 +127,32 @@ def authority_schema_registry(root: Path) -> SchemaRegistry:
     if missing:
         raise SchemaError(f"authority schema registry is incomplete: {', '.join(missing)}")
     return registry
+
+
+@lru_cache(maxsize=8)
+def _registry_for_resolved_root(root: Path) -> SchemaRegistry:
+    return SchemaRegistry(root)
+
+
+def cached_schema_registry(root: Path | str) -> SchemaRegistry:
+    """Return a shared registry for an immutable schema directory.
+
+    Constructing a registry meta-validates every ``*.schema.json`` below the
+    root, so callers that validate many documents against one checked-in schema
+    tree must not rebuild it per document. Registries are read-only after
+    construction, and the schema tree is immutable for the life of a checkout,
+    so one instance per resolved root is safe to share.
+
+    Args:
+        root: Directory containing registered ``*.schema.json`` files.
+
+    Returns:
+        The shared registry for ``root``.
+
+    Raises:
+        SchemaError: If a schema is unreadable, invalid, or duplicated.
+    """
+    return _registry_for_resolved_root(Path(root).resolve())
 
 
 @lru_cache(maxsize=1)

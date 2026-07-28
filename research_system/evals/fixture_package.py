@@ -14,7 +14,7 @@ from research_system.errors import SchemaError
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.models import FixtureDefinition, GraderRequirement
 from research_system.evals.retention import validate_fixture_retention
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, cached_schema_registry
 
 PACKAGE_PATHS = frozenset(
     {
@@ -167,7 +167,7 @@ def validate_fixture_package(
     if not files["README.md"].strip():
         raise FixtureDefinitionError("README.md must not be empty")
 
-    registry = SchemaRegistry(Path(schema_root))
+    registry = cached_schema_registry(schema_root)
     fixture = _read_fixture(root / "fixture.yaml")
     _validate_instance(registry, "ars://evals/fixture-definition", fixture)
     fixture_id = str(fixture["fixture_id"])
