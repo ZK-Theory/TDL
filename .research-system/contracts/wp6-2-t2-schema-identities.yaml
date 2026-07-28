@@ -28,8 +28,8 @@ artifacts:
   repository_path: .gitattributes
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: 6798d947a17f851b93cfa769182027cc778b801f
-  raw_utf8_lf_sha256: 28c231d9269b811d3d0b9e7379b941fa07ca47064d032e86650433ddc54307dc
+  git_blob_id: 2c71799535efcdf46828e7b94ebce4f7293a6586
+  raw_utf8_lf_sha256: 62662d62e9868fc3b09be298f239f8a84a399800d5cb9c0206a11616b5edd4f0
 - artifact_role: authority_catalogue
   repository_path: .research-system/contracts/wp6-2-t2-cost-grant-authority-catalogue.yaml
   canonical_schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue

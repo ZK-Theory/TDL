@@ -570,6 +570,25 @@ Three journal-targeted papers replacing the original four technique-first papers
 
 Set `TRAJECTORY_TDA_DATA_DIR` when running `run_wasserstein_battery.py` outside the default package layout (e.g., on a different machine or in CI). Without it the script falls back to package-bundled data, which may not include the full USoc/BHPS data files.
 
+### Contract artifacts are LF-only in the working tree (locked 2026-07-28)
+
+The contract system declares `canonical_byte_surface: git_blob_utf8_lf`. WP6.1 rejects non-LF artifacts outright; WP6.2 and WP6.3 hash working-tree bytes against pinned `*_lf_sha256` values. `core.autocrlf=true` is set on this machine (the Windows default), so git will materialise those pure-LF blobs as CRLF unless `.gitattributes` pins the path — and a CRLF checkout fails the contracts **locally while passing in CI**, which is why it went unreported for so long.
+
+- `.gitattributes` pins `.research-system/**` and `tests/research_system/contracts/**` to `text eol=lf`. **Cover the class, not the file that broke.** The per-path list this replaced had grown one entry at a time as each work package hit the failure, leaving WP6.1's stage1-owner-acceptance-record, all of WP6.2 T3/T4, and all of WP6.3 uncovered — one uncovered artifact produced 133 failing contract tests.
+- Any new contract root that declares a canonical byte surface gets its `.gitattributes` entry **in the same change as the contract**.
+- **After pulling a change to `.gitattributes`, every existing checkout needs a one-time working-tree refresh** — including the primary checkout and each active worktree. Attributes apply on checkout, so files already on disk keep their CRLF and keep failing until refreshed:
+
+  **WARNING:** This command deletes and re-checks out files. Verify your working tree is clean first (`git status`), or stash/commit any uncommitted changes under `.research-system/` and `tests/research_system/contracts/` — they will otherwise be **silently lost**.
+
+  ```bash
+  git ls-files -z .research-system tests/research_system/contracts | xargs -0 rm -f && git checkout -- .research-system tests/research_system/contracts
+  ```
+
+- `.gitattributes` is itself a pinned contract artifact (`artifact_role: line_ending_control` in `wp6-2-t2-schema-identities.yaml`), so **editing it requires repinning its `git_blob_id` and `raw_utf8_lf_sha256`** in that manifest. A line-ending fix always carries this repin with it.
+- Before mass-triaging a red contract suite, **root-cause first**: 133 failures across four modules were one unset attribute, and the per-test symptoms (`registered_contract_byte_mismatch`, `authority mismatch`, raw hash inequality) all pointed away from the cause.
+
+Reference: `tests/research_system/contracts/` went 133 failed / 601 passed → **734 passed** on this change alone.
+
 ---
 
-*Last updated: 2026-07-16*
+*Last updated: 2026-07-28*
