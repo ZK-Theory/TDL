@@ -1165,11 +1165,12 @@
     },
     "validationBindings": {
       "type": "object",
-      "required": ["test_file", "durable_test_functions", "task_local_unbound_test_functions"],
+      "required": ["test_file", "durable_test_functions", "task_local_unbound_test_functions", "binding_closure"],
       "properties": {
         "test_file": {"const": "tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py"},
         "durable_test_functions": {"$ref": "#/$defs/nonEmptyStrings"},
-        "task_local_unbound_test_functions": {"$ref": "#/$defs/nonEmptyStrings"}
+        "task_local_unbound_test_functions": {"$ref": "#/$defs/nonEmptyStrings"},
+        "binding_closure": {"const": "every_defined_test_function_is_declared_durable_or_task_local"}
       },
       "additionalProperties": false
     },
