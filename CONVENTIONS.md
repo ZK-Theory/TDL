@@ -550,6 +550,35 @@ Three journal-targeted papers replacing the original four technique-first papers
   or authorize the candidate. Gate 6 is eligible for separately authorized
   planning or execution, but this decision does not authorize or begin it.
   Locked 2026-07-17.
+- **A governed scientific contract may be accepted by activation plus binding
+  tests, but only when it restates an already-locked mandate.** Where the
+  contract's claim is already locked in this file, activation with enforcing
+  tests is sufficient acceptance and no separate external acceptance record is
+  required: exact-byte drift is already caught by the consuming contract's
+  `git_blob`/`canonical_sha256` pins, and the scientific review has already
+  happened and is recorded here. **Where the claim is *not* already locked here,
+  a separate external acceptance record is required** — tests prove a contract
+  is *enforced*, never that it is *correct*, so activation alone would let an
+  unreviewed methodological decision enter the governed set with a green suite
+  as cover. Applied 2026-07-28 to
+  `contract/topology-invariants/null-operation-changes-ph-input` (restates the
+  shuffle-before-embedding rule, "Never" section) and
+  `contract/stochastic-tests/markov-order-provenance` (restates the explicit
+  Markov order k mandate, "Always" section), both activated by `f523b1e`.
+  Locked 2026-07-28.
+- **Event-schema currency is resolved producer-side: the producer emits, the
+  schemas stand.** The 86 generated event schemas under
+  `.research-system/schemas/core/events/` require `command_schema_id`,
+  `command_schema_version` and `command_schema_sha256`; no production code
+  emitted them, leaving `tests/research_system/unit` and `integration` red since
+  `3ec14eb`. The runtime event producer must populate these from the identity of
+  the command schema that validated the originating command
+  (`CommandService.submit` → `ledger.append` → `SchemaRegistry.validate`).
+  **Never relax a generated schema to make a suite green when the requirement
+  encodes provenance** — these fields make every persisted event self-describing
+  about the command contract it was produced under, which is what makes replay
+  and audit verifiable rather than assumed. Relaxation would discard that
+  permanently and silently. Locked 2026-07-28.
 
 ---
 
