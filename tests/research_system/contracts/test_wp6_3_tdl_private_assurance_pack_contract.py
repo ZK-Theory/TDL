@@ -860,6 +860,32 @@ def _proposed_pack(contract: dict | None = None, *, contract_subject: dict | Non
     }
 
 
+def _assert_test_surface_closure(bindings: dict) -> None:
+    """Assert the contract's declared test surface is closed over this module's test functions.
+
+    Closed, not subset. A subset assertion only proves every declared name exists; it accepts
+    silent shrinkage of the declared enforcement surface, so a control could be deleted — or added
+    and never declared — with no contract-level signal. Requiring equality with the module's actual
+    test surface makes both directions fail closed.
+
+    Shared by the strict-pending contract test and the dedicated closure test so the two cannot
+    drift apart; both pass `contract["validation_bindings"]`.
+    """
+    bound_names = set(bindings["durable_test_functions"])
+    task_local_names = set(bindings["task_local_unbound_test_functions"])
+    assert bound_names <= set(globals())
+    assert task_local_names <= set(globals())
+    assert not bound_names & task_local_names
+    assert bindings["binding_closure"] == "every_defined_test_function_is_declared_durable_or_task_local"
+    defined_test_functions = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
+    declared_test_functions = bound_names | task_local_names
+    assert defined_test_functions == declared_test_functions, (
+        "declared test surface differs from the module's defined test functions: "
+        f"undeclared={sorted(defined_test_functions - declared_test_functions)}, "
+        f"declared-but-absent={sorted(declared_test_functions - defined_test_functions)}"
+    )
+
+
 def _review_operator_provenance(
     *,
     producer_actor_id: str,
@@ -988,6 +1014,34 @@ def _validate_proposed_pack_with_authority(
         raise CandidatePackError("reference rows must equal the exact upstream set")
     if set(observed_references) != EXPECTED_REFERENCE_IDS:
         raise CandidatePackError("reference ID closure differs from the independent fixture")
+    # Bind the declared per-kind reference counts. Previously read by nothing, so the contract could
+    # claim 6 and 6 while carrying any number.
+    #
+    # Per-entry reference_kind is deliberately not re-checked here: the pack schema already
+    # constrains each list to its own kind, and more strictly than a kind comparison would — it
+    # pins reference_kind, the reference_id pattern, the repository_path pattern, and
+    # activation_state per list, and rejects a swap before this validator runs. A duplicate check
+    # here would be unreachable, so it could never be given a watched negative.
+    references_contract = contract["required_pack_contract"]["references"]
+    if len(pack["references"]["contract_references"]) != references_contract["required_contract_reference_count"]:
+        raise CandidatePackError("contract reference count differs from the declared requirement")
+    if len(pack["references"]["skill_references"]) != references_contract["required_skill_reference_count"]:
+        raise CandidatePackError("skill reference count differs from the declared requirement")
+    # The boundary fixture set is declared in three places. Nothing compared them, and one of the
+    # three was pinned as literals in a test, so two copies could drift apart while every check
+    # passed. Require agreement rather than collapsing them, which would change contract shape.
+    boundary = contract["required_pack_contract"]["fixture_execution_boundary"]
+    boundary_copies = {
+        "required_executed_boundary_fixture_ids": frozenset(
+            contract["required_pack_contract"]["external_acceptance_evidence"]["required_executed_boundary_fixture_ids"]
+        ),
+        "upstream_executable_fixture_ids": frozenset(boundary["upstream_executable_fixture_ids"]),
+        "downstream_scientific_execution_fixture_ids": frozenset(
+            boundary["downstream_scientific_execution_fixture_ids"]
+        ),
+    }
+    if len(set(boundary_copies.values())) != 1:
+        raise CandidatePackError(f"declared boundary fixture sets disagree: {boundary_copies}")
     if require_active_references and _derived_pending_reference_ids(contract):
         raise CandidatePackError("pending reference blocks pack acceptance")
 
@@ -1655,6 +1709,10 @@ def _validate_external_acceptance_with_authority(
         reviewer_actor_id=schema_review["reviewer_actor_id"],
         label="schema",
     )
+    _checked_review_provenance_record_types = {
+        contract_review["record_type"],
+        schema_review["record_type"],
+    }
     if (
         contract_schema_acceptance["authorship_record_id"] != CONTRACT_AUTHORSHIP_RECORD_ID
         or contract_schema_acceptance["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
@@ -1874,6 +1932,20 @@ def _validate_external_acceptance_with_authority(
         != 1
     ):
         raise CandidatePackError("review provenance records do not share one stable handoff identifier")
+    # Close review_provenance_partial_application: prohibited against the contract's own declared
+    # set. Without this the declared list merely describes the call sites that happen to exist —
+    # adding a fourth review record type, or a fourth entry here, would produce no failure. The
+    # declaration has to be what the check reads, or it is prose beside code.
+    checked_review_provenance_record_types = _checked_review_provenance_record_types | {review["record_type"]}
+    evidence = contract["required_pack_contract"]["external_acceptance_evidence"]
+    declared_review_provenance_record_types = set(evidence["review_provenance_required_record_types"])
+    if evidence["review_provenance_partial_application"] != "prohibited":
+        raise CandidatePackError("review provenance partial application must be prohibited")
+    if checked_review_provenance_record_types != declared_review_provenance_record_types:
+        raise CandidatePackError(
+            "review provenance was not applied to every declared record type: "
+            f"unchecked={sorted(declared_review_provenance_record_types - checked_review_provenance_record_types)}"
+        )
     if review["verdict"] != "pass" or owner["outcome"] != "accepted":
         raise CandidatePackError("external review and owner acceptance are both required")
     if review["producer_actor_id"] != pack["producer_actor_id"]:
@@ -1942,6 +2014,27 @@ def _validate_external_acceptance_with_authority(
         or registered_object["canonical_repository_path"] != pack["canonical_repository_path"]
     ):
         raise CandidatePackError("assurance pack object registration mismatch")
+    # Bind the remaining declared governed sets to the checks they name. Each of these keys was
+    # previously read by nothing: the hardcoded checks nearby happened to agree with them, so the
+    # declarations described the code instead of governing it, and an edit to either side would
+    # have passed silently. The hardcoded checks are retained — these are additional, not
+    # replacements.
+    role_actor_ids = {
+        "contract_author": authorship["author_actor_id"],
+        "future_pack_producer": pack["producer_actor_id"],
+        "contract_reviewer": contract_review["reviewer_actor_id"],
+        "schema_reviewer": schema_review["reviewer_actor_id"],
+        "owner_acceptor": owner["acceptor_actor_id"],
+        "requirement_author": requirement["requirement_author_actor_id"],
+        "requirement_scope_reviewer": requirement["scope_reviewer_actor_id"],
+        "requirement_acceptor": requirement["acceptor_actor_id"],
+        "pack_scientific_reviewer": review["reviewer_actor_id"],
+    }
+    for left, right in evidence["required_distinct_pairs"]:
+        if left not in role_actor_ids or right not in role_actor_ids:
+            raise CandidatePackError(f"required distinct pair names an unresolvable role: {left}/{right}")
+        if role_actor_ids[left] == role_actor_ids[right]:
+            raise CandidatePackError(f"required distinct pair is not distinct: {left}/{right}")
     contract_authored_at = _parse_datetime(authorship["authored_at"])
     contract_reviewed_at = _parse_datetime(contract_review["reviewed_at"])
     schema_reviewed_at = _parse_datetime(schema_review["reviewed_at"])
@@ -1967,6 +2060,18 @@ def _validate_external_acceptance_with_authority(
         )
     if not requirement_accepted_at < registered_at <= authored_at <= effective_at < reviewed_at:
         raise CandidatePackError("pack registration and candidate effective-time order is invalid")
+    stage_times = {
+        "requirement_accepted": requirement_accepted_at,
+        "candidate_authored": authored_at,
+        "independent_reviewed": reviewed_at,
+        "owner_accepted": decided_at,
+    }
+    declared_order = evidence["required_temporal_order"]
+    if any(stage not in stage_times for stage in declared_order):
+        raise CandidatePackError("required temporal order names an unresolvable lifecycle stage")
+    ordered_times = [stage_times[stage] for stage in declared_order]
+    if ordered_times != sorted(ordered_times) or len(set(ordered_times)) != len(ordered_times):
+        raise CandidatePackError(f"declared temporal order is not satisfied: {declared_order}")
     for relationship, action_time in (
         (contract_review_relationship, contract_reviewed_at),
         (schema_review_relationship, schema_reviewed_at),
@@ -2103,10 +2208,7 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
             key: reference[key] for key in ("repository_path", "git_blob", "canonical_sha256")
         }
     _validate_reference_semantic_compatibility(contract)
-    bound_names = set(contract["validation_bindings"]["durable_test_functions"])
-    assert bound_names <= set(globals())
-    assert set(contract["validation_bindings"]["task_local_unbound_test_functions"]) <= set(globals())
-    assert not bound_names & set(contract["validation_bindings"]["task_local_unbound_test_functions"])
+    _assert_test_surface_closure(contract["validation_bindings"])
     _assert_all_object_schemas_are_closed(_load_json(SCHEMAS / "assurance" / "assurance-pack.schema.json"))
     _assert_all_object_schemas_are_closed(
         _load_json(SCHEMAS / "contracts" / "wp6-3-tdl-private-assurance-pack.schema.json")
@@ -3615,3 +3717,109 @@ def test_lane_may_not_declare_a_fixture_catalogued_to_a_foreign_lane():
             fixture_contract_authority=cross_listed_resolver,
             require_active_references=True,
         )
+
+
+def test_declared_governed_sets_are_consumed_by_the_checks_they_name():
+    """Every contract key naming a governed set must be read by the check it governs.
+
+    Review finding F-1: `review_provenance_required_record_types`,
+    `review_provenance_partial_application`, `required_executed_boundary_fixture_ids`,
+    `required_distinct_pairs`, `required_temporal_order`, and the two per-kind reference counts
+    were read by no executable code. The hardcoded checks beside them happened to agree, so the
+    declarations described the implementation rather than governing it — editing either side
+    produced no failure. Each mutation below must now fail.
+    """
+    # review_provenance_required_record_types has no contract-side negative control, deliberately:
+    # the schema pins it to exactly the three review record types (enum plus minItems/maxItems 3),
+    # so a contract edit cannot declare a fourth or drop one. The runtime equality check therefore
+    # guards the *code* side — a review record type validated without being declared, or declared
+    # without a provenance call site. Asserting the wiring exists is the most a contract-level test
+    # can do here without relaxing a schema constraint that is doing real work.
+    evidence = _eligible_contract()["required_pack_contract"]["external_acceptance_evidence"]
+    assert evidence["review_provenance_partial_application"] == "prohibited"
+    assert set(evidence["review_provenance_required_record_types"]) == {
+        "independent_contract_review",
+        "independent_schema_review",
+        "independent_pack_review",
+    }
+
+    # A distinct pair the records violate.
+    contract = _eligible_contract()
+    # Mutate in place rather than truncating: the schema pins the list to 11 pairs, so a shorter
+    # list fails schema validation before reaching the check under test.
+    contract["required_pack_contract"]["external_acceptance_evidence"]["required_distinct_pairs"][0] = [
+        "contract_author",
+        "contract_author",
+    ]
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture(contract)
+    )
+    with pytest.raises(CandidatePackError, match="required distinct pair is not distinct"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    # required_temporal_order likewise has no contract-side negative control: the schema pins it by
+    # prefixItems to these exact four stages in this exact order, so no schema-valid contract can
+    # declare a different order. As with the record types, the runtime check guards the code side —
+    # a stage renamed or a timestamp wired to the wrong record. Assert the wiring, and that every
+    # declared stage is resolvable, which is the part a contract-level test can establish.
+    evidence = _eligible_contract()["required_pack_contract"]["external_acceptance_evidence"]
+    assert evidence["required_temporal_order"] == [
+        "requirement_accepted",
+        "candidate_authored",
+        "independent_reviewed",
+        "owner_accepted",
+    ]
+
+    # The per-kind reference counts are schema `const: 6`, so they too cannot be violated from the
+    # contract side. Assert them and their agreement with the actual rows; the runtime check guards
+    # a reference row being added or dropped in code without the count following.
+    references_contract = _eligible_contract()["required_pack_contract"]["references"]
+    assert references_contract["required_contract_reference_count"] == 6
+    assert references_contract["required_skill_reference_count"] == 6
+    reference_rows = references_contract["exact_reference_rows"]
+    assert sum(1 for row in reference_rows if row["reference_kind"] == "contract") == 6
+    assert sum(1 for row in reference_rows if row["reference_kind"] == "skill") == 6
+
+    # The three boundary-fixture copies are each pinned to the same three ids by cardinality plus a
+    # closed enum, so as sets they cannot diverge from the contract side either. The runtime
+    # agreement check remains as a code-side guard for the case the reviewer identified: one copy
+    # was pinned as literals in a test, so widening the enum later could let two copies drift.
+    contract = _eligible_contract()
+    boundary = contract["required_pack_contract"]["fixture_execution_boundary"]
+    declared_boundary = contract["required_pack_contract"]["external_acceptance_evidence"][
+        "required_executed_boundary_fixture_ids"
+    ]
+    assert (
+        frozenset(declared_boundary)
+        == frozenset(boundary["upstream_executable_fixture_ids"])
+        == frozenset(boundary["downstream_scientific_execution_fixture_ids"])
+    )
+
+
+def test_declared_test_surface_is_closed_not_merely_a_subset():
+    """Review finding F-2: the binding was `declared <= defined`, so it accepted silent shrinkage.
+
+    A subset assertion proves every declared name exists. It cannot detect a test function that
+    exists but is undeclared — which is how this round's five remediation controls, and four
+    earlier ones, sat outside the contract's enforcement surface and could have been deleted with
+    no contract-level signal.
+    """
+    contract = _load_yaml(CONTRACT_PATH)
+    bindings = contract["validation_bindings"]
+    _assert_test_surface_closure(bindings)
+    # The controls closing this round's findings are on the durable surface, not merely present.
+    for control in (
+        "test_review_provenance_is_required_on_every_review_record_type",
+        "test_review_operator_outside_the_contract_operator_model_is_rejected",
+        "test_lane_may_not_declare_a_fixture_catalogued_to_a_foreign_lane",
+        "test_declared_governed_sets_are_consumed_by_the_checks_they_name",
+        "test_declared_test_surface_is_closed_not_merely_a_subset",
+    ):
+        assert control in bindings["durable_test_functions"]
