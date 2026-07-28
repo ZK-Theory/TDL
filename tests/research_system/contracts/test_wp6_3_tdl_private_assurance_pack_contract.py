@@ -66,6 +66,12 @@ REVIEW_TASK_ID = "tsk_00000000-0000-7000-8000-000000000019"
 PRODUCER_SESSION_ID = "ses_00000000-0000-7000-8000-00000000001a"
 REVIEW_SESSION_ID = "ses_00000000-0000-7000-8000-00000000001b"
 REVIEW_HANDOFF_ID = "hnd_00000000-0000-7000-8000-00000000001c"
+CONTRACT_AUTHOR_TASK_ID = "tsk_00000000-0000-7000-8000-00000000001d"
+CONTRACT_AUTHOR_SESSION_ID = "ses_00000000-0000-7000-8000-00000000001e"
+CONTRACT_REVIEW_TASK_ID = "tsk_00000000-0000-7000-8000-00000000001f"
+CONTRACT_REVIEW_SESSION_ID = "ses_00000000-0000-7000-8000-000000000020"
+SCHEMA_REVIEW_TASK_ID = "tsk_00000000-0000-7000-8000-000000000021"
+SCHEMA_REVIEW_SESSION_ID = "ses_00000000-0000-7000-8000-000000000022"
 
 EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "canonical_actor": "ars://assurance/records/canonical-actor/1.0",
@@ -132,6 +138,7 @@ EXPECTED_FIXTURE_IDS = frozenset(
     apf_producer_change_stales_requirement
     apf_reference_activation_change_stales apf_tested_object_no_op
     apf_degenerate_fallback apf_claim_escalation
+    apf_representation_frozen_fallback
     """.split()
 )
 EXPECTED_OBLIGATION_IDS = {
@@ -853,6 +860,80 @@ def _proposed_pack(contract: dict | None = None, *, contract_subject: dict | Non
     }
 
 
+def _review_operator_provenance(
+    *,
+    producer_actor_id: str,
+    reviewer_actor_id: str,
+    review_task_id: str,
+    review_session_id: str,
+    producer_task_id: str = CONTRACT_AUTHOR_TASK_ID,
+    producer_session_id: str = CONTRACT_AUTHOR_SESSION_ID,
+    producer_operator_type: str = "codex_task_agent",
+    reviewer_operator_type: str = "codex_task_agent",
+    session_family: str = "codex_standalone",
+    handoff_id: str = REVIEW_HANDOFF_ID,
+) -> dict:
+    """Build a typed operator-provenance block for any of the three review record types."""
+    return {
+        "producer_operator": {"actor_id": producer_actor_id, "operator_type": producer_operator_type},
+        "reviewer_operator": {"actor_id": reviewer_actor_id, "operator_type": reviewer_operator_type},
+        "producer_task_id": producer_task_id,
+        "review_task_id": review_task_id,
+        "producer_session_id": producer_session_id,
+        "review_session_id": review_session_id,
+        "handoff_id": handoff_id,
+        "session_family": session_family,
+        "context_mode": "fresh_task_no_parent_history",
+        "fork_turns": "none",
+    }
+
+
+def _validate_review_operator_provenance(
+    contract: dict,
+    review: dict,
+    *,
+    producer_actor_id: str,
+    reviewer_actor_id: str,
+    label: str,
+) -> dict:
+    """Check one review record's typed operator provenance against the contract's operator model.
+
+    The contract binds `review_provenance_binding` at `external_acceptance_evidence` level, which
+    governs every entry of `review_provenance_required_record_types` — so the same check applies to
+    the contract review, the schema review, and the pack review, not only the pack review.
+    """
+    evidence = contract["required_pack_contract"]["external_acceptance_evidence"]
+    operator_model = evidence["operator_model"]
+    allowed_session_families = set(operator_model["allowed_session_families"])
+    # Derive the permitted review-operator types from the contract's own prohibitions rather than
+    # equating them with the agent allowlist. The two are the same set only while
+    # review_operator_must_be_agent_operator_type is true and human_owner is barred; reading the
+    # flags keeps the check correct if either is ever relaxed, instead of silently ignoring them.
+    allowed_operator_types = set(operator_model["allowed_agent_operator_types"])
+    if not operator_model["review_operator_must_be_agent_operator_type"]:
+        allowed_operator_types |= {"human_owner"}
+    if operator_model["human_owner_may_act_as_review_operator"]:
+        allowed_operator_types |= {"human_owner"}
+    elif "human_owner" in allowed_operator_types:
+        allowed_operator_types.discard("human_owner")
+    provenance = review["operator_provenance"]
+    producer_operator = provenance["producer_operator"]
+    reviewer_operator = provenance["reviewer_operator"]
+    if (
+        producer_operator["actor_id"] != producer_actor_id
+        or reviewer_operator["actor_id"] != reviewer_actor_id
+        or producer_operator["operator_type"] not in allowed_operator_types
+        or reviewer_operator["operator_type"] not in allowed_operator_types
+        or provenance["session_family"] not in allowed_session_families
+        or provenance["producer_task_id"] == provenance["review_task_id"]
+        or provenance["producer_session_id"] == provenance["review_session_id"]
+        or provenance["context_mode"] != "fresh_task_no_parent_history"
+        or provenance["fork_turns"] != "none"
+    ):
+        raise CandidatePackError(f"{label} review task provenance does not prove a separate fresh context")
+    return provenance
+
+
 def _eligible_contract() -> dict:
     contract = _load_yaml(CONTRACT_PATH)
     replacement_digits = iter("789a")
@@ -950,6 +1031,10 @@ def _validate_proposed_pack_with_authority(
             raise CandidatePackError("lane fixture relation differs from the exact upstream row")
         if not set(lane["fixture_ids"]) <= set(observed_fixtures):
             raise CandidatePackError("dangling lane fixture")
+        for fixture_id in lane["fixture_ids"]:
+            fixture_lane_id = observed_fixtures[fixture_id]["lane_id"]
+            if fixture_lane_id not in {lane_id, "cross_lane"}:
+                raise CandidatePackError("lane declares a fixture catalogued to a foreign lane")
     _validate_lane_enforcer_relation(pack, observed_references)
 
     authored_at = _parse_datetime(pack["currency"]["authored_at"])
@@ -1203,6 +1288,12 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "author_actor_id": ACT_CONTRACT_AUTHOR,
         "relationship_record_id": CONTRACT_REVIEW_RELATIONSHIP_ID,
         "minimum_independence_grade": "I2",
+        "operator_provenance": _review_operator_provenance(
+            producer_actor_id=ACT_CONTRACT_AUTHOR,
+            reviewer_actor_id=ACT_CONTRACT_REVIEWER,
+            review_task_id=CONTRACT_REVIEW_TASK_ID,
+            review_session_id=CONTRACT_REVIEW_SESSION_ID,
+        ),
         "verdict": "pass",
         "review_state": "completed",
         "reviewed_at": "2026-07-18T07:30:00Z",
@@ -1218,6 +1309,12 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "author_actor_id": ACT_CONTRACT_AUTHOR,
         "relationship_record_id": SCHEMA_REVIEW_RELATIONSHIP_ID,
         "minimum_independence_grade": "I2",
+        "operator_provenance": _review_operator_provenance(
+            producer_actor_id=ACT_CONTRACT_AUTHOR,
+            reviewer_actor_id=ACT_SCHEMA_REVIEWER,
+            review_task_id=SCHEMA_REVIEW_TASK_ID,
+            review_session_id=SCHEMA_REVIEW_SESSION_ID,
+        ),
         "verdict": "pass",
         "review_state": "completed",
         "reviewed_at": "2026-07-18T07:35:00Z",
@@ -1322,24 +1419,14 @@ def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str
         "producer_actor_id": ACT_PRODUCER,
         "relationship_record_id": REVIEW_RELATIONSHIP_ID,
         "minimum_independence_grade": "I2",
-        "operator_provenance": {
-            "producer_operator": {
-                "actor_id": ACT_PRODUCER,
-                "operator_type": "codex_task_agent",
-            },
-            "reviewer_operator": {
-                "actor_id": ACT_SCIENTIFIC_REVIEWER,
-                "operator_type": "codex_task_agent",
-            },
-            "producer_task_id": PRODUCER_TASK_ID,
-            "review_task_id": REVIEW_TASK_ID,
-            "producer_session_id": PRODUCER_SESSION_ID,
-            "review_session_id": REVIEW_SESSION_ID,
-            "handoff_id": REVIEW_HANDOFF_ID,
-            "session_family": "codex_standalone",
-            "context_mode": "fresh_task_no_parent_history",
-            "fork_turns": "none",
-        },
+        "operator_provenance": _review_operator_provenance(
+            producer_actor_id=ACT_PRODUCER,
+            reviewer_actor_id=ACT_SCIENTIFIC_REVIEWER,
+            review_task_id=REVIEW_TASK_ID,
+            review_session_id=REVIEW_SESSION_ID,
+            producer_task_id=PRODUCER_TASK_ID,
+            producer_session_id=PRODUCER_SESSION_ID,
+        ),
         "obligation_evidence_rows": _obligation_evidence_rows(contract),
         "boundary_fixture_execution_rows": _boundary_fixture_execution_rows(),
         "verdict": "pass",
@@ -1433,10 +1520,17 @@ def _coordinate_all_external_hashes(pack: dict, record_store: dict[str, dict]) -
     return raw_candidate_pack_bytes, hash_manifest
 
 
-def _eligible_acceptance_fixture() -> (
-    tuple[dict, ContractAuthorityResolver, dict, bytes, dict[str, dict], dict[str, str]]
-):
-    contract = _eligible_contract()
+def _eligible_acceptance_fixture(
+    contract: dict | None = None,
+) -> tuple[dict, ContractAuthorityResolver, dict, bytes, dict[str, dict], dict[str, str]]:
+    """Build an acceptance fixture, optionally over a caller-narrowed contract.
+
+    `contract` lets a test exercise a configuration the repository contract does not currently
+    declare — e.g. an operator model admitting only one session family — so that a value which is
+    schema-valid but contract-disallowed can reach the validator. It is still schema-validated
+    here and still frozen behind the fixture authority seam.
+    """
+    contract = _eligible_contract() if contract is None else deepcopy(contract)
     _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _validate_pending_reference_relation(contract)
     contract_resolver = _fixture_contract_authority(contract)
@@ -1547,6 +1641,20 @@ def _validate_external_acceptance_with_authority(
         or schema_review["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
     ):
         raise CandidatePackError("contract/schema review does not bind exact authorship")
+    contract_review_provenance = _validate_review_operator_provenance(
+        contract,
+        contract_review,
+        producer_actor_id=authorship["author_actor_id"],
+        reviewer_actor_id=contract_review["reviewer_actor_id"],
+        label="contract",
+    )
+    schema_review_provenance = _validate_review_operator_provenance(
+        contract,
+        schema_review,
+        producer_actor_id=authorship["author_actor_id"],
+        reviewer_actor_id=schema_review["reviewer_actor_id"],
+        label="schema",
+    )
     if (
         contract_schema_acceptance["authorship_record_id"] != CONTRACT_AUTHORSHIP_RECORD_ID
         or contract_schema_acceptance["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
@@ -1750,18 +1858,22 @@ def _validate_external_acceptance_with_authority(
         or owner["two_key_closure_sha256"] != expected_two_key_root
     ):
         raise CandidatePackError("owner acceptance does not bind exact two-key evidence")
-    provenance = review["operator_provenance"]
+    provenance = _validate_review_operator_provenance(
+        contract,
+        review,
+        producer_actor_id=pack["producer_actor_id"],
+        reviewer_actor_id=review["reviewer_actor_id"],
+        label="pack",
+    )
+    if canonical_requirement["task_id"] != provenance["producer_task_id"]:
+        raise CandidatePackError("pack review task provenance does not prove a separate fresh context")
     if (
-        provenance["producer_operator"] != {"actor_id": pack["producer_actor_id"], "operator_type": "codex_task_agent"}
-        or provenance["reviewer_operator"]
-        != {"actor_id": review["reviewer_actor_id"], "operator_type": "codex_task_agent"}
-        or provenance["producer_task_id"] == provenance["review_task_id"]
-        or provenance["producer_session_id"] == provenance["review_session_id"]
-        or provenance["context_mode"] != "fresh_task_no_parent_history"
-        or provenance["fork_turns"] != "none"
-        or canonical_requirement["task_id"] != provenance["producer_task_id"]
+        len(
+            {provenance["handoff_id"], contract_review_provenance["handoff_id"], schema_review_provenance["handoff_id"]}
+        )
+        != 1
     ):
-        raise CandidatePackError("review task provenance does not prove a separate fresh context")
+        raise CandidatePackError("review provenance records do not share one stable handoff identifier")
     if review["verdict"] != "pass" or owner["outcome"] != "accepted":
         raise CandidatePackError("external review and owner acceptance are both required")
     if review["producer_actor_id"] != pack["producer_actor_id"]:
@@ -3305,3 +3417,201 @@ def test_m2_coordinated_stale_reference_pin_fails_current_snapshot_revalidation(
                     snapshots=snapshots,
                 ),
             )
+
+
+def test_review_provenance_is_required_on_every_review_record_type():
+    """F-1 control: typed fresh-context provenance binds all three review records, not only the pack.
+
+    The contract states `review_provenance_binding` at `external_acceptance_evidence` level and
+    lists three `review_provenance_required_record_types`, so a review record that reuses its
+    author's task or session must fail for each type independently. Before this control the
+    obligation was enforced on `independent_pack_review` alone.
+    """
+    reused_task_and_session = (
+        (CONTRACT_REVIEW_RECORD_ID, "contract", CONTRACT_AUTHOR_TASK_ID, CONTRACT_AUTHOR_SESSION_ID),
+        (SCHEMA_REVIEW_RECORD_ID, "schema", CONTRACT_AUTHOR_TASK_ID, CONTRACT_AUTHOR_SESSION_ID),
+        (REVIEW_RECORD_ID, "pack", PRODUCER_TASK_ID, PRODUCER_SESSION_ID),
+    )
+    for record_id, label, author_task_id, author_session_id in reused_task_and_session:
+        for field, reused_value in (
+            ("review_task_id", author_task_id),
+            ("review_session_id", author_session_id),
+        ):
+            contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+            record_store[record_id]["operator_provenance"][field] = reused_value
+            raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+            with pytest.raises(CandidatePackError, match=f"{label} review task provenance"):
+                _validate_hypothetical_external_acceptance(
+                    pack,
+                    raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+                    contract=contract,
+                    fixture_contract_authority=contract_resolver,
+                    record_store=record_store,
+                    hash_manifest=hash_manifest,
+                )
+
+
+def test_review_provenance_accepts_any_contract_allowed_session_family_and_agent_operator():
+    """F-2 control: the operator model is provider-neutral, so a non-Codex review record is valid.
+
+    06g authorizes the owner to select the external application; the contract records
+    `session_family_selection: operator_selected` over `allowed_session_families`. A review
+    produced and reviewed under `claude_standalone` must therefore validate exactly as
+    `codex_standalone` does. Before this control every fixture was Codex, so a Codex-only
+    narrowing in the schema and validator had no watched negative.
+    """
+    contract = _eligible_contract()
+    operator_model = contract["required_pack_contract"]["external_acceptance_evidence"]["operator_model"]
+    assert operator_model["provider_neutral"] is True
+    assert operator_model["session_family_selection"] == "operator_selected"
+    # Neutrality is by configuration: the contract selects a non-empty subset of the governance
+    # enums. Assert the precondition this control depends on — that Claude is currently admitted —
+    # rather than pinning the allowlists to an exact pair, which would make narrowing the
+    # configuration look like a regression.
+    assert "claude_standalone" in operator_model["allowed_session_families"]
+    assert "claude_task_agent" in operator_model["allowed_agent_operator_types"]
+
+    for session_family, operator_type in (
+        ("claude_standalone", "claude_task_agent"),
+        ("codex_standalone", "claude_task_agent"),
+    ):
+        contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+        provenance = record_store[REVIEW_RECORD_ID]["operator_provenance"]
+        provenance["session_family"] = session_family
+        provenance["producer_operator"]["operator_type"] = operator_type
+        provenance["reviewer_operator"]["operator_type"] = operator_type
+        raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_review_operator_outside_the_contract_operator_model_is_rejected():
+    """F-2 control: provider-neutral is not unconstrained, at both enforcement layers.
+
+    Two layers, two distinct controls:
+
+    Schema layer — `agentOperatorIdentity` restricts review operators to agent types, so a
+    `human_owner` review operator and a session family outside the governance enum both fail
+    before the validator runs. This is what reconciles the schema with
+    `human_owner_may_act_as_review_operator: false`; previously the schema admitted `human_owner`
+    in this slot and only the validator objected.
+
+    Validator layer — a value inside the governance enum but outside the *contract's* declared
+    allowlist is schema-valid and can only be caught by the contract-level check. Exercised over a
+    contract narrowed to `codex_standalone`, which is what makes the allowlist meaningful rather
+    than decorative.
+    """
+    for field, value in (
+        ("operator_type", "human_owner"),
+        ("session_family", "gemini_standalone"),
+    ):
+        contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+        provenance = record_store[REVIEW_RECORD_ID]["operator_provenance"]
+        if field == "operator_type":
+            provenance["reviewer_operator"]["operator_type"] = value
+        else:
+            provenance["session_family"] = value
+        raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+        with pytest.raises(CandidatePackError, match="invalid independent_pack_review record"):
+            _validate_hypothetical_external_acceptance(
+                pack,
+                raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+                contract=contract,
+                fixture_contract_authority=contract_resolver,
+                record_store=record_store,
+                hash_manifest=hash_manifest,
+            )
+
+    narrowed = _eligible_contract()
+    narrowed_model = narrowed["required_pack_contract"]["external_acceptance_evidence"]["operator_model"]
+    narrowed_model["allowed_session_families"] = ["codex_standalone"]
+    narrowed_model["allowed_agent_operator_types"] = ["codex_task_agent"]
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture(narrowed)
+    record_store[REVIEW_RECORD_ID]["operator_provenance"]["session_family"] = "claude_standalone"
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+    with pytest.raises(CandidatePackError, match="pack review task provenance"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_review_provenance_records_must_share_one_stable_handoff_id():
+    """N-3 control: `handoff_id` is bound across the review records, not merely present.
+
+    06g section 6 requires a stable handoff identifier shared by the brief and the returned
+    evidence. The contract records `handoff_binding:
+    single_stable_handoff_id_shared_by_every_review_provenance_record`; before this control the
+    field was schema-required and bound by nothing.
+
+    The divergence is introduced on the pack review because the check compares all three records;
+    mutating a contract- or schema-review record additionally invalidates the acceptance record's
+    embedded review hashes, which fails earlier for an unrelated reason.
+    """
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    record_store[REVIEW_RECORD_ID]["operator_provenance"]["handoff_id"] = "hnd_00000000-0000-7000-8000-0000000000ff"
+    raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
+    with pytest.raises(CandidatePackError, match="one stable handoff identifier"):
+        _validate_hypothetical_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+
+def test_lane_may_not_declare_a_fixture_catalogued_to_a_foreign_lane():
+    """N-1 control: a lane's `exact_fixture_ids` must agree with each fixture's catalogued lane.
+
+    The representation lane previously declared `apf_degenerate_fallback`, whose catalogue row is
+    `lane_id: stochastic_null` with a stochastic target invariant. No check compared the two, so
+    the cross-listing was invisible. `cross_lane` remains permitted for genuinely shared fixtures.
+    """
+    contract = _eligible_contract()
+    lanes = contract["required_pack_contract"]["lanes"]
+    fixture_rows = _rows_by_id(
+        contract["required_pack_contract"]["fixtures"]["exact_fixture_rows"], "fixture_id", "fixture"
+    )
+    for lane_id, lane_contract in lanes.items():
+        for fixture_id in lane_contract["exact_fixture_ids"]:
+            assert fixture_rows[fixture_id]["lane_id"] in {lane_id, "cross_lane"}
+
+    representation = lanes["representation"]
+    assert "apf_representation_frozen_fallback" in representation["exact_fixture_ids"]
+    assert "apf_degenerate_fallback" not in representation["exact_fixture_ids"]
+    assert fixture_rows["apf_representation_frozen_fallback"]["lane_id"] == "representation"
+    assert (
+        fixture_rows["apf_representation_frozen_fallback"]["target_invariant"]
+        == "invariant.representation.prohibited_refit_and_fallback"
+    )
+
+    # Negative control for the pack-side branch. The cross-listing can only exist in a contract
+    # that declares it, so the mutated contract is supplied through a trusted fixture authority
+    # rather than the Git-resolved one, which would reject any locally modified contract.
+    cross_listed = _eligible_contract()
+    cross_listed["required_pack_contract"]["lanes"]["representation"]["exact_fixture_ids"] = [
+        "apf_degenerate_fallback" if fixture_id == "apf_representation_frozen_fallback" else fixture_id
+        for fixture_id in cross_listed["required_pack_contract"]["lanes"]["representation"]["exact_fixture_ids"]
+    ]
+    cross_listed_resolver = _fixture_contract_authority(cross_listed)
+    _, _, cross_listed_subject = _resolve_contract_authority(cross_listed_resolver)
+    cross_listed_pack = _proposed_pack(cross_listed, contract_subject=cross_listed_subject)
+    with pytest.raises(CandidatePackError, match="catalogued to a foreign lane"):
+        _validate_hypothetical_proposed_pack(
+            cross_listed_pack,
+            contract=cross_listed,
+            fixture_contract_authority=cross_listed_resolver,
+            require_active_references=True,
+        )
