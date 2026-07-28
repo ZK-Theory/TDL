@@ -42,6 +42,16 @@ dependencies = [
     # without needing --extra dev. PyYAML was already locked transitively via pre-commit.
     "PyYAML>=6.0",
     "jsonschema>=4.20",
+    # jsonschema registers its own "date-time" format checker only when this
+    # package is present; without it, schema_registry.py installs a fallback.
+    # Undeclared, the live implementation was a property of whoever provisioned
+    # the venv, and the fallback diverged from upstream unnoticed (it rejected
+    # null, which upstream accepts vacuously) -- 90 failures in
+    # test_release_publication.py on machines that lacked it, none on machines
+    # that had it. Declared so the primary path is deterministic; the fallback
+    # is retained for envs that strip it, and pinned to upstream semantics by
+    # test_schema_registry.py::test_fallback_date_time_checker_matches_upstream.
+    "rfc3339-validator>=0.1.4",
     "petls>=1.0.1",
     # Used by run_t128_bh_fdr.py, run_fdr_correction.py, nssec_missingness.py,
     # age_stratified.py, assess_information_content.py -- was already imported

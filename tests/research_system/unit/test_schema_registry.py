@@ -5,12 +5,38 @@ import shutil
 
 import pytest
 
+from jsonschema import Draft202012Validator, FormatChecker
+
 from research_system.errors import SchemaError
-from research_system.schema_registry import SchemaRegistry, authority_schema_registry
+from research_system.schema_registry import (
+    SchemaRegistry,
+    _is_rfc3339_date_time,
+    authority_schema_registry,
+)
 
 
 SCHEMAS = Path(".research-system/schemas")
 UUID7 = "01978abc-0001-7000-8000-000000000001"
+
+# Instances chosen to separate "does not apply" from "applies and fails".
+# ``format`` is defined to be ignored for instance types it does not target, so
+# every non-string conforms vacuously; only malformed *strings* may be rejected.
+_DATE_TIME_INSTANCES = (
+    None,
+    123,
+    12.5,
+    True,
+    [],
+    {},
+    "2026-07-28T00:00:00Z",
+    "2026-07-28T00:00:00z",
+    "2026-07-28T00:00:00+01:00",
+    "2026-07-28T00:00:00.123456Z",
+    "nope",
+    "",
+    "2026-07-28",
+    "2026-13-01T00:00:00Z",
+)
 
 
 def _command_payload():
@@ -32,6 +58,65 @@ def _command_payload():
         "evidence_refs": [],
         "payload": {},
     }
+
+
+def _upstream_date_time_checker():
+    """Return jsonschema's own ``date-time`` predicate, or None if unavailable.
+
+    ``schema_registry`` registers its fallback on ``Draft202012Validator``'s
+    shared checker *instance*, so that instance cannot distinguish the two
+    implementations. A freshly constructed ``FormatChecker`` carries only the
+    class-level registrations, which are upstream's.
+    """
+    entry = FormatChecker().checkers.get("date-time")
+    return None if entry is None else entry[0]
+
+
+def test_a_date_time_format_checker_is_registered():
+    """Absence must be loud: without a checker, ``format`` silently no-ops.
+
+    jsonschema does not fail when a format has no checker -- it ignores the
+    keyword, so every malformed timestamp in the system would validate. That is
+    the failure mode the fallback exists to prevent, so assert the outcome the
+    fallback is meant to guarantee rather than trusting it fired.
+    """
+    assert "date-time" in Draft202012Validator.FORMAT_CHECKER.checkers
+
+
+def test_fallback_date_time_checker_matches_upstream():
+    """The fallback must agree with the checker it substitutes for.
+
+    A substitute is correct only relative to what it replaces, not to its own
+    intent. This previously returned False for non-strings while upstream
+    returns True, making schema strictness depend on whether an optional
+    package happened to be installed.
+    """
+    upstream = _upstream_date_time_checker()
+    if upstream is None:
+        pytest.skip("rfc3339-validator absent; no upstream checker to compare against")
+
+    divergent = {
+        instance: (_is_rfc3339_date_time(instance), upstream(instance))
+        for instance in _DATE_TIME_INSTANCES
+        if _is_rfc3339_date_time(instance) != upstream(instance)
+    }
+    assert not divergent, f"fallback diverges from upstream (fallback, upstream): {divergent}"
+
+
+@pytest.mark.parametrize("instance", [None, 123, 12.5, True, [], {}])
+def test_fallback_ignores_non_string_instances(instance):
+    """Pins the specific regression: ``format`` does not apply to non-strings.
+
+    Kept separate from the agreement test so this still fails loudly in an
+    environment where the upstream comparison has to skip.
+    """
+    assert _is_rfc3339_date_time(instance) is True
+
+
+@pytest.mark.parametrize("instance", ["nope", "", "2026-07-28", "2026-13-01T00:00:00Z"])
+def test_fallback_still_rejects_malformed_timestamp_strings(instance):
+    """Negative control: the relaxation above must not have made it vacuous."""
+    assert _is_rfc3339_date_time(instance) is False
 
 
 def test_registry_validates_command_envelope():
