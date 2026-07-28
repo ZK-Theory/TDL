@@ -1,0 +1,27 @@
+# W1 authority allocations of assurance-pack object identities.
+#
+# Purpose: the WP6.3 upstream contract orders identity registration BEFORE
+# candidate authorship, with `exact_id_in_future_candidate_required: true`, so a
+# future pack producer cannot mint its own object id. The pack schema constrains
+# `assurance_pack_id` to the `asp_` UUIDv7 pattern but pins no exact value, so
+# the exact value has to be bound somewhere both the producer and the
+# independent pack reviewer can read. This file is that location.
+#
+# A pack candidate whose `assurance_pack_id` is not the allocated id below is
+# self-selected and must be rejected at review.
+#
+# Allocations are append-only. Superseding an allocation requires a new entry
+# with a new revision; never edit or delete an existing one.
+schema_version: '1.0.0'
+allocations:
+  - id_kind: assurance_pack
+    assurance_pack_id: asp_019fa860-3a4b-7784-839f-60f6277e6ce9
+    assurance_pack_revision: 1
+    canonical_repository_path: .research-system/packs/tdl-private-assurance.yaml
+    distribution_scope: TDL_private
+    allocated_by: w1_authority
+    allocated_at: '2026-07-28'
+    authorizing_contract_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
+    authorizing_subject_commit: 449b0d002edea3013dcc32a115f1870c4a082974
+    authorizing_contract_git_blob: 7298b994ca80fb43364ec53964b735f1c7e3929a
+    authorizing_contract_canonical_sha256: 03cd115c8e914b015a57be2092e41044802ff0c0d018ffb25e04a09c38eda985
