@@ -25,3 +25,4 @@ kinds:
   evaluation_run: run
   release_gate_decision: rgd
   policy_parity_report: ppr
+  assurance_pack: asp
