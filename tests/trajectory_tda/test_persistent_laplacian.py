@@ -86,7 +86,7 @@ def test_eigen_analysis_empty_matrix() -> None:
     reason="petls is an optional dependency group; set TDL_REQUIRE_PETLS=1 to pin its availability",
 )
 def test_petls_is_importable_in_this_environment() -> None:
-    """Pin PETLS availability where the environment is supposed to provide it.
+    """Pin the C++ PETLS backend where the environment is supposed to provide it.
 
     Was an unconditional assertion, pinning the 2026-07-07 fact that PETLS built and
     imported in this repo's .venv. Demoted to opt-in on 2026-07-29 when petls moved to a
@@ -97,9 +97,18 @@ def test_petls_is_importable_in_this_environment() -> None:
     The risk that motivated it — a silent fallback to numpy — is guarded independently and
     unconditionally by ``test_forced_petls_backend_raises_rather_than_falling_back``. Set
     ``TDL_REQUIRE_PETLS=1`` (Linux, or a Windows venv seeded per the worktree skill) to
-    assert availability rather than merely tolerate it.
+    assert the backend rather than merely tolerate it; the ``petls-backend`` CI lane sets it.
+
+    ``PETLS_AVAILABLE`` alone is too weak to be that assertion: the module sets it from
+    ``import petls`` *or* the ``petls_pytorch`` fallback, so an environment carrying only the
+    fallback satisfies it while the compiled backend this pin exists for is absent. The
+    backend name is what distinguishes them.
     """
     assert PETLS_AVAILABLE is True
+    assert PETLS_BACKEND_NAME == "petls", (
+        f"TDL_REQUIRE_PETLS=1 requires the compiled petls extension, not a fallback; "
+        f"resolved backend was {PETLS_BACKEND_NAME!r}"
+    )
 
 
 def test_forced_petls_backend_raises_rather_than_falling_back() -> None:

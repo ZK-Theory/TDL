@@ -44,3 +44,47 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  # The PETLS C++ backend is an optional dependency group, so `lint-and-test`
+  # (which installs only `.[dev]`) leaves PETLS_AVAILABLE false and skips every
+  # backend test -- including the cross-backend agreement checks, which are the
+  # only thing that would catch the backend drifting from the validated numpy
+  # implementation. Before 2026-07-29 petls was a core dependency and CI
+  # exercised it incidentally; this lane keeps that coverage deliberately.
+  #
+  # Linux only, and that is not a compromise: petls publishes a cp313
+  # manylinux wheel but no Windows wheel, and it is the sdist's CMake/Boost
+  # build that made petls a problem on Windows in the first place.
+  petls-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies
+        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+
+      - name: Install the optional PETLS backend
+        run: uv pip install --group petls
+
+      - name: Run the persistent-Laplacian suite with PETLS required
+        # TDL_REQUIRE_PETLS=1 turns the availability check from tolerated into
+        # asserted, so a silently failed install fails the lane rather than
+        # quietly skipping the backend tests it exists to run.
+        env:
+          TDL_REQUIRE_PETLS: "1"
+        run: |
+          source .venv/bin/activate
+          pytest tests/trajectory_tda/test_persistent_laplacian.py --no-cov
