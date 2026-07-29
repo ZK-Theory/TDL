@@ -70,7 +70,7 @@ fi
 if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/sync_agent_skills.py" --check; then
   echo "" >&2
   echo "pre-commit: skill trees diverged — commit blocked." >&2
-  echo "Fix: uv run python tools/sync_agent_skills.py" >&2
+  echo "Fix: \"$MAIN_PYTHON\" \"$REPO_ROOT/tools/sync_agent_skills.py\"" >&2
   exit 1
 fi
 

@@ -35,12 +35,14 @@ def _write_executable(path: Path, text: str) -> None:
     path.chmod(0o755)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
 def test_linked_worktree_uses_main_python_without_bootstrapping_local_venv(tmp_path: Path) -> None:
     """Observation 108: hook routing must leave a venv-free worktree untouched."""
     main_root = tmp_path / "main"
     worktree = tmp_path / "linked-worktree"
     fake_bin = tmp_path / "fake-bin"
+    bash_env = tmp_path / "bash-env"
     invocation_log = tmp_path / "python-invocations.log"
     main_root.joinpath(".git").mkdir(parents=True)
     worktree.mkdir()
@@ -55,6 +57,7 @@ case "$*" in
 esac
 """,
     )
+    _write_executable(bash_env, 'export PATH="$HOOK_TEST_PATH"\n')
     _write_executable(
         main_root / ".venv" / "Scripts" / "python.exe",
         """#!/bin/sh
@@ -71,11 +74,12 @@ exit 0
             "HOOK_TEST_MAIN": _msys_path(main_root),
             "HOOK_TEST_WORKTREE": _msys_path(worktree),
             "HOOK_TEST_LOG": _msys_path(invocation_log),
+            "HOOK_TEST_PATH": f"{_msys_path(fake_bin)}:/usr/bin:/bin",
+            "BASH_ENV": _msys_path(bash_env),
         }
     )
-    command = f'PATH="{_msys_path(fake_bin)}:/usr/bin:/bin"; export PATH; sh "{_msys_path(HOOK)}"'
     completed = subprocess.run(
-        [str(git_bash), "-c", command],
+        [str(git_bash), _msys_path(HOOK)],
         cwd=worktree,
         env=env,
         text=True,
