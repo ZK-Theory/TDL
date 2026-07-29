@@ -30,17 +30,38 @@ evidence of correctness, and the authoring agent's confidence is not evidence of
 anything.
 
 **A specific caution about this suite's provenance.** Two of its inputs are external
-deep-research reports produced with no repository access and partial repository
-access respectively. The authoring agent claims to have adversarially reviewed both
-and discarded their unsupported conclusions. Verify that quarantine held: any plan
-requirement whose only support traces to one of those reports, rather than to the
-repository or an accepted specification, is a finding.
+deep-research reports: report 1 produced with **no** repository access, report 2 with
+**partial** planning-doc access. Both live in the vault (unversioned — no git blob), so
+they are pinned by content hash. Recompute each before relying on it; a hash mismatch
+means you are reading a different document than the suite was built from, and is itself
+a finding.
+
+| Input | Path (vault; also reachable at `vault/01-Literature/Research Papers/` via the repo junction) | SHA-256 |
+|---|---|---|
+| Report 1 (no repo access) | `C:\Users\steph\Documents\TDA-Research\01-Literature\Research Papers\ars-plus-deep-research-report.md` | `23873353d96593c35ef4bb1a50eb893af5432c40eb5d1851e1e7dcda74fd426c` |
+| Report 2 (partial access) | `…\ars-plus-deep-research-report-2.md` | `2d727f63139a5063a976b388c76c25652472d86b9f995e52fcfdaff658719650` |
+| Source paper (Woodruff et al.) | `…\Gemini For Research.md` | `43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24` |
+
+The authoring agent claims to have adversarially reviewed both reports and discarded
+their unsupported conclusions. **Verify that quarantine held.** Before issuing any
+dispatch verdict, produce a **provenance trace**: for each substantive requirement in
+RM-01..RM-04, name its support — repository state, an accepted specification/decision,
+the source paper, or one of the two reports. Any requirement whose only support is a
+report (rather than something the report merely *pointed at*, which you then confirmed
+independently) is a finding. Report the trace as a table in your output; a requirement
+you cannot source at all is a Major finding.
 
 ## Review subject (exact)
 
 Review these files at `origin/main` commit `6e7d0e0` with the exact blob identities
-below. If `main` has advanced in a way that touches these files, record the drift as
-your first finding and review the current state.
+below. Recompute every blob before you begin.
+
+**Drift rule (hard stop).** If any pinned blob does not match, **stop and report**.
+Do not review the current state under this subject: a verdict carrying this commit's
+identity must describe these exact bytes, or the acceptance record it feeds is false.
+Report the drift as your sole finding, name the files and their actual identities, and
+return without a verdict. Reviewing the drifted content requires a **new** review
+subject with its own pinned commit and blob identities — a fresh brief, not this one.
 
 | File | Blob |
 |---|---|
@@ -54,10 +75,15 @@ your first finding and review the current state.
 
 Also in scope, **as rendering checks only**: `03-decisions-and-open-questions.md`
 §P-043 and §P-044 (are they protocol-complete, and does the suite render them
-faithfully?).
+faithfully?) — same commit, blob
+`c57bbfe2300f7ccb42b3ca81035e470a1620a2a2`. The drift rule above applies to it too,
+but its scope stays rendering-only: do not review the rest of the register.
 
-Each plan is separately dispatchable. Your verdict must therefore be **per plan**, not
-only for the suite as a whole.
+**Dispatch scope.** RM-00 is the **coordination plan** — a charter, gate checklist,
+and obligation register. It is not dispatchable and no Worker executes it; it earns a
+**readiness verdict** (is it a sound governing document for the lane?). RM-01, RM-02,
+RM-03 and RM-04 are the dispatchable plans and each earns its own **dispatch verdict**.
+Your verdicts are therefore per document, never one verdict for the suite.
 
 ## Fixed ground (do not re-litigate)
 
@@ -205,19 +231,26 @@ only for the suite as a whole.
 Write `docs/plans/agentic-research-system/reviews/adversarial-rm-lane-plan-suite-review-<YYYY-MM-DD>.md` containing:
 
 1. **Header:** review date, reviewed commit and blob identities as you recomputed
-   them, reviewer identity/family/context basis (state independence honestly per
-   P-022).
+   them (including the register blob and the three vault content hashes), reviewer
+   identity/family/context basis (state independence honestly per P-022).
 2. **Findings**, severity-graded per house convention — Critical (C-n), Major (M-n),
    Minor (m-n), Informational (i-n) — each with: location, quoted evidence, why it is
    a defect, and the exact required change or stop.
 3. **Attack-surface disposition table:** all twelve surfaces with outcome
    (findings | clean) — null results stated, not implied.
-4. **Decision disposition:** for P-042, P-043, P-044 and gates G-RM-1..G-RM-6,
+4. **Provenance trace table:** each substantive RM-01..RM-04 requirement mapped to its
+   support (repository state | accepted specification/decision | source paper |
+   report 1 | report 2 | unsourced), per the provenance caution above.
+5. **Decision disposition:** for P-042, P-043, P-044 and gates G-RM-1..G-RM-6,
    whether the suite renders each faithfully.
-5. **Per-plan verdict:** for each of RM-00, RM-01, RM-02, RM-03, RM-04 —
-   `accept` | `accept_with_required_changes` | `reject` — with the exact condition set
-   that must clear before that plan may be dispatched. A plan may be dispatchable
-   while others are not; say so explicitly if that is your finding.
+6. **Per-document verdicts:**
+   - **RM-00 — readiness verdict:** `ready` | `ready_with_required_changes` |
+     `not_ready`, judging it as the lane's governing document (coordination only; it
+     is not dispatched).
+   - **RM-01, RM-02, RM-03, RM-04 — dispatch verdict each:** `accept` |
+     `accept_with_required_changes` | `reject`, with the exact condition set that must
+     clear before that plan may be dispatched. A plan may be dispatchable while others
+     are not; say so explicitly if that is your finding.
 
 Do not soften findings because the suite is already merged, because the decisions are
 already accepted, or because the lane is described as low-risk. Planning documents
