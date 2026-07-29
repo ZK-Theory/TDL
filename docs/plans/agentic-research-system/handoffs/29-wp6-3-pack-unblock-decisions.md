@@ -138,13 +138,78 @@ by construction.
 - Every new control's negative written first and observed to fail.
 - Ruff clean; pre-commit gates across 103 contracts.
 
+## Decision 4 — the producer task identity, and the requirement's risk classification
+
+Added 2026-07-28 after the executing session stopped at step 3. It was right to
+stop: the `task_id` is not bookkeeping, and minting one would have forged the
+separation proof.
+
+**Both claims were verified before this decision was taken.** The
+assurance-requirement schema does require `task_id` matching `^tsk_` (it is in
+the schema's `required` list, and Decision 2's table has no sixth row). And the
+binding is load-bearing —
+`tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py:1921`
+reads `if canonical_requirement["task_id"] != provenance["producer_task_id"]`,
+with line 954 separately requiring `producer_task_id != review_task_id`. An
+invented task id would manufacture exactly the separation the reviewer is meant
+to prove.
+
+**Allocated under W1 authority, 2026-07-28:**
+
+| Field | Value |
+|---|---|
+| `task_id` | `tsk_019faddf-5d6c-7629-bc3b-b20112ad041d` |
+| `task_revision` | `1` |
+
+Validated three ways: matches `^tsk_`, matches the `task: tsk` prefix in the
+id-kind registry, and round-trips through `validate_id(value, "task")`.
+
+**Risk classification — confirmed, and it is not a free choice.** Use:
+
+| Field | Value |
+|---|---|
+| `requested_risk` | `R3` |
+| `w5_epistemic_risk_floor` | `R3` |
+| `action_semantic_risk` | `R3` |
+| `requirement_relationship_grade` | `I2` |
+
+The proposal was correct and it is better grounded than "matches the in-module
+precedent". `docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md`
+line 171: *"For R3/P-005 work, an I2 cross-family/context requirement-scope
+review and Stephen's attributed acceptance are required."* So **R3 forces I2** —
+they are not independent knobs — and I2 is also the contract's declared
+`minimum_independence_grade`. R3 is the correct floor for a private assurance
+pack governing six research-assurance lanes whose output supports publishable
+claims, and R3 is what compels the attributed owner acceptance Decision 3 already
+sequences.
+
+Line 307 of the same document is why this had to come from the owner rather than
+the executing session: *"A prospective producing actor may contribute a
+requirement draft but cannot be the sole authority for its R2/R3 floor, lane
+scope, or `not_applicable` decisions."* Drafting the requirement is in scope;
+setting its floor is not. Stopping to ask was correct behaviour, not a delay.
+
+**Consequence for lane scope.** The same clause covers `lanes` and any
+`not_applicable` rationale. Draft them from the contract's six lanes and their
+declared obligations, but surface the lane scope and every `not_applicable`
+rationale to Stephen **in the same stop** as the acceptance statement. Do not
+treat lane scope as a mechanical projection.
+
+**Watch for staleness.** Line 171 also states that if the actual producer or its
+relationship differs materially from the accepted prospective relationship, the
+requirement acceptance stales before dispatch. `producer_actor_id` and
+`prospective_producer_actor_id` are already allocated to the same value for this
+reason; keep them equal.
+
 ## Hard stops
 
 - Do not edit `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`
   or `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`.
   Owner-accepted at exact bytes at `449b0d00`.
-- Do not mint any identity. All five are allocated above; the sixth is a hash of
-  a real record.
+- Do not mint any identity. All six are allocated above (five in Decision 2, the
+  task id in Decision 4); the remaining field is a hash of a real record.
+- Do not set the risk floor, lane scope, or any `not_applicable` rationale on
+  your own authority — draft, then surface.
 - Do not write Stephen's acceptance statement. Surface it and stop.
 - Do not self-review, close Gate A A7, dispatch WP6.4, or move Gate 6.
 - Do not transition Jira or comment on it.
