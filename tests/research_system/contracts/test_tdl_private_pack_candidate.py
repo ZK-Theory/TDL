@@ -16,6 +16,7 @@ control instead of adding an unreachable runtime check beside it.
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -33,7 +34,9 @@ from research_system.assurance import (
 from research_system.assurance.pack_loader import _require_key
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
-
+from tests.research_system.contracts.test_wp6_3_tdl_private_assurance_pack_contract import (
+    _assert_test_surface_closure,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMAS = ROOT / ".research-system" / "schemas"
@@ -41,18 +44,18 @@ CONTRACT_PATH = ROOT / ".research-system" / "contracts" / "wp6-3-tdl-private-ass
 PACK_SCHEMA_PATH = SCHEMAS / "assurance" / "assurance-pack.schema.json"
 EXTERNAL_RECORD_SCHEMA_PATH = SCHEMAS / "contracts" / "wp6-3-tdl-private-assurance-pack.schema.json"
 ALLOCATIONS_PATH = ROOT / ".research-system" / "config" / "assurance-pack-object-allocations.yaml"
+IDENTITY_ALLOCATIONS_PATH = ROOT / ".research-system" / "config" / "assurance-producer-and-requirement-allocations.yaml"
 PACK_SCHEMA_ID = "ars://assurance/packs/tdl-private/1.0"
 
 EVALUATION_TIME = datetime(2026, 7, 28, 12, tzinfo=timezone.utc)
 
-# The four external identities the candidate must carry are allocated by W1 authority in
-# external records, exactly as `assurance_pack_id` was. No canonical actor record and no
-# accepted assurance requirement exists at this base, so these are placeholders, and
-# `test_external_identity_prerequisites_are_still_unallocated` fails the moment real ones
-# land — turning a silent absence into a loud one.
-PLACEHOLDER_PRODUCER_ACTOR_ID = "act_00000000-0000-7000-8000-000000000000"
-PLACEHOLDER_ASSURANCE_REQUIREMENT_ID = "asr_00000000-0000-7000-8000-000000000000"
-PLACEHOLDER_REQUIREMENT_RECORD_ID = "ard_00000000-0000-7000-8000-000000000000"
+# Five of the six external identities the candidate must carry are now allocated under W1
+# authority and are read from that file rather than restated here.
+#
+# `acceptance_record_sha256` is the exception and is deliberately still a placeholder: it
+# hashes an owner acceptance record that has to genuinely exist, so it cannot be allocated
+# ahead of the acceptance. `test_requirement_acceptance_is_still_pending` fails the moment
+# it lands, which is the signal that the candidate can finally be authored.
 PLACEHOLDER_REQUIREMENT_SHA256 = "0" * 64
 
 AUTHORITY_ROOT = "authority-root-under-test"
@@ -129,6 +132,8 @@ def build_candidate_pack(contract: dict | None = None) -> dict:
     reference_rows = required["references"]["exact_reference_rows"]
     profile = required["obligation_row_profile"]
     allocation = _current_allocation()
+    producer = _current_producer_allocation()
+    requirement = _current_requirement_allocation()
 
     lanes = {
         lane_id: {
@@ -153,15 +158,15 @@ def build_candidate_pack(contract: dict | None = None) -> dict:
         "canonical_repository_path": allocation["canonical_repository_path"],
         "distribution_scope": allocation["distribution_scope"],
         "candidate_state": "proposed",
-        "producer_actor_id": PLACEHOLDER_PRODUCER_ACTOR_ID,
+        "producer_actor_id": producer["actor_id"],
         "upstream_contract_reference": _accepted_contract_subject(),
         "schema_reference": _accepted_schema_subject(),
         "assurance_requirement_reference": {
-            "assurance_requirement_id": PLACEHOLDER_ASSURANCE_REQUIREMENT_ID,
-            "revision": 1,
-            "acceptance_record_id": PLACEHOLDER_REQUIREMENT_RECORD_ID,
-            "acceptance_record_sha256": PLACEHOLDER_REQUIREMENT_SHA256,
-            "prospective_producer_actor_id": PLACEHOLDER_PRODUCER_ACTOR_ID,
+            "assurance_requirement_id": requirement["assurance_requirement_id"],
+            "revision": requirement["revision"],
+            "acceptance_record_id": requirement["acceptance_record_id"],
+            "acceptance_record_sha256": requirement["acceptance_record_sha256"] or PLACEHOLDER_REQUIREMENT_SHA256,
+            "prospective_producer_actor_id": requirement["prospective_producer_actor_id"],
         },
         "source_authority": {
             "accepted_plan_revision": contract["source_authority"]["accepted_plan_revision"],
@@ -248,6 +253,22 @@ def _current_allocation() -> dict:
     allocations = [row for row in _load_yaml(ALLOCATIONS_PATH)["allocations"] if row["id_kind"] == "assurance_pack"]
     current_revision = max(row["assurance_pack_revision"] for row in allocations)
     return next(row for row in allocations if row["assurance_pack_revision"] == current_revision)
+
+
+def _current_producer_allocation() -> dict:
+    """Return the current W1-allocated `future_pack_producer` actor row."""
+    rows = [
+        row
+        for row in _load_yaml(IDENTITY_ALLOCATIONS_PATH)["actor_allocations"]
+        if row["role"] == "future_pack_producer"
+    ]
+    return max(rows, key=lambda row: row["revision"])
+
+
+def _current_requirement_allocation() -> dict:
+    """Return the current W1-allocated assurance-requirement row."""
+    rows = _load_yaml(IDENTITY_ALLOCATIONS_PATH)["assurance_requirement_allocations"]
+    return max(rows, key=lambda row: row["revision"])
 
 
 def _reference_snapshot(pack: dict) -> dict[str, dict]:
@@ -436,26 +457,105 @@ def test_candidate_asserts_no_review_acceptance_or_self_hash(candidate):
             registry.validate(PACK_SCHEMA_ID, mutated)
 
 
-def test_external_identity_prerequisites_are_still_unallocated(candidate):
-    """Fail loudly once the missing W1 allocations land, instead of shipping placeholders.
+def test_candidate_carries_the_w1_allocated_producer_and_requirement_identities(candidate):
+    """The producer may not mint any of these; they are read from the W1 allocation file."""
+    pack, _ = candidate
+    producer = _current_producer_allocation()
+    requirement = _current_requirement_allocation()
+    reference = pack["assurance_requirement_reference"]
 
-    The candidate needs four external identities — a canonical producer actor and the
-    accepted assurance requirement's id, acceptance record id, and content hash. The
-    contract's `required_temporal_order` puts `requirement_accepted` before
-    `candidate_authored`, but no such record exists at this base and the producer may not
-    mint one. This test pins the placeholders so their replacement is a deliberate,
-    visible edit rather than a silent one.
+    assert pack["producer_actor_id"] == producer["actor_id"]
+    assert reference["assurance_requirement_id"] == requirement["assurance_requirement_id"]
+    assert reference["revision"] == requirement["revision"]
+    assert reference["acceptance_record_id"] == requirement["acceptance_record_id"]
+
+    # One identity for one role. `future_pack_producer` is a single role in the eleven
+    # declared distinct pairs, so two identities for it would make the matrix unevaluable.
+    assert reference["prospective_producer_actor_id"] == pack["producer_actor_id"]
+    assert requirement["prospective_producer_actor_id"] == producer["actor_id"]
+
+
+def test_allocated_identities_satisfy_the_pack_schema_patterns():
+    """Independently of the allocation file, the schema constrains the fields they land in."""
+    schema_defs = _load_json(PACK_SCHEMA_PATH)["$defs"]
+    requirement = _current_requirement_allocation()
+
+    checks = (
+        (_current_producer_allocation()["actor_id"], "actorId"),
+        (requirement["prospective_producer_actor_id"], "actorId"),
+        (requirement["assurance_requirement_id"], "assuranceRequirementId"),
+        (requirement["acceptance_record_id"], "recordId"),
+    )
+    for value, definition in checks:
+        assert re.fullmatch(schema_defs[definition]["pattern"], value), f"{value} fails {definition}"
+
+    assert requirement["revision"] >= 1
+
+
+def test_producer_is_distinct_from_every_role_the_contract_separates_it_from(contract):
+    """The allocation's declared separations must be the contract's, not a hand-written subset."""
+    declared_pairs = contract["required_pack_contract"]["external_acceptance_evidence"]["required_distinct_pairs"]
+    contract_side = {
+        other
+        for pair in declared_pairs
+        for other in pair
+        if "future_pack_producer" in pair and other != "future_pack_producer"
+    }
+    allocation_side = set(_current_producer_allocation()["must_differ_from_roles"])
+    assert allocation_side == contract_side, (
+        f"allocation separations differ from the contract's: only-in-allocation="
+        f"{sorted(allocation_side - contract_side)}, only-in-contract={sorted(contract_side - allocation_side)}"
+    )
+
+
+def test_requirement_acceptance_is_still_pending(candidate):
+    """`acceptance_record_sha256` is the one field W1 cannot allocate ahead of the acceptance.
+
+    It hashes an owner acceptance record that has to genuinely exist. Minting a hash over
+    nothing is exactly the self-attestation the contract forbids, and the contract's
+    `required_temporal_order` puts `requirement_accepted` before `candidate_authored`.
+
+    This fails the moment the acceptance lands, which is the signal that the pack candidate
+    can finally be authored — and it is deleted in that same change, not before.
     """
     pack, _ = candidate
-    reference = pack["assurance_requirement_reference"]
-    assert pack["producer_actor_id"] == PLACEHOLDER_PRODUCER_ACTOR_ID
-    assert reference["assurance_requirement_id"] == PLACEHOLDER_ASSURANCE_REQUIREMENT_ID
-    assert reference["acceptance_record_id"] == PLACEHOLDER_REQUIREMENT_RECORD_ID
-    assert reference["acceptance_record_sha256"] == PLACEHOLDER_REQUIREMENT_SHA256
+    requirement = _current_requirement_allocation()
 
-    allocated_kinds = {row["id_kind"] for row in _load_yaml(ALLOCATIONS_PATH)["allocations"]}
-    assert "canonical_actor" not in allocated_kinds
-    assert "assurance_requirement" not in allocated_kinds
+    assert requirement["acceptance_state"] == "pending_owner_acceptance"
+    assert requirement["acceptance_record_sha256"] is None
+    assert pack["assurance_requirement_reference"]["acceptance_record_sha256"] == PLACEHOLDER_REQUIREMENT_SHA256
+
+
+def test_identity_allocations_are_append_only_and_uniquely_revisioned():
+    allocations = _load_yaml(IDENTITY_ALLOCATIONS_PATH)
+    for block, id_field in (
+        ("actor_allocations", "actor_id"),
+        ("assurance_requirement_allocations", "assurance_requirement_id"),
+    ):
+        rows = allocations[block]
+        assert rows, f"{block} is empty"
+        ids = [row[id_field] for row in rows]
+        assert len(set(ids)) == len(ids), f"duplicate allocated id in {block}"
+        revisions = [(row["id_kind"], row["revision"]) for row in rows]
+        assert len(set(revisions)) == len(revisions), f"duplicate (id_kind, revision) in {block}"
+
+    kinds = _load_yaml(ROOT / ".research-system" / "config" / "id-kind-registry.yaml")["kinds"]
+    for block, id_field in (
+        ("actor_allocations", "actor_id"),
+        ("assurance_requirement_allocations", "assurance_requirement_id"),
+    ):
+        for row in allocations[block]:
+            assert row["id_kind"] in kinds, f"allocation names an unregistered kind: {row['id_kind']}"
+            assert row[id_field].startswith(f"{kinds[row['id_kind']]}_")
+
+
+def test_identity_allocations_bind_the_unmodified_accepted_contract():
+    """The allocations derive authority from the owner-accepted contract at exact bytes."""
+    allocations = _load_yaml(IDENTITY_ALLOCATIONS_PATH)
+    subject = _repository_subject(CONTRACT_PATH)
+    assert allocations["authorizing_contract_path"] == CONTRACT_PATH.relative_to(ROOT).as_posix()
+    assert allocations["authorizing_contract_git_blob"] == subject["git_blob"]
+    assert allocations["authorizing_contract_canonical_sha256"] == subject["canonical_sha256"]
 
 
 # --------------------------------------------------------------------------------------
@@ -728,6 +828,45 @@ def test_loader_fails_closed_on_inverted_or_expired_currency(contract, candidate
     expired_at = EVALUATION_TIME + timedelta(days=400)
     with pytest.raises(PackUnconsumable, match="not current at the evaluation time"):
         validate_tdl_private_pack_for_acceptance(**_loader_kwargs(pack, raw, contract, evaluation_time=expired_at))
+
+
+def test_closure_permits_a_retired_task_local_name_but_not_a_missing_durable_control():
+    """Negative controls for the amended `_assert_test_surface_closure` semantics.
+
+    The contract's declared constant is
+    `every_defined_test_function_is_declared_durable_or_task_local` — defined SUBSET-OF
+    declared. The equality assertion was stricter than that, which froze a task-local
+    scope marker permanently once the contract was accepted at exact bytes. The amended
+    check enforces the two real guarantees separately.
+
+    Written before the amendment and observed to fail against the equality version.
+    """
+    bindings = {
+        "durable_test_functions": ["test_durable_one", "test_durable_two"],
+        "task_local_unbound_test_functions": ["test_task_local"],
+        "binding_closure": "every_defined_test_function_is_declared_durable_or_task_local",
+    }
+    everything = {"test_durable_one", "test_durable_two", "test_task_local"}
+
+    # All present: passes.
+    _assert_test_surface_closure(bindings, defined_names=everything)
+
+    # A task-local name whose task has ended is absent: permitted. This is the whole
+    # meaning of task-local, and the case the equality assertion made impossible.
+    _assert_test_surface_closure(bindings, defined_names=everything - {"test_task_local"})
+
+    # A durable control silently deleted: still fails closed.
+    with pytest.raises(AssertionError, match="declared durable control is missing"):
+        _assert_test_surface_closure(bindings, defined_names=everything - {"test_durable_two"})
+
+    # A test defined but never declared: still fails closed.
+    with pytest.raises(AssertionError, match="undeclared test functions"):
+        _assert_test_surface_closure(bindings, defined_names=everything | {"test_undeclared"})
+
+    # A name declared in both lists at once remains a contradiction.
+    overlapping = bindings | {"task_local_unbound_test_functions": ["test_durable_one"]}
+    with pytest.raises(AssertionError):
+        _assert_test_surface_closure(overlapping, defined_names=everything)
 
 
 def test_missing_contract_or_record_keys_fail_closed_rather_than_raising_keyerror():

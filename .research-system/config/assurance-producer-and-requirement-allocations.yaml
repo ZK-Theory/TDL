@@ -1,0 +1,64 @@
+# W1 authority allocations of the WP6.3 pack producer identity and the assurance
+# requirement the candidate is bound to.
+#
+# Purpose: the pack schema requires `producer_actor_id` and a complete
+# `assurance_requirement_reference`, and the upstream contract's
+# `required_temporal_order` is [requirement_accepted, candidate_authored, ...].
+# The producer is barred from minting any of these
+# (`role_labels_or_candidate_attestations_are_evidence: false`), so they have to
+# be bound somewhere both the producer and the independent pack reviewer can
+# read. This file is that location, following the model of its sibling
+# `assurance-pack-object-allocations.yaml`.
+#
+# A pack candidate carrying identities other than these is self-selected and
+# must be rejected at review.
+#
+# A sibling file rather than new rows in the pack-object allocations: that
+# file's binding tests read `assurance_pack_id` / `assurance_pack_revision` from
+# every row, so heterogeneous rows would break them.
+#
+# Allocations are append-only. Superseding an allocation requires a new entry
+# with a new revision; never edit or delete an existing one.
+schema_version: '1.0.0'
+allocated_by: w1_authority
+allocated_at: '2026-07-28'
+authorizing_decision_path: docs/plans/agentic-research-system/handoffs/28-wp6-3-pack-unblock-decisions.md
+authorizing_contract_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
+authorizing_contract_git_blob: 7298b994ca80fb43364ec53964b735f1c7e3929a
+authorizing_contract_canonical_sha256: 03cd115c8e914b015a57be2092e41044802ff0c0d018ffb25e04a09c38eda985
+
+actor_allocations:
+  # One identity for one role. The eleven `required_distinct_pairs` constrain
+  # roles, and `future_pack_producer` is a single role - two identities for it
+  # would make the distinctness matrix unevaluable. `producer_actor_id` and
+  # `assurance_requirement_reference.prospective_producer_actor_id` therefore
+  # carry the same value, bound by a test.
+  - id_kind: actor
+    role: future_pack_producer
+    actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
+    revision: 1
+    # The producer is the authoring agent session. It must differ from
+    # contract_author, requirement_author, requirement_scope_reviewer,
+    # requirement_acceptor, pack_scientific_reviewer and owner_acceptor -
+    # six of the eleven declared distinct pairs.
+    must_differ_from_roles:
+      - contract_author
+      - requirement_author
+      - requirement_scope_reviewer
+      - requirement_acceptor
+      - pack_scientific_reviewer
+      - owner_acceptor
+
+assurance_requirement_allocations:
+  - id_kind: assurance_requirement
+    assurance_requirement_id: asr_019fa9de-c8a4-7ded-a0e8-41407ec0df34
+    revision: 1
+    prospective_producer_actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
+    acceptance_record_id: ard_019fa9de-c8a4-7978-90b1-8c73e8f1e5ed
+    acceptance_record_path: .research-system/contracts/wp6-3-assurance-requirement-owner-acceptance-record.yaml
+    # Deliberately absent, not null-as-placeholder. This hashes an acceptance
+    # record that has to genuinely exist; minting a hash over nothing is the
+    # self-attestation the contract forbids. It is filled in only after the
+    # owner accepts, and `acceptance_state` gates that.
+    acceptance_record_sha256: null
+    acceptance_state: pending_owner_acceptance
