@@ -66,6 +66,12 @@ Files, data, result artifacts, notes — by path.
 ## Expected outputs
 Files, JSONs, figures, tests, notes — by path.
 
+## Task-state manifest
+YAML path containing `task_id`, `deliverables`, `blockers`,
+`planned_contracts`, rooted `inputs`, and trackable `outputs`; validate with
+`manager_dispatch_check --state-manifest`. During warning-first calibration,
+retain and disposition every warning rather than presenting it as a pass.
+
 ## Acceptance criteria
 Machine-checkable where possible.
 
@@ -137,6 +143,10 @@ When the agent must stop and ask or escalate.
   followed by a fresh task if authorized; it is not a bounded continuation.
 - Stephen triggers and monitors CodeRabbit unless he explicitly delegates that
   operation in the current task. Do not place review polling in the brief.
+
+- Claims that a deliverable is absent, a blocker remains live, a planned
+  contract is ready, an input resolves, or an output is trackable belong in
+  the task-state manifest and are rechecked immediately before dispatch.
 
 ## Completion Checklist
 

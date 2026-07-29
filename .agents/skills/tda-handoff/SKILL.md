@@ -28,6 +28,12 @@ If the project has no handoff directory, use `docs/handoffs/` only when that
 path is in scope; otherwise return the handback in the final response and ask
 the receiver to place it. Never default standalone state into `.apm`.
 
+New standalone handoff filenames use a collision-resistant ULID prefix, minted
+with `python tools/system_record_id.py --handoff-slug <short-slug>`. Do not scan
+for the highest numeric prefix and increment it: parallel sessions can choose
+the same number. Historical numeric filenames remain unchanged. A project may
+retain a descriptive suffix, but the 26-character ULID is the record identity.
+
 APM work does not use this skill: its numbered APM handoff skills own paths and
 Memory Bank state. Session commentary worth preserving long-term goes to the
 vault daily note via `vault-sync`, not the handoff.
@@ -77,6 +83,12 @@ resuming), it must additionally: bound scope with explicit hard stops
 ("continue X only; do NOT proceed to Y"); restate any user-decision gates as
 **blocking**, not advisory; and repeat the `results/` provenance rule above.
 An open-ended handoff is read maximally by an autonomous agent.
+
+Before an autonomous successor acts on inherited deliverable, blocker,
+contract, input-root, or output-path claims, re-run the associated task-state
+manifest through `manager_dispatch_check --state-manifest`. During the
+warning-first calibration period, carry each warning into the handoff's open
+risks with an explicit disposition.
 
 For a standalone large workflow, hand off when actual compaction or an owner stop
 makes another task the better continuation surface. Record one next vertical

@@ -39,10 +39,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import yaml
 
 from shared.input_provenance import check_manifest, load_manifest, resolve_proj_root
 
@@ -261,6 +264,131 @@ def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) ->
     return checks
 
 
+def _state_root(name: str, workspace: Path, proj_root: Path) -> Path | None:
+    """Resolve a declared state-manifest root without guessing."""
+    if name == "worktree":
+        return workspace
+    if name == "proj_root":
+        return proj_root
+    return None
+
+
+def _run_state_predicate(command: str, cwd: Path) -> tuple[bool, str]:
+    """Run an owner-authored state predicate and retain a bounded diagnostic."""
+    proc = subprocess.run(
+        command,
+        cwd=cwd,
+        shell=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    output = (proc.stderr or proc.stdout).strip().splitlines()
+    return proc.returncode == 0, (output[-1] if output else f"exit {proc.returncode}")
+
+
+def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[Check]:
+    """Verify dispatch-state claims as warning-first advisory checks."""
+    if not path.is_file():
+        return [Check("state-manifest", True, f"WARNING: manifest not found: {path}", advisory=True)]
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        return [Check("state-manifest", True, f"WARNING: unreadable manifest: {exc}", advisory=True)]
+    if not isinstance(payload, dict) or not isinstance(payload.get("task_id"), str):
+        return [Check("state-manifest", True, "WARNING: required task_id is absent", advisory=True)]
+
+    checks: list[Check] = []
+    for kind in ("deliverables", "blockers", "planned_contracts", "inputs", "outputs"):
+        if not isinstance(payload.get(kind, []), list):
+            checks.append(Check(f"state:{kind}", True, f"WARNING: {kind} must be a list", advisory=True))
+            payload[kind] = []
+
+    for item in payload.get("deliverables", []):
+        if not isinstance(item, dict):
+            checks.append(Check("state:deliverable", True, "WARNING: malformed entry", advisory=True))
+            continue
+        root = _state_root(item.get("root", ""), workspace, proj_root)
+        target = root / item.get("path", "") if root else None
+        required = ("path", "root", "owner_task", "completion_predicate")
+        missing = [field for field in required if not item.get(field)]
+        if missing or target is None:
+            detail = f"WARNING: missing/invalid {', '.join(missing) or 'root'}"
+        elif target.exists() and item["owner_task"] == payload["task_id"]:
+            complete, diagnostic = _run_state_predicate(item["completion_predicate"], root)
+            detail = (
+                f"WARNING: existing deliverable owned by {item['owner_task']} is complete; dispatch should be review-only"
+                if complete
+                else f"deliverable exists but is incomplete ({diagnostic}); fresh dispatch retained"
+            )
+        else:
+            detail = (
+                "deliverable absent; fresh dispatch retained"
+                if not target.exists()
+                else "deliverable belongs to another task; fresh dispatch retained"
+            )
+        checks.append(Check(f"state:deliverable:{item.get('path', '?')}", True, detail, advisory="WARNING:" in detail))
+
+    for item in payload.get("blockers", []):
+        if not isinstance(item, dict) or not item.get("id") or not item.get("check"):
+            checks.append(Check("state:blocker", True, "WARNING: blocker requires id and check", advisory=True))
+            continue
+        live, diagnostic = _run_state_predicate(item["check"], workspace)
+        detail = "blocker remains live" if live else f"WARNING: blocker is stale ({diagnostic})"
+        checks.append(Check(f"state:blocker:{item['id']}", True, detail, advisory=not live))
+
+    for item in payload.get("planned_contracts", []):
+        if not isinstance(item, dict):
+            checks.append(Check("state:contract", True, "WARNING: malformed entry", advisory=True))
+            continue
+        target = workspace / item.get("path", "")
+        expected = item.get("ready_status", "")
+        try:
+            contract = yaml.safe_load(target.read_text(encoding="utf-8")) if target.is_file() else {}
+        except (OSError, yaml.YAMLError):
+            contract = {}
+        actual_id = contract.get("id") or contract.get("contract_id") if isinstance(contract, dict) else None
+        ready_ok = False
+        if isinstance(expected, str) and "=" in expected and isinstance(contract, dict):
+            field, value = expected.split("=", 1)
+            ready_ok = str(contract.get(field.strip())).lower() == value.strip().lower()
+        ok = target.is_file() and actual_id == item.get("id") and ready_ok
+        detail = "contract materialized and ready" if ok else "WARNING: contract missing, wrong-id, or not ready"
+        checks.append(Check(f"state:contract:{item.get('id', '?')}", True, detail, advisory=not ok))
+
+    for item in payload.get("inputs", []):
+        root = _state_root(item.get("root", "") if isinstance(item, dict) else "", workspace, proj_root)
+        target = root / item.get("path", "") if root and isinstance(item, dict) else None
+        ok = target is not None and target.exists()
+        checks.append(
+            Check(
+                f"state:input:{item.get('path', '?') if isinstance(item, dict) else '?'}",
+                True,
+                "input resolved" if ok else "WARNING: input has wrong/missing root or does not resolve",
+                advisory=not ok,
+            )
+        )
+
+    for item in payload.get("outputs", []):
+        rel = item.get("path", "") if isinstance(item, dict) else ""
+        proc = subprocess.run(["git", "check-ignore", "-q", "--", rel], cwd=workspace, check=False)
+        ok = bool(rel) and proc.returncode == 1
+        infrastructure_error = proc.returncode not in (0, 1)
+        checks.append(
+            Check(
+                f"state:output:{rel or '?'}",
+                True,
+                "output is trackable"
+                if ok
+                else "WARNING: git trackability check failed"
+                if infrastructure_error
+                else "WARNING: output is missing or gitignored",
+                advisory=not ok,
+            )
+        )
+    return checks or [Check("state-manifest", True, "manifest has no state claims")]
+
+
 def render(agent: str, branch: str, mode: str, checks: list[Check]) -> str:
     """Render the Dispatch Readiness markdown block pasted into the envelope."""
     all_ok = all(c.ok for c in checks)
@@ -304,6 +432,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Dir to run the contract gate in (default: the branch worktree, else PROJ_ROOT).",
     )
+    p.add_argument("--state-manifest", default=None, help="Warning-first task-state manifest (YAML).")
     return p.parse_args(argv)
 
 
@@ -323,6 +452,11 @@ def main(argv: list[str] | None = None) -> int:
 
     manifests = [Path(m) for m in args.provenance_manifest]
     checks.extend(check_provenance(manifests, repo_root, proj_root))
+    if args.state_manifest:
+        state_path = Path(args.state_manifest)
+        if not state_path.is_absolute():
+            state_path = workspace / state_path
+        checks.extend(check_state_manifest(state_path, workspace, proj_root))
 
     print(render(args.agent, args.branch, args.mode, checks))
     if all(c.ok for c in checks):
