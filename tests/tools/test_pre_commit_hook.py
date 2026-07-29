@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,48 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / ".githooks" / "pre-commit"
+VALIDATOR = REPO_ROOT / ".claude" / "hooks" / "contract_binding_check.py"
+
+
+def _gate_3_source() -> str:
+    """Return the source of the binding-test runner, located by AST rather than by line."""
+    tree = ast.parse(VALIDATOR.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "gate_3_run_bindings":
+            return ast.get_source_segment(VALIDATOR.read_text(encoding="utf-8"), node) or ""
+    raise AssertionError("gate_3_run_bindings not found in the contract validator")
+
+
+def test_binding_gate_honours_the_launcher_interpreter_instead_of_re_entering_uv() -> None:
+    """The launcher's interpreter choice must not be undone one layer down.
+
+    ``.githooks/pre-commit`` resolves the main checkout's interpreter so a linked worktree's own
+    venv is never used or bootstrapped mid-commit. Gate 3 used to run ``uv run pytest`` with
+    ``cwd`` set to the worktree, which made ``uv`` resolve that worktree as its project and try to
+    sync it — so a source-only dependency failing to build there failed the *contract* gate, an
+    environment fault wearing a correctness fault's clothes.
+
+    Asserted against the source rather than by executing the gate: running it would invoke the
+    whole contract suite, and the property under test is which interpreter is chosen, which is a
+    static fact.
+    """
+    source = _gate_3_source()
+    assert "sys.executable" in source, "gate 3 must run the interpreter it was launched with"
+    assert '"uv"' not in source and "'uv'" not in source, (
+        "gate 3 must not re-enter uv: it resolves the project at cwd, which in a linked worktree "
+        "is the worktree, reintroducing the sync/build the launcher exists to avoid"
+    )
+
+
+def test_the_interpreter_running_the_validator_can_run_pytest() -> None:
+    """``sys.executable -m pytest`` is only safe if pytest is importable from that interpreter."""
+    completed = subprocess.run(
+        [sys.executable, "-m", "pytest", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def _git_bash() -> Path | None:
