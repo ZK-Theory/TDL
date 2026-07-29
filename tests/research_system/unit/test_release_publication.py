@@ -953,11 +953,14 @@ def test_command_service_submit_preserves_public_signature_and_guard_metadata(
     signature = inspect.signature(public)
     assert list(signature.parameters) == ["self", "envelope"]
     assert signature.parameters["envelope"].annotation == "dict[str, Any]"
-    assert signature.return_annotation == "Receipt"
+    # The return union is deliberate, not drift: c654e93 widened submit to the WP6.2 runtime T2
+    # boundary, so a T2-routed command yields T2Receipt. Anything beyond these two members is
+    # unreviewed widening of the public seam and should fail here rather than be absorbed.
+    assert signature.return_annotation == "Receipt | T2Receipt"
     assert public.__module__ == "research_system.command.service"
     assert public.__annotations__ == {
         "envelope": "dict[str, Any]",
-        "return": "Receipt",
+        "return": "Receipt | T2Receipt",
     }
     assert not hasattr(public, "__wrapped__")
 
