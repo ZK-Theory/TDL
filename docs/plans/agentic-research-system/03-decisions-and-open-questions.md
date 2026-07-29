@@ -796,10 +796,22 @@ values for these fields are never authoritative.<br>
 identities — the WP6.1 binding intent. Relaxing an owner-reviewed generated
 schema family to fit an incomplete producer would weaken an accepted
 materialization to accommodate a defect.<br>
-**Execution:** RM-01 Task A
-(`implementation/rm-01-unblock-and-suite-recovery-plan.md`, PR #177);
-acceptance of the repair is recorded against WP6.1 currency, not the RM
-lane.<br>
+**Execution:** ~~RM-01 Task A
+(`implementation/rm-01-unblock-and-suite-recovery-plan.md`, PR #177)~~ —
+superseded 2026-07-29, see the amendment below; acceptance of the repair is
+recorded against WP6.1 currency, not the RM lane.<br>
+**Amendment (2026-07-29, execution pointer only — the decision is unchanged):**
+the 2026-07-29 independent adversarial review
+(`reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md` §C-1) found the
+RM-01 repair unexecutable as planned: `SchemaRegistry` discards both the raw
+schema bytes and their source path at construction, so the byte-exactness this
+decision requires is unobtainable through the current interface, while RM-01
+prohibited the registry change needed to expose it. Execution moves to
+`implementation/06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md`,
+a WP6.1 main-path plan, which additionally carries the historical-event policy
+this entry did not dispose of. New owner gates G-RM-8 (historical events) and
+G-RM-9 (registry interface) govern it. The direction — producer emits, schemas
+not relaxed — is unaffected.<br>
 **Boundary:** No schema edit under `schemas/core/events/`; no change to WP6.3
 accepted bytes; no invariant drift in the P0 eval corpus.
 
@@ -828,7 +840,24 @@ Naming is provider-neutral throughout (accepted D-3). The lane runs as
 plan-per-package with independent adversarial review before each dispatch
 (governing suite: `implementation/rm-00-research-methods-lane-master-plan.md`
 and RM-01..RM-04, PR #177).<br>
-**Owner gates preserved:** the G-RM-1..G-RM-6 checklist in rm-00 §3; W5 §19.3
+**Amendment (2026-07-29, scope of item 3 — the lane decision is unchanged):**
+the independent adversarial review
+(`reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md` §C-4) found the
+"bounded local verification-execution lane (`ars brief verify`)" in item 3
+unsafe as specified: it executed model-proposed Python with the project
+interpreter beside a gitignored `.env` and the vault, without OS-enforced
+isolation, egress denial, W8 grant/lease/process records, or non-self-attested
+approval, making credential and restricted-data leakage reachable by design.
+**Execution is withdrawn from the lane** and deferred behind new owner gate
+G-RM-11, which requires a threat model and a real isolation substrate before
+any plan is written. The manuscript-review half of item 3 proceeds unchanged in
+`implementation/rm-04-manuscript-review-and-verification-records-plan.md`,
+which records operator-produced verification outcomes as explicitly
+self-attested evidence rather than executing anything. Items 1 and 2 stand;
+their execution plans are revision 2, and the whole suite awaits a fresh
+G-RM-3 review.<br>
+**Owner gates preserved:** the G-RM-1..G-RM-6 checklist in rm-00 §3, extended
+2026-07-29 by G-RM-7..G-RM-11 (rm-00 §3); W5 §19.3
 claim promotion remains exclusively Stephen's P-005 authority; pack-asset
 acceptance is an explicit owner action (G-RM-4).<br>
 **Boundary:** This decision authorizes the RM plan suite's review and, upon
