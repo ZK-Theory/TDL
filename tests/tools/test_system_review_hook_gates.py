@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / ".claude" / "hooks" / "install-git-hooks.py"
 MIRROR_GUARD = ROOT / ".claude" / "hooks" / "mirror-tree-guard.sh"
@@ -18,9 +20,15 @@ RECEIPT_WRAP = ROOT / ".claude" / "hooks" / "_receipt-wrap.sh"
 
 
 def _git_bash() -> str:
-    git = Path(shutil.which("git") or "")
-    candidates = [git.parent.parent / "bin" / "bash.exe", Path(r"C:\Program Files\Git\bin\bash.exe")]
-    return str(next(path for path in candidates if path.is_file()))
+    discovered = shutil.which("bash")
+    candidates = [
+        Path(discovered) if discovered and "system32" not in discovered.lower() else None,
+        Path(r"C:\Program Files\Git\bin\bash.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and candidate.is_file():
+            return str(candidate)
+    pytest.skip("Git Bash is not available")
 
 
 def _bash_path(path: Path) -> str:
@@ -48,7 +56,9 @@ def _hook_repo(tmp_path: Path) -> Path:
     hooks = repo / ".githooks"
     hooks.mkdir()
     for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
-        (hooks / name).write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        hook = hooks / name
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        hook.chmod(0o755)
     _git(repo, "add", ".githooks")
     for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
         _git(repo, "update-index", "--chmod=+x", f".githooks/{name}")

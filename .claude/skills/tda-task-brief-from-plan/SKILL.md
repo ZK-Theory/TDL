@@ -69,7 +69,8 @@ Files, JSONs, figures, tests, notes — by path.
 ## Task-state manifest
 YAML path containing `task_id`, `deliverables`, `blockers`,
 `planned_contracts`, rooted `inputs`, and trackable `outputs`; validate with
-`manager_dispatch_check --state-manifest`. During warning-first calibration,
+`python -m shared.manager_dispatch_check ... --state-manifest <yaml>`. During
+warning-first calibration,
 retain and disposition every warning rather than presenting it as a pass.
 
 ## Acceptance criteria

@@ -273,12 +273,34 @@ def _state_root(name: str, workspace: Path, proj_root: Path) -> Path | None:
     return None
 
 
-def _run_state_predicate(command: str, cwd: Path) -> tuple[bool, str]:
-    """Run an owner-authored state predicate and retain a bounded diagnostic."""
+def _scoped_state_path(root: Path | None, raw_path: object) -> Path | None:
+    """Resolve a relative manifest path without permitting root escape."""
+    if root is None or not isinstance(raw_path, str) or not raw_path:
+        return None
+    candidate = Path(raw_path)
+    if candidate.is_absolute():
+        return None
+    resolved_root = root.resolve()
+    resolved = (resolved_root / candidate).resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        return None
+    return resolved
+
+
+def _run_state_predicate(command: object, cwd: Path) -> tuple[bool, str]:
+    """Run a trusted same-branch argv predicate without shell interpretation."""
+    if (
+        not isinstance(command, list)
+        or not command
+        or not all(isinstance(argument, str) and argument for argument in command)
+    ):
+        return False, "predicate must be a non-empty argv list"
     proc = subprocess.run(
         command,
         cwd=cwd,
-        shell=True,
+        shell=False,
         capture_output=True,
         text=True,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
@@ -288,7 +310,17 @@ def _run_state_predicate(command: str, cwd: Path) -> tuple[bool, str]:
 
 
 def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[Check]:
-    """Verify dispatch-state claims as warning-first advisory checks."""
+    """Verify trusted same-branch dispatch-state claims as advisories.
+
+    Args:
+        path: Path to the tracked, owner-authored state-manifest YAML.
+        workspace: Worktree root used for ``root: worktree`` declarations.
+        proj_root: Project root used for ``root: proj_root`` declarations.
+
+    Returns:
+        Warning-first checks. State findings remain advisory and do not make
+        the dispatch-readiness command exit non-zero during calibration.
+    """
     if not path.is_file():
         return [Check("state-manifest", True, f"WARNING: manifest not found: {path}", advisory=True)]
     try:
@@ -309,7 +341,7 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
             checks.append(Check("state:deliverable", True, "WARNING: malformed entry", advisory=True))
             continue
         root = _state_root(item.get("root", ""), workspace, proj_root)
-        target = root / item.get("path", "") if root else None
+        target = _scoped_state_path(root, item.get("path"))
         required = ("path", "root", "owner_task", "completion_predicate")
         missing = [field for field in required if not item.get(field)]
         if missing or target is None:
@@ -317,7 +349,8 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         elif target.exists() and item["owner_task"] == payload["task_id"]:
             complete, diagnostic = _run_state_predicate(item["completion_predicate"], root)
             detail = (
-                f"WARNING: existing deliverable owned by {item['owner_task']} is complete; dispatch should be review-only"
+                f"WARNING: existing deliverable owned by {item['owner_task']} "
+                "is complete; dispatch should be review-only"
                 if complete
                 else f"deliverable exists but is incomplete ({diagnostic}); fresh dispatch retained"
             )
@@ -341,10 +374,11 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         if not isinstance(item, dict):
             checks.append(Check("state:contract", True, "WARNING: malformed entry", advisory=True))
             continue
-        target = workspace / item.get("path", "")
+        root = _state_root(item.get("root", ""), workspace, proj_root)
+        target = _scoped_state_path(root, item.get("path"))
         expected = item.get("ready_status", "")
         try:
-            contract = yaml.safe_load(target.read_text(encoding="utf-8")) if target.is_file() else {}
+            contract = yaml.safe_load(target.read_text(encoding="utf-8")) if target and target.is_file() else {}
         except (OSError, yaml.YAMLError):
             contract = {}
         actual_id = contract.get("id") or contract.get("contract_id") if isinstance(contract, dict) else None
@@ -352,13 +386,13 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         if isinstance(expected, str) and "=" in expected and isinstance(contract, dict):
             field, value = expected.split("=", 1)
             ready_ok = str(contract.get(field.strip())).lower() == value.strip().lower()
-        ok = target.is_file() and actual_id == item.get("id") and ready_ok
+        ok = bool(target and target.is_file() and actual_id == item.get("id") and ready_ok)
         detail = "contract materialized and ready" if ok else "WARNING: contract missing, wrong-id, or not ready"
         checks.append(Check(f"state:contract:{item.get('id', '?')}", True, detail, advisory=not ok))
 
     for item in payload.get("inputs", []):
         root = _state_root(item.get("root", "") if isinstance(item, dict) else "", workspace, proj_root)
-        target = root / item.get("path", "") if root and isinstance(item, dict) else None
+        target = _scoped_state_path(root, item.get("path")) if isinstance(item, dict) else None
         ok = target is not None and target.exists()
         checks.append(
             Check(
@@ -370,10 +404,16 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         )
 
     for item in payload.get("outputs", []):
+        root = _state_root(item.get("root", "") if isinstance(item, dict) else "", workspace, proj_root)
         rel = item.get("path", "") if isinstance(item, dict) else ""
-        proc = subprocess.run(["git", "check-ignore", "-q", "--", rel], cwd=workspace, check=False)
-        ok = bool(rel) and proc.returncode == 1
-        infrastructure_error = proc.returncode not in (0, 1)
+        target = _scoped_state_path(root, rel)
+        proc = (
+            subprocess.run(["git", "check-ignore", "-q", "--", str(target)], cwd=root, check=False)
+            if target and root
+            else None
+        )
+        ok = proc is not None and proc.returncode == 1
+        infrastructure_error = proc is not None and proc.returncode not in (0, 1)
         checks.append(
             Check(
                 f"state:output:{rel or '?'}",

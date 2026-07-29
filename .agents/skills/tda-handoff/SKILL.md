@@ -86,7 +86,8 @@ An open-ended handoff is read maximally by an autonomous agent.
 
 Before an autonomous successor acts on inherited deliverable, blocker,
 contract, input-root, or output-path claims, re-run the associated task-state
-manifest through `manager_dispatch_check --state-manifest`. During the
+manifest through
+`python -m shared.manager_dispatch_check ... --state-manifest <yaml>`. During the
 warning-first calibration period, carry each warning into the handoff's open
 risks with an explicit disposition.
 

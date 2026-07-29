@@ -10,6 +10,7 @@ import time
 
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+HANDOFF_SLUG_RE = re.compile(r"^[a-z0-9-]+$")
 
 
 def mint_ulid(timestamp_ms: int | None = None, randomness: int | None = None) -> str:
@@ -34,6 +35,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--handoff-slug", help="Emit <ULID>-<slug>.md instead of a bare ULID.")
     args = parser.parse_args()
+    if args.handoff_slug is not None and HANDOFF_SLUG_RE.fullmatch(args.handoff_slug) is None:
+        parser.error("--handoff-slug must contain only lowercase letters, digits, and hyphens")
     identifier = mint_ulid()
     print(f"{identifier}-{args.handoff_slug}.md" if args.handoff_slug else identifier)
     return 0
