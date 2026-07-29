@@ -175,10 +175,17 @@ minting it was the wrong move and stopping was right. It does **not** make the
 separation real: `review_task_id` and `review_session_id` remain free strings,
 so a single session supplying all three still satisfies every check.
 
-The separation proof is therefore only as strong as the external record
-substrate that resolves these ids to real Task objects, and that substrate does
-not exist yet. Treat this allocation as necessary, not sufficient, and do not
-report the separation as evidenced on the strength of it.
+The separation proof is therefore only as strong as the external record substrate
+that resolves these ids to real Task objects. **Superseded in part by Decision 5's
+2026-07-29 correction:** the sentence that stood here claimed no such substrate
+exists. It does — the external control store — and what was missing was a resolver
+implementing the loader's protocol over it. That resolver is written but **not yet
+merged** (see Decision 5).
+
+The conclusion this paragraph exists for is unchanged either way. Treat the
+allocation as **necessary, not sufficient**, and do not report the separation as
+evidenced on the strength of it: `review_task_id` and `review_session_id` remain
+free strings until the ids resolve to real objects, whatever the substrate.
 
 **Risk classification — confirmed, and it is not a free choice.** Use:
 
@@ -220,18 +227,32 @@ accepted prospective relationship. Line 307 says that relationship is the
 Keeping `producer_actor_id` equal to `prospective_producer_actor_id` is therefore
 **necessary but not sufficient**: work could resume under a different session,
 context or model family with the same actor id and the equality would still pass
-while the accepted relationship has materially changed. Neither this decision nor
-the accepted-requirement record currently captures a prospective
-profile/session tuple to compare against, so the staleness rule is not
-implemented anywhere today. Do not present the two equal actor fields as
-satisfying it. Capturing and comparing the full tuple is outstanding work, and it
-belongs with the substrate question in Decision 5.
+while the accepted relationship has materially changed.
+
+**Current status, corrected** — the sentence that stood here said the rule "is not
+implemented anywhere today", which was wrong twice over. `pack_loader` implements
+the actor-equality half, and `routing/independence.py::independence_grade` grades
+the full `same_actor / same_session / same_context_hash / same_model_family /
+producer_conclusions_visible` tuple. What is true is that the grading function is
+**not called from the assurance path**.
+
+PR #194 narrows the gap without closing it: it resolves the relationship record the
+requirement pins and rejects a lapsed validity window or a grade below the accepted
+floor. But the accepted `producerRelationshipEvidenceRecord` schema carries an
+*attested* `grade` plus two actor ids — **not** the five booleans — so no code path
+recomputes the grade from evidence, and a stale tuple behind an unchanged attested
+grade still passes. **Do not present either the equal actor fields or PR #194 as
+satisfying the rule.** Recomputing the grade from a captured tuple needs a record
+schema that carries the tuple, which is a superseding-revision question, not a code
+change. Outstanding.
 
 ## Decision 5 — the records need a substrate, and it already exists
 
 Added 2026-07-29 after Codex review; **corrected the same day** — see the
 correction below before acting on anything in this section. The escalation that
-opened it was wrong: step 3 is not blocked on an owner decision.
+opened it was wrong: step 3 is not blocked on an owner decision. It **is** still
+blocked on implementation that is not in this branch — see "Steps 3 and 4 remain
+PENDING on this branch" at the end of this section.
 
 Codex found that `acceptedAssuranceRequirementRecord` requires
 `scope_relationship_record_id`, and `producerRelationshipEvidenceRecord` requires
@@ -324,25 +345,57 @@ untouched, by `pipe/assurance-control-store-resolver`:
    fails if the map and the schemas ever diverge.
 4. Authority-root binding moves from the record body to the resolution channel —
    a record body asserting its own authority root is self-attestation anyway.
-5. The staleness rule now checks the pinned relationship record, its validity
-   window, and its grade against the accepted independence floor.
+5. The staleness check resolves the pinned relationship record and rejects a lapsed
+   validity window or a grade below the accepted independence floor. This narrows
+   the gap the Decision 2 note describes; it does not close it, because the record
+   schema carries an attested grade rather than the tuple needed to recompute one.
 6. `LedgerBackedAuthorityPolicy` resolves R3 acceptance authority from replayed
    grants; the caller-supplied variant is renamed `DeclaredActionsAuthorityPolicy`
    so its name stops claiming a backing it never had.
 
-**Steps 3 and 4 are unblocked once that branch lands.** No owner decision is
-required. What remains is authoring the records into the control store, which is
-ordinary work.
+### Steps 3 and 4 remain PENDING on this branch
+
+**No owner decision is required** — that is what the correction above establishes,
+and it is the only thing it establishes. **It does not make steps 3 and 4
+actionable yet.**
+
+This branch carries documentation only. Nothing in the six items above exists in
+this branch's tree: they are on `pipe/assurance-control-store-resolver`
+([PR #194](https://github.com/stephendor/TDL/pull/194)), and until that merges to
+`main` the loader still requires `record_id`, `authority_root`, and
+`lifecycle_state`, so it still cannot accept any schema-valid record. Reading this
+document alone, on this branch, an agent would find no resolver and no envelope
+map.
+
+**Do not start step 3 or step 4 until all of the following hold on `main`:**
+
+1. PR #194 is merged.
+2. `_RECORD_ENVELOPE` covers exactly the record classes the accepted schema
+   catalogue defines, and each entry's identity field, lifecycle field, and active
+   value match that record's own schema — verified by its binding test, not by
+   reading this list.
+3. The lifecycle check reads each record's own state field, and no generic
+   `lifecycle_state` check remains.
+4. Authority-root binding is enforced at the resolution channel, and a foreign root
+   is refused.
+5. The producer-relationship staleness check resolves the relationship record the
+   requirement pins, and rejects a lapsed window or a grade below the accepted
+   independence floor.
+
+If any of these is not true on `main`, steps 3 and 4 are still blocked — on
+implementation, not on a decision. Verify against the tree, not against this
+paragraph.
 
 ## Hard stops
 
 - Do not edit `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`
   or `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`.
   Owner-accepted at exact bytes at `449b0d00`.
-- Do not mint any identity outside the control store. Six are allocated above
-  (five in Decision 2, the task id in Decision 4). The remaining record
-  identities are allocated by writing the records into the external control
-  store, not by minting UUIDs into repository YAML — see Decision 5.
+- Do not mint any identity. Six are allocated above (five in Decision 2, the task
+  id in Decision 4). The remaining record identities are allocated by writing the
+  records into the external control store, not by minting UUIDs into repository
+  YAML — but that path is not open until PR #194 is on `main`. Until then, stop
+  rather than filling them in, exactly as before. See Decision 5.
 - Do not set the risk floor, lane scope, or any `not_applicable` rationale on
   your own authority — draft, then surface.
 - Do not write Stephen's acceptance statement. Surface it and stop.
