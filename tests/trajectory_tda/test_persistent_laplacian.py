@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pytest
 
 from trajectory_tda.topology.persistent_laplacian import (
     PETLS_AVAILABLE,
+    PETLS_BACKEND_NAME,
     betti_1_at_threshold,
     build_boundary_1,
     build_boundary_2,
@@ -78,14 +81,41 @@ def test_eigen_analysis_empty_matrix() -> None:
     assert lam1 is None
 
 
+@pytest.mark.skipif(
+    os.environ.get("TDL_REQUIRE_PETLS") != "1",
+    reason="petls is an optional dependency group; set TDL_REQUIRE_PETLS=1 to pin its availability",
+)
 def test_petls_is_importable_in_this_environment() -> None:
-    """Environment fact pinned 2026-07-07: PETLS builds and imports cleanly in
-    this repo's .venv (built from PyPI sdist against the MSYS2 UCRT64 toolchain,
-    scikit-build-core<1.0 + Ninja + explicit CMAKE_PREFIX_PATH for Boost Config
-    discovery). If this regresses, the auto-backend silently falls back to
-    numpy — this test makes that fact loud instead of silent.
+    """Pin PETLS availability where the environment is supposed to provide it.
+
+    Was an unconditional assertion, pinning the 2026-07-07 fact that PETLS built and
+    imported in this repo's .venv. Demoted to opt-in on 2026-07-29 when petls moved to a
+    dependency group: petls ships no Windows wheel, so on Windows the default environment
+    legitimately lacks it and an unconditional assertion would fail for the expected
+    reason rather than a regression.
+
+    The risk that motivated it — a silent fallback to numpy — is guarded independently and
+    unconditionally by ``test_forced_petls_backend_raises_rather_than_falling_back``. Set
+    ``TDL_REQUIRE_PETLS=1`` (Linux, or a Windows venv seeded per the worktree skill) to
+    assert availability rather than merely tolerate it.
     """
     assert PETLS_AVAILABLE is True
+
+
+def test_forced_petls_backend_raises_rather_than_falling_back() -> None:
+    """An explicitly requested backend must never be silently substituted.
+
+    This is the control the availability pin actually existed for, and unlike that pin it
+    holds in both environments: where PETLS is present the call must use it, and where it
+    is absent the call must fail loudly instead of returning a numpy result under the
+    ``petls`` label. A silent substitution swaps the statistic, not the precision.
+    """
+    D = build_undirected_graph(_SMALL_COUNTS)
+    if PETLS_AVAILABLE:
+        assert compute_fiedler_curve(D, backend="petls")["backend"] == PETLS_BACKEND_NAME
+        return
+    with pytest.raises(ImportError, match="backend='petls' requested"):
+        compute_fiedler_curve(D, backend="petls")
 
 
 def test_compute_fiedler_curve_auto_uses_petls_when_available() -> None:
