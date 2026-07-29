@@ -56,7 +56,7 @@
     "SKILL.md": "b29f7496c58e2b595ffe4cb2633e74f5f15202d1dad844c7f4005b3da248420d"
   },
   "pre-reg-to-dispatch": {
-    "SKILL.md": "c9113b76308f40c41ff4dde94a45243c36ab67dfe2e62da58be2464b22cda0cf"
+    "SKILL.md": "264828829b69c5eb02cb6d1a1ecadc56f2223be962c5cd49bd45e20123d2ed26"
   },
   "representation-freeze-audit": {
     "SKILL.md": "b9fabd83f38b1c595e0d455ced9a7d21020c9a8008c40befecdafae448137d86"
@@ -120,7 +120,7 @@
     "SKILL.md": "2dc3dbfde57577c9ac8592b6be5fe543cfc0849a31fdd1ab2d657021df57b84c"
   },
   "tda-handoff": {
-    "SKILL.md": "e9f412c73cf6224544b5abd8d3102a1b6b0033facaf57800d7f3db63715284eb"
+    "SKILL.md": "a46bf3b4b5b709981e021cd692883e59c5dadf855b94a436f0bd0b071e84495e"
   },
   "tda-large-workflow-supervision": {
     "SKILL.md": "44e560241c7f11ebba95bf6f05e44d5a0a4632d98b3e9afc35582bb8f6f0aba4"
@@ -165,7 +165,7 @@
     "SKILL.md": "cbec4304838ce97b52e048904b4398979030eb3d1ac0863020b03c93ea19d4f3"
   },
   "tda-task-brief-from-plan": {
-    "SKILL.md": "d7a190e3b633d0c13d8ef4bd4026e3951ff4c7a19bcd702b998871fa05463248"
+    "SKILL.md": "db15f0b22fe9b4895b70d55d3bca0bb80afc41e68c301687ac0a559fa6d45638"
   },
   "tda-trajectory-baselines": {
     "SKILL.md": "c04c0071be192518e393c0d6d369965bdf469572ddc4b891d6337235f179e84a"
