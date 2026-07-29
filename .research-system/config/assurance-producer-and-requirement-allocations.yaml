@@ -62,3 +62,66 @@ assurance_requirement_allocations:
     # owner accepts, and `acceptance_state` gates that.
     acceptance_record_sha256: null
     acceptance_state: pending_owner_acceptance
+
+# Identities the external record schemas require that are NOT yet allocated.
+#
+# Recorded here rather than discovered one at a time. Three separate sessions
+# have now stopped on this same class of gap - first `producer_actor_id` and the
+# requirement identities, then `task_id`, then these - because each was found by
+# reading a schema at the moment it was needed rather than by enumerating the
+# required set up front.
+#
+# `test_every_required_record_identity_is_allocated_or_declared_pending` derives
+# the required set live from `acceptedAssuranceRequirementRecord` and
+# `producerRelationshipEvidenceRecord` in
+# `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`
+# and fails if any required identity field is neither allocated above nor listed
+# below. A newly-required field therefore cannot appear silently, and the list
+# below cannot rot into a stale hand-transcription.
+#
+# The producer may not mint any of these. They need the same W1 authority that
+# allocated the six above.
+pending_allocations:
+  - field: requirement_author_actor_id
+    id_prefix: act
+    required_by: acceptedAssuranceRequirementRecord
+    note: >-
+      Drafts the assurance requirement. Must differ from the producer
+      (required_distinct_pairs: requirement_author / future_pack_producer).
+  - field: scope_reviewer_actor_id
+    id_prefix: act
+    required_by: acceptedAssuranceRequirementRecord
+    note: >-
+      Confirms requirement scope at I2. Must differ from the producer
+      (required_distinct_pairs: requirement_scope_reviewer / future_pack_producer).
+  - field: acceptor_actor_id
+    id_prefix: act
+    required_by: acceptedAssuranceRequirementRecord
+    note: >-
+      Stephen's canonical actor for the attributed R3 acceptance. Must differ
+      from the producer (required_distinct_pairs: requirement_acceptor /
+      future_pack_producer).
+  - field: scope_relationship_record_id
+    id_prefix: rel
+    required_by: acceptedAssuranceRequirementRecord
+    note: >-
+      Binds the scope reviewer to the prospective producer at the declared
+      independence grade.
+  - field: relationship_record_id
+    id_prefix: rel
+    required_by: producerRelationshipEvidenceRecord
+    note: >-
+      The producer_relationship_evidence record's own identity. Distinct from
+      scope_relationship_record_id - two rel_ identities are needed, not one.
+  - field: subject_actor_id
+    id_prefix: act
+    required_by: producerRelationshipEvidenceRecord
+    note: >-
+      One end of the producer relationship. Expected to resolve to an actor
+      already allocated rather than a new identity; confirm which end before use.
+  - field: object_actor_id
+    id_prefix: act
+    required_by: producerRelationshipEvidenceRecord
+    note: >-
+      The other end of the producer relationship. Same expectation as
+      subject_actor_id.

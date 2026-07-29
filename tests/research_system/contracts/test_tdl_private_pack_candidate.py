@@ -526,6 +526,57 @@ def test_requirement_acceptance_is_still_pending(candidate):
     assert pack["assurance_requirement_reference"]["acceptance_record_sha256"] == PLACEHOLDER_REQUIREMENT_SHA256
 
 
+def test_every_required_record_identity_is_allocated_or_declared_pending():
+    """Enumerate the required identity set from the schemas instead of discovering it piecemeal.
+
+    Three sessions have now stopped on the same class of gap — the producer and requirement
+    identities, then `task_id`, then the relationship and remaining actor ids — because each
+    was found by reading a schema at the moment it was needed. This derives the whole
+    required set live from the two external record schemas and asserts each field is either
+    allocated or explicitly declared pending, so a newly-required identity cannot appear
+    silently and the pending list cannot rot into a stale hand-transcription.
+    """
+    schema = _load_json(EXTERNAL_RECORD_SCHEMA_PATH)["$defs"]
+    identity_pattern = re.compile(r"\^(act|rel|asr|ard|arv|apr|tsk|agr|asp)_")
+
+    required_identity_fields: dict[str, str] = {}
+    for record_class in ("acceptedAssuranceRequirementRecord", "producerRelationshipEvidenceRecord"):
+        definition = schema[record_class]
+        for field in definition["required"]:
+            pattern = definition["properties"].get(field, {}).get("pattern", "")
+            match = identity_pattern.match(pattern)
+            if match:
+                required_identity_fields[field] = match.group(1)
+
+    allocations = _load_yaml(IDENTITY_ALLOCATIONS_PATH)
+    allocated_fields = {
+        key
+        for block in ("actor_allocations", "assurance_requirement_allocations")
+        for row in allocations[block]
+        for key, value in row.items()
+        if isinstance(value, str) and re.match(r"^(act|rel|asr|ard|tsk)_[0-9a-f]{8}-", value)
+    }
+    pending = {row["field"]: row["id_prefix"] for row in allocations["pending_allocations"]}
+
+    unaccounted = set(required_identity_fields) - allocated_fields - set(pending)
+    assert not unaccounted, (
+        f"record schemas require identity fields that are neither allocated nor declared pending: "
+        f"{sorted(unaccounted)}"
+    )
+
+    stale = set(pending) - set(required_identity_fields)
+    assert not stale, f"pending_allocations lists fields no record schema requires: {sorted(stale)}"
+
+    for field, prefix in pending.items():
+        assert (
+            prefix == required_identity_fields[field]
+        ), f"{field} declared as {prefix}_ but the schema requires {required_identity_fields[field]}_"
+
+    # Non-empty is the current, correct state. When W1 allocates the rest this fails, which is
+    # the signal that the acceptance record can be authored — and this test is retired then.
+    assert pending, "pending_allocations is empty: every required identity is allocated"
+
+
 def test_identity_allocations_are_append_only_and_uniquely_revisioned():
     allocations = _load_yaml(IDENTITY_ALLOCATIONS_PATH)
     for block, id_field in (
