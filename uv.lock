@@ -1478,7 +1478,6 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "persim" },
-    { name = "petls" },
     { name = "pot" },
     { name = "pyproj" },
     { name = "pyvista" },
@@ -1514,6 +1513,11 @@ wasserstein = [
     { name = "pot" },
 ]
 
+[package.dev-dependencies]
+petls = [
+    { name = "petls" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "fredapi", specifier = ">=0.5.0" },
@@ -1526,7 +1530,6 @@ requires-dist = [
     { name = "numpy", specifier = "==2.3.2" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "persim", specifier = "==0.3.8" },
-    { name = "petls", specifier = ">=1.0.1" },
     { name = "pot", specifier = "==0.9.6.post1" },
     { name = "pot", marker = "extra == 'wasserstein'", specifier = ">=0.9.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
@@ -1551,6 +1554,9 @@ requires-dist = [
     { name = "yfinance", specifier = ">=0.2.52" },
 ]
 provides-extras = ["dev", "kriging", "mapper", "wasserstein"]
+
+[package.metadata.requires-dev]
+petls = [{ name = "petls", specifier = ">=1.0.1" }]
 
 [[package]]
 name = "threadpoolctl"
