@@ -227,9 +227,11 @@ implemented anywhere today. Do not present the two equal actor fields as
 satisfying it. Capturing and comparing the full tuple is outstanding work, and it
 belongs with the substrate question in Decision 5.
 
-## Decision 5 — step 3 is paused: the acceptance record needs a substrate, not more UUIDs
+## Decision 5 — the records need a substrate, and it already exists
 
-Added 2026-07-29 after Codex review. **Do not start step 3 until this is settled.**
+Added 2026-07-29 after Codex review; **corrected the same day** — see the
+correction below before acting on anything in this section. The escalation that
+opened it was wrong: step 3 is not blocked on an owner decision.
 
 Codex found that `acceptedAssuranceRequirementRecord` requires
 `scope_relationship_record_id`, and `producerRelationshipEvidenceRecord` requires
@@ -263,23 +265,84 @@ claim it asserts — precisely the self-attestation the contract exists to preve
 and the same failure Decision 4's correction above already identifies for task
 ids.
 
-So the honest position is that steps 3 and 4 cannot produce a sound artifact on
-the current base, and the blocker is not identity allocation. It is that
-**no external record substrate exists to resolve these records against**, which
-is the same root cause behind `acceptance_record_sha256` in Decision 3 and the
-unbound task id in Decision 4. Three separate blockers, one cause.
+### Correction, 2026-07-29: the substrate exists — this is not an owner decision
 
-This needs an owner decision before any further work. Do not improvise a fourth
-patch.
+The paragraph that stood here concluded that **no external record substrate
+exists** and that steps 3 and 4 were blocked pending an owner decision. That was
+wrong, and it was wrong because the conclusion was reasoned from contract and
+schema text rather than traced through the code.
+
+`research_system/store/layout.py::require_external_control_root` refuses a
+control root that is, contains, or is contained by any registered code root.
+Under that root, `research_system/store/objects.py::ObjectStore` stores immutable
+revisions whose filename is the SHA-256 of their canonical bytes,
+re-canonicalises on read, and gates identity through `validate_id(object_id,
+kind)` against the same id-kind registry Decision 2 extends. `cli.py` and
+`evals/executors/release_tranche.py` use it: it is live, not a fixture.
+
+That store supplies, structurally, every property the escalation claimed was
+missing. Records live outside every code root, so a repository commit *cannot*
+author them — which is what makes a multi-party independence record meaningful
+rather than a producer writing both sides of its own claim. The store's own
+digest is the referent `acceptance_record_sha256` lacked.
+
+The consumer side was already built for it:
+`pack_loader.py::_resolve_records` resolves each record through
+`ContentAddressedAuthorityResolver` at three phases and rejects one that is
+unstable across them, self-identifies wrongly, or is not active. The protocol was
+specified and enforced; only test doubles implemented it. **The gap was a missing
+adapter, not a missing design.**
+
+Two further claims made during that escalation were also wrong. The staleness
+rule *is* partly implemented (`pack_loader.py`, "prospective producer
+relationship is stale"), and `routing/independence.py` grades the full
+actor/session/context/model-family tuple — neither was wired to the assurance
+path. And `GrantBackedAuthorityPolicy` was "grant-backed" in name only: a
+dataclass wrapping a caller-supplied mapping, with no production caller, while
+`authority.py` held real replay-resolved grants carrying actor, allowed commands,
+risk ceiling, and a validity window.
+
+### What tracing it through the code actually found
+
+Reconciling the loader against the accepted record schemas surfaced a defect no
+test could have caught, because every test supplied its own doubles: **the loader
+required `record_id`, `authority_root`, and `lifecycle_state`, and no record
+schema defines any of them.** Every record schema sets
+`additionalProperties: false`, so those three checks were not lax — they were
+unsatisfiable by any schema-valid record. The loader could never have accepted a
+real record. Each record class carries its own identity field and its own
+lifecycle field and active value (`status: active`, `review_state: completed`,
+`grant_state: active`, …).
+
+That single mismatch is the common cause behind all three "blockers". It is
+resolved on the loader side, leaving the owner-accepted contract and schema bytes
+untouched, by `pipe/assurance-control-store-resolver`:
+
+1. `assurance_record` and `relationship_record` id kinds registered.
+2. `ControlStoreAuthorityResolver` implements the protocol over the control store.
+3. `_RECORD_ENVELOPE` reconciles the loader with the schemas, bound by a test that
+   fails if the map and the schemas ever diverge.
+4. Authority-root binding moves from the record body to the resolution channel —
+   a record body asserting its own authority root is self-attestation anyway.
+5. The staleness rule now checks the pinned relationship record, its validity
+   window, and its grade against the accepted independence floor.
+6. `LedgerBackedAuthorityPolicy` resolves R3 acceptance authority from replayed
+   grants; the caller-supplied variant is renamed `DeclaredActionsAuthorityPolicy`
+   so its name stops claiming a backing it never had.
+
+**Steps 3 and 4 are unblocked once that branch lands.** No owner decision is
+required. What remains is authoring the records into the control store, which is
+ordinary work.
 
 ## Hard stops
 
 - Do not edit `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`
   or `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`.
   Owner-accepted at exact bytes at `449b0d00`.
-- Do not mint any identity. Six are allocated above (five in Decision 2, the task
-  id in Decision 4). The rest are **not** allocated by design — see Decision 5;
-  stop rather than filling them in.
+- Do not mint any identity outside the control store. Six are allocated above
+  (five in Decision 2, the task id in Decision 4). The remaining record
+  identities are allocated by writing the records into the external control
+  store, not by minting UUIDs into repository YAML — see Decision 5.
 - Do not set the risk floor, lane scope, or any `not_applicable` rationale on
   your own authority — draft, then surface.
 - Do not write Stephen's acceptance statement. Surface it and stop.
