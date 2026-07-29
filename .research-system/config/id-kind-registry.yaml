@@ -26,3 +26,5 @@ kinds:
   release_gate_decision: rgd
   policy_parity_report: ppr
   assurance_pack: asp
+  assurance_record: arec
+  relationship_record: rel
