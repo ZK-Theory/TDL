@@ -21,7 +21,7 @@ import pytest
 from research_system.assurance.pack_loader import _RECORD_ENVELOPE
 from research_system.assurance.resolver import EXTERNAL_RECORD_KIND, ControlStoreAuthorityResolver
 from research_system.errors import ArsError, IntegrityError
-from research_system.store.identity import initialize_control_store
+from research_system.store.identity import _manifest_hash, initialize_control_store
 from research_system.store.objects import ObjectStore
 
 
@@ -137,9 +137,51 @@ def test_resolver_detects_a_tampered_record_body(tmp_path: Path) -> None:
         resolver.resolve(record_id=RECORD_ID, record_class="canonical_actor", authority_root=root, phase="load")
 
 
-def test_control_root_inside_a_code_root_is_refused(tmp_path: Path) -> None:
+def test_initializing_a_control_root_inside_a_code_root_is_refused(tmp_path: Path) -> None:
     """The externality guarantee is what makes these records not producer-authored."""
     code_root = tmp_path / "code"
     code_root.mkdir()
     with pytest.raises(ArsError, match="disjoint"):
         initialize_control_store([code_root], code_root / "control", PROJECT_ID)
+
+
+def test_binding_a_resolver_to_a_control_root_inside_a_code_root_is_refused(tmp_path: Path) -> None:
+    """Externality must be assertable at bind time, not only at initialization.
+
+    The test above covers ``initialize_control_store``, which is not this resolver's code. A store can be
+    initialized disjointly and later moved, or have its manifest written elsewhere, and
+    ``load_store_manifest`` checks the manifest's own bindings without re-checking disjointness. Without
+    this control the resolver would bind cleanly to a control root sitting inside a code root — where a
+    repository commit *could* author the records, which is exactly what the substrate must rule out.
+    """
+    code_root = tmp_path / "code"
+    code_root.mkdir()
+    control_root = tmp_path / "control"
+    initialize_control_store([code_root], control_root, PROJECT_ID)
+
+    # Same store bytes, re-registered so the control root now sits inside a declared code root.
+    manifest_path = control_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["code_roots"] = [str(tmp_path.resolve())]
+    manifest["manifest_hash"] = _manifest_hash(manifest)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ArsError, match="disjoint"):
+        ControlStoreAuthorityResolver(control_root)
+
+
+def test_binding_a_resolver_without_registered_code_roots_is_refused(tmp_path: Path) -> None:
+    """An empty code-root set cannot vacuously satisfy disjointness."""
+    code_root = tmp_path / "code"
+    code_root.mkdir()
+    control_root = tmp_path / "control"
+    initialize_control_store([code_root], control_root, PROJECT_ID)
+
+    manifest_path = control_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["code_roots"] = []
+    manifest["manifest_hash"] = _manifest_hash(manifest)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ArsError, match="code roots required"):
+        ControlStoreAuthorityResolver(control_root)

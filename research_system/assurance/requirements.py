@@ -7,7 +7,7 @@ from typing import Protocol
 
 from research_system.assurance.models import CORE_LANES, AssuranceRequirement
 from research_system.authority import LedgerAuthorityGrantResolver
-from research_system.errors import ArsError
+from research_system.errors import ArsError, IntegrityError
 
 
 RISK_ORDER = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
@@ -66,12 +66,30 @@ class LedgerBackedAuthorityPolicy:
     def permits(self, actor_id: str, action: str) -> bool:
         """Return whether a replayed grant authorises an actor to take an action.
 
+        Three resolver outcomes are deliberately kept distinct, because collapsing them loses information
+        the caller needs:
+
+        * **Denial** — expired, revoked, wrongly-attributed, or wrongly-scoped grant, or no grant claimed
+          for the actor. Returns ``False``: an ordinary, expected answer.
+        * **Tampered store evidence** — :class:`~research_system.errors.IntegrityError` propagates. It is an
+          ``ArsError`` subclass, so a bare ``except ArsError`` would silently report a corrupted canonical
+          history as a routine denial. "The store cannot be trusted" is not "this actor lacks authority",
+          and the two must not be reported the same way.
+        * **Malformed input** — the resolver raises ``ValueError`` for a bad identity or trusted time. That
+          is converted to :class:`~research_system.errors.ArsError` so this policy keeps
+          :func:`validate_requirement`'s ArsError-only failure surface rather than leaking a different
+          exception type through it.
+
         Args:
             actor_id: Actor whose authority is in question.
             action: Assurance action, resolved as the grant's allowed command type.
 
         Returns:
             ``True`` only when a grant resolves for that exact actor, action, and subject scope.
+
+        Raises:
+            ArsError: If an identity or the trusted time is malformed.
+            IntegrityError: If canonical store evidence fails verification.
         """
         grant_id = self.grant_ids_by_actor.get(actor_id)
         if grant_id is None:
@@ -86,8 +104,12 @@ class LedgerBackedAuthorityPolicy:
                 self.subject_id,
                 self.now,
             )
+        except IntegrityError:
+            raise
         except ArsError:
             return False
+        except ValueError as exc:
+            raise ArsError(f"malformed authority resolution input: {exc}") from exc
         return True
 
 
@@ -138,7 +160,7 @@ def validate_requirement(
         relationship < _INDEPENDENCE_ORDER["I2"]
         or not authority_policy.permits(requirement.accepting_actor_id, _R3_ACCEPTANCE_ACTION)
     ):
-        raise ArsError("assurance_requirement_scope_unconfirmed: " "R3 requires attributed human authority")
+        raise ArsError("assurance_requirement_scope_unconfirmed: R3 requires attributed human authority")
 
     if floor < effective:
         raise ArsError("assurance_requirement_risk_underclassified")

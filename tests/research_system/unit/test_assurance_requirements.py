@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from research_system.assurance.models import (
@@ -7,9 +9,10 @@ from research_system.assurance.models import (
 )
 from research_system.assurance.requirements import (
     DeclaredActionsAuthorityPolicy,
+    LedgerBackedAuthorityPolicy,
     validate_requirement,
 )
-from research_system.errors import ArsError
+from research_system.errors import ArsError, IntegrityError
 
 
 def _requirement(
@@ -96,7 +99,7 @@ def test_producer_cannot_self_confirm_r2_scope_or_r3_action():
         )
 
 
-def test_r3_acceptance_authority_is_resolved_from_grant_policy():
+def test_r3_acceptance_authority_accepts_and_denies_under_a_declared_policy():
     requirement = _requirement(
         assurance_requirement_id="asr_" + "7" * 32,
         prospective_producer_actor_id="act-producer",
@@ -112,3 +115,108 @@ def test_r3_acceptance_authority_is_resolved_from_grant_policy():
     denied = DeclaredActionsAuthorityPolicy({"act-other": frozenset({"accept_r3_assurance_requirement"})})
     with pytest.raises(ArsError, match="R3 requires attributed human authority"):
         validate_requirement(requirement, denied)
+
+
+ACCEPTOR = "act-human-authority"
+GRANT_ID = "agr_" + "8" * 32
+NOW = datetime(2026, 7, 29, 12, tzinfo=UTC)
+
+
+class _Resolver:
+    """Stand-in for LedgerAuthorityGrantResolver's ``resolve`` outcome.
+
+    The grant semantics themselves — expiry, revocation, scope — are already covered against a real store
+    in ``integration/test_authority_grant_source.py``. What is untested is the adapter: whether
+    ``LedgerBackedAuthorityPolicy`` translates each resolver outcome into the right answer. So this raises
+    the outcome under test and asserts the arguments the policy is obliged to pass through.
+    """
+
+    def __init__(self, outcome: Exception | None = None) -> None:
+        self.outcome = outcome
+        self.calls: list[tuple] = []
+
+    def resolve(self, grant_id, actor_id, command_type, project_id, subject_kind, subject_id, now):
+        self.calls.append((grant_id, actor_id, command_type, project_id, subject_kind, subject_id, now))
+        if self.outcome is not None:
+            raise self.outcome
+        return object()
+
+
+def _ledger_policy(resolver: _Resolver) -> LedgerBackedAuthorityPolicy:
+    return LedgerBackedAuthorityPolicy(
+        resolver=resolver,
+        grant_ids_by_actor={ACCEPTOR: GRANT_ID},
+        project_id="prj-under-test",
+        subject_kind="assurance_requirement",
+        subject_id="asr_" + "7" * 32,
+        now=NOW,
+    )
+
+
+def test_ledger_policy_permits_only_on_a_resolved_grant():
+    resolver = _Resolver()
+    assert _ledger_policy(resolver).permits(ACCEPTOR, "accept_r3_assurance_requirement") is True
+    assert resolver.calls == [
+        (
+            GRANT_ID,
+            ACCEPTOR,
+            "accept_r3_assurance_requirement",
+            "prj-under-test",
+            "assurance_requirement",
+            "asr_" + "7" * 32,
+            NOW,
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "authority grant expired",
+        "authority grant revoked",
+        "authority subject scope mismatch",
+        "authority actor mismatch",
+        "authority command mismatch",
+    ],
+)
+def test_ledger_policy_denies_when_the_grant_does_not_resolve(reason):
+    """Every ordinary refusal is a denial, not an error — these are expected answers."""
+    resolver = _Resolver(ArsError(reason))
+    assert _ledger_policy(resolver).permits(ACCEPTOR, "accept_r3_assurance_requirement") is False
+
+
+def test_ledger_policy_denies_an_actor_claiming_no_grant():
+    resolver = _Resolver()
+    assert _ledger_policy(resolver).permits("act-someone-else", "accept_r3_assurance_requirement") is False
+    assert resolver.calls == [], "an unclaimed actor must not reach the resolver at all"
+
+
+def test_ledger_policy_does_not_disguise_tampered_evidence_as_denial():
+    """IntegrityError subclasses ArsError, so a bare except would report corruption as "no authority"."""
+    resolver = _Resolver(IntegrityError("canonical store evidence is invalid"))
+    with pytest.raises(IntegrityError):
+        _ledger_policy(resolver).permits(ACCEPTOR, "accept_r3_assurance_requirement")
+
+
+def test_ledger_policy_converts_malformed_input_to_the_ars_error_surface():
+    """validate_requirement's callers may assume ArsError; a leaked ValueError breaks that."""
+    resolver = _Resolver(ValueError("identity is malformed"))
+    with pytest.raises(ArsError, match="malformed authority resolution input"):
+        _ledger_policy(resolver).permits(ACCEPTOR, "accept_r3_assurance_requirement")
+
+
+def test_r3_validation_denies_through_a_ledger_policy_that_cannot_resolve_a_grant():
+    """The policy must compose with validate_requirement, not merely satisfy its own unit tests."""
+    requirement = _requirement(
+        assurance_requirement_id="asr_" + "7" * 32,
+        prospective_producer_actor_id="act-producer",
+        author_actor_id="act-author",
+        scope_reviewer_actor_id="act-reviewer",
+        accepting_actor_id=ACCEPTOR,
+        requested_risk="R3",
+        action_semantic_risk="R3",
+        relationship_grade="I2",
+    )
+    validate_requirement(requirement, _ledger_policy(_Resolver()))
+    with pytest.raises(ArsError, match="R3 requires attributed human authority"):
+        validate_requirement(requirement, _ledger_policy(_Resolver(ArsError("authority grant expired"))))

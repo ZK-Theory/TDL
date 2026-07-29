@@ -31,6 +31,7 @@ from typing import Any
 from research_system.assurance.pack_loader import AUTHORITY_RESOLUTION_PHASES
 from research_system.errors import ArsError, IntegrityError
 from research_system.store.identity import load_store_manifest
+from research_system.store.layout import require_control_root_disjoint_from_code_roots
 from research_system.store.objects import ObjectStore
 
 
@@ -49,20 +50,32 @@ class ControlStoreAuthorityResolver:
     """
 
     def __init__(self, control_root: Path) -> None:
-        """Bind a resolver to a control store and derive its authority root.
+        """Bind a resolver to a control store, asserting externality and deriving its authority root.
 
         The authority root is read from the store's own verified identity manifest rather than accepted
         from the caller, so the root supplied to :meth:`resolve` and the root the records actually live
         under are two independently obtained values that must agree.
 
+        Disjointness from every registered code root is re-asserted here rather than trusted from
+        initialization. ``initialize_control_store`` enforces it when the store is created, but
+        ``load_store_manifest`` does not, so a store that was moved, or whose manifest was written
+        elsewhere, would otherwise bind cleanly. Externality is the property that makes these records
+        incapable of being authored by a repository commit — the whole reason this resolver is a sound
+        substrate for multi-party independence records — so it is checked on every bind, against the code
+        roots the manifest itself registers.
+
         Args:
             control_root: Canonical control-store root.
 
         Raises:
+            ArsError: If the manifest registers no code roots, or the control root overlaps one.
             IntegrityError: If the store identity manifest is missing, malformed, or tampered.
         """
+        manifest = load_store_manifest(control_root)
+        code_roots = [Path(root) for root in manifest.get("code_roots", [])]
+        require_control_root_disjoint_from_code_roots(code_roots, control_root)
         self.control_root = control_root
-        self.authority_root = str(load_store_manifest(control_root)["store_identity"])
+        self.authority_root = str(manifest["store_identity"])
         self._objects = ObjectStore(control_root)
 
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
