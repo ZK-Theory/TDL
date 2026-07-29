@@ -67,9 +67,7 @@ def load_yaml(path: Path) -> Any:
         return yaml.safe_load(f)
 
 
-def gate_1_validate_meta(
-    meta_schema: dict, contracts_dir: Path
-) -> tuple[list[tuple[Path, dict]], list[str]]:
+def gate_1_validate_meta(meta_schema: dict, contracts_dir: Path) -> tuple[list[tuple[Path, dict]], list[str]]:
     """Validate every contract against the meta-schema. Return parsed contracts and errors."""
     parsed: list[tuple[Path, dict]] = []
     errors: list[str] = []
@@ -85,9 +83,7 @@ def gate_1_validate_meta(
             continue
         # Filename stem must match `id`
         if data.get("id") != path.stem:
-            errors.append(
-                f"[gate 1] {path}: id field '{data.get('id')}' does not match filename stem '{path.stem}'"
-            )
+            errors.append(f"[gate 1] {path}: id field '{data.get('id')}' does not match filename stem '{path.stem}'")
             continue
         violations = sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path))
         if violations:
@@ -150,9 +146,7 @@ def gate_1b_qualitative_language(contracts: list[tuple[Path, dict]]) -> list[str
         binding = c.get("binding", {})
         must_assert = binding.get("must_assert")
         if isinstance(must_assert, str):
-            issues.extend(
-                _lint_qualitative_text(contract_id, "binding.must_assert", must_assert)
-            )
+            issues.extend(_lint_qualitative_text(contract_id, "binding.must_assert", must_assert))
 
         if c.get("kind") == "formula":
             invariants = c.get("formula", {}).get("invariants", [])
@@ -160,21 +154,11 @@ def gate_1b_qualitative_language(contracts: list[tuple[Path, dict]]) -> list[str
                 expression = invariant.get("expression")
                 if isinstance(expression, str):
                     issues.extend(
-                        _lint_qualitative_text(
-                            contract_id, f"formula.invariants[{i}].expression", expression
-                        )
+                        _lint_qualitative_text(contract_id, f"formula.invariants[{i}].expression", expression)
                     )
                 claim = invariant.get("claim")
-                if (
-                    isinstance(claim, str)
-                    and "expression" not in invariant
-                    and "enforced_by" not in invariant
-                ):
-                    issues.extend(
-                        _lint_qualitative_text(
-                            contract_id, f"formula.invariants[{i}].claim", claim
-                        )
-                    )
+                if isinstance(claim, str) and "expression" not in invariant and "enforced_by" not in invariant:
+                    issues.extend(_lint_qualitative_text(contract_id, f"formula.invariants[{i}].claim", claim))
 
         if c.get("kind") == "schema":
             required_keys = c.get("schema_def", {}).get("required_keys", [])
@@ -217,11 +201,7 @@ def _read_python_tree(path: Path) -> ast.Module | None:
 
 
 def _function_defs(tree: ast.AST) -> dict[str, ast.AST]:
-    return {
-        node.name: node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    return {node.name: node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
 
 
 def _called_local_functions(node: ast.AST, local_names: set[str]) -> set[str]:
@@ -289,9 +269,7 @@ def _module_string_literals(tree: ast.AST) -> set[str]:
     return values
 
 
-def gate_2b_claim_assertion_coverage(
-    contracts: list[tuple[Path, dict]], repo_root: Path
-) -> list[str]:
+def gate_2b_claim_assertion_coverage(contracts: list[tuple[Path, dict]], repo_root: Path) -> list[str]:
     """Warn on under-covered must_assert clauses and unreferenced schema keys."""
     issues: list[str] = []
     for _, c in contracts:
@@ -344,15 +322,12 @@ def gate_pending_debt(contracts: list[tuple[Path, dict]], repo_root: Path) -> li
             continue
         if test_function in _function_defs(tree):
             issues.append(
-                f"[pending-debt] {c['id']}: pending:true but "
-                f"{test_file_rel}::{test_function} exists on this branch"
+                f"[pending-debt] {c['id']}: pending:true but " f"{test_file_rel}::{test_function} exists on this branch"
             )
     return issues
 
 
-def hardening_gate_issues(
-    contracts: list[tuple[Path, dict]], repo_root: Path
-) -> list[str]:
+def hardening_gate_issues(contracts: list[tuple[Path, dict]], repo_root: Path) -> list[str]:
     issues: list[str] = []
     issues.extend(gate_1b_qualitative_language(contracts))
     issues.extend(gate_1c_invariant_enforcement(contracts))
@@ -361,9 +336,7 @@ def hardening_gate_issues(
     return issues
 
 
-def gate_2_verify_bindings(
-    contracts: list[tuple[Path, dict]], repo_root: Path
-) -> list[str]:
+def gate_2_verify_bindings(contracts: list[tuple[Path, dict]], repo_root: Path) -> list[str]:
     """Verify each binding's test_file exists, function is defined, one-to-one.
 
     Skips contracts marked `pending: true` — those are still validated against
@@ -382,28 +355,18 @@ def gate_2_verify_bindings(
         test_file_abs = repo_root / test_file_rel
 
         if not test_file_abs.exists():
-            errors.append(
-                f"[gate 2] {c['id']}: binding.test_file does not exist: {test_file_rel}"
-            )
+            errors.append(f"[gate 2] {c['id']}: binding.test_file does not exist: {test_file_rel}")
             continue
 
         try:
             tree = ast.parse(test_file_abs.read_text(encoding="utf-8"))
         except SyntaxError as e:
-            errors.append(
-                f"[gate 2] {c['id']}: test_file is not valid Python: {test_file_rel}: {e}"
-            )
+            errors.append(f"[gate 2] {c['id']}: test_file is not valid Python: {test_file_rel}: {e}")
             continue
 
-        functions = {
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
+        functions = {node.name for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
         if test_function not in functions:
-            errors.append(
-                f"[gate 2] {c['id']}: function '{test_function}' not defined in {test_file_rel}"
-            )
+            errors.append(f"[gate 2] {c['id']}: function '{test_function}' not defined in {test_file_rel}")
             continue
 
         binding_key = (test_file_rel, test_function)
@@ -418,23 +381,29 @@ def gate_2_verify_bindings(
     return errors
 
 
-def gate_3_run_bindings(
-    contracts: list[tuple[Path, dict]], repo_root: Path
-) -> list[str]:
+def gate_3_run_bindings(contracts: list[tuple[Path, dict]], repo_root: Path) -> list[str]:
     """Run pytest on every contract's binding function in a single invocation.
 
     Pending contracts are excluded — their bound tests may not exist yet.
+
+    Runs ``sys.executable -m pytest``, deliberately not ``uv run pytest``. The launcher in
+    ``.githooks/pre-commit`` resolves the main checkout's interpreter precisely so a linked
+    worktree's own (often bare) venv is never used or bootstrapped mid-commit — and then this
+    gate discarded that by re-entering ``uv`` with ``cwd`` set to the worktree. ``uv run``
+    resolves the *project* at that cwd, so it tried to sync the worktree, and any source-only
+    dependency that fails to build there failed the gate. That surfaced as
+    ``contract gate FAILED — see contracts/README.md``: an environment fault reported as a
+    contract breach, in a repo whose history already includes a commit-time gate being routed
+    around. ``sys.executable`` is whatever interpreter the launcher chose, so honouring it keeps
+    one interpreter decision instead of two that can disagree.
     """
     active = [(p, c) for p, c in contracts if not _is_pending(c)]
     if not active:
         return []
-    test_ids = [
-        f"{c['binding']['test_file']}::{c['binding']['test_function']}"
-        for _, c in active
-    ]
+    test_ids = [f"{c['binding']['test_file']}::{c['binding']['test_function']}" for _, c in active]
     cmd = [
-        "uv",
-        "run",
+        sys.executable,
+        "-m",
         "pytest",
         "--no-header",
         "--tb=short",
@@ -453,9 +422,7 @@ def gate_3_run_bindings(
     # Compact failure message; full output preserved in stderr
     out = "\n".join(part for part in (proc.stdout.strip(), proc.stderr.strip()) if part)
     err_tail = "\n".join(out.splitlines()[-30:])
-    return [
-        f"[gate 3] pytest exited with code {proc.returncode}; tail of output:\n{err_tail}"
-    ]
+    return [f"[gate 3] pytest exited with code {proc.returncode}; tail of output:\n{err_tail}"]
 
 
 def _is_legacy_exempt(ov_contract: dict, filename_rel: str | Path) -> bool:
@@ -487,10 +454,7 @@ def _is_pattern_excluded(ov_contract: dict, filename_rel: str | Path) -> bool:
     rel_posix = Path(filename_rel).as_posix()
     fname_only = Path(filename_rel).name
     excludes = ov_contract["output_validation"].get("exclude_filename_patterns", [])
-    return any(
-        _matches_pattern(entry["filename_pattern"], rel_posix, fname_only)
-        for entry in excludes
-    )
+    return any(_matches_pattern(entry["filename_pattern"], rel_posix, fname_only) for entry in excludes)
 
 
 def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
@@ -520,9 +484,7 @@ def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
     return ov["schema_contracts"][0]
 
 
-RANGE_RE = re.compile(
-    r"\[\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*\]"
-)
+RANGE_RE = re.compile(r"\[\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*\]")
 
 
 def _split_union(type_spec: str) -> tuple[list[str], bool]:
@@ -640,13 +602,7 @@ def _validate_json_cells(
     cells: dict[str, Any] = {}
     if isinstance(scope, dict):
         for k, v in scope.items():
-            if (
-                isinstance(k, str)
-                and len(k) >= 2
-                and k[0] == "h"
-                and k[1:].isdigit()
-                and isinstance(v, dict)
-            ):
+            if isinstance(k, str) and len(k) >= 2 and k[0] == "h" and k[1:].isdigit() and isinstance(v, dict):
                 cells[k] = v
     if not cells and isinstance(scope, dict):
         cells = {"<root>": scope}
@@ -659,14 +615,11 @@ def _validate_json_cells(
         for key_spec in required:
             if key_spec["name"] not in cell:
                 errors.append(
-                    f"[gate 4] {rel}:{cell_name}: missing required key "
-                    f"'{key_spec['name']}' (schema: {schema_id})"
+                    f"[gate 4] {rel}:{cell_name}: missing required key " f"'{key_spec['name']}' (schema: {schema_id})"
                 )
                 continue
             hardening_issues.extend(
-                _validate_value_against_key_spec(
-                    cell[key_spec["name"]], key_spec, rel, cell_name, schema_id
-                )
+                _validate_value_against_key_spec(cell[key_spec["name"]], key_spec, rel, cell_name, schema_id)
             )
         for fk in forbidden:
             if fk["name"] in cell:
@@ -727,9 +680,7 @@ def gate_4_validate_jsons(
                     break
 
     # Map ov_id -> wrapper_key for descent.
-    wrapper_by_ov = {
-        c["id"]: c["output_validation"].get("wrapper_key") for c in ov_contracts
-    }
+    wrapper_by_ov = {c["id"]: c["output_validation"].get("wrapper_key") for c in ov_contracts}
 
     errors: list[str] = []
     hardening_issues: list[str] = []
@@ -743,8 +694,7 @@ def gate_4_validate_jsons(
         schema_contract = schema_by_id.get(schema_id)
         if schema_contract is None:
             errors.append(
-                f"[gate 4] {rel}: declared schema contract '{schema_id}' "
-                f"not found among loaded schema contracts"
+                f"[gate 4] {rel}: declared schema contract '{schema_id}' " f"not found among loaded schema contracts"
             )
             continue
         cell_errors, cell_hardening = _validate_json_cells(
@@ -759,9 +709,7 @@ def gate_4_validate_jsons(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Math-correctness contract validator and pre-commit gate."
-    )
+    parser = argparse.ArgumentParser(description="Math-correctness contract validator and pre-commit gate.")
     parser.add_argument(
         "--validate-only",
         action="store_true",
@@ -780,10 +728,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--enforce",
         action="store_true",
-        help=(
-            "Compatibility flag retained from warn-mode rollout; hardening gates "
-            "are enforced by default."
-        ),
+        help=("Compatibility flag retained from warn-mode rollout; hardening gates " "are enforced by default."),
     )
     return parser.parse_args(argv)
 
@@ -822,9 +767,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.validate_only and not args.no_pytest:
             errors.extend(gate_3_run_bindings(contracts, repo_root))
         if not args.validate_only:
-            gate4_errors, gate4_hardening = gate_4_validate_jsons(
-                contracts, repo_root, args.all_jsons
-            )
+            gate4_errors, gate4_hardening = gate_4_validate_jsons(contracts, repo_root, args.all_jsons)
             errors.extend(gate4_errors)
             hardening_issues.extend(gate4_hardening)
 
@@ -832,8 +775,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if errors:
         print(
-            "Contract framework: pre-commit gate FAILED with "
-            f"{len(errors)} issue(s):",
+            "Contract framework: pre-commit gate FAILED with " f"{len(errors)} issue(s):",
             file=sys.stderr,
         )
         for e in errors:
