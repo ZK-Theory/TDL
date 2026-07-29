@@ -258,8 +258,11 @@ Codex found that `acceptedAssuranceRequirementRecord` requires
 `scope_relationship_record_id`, and `producerRelationshipEvidenceRecord` requires
 `relationship_record_id`, with no `rel_` identity allocated anywhere. Verified —
 correct. Enumerating the whole record set rather than that one field shows the
-scale: **23 required identity fields across the record definitions; Decisions 2
-and 4 allocate five of them.**
+scale: **23 required identity fields across the record definitions; six are
+allocated** — the five in Decision 2 (`assurance_requirement_id`,
+`acceptance_record_id`, and the three actor identities) plus the `task_id` in
+Decision 4. This matches the six-identity count in the Hard stops below; an earlier
+revision of this sentence said five, omitting the Decision 4 task id.
 
 The acceptance record alone requires four actor identities —
 `requirement_author_actor_id`, `scope_reviewer_actor_id`, `acceptor_actor_id`,
@@ -271,9 +274,9 @@ producer-relationship record requires `relationship_record_id`,
 `requirement_scope_reviewer` and `requirement_acceptor` each differ from
 `future_pack_producer`.
 
-**Allocating five more UUIDs would unblock authoring and produce an unsound
-record.** That is the wrong response, and it is worth naming why rather than
-quietly doing it.
+**Minting the remaining identities into repository YAML would unblock authoring
+and produce an unsound record.** That is the wrong response, and it is worth
+naming why rather than quietly doing it.
 
 **Decision 3's precedent does not fit.** The wp6-1 records it points at are
 *single-party* owner attestations — `statement_provenance:

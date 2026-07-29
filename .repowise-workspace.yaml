@@ -4,5 +4,5 @@ repos:
 - path: .
   alias: tdl
   is_primary: true
-  indexed_at: '2026-07-29T17:05:28.696947+00:00'
-  last_commit_at_index: f404a1ae202f9c189b8b215a4c8551e7c2113581
+  indexed_at: '2026-07-29T21:30:52.061763+00:00'
+  last_commit_at_index: 6330ae4ce9ea80953ac89e68da5f0629c060e1c8
