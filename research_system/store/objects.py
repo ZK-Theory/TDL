@@ -229,6 +229,39 @@ class ObjectStore:
         """
         return write_object(self.control_root, kind, object_id, revision, value)
 
+    def latest_revision(self, kind: str, object_id: str) -> int | None:
+        """Return the highest persisted revision for an object identity.
+
+        Revisions are immutable and content-addressed, so a caller that resolves
+        the latest revision twice observes a change only when a genuinely new
+        revision was published in between. That is the signal a supersession
+        check needs, so this deliberately does not cache.
+
+        Args:
+            kind: Registered object identity kind.
+            object_id: Prefix-qualified object identity.
+
+        Returns:
+            The highest persisted revision, or ``None`` when the identity has none.
+
+        Raises:
+            IntegrityError: If the object directory is unreadable or malformed.
+            ValueError: If the identity is invalid.
+        """
+        validate_id(object_id, kind)
+        directory = self.control_root / "objects" / kind / object_id
+        try:
+            names = [path.name for path in directory.glob("*.json")]
+        except OSError as exc:
+            raise IntegrityError("object identity is unreadable") from exc
+        revisions: list[int] = []
+        for name in names:
+            prefix = name.split("-", 1)[0]
+            if len(prefix) != 8 or not prefix.isdigit():
+                raise IntegrityError(f"object revision filename is malformed: {kind}/{object_id}/{name}")
+            revisions.append(int(prefix))
+        return max(revisions) if revisions else None
+
     def read(self, kind: str, object_id: str, revision: int) -> Any:
         """Resolve and verify one exact immutable object revision.
 

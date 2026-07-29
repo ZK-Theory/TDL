@@ -30,7 +30,7 @@ from research_system.assurance import (
     git_blob_id,
     validate_tdl_private_pack_for_acceptance,
 )
-from research_system.assurance.pack_loader import _require_key
+from research_system.assurance.pack_loader import _RECORD_ENVELOPE, _require_key
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -51,6 +51,7 @@ EVALUATION_TIME = datetime(2026, 7, 28, 12, tzinfo=timezone.utc)
 # `test_external_identity_prerequisites_are_still_unallocated` fails the moment real ones
 # land — turning a silent absence into a loud one.
 PLACEHOLDER_PRODUCER_ACTOR_ID = "act_00000000-0000-7000-8000-000000000000"
+PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID = "act_00000000-0000-7000-8000-000000000001"
 PLACEHOLDER_ASSURANCE_REQUIREMENT_ID = "asr_00000000-0000-7000-8000-000000000000"
 PLACEHOLDER_REQUIREMENT_RECORD_ID = "ard_00000000-0000-7000-8000-000000000000"
 PLACEHOLDER_REQUIREMENT_SHA256 = "0" * 64
@@ -272,35 +273,58 @@ def _subject_block(raw: bytes, pack: dict) -> dict:
     }
 
 
-def _record_ids(contract: dict) -> dict[str, str]:
+def _record_ids(contract: dict, pack: dict) -> dict[str, str]:
+    """Return the opaque id per required record class.
+
+    Two classes are identified by an id the candidate already pins, because the record schemas identify
+    them that way: the registered pack object by its ``assurance_pack_id``, and the accepted requirement by
+    its ``acceptance_record_id``. Using an invented id for those would let the double pass a check the real
+    records could not.
+    """
     classes = contract["required_pack_contract"]["external_acceptance_evidence"]["required_record_types"]
-    return {record_class: f"rec_{record_class}" for record_class in classes}
+    reference = pack["assurance_requirement_reference"]
+    pinned = {
+        "registered_pack_object": pack["assurance_pack_id"],
+        "accepted_assurance_requirement": reference["acceptance_record_id"],
+    }
+    return {record_class: pinned.get(record_class, f"rec_{record_class}") for record_class in classes}
 
 
 def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
-    """Build a complete, internally consistent external record store for the loader."""
-    ids = _record_ids(contract)
+    """Build a complete, internally consistent external record store for the loader.
+
+    Each record carries the identity and lifecycle fields its own accepted schema defines, taken from
+    :data:`_RECORD_ENVELOPE`. The record schemas set ``additionalProperties: false`` and define no common
+    envelope, so a double using a generic ``record_id``/``lifecycle_state`` shape would be testing the
+    loader against records that could never exist.
+    """
+    ids = _record_ids(contract, pack)
     subject = _subject_block(raw, pack)
     requirement_reference = pack["assurance_requirement_reference"]
-    store = {
-        record_class: {
-            "record_id": record_id,
-            "record_type": record_class,
-            "authority_root": AUTHORITY_ROOT,
-            "lifecycle_state": "active",
-        }
-        for record_class, record_id in ids.items()
-    }
+    store = {}
+    for record_class, record_id in ids.items():
+        id_field, state_field, active_state = _RECORD_ENVELOPE[record_class]
+        store[record_class] = {id_field: record_id, "record_type": record_class, state_field: active_state}
     store["registered_pack_object"] |= {
         "assurance_pack_id": pack["assurance_pack_id"],
         "assurance_pack_revision": pack["assurance_pack_revision"],
         "canonical_repository_path": pack["canonical_repository_path"],
+    }
+    store["producer_relationship_evidence"] |= {
+        "relationship_context": "requirement_scope_review",
+        "subject_actor_id": pack["producer_actor_id"],
+        "object_actor_id": PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID,
+        "grade": "I2",
+        "effective_at": "2026-07-01T00:00:00Z",
+        "expires_at": "2026-12-31T00:00:00Z",
     }
     store["accepted_assurance_requirement"] |= {
         "assurance_requirement_id": requirement_reference["assurance_requirement_id"],
         "revision": requirement_reference["revision"],
         "content_sha256": requirement_reference["acceptance_record_sha256"],
         "prospective_producer_actor_id": pack["producer_actor_id"],
+        "scope_relationship_record_id": ids["producer_relationship_evidence"],
+        "minimum_independence_grade": "I2",
     }
     store["independent_pack_review"] |= {"subject": subject, "decided_at": "2026-07-28T10:00:00Z"}
     store["stephen_owner_acceptance"] |= {
@@ -334,7 +358,7 @@ def _loader_kwargs(pack: dict, raw: bytes, contract: dict, **overrides) -> dict:
         "accepted_schema_subject": _accepted_schema_subject(),
         "trusted_w1_w2_content_addressed_authority_resolver": _Resolver(_record_store(pack, raw, contract)),
         "independently_supplied_authority_root": AUTHORITY_ROOT,
-        "opaque_external_record_ids": _record_ids(contract),
+        "opaque_external_record_ids": _record_ids(contract, pack),
         "current_exact_reference_snapshot": _reference_snapshot(pack),
         "raw_candidate_pack_bytes": raw,
         "evaluation_time": EVALUATION_TIME,
@@ -586,7 +610,7 @@ def test_loader_requires_every_declared_external_record_class(contract, candidat
     assert len(declared) == 11
 
     for record_class in declared:
-        thinned = {k: v for k, v in _record_ids(contract).items() if k != record_class}
+        thinned = {k: v for k, v in _record_ids(contract, pack).items() if k != record_class}
         with pytest.raises(PackUnconsumable, match="no external record id supplied"):
             validate_tdl_private_pack_for_acceptance(
                 **_loader_kwargs(pack, raw, contract, opaque_external_record_ids=thinned)
@@ -609,7 +633,7 @@ def test_loader_resolves_every_record_at_every_declared_phase(contract, candidat
 def test_loader_rejects_a_record_that_changes_between_phases(contract, candidate):
     pack, raw = candidate
     store = _record_store(pack, raw, contract)
-    revoked = store["active_authority_grant"] | {"lifecycle_state": "revoked"}
+    revoked = store["active_authority_grant"] | {"grant_state": "revoked"}
     resolver = _Resolver(store, per_phase_override={("active_authority_grant", "consumption"): revoked})
     with pytest.raises(PackUnconsumable, match="unstable across authority phases"):
         validate_tdl_private_pack_for_acceptance(
@@ -618,10 +642,16 @@ def test_loader_rejects_a_record_that_changes_between_phases(contract, candidate
 
 
 def test_loader_rejects_inactive_foreign_or_mislabelled_records(contract, candidate):
+    """Mutations are expressed in the fields the record's own schema defines.
+
+    Foreign-root rejection is not testable here: no record schema defines ``authority_root``, so the
+    binding is enforced at the resolution channel instead. Its control lives beside the resolver, in
+    ``test_external_record_envelope_and_resolver.py``.
+    """
     pack, raw = candidate
     mutations = {
-        "lifecycle_state": ("superseded", "not active"),
-        "authority_root": ("some-other-root", "foreign authority root"),
+        "grant_state": ("revoked", "not active"),
+        "authority_grant_id": ("agr_00000000-0000-7000-8000-0000000000ff", "does not identify"),
         "record_type": ("canonical_actor", "does not identify"),
     }
     for field, (value, message) in mutations.items():
@@ -651,9 +681,9 @@ def test_loader_fails_closed_when_the_resolver_fails(contract, candidate):
 def test_loader_binds_the_registered_object_and_accepted_requirement(contract, candidate):
     pack, raw = candidate
     store = _record_store(pack, raw, contract)
-    store["registered_pack_object"] = store["registered_pack_object"] | {
-        "assurance_pack_id": "asp_00000000-0000-7000-8000-0000000000ff"
-    }
+    # The record's identity field *is* `assurance_pack_id`, so swapping it is caught earlier, as an
+    # identity mismatch. Diverge on a non-identity binding field to reach the registered-object check.
+    store["registered_pack_object"] = store["registered_pack_object"] | {"assurance_pack_revision": 99}
     with pytest.raises(PackUnconsumable, match="W1-registered pack object"):
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
@@ -674,6 +704,54 @@ def test_loader_binds_the_registered_object_and_accepted_requirement(contract, c
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
         )
+
+
+def test_producer_relationship_must_still_hold_at_the_evaluation_time(contract, candidate):
+    """Actor equality is not the staleness rule.
+
+    The accepted requirement pins a relationship record and an independence floor, and the relationship
+    record carries its own validity window and grade. Each of these can go stale while every actor id
+    still matches, which is exactly the case a producer-actor comparison waves through.
+    """
+    pack, raw = candidate
+    # The relationship the requirement pins and the relationship the caller supplies an opaque id for are
+    # bound at different points, so they can disagree. Mutate the requirement side: the record's own
+    # `relationship_record_id` is its identity field, and swapping that is caught earlier as a mismatch.
+    store = _record_store(pack, raw, contract)
+    store["accepted_assurance_requirement"] = store["accepted_assurance_requirement"] | {
+        "scope_relationship_record_id": "rel_00000000-0000-7000-8000-0000000000ff"
+    }
+    with pytest.raises(PackUnconsumable, match="not the relationship the requirement pins"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
+        )
+
+    mutations = (
+        ({"subject_actor_id": "act_00000000-0000-7000-8000-0000000000fd"}, "does not describe the candidate"),
+        ({"expires_at": "2026-07-01T00:00:01Z"}, "not current at the evaluation time"),
+        ({"effective_at": "2026-12-01T00:00:00Z"}, "not current at the evaluation time"),
+        ({"grade": "I1"}, "no longer meets the accepted independence floor"),
+        ({"grade": "unknown"}, "not a recognised independence grade"),
+    )
+    for mutation, message in mutations:
+        store = _record_store(pack, raw, contract)
+        store["producer_relationship_evidence"] = store["producer_relationship_evidence"] | mutation
+        with pytest.raises(PackUnconsumable, match=message):
+            validate_tdl_private_pack_for_acceptance(
+                **_loader_kwargs(
+                    pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store)
+                )
+            )
+
+
+def test_a_stronger_producer_relationship_than_the_floor_is_accepted(contract, candidate):
+    """The floor is a minimum, not an equality: I3 against an I2 floor must not block."""
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    store["producer_relationship_evidence"] = store["producer_relationship_evidence"] | {"grade": "I3"}
+    validate_tdl_private_pack_for_acceptance(
+        **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
+    )
 
 
 def test_loader_requires_review_and_owner_acceptance_to_bind_the_computed_subject(contract, candidate):
