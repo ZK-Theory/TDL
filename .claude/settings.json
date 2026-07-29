@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff-surface.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/handoff-surface.sh\"",
             "timeout": 10,
             "statusMessage": "Surfacing recent handoffs..."
           }
