@@ -1879,36 +1879,31 @@ def _validate_external_acceptance_with_authority(
         if row_key in evidence_rows:
             raise CandidatePackError(f"duplicate two-key evidence row: {row_key}")
         evidence_rows[row_key] = row
-    if (
-        set(evidence_rows) != expected_applicability
-        or len(evidence_rows) != 69
-        or any(
-            row["key_a_status"] != "passed"
-            or row["key_b_status"] != "passed"
-            or not row["key_a_evidence_ids"]
-            or not row["key_b_evidence_ids"]
-            or row["forbidden_state_or_claim"] != "absent"
-            for row in evidence_rows.values()
-        )
-    ):
+    # Per-row status is owned by the external-record schema, not here: `obligationEvidenceRow`
+    # pins key_a_status/key_b_status to const "passed" and forbidden_state_or_claim to const
+    # "absent", and `nonEmptyStrings` gives both evidence-id lists minItems 1. Every row is
+    # schema-validated by `_resolved_record` before reaching this check, so branches on those
+    # fields could never fire — and an unreachable branch can never be given a watched negative.
+    # The schema-level negative control lives in
+    # tests/research_system/contracts/test_tdl_private_pack_candidate.py
+    # ::test_two_key_status_fields_are_owned_by_the_external_record_schema.
+    # What remains here is what the schema cannot express: the exact key set and its count.
+    if set(evidence_rows) != expected_applicability or len(evidence_rows) != 69:
         raise CandidatePackError("two-key evidence does not close every required obligation")
     fixture_rows = _rows_by_id(
         review["boundary_fixture_execution_rows"],
         "fixture_id",
         "boundary fixture evidence",
     )
-    if set(fixture_rows) != {
-        "apf_tested_object_no_op",
-        "apf_degenerate_fallback",
-        "apf_claim_escalation",
-    } or any(
-        row["execution_status"] != "executed"
-        or row["expected_outcome"] != "blocked"
-        or row["observed_outcome"] != "blocked"
-        or row["key_a_status"] != "passed"
-        or row["key_b_status"] != "passed"
-        for row in fixture_rows.values()
-    ):
+    # As above: `boundaryFixtureExecutionRow` pins execution_status, expected_outcome,
+    # observed_outcome, and both key statuses as consts, so only the fixture-id set is
+    # checkable here. Derive that set from the contract's own declaration rather than
+    # restating it: this was the third copy the boundary-set agreement check above exists
+    # to protect, and a literal here would be the one copy nothing compares.
+    declared_boundary_fixture_ids = contract["required_pack_contract"]["external_acceptance_evidence"][
+        "required_executed_boundary_fixture_ids"
+    ]
+    if set(fixture_rows) != set(declared_boundary_fixture_ids):
         raise CandidatePackError("two-key evidence lacks executed boundary fixtures")
     expected_two_key_root = _two_key_closure_sha256(review)
     if (
@@ -3745,8 +3740,14 @@ def test_declared_governed_sets_are_consumed_by_the_checks_they_name():
 
     # A distinct pair the records violate.
     contract = _eligible_contract()
-    # Mutate in place rather than truncating: the schema pins the list to 11 pairs, so a shorter
-    # list fails schema validation before reaching the check under test.
+    # Mutate in place rather than truncating: a shorter list would fail schema validation
+    # before reaching the check under test. Note the schema sets `minItems: 7` with no
+    # `maxItems` — it does NOT pin the list to the eleven pairs the contract declares, so
+    # four separations could be dropped with no schema signal. All eleven are load-bearing
+    # (each is consumed by the distinct-pair loop below), and the accepted schema bytes are
+    # frozen, so the count is bound by a test instead:
+    # tests/research_system/contracts/test_tdl_private_pack_candidate.py
+    # ::test_required_distinct_pairs_floor_is_bound_by_a_test_not_by_the_schema.
     contract["required_pack_contract"]["external_acceptance_evidence"]["required_distinct_pairs"][0] = [
         "contract_author",
         "contract_author",
