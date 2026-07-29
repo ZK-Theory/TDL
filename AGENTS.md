@@ -127,6 +127,10 @@ For every Codex worktree dispatch that will write:
 
 ## Version control
 
+- For stacked or dependent work, verify both the symbolic branch and its
+  ancestry before any write. Require
+  `git merge-base --is-ancestor <expected-base> HEAD` to exit zero; a plausible
+  branch name does not prove that prerequisite work is present.
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.
 - When a task prompt specifies an allowed prefix family, choose from that family and keep the subject within the same project convention.
 

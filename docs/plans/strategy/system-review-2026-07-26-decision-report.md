@@ -15,8 +15,8 @@ one undifferentiated approval queue:
 
 - **Four concrete decisions are ready now** and have bounded implementation
   shapes.
-- **Ten observations appear already remediated** and need evidence-based closure,
-  not new design.
+- **Seven TDL observations have now received evidence-based closure**; three
+  MathUni-owned observations from the original closure table were excluded.
 - **Fourteen TDL design items need separate scoped reviews** before implementation.
 - **Twelve MathUni items belong in that repository**, not TDL.
 - **Three items remain deliberately deferred** because the correct ownership or
@@ -119,29 +119,62 @@ none of them started.
   from a worktree, which is where much of the work happens. Worth folding into
   the D4 fixture set as a path-resolution control.
 
+## D1-D4 implementation batch — 2026-07-29
+
+Implemented together on branch `codex/system-review-d1-d4`, based on
+`6e7d0e0add73ab4af33ebcf2acb96ae73f6d97e2`.
+
+- **D1:** `manager_dispatch_check` accepts `--state-manifest` and rechecks
+  deliverables, blockers, planned contracts, rooted inputs, and output
+  trackability. Findings are advisories and preserve exit zero during the
+  warning-first calibration period. The three synchronized dispatch/handoff
+  skills carry the manifest and warning-disposition rule.
+- **D2:** `tools/system_record_id.py` mints canonical ULIDs. New standalone
+  handoff filenames and new global research-observer entries use ULIDs;
+  historical numeric identifiers remain unchanged.
+- **D3:** GitHub branch protection on `main` now requires strict/up-to-date
+  status checking against `lint-and-test`. Merge queue was not enabled; force
+  pushes and branch deletion remain disabled.
+- **D4:** Hermetic controls cover missing active hook directories, missing
+  hooks, non-executable tracked hooks, linked-worktree path resolution,
+  POSIX/Windows mirror paths, linked-worktree prefixes, global-path allowance,
+  and malformed-input fail-open receipts. The existing `_receipt-wrap.sh`
+  remains the durable execution-receipt surface.
+
+Focused validation: 36 targeted tests passed; Ruff lint and format checks
+passed; skill source/mirror synchronization, `--check`, and `--check-guides`
+passed. No package or full suite was run because the changes are confined to
+dispatch/tooling/skill surfaces and the exact targeted controls passed.
+
 ### Not covered by this report
 
 Observations 133–136 were logged on 2026-07-28, after the review ran.
 135 and 133 are implemented in PR #181; 134 in PRs #176 and #179; 136
 (a hand-enumerated schema set that went stale) is open and unassigned.
 
-## Verify and close before designing more work
+## Evidence-based closure completed — 2026-07-29
 
-These observations describe defects whose apparent remediation is already
-present in current files or in the observation itself. The next action is a
-bounded verification run followed by `ACTIONED`, not another proposal.
+The original table mixed seven TDL closures with three MathUni-owned
+observations. Per Stephen's 2026-07-29 scope ruling, observations 102, 113, and
+119 were not inspected or changed here. The seven TDL observations were
+re-resolved individually against `main` at
+`07335de6198ca340b08254d1390e2131b8c8dd71`; the two missing remediations were
+implemented and verified on branch `codex/system-review-evidence-closures`.
 
-| Observations | Closure evidence required |
-|---|---|
-| 90 | Run the sync-state stale-hash negative control and prove identical-tree success rechecks recorded hashes. |
-| 92 | Run the named-target Lean build negative control; prove bare/default-target success cannot certify acceptance. |
-| 94 | Confirm tracked `.githooks/post-commit` is active and record one safe positive execution signal. |
-| 108 | Exercise linked-worktree pre-commit routing and prove no worktree-local venv bootstrap occurs. |
-| 112 | Confirm the current validation-scope policy is present in global/project instructions and close the PROCESS observation. |
-| 113, 119 | Re-run the MathUni validator self-tests that already claim near-miss, absent-input, and malformed-input coverage. |
-| 102 | Verify the stale `update_unlocks.py` caution was corrected in its owning plan/record. |
-| 106 | Verify branch ancestry—not only branch name—is now required by the active startup/dispatch instructions. |
-| 114 | Verify the token-efficiency audit procedure now freezes the full evidence universe and excludes inherited fork history. |
+| Observation | Disposition | Current closure evidence |
+|---|---|---|
+| 90 | **ACTIONED** | `--verify-state` re-hashes recorded state even when the two skill trees are identical. The matching-state, stale-state, and EOL-invariance controls passed; a live run verified all 68 recorded hashes. |
+| 92 | **ACTIONED** | The acceptor passes `manifest.import_modules` as named build targets. Controls proved that named targets are built, a bare no-target “Nothing to build” result is rejected, and an already-built named target remains admissible. |
+| 94 | **ACTIONED previously** | Archived on 2026-07-27. `core.hooksPath=.githooks`; `.githooks/post-commit` is tracked; `.git/hooks/post-commit` is absent; and `.repowise/.update.log` records positive firings through `ee38ea596788b9ebb74a54362cf7f5a5803dab14`. |
+| 106 | **ACTIONED on closure branch** | `AGENTS.md` now requires both the symbolic branch and `git merge-base --is-ancestor <expected-base> HEAD` before writes in stacked/dependent work. |
+| 108 | **ACTIONED on closure branch** | `.githooks/pre-commit` now invokes the populated main-checkout interpreter directly instead of `uv run`. A Git-Bash linked-worktree control starts without `.venv`, routes both Python gates through the main interpreter, and proves no worktree-local `.venv` appears. |
+| 112 | **ACTIONED** | The active global Codex instructions contain the validation ladder: exact affected tests first; package expansion only for a named dependency/risk trigger; full suite only for an explicit gate, cross-cutting change, or final-head confidence; package suites may not be called “focused.” |
+| 114 | **ACTIONED** | Commit `ced019081c77c69087ce847ffb897695a97b1297` on `codex/token-efficiency-audit-fresh-head` contains the lineage-aware census procedure, complete byte-prefix/hash manifest, and child-local boundary logic excluding inherited parent history. Its frozen replay reported zero hash, parse, lineage, or component-identity failures across 480 retained JSONL files. |
+
+Focused validation on the closure branch: seven direct controls passed;
+`.githooks/pre-commit` passed Git-Bash syntax validation; touched-file
+`git diff --check` passed. No package or full suite was run because the direct
+controls passed and no wider dependency trigger was present.
 
 ## TDL items requiring scoped design review
 
