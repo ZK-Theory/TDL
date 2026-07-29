@@ -164,6 +164,22 @@ to prove.
 Validated three ways: matches `^tsk_`, matches the `task: tsk` prefix in the
 id-kind registry, and round-trips through `validate_id(value, "task")`.
 
+**What this allocation does and does not buy** (corrected 2026-07-29 after Codex
+review; the original text overstated it). Lines 954–955 and 1921 are **string
+comparisons**. They reject `producer_task_id == review_task_id` and require
+`canonical_requirement["task_id"] == provenance["producer_task_id"]`, but nothing
+binds any of those strings to an immutable Task object. Allocating the producer
+task id under W1 removes one degree of freedom — the producer can no longer
+choose an id that conveniently differs from the reviewer's — which is why
+minting it was the wrong move and stopping was right. It does **not** make the
+separation real: `review_task_id` and `review_session_id` remain free strings,
+so a single session supplying all three still satisfies every check.
+
+The separation proof is therefore only as strong as the external record
+substrate that resolves these ids to real Task objects, and that substrate does
+not exist yet. Treat this allocation as necessary, not sufficient, and do not
+report the separation as evidenced on the strength of it.
+
 **Risk classification — confirmed, and it is not a free choice.** Use:
 
 | Field | Value |
@@ -195,19 +211,75 @@ declared obligations, but surface the lane scope and every `not_applicable`
 rationale to Stephen **in the same stop** as the acceptance statement. Do not
 treat lane scope as a mechanical projection.
 
-**Watch for staleness.** Line 171 also states that if the actual producer or its
-relationship differs materially from the accepted prospective relationship, the
-requirement acceptance stales before dispatch. `producer_actor_id` and
-`prospective_producer_actor_id` are already allocated to the same value for this
-reason; keep them equal.
+**Watch for staleness — and note actor equality does not implement the rule**
+(corrected 2026-07-29 after Codex review). Line 171 stales requirement acceptance
+if the actual producer **or its relationship** differs materially from the
+accepted prospective relationship. Line 307 says that relationship is the
+`actor / session / context / model-family / trace` tuple, not the actor alone.
+
+Keeping `producer_actor_id` equal to `prospective_producer_actor_id` is therefore
+**necessary but not sufficient**: work could resume under a different session,
+context or model family with the same actor id and the equality would still pass
+while the accepted relationship has materially changed. Neither this decision nor
+the accepted-requirement record currently captures a prospective
+profile/session tuple to compare against, so the staleness rule is not
+implemented anywhere today. Do not present the two equal actor fields as
+satisfying it. Capturing and comparing the full tuple is outstanding work, and it
+belongs with the substrate question in Decision 5.
+
+## Decision 5 — step 3 is paused: the acceptance record needs a substrate, not more UUIDs
+
+Added 2026-07-29 after Codex review. **Do not start step 3 until this is settled.**
+
+Codex found that `acceptedAssuranceRequirementRecord` requires
+`scope_relationship_record_id`, and `producerRelationshipEvidenceRecord` requires
+`relationship_record_id`, with no `rel_` identity allocated anywhere. Verified —
+correct. Enumerating the whole record set rather than that one field shows the
+scale: **23 required identity fields across the record definitions; Decisions 2
+and 4 allocate five of them.**
+
+The acceptance record alone requires four actor identities —
+`requirement_author_actor_id`, `scope_reviewer_actor_id`, `acceptor_actor_id`,
+`prospective_producer_actor_id` — plus `scope_relationship_record_id`. The
+producer-relationship record requires `relationship_record_id`,
+`subject_actor_id`, `object_actor_id`, a `grade`, and an
+`effective_at`/`expires_at` validity window. And three of the eleven
+`required_distinct_pairs` demand that `requirement_author`,
+`requirement_scope_reviewer` and `requirement_acceptor` each differ from
+`future_pack_producer`.
+
+**Allocating five more UUIDs would unblock authoring and produce an unsound
+record.** That is the wrong response, and it is worth naming why rather than
+quietly doing it.
+
+**Decision 3's precedent does not fit.** The wp6-1 records it points at are
+*single-party* owner attestations — `statement_provenance:
+owner_supplied_task_delegation`, one acceptor, one statement. The
+assurance-requirement acceptance record encodes a *multi-party independence
+structure*: a distinct author, a distinct scope reviewer, a distinct acceptor,
+and a relationship record carrying an independence grade and a validity window.
+Authoring that in-repo means one session writes both sides of every separation
+claim it asserts — precisely the self-attestation the contract exists to prevent,
+and the same failure Decision 4's correction above already identifies for task
+ids.
+
+So the honest position is that steps 3 and 4 cannot produce a sound artifact on
+the current base, and the blocker is not identity allocation. It is that
+**no external record substrate exists to resolve these records against**, which
+is the same root cause behind `acceptance_record_sha256` in Decision 3 and the
+unbound task id in Decision 4. Three separate blockers, one cause.
+
+This needs an owner decision before any further work. Do not improvise a fourth
+patch.
 
 ## Hard stops
 
 - Do not edit `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`
   or `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`.
   Owner-accepted at exact bytes at `449b0d00`.
-- Do not mint any identity. All six are allocated above (five in Decision 2, the
-  task id in Decision 4); the remaining field is a hash of a real record.
+- Do not mint any identity. Six are allocated above (five in Decision 2, the task
+  id in Decision 4). The rest are **not** allocated by design — see Decision 5;
+  stop rather than filling them in.
 - Do not set the risk floor, lane scope, or any `not_applicable` rationale on
   your own authority — draft, then surface.
 - Do not write Stephen's acceptance statement. Surface it and stop.
