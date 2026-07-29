@@ -51,16 +51,26 @@ if [ -n "$GIT_COMMON" ]; then
 fi
 [ -z "$MAIN_ROOT" ] && MAIN_ROOT="$REPO_ROOT"
 
+if [ -f "$MAIN_ROOT/.venv/Scripts/python.exe" ]; then
+  MAIN_PYTHON="$MAIN_ROOT/.venv/Scripts/python.exe"
+elif [ -x "$MAIN_ROOT/.venv/bin/python" ]; then
+  MAIN_PYTHON="$MAIN_ROOT/.venv/bin/python"
+else
+  echo "ERROR: pre-commit requires the populated main-checkout interpreter at $MAIN_ROOT/.venv." >&2
+  echo "Create or repair that environment outside this linked worktree, then retry." >&2
+  exit 2
+fi
+
 # Gate 0 — dual-tree skill sync. Fast filecmp; the message names the fix.
 #
 # This gate is documented in CONVENTIONS.md as "pre-commit Gate 0", but until now it
 # lived only in .claude/hooks/git-pre-commit.sh — a copy staged into .git/hooks, which
 # core.hooksPath makes git ignore. It had therefore never run: three files advertised a
 # gate that did not exist. Same silent-absence shape as the contract validator itself.
-if ! UV_NO_SYNC=1 uv run --project "$MAIN_ROOT" --no-sync python "$REPO_ROOT/tools/sync_agent_skills.py" --check; then
+if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/sync_agent_skills.py" --check; then
   echo "" >&2
   echo "pre-commit: skill trees diverged — commit blocked." >&2
-  echo "Fix: uv run python tools/sync_agent_skills.py" >&2
+  echo "Fix: \"$MAIN_PYTHON\" \"$REPO_ROOT/tools/sync_agent_skills.py\"" >&2
   exit 1
 fi
 
@@ -74,7 +84,7 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.
 fi
 
 # Gate 2 — math-correctness contract validator.
-if ! UV_NO_SYNC=1 uv run --project "$MAIN_ROOT" --no-sync python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
+if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
   exit 1

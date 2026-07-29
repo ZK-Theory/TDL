@@ -50,6 +50,41 @@ _PACK_SCHEMA_PATH = _SCHEMAS_ROOT / "assurance" / "assurance-pack.schema.json"
 #: stable across all three; a record that changes between load and consumption is stale.
 AUTHORITY_RESOLUTION_PHASES = ("load", "acceptance", "consumption")
 
+#: Identity field, lifecycle field, and active lifecycle value per record class, read off the accepted
+#: external record schema catalogue.
+#:
+#: The catalogue defines no common record envelope. Every record class carries its own identity field name
+#: (``actor_id``, ``review_record_id``, ``owner_decision_id``, …) and its own lifecycle field name and
+#: active value (``status: active``, ``review_state: completed``, ``grant_state: active``, …), and every
+#: record schema sets ``additionalProperties: false``. A generic ``record_id`` / ``lifecycle_state`` check
+#: is therefore not merely lax against these records — it is unsatisfiable by any schema-valid record,
+#: because the schemas forbid those properties. This map is the reconciliation, and a record class absent
+#: from it is refused rather than waved through.
+#:
+#: ``authority_root`` is likewise absent from every record schema, so root binding cannot be enforced from
+#: a record body. It is enforced at the resolution channel instead: see
+#: :class:`~research_system.assurance.resolver.ControlStoreAuthorityResolver`, which serves records only
+#: from the control store whose own verified identity is the supplied root. A record body asserting its own
+#: authority root would in any case be self-attestation.
+_RECORD_ENVELOPE: Mapping[str, tuple[str, str, str]] = {
+    "canonical_actor": ("actor_id", "status", "active"),
+    "producer_relationship_evidence": ("relationship_record_id", "status", "active"),
+    "contract_schema_authorship": ("authorship_record_id", "authorship_state", "completed"),
+    "independent_contract_review": ("review_record_id", "review_state", "completed"),
+    "independent_schema_review": ("review_record_id", "review_state", "completed"),
+    "stephen_contract_schema_acceptance": ("owner_decision_id", "decision_state", "active"),
+    "obligation_applicability_confirmation": ("confirmation_record_id", "confirmation_state", "active"),
+    "accepted_assurance_requirement": ("acceptance_record_id", "acceptance_state", "active"),
+    "independent_pack_review": ("review_record_id", "review_state", "completed"),
+    "stephen_owner_acceptance": ("owner_decision_id", "decision_state", "active"),
+    "active_authority_grant": ("authority_grant_id", "grant_state", "active"),
+    "registered_pack_object": ("assurance_pack_id", "registration_state", "active"),
+}
+
+#: Independence ordering spanning every grade the record schemas admit. The requirement models use I0-I2
+#: while the relationship record schema admits I2-I3, so the comparison needs the union, not either range.
+_INDEPENDENCE_ORDER = {"I0": 0, "I1": 1, "I2": 2, "I3": 3}
+
 
 class PackUnconsumable(ArsError):
     """Raised whenever the candidate cannot be consumed or accepted.
@@ -228,7 +263,9 @@ def _require_key(mapping: object, key: str, label: str) -> object:
     return mapping[key]
 
 
-def _parse_timestamp(value: str, label: str) -> datetime:
+def _parse_timestamp(value: object, label: str) -> datetime:
+    if not isinstance(value, str):
+        raise PackUnconsumable(f"{label} is not an RFC 3339 timestamp")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
@@ -326,11 +363,13 @@ def _resolve_records(
             raise PackUnconsumable(f"external record is unstable across authority phases: {record_class}")
 
         record = per_phase[0]
-        if record.get("record_id") != record_id or record.get("record_type") != record_class:
+        envelope = _RECORD_ENVELOPE.get(record_class)
+        if envelope is None:
+            raise PackUnconsumable(f"no accepted record envelope for record class: {record_class}")
+        id_field, state_field, active_state = envelope
+        if record.get(id_field) != record_id or record.get("record_type") != record_class:
             raise PackUnconsumable(f"resolved record does not identify as the requested record: {record_class}")
-        if record.get("authority_root") != authority_root:
-            raise PackUnconsumable(f"resolved record is bound to a foreign authority root: {record_class}")
-        if record.get("lifecycle_state") != "active":
+        if record.get(state_field) != active_state:
             raise PackUnconsumable(f"resolved record is not active: {record_class}")
         resolved[record_class] = record
     return resolved
@@ -345,7 +384,23 @@ def _require_registered_object(record: Mapping[str, object], pack: Mapping[str, 
         raise PackUnconsumable("candidate object identity is not the W1-registered pack object")
 
 
-def _require_accepted_requirement(record: Mapping[str, object], pack: Mapping[str, object]) -> None:
+def _require_accepted_requirement(
+    resolved: Mapping[str, Mapping[str, object]],
+    pack: Mapping[str, object],
+    evaluation_time: datetime,
+) -> None:
+    """Bind the candidate to the accepted requirement and its current producer relationship.
+
+    Args:
+        resolved: Resolved external records by class.
+        pack: Parsed candidate pack.
+        evaluation_time: Caller-supplied evaluation time.
+
+    Raises:
+        PackUnconsumable: If the reference is not the accepted requirement, or the producer relationship
+            names a different producer, has lapsed, or no longer meets the accepted independence floor.
+    """
+    record = _require_key(resolved, "accepted_assurance_requirement", "resolved external records")
     reference = pack["assurance_requirement_reference"]
     if (
         record.get("assurance_requirement_id") != reference["assurance_requirement_id"]  # type: ignore[index]
@@ -355,6 +410,54 @@ def _require_accepted_requirement(record: Mapping[str, object], pack: Mapping[st
         raise PackUnconsumable("candidate requirement reference is not the accepted assurance requirement")
     if record.get("prospective_producer_actor_id") != pack["producer_actor_id"]:
         raise PackUnconsumable("prospective producer relationship is stale")
+    _require_current_producer_relationship(
+        record,
+        _require_key(resolved, "producer_relationship_evidence", "resolved external records"),
+        pack,
+        evaluation_time,
+    )
+
+
+def _require_current_producer_relationship(
+    requirement: Mapping[str, object],
+    relationship: Mapping[str, object],
+    pack: Mapping[str, object],
+    evaluation_time: datetime,
+) -> None:
+    """Require the relationship the requirement was accepted under to still hold, now.
+
+    Actor equality alone does not implement the staleness rule: the accepted requirement pins a
+    ``scope_relationship_record_id`` and a ``minimum_independence_grade``, and the relationship record
+    carries its own validity window. A relationship that has lapsed, been re-graded downward, or been
+    replaced by a different relationship record is stale even when every actor id still matches.
+
+    Args:
+        requirement: Resolved accepted assurance requirement record.
+        relationship: Resolved producer relationship evidence record.
+        pack: Parsed candidate pack.
+        evaluation_time: Caller-supplied evaluation time.
+
+    Raises:
+        PackUnconsumable: If the relationship is a different record, omits the producer, has lapsed, or
+            grades below the accepted independence floor.
+    """
+    if relationship.get("relationship_record_id") != requirement.get("scope_relationship_record_id"):
+        raise PackUnconsumable("producer relationship evidence is not the relationship the requirement pins")
+    producer = pack["producer_actor_id"]
+    if producer not in {relationship.get("subject_actor_id"), relationship.get("object_actor_id")}:
+        raise PackUnconsumable("producer relationship evidence does not describe the candidate's producer")
+
+    effective_at = _parse_timestamp(relationship.get("effective_at"), "relationship effective_at")
+    expires_at = _parse_timestamp(relationship.get("expires_at"), "relationship expires_at")
+    if not effective_at <= evaluation_time < expires_at:
+        raise PackUnconsumable("producer relationship is not current at the evaluation time")
+
+    observed = relationship.get("grade")
+    accepted = requirement.get("minimum_independence_grade")
+    if observed not in _INDEPENDENCE_ORDER or accepted not in _INDEPENDENCE_ORDER:
+        raise PackUnconsumable("producer relationship grade is not a recognised independence grade")
+    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(accepted)]:
+        raise PackUnconsumable("producer relationship no longer meets the accepted independence floor")
 
 
 def _require_subject_bound_lifecycle(
@@ -460,9 +563,7 @@ def validate_tdl_private_pack_for_acceptance(
         independently_supplied_authority_root,
     )
     _require_registered_object(_require_key(resolved, "registered_pack_object", "resolved external records"), pack)
-    _require_accepted_requirement(
-        _require_key(resolved, "accepted_assurance_requirement", "resolved external records"), pack
-    )
+    _require_accepted_requirement(resolved, pack, evaluation_time)
 
     currency = pack["currency"]
     authored_at = _parse_timestamp(currency["authored_at"], "authored_at")
