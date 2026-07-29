@@ -119,6 +119,33 @@ none of them started.
   from a worktree, which is where much of the work happens. Worth folding into
   the D4 fixture set as a path-resolution control.
 
+## D1-D4 implementation batch — 2026-07-29
+
+Implemented together on branch `codex/system-review-d1-d4`, based on
+`6e7d0e0add73ab4af33ebcf2acb96ae73f6d97e2`.
+
+- **D1:** `manager_dispatch_check` accepts `--state-manifest` and rechecks
+  deliverables, blockers, planned contracts, rooted inputs, and output
+  trackability. Findings are advisories and preserve exit zero during the
+  warning-first calibration period. The three synchronized dispatch/handoff
+  skills carry the manifest and warning-disposition rule.
+- **D2:** `tools/system_record_id.py` mints canonical ULIDs. New standalone
+  handoff filenames and new global research-observer entries use ULIDs;
+  historical numeric identifiers remain unchanged.
+- **D3:** GitHub branch protection on `main` now requires strict/up-to-date
+  status checking against `lint-and-test`. Merge queue was not enabled; force
+  pushes and branch deletion remain disabled.
+- **D4:** Hermetic controls cover missing active hook directories, missing
+  hooks, non-executable tracked hooks, linked-worktree path resolution,
+  POSIX/Windows mirror paths, linked-worktree prefixes, global-path allowance,
+  and malformed-input fail-open receipts. The existing `_receipt-wrap.sh`
+  remains the durable execution-receipt surface.
+
+Focused validation: 36 targeted tests passed; Ruff lint and format checks
+passed; skill source/mirror synchronization, `--check`, and `--check-guides`
+passed. No package or full suite was run because the changes are confined to
+dispatch/tooling/skill surfaces and the exact targeted controls passed.
+
 ### Not covered by this report
 
 Observations 133–136 were logged on 2026-07-28, after the review ran.

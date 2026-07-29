@@ -40,6 +40,13 @@ before any dispatch.
    scope, machine-checkable vs human-review-only claims, Partial criteria) for the
    Task Prompt.
 
+6. **Emit and verify the task-state manifest.** Add a YAML manifest with
+   `task_id`, `deliverables`, `blockers`, `planned_contracts`, `inputs`, and
+   `outputs`; declare `worktree` or `proj_root` on every rooted path. Run
+   `python -m shared.manager_dispatch_check ... --state-manifest <yaml>`.
+   Findings are warning-only during the approved calibration period: preserve
+   and disposition each warning rather than treating prompt prose as fact.
+
 ## Output Format
 
 Produce: (a) a one-line verdict — *execute existing design* or *requires
