@@ -39,6 +39,7 @@ _GRANT_FIELDS = frozenset(
 _SUBJECT_KINDS = {
     "authority_grant": "authority_grant",
     "release_gate_decision": "release_gate_decision",
+    "assurance_requirement": "assurance_requirement",
 }
 
 
