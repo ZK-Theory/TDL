@@ -29,7 +29,9 @@
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
-8. [WP6.1 schema identity and artefact command seam](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**, main path. Closes the P-043 producer-emits gap at its root (exact-byte schema identity) and wires the accepted artefact command family through command/ledger/replay. Blocked on G-RM-3 (fresh independent review) and owner gates G-RM-8, G-RM-9, G-RM-10. Absorbs the repair formerly hosted in RM-01 Task A
+8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols
+9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **proposed**. Adds catalogue-complete artefact authority, an independently accepted six-dimensional consumer predicate, atomic negative controls, and fail-closed production consumers
+10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **proposed**. Adds the missing W3-complete packet command/event family, lifecycle writer, replay state, resolver, and failure controls; blocked on owner gate G-RM-12
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
@@ -48,25 +50,28 @@ therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
 authorized. ARS does not invoke Claude or Codex or handle their OAuth
 credentials.
 
-## Research Methods lane (RM) — accepted under P-044, revision 2, **no plan dispatchable**
+## Research Methods lane (RM) — accepted direction under P-044, revision 3, **no plan dispatchable**
 
 An independent lane parallel to the WP6.1+WP6.3 → WP6.4 → Gate 6 path and never
-on it (P-044, accepted 2026-07-28). Its 2026-07-29 independent adversarial
-review returned `rework_required` on the whole suite; every plan below is
-revision 2, written against that review, and **G-RM-3 is re-opened** — nothing
-here may be dispatched until a fresh independent review clears the revised
-suite.
+on it (P-044, accepted 2026-07-28). Its 2026-07-30 independent adversarial
+rereview returned `rework_required` on the whole suite. Revision 3 separates
+producer completeness (06h), artefact authority and production-consumer
+enforcement (06i), and the W3 context-packet lifecycle (06j). **G-RM-3 remains
+open** — nothing here may be dispatched until a fresh independent review clears
+the complete revised suite.
 
 1. [RM-00 — lane master plan, gate checklist, and obligation register](rm-00-research-methods-lane-master-plan.md) (governing; readiness verdict, not a dispatch verdict)
-2. [RM-01 — suite recovery and quality accounting](rm-01-unblock-and-suite-recovery-plan.md) (depends on 06h merged)
-3. [RM-02 — Research Methods Pack v1](rm-02-research-methods-pack-plan.md)
-4. [RM-03 — brief export/import on the accepted artefact path](rm-03-brief-export-import-plan.md) (depends on RM-02 and the 06h capability)
-5. [RM-04 — manuscript review lane and verification records](rm-04-manuscript-review-and-verification-records-plan.md) (**no execution**; supersedes the withdrawn verification-execution plan)
+2. [RM-01 — suite recovery and quality accounting](rm-01-unblock-and-suite-recovery-plan.md) (consumes the pre-06h baseline and compares the same post-change cohort)
+3. [RM-02 — Research Methods Pack v1](rm-02-research-methods-pack-plan.md) (independent Git history anchor plus 06i acceptance authority)
+4. [RM-03 — brief export/import on accepted artefact and context-packet paths](rm-03-brief-export-import-plan.md) (depends on accepted 06i, 06j, and RM-02)
+5. [RM-04 — manuscript review lane and operator verification records](rm-04-manuscript-review-and-verification-records-plan.md) (**no execution**; depends on accepted 06i, 06j, and RM-03)
 6. RM-05 — isolated verification execution: **unwritten**, gated on G-RM-11 readiness acceptance
 
 Review provenance: the
-[adversarial review](../reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md)
-and the [response disposing of every finding](../reviews/rm-lane-review-response-2026-07-29.md).
+[initial adversarial review](../reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md),
+the [initial response](../reviews/rm-lane-review-response-2026-07-29.md), the
+[2026-07-30 adversarial rereview](../reviews/adversarial-rm-lane-plan-suite-rereview-2026-07-30.md),
+and the [revision-3 remediation response](../reviews/rm-lane-rereview-response-2026-07-30.md).
 ARS invokes no provider and handles no OAuth credentials in any RM plan
 (P-042), and no RM plan executes externally-proposed code (review C-4).
 
