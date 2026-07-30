@@ -1,7 +1,8 @@
 # RM-00: Research Methods Lane — Master Plan
 
-**Status:** REVISED 2026-07-30 (revision 4) after the PR #198 exact-subject
-pre-merge review returned `rework_required_before_merge`. P-043 and P-044 remain
+**Status:** REVISED 2026-07-30 (revision 4; PR198-RR1 amendment) after the
+PR #198 exact-subject `8e091a1` pre-merge rereview returned
+`rework_required_before_merge`. P-043 and P-044 remain
 accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
 bytes. No candidate-authoring or implementation stage is dispatchable until a
 fresh independent review returns an admissible verdict and every stage-specific
@@ -11,7 +12,7 @@ owner gate is separately satisfied.**
 **Supersedes for execution:**
 `../proposals/research-methods-integration-plan-2026-07-28.md`
 **Latest review response:**
-`../reviews/rm-lane-pr198-premerge-review-response-2026-07-30.md`
+`../reviews/rm-lane-pr198-premerge-rereview-response-2026-07-30.md`
 
 This document grants no runtime, provider, migration, packet, pilot, result, or
 claim authority.
@@ -45,7 +46,7 @@ model provider. TDA appears only in clearly marked examples/pilots.
 | [06i Stage A](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Inert candidate package for catalogue-complete artefact authority, predicates, review rules and complete consumer inventory | accepted 06h; G-RM-3 | `plan/wp6-1-artefact-authority-candidate-*` |
 | [06i Stage B](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Materialize accepted candidate; production writer; existing release migration; review/P-005 binding; canonical consumer firewall | accepted 06i Stage A exact subject; G-RM-10 | `pipe/wp6-1-artefact-authority-*` |
 | [06j Stage A](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Inert candidate package for the nine-command W3 packet lifecycle, schemas, transitions and authority scopes | accepted 06h; G-RM-3 | `plan/w3-context-packet-candidate-*` |
-| [06j Stage B](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Materialize accepted candidate; requested-through-delivered lifecycle; failure evidence; authoritative resolver | accepted 06j Stage A exact subject; G-RM-12 | `pipe/w3-context-packet-*` |
+| [06j Stage B](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Materialize accepted candidate; requested-through-delivered lifecycle; W4/W7 production-seam failure evidence; authoritative resolver | accepted 06j Stage A exact subject; G-RM-12 | `pipe/w3-context-packet-*` |
 | [RM-01](rm-01-unblock-and-suite-recovery-plan.md) | Post-06h run against the pinned pre-06h cohort/universe; quality accounting; final-candidate reconciliation of every landed production family into the smoke gate | merged 06h; G-RM-7 close-out | `pipe/rm-01-*` |
 | [RM-02](rm-02-research-methods-pack-plan.md) | Five candidate assets; independently anchored Git history; fail-closed pack loader | G-RM-3; candidate authorship independent of 06h/06i | `pipe/rm-02-*` |
 | [RM-03](rm-03-brief-export-import-plan.md) | Export/import over accepted packet and artefact-use resolvers; closed capability boundary | accepted 06i + 06j; RM-02; G-RM-4 | `pipe/rm-03-*` |
@@ -77,7 +78,7 @@ No child plan may contain an owner decision absent from this table.
 | G-RM-9 | Accept exact `RegisteredSchema` interface | 06h Task 1 | exact source, identity/path controls, memory measurement |
 | G-RM-10 | Accept the independently reviewed 06i Stage A candidate: artefact commands, exact grants/scopes, consumer-policy registry, review-set resolver, P-005 binding, complete existing-consumer inventory, public use resolver and atomic failure contract | 06i Stage B; RM-03/RM-04 canonical use | exact candidate Git blobs/canonical hashes and independent review; plan prose or later Worker bytes are insufficient |
 | G-RM-11 | Keep execution deferred, or independently accept implemented OS isolation, deny-by-default egress, W8 records, exact-script approval, cleanup and escape controls | RM-05 / any execution | exact-subject readiness review; funding or implementation alone is insufficient |
-| G-RM-12 | Accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, authority scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, requested/compiling/compiled failure coverage and W3 fixture mapping |
+| G-RM-12 | Accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, authority scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, requested/compiling/compiled plus W4/W7 production-seam failure bindings, ordering controls and W3 fixture mapping |
 | G-RM-13 | Stephen accepts an exact `OperatorVerificationRun` for explicitly named `review_evidence` or `manuscript_evidence` scope after independent scientific review | RM-04 follow-up export of that run | exact run ID/hash, eligible unrelated reviewer evidence, 06i predicate/scope, `SetArtefactUseAuthority` event/receipt; result/claim use remains prohibited |
 
 G-RM-3 verdict semantics:
@@ -91,7 +92,7 @@ G-RM-3 verdict semantics:
 ## 4. Master obligation register
 
 Forward scan sources: P-042/P-043/P-044, W2, W3, W5, W8, handoffs 25/26/28,
-the 2026-07-29/30 reviews, the PR #198 pre-merge review, prior responses,
+the 2026-07-29/30 reviews, both PR #198 pre-merge reviews, prior responses,
 implementation README, CLAUDE/AGENTS/APM rules.
 
 | ID | Obligation | Enforced by |
@@ -120,7 +121,7 @@ implementation README, CLAUDE/AGENTS/APM rules.
 | O-RM-22 | RM-03/RM-04 are Paper Claim governance as well as provenance | assurance sections |
 | O-RM-23 | Historical policy cannot admit newly malformed events | 06h G-RM-8 position/store/fingerprint bounds |
 | O-RM-24 | Production consumption cannot bypass replay authority through direct object reads or projections | 06i public port + repository-wide first-party boundary + existing release and RM-03/RM-04 call sites |
-| O-RM-25 | W3 failure before registration remains attributable and replayable | 06j requested/compiling/compiled states and phase-specific failure controls |
+| O-RM-25 | W3 failure before validation remains attributable and replayable across compilation and real W4/W7 production seams | 06j lifecycle service, compiled-state failure bindings, call-graph firewall and phase-specific replay controls |
 | O-RM-26 | Owner gates bind exact pre-authored candidate bytes, never later Worker outputs | 06i/06j Stage A packages, independent reviews and G-RM-10/G-RM-12 |
 | O-RM-27 | Every landed production family enters the live append-path smoke gate under every merge ordering | RM-01 final candidate reconciliation plus second-to-merge ownership in 06i/06j |
 | O-RM-28 | Candidate operator reports cannot traverse canonical consumers | RM-04 G-RM-13 external review/use-authority step and result/claim negatives |
@@ -173,8 +174,10 @@ implementation README, CLAUDE/AGENTS/APM rules.
   repository-wide direct-read bypass fails.
 - **06j:** an independently reviewed Stage A package is accepted before
   implementation; requested, compiling, compiled and failed states remain
-  attributable/replayable before validation; a W3-complete packet is validated,
-  issued, delivered and resolved by exact current state; F-025-F-030 pass.
+  attributable/replayable before validation; W4 routing and selected-route W7
+  revalidation cannot fail outside the lifecycle writer; no fallible W3/W4/W7
+  check remains between validation and issue; a W3-complete packet is issued,
+  delivered and resolved by exact current state; F-025-F-030 pass.
 - **RM-01:** the same pre-06h 156-node cohort and full universe are observed
   post-06h; additions/removals/renames are explicit; the final candidate
   smoke-manifest covers every production family landed on current `main`; smoke
