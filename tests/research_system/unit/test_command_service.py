@@ -1,4 +1,5 @@
 import json
+import shutil
 import threading
 
 import pytest
@@ -8,7 +9,11 @@ from research_system.command.models import Command
 from research_system.command.reducers import reduce_task
 from research_system.command.service import CommandService
 from research_system.errors import ConflictError, IntegrityError, SchemaError
-from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.schema_registry import (
+    SchemaBinding,
+    SchemaRegistry,
+    runtime_schema_registry,
+)
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -28,6 +33,43 @@ CMD_CLAIM_B = "cmd_01978abc-2003-7000-8000-000000002003"
 TASK_ID = "tsk_01978abc-2004-7000-8000-000000002004"
 DISPATCH_ID = "dsp_01978abc-2005-7000-8000-000000002005"
 ARTEFACT_ID = "art_01978abc-2006-7000-8000-000000002006"
+TASK_ID_B = "tsk_01978abc-2007-7000-8000-000000002007"
+
+
+def _registry_with_create_task_successor(tmp_path, version):
+    schema_root = tmp_path / "successor-schemas"
+    schema_root.mkdir()
+    source_root = REPO_ROOT / ".research-system" / "schemas"
+    for source in (
+        source_root / "core" / "command.schema.json",
+        source_root / "core" / "event.schema.json",
+        source_root / "core" / "commands" / "create_task.schema.json",
+        source_root / "core" / "events" / "task_created.schema.json",
+    ):
+        shutil.copy2(source, schema_root / source.name)
+
+    successor = json.loads(
+        (source_root / "core" / "commands" / "create_task.schema.json").read_text(
+            encoding="utf-8",
+        )
+    )
+    successor["properties"]["schema_version"]["const"] = version
+    (schema_root / "create_task_successor.schema.json").write_bytes(canonical_bytes(successor))
+    return SchemaRegistry(
+        schema_root,
+        active_bindings=(
+            SchemaBinding(
+                "ars://core/command/CreateTask",
+                version,
+                command_type="CreateTask",
+            ),
+            SchemaBinding(
+                "ars://core/event/TaskCreated",
+                "1.0.0",
+                event_type="TaskCreated",
+            ),
+        ),
+    )
 
 
 def test_create_task_vertical_uses_exact_activated_schema_identity(tmp_path):
@@ -58,6 +100,30 @@ def test_create_task_vertical_uses_exact_activated_schema_identity(tmp_path):
     assert event["command_schema_version"] == command_identity.schema_version
     assert event["command_schema_sha256"] == command_identity.sha256
     assert event_identity.schema_id == "ars://core/event/TaskCreated"
+
+
+def test_create_task_object_shape_follows_resolved_successor_binding(tmp_path):
+    schemas = _registry_with_create_task_successor(tmp_path, "2.0.0")
+    root = tmp_path / "control"
+    root.mkdir()
+    objects = ObjectStore(root)
+    service = CommandService(
+        root,
+        EventLedger(root, PROJECT_ID, schemas),
+        objects,
+        ReceiptStore(root),
+        schemas,
+    )
+    command = create_task_command(
+        CMD_CREATE,
+        "successor-create",
+        TASK_ID,
+        {"title": "Successor task"},
+    )
+    command["schema_version"] = "2.0.0"
+
+    assert service.submit(command).status == "accepted"
+    assert objects.read("task", TASK_ID, 1) == command["payload"]["definition"]
 
 
 def test_inactive_dispatch_schema_materialization_is_inert(tmp_path):
@@ -245,6 +311,26 @@ def test_identical_retry_returns_original_receipt_and_one_batch(tmp_path):
     command = create_task_command(CMD_CREATE, "same", TASK_ID, {"title": "A"})
     assert harness.service.submit(command) == harness.service.submit(command)
     assert len(tuple(harness.ledger.iter_batches())) == 1
+
+
+def test_novel_submission_does_not_scan_existing_schema_scopes(tmp_path):
+    class IterationForbiddenDict(dict):
+        def __iter__(self):
+            raise AssertionError("schema-scope index was scanned")
+
+    harness = control_plane(tmp_path)
+    first = create_task_command(CMD_CREATE, "first-scope", TASK_ID, {"title": "A"})
+    assert harness.service.submit(first).status == "accepted"
+    assert harness.service._view is not None
+    harness.service._view.batches_by_scope = IterationForbiddenDict(harness.service._view.batches_by_scope)
+    second = create_task_command(
+        CMD_CLAIM_A,
+        "second-scope",
+        TASK_ID_B,
+        {"title": "B"},
+    )
+
+    assert harness.service.submit(second).status == "accepted"
 
 
 def test_same_idempotency_key_with_changed_payload_conflicts(tmp_path):

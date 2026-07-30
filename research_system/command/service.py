@@ -62,6 +62,7 @@ class _CommandView:
         tuple[str, str, str, str, str | None, str | None, str | None],
         list[dict[str, Any]],
     ]
+    base_scopes: set[tuple[str, str, str, str]]
     stream_versions: dict[str, int]
 
     @classmethod
@@ -71,7 +72,13 @@ class _CommandView:
         schemas: SchemaRegistry,
     ) -> _CommandView:
         replay(snapshot.events, schema_registry=schemas)
-        view = cls(snapshot.fingerprint, {}, {}, dict(snapshot.stream_versions))
+        view = cls(
+            snapshot.fingerprint,
+            {},
+            {},
+            set(),
+            dict(snapshot.stream_versions),
+        )
         batches: dict[str, list[dict[str, Any]]] = {}
         for event in snapshot.events:
             batches.setdefault(event["transaction_id"], []).append(event)
@@ -95,12 +102,16 @@ class _CommandView:
     def _index_batch(self, batch: list[dict[str, Any]]) -> None:
         first = batch[0]
         self.batches_by_command_id[first["command_id"]] = batch
+        base_scope = (
+            first["actor_id"],
+            first["authority_grant_id"],
+            first["command_type"],
+            first["idempotency_key"],
+        )
+        self.base_scopes.add(base_scope)
         self.batches_by_scope[
             (
-                first["actor_id"],
-                first["authority_grant_id"],
-                first["command_type"],
-                first["idempotency_key"],
+                *base_scope,
                 first.get("command_schema_id"),
                 first.get("command_schema_version"),
                 first.get("command_schema_sha256"),
@@ -861,7 +872,7 @@ class CommandService:
             if same_submission:
                 return list(scoped)
             raise ConflictError("idempotency key conflicts with committed command")
-        if any(indexed_scope[:4] == base_scope for indexed_scope in view.batches_by_scope):
+        if base_scope in view.base_scopes:
             raise ConflictError("idempotency key conflicts with committed command schema")
         identified = view.batches_by_command_id.get(command.command_id)
         if identified is not None:
@@ -894,8 +905,13 @@ class CommandService:
     ) -> dict[str, Any]:
         command_type = command.envelope["command_type"]
         if command_type == "CreateTask":
-            activated_create = (
-                command_schema.schema_id == "ars://core/command/CreateTask" and command_schema.schema_version == "1.0.0"
+            create_binding = self.schemas.command_binding("CreateTask")
+            activated_create = create_binding is not None and (
+                command_schema.schema_id,
+                command_schema.schema_version,
+            ) == (
+                create_binding.schema_id,
+                create_binding.schema_version,
             )
             self.objects.write(
                 "task",

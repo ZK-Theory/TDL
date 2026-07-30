@@ -489,19 +489,23 @@ def _create_revision(harness, command_id, task_id, title):
 
 
 def _supersede_command(command_id, source_id, replacement_id, replacement_revision=1):
+    payload = {
+        "replacement_task_id": replacement_id,
+        "replacement_task_revision": replacement_revision,
+        "supersession_scope": ["full_task_authority"],
+        "continuing_consumers": ["audit"],
+    }
     command = create_task_command(
         command_id,
         f"supersede-{command_id}",
         source_id,
-        {
-            "replacement_task_id": replacement_id,
-            "replacement_task_revision": replacement_revision,
-            "supersession_scope": ["full_task_authority"],
-            "continuing_consumers": ["audit"],
-        },
+        payload,
     )
     command["command_type"] = "SupersedeTask"
+    command["schema_id"] = "ars://core/command"
     command["expected_stream_version"] = 1
+    command["payload"] = payload
+    command.pop("project_id")
     return command
 
 
