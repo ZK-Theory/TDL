@@ -29,7 +29,7 @@
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
-8. [WP6.1 schema identity and artefact command seam](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**, main path. Closes the P-043 producer-emits gap at its root (exact-byte schema identity) and wires the accepted artefact command family through command/ledger/replay. Blocked on owner gates G-RM-8, G-RM-9, G-RM-10 and a fresh independent review. Absorbs the repair formerly hosted in RM-01 Task A
+8. [WP6.1 schema identity and artefact command seam](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**, main path. Closes the P-043 producer-emits gap at its root (exact-byte schema identity) and wires the accepted artefact command family through command/ledger/replay. Blocked on G-RM-3 (fresh independent review) and owner gates G-RM-8, G-RM-9, G-RM-10. Absorbs the repair formerly hosted in RM-01 Task A
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
@@ -62,7 +62,7 @@ suite.
 3. [RM-02 — Research Methods Pack v1](rm-02-research-methods-pack-plan.md)
 4. [RM-03 — brief export/import on the accepted artefact path](rm-03-brief-export-import-plan.md) (depends on RM-02 and the 06h capability)
 5. [RM-04 — manuscript review lane and verification records](rm-04-manuscript-review-and-verification-records-plan.md) (**no execution**; supersedes the withdrawn verification-execution plan)
-6. RM-05 — isolated verification execution: **unwritten**, gated on G-RM-11
+6. RM-05 — isolated verification execution: **unwritten**, gated on G-RM-11 readiness acceptance
 
 Review provenance: the
 [adversarial review](../reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md)
