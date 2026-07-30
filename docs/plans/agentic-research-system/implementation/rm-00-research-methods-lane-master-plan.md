@@ -2,8 +2,8 @@
 
 **Status:** REVISED 2026-07-30 (revision 5; PR198-RR1 constructibility and
 authority correction) after the PR #198 exact-subject `d6c9647` rereview returned
-`rework_required_before_merge`. P-043 and the existing P-044 scope remain
-accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
+`rework_required_before_merge`. P-043, P-044 and its accepted candidate-stage
+amendment remain accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
 bytes. An independent `accept` only makes the exact subject eligible for
 Stephen's separate explicit G-RM-3 decision; it does not close the gate,
 dispatch any stage, authorize merge, or activate a proposed owner gate.**
@@ -17,15 +17,13 @@ dispatch any stage, authorize merge, or activate a proposed owner gate.**
 This document grants no runtime, provider, migration, packet, pilot, result, or
 claim authority.
 
-P-044 currently authorizes bounded implementation of RM-01 through RM-04 only
-and records owner gates only through G-RM-11. It does not authorize 06i/06j
-Stage A. Historical G-RM-10 is preserved as the choice to use the already
-accepted artefact command family. G-RM-12, G-RM-13 and G-RM-14 below are
-**proposed, inert labels** until Stephen accepts a decision-register amendment
-that authorizes the two candidate-authoring stages and defines those gates.
-Plan prose, reviewer disposition and PR mergeability cannot activate them.
-Until that amendment exists, both Stage A plans and every dependent stage remain
-non-dispatchable even after an independent `accept` and explicit G-RM-3.
+Stephen accepted the P-044 candidate-stage amendment against exact PR #198 head
+`fa7d8a6dec4f8d31b9a94747c33e137d4048c376`. It preserves historical G-RM-10,
+authorizes only the bounded inert 06i/06j Stage A candidate paths, and defines
+G-RM-12, G-RM-13 and G-RM-14. The amendment activates those definitions but
+satisfies none of the gates: G-RM-3 and every stage-specific owner gate remain
+separately open, and no Stage A is dispatchable before accepted 06h, an
+admissible independent suite review and Stephen's explicit G-RM-3 decision.
 
 ## 1. Lane charter
 
@@ -90,9 +88,9 @@ No child plan may contain an owner decision absent from this table.
 | G-RM-9 | Accept exact `RegisteredSchema` interface | 06h Task 1 | exact source, identity/path controls, memory measurement |
 | G-RM-10 | **PRESERVED:** confirm RM records use the already accepted `RegisterArtefact` / `SetArtefactUseAuthority` family rather than a new event family | 06h artefact-family wiring; RM-03 family choice | accepted family identities and explicit owner confirmation; this gate does not accept 06i candidate bytes |
 | G-RM-11 | Keep execution deferred, or independently accept implemented OS isolation, deny-by-default egress, W8 records, exact-script approval, cleanup and escape controls | RM-05 / any execution | exact-subject readiness review; funding or implementation alone is insufficient |
-| G-RM-12 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, phase-qualified failures, sealed capability/template, ordering controls and executable F-025-F-028 plus reserved F-029/F-030 mapping |
-| G-RM-13 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** Stephen accepts an exact `OperatorVerificationRun` for named `review_evidence` or `manuscript_evidence` scope after independent scientific review | RM-04 follow-up export of that run | exact run ID/hash, eligible unrelated reviewer evidence, 06i predicate/scope, `SetArtefactUseAuthority` event/receipt; result/claim use remains prohibited |
-| G-RM-14 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** accept the independently reviewed 06i Stage A candidate without changing the accepted artefact command family | 06i Stage B; RM-03/RM-04 canonical use | exact candidate blobs/hashes, grants/scopes, predicates, review/P-005 bindings, complete consumer inventory, public resolver and atomic failure contract |
+| G-RM-12 | **OPEN:** accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, phase-qualified failures, sealed capability/template, ordering controls and executable F-025-F-028 plus reserved F-029/F-030 mapping |
+| G-RM-13 | **OPEN:** Stephen accepts an exact `OperatorVerificationRun` for named `review_evidence` or `manuscript_evidence` scope after independent scientific review | RM-04 follow-up export of that run | exact run ID/hash, eligible unrelated reviewer evidence, 06i predicate/scope, `SetArtefactUseAuthority` event/receipt; result/claim use remains prohibited |
+| G-RM-14 | **OPEN:** accept the independently reviewed 06i Stage A candidate without changing the accepted artefact command family | 06i Stage B; RM-03/RM-04 canonical use | exact candidate blobs/hashes, grants/scopes, predicates, review/P-005 bindings, complete consumer inventory, public resolver and atomic failure contract |
 
 Independent-review verdict semantics:
 
@@ -102,7 +100,7 @@ Independent-review verdict semantics:
   dispatch-blocking condition has independent closure evidence;
 - `accept` makes the exact subject eligible for Stephen's separate G-RM-3
   decision; it does not itself clear G-RM-3, dispatch a stage, authorize merge,
-  accept candidate bytes, or activate G-RM-12/G-RM-13/G-RM-14;
+  accept candidate bytes, or satisfy G-RM-12/G-RM-13/G-RM-14;
 - G-RM-3 closes only when Stephen records an explicit owner decision binding the
   exact reviewed commit and review after the admissible verdict.
 
@@ -178,7 +176,6 @@ implementation README, CLAUDE/AGENTS/APM rules.
 | Lean/formalization expansion | Stephen | after RM-04 pilot identifies warranted claims |
 | TDA-on-proof-state / sheaf consistency | Discovery Harness | assay + PROMOTE |
 | Remote MCP / fine-tuning | Stephen | later legal/governance gate |
-| P-044 amendment for 06i/06j Stage A and G-RM-12/G-RM-13/G-RM-14 | Stephen | explicit accepted decision-register entry; until then all named stages/gates are inert |
 
 ## 7. Success criteria
 
