@@ -52,13 +52,17 @@ What this plan records instead:
   and the exact script hash bound. This is **self-attested evidence** and the
   schema description says so in those words. It is weaker than an ARS-executed
   result would be, and the weakness is recorded rather than hidden.
-- The feedback loop still closes: `--attach-result` carries the outcome and its
-  traceback into a follow-up brief, with the operator as relay — exactly the
-  P-042 posture the rest of the lane already assumes.
+- The feedback loop still closes: `--attach-result` places the reference-only
+  `verification_context` in the manifest, resolves and hash-checks that
+  artefact, and renders its outcome and traceback into the follow-up brief,
+  with the operator as relay — exactly the P-042 posture the rest of the lane
+  already assumes.
 
-When G-RM-11 funds an isolation substrate, RM-05 adds an ARS-executed result
-type that does **not** carry the self-attestation caveat. Until then, no
-interface in this lane implies ARS ran anything.
+Only after G-RM-11 independently accepts an implemented isolation substrate and
+its exact-subject evidence may RM-05 add an ARS-executed result type that does
+**not** carry the self-attestation caveat. Funding or implementation alone is
+insufficient. Until readiness acceptance, no interface in this lane implies
+ARS ran anything.
 
 ## Global constraints
 
@@ -66,9 +70,14 @@ interface in this lane implies ARS ran anything.
   `pipe/rm-04-manuscript-and-verification-records`. Copy `.env` into the
   worktree.
 - **No execution, no subprocess, no runner.** RM-03's capability boundary
-  (Task 5 there) extends over every file this plan creates and must stay green;
-  it already bans `subprocess`, dynamic import and sockets in
-  `research_system/methods/**`.
+  (Task 5 there) extends over every file this plan creates **and over the new
+  brief command handlers and their call graph in `research_system/cli.py`**.
+  Its CLI AST check rejects dynamic import, sockets, `eval`/`exec`, process
+  launch, and every other prohibited execution primitive from those handlers.
+  The only module-level subprocess allowance is the pre-existing fixed-argv Git
+  root discovery in `_registered_code_roots`; the guard identifies that
+  function and exact operation structurally, and any additional subprocess use
+  in `cli.py` fails. Negative fixtures must prove each CLI prohibition fires.
 - No W5 lifecycle transition is performed by any code here: no review verdict,
   no result acceptance, no claim object, no `SetArtefactUseAuthority`. The
   manuscript lane *feeds* W5 review by producing bound evidence; a human takes
@@ -154,8 +163,9 @@ states that it records rather than performs. Keep it.
   referencing an unknown request is rejected; `--attach-result` round-trips the
   outcome and traceback byte-identically; replay reproduces the projection;
   imported runs land `candidate` and cannot be consumed as evidence (RM-03's
-  firewall test extended); **no module in this plan imports `subprocess` or any
-  execution primitive** (capability-boundary guard).
+  firewall test extended); **no module or new CLI handler in this plan imports
+  or invokes `subprocess` or any execution primitive** (capability-boundary
+  guard, with only the pre-existing fixed Git-discovery exception above).
 - **Human-review-only:** does the pilot brief plus findings read as a coherent
   evidence chain to someone who was not in the session? Does any interface name
   or description imply ARS verified something it did not?
@@ -181,16 +191,22 @@ states that it records rather than performs. Keep it.
       Commit: `[PIPELINE] P00: verification request and operator-run records`.
 - [ ] **Task 3 — Round trip.** `--attach-result` in the exporter; integration
       test: import a candidate → import a failing operator run → export a
-      follow-up brief → assert the traceback is present in
-      `verification_context` and byte-identical to the imported record.
+      follow-up brief → assert the manifest's reference-only
+      `verification_context` resolves to that exact artefact and passes its
+      schema/hash checks, then assert the traceback rendered into the brief is
+      byte-identical to the resolved imported record.
       Commit: `[PIPELINE] P00: verification round-trip into follow-up briefs`.
 - [ ] **Task 4 — Manuscript pilot (owner-gated, G-RM-5).** With Stephen's
       chosen subject: export a draft section with asset 1, the operator runs
       the session, import the `ReviewFindingSet` bound to the draft's exact
       hash, hand the findings to the normal human review path. Write
-      `rm-04a-manuscript-pilot-record-<date>.md`: full command transcript,
-      artefact IDs, friction observations, and an explicit statement of what was
-      *not* done — no acceptance, no claim, no promotion, no execution.
+      `rm-04a-manuscript-pilot-record-<date>.md` with a **redacted command
+      inventory** (tool/operation, sanitized argument shape, timestamp, status,
+      and command hash), artefact IDs, friction observations, and an explicit
+      statement of what was *not* done — no acceptance, no claim, no promotion,
+      no execution. Never commit an unredacted transcript: exclude stdout,
+      stderr, credentials, tokens, raw returned content, sensitive paths, and
+      any other restricted data.
       Commit: `[PIPELINE] P00: manuscript-review lane pilot record`.
 
 ## Deferred to RM-05 (G-RM-11)
