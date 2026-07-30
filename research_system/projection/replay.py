@@ -383,7 +383,11 @@ def replay(
                     raise IntegrityError(f"command schema identity mismatch at {position}") from exc
             try:
                 if t2_event:
-                    schema_registry.validate(event["schema_id"], event)
+                    schema_registry.validate(
+                        event["schema_id"],
+                        event,
+                        schema_version=str(event.get("schema_version", "")),
+                    )
                 else:
                     schema_registry.validate("ars://core/event", event)
                 if release_event:

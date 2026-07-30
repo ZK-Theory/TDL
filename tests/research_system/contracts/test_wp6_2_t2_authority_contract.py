@@ -8,6 +8,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from tests.research_system.contracts.wp6_2_t2_authority_validation import (
+    p045_authorized_successors,
     validate_event_observation,
     validate_t2_authority_contract,
 )
@@ -178,7 +179,10 @@ def test_pos_record_provider_receipt_atomic() -> None:
 
 
 def test_complete_t2_semantic_and_content_address_binding() -> None:
-    validate_t2_authority_contract(REPO_ROOT)
+    validate_t2_authority_contract(
+        REPO_ROOT,
+        authorized_successors=p045_authorized_successors(REPO_ROOT),
+    )
 
 
 def test_r3_receipt_v2_enforces_complete_ordered_proof() -> None:

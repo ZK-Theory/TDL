@@ -348,16 +348,16 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
 
 def _moved_service(case):
     from research_system.command.service import CommandService
-    from research_system.schema_registry import SchemaRegistry
+    from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
     from research_system.store.receipts import ReceiptStore
 
     root = case["target"]
-    schemas = SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
+    schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
     return CommandService(
         root,
-        EventLedger(root, case["receipt"].project_id),
+        EventLedger(root, case["receipt"].project_id, schemas),
         ObjectStore(root),
         ReceiptStore(root),
         schemas,

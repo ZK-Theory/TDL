@@ -85,6 +85,46 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="TaskCreated",
     ),
+    SchemaBinding(
+        "ars://wp6-2/t2/command/IssueCostGrant",
+        "1.0.0",
+        command_type="IssueCostGrant",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/command/AuthorizeProviderIssue",
+        "1.0.0",
+        command_type="AuthorizeProviderIssue",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/command/RecordProviderReceipt",
+        "1.0.0",
+        command_type="RecordProviderReceipt",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/event/CostGrantIssued",
+        "1.1.0",
+        event_type="CostGrantIssued",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/event/CostGrantReserved",
+        "1.1.0",
+        event_type="CostGrantReserved",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/event/ProviderCommandIssued",
+        "1.1.0",
+        event_type="ProviderCommandIssued",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/event/ProviderReceiptRecorded",
+        "1.1.0",
+        event_type="ProviderReceiptRecorded",
+    ),
+    SchemaBinding(
+        "ars://wp6-2/t2/event/CostGrantReconciled",
+        "1.1.0",
+        event_type="CostGrantReconciled",
+    ),
 )
 
 

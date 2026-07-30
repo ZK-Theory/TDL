@@ -353,7 +353,11 @@ class EventLedger:
             ):
                 raise ArsError(f"inactive event schema: {event_schema} version {event_schema_version}")
             if t2_event:
-                self.schemas.validate(event_schema, prehash)
+                self.schemas.validate(
+                    event_schema,
+                    prehash,
+                    schema_version=event_schema_version,
+                )
             else:
                 self.schemas.validate("ars://core/event", prehash)
                 if event_type == "ReleaseGateDecisionPublished":
@@ -366,7 +370,11 @@ class EventLedger:
                     )
             event["event_hash"] = sha256_hex(canonical_bytes(event))
             if t2_event:
-                self.schemas.validate(event_schema, event)
+                self.schemas.validate(
+                    event_schema,
+                    event,
+                    schema_version=event_schema_version,
+                )
             else:
                 self.schemas.validate("ars://core/event", event)
                 if event_type == "ReleaseGateDecisionPublished":

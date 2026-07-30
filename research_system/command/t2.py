@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError, SchemaError
+from research_system.schema_registry import SchemaIdentity
 
 T2_COMMAND_TYPES = frozenset({"IssueCostGrant", "AuthorizeProviderIssue", "RecordProviderReceipt"})
 _EVENT_ORDER = {
@@ -865,13 +866,14 @@ def _record_semantics(service: Any, envelope: Mapping[str, Any], state: Mapping[
 
 def _event_envelope(
     envelope: Mapping[str, Any],
+    command_schema: SchemaIdentity,
     event_type: str,
     stream_id: str,
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
     return {
         "schema_id": f"ars://wp6-2/t2/event/{event_type}",
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "event_type": event_type,
         "stream_id": stream_id,
         "command_id": envelope["command_id"],
@@ -884,16 +886,24 @@ def _event_envelope(
         "causation_id": envelope["causation_id"] or envelope["command_id"],
         "actor_id": envelope["actor_id"],
         "authority_grant_id": envelope["authority_grant_id"],
+        "command_schema_id": command_schema.schema_id,
+        "command_schema_version": command_schema.schema_version,
+        "command_schema_sha256": command_schema.sha256,
         "payload": dict(payload),
     }
 
 
-def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _events_for(
+    envelope: Mapping[str, Any],
+    state: Mapping[str, Any],
+    command_schema: SchemaIdentity,
+) -> list[dict[str, Any]]:
     payload = envelope["payload"]
     if envelope["command_type"] == "IssueCostGrant":
         return [
             _event_envelope(
                 envelope,
+                command_schema,
                 "CostGrantIssued",
                 payload["cost_grant_id"],
                 {
@@ -909,6 +919,7 @@ def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[d
         return [
             _event_envelope(
                 envelope,
+                command_schema,
                 "CostGrantReserved",
                 payload["cost_grant_id"],
                 {
@@ -930,6 +941,7 @@ def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[d
             ),
             _event_envelope(
                 envelope,
+                command_schema,
                 "ProviderCommandIssued",
                 payload["provider_command_id"],
                 {
@@ -949,6 +961,7 @@ def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[d
     return [
         _event_envelope(
             envelope,
+            command_schema,
             "ProviderReceiptRecorded",
             payload["provider_command_id"],
             {
@@ -964,6 +977,7 @@ def _events_for(envelope: Mapping[str, Any], state: Mapping[str, Any]) -> list[d
         ),
         _event_envelope(
             envelope,
+            command_schema,
             "CostGrantReconciled",
             payload["cost_grant_id"],
             {
@@ -1005,7 +1019,22 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
     command = _T2Command(envelope)
     with service._submission_lock(command):
         try:
-            service.schemas.validate(expected_schema, envelope)
+            command_binding = service.schemas.command_binding(str(command_type))
+            if command_binding is None:
+                raise SchemaError(f"inactive T2 command binding: {command_type}")
+            if (
+                command_binding.schema_id,
+                command_binding.schema_version,
+            ) != (
+                expected_schema,
+                envelope.get("schema_version"),
+            ):
+                raise SchemaError(f"T2 command binding mismatch: {command_type}")
+            command_schema = service.schemas.validate_active(
+                command_binding.schema_id,
+                envelope,
+                schema_version=command_binding.schema_version,
+            )
         except SchemaError:
             reason = (
                 "provider_receipt_incomplete"
@@ -1038,6 +1067,9 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             envelope["actor_id"],
             envelope["authority_scope"],
             command_type,
+            command_schema.schema_id,
+            command_schema.schema_version,
+            command_schema.sha256,
             envelope["idempotency_key"],
         )
         stored = service.receipts.load_t2(command.command_id)
@@ -1064,6 +1096,9 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
                     first["actor_id"],
                     first["authority_scope"],
                     first["command_type"],
+                    first["command_schema_id"],
+                    first["command_schema_version"],
+                    first["command_schema_sha256"],
                     first["idempotency_key"],
                 )
                 if (
@@ -1099,6 +1134,9 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
                 first["actor_id"],
                 first["authority_scope"],
                 first["command_type"],
+                first["command_schema_id"],
+                first["command_schema_version"],
+                first["command_schema_sha256"],
                 first["idempotency_key"],
             )
             if existing_scope == scope:
@@ -1149,7 +1187,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             rejected = _receipt(envelope, "rejected", stable_reason=semantic_error)
             service.schemas.validate("ars://core/receipt/v2", rejected.to_record())
             return service.receipts.write_t2(rejected)
-        proposed = _events_for(envelope, state)
+        proposed = _events_for(envelope, state, command_schema)
         ledger_result = service.ledger.append(proposed, snapshot=snapshot)
         updated = service.ledger.snapshot()
         committed = list(updated.events[len(snapshot.events) :])

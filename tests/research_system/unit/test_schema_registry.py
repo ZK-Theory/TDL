@@ -283,13 +283,111 @@ def test_materialized_schema_is_inert_until_exact_binding_is_active():
     assert active.is_active(schema_id, "1.0.0")
 
 
-def test_runtime_bindings_activate_only_create_task_vertical_pair():
+def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
     registry = runtime_schema_registry(SCHEMAS)
 
-    assert registry.is_active("ars://core/command/CreateTask", "1.0.0")
-    assert registry.is_active("ars://core/event/TaskCreated", "1.0.0")
+    expected_commands = {
+        "CreateTask": ("ars://core/command/CreateTask", "1.0.0"),
+        "IssueCostGrant": ("ars://wp6-2/t2/command/IssueCostGrant", "1.0.0"),
+        "AuthorizeProviderIssue": ("ars://wp6-2/t2/command/AuthorizeProviderIssue", "1.0.0"),
+        "RecordProviderReceipt": ("ars://wp6-2/t2/command/RecordProviderReceipt", "1.0.0"),
+    }
+    expected_events = {
+        "TaskCreated": ("ars://core/event/TaskCreated", "1.0.0"),
+        "CostGrantIssued": ("ars://wp6-2/t2/event/CostGrantIssued", "1.1.0"),
+        "CostGrantReserved": ("ars://wp6-2/t2/event/CostGrantReserved", "1.1.0"),
+        "ProviderCommandIssued": ("ars://wp6-2/t2/event/ProviderCommandIssued", "1.1.0"),
+        "ProviderReceiptRecorded": ("ars://wp6-2/t2/event/ProviderReceiptRecorded", "1.1.0"),
+        "CostGrantReconciled": ("ars://wp6-2/t2/event/CostGrantReconciled", "1.1.0"),
+    }
+
+    assert {
+        command_type: (
+            registry.command_binding(command_type).schema_id,
+            registry.command_binding(command_type).schema_version,
+        )
+        for command_type in expected_commands
+    } == expected_commands
+    assert {
+        event_type: (
+            registry.event_binding(event_type).schema_id,
+            registry.event_binding(event_type).schema_version,
+        )
+        for event_type in expected_events
+    } == expected_events
     assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
     assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
+
+
+def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
+    registry = runtime_schema_registry(SCHEMAS)
+    schema_id = "ars://wp6-2/t2/event/CostGrantIssued"
+
+    with pytest.raises(SchemaError, match="schema version required"):
+        registry.validate(schema_id, {"schema_version": "1.1.0"})
+
+    identity = registry.resolve_identity(schema_id, "1.1.0")
+    source = SCHEMAS / "wp6-2-t2" / "events" / "cost-grant-issued.v1-1.schema.json"
+
+    assert identity.source_path == source.resolve()
+    assert identity.raw_bytes == source.read_bytes()
+    assert identity.sha256 == sha256(source.read_bytes()).hexdigest()
+
+
+def test_t2_v1_1_siblings_have_independent_exact_new_write_contracts():
+    expected = {
+        "cost-grant-issued.v1-1.schema.json": (
+            "CostGrantIssued",
+            "IssueCostGrant",
+            "7242d8f79d2da6c20339983674e3aa24628edbfd72bfc01d697d815167b015db",
+        ),
+        "cost-grant-reconciled.v1-1.schema.json": (
+            "CostGrantReconciled",
+            "RecordProviderReceipt",
+            "e961dd8100d4c6098bd502337a50168c7aeba66257e9cbae136fefb1a636a892",
+        ),
+        "cost-grant-reserved.v1-1.schema.json": (
+            "CostGrantReserved",
+            "AuthorizeProviderIssue",
+            "0dfeea8634da23f9c44042a2e78bddb9dac27d396a267289037c28d0c2e49273",
+        ),
+        "provider-command-issued.v1-1.schema.json": (
+            "ProviderCommandIssued",
+            "AuthorizeProviderIssue",
+            "eb09377ae6e0e73a35d92028a082970708eeae730a41648e787e38a1e13c3f1f",
+        ),
+        "provider-receipt-recorded.v1-1.schema.json": (
+            "ProviderReceiptRecorded",
+            "RecordProviderReceipt",
+            "1294ee2cf0ba634010a1b63bffa3e69696ec0d5fc9b1dff2610e2177285dcc5c",
+        ),
+    }
+    event_root = SCHEMAS / "wp6-2-t2" / "events"
+    assert {path.name for path in event_root.glob("*.v1-1.schema.json")} == set(expected)
+    provenance = {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    }
+
+    for filename, (event_type, command_type, raw_sha256) in expected.items():
+        current_path = event_root / filename
+        legacy_path = event_root / filename.replace(".v1-1", "")
+        current = json.loads(current_path.read_bytes())
+        legacy = json.loads(legacy_path.read_bytes())
+
+        assert current["$id"] == legacy["$id"] == f"ars://wp6-2/t2/event/{event_type}"
+        assert current["properties"]["schema_version"] == {"const": "1.1.0"}
+        assert set(current["required"]) == set(legacy["required"]) | provenance
+        assert set(current["properties"]) == set(legacy["properties"]) | provenance
+        assert current["properties"]["command_schema_id"] == {"const": f"ars://wp6-2/t2/command/{command_type}"}
+        assert current["properties"]["command_schema_version"] == {"const": "1.0.0"}
+        assert current["properties"]["command_schema_sha256"] == {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+        }
+        assert current["additionalProperties"] is False
+        assert sha256(current_path.read_bytes()).hexdigest() == raw_sha256
 
 
 @pytest.mark.parametrize(

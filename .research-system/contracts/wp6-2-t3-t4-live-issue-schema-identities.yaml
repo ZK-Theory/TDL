@@ -11,8 +11,8 @@ accepted_predecessors:
   t1a_subject: 599050b0809ed63a69e1a9ce6ac491b61f7ad33e
   t1a_protocol_git_blob: 4c9721a047c9b66912b9786a3b983c6f84e5ab00
   t1a_protocol_raw_sha256: e9512bef147d0de9bc9103b20eb1ede8b927979bfe43dd85e61fb6c27f05efda
-  accepted_t2_contract_test_git_blob: 0e9429aef35a61e4621412f6c4ce17fbc5088d8d
-  accepted_t2_contract_test_raw_sha256: 4d35340efe26779723963088ab4797219c8c02365c623dfc7f785c44b12a94a9
+  accepted_t2_contract_test_git_blob: 6257fe99015fa3efe234ef72ed651ca2eb656780
+  accepted_t2_contract_test_raw_sha256: af4148556a7097d90e24bf50852de0d3560b7cc3a74d929c81c3dce2a14b3df0
 artifacts:
 - role: record
   path: .research-system/schemas/wp6-2-live-issue/live-issue-binding.schema.json
