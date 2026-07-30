@@ -34,7 +34,7 @@ dependencies remain open).
 | `application_family` validated against the WP6.3 assurance-pack allowlist | An **RM-owned session record** captures the operator's chosen application as attributed evidence; no eligibility gate; the WP6.3 pack is not read | **M-7**: that allowlist governs independent *review* agents (`codex_standalone`/`claude_standalone`), not research-application sessions. Reusing it would reject valid sessions and silently inherit WP6.3 policy changes |
 | `--allow-candidate` flag on export | **Removed entirely** | **M-1**: it bypassed the owner gate G-RM-4 with a local flag |
 | "new ULID per `research_system.ids` conventions" | `art_`-prefixed UUIDv7 under the registered `artefact` kind | **M-8**: `research_system.ids` generates prefixed UUIDv7, not ULIDs; no brief/result kind exists in the catalogue, and `artefact: art` already does |
-| `verification_context` reserved as nullable, unspecified | Specified now as `{schema_id, schema_version, verification_result_id, content_hash}` | **M-8**: RM-04 would otherwise embed an open object into a closed schema or leave it unconstrained |
+| `verification_context` reserved as nullable, unspecified | Specified as the reference-only `{schema_id, schema_version, verification_result_id, content_hash}`; RM-04 resolves the referenced artefact before rendering traceback bytes | **M-8**: RM-04 would otherwise embed an open object into a closed schema or leave it unconstrained |
 | De-identification sidecar `{stripped, mapping_sha256}` | Opaque `sidecar_id` + hash in the brief; the sidecar is an immutable ARS-side object | **M-10**: a digest neither locates nor authorizes the mapping |
 | Provider denylist guard | **Capability boundary**: AST import allowlist plus dependency-graph constraint | **M-4**: a denylist is open-world — `importlib`, subprocess, sockets, config-driven endpoints and transitive dependencies all evade it, and it forced provider names into the lane's own files |
 | Assurance lane: Output/Provenance | Output/Provenance **and Paper Claim governance** | **M-12** |
@@ -139,9 +139,11 @@ A directory containing:
    - `prohibitions` — const block, verbatim: no claim promotion, no result
      acceptance, no transcript return, session record required;
    - `required_session_fields` — const list, per the session record below;
-   - `verification_context` — nullable, and **specified now** as
-     `{schema_id, schema_version, verification_result_id, content_hash}` (M-8),
-     so RM-04 embeds a versioned reference rather than an open object.
+   - `verification_context` — nullable, **reference-only**, and specified as
+     `{schema_id, schema_version, verification_result_id, content_hash}` (M-8).
+     RM-04 must resolve that exact content-addressed verification artefact,
+     verify its schema identity and hash, and render traceback bytes from the
+     resolved record; traceback bytes never expand this closed manifest object.
 2. **`brief.md`** — the operator-facing document: rendered subjects (or their
    de-identified forms), the selected asset protocol bodies, the expected-output
    section naming the import types, and the prohibitions block. Its SHA-256 is
@@ -207,10 +209,13 @@ claim in the document.
 
 `ars brief import --bundle <path>`: validate the document against its declared
 import `$id` → validate the session record → verify
-`responds_to_brief_manifest_sha256` matches a registered brief artefact → store
-the document content-addressed in the object store → register it as an artefact
-via `RegisterArtefact` with `authority.use_authority: candidate`. Replay
-reproduces the projection (Task 6).
+`responds_to_brief_manifest_sha256` matches a registered brief artefact →
+resolve that brief manifest and require the payload's `brief_artefact_id` to
+equal the resolved brief's `brief_artefact_id` → store the document
+content-addressed in the object store → register it as an artefact via
+`RegisterArtefact` with `authority.use_authority: candidate`. The two fields
+must bind the same brief; independently valid references to different briefs
+are rejected. Replay reproduces the projection (Task 6).
 
 Nothing in this plan issues `SetArtefactUseAuthority`. Promotion to
 `accepted_for_scope` is Stephen's attributed act (O-RM-4, W5 §19.3).
@@ -285,6 +290,9 @@ Nothing in this plan issues `SetArtefactUseAuthority`. Promotion to
       consumer → each rejected; exact round-trip re-identification succeeds;
       (m) `OperatorVerification` whose `citation_content_hash` does not match
       the cited artefact → rejected (forged operator verification).
+      (n) payload `brief_artefact_id` and
+      `responds_to_brief_manifest_sha256` each resolve, but to different valid
+      briefs → rejected (cross-field brief substitution).
       Commit: `[PIPELINE] P00: brief import negative controls`.
 - [ ] **Task 5 — Capability boundary (replaces the denylist, M-4).**
       `test_methods_capability_boundary.py` asserts, by AST analysis over
