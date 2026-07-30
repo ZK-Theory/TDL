@@ -12,7 +12,7 @@ dispatch any stage, authorize merge, or activate a proposed owner gate.**
 **Supersedes for execution:**
 `../proposals/research-methods-integration-plan-2026-07-28.md`
 **Latest review response:**
-`../reviews/rm-lane-pr198-premerge-rereview-response-2026-07-30.md`
+`../reviews/rm-lane-pr198-premerge-rereview-d6c9647-response-2026-07-30.md`
 
 This document grants no runtime, provider, migration, packet, pilot, result, or
 claim authority.
