@@ -13,7 +13,7 @@ import research_system.cli as cli_module
 from research_system.cli import main
 from research_system.evals.release_publication import verify_replayed_release
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -46,7 +46,7 @@ def publication_service(tmp_path):
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
     )
-    schemas = SchemaRegistry(SCHEMAS)
+    schemas = runtime_schema_registry(SCHEMAS)
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     resolver = LedgerAuthorityGrantResolver(
         control_root,

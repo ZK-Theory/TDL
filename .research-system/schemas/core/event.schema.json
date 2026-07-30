@@ -17,6 +17,9 @@
     "transaction_count": {"type": "integer", "minimum": 1},
     "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "command_type": {"type": "string", "minLength": 1},
+    "command_schema_id": {"type": "string", "minLength": 1},
+    "command_schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "command_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "idempotency_key": {"type": "string", "minLength": 1},
     "command_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "correlation_id": {"type": "string", "minLength": 1},
@@ -28,6 +31,11 @@
     "payload": {"type": "object"},
     "previous_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "dependentRequired": {
+    "command_schema_id": ["command_schema_version", "command_schema_sha256"],
+    "command_schema_version": ["command_schema_id", "command_schema_sha256"],
+    "command_schema_sha256": ["command_schema_id", "command_schema_version"]
   },
   "additionalProperties": false
 }

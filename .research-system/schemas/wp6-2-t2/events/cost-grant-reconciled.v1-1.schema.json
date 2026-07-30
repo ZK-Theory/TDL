@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/t2/event/CostGrantReconciled",
+  "title": "WP6.2 T2 CostGrantReconciled new-write envelope",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_id",
+    "event_type",
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
+    "authority_scope",
+    "command_type",
+    "idempotency_key",
+    "idempotency_key_hash",
+    "payload_hash",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash",
+    "command_schema_id",
+    "command_schema_version",
+    "command_schema_sha256"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://wp6-2/t2/event/CostGrantReconciled"
+    },
+    "schema_version": {
+      "const": "1.1.0"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "event_type": {
+      "const": "CostGrantReconciled"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "stream_id": {
+      "type": "string",
+      "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "stream_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "global_position": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "transaction_index": {
+      "const": 1
+    },
+    "transaction_count": {
+      "const": 2
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_scope": {
+      "const": "wp6.2.t2.provider.receipt.record"
+    },
+    "command_type": {
+      "const": "RecordProviderReceipt"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotency_key_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "cost_grant_id",
+        "reservation_id",
+        "provider_command_id",
+        "provider_receipt_id",
+        "actual_input_tokens",
+        "actual_output_tokens",
+        "actual_total_tokens",
+        "reserved_input_tokens",
+        "reserved_output_tokens",
+        "reserved_total_tokens",
+        "reserved_cost_microunits",
+        "consumed_cost_microunits",
+        "refund_cost_microunits",
+        "refund_disposition",
+        "remaining_cost_microunits",
+        "currency",
+        "rate_evidence_id",
+        "rate_evidence_revision",
+        "rate_evidence_hash",
+        "input_microunits_per_million_tokens",
+        "output_microunits_per_million_tokens",
+        "rate_mode",
+        "zero_cost_authority"
+      ],
+      "properties": {
+        "cost_grant_id": {
+          "type": "string",
+          "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "reservation_id": {
+          "type": "string",
+          "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "provider_command_id": {
+          "type": "string",
+          "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "provider_receipt_id": {
+          "type": "string",
+          "pattern": "^prcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "actual_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual_output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual_total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refund_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refund_disposition": {
+          "enum": [
+            "fully_consumed",
+            "refunded"
+          ]
+        },
+        "remaining_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "rate_evidence_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "rate_evidence_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rate_evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate_mode": {
+          "enum": [
+            "metered",
+            "zero_cost_authorized"
+          ]
+        },
+        "zero_cost_authority": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "subject_id",
+                "subject_revision",
+                "subject_hash"
+              ],
+              "properties": {
+                "subject_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "subject_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "subject_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "previous_event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "command_schema_id": {
+      "const": "ars://wp6-2/t2/command/RecordProviderReceipt"
+    },
+    "command_schema_version": {
+      "const": "1.0.0"
+    },
+    "command_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

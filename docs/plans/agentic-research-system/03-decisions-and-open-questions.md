@@ -872,6 +872,42 @@ register and forward-obligation scan);
 `proposals/rm-decision-entry-drafts-2026-07-28.md` (drafts these entries were
 entered from, on Stephen's instruction, 2026-07-28).
 
+### P-045 - Generic event envelope clean-start activation
+
+**Date:** 2026-07-30<br>
+**Status:** Accepted by Stephen<br>
+**Decision:** Approve a clean-start provenance disposition for
+`.research-system/schemas/core/event.schema.json`, schema ID
+`ars://core/event`, version `1.0.0`. The effective envelope bytes are Git blob
+`bc3efc0fd41e3d9f24c383f2d0d196e26ba0d1e5`, raw-byte SHA-256
+`3aaaa6d609dce1271db3e22d8620935929fc272add1fe5c06badb77050f6d021`.
+The prior catalogue blob
+`188deb32ce833cec9a59ab74026762eb93f5a607` was never activated as a runtime
+history contract and is preserved as an unactivated predecessor, not
+reinterpreted history.<br>
+**Cutover evidence:** The configured external control-store inventory admitted
+no existing event history. The default command-provenance cutover is therefore
+global position `0`: every replayed event at position 1 or later must carry the
+complete command-schema identity unless a later explicit migration decision
+establishes a different versioned boundary. No configured external history was
+admitted by this decision.<br>
+**Late-history ruling:** If an undisclosed external store or other pre-cutover
+event history later surfaces, stop replay and migration before modifying that
+store. Pin and inventory its exact event bytes, schema identities, positions,
+and provenance coverage; then obtain a new owner decision selecting explicit
+versioned readers or a separately reviewed migration. Never silently widen the
+cutover, reinterpret old bytes under this envelope, or rewrite the surfaced
+history.<br>
+**Binding:** `tests/research_system/unit/test_p045_envelope_decision.py`
+recomputes the envelope Git blob and raw SHA-256 from committed or explicitly
+selected revision bytes and rejects decision drift. Working-tree runs are
+pre-commit checks only and are non-certifying.<br>
+**Boundary:** This decision activates no additional WP6.1 schema, changes no
+generic-envelope bytes, writes or migrates no external control store, and
+grants no authority capability.<br>
+**Affected specifications:** W2 schema versioning and replay; P-043; Handoff 32
+§5A0; A0 runtime schema binding.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at

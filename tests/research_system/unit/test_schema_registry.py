@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 import shutil
 
@@ -9,13 +10,16 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from research_system.errors import SchemaError
 from research_system.schema_registry import (
+    SchemaBinding,
     SchemaRegistry,
     _is_rfc3339_date_time,
     authority_schema_registry,
+    runtime_schema_registry,
 )
 
 
-SCHEMAS = Path(".research-system/schemas")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SCHEMAS = REPO_ROOT / ".research-system" / "schemas"
 UUID7 = "01978abc-0001-7000-8000-000000000001"
 
 # Instances chosen to separate "does not apply" from "applies and fails".
@@ -57,6 +61,35 @@ def _command_payload():
         "reason": "synthetic P0 test",
         "evidence_refs": [],
         "payload": {},
+    }
+
+
+def _event_payload():
+    return {
+        "event_id": f"evt_{UUID7}",
+        "event_type": "TaskCreated",
+        "schema_id": "ars://core/event/TaskCreated",
+        "schema_version": "1.0.0",
+        "project_id": "prj_01978abc-0002-7000-8000-000000000002",
+        "stream_id": "tsk_01978abc-0003-7000-8000-000000000003",
+        "stream_version": 1,
+        "global_position": 1,
+        "transaction_id": "txb_01978abc-0004-7000-8000-000000000004",
+        "transaction_index": 1,
+        "transaction_count": 1,
+        "command_id": "cmd_01978abc-0005-7000-8000-000000000005",
+        "command_type": "CreateTask",
+        "idempotency_key": "create-task-1",
+        "command_payload_hash": "1" * 64,
+        "correlation_id": "synthetic-workflow-1",
+        "causation_id": None,
+        "actor_id": "act_01978abc-0006-7000-8000-000000000006",
+        "authority_grant_id": "agr_01978abc-0007-7000-8000-000000000007",
+        "occurred_at": None,
+        "recorded_at": "2026-07-01T12:00:00Z",
+        "payload": {},
+        "previous_event_hash": "0" * 64,
+        "event_hash": "2" * 64,
     }
 
 
@@ -123,6 +156,49 @@ def test_registry_validates_command_envelope():
     SchemaRegistry(SCHEMAS).validate("ars://core/command", _command_payload())
 
 
+def test_generic_event_envelope_accepts_optional_command_schema_provenance():
+    registry = SchemaRegistry(SCHEMAS)
+    legacy = _event_payload()
+    registry.validate("ars://core/event", legacy)
+
+    current = {
+        **legacy,
+        "command_schema_id": "ars://core/command/CreateTask",
+        "command_schema_version": "1.0.0",
+        "command_schema_sha256": "3" * 64,
+    }
+    registry.validate("ars://core/event", current)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ],
+)
+def test_generic_event_envelope_rejects_partial_command_schema_provenance(field):
+    event = _event_payload()
+    event[field] = {
+        "command_schema_id": "ars://core/command/CreateTask",
+        "command_schema_version": "1.0.0",
+        "command_schema_sha256": "3" * 64,
+    }[field]
+
+    with pytest.raises(SchemaError, match="command_schema"):
+        SchemaRegistry(SCHEMAS).validate("ars://core/event", event)
+
+
+def test_generic_event_instance_version_remains_1_0_0_after_provenance_tightening():
+    # ``schema_version`` identifies the persisted event instance family. Exact
+    # validator bytes remain independently identifiable through SchemaIdentity,
+    # so making optional provenance all-or-none does not reinterpret instances.
+    schema = json.loads((SCHEMAS / "core" / "event.schema.json").read_text(encoding="utf-8"))
+
+    assert schema["properties"]["schema_version"] == {"const": "1.0.0"}
+
+
 def test_registry_rejects_malformed_command_submission_timestamp():
     registry = SchemaRegistry(SCHEMAS)
     payload = _command_payload()
@@ -143,6 +219,212 @@ def test_registry_rejects_non_uuid7_command_identity():
 def test_registry_rejects_unknown_schema():
     with pytest.raises(SchemaError, match="unknown schema"):
         SchemaRegistry(SCHEMAS).validate("ars://missing", {})
+
+
+def test_versioned_catalogue_returns_exact_validated_source_identity(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    schema_id = "ars://test/versioned"
+    sources = {
+        version: (
+            "{\n"
+            '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+            f'  "$id": "{schema_id}",\n'
+            '  "type": "object",\n'
+            f'  "properties": {{"schema_version": {{"const": "{version}"}}}},\n'
+            '  "required": ["schema_version"],\n'
+            '  "additionalProperties": false\n'
+            "}\n"
+        ).encode()
+        for version in ("1.0.0", "2.0.0")
+    }
+    for version, raw_bytes in sources.items():
+        (root / f"{version}.schema.json").write_bytes(raw_bytes)
+
+    identity = SchemaRegistry(root).validate(
+        schema_id,
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+
+    assert identity.schema_id == schema_id
+    assert identity.schema_version == "1.0.0"
+    assert identity.raw_bytes == sources["1.0.0"]
+    assert identity.sha256 == sha256(sources["1.0.0"]).hexdigest()
+
+
+def test_validation_rejects_wrong_recorded_source_hash():
+    registry = SchemaRegistry(SCHEMAS)
+
+    with pytest.raises(SchemaError, match="schema hash mismatch"):
+        registry.validate(
+            "ars://core/command",
+            _command_payload(),
+            schema_version="1.0.0",
+            expected_sha256="0" * 64,
+        )
+
+
+def test_materialized_schema_is_inert_until_exact_binding_is_active():
+    schema_id = "ars://core/command/CreateTask"
+    registry = SchemaRegistry(SCHEMAS)
+
+    assert not registry.is_active(schema_id, "1.0.0")
+    with pytest.raises(SchemaError, match="inactive schema"):
+        registry.validate_active(
+            schema_id,
+            {},
+            schema_version="1.0.0",
+        )
+
+    active = SchemaRegistry(
+        SCHEMAS,
+        active_bindings=(SchemaBinding(schema_id, "1.0.0"),),
+    )
+    assert active.is_active(schema_id, "1.0.0")
+
+
+def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
+    registry = runtime_schema_registry(SCHEMAS)
+
+    expected_commands = {
+        "CreateTask": ("ars://core/command/CreateTask", "1.0.0"),
+        "IssueCostGrant": ("ars://wp6-2/t2/command/IssueCostGrant", "1.0.0"),
+        "AuthorizeProviderIssue": ("ars://wp6-2/t2/command/AuthorizeProviderIssue", "1.0.0"),
+        "RecordProviderReceipt": ("ars://wp6-2/t2/command/RecordProviderReceipt", "1.0.0"),
+    }
+    expected_events = {
+        "TaskCreated": ("ars://core/event/TaskCreated", "1.0.0"),
+        "ReleaseGateDecisionPublished": (
+            "ars://core/event/ReleaseGateDecisionPublished",
+            "1.1.0",
+        ),
+        "CostGrantIssued": ("ars://wp6-2/t2/event/CostGrantIssued", "1.1.0"),
+        "CostGrantReserved": ("ars://wp6-2/t2/event/CostGrantReserved", "1.1.0"),
+        "ProviderCommandIssued": ("ars://wp6-2/t2/event/ProviderCommandIssued", "1.1.0"),
+        "ProviderReceiptRecorded": ("ars://wp6-2/t2/event/ProviderReceiptRecorded", "1.1.0"),
+        "CostGrantReconciled": ("ars://wp6-2/t2/event/CostGrantReconciled", "1.1.0"),
+    }
+
+    assert {
+        command_type: (
+            registry.command_binding(command_type).schema_id,
+            registry.command_binding(command_type).schema_version,
+        )
+        for command_type in expected_commands
+    } == expected_commands
+    assert {
+        event_type: (
+            registry.event_binding(event_type).schema_id,
+            registry.event_binding(event_type).schema_version,
+        )
+        for event_type in expected_events
+    } == expected_events
+    assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
+    assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
+
+
+def test_runtime_registry_reuses_one_instance_for_resolved_root_aliases():
+    registry = runtime_schema_registry(SCHEMAS)
+
+    assert runtime_schema_registry(str(SCHEMAS)) is registry
+    assert registry.requires_command_provenance
+    assert registry.command_binding("CreateTask") == SchemaBinding(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+        command_type="CreateTask",
+    )
+
+
+def test_schema_id_index_avoids_catalogue_scan_for_contains_and_unversioned_resolution():
+    class IterationForbiddenDict(dict):
+        def __iter__(self):
+            raise AssertionError("schema catalogue was scanned")
+
+        def items(self):
+            raise AssertionError("schema catalogue was scanned")
+
+    registry = SchemaRegistry(SCHEMAS)
+    registry._schemas = IterationForbiddenDict(registry._schemas)
+
+    assert registry.contains("ars://core/command")
+    registry.validate("ars://core/command", _command_payload())
+    with pytest.raises(SchemaError, match="schema version required"):
+        registry.validate(
+            "ars://wp6-2/t2/event/CostGrantIssued",
+            {"schema_version": "1.1.0"},
+        )
+
+
+def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
+    registry = runtime_schema_registry(SCHEMAS)
+    schema_id = "ars://wp6-2/t2/event/CostGrantIssued"
+
+    with pytest.raises(SchemaError, match="schema version required"):
+        registry.validate(schema_id, {"schema_version": "1.1.0"})
+
+    identity = registry.resolve_identity(schema_id, "1.1.0")
+    source = SCHEMAS / "wp6-2-t2" / "events" / "cost-grant-issued.v1-1.schema.json"
+
+    assert identity.source_path == source.resolve()
+    assert identity.raw_bytes == source.read_bytes()
+    assert identity.sha256 == sha256(source.read_bytes()).hexdigest()
+
+
+def test_t2_v1_1_siblings_have_independent_exact_new_write_contracts():
+    expected = {
+        "cost-grant-issued.v1-1.schema.json": (
+            "CostGrantIssued",
+            "IssueCostGrant",
+            "7242d8f79d2da6c20339983674e3aa24628edbfd72bfc01d697d815167b015db",
+        ),
+        "cost-grant-reconciled.v1-1.schema.json": (
+            "CostGrantReconciled",
+            "RecordProviderReceipt",
+            "e961dd8100d4c6098bd502337a50168c7aeba66257e9cbae136fefb1a636a892",
+        ),
+        "cost-grant-reserved.v1-1.schema.json": (
+            "CostGrantReserved",
+            "AuthorizeProviderIssue",
+            "0dfeea8634da23f9c44042a2e78bddb9dac27d396a267289037c28d0c2e49273",
+        ),
+        "provider-command-issued.v1-1.schema.json": (
+            "ProviderCommandIssued",
+            "AuthorizeProviderIssue",
+            "eb09377ae6e0e73a35d92028a082970708eeae730a41648e787e38a1e13c3f1f",
+        ),
+        "provider-receipt-recorded.v1-1.schema.json": (
+            "ProviderReceiptRecorded",
+            "RecordProviderReceipt",
+            "1294ee2cf0ba634010a1b63bffa3e69696ec0d5fc9b1dff2610e2177285dcc5c",
+        ),
+    }
+    event_root = SCHEMAS / "wp6-2-t2" / "events"
+    assert {path.name for path in event_root.glob("*.v1-1.schema.json")} == set(expected)
+    provenance = {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    }
+
+    for filename, (event_type, command_type, raw_sha256) in expected.items():
+        current_path = event_root / filename
+        legacy_path = event_root / filename.replace(".v1-1", "")
+        current = json.loads(current_path.read_bytes())
+        legacy = json.loads(legacy_path.read_bytes())
+
+        assert current["$id"] == legacy["$id"] == f"ars://wp6-2/t2/event/{event_type}"
+        assert current["properties"]["schema_version"] == {"const": "1.1.0"}
+        assert set(current["required"]) == set(legacy["required"]) | provenance
+        assert set(current["properties"]) == set(legacy["properties"]) | provenance
+        assert current["properties"]["command_schema_id"] == {"const": f"ars://wp6-2/t2/command/{command_type}"}
+        assert current["properties"]["command_schema_version"] == {"const": "1.0.0"}
+        assert current["properties"]["command_schema_sha256"] == {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+        }
+        assert current["additionalProperties"] is False
+        assert sha256(current_path.read_bytes()).hexdigest() == raw_sha256
 
 
 @pytest.mark.parametrize(
@@ -184,7 +466,9 @@ def test_every_core_schema_declares_closed_object_contract():
         "command.schema.json",
         "event.schema.json",
         "receipt.schema.json",
+        "receipt-v2.schema.json",
         "release-gate-decision-published.schema.json",
+        "release-gate-decision-published.v1-1.schema.json",
         "revoke-authority-grant.schema.json",
         "store-identity-1.1.schema.json",
         "task.schema.json",

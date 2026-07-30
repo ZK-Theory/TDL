@@ -18,6 +18,7 @@ from research_system.errors import (
     ConflictError,
     IdempotencyConflictError,
     IntegrityError,
+    SchemaError,
 )
 from research_system.evals.release_publication import (
     PublicationEvidenceError,
@@ -32,7 +33,7 @@ from research_system.operations.backups import (
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaIdentity, SchemaRegistry
 from research_system.store.ledger import (
     EventLedger,
     LedgerSnapshot,
@@ -44,13 +45,24 @@ from research_system.store.receipts import ReceiptStore
 
 
 _release_submit_guard = _take_release_submit_guard()
+_CALLER_PROVENANCE_FIELDS = frozenset(
+    {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    }
+)
 
 
 @dataclass
 class _CommandView:
     fingerprint: tuple[tuple[str, int, int], ...]
     batches_by_command_id: dict[str, list[dict[str, Any]]]
-    batches_by_scope: dict[tuple[str, str, str, str], list[dict[str, Any]]]
+    batches_by_scope: dict[
+        tuple[str, str, str, str, str | None, str | None, str | None],
+        list[dict[str, Any]],
+    ]
+    base_scopes: set[tuple[str, str, str, str]]
     stream_versions: dict[str, int]
 
     @classmethod
@@ -60,7 +72,13 @@ class _CommandView:
         schemas: SchemaRegistry,
     ) -> _CommandView:
         replay(snapshot.events, schema_registry=schemas)
-        view = cls(snapshot.fingerprint, {}, {}, dict(snapshot.stream_versions))
+        view = cls(
+            snapshot.fingerprint,
+            {},
+            {},
+            set(),
+            dict(snapshot.stream_versions),
+        )
         batches: dict[str, list[dict[str, Any]]] = {}
         for event in snapshot.events:
             batches.setdefault(event["transaction_id"], []).append(event)
@@ -84,12 +102,19 @@ class _CommandView:
     def _index_batch(self, batch: list[dict[str, Any]]) -> None:
         first = batch[0]
         self.batches_by_command_id[first["command_id"]] = batch
+        base_scope = (
+            first["actor_id"],
+            first["authority_grant_id"],
+            first["command_type"],
+            first["idempotency_key"],
+        )
+        self.base_scopes.add(base_scope)
         self.batches_by_scope[
             (
-                first["actor_id"],
-                first["authority_grant_id"],
-                first["command_type"],
-                first["idempotency_key"],
+                *base_scope,
+                first.get("command_schema_id"),
+                first.get("command_schema_version"),
+                first.get("command_schema_sha256"),
             )
         ] = batch
 
@@ -180,19 +205,42 @@ class CommandService:
             raise ArsError("CommandService.submit requires its guarded release continuation")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
             return submit_t2(self, envelope)
-        self.schemas.validate("ars://core/command", envelope)
-        if envelope.get("command_type") == "RevokeAuthorityGrant":
+        validated_envelope = {key: value for key, value in envelope.items() if key not in _CALLER_PROVENANCE_FIELDS}
+        schema_id = str(validated_envelope.get("schema_id", ""))
+        schema_version = str(validated_envelope.get("schema_version", ""))
+        command_type = str(validated_envelope.get("command_type", ""))
+        command_binding = self.schemas.command_binding(command_type)
+        if command_binding is not None:
+            if (schema_id, schema_version) != (
+                command_binding.schema_id,
+                command_binding.schema_version,
+            ):
+                raise SchemaError(
+                    f"active command binding mismatch: {command_type} requires "
+                    f"{command_binding.schema_id} version {command_binding.schema_version}"
+                )
+            command_schema = self.schemas.validate_active(
+                command_binding.schema_id,
+                validated_envelope,
+                schema_version=command_binding.schema_version,
+            )
+        else:
+            command_schema = self.schemas.validate(
+                "ars://core/command",
+                validated_envelope,
+            )
+        if validated_envelope.get("command_type") == "RevokeAuthorityGrant":
             self.schemas.validate(
                 "ars://core/command/RevokeAuthorityGrant/payload",
-                envelope.get("payload"),
+                validated_envelope.get("payload"),
             )
-        elif envelope.get("command_type") == "PublishReleaseGateDecision":
+        elif validated_envelope.get("command_type") == "PublishReleaseGateDecision":
             self.schemas.validate(
                 "ars://evals/release-publication-request",
-                envelope.get("payload"),
+                validated_envelope.get("payload"),
             )
-            ReleasePublicationRequest.from_dict(envelope["payload"])
-        command = Command(dict(envelope))
+            ReleasePublicationRequest.from_dict(validated_envelope["payload"])
+        command = Command(validated_envelope)
         with self._submission_lock(command):
             self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
@@ -206,7 +254,11 @@ class CommandService:
                 return stored_rejected
             snapshot = self.ledger.snapshot()
             view = self._view_for(snapshot)
-            existing = self._matching_committed(command, view)
+            existing = self._matching_committed(
+                command,
+                view,
+                command_schema=command_schema,
+            )
             if existing is not None:
                 return self._write_receipt(
                     command,
@@ -298,14 +350,16 @@ class CommandService:
                         str(exc),
                     )
                     return self._write_receipt(command, rejected)
-            event = self._build_event(command, prepared_payload)
+            event = self._build_event(
+                command,
+                prepared_payload,
+                command_schema=command_schema,
+            )
             if isinstance(prepared_payload, VerifiedReleasePublication):
                 ledger_receipt = release_append(
                     self.ledger,
                     event,
-                    lambda allocated: prepared_payload.payload_for(
-                        allocated.event_id
-                    ),
+                    lambda allocated: prepared_payload.payload_for(allocated.event_id),
                     snapshot=snapshot,
                 )
             else:
@@ -788,13 +842,25 @@ class CommandService:
             self._view = _CommandView.from_snapshot(snapshot, self.schemas)
         return self._view
 
-    def _matching_committed(self, command: Command, view: _CommandView) -> list[dict[str, Any]] | None:
-        scope = (
+    def _matching_committed(
+        self,
+        command: Command,
+        view: _CommandView,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> list[dict[str, Any]] | None:
+        base_scope = (
             command.actor_id,
             command.envelope["authority_grant_id"],
             command.envelope["command_type"],
             command.idempotency_key,
         )
+        schema_scope = (
+            command_schema.schema_id,
+            command_schema.schema_version,
+            command_schema.sha256,
+        )
+        scope = (*base_scope, *schema_scope)
         scoped = view.batches_by_scope.get(scope)
         if scoped is not None:
             first = scoped[0]
@@ -806,6 +872,8 @@ class CommandService:
             if same_submission:
                 return list(scoped)
             raise ConflictError("idempotency key conflicts with committed command")
+        if base_scope in view.base_scopes:
+            raise ConflictError("idempotency key conflicts with committed command schema")
         identified = view.batches_by_command_id.get(command.command_id)
         if identified is not None:
             raise ConflictError("command ID conflicts with committed command")
@@ -832,14 +900,24 @@ class CommandService:
         self,
         command: Command,
         prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None,
+        *,
+        command_schema: SchemaIdentity,
     ) -> dict[str, Any]:
         command_type = command.envelope["command_type"]
         if command_type == "CreateTask":
+            create_binding = self.schemas.command_binding("CreateTask")
+            activated_create = create_binding is not None and (
+                command_schema.schema_id,
+                command_schema.schema_version,
+            ) == (
+                create_binding.schema_id,
+                create_binding.schema_version,
+            )
             self.objects.write(
                 "task",
                 command.target_stream_id,
                 1,
-                command.envelope["payload"],
+                (command.envelope["payload"]["definition"] if activated_create else command.envelope["payload"]),
             )
             event_type = "TaskCreated"
             payload = command.envelope["payload"]
@@ -875,19 +953,27 @@ class CommandService:
             payload = None
         else:
             raise ArsError(f"unsupported command type: {command_type}")
+        event_binding = self.schemas.event_binding(event_type)
+        event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
+        event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
+        if event_type == "ReleaseGateDecisionPublished" and event_binding is None:
+            event_schema_id = "ars://core/event/ReleaseGateDecisionPublished"
         envelope = {
             "event_type": event_type,
             "stream_id": command.target_stream_id,
             "command_id": command.command_id,
             "command_type": command_type,
+            "command_schema_id": command_schema.schema_id,
+            "command_schema_version": command_schema.schema_version,
+            "command_schema_sha256": command_schema.sha256,
             "actor_id": command.actor_id,
             "authority_grant_id": command.envelope["authority_grant_id"],
             "idempotency_key": command.idempotency_key,
             "command_payload_hash": command.payload_hash,
             "correlation_id": command.envelope["correlation_id"],
             "causation_id": command.envelope["causation_id"],
-            "schema_id": f"ars://core/event/{event_type}",
-            "schema_version": "1.0.0",
+            "schema_id": event_schema_id,
+            "schema_version": event_schema_version,
             "occurred_at": None,
         }
         return envelope if payload is None else {**envelope, "payload": payload}

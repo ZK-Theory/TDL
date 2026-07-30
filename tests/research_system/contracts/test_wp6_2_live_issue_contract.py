@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import subprocess
 from copy import deepcopy
 from pathlib import Path
@@ -65,6 +66,11 @@ from tests.research_system.contracts.wp6_2_live_issue_validation import (
     validate_preflight_failure,
     validate_reconciliation,
 )
+from tests.research_system.contracts.wp6_2_t2_authority_validation import (
+    T2ContractError,
+    p045_authorized_successors,
+)
+from tests.research_system.contracts import wp6_2_t2_authority_validation as t2_validation
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -956,13 +962,31 @@ def test_secret_material_and_sentinels_are_rejected_across_evidence() -> None:
             validate_no_secret_material({**clean, **mutation}, sentinels=["SENTINEL_SECRET_VALUE"])
 
 
-def _git_head_blob_records(paths: list[str]) -> dict[str, tuple[str, bytes]]:
+def _git_blob_records(
+    paths: list[str],
+    *,
+    revision: str = "HEAD",
+) -> dict[str, tuple[str, bytes]]:
+    if revision == "WORKTREE":
+        records = {}
+        for path in paths:
+            source = REPO_ROOT / path
+            assert source.is_file(), f"stale manifest path: {path}"
+            object_id = subprocess.run(
+                ["git", "hash-object", "--no-filters", "--", path],
+                cwd=REPO_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            records[path] = (object_id, source.read_bytes())
+        return records
     process = subprocess.run(
         ["git", "cat-file", "--batch"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
-        input="".join(f"HEAD:{path}\n" for path in paths).encode(),
+        input="".join(f"{revision}:{path}\n" for path in paths).encode(),
     )
     stream = io.BytesIO(process.stdout)
     records: dict[str, tuple[str, bytes]] = {}
@@ -981,7 +1005,97 @@ def _git_head_blob_records(paths: list[str]) -> dict[str, tuple[str, bytes]]:
 def test_git_head_blob_records_reports_stale_manifest_path() -> None:
     path = ".research-system/contracts/does-not-exist.yaml"
     with pytest.raises(AssertionError, match=f"stale manifest path: {path}"):
-        _git_head_blob_records([path])
+        _git_blob_records([path])
+
+
+def test_p045_successor_overlay_is_exact_and_strict_default_still_rejects() -> None:
+    contract = _load_yaml(".research-system/contracts/wp6-2-t2-protected-membership.yaml")
+    overlay = p045_authorized_successors(REPO_ROOT)
+
+    with pytest.raises(T2ContractError, match="protected predecessor bytes changed"):
+        t2_validation.validate_protected_membership_contract(contract, REPO_ROOT)
+    t2_validation.validate_protected_membership_contract(
+        contract,
+        REPO_ROOT,
+        authorized_successors=overlay,
+    )
+
+    wrong = deepcopy(overlay)
+    wrong[".research-system/schemas/core/event.schema.json"]["successor_raw_sha256"] = "0" * 64
+    with pytest.raises(T2ContractError, match="authorized successor identity mismatch"):
+        t2_validation.validate_protected_membership_contract(
+            contract,
+            REPO_ROOT,
+            authorized_successors=wrong,
+        )
+
+
+def test_p045_successor_overlay_rejects_second_changed_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = _load_yaml(".research-system/contracts/wp6-2-t2-protected-membership.yaml")
+    overlay = p045_authorized_successors(REPO_ROOT)
+    second_path = next(
+        member["repository_path"]
+        for member in contract["members"]
+        if member["repository_path"] != ".research-system/schemas/core/event.schema.json"
+    )
+    original = t2_validation._protected_member
+
+    def second_drift(repo_root: Path, revision: str, relative_path: str) -> dict[str, str]:
+        member = original(repo_root, revision, relative_path)
+        if revision == "HEAD" and relative_path == second_path:
+            return {
+                **member,
+                "git_blob_id": "0" * 40,
+                "raw_git_blob_sha256": "0" * 64,
+            }
+        return member
+
+    monkeypatch.setattr(t2_validation, "_protected_member", second_drift)
+    with pytest.raises(T2ContractError, match=second_path):
+        t2_validation.validate_protected_membership_contract(
+            contract,
+            REPO_ROOT,
+            authorized_successors=overlay,
+        )
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("**Status:** Accepted by Stephen", "**Status:** Pending"),
+        ("**Date:** 2026-07-30", "**Date:** 2026-07-29"),
+        ("global position `0`", "global position `1`"),
+        (
+            ".research-system/schemas/core/event.schema.json",
+            ".research-system/schemas/core/other-event.schema.json",
+        ),
+        (
+            "188deb32ce833cec9a59ab74026762eb93f5a607",
+            "088deb32ce833cec9a59ab74026762eb93f5a607",
+        ),
+        (
+            "bc3efc0fd41e3d9f24c383f2d0d196e26ba0d1e5",
+            "0c3efc0fd41e3d9f24c383f2d0d196e26ba0d1e5",
+        ),
+        (
+            "3aaaa6d609dce1271db3e22d8620935929fc272add1fe5c06badb77050f6d021",
+            "0aaaa6d609dce1271db3e22d8620935929fc272add1fe5c06badb77050f6d021",
+        ),
+    ],
+)
+def test_p045_successor_overlay_rejects_decision_drift(old: str, new: str) -> None:
+    decisions = (REPO_ROOT / "docs/plans/agentic-research-system/03-decisions-and-open-questions.md").read_text(
+        encoding="utf-8"
+    )
+
+    with pytest.raises(T2ContractError, match="P-045 decision drift"):
+        p045_authorized_successors(
+            REPO_ROOT,
+            revision="WORKTREE",
+            decision_override=decisions.replace(old, new),
+        )
 
 
 @pytest.mark.slow
@@ -991,18 +1105,30 @@ def test_accepted_t2_wp6_1_t1a_bytes_remain_exact() -> None:
     protected = _load_yaml(".research-system/contracts/wp6-2-t2-protected-membership.yaml")
     assert len(protected["members"]) == protected["protected_path_count"] == 220
     identities = _load_yaml(".research-system/contracts/wp6-2-t2-schema-identities.yaml")
-    paths = [member["repository_path"] for member in protected["members"]]
-    paths.extend(artifact["repository_path"] for artifact in identities["artifacts"])
-    records = _git_head_blob_records(paths)
+    protected_records = _git_blob_records(
+        [member["repository_path"] for member in protected["members"]],
+    )
+    artifact_records = _git_blob_records(
+        [artifact["repository_path"] for artifact in identities["artifacts"]],
+        revision=os.environ.get("P045_BINDING_REVISION", "HEAD"),
+    )
+    authorized_successor = p045_authorized_successors(REPO_ROOT)
     for member in protected["members"]:
         path = member["repository_path"]
-        blob, raw = records[path]
-        assert blob == member["git_blob_id"], path
-        assert hashlib.sha256(raw).hexdigest() == member["raw_git_blob_sha256"], path
+        blob, raw = protected_records[path]
+        expected_blob = member["git_blob_id"]
+        expected_raw_sha256 = member["raw_git_blob_sha256"]
+        if path in authorized_successor:
+            successor = authorized_successor[path]
+            assert expected_blob == successor["baseline_git_blob_id"], path
+            expected_blob = successor["successor_git_blob_id"]
+            expected_raw_sha256 = successor["successor_raw_sha256"]
+        assert blob == expected_blob, path
+        assert hashlib.sha256(raw).hexdigest() == expected_raw_sha256, path
 
     for artifact in identities["artifacts"]:
         path = artifact["repository_path"]
-        blob, raw = records[path]
+        blob, raw = artifact_records[path]
         assert blob == artifact["git_blob_id"], path
         assert hashlib.sha256(raw).hexdigest() == artifact["raw_utf8_lf_sha256"], path
 

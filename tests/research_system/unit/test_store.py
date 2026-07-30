@@ -8,6 +8,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
@@ -17,6 +18,15 @@ from research_system.store.receipts import ReceiptStore
 
 PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
 TASK_ID = "tsk_01978abc-0002-7000-8000-000000000002"
+SCHEMAS = Path(".research-system/schemas")
+
+
+def _catalogue_only_ledger(tmp_path):
+    return EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=SchemaRegistry(SCHEMAS),
+    )
 
 
 def test_control_root_requires_registered_code_roots(tmp_path):
@@ -290,7 +300,7 @@ def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monke
 
 
 def test_batch_is_invisible_until_atomic_replace(tmp_path, monkeypatch):
-    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    ledger = _catalogue_only_ledger(tmp_path)
     monkeypatch.setattr(
         ledger,
         "_publish",
@@ -302,7 +312,7 @@ def test_batch_is_invisible_until_atomic_replace(tmp_path, monkeypatch):
 
 
 def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
-    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    ledger = _catalogue_only_ledger(tmp_path)
     receipt = ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
     events = list(ledger.iter_events())
     assert [item["global_position"] for item in events] == [1]
@@ -310,8 +320,49 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert receipt["event_batch_id"] == events[0]["transaction_id"]
 
 
-def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
+def test_default_ledger_rejects_append_without_explicit_schema_registry(tmp_path):
     ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+
+    with pytest.raises(ArsError, match="explicit SchemaRegistry"):
+        ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {},
+        {"command_schema_id": "ars://core/command"},
+    ],
+)
+def test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance(
+    tmp_path,
+    provenance,
+):
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=runtime_schema_registry(SCHEMAS),
+    )
+
+    with pytest.raises(ArsError, match="command schema"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event",
+                    **provenance,
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
+def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
     ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
     ledger.append([{"event_type": "ReadinessRequested", "stream_id": TASK_ID}])
     batches = sorted(ledger.events_root.rglob("*.jsonl"), key=lambda path: path.name)
@@ -330,7 +381,7 @@ def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
 
 
 def test_caller_cannot_override_recorded_at(tmp_path):
-    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    ledger = _catalogue_only_ledger(tmp_path)
     with pytest.raises(ArsError, match="protected event fields"):
         ledger.append(
             [

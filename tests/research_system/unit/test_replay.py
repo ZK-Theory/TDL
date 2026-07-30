@@ -97,6 +97,84 @@ def test_broken_event_hash_fails_closed(tmp_path):
         replay(events)
 
 
+def test_replay_rejects_wrong_recorded_command_schema_hash(tmp_path):
+    events, harness = _events(tmp_path)
+    events[0]["command_schema_sha256"] = "0" * 64
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="command schema identity"):
+        replay(events, schema_registry=harness.service.schemas)
+
+
+def test_replay_rejects_wrong_recorded_command_schema_version(tmp_path):
+    events, harness = _events(tmp_path)
+    events[0]["command_schema_version"] = "2.0.0"
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="command schema identity"):
+        replay(events, schema_registry=harness.service.schemas)
+
+
+def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
+    events, harness = _events(tmp_path)
+    legacy = events[0]
+    for field in (
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ):
+        legacy.pop(field)
+    legacy["schema_id"] = "ars://core/event"
+    legacy["payload"] = {"title": "Legacy task"}
+    events[0] = _rehash(legacy)
+
+    projection = replay(
+        events,
+        schema_registry=harness.service.schemas,
+        legacy_command_provenance_through_position=1,
+    )
+
+    assert projection["streams"][TASK_ID]["status"] == "draft"
+
+
+def test_replay_rejects_absent_command_provenance_after_default_cutover(tmp_path):
+    events, harness = _events(tmp_path)
+    for field in (
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ):
+        events[0].pop(field)
+    events[0]["schema_id"] = "ars://core/event"
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="missing command schema identity at 1"):
+        replay(events, schema_registry=harness.service.schemas)
+
+
+def test_replay_validates_recorded_specific_event_with_inert_registry(tmp_path):
+    events, _ = _events(tmp_path)
+    events[0]["payload"] = {"title": "Only the generic envelope accepts this"}
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="event schema validation failed at 1"):
+        replay(
+            events,
+            schema_registry=SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        )
+
+
+def test_future_activation_does_not_reinterpret_generic_event_history(tmp_path):
+    events, harness = _events(tmp_path)
+    events[0]["schema_id"] = "ars://core/event"
+    events[0]["payload"] = {"title": "Historically generic event"}
+    events[0] = _rehash(events[0])
+
+    projection = replay(events, schema_registry=harness.service.schemas)
+
+    assert projection["streams"][TASK_ID]["status"] == "draft"
+
+
 def test_s012_store_identity_mismatch_and_worktree_local_store_are_rejected(
     tmp_path,
 ):

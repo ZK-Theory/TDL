@@ -42,9 +42,7 @@ def test_restore_preflight_status_is_biconditional_with_failed_predicates():
 
 
 def test_registered_deletion_topology_includes_backup_and_restore_roots(tmp_path):
-    roots = [tmp_path / name for name in (
-        "primary", "runtime", "staging", "temp", "replica", "backup", "restore"
-    )]
+    roots = [tmp_path / name for name in ("primary", "runtime", "staging", "temp", "replica", "backup", "restore")]
     registry = EvidenceStoreRegistry(
         store_id="evidence-store",
         registry_hash="a" * 64,
@@ -132,6 +130,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
+
 
 def _build_restore_case(tmp_path):
     import shutil
@@ -314,11 +313,13 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     if mutation == "wrong_store":
         receipt = seal_backup_receipt(replace(receipt, store_identity="8" * 64, receipt_hash=""))
     elif mutation == "wrong_project":
-        receipt = seal_backup_receipt(replace(
-            receipt,
-            project_id="prj_01978abc-1000-7000-8000-000000001099",
-            receipt_hash="",
-        ))
+        receipt = seal_backup_receipt(
+            replace(
+                receipt,
+                project_id="prj_01978abc-1000-7000-8000-000000001099",
+                receipt_hash="",
+            )
+        )
     elif mutation == "wrong_tail":
         receipt = seal_backup_receipt(replace(receipt, canonical_tail_position=1, receipt_hash=""))
     elif mutation == "wrong_snapshot":
@@ -332,9 +333,7 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     elif mutation == "artefact_changed":
         case["artefact_path"].write_bytes(b"changed")
     elif mutation == "stale_availability":
-        manifest = json.loads(
-            case["artefact_manifest_path"].read_text(encoding="utf-8")
-        )
+        manifest = json.loads(case["artefact_manifest_path"].read_text(encoding="utf-8"))
         manifest["artefacts"][0]["observed_at"] = "2026-07-10T00:00:00Z"
         from research_system.canonical import canonical_bytes
 
@@ -346,18 +345,19 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     assert result.status == "diagnostic_only"
     assert predicate in result.failed_predicates
 
+
 def _moved_service(case):
     from research_system.command.service import CommandService
-    from research_system.schema_registry import SchemaRegistry
+    from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
     from research_system.store.receipts import ReceiptStore
 
     root = case["target"]
-    schemas = SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
+    schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
     return CommandService(
         root,
-        EventLedger(root, case["receipt"].project_id),
+        EventLedger(root, case["receipt"].project_id, schemas),
         ObjectStore(root),
         ReceiptStore(root),
         schemas,
@@ -384,9 +384,7 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     assert len(tuple(service.ledger.iter_batches())) == 1
 
 
-def test_real_command_service_rejects_changed_artifact_under_writer_lock(
-    tmp_path, monkeypatch
-):
+def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_path, monkeypatch):
     case = _build_restore_case(tmp_path)
     service = _moved_service(case)
     supplied = _verify_restore(case)
@@ -424,16 +422,16 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(
     assert service.receipts.load(CMD_RESTORE) is None
     assert not list((case["target"] / "objects").rglob("*.json"))
 
+
 def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     from research_system.command.service import CommandService
     from research_system.evals.executors.release_tranche import execute_s014
 
     original = CommandService.submit
-    calls = 0
+    calls = []
 
     def counted(self, envelope):
-        nonlocal calls
-        calls += 1
+        calls.append(envelope)
         return original(self, envelope)
 
     monkeypatch.setattr(CommandService, "submit", counted)
@@ -443,7 +441,10 @@ def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     }
     assert execute_s014("known_bad", payload)["restore_preflight_status"] == "diagnostic_only"
     assert execute_s014("known_good", payload)["restore_preflight_status"] == "verified"
-    assert calls == 2
+    assert len(calls) == 2
+    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in calls)
+    assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in calls)
+
 
 def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
     from dataclasses import asdict
@@ -456,6 +457,7 @@ def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
         "ars://operations/backup-receipt",
         json.loads(json.dumps(asdict(case["receipt"]))),
     )
+
 
 TASK_A = "tsk_01978abc-5201-7000-8000-000000005201"
 TASK_B = "tsk_01978abc-5202-7000-8000-000000005202"
@@ -487,19 +489,23 @@ def _create_revision(harness, command_id, task_id, title):
 
 
 def _supersede_command(command_id, source_id, replacement_id, replacement_revision=1):
+    payload = {
+        "replacement_task_id": replacement_id,
+        "replacement_task_revision": replacement_revision,
+        "supersession_scope": ["full_task_authority"],
+        "continuing_consumers": ["audit"],
+    }
     command = create_task_command(
         command_id,
         f"supersede-{command_id}",
         source_id,
-        {
-            "replacement_task_id": replacement_id,
-            "replacement_task_revision": replacement_revision,
-            "supersession_scope": ["full_task_authority"],
-            "continuing_consumers": ["audit"],
-        },
+        payload,
     )
     command["command_type"] = "SupersedeTask"
+    command["schema_id"] = "ars://core/command"
     command["expected_stream_version"] = 1
+    command["payload"] = payload
+    command.pop("project_id")
     return command
 
 
@@ -544,25 +550,23 @@ def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_
     assert len(list(harness.receipts.receipts_root.glob(f"{CMD_CA}.json"))) == 1
     assert before_projection["streams"][TASK_C]["status"] != "superseded"
 
+
 def test_supersession_rejects_terminal_replacement_after_cycle_check(tmp_path):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
     _create_revision(harness, CMD_B, TASK_B, "B")
     _create_revision(harness, CMD_D, TASK_D, "D")
-    assert harness.service.submit(
-        _supersede_command(CMD_AB, TASK_A, TASK_B)
-    ).status == "accepted"
+    assert harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B)).status == "accepted"
 
     before = tuple(event.copy() for event in harness.ledger.iter_events())
-    rejected = harness.service.submit(
-        _supersede_command(CMD_DA, TASK_D, TASK_A)
-    )
+    rejected = harness.service.submit(_supersede_command(CMD_DA, TASK_D, TASK_A))
 
     assert rejected.status == "rejected"
     assert rejected.reason_code == "replacement_revision_terminal"
     assert rejected.unmet_preconditions == ("replacement_revision_terminal",)
     assert tuple(event.copy() for event in harness.ledger.iter_events()) == before
     assert len(list(harness.receipts.receipts_root.glob(f"{CMD_DA}.json"))) == 1
+
 
 def test_supersession_accepts_same_task_higher_revision_and_preserves_history(tmp_path):
     from research_system.projection.replay import replay
@@ -675,16 +679,16 @@ def test_supersession_rejects_caller_lineage_and_consumer_or_scope_drift(tmp_pat
     scope["payload"]["supersession_scope"] = []
     assert harness.service.submit(scope).reason_code == "invalid_supersession_payload"
 
+
 def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
     from research_system.command.service import CommandService
     from research_system.evals.executors.release_tranche import execute_s015
 
     original = CommandService.submit
-    calls = 0
+    calls = []
 
     def counted(self, envelope):
-        nonlocal calls
-        calls += 1
+        calls.append(envelope)
         return original(self, envelope)
 
     monkeypatch.setattr(CommandService, "submit", counted)
@@ -695,11 +699,13 @@ def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
     observed = execute_s015("known_good", payload)
     assert observed["rejection_reason"] == "supersession_cycle"
     assert observed["authority_unchanged"] is True
-    assert calls == 6
+    assert len(calls) == 6
+    creates = [command for command in calls if command["command_type"] == "CreateTask"]
+    assert len(creates) == 3
+    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in creates)
 
-def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(
-    tmp_path, monkeypatch
-):
+
+def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
     active = False
@@ -744,6 +750,7 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(
     rejected = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
     assert rejected.reason_code == "supersession_cycle"
     assert active is False
+
 
 @pytest.mark.parametrize(
     "field",

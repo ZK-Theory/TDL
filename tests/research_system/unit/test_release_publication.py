@@ -48,7 +48,7 @@ from research_system.evals.release_snapshot import (
 )
 from research_system.evals.variants import Gate5VariantRow, build_observed_assertion_evidence
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import (
     EventDraft,
     EventLedger,
@@ -267,7 +267,7 @@ def canonical_publication_plane(tmp_path):
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
     )
-    schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
+    schemas = runtime_schema_registry(ROOT / ".research-system" / "schemas")
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     objects = ObjectStore(control_root)
     receipts = ReceiptStore(control_root)
@@ -386,6 +386,7 @@ def test_release_event_has_a_strict_full_registered_contract() -> None:
     SchemaRegistry(ROOT / ".research-system" / "schemas").validate(
         "ars://core/event/ReleaseGateDecisionPublished",
         published_event(),
+        schema_version="1.0.0",
     )
 
 
@@ -869,7 +870,7 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
             "event_hash",
         }
     }
-    ledger = EventLedger(tmp_path / "control", PROJECT_ID)
+    ledger = EventLedger(tmp_path / "control", PROJECT_ID, schemas)
     service = CommandService(
         ledger.control_root,
         ledger,
@@ -1058,8 +1059,11 @@ def test_stale_release_append_leaves_no_issuance_state_and_retry_succeeds(
 
 
 def test_release_append_requires_exact_registered_release_schema(tmp_path) -> None:
-    schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
-    schemas._schemas.pop("ars://core/event/ReleaseGateDecisionPublished")
+    schema_root = tmp_path / "schemas"
+    shutil.copytree(ROOT / ".research-system" / "schemas", schema_root)
+    (schema_root / "core" / "release-gate-decision-published.schema.json").unlink()
+    (schema_root / "core" / "release-gate-decision-published.v1-1.schema.json").unlink()
+    schemas = SchemaRegistry(schema_root)
     control_root = tmp_path / "control"
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     service = CommandService(
@@ -1100,7 +1104,21 @@ def test_authorized_verified_command_publishes_one_self_referential_event(
     events = tuple(harness.ledger.iter_events())
     assert len(events) == 1
     assert events[0]["event_type"] == "ReleaseGateDecisionPublished"
+    assert events[0]["schema_version"] == "1.1.0"
     assert events[0]["stream_id"] == DECISION_ID
+    command_schema = harness.service.schemas.resolve_identity(
+        "ars://core/command",
+        "1.0.0",
+    )
+    assert (
+        events[0]["command_schema_id"],
+        events[0]["command_schema_version"],
+        events[0]["command_schema_sha256"],
+    ) == (
+        command_schema.schema_id,
+        command_schema.schema_version,
+        command_schema.sha256,
+    )
     assert events[0]["payload"]["release_decision"]["canonical_event_ref"] == events[0]["event_id"]
 
 
@@ -1321,7 +1339,11 @@ def test_publication_schemas_reject_forbidden_surfaces(target, value) -> None:
             document["payload"]["release_decision"]["canonical_event_ref"] = value
         schema_id = "ars://core/event/ReleaseGateDecisionPublished"
     with pytest.raises(SchemaError):
-        registry.validate(schema_id, document)
+        registry.validate(
+            schema_id,
+            document,
+            schema_version="1.0.0" if schema_id == "ars://core/event/ReleaseGateDecisionPublished" else None,
+        )
 
 
 def test_direct_raw_release_event_cannot_bypass_ledger_finalizer(tmp_path) -> None:
@@ -1344,7 +1366,11 @@ def test_direct_raw_release_event_cannot_bypass_ledger_finalizer(tmp_path) -> No
         }
     }
     with pytest.raises(ArsError, match="requires a ledger event finalizer"):
-        EventLedger(tmp_path / "control", PROJECT_ID).append([raw])
+        EventLedger(
+            tmp_path / "control",
+            PROJECT_ID,
+            SchemaRegistry(ROOT / ".research-system" / "schemas"),
+        ).append([raw])
 
 
 def test_release_draft_cannot_supply_noop_validation_or_append_invalid_payload(
