@@ -11,7 +11,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError
 from research_system.ids import new_id, validate_id
-from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
+from research_system.schema_registry import SchemaRegistry
 
 _PROTECTED_FIELDS = frozenset(
     {
@@ -173,11 +173,11 @@ class EventLedger:
         self,
         control_root: Path,
         project_id: str,
-        schemas: SchemaRegistry = bundled_schema_registry(),
+        schemas: SchemaRegistry | None = None,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
-        if not isinstance(schemas, SchemaRegistry):
+        if schemas is not None and not isinstance(schemas, SchemaRegistry):
             raise TypeError("EventLedger requires a trusted SchemaRegistry")
         self.schemas = schemas
         self.events_root = control_root / "events" / project_id
@@ -231,6 +231,8 @@ class EventLedger:
         snapshot: LedgerSnapshot | None = None,
     ) -> dict[str, Any]:
         """Atomically append a batch using a caller-verified materialized state."""
+        if self.schemas is None:
+            raise ArsError("event append requires an explicit SchemaRegistry")
         proposed = list(proposed_events)
         if not proposed:
             raise ArsError("event batch must not be empty")

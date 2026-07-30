@@ -48,7 +48,6 @@ from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import (
     SchemaRegistry,
     authority_schema_registry,
-    bundled_schema_registry,
     runtime_schema_registry,
 )
 from research_system.store.identity import load_store_manifest, manifest_schema_root
@@ -170,16 +169,17 @@ def _command_submit(args: argparse.Namespace) -> int:
     return 0
 
 
-def _verified_ledger(control_root: Path) -> EventLedger:
+def _verified_ledger(control_root: Path) -> tuple[EventLedger, SchemaRegistry]:
     manifest = load_store_manifest(control_root)
-    schemas = _schemas_for_store_manifest(manifest) or bundled_schema_registry()
-    return EventLedger(control_root.resolve(strict=True), manifest["project_id"], schemas)
+    schemas = _schemas_for_store_manifest(manifest)
+    return (
+        EventLedger(control_root.resolve(strict=True), manifest["project_id"], schemas),
+        schemas,
+    )
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
-    ledger = _verified_ledger(args.control_root)
-    manifest = load_store_manifest(args.control_root)
-    schemas = _schemas_for_store_manifest(manifest)
+    ledger, schemas = _verified_ledger(args.control_root)
     _print_json(replay(ledger.iter_events(), schema_registry=schemas))
     return 0
 
@@ -193,7 +193,7 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     projection_roots = [Path(root) / ".research-system" / "projections" for root in manifest["code_roots"]]
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError("projection output must use an ARS namespaced projection root")
-    schemas = _schemas_for_store_manifest(manifest) or bundled_schema_registry()
+    schemas = _schemas_for_store_manifest(manifest)
     ledger = EventLedger(control_root, manifest["project_id"], schemas)
     state = rebuild_projection(
         ledger.iter_events(),
@@ -290,7 +290,7 @@ def _eval_run(args: argparse.Namespace) -> int:
 
 def _schemas_for_store_manifest(
     manifest: dict[str, Any],
-) -> SchemaRegistry | None:
+) -> SchemaRegistry:
     try:
         persisted = manifest_schema_root(manifest)
     except IntegrityError as exc:
@@ -310,7 +310,7 @@ def _schemas_for_store_manifest(
         if (path.is_dir() and (path / "core" / "release-gate-decision-published.schema.json").is_file())
     ]
     if not existing:
-        return None
+        raise ConfigurationError("store manifest does not bind a usable runtime schema root")
     unique = sorted(set(existing), key=str)
     if len(unique) != 1:
         raise ConfigurationError("store manifest has ambiguous schema roots")

@@ -320,6 +320,15 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert receipt["event_batch_id"] == events[0]["transaction_id"]
 
 
+def test_default_ledger_rejects_append_without_explicit_schema_registry(tmp_path):
+    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+
+    with pytest.raises(ArsError, match="explicit SchemaRegistry"):
+        ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
 @pytest.mark.parametrize(
     "provenance",
     [
@@ -372,7 +381,7 @@ def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
 
 
 def test_caller_cannot_override_recorded_at(tmp_path):
-    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    ledger = _catalogue_only_ledger(tmp_path)
     with pytest.raises(ArsError, match="protected event fields"):
         ledger.append(
             [
