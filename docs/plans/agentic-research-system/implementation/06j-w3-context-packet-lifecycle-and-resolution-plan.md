@@ -3,26 +3,62 @@
 > **For the implementing Worker:** use contract-first-tdd,
 > schema-contract-design, research-assurance-triage, and
 > executing-plans-extras. Read accepted W3 sections 9-12, 14-16 and 19, W2
-> command/event rules, and RR-M4 before starting.
+> command/event rules, RR-M4, and PR198-F2/F4 from the PR #198 pre-merge
+> review before starting.
 
-**Status:** PROPOSED 2026-07-30. The exact-subject runtime has
+**Status:** REVISED 2026-07-30 (suite revision 4). The exact-subject runtime has
 `ContextCandidate`, `compile_candidate`, `SourceResolver`, and token gates, but
 no authoritative packet object, lifecycle writer, delivery record, or
-acceptance resolver. Dispatch is blocked on accepted 06h schema identity, fresh
-G-RM-3 review, and G-RM-12 approval of the exact W2 extension below.
+acceptance resolver. Bounded candidate authoring is blocked on accepted 06h and
+fresh G-RM-3 review. Runtime implementation is separately blocked on independent
+review and G-RM-12 approval of the exact candidate bytes.
 
 **Goal:** implement an immutable W3 packet/manifest producer and an
-authoritative resolver over command-written, replay-derived lifecycle state so
-RM-03 can bind a real issued-and-delivered packet rather than a local manifest.
+authoritative resolver over the complete W3
+`requested -> compiling -> compiled -> validated -> issued -> delivered`
+command-written lifecycle so RM-03 can bind a real issued-and-delivered packet
+rather than a local manifest.
 
 ## G-RM-12 exact decision subject
 
 W3 says packet lifecycle events are W2 extensions but grants no implementation
-authority. Stephen must approve the exact command/event family, schemas,
-transition table, and authority scopes before implementation:
+authority.
+
+### Stage A: bounded candidate authoring
+
+After accepted 06h and G-RM-3, a contract author may create only:
 
 ~~~text
-RegisterContextPacket   -> ContextPacketRegistered   (compiled)
+.research-system/contracts/candidates/06j-w3-context-packet-v1/
+  catalogue-addendum.yaml
+  commands/<nine candidate command schemas>
+  events/<nine candidate event schemas>
+  objects/context-packet.schema.json
+  objects/context-manifest.schema.json
+  objects/context-delivery-receipt.schema.json
+  transition-table.yaml
+  authority-scopes.yaml
+  identity-manifest.yaml
+~~~
+
+These paths are inert proposal bytes: Stage A may add contract-shape tests
+under the same candidate directory but may not modify the accepted owner
+catalogue, canonical schema roots, `research_system/**`, replay, CLI or runtime
+registration. The identity manifest binds every leaf by Git blob and canonical
+SHA-256 but does not accept itself. Independent exact-subject review checks W3
+field/lifecycle completeness, W2 semantics, all nine mappings, authority scopes,
+fixtures and identity before Stephen decides G-RM-12.
+
+### Gate decision
+
+Stephen must approve and pin the exact candidate blobs/hashes for the command/
+event family, object schemas, transition table, authority scopes and catalogue
+addendum before Stage B implementation:
+
+~~~text
+RequestContextPacket    -> ContextPacketRequested
+BeginContextCompilation -> ContextCompilationStarted
+CompleteContextCompilation -> ContextPacketCompiled
 ValidateContextPacket   -> ContextPacketValidated
 IssueContextPacket      -> ContextPacketIssued
 RecordContextDelivery   -> ContextPacketDelivered
@@ -31,17 +67,20 @@ ExpireContextPacket     -> ContextPacketExpired
 SupersedeContextPacket  -> ContextPacketSuperseded
 ~~~
 
+Any post-review candidate-byte change invalidates G-RM-12 and returns to
+Stage A. Plan prose is not an exact schema decision subject.
+
 All IDs use the accepted `ctx_` UUIDv7 kind. Addenda are new immutable `ctx_`
 objects binding a base ID/revision/hash; they use the same lifecycle and never
 patch a failed base.
 
 ## File map
 
-**Create or materialize under the accepted catalogue process:**
+**Stage B creates or materializes byte-for-byte from the G-RM-12 candidate:**
 
 ~~~text
-.research-system/schemas/core/commands/<seven context command schemas>
-.research-system/schemas/core/events/<seven context event schemas>
+.research-system/schemas/core/commands/<nine context command schemas>
+.research-system/schemas/core/events/<nine context event schemas>
 .research-system/schemas/context/context-packet.schema.json
 .research-system/schemas/context/context-manifest.schema.json
 .research-system/schemas/context/context-delivery-receipt.schema.json
@@ -64,8 +103,9 @@ research_system/projection/replay.py
 research_system/cli.py
 ~~~
 
-No `ars://methods/event/**` family is created. Core schema materialization is
-allowed only inside this plan under G-RM-12, not by RM-03.
+No `ars://methods/event/**` family is created. Stage B materializes the accepted
+catalogue addendum and schemas without semantic alteration. Core schema
+materialization is allowed only inside this plan after G-RM-12, not by RM-03.
 
 ## Packet authority contract
 
@@ -78,12 +118,20 @@ delivery refs, currency triggers, retention, and supersession lineage.
 
 The compiler:
 
-1. resolves mandatory direct sources through `SourceResolver`;
-2. verifies exact revisions/hashes, authority class, sensitivity, conflicts,
-   freshness, and required closure;
-3. deterministically renders bytes and applies both token gates;
-4. writes immutable packet/manifest objects;
-5. submits `RegisterContextPacket` through `CommandService`.
+1. submits `RequestContextPacket` before source resolution and receives the
+   stable request/context identity;
+2. submits `BeginContextCompilation` before reading candidate sources;
+3. resolves mandatory direct sources through `SourceResolver`, verifies exact
+   revisions/hashes, authority class, sensitivity, conflicts, freshness and
+   required closure, renders deterministically, and applies the reference-token
+   gate;
+4. writes immutable packet/manifest objects and submits
+   `CompleteContextCompilation`;
+5. exposes the compiled, unissued candidate to W4/W7 only for evaluated routing
+   and bound-provider counting, then submits `ValidateContextPacket` only after
+   the provider-capacity, manifest, security and independence checks pass; and
+6. submits `FailContextPacket` from requested, compiling or compiled on any
+   source, conflict, security, token, rendering or independence failure.
 
 The producer cannot issue its own candidate. Validation binds independent
 source/current-snapshot evidence; issuance requires an exact authority grant;
@@ -94,19 +142,21 @@ the issued bytes.
 consumer_id, purpose, scope, evaluation_time)` rebuilds current state from the
 verified ledger, reads the immutable objects by exact hash, revalidates currency
 triggers and the direct-source snapshot, and returns only an issued, delivered,
-current, non-conflicted, non-superseded packet whose delivery recipient, purpose
-and scope match. Local manifest fields or caller assertions never select state.
+current, non-conflicted, non-superseded packet whose request, compilation,
+validation, delivery recipient, purpose and scope match. Local manifest fields
+or caller assertions never select state.
 
 ## Transition and failure rules
 
-- `registered -> validated -> issued -> delivered`;
-- `registered|validated -> failed`;
+- `requested -> compiling -> compiled -> validated -> issued -> delivered`;
+- `requested|compiling|compiled -> failed`;
 - `issued|delivered -> expired|superseded`;
 - no reverse transition; no in-place revision; changed bytes create a new
   revision/object;
 - missing mandatory source, unsafe source, unresolved governing conflict,
-  token-gate failure, unverifiable freshness, wrong delivery hash, or
-  independence failure emits no issued/delivered state;
+  token-gate failure, unverifiable freshness, rendering failure, wrong delivery
+  hash, or independence failure emits an attributable failed state and no
+  issued/delivered state;
 - discovering an incomplete issued base supersedes/fails it and requires a new
   complete packet; an addendum cannot repair it.
 
@@ -118,27 +168,36 @@ omission; unresolved conflict; unsafe/restricted source; direct-index authority;
 token gate; wrong role/risk/purpose/scope; wrong packet revision/hash; delivery
 recipient/session/adapter/hash mismatch; changed currency source position;
 addendum against failed base; duplicate/reordered lineage; non-idempotent retry;
-direct ledger append; missing reducer; genesis/incremental replay equality.
+direct ledger append; missing reducer; genesis/incremental replay equality;
+failure before source resolution; failure during compiling; failure after
+compiled but before validation; retry of every failed phase; and the
+distinguishing absence of a request for a never-requested packet.
 
 The exact-subject W3 fixtures F-025 through F-030 remain the semantic oracle.
 Schema tests alone are not closure.
 
-## Tasks
+## Stage B tasks
 
-1. **Catalogue and schemas (G-RM-12).** Materialize the exact seven-command
-   family and closed packet/manifest/receipt schemas from accepted W2/W3.
-2. **Immutable producer.** Extend the current compiler; store exact rendered
-   bytes and manifest; register through the command service.
+1. **Catalogue and schemas.** Materialize the exact G-RM-12 nine-command family
+   and closed packet/manifest/receipt schemas byte-for-byte from the accepted
+   candidate; reject candidate/canonical divergence.
+2. **Immutable producer.** Extend the current compiler; command-write requested
+   and compiling before fallible work, store exact rendered bytes/manifest, and
+   command-write compiled or failed.
 3. **Lifecycle authority.** Implement validation, issuance, delivery, expiry,
-   failure, supersession, idempotency and pure reducers.
+   failure from every W3-permitted phase, supersession, idempotency and pure
+   reducers.
 4. **Resolver.** Implement the only public consumption interface with
    load/consumption revalidation.
-5. **CLI.** Add bounded compile plus
-   register/validate/issue/deliver/fail/expire/supersede operations. Every
-   lifecycle write submits its named command; no direct append/object mutation.
-6. **Adversarial corpus.** Prove CLI reachability for all seven lifecycle
-   commands, including successful `fail`/`expire`, invalid-state rejection and
-   idempotent retry. Run all required controls through production
+5. **CLI.** Add bounded
+   request/begin-compilation/complete-compilation/validate/issue/deliver/fail/
+   expire/supersede operations. A high-level compile operation may orchestrate
+   the first three but cannot omit their receipts. Every lifecycle write
+   submits its named command; no direct append/object mutation.
+6. **Adversarial corpus.** Prove CLI reachability for all nine lifecycle
+   commands, including pre-registration `fail`, successful `expire`,
+   invalid-state rejection, idempotent retry, and genesis/incremental replay.
+   Run all required controls through production
    producer/resolver call sites, including F-025-F-030.
 
 ## Validation and close-out
@@ -150,9 +209,11 @@ uv run --no-sync ruff check research_system/context research_system/command rese
 
 Run the full `tests/research_system` tree once at final head because core
 command/replay/schema surfaces change. Record exact schema identities, catalogue
-rows, CLI reachability and transition coverage for all seven commands,
+rows, CLI reachability and transition coverage for all nine commands,
 producer/resolver call sites, F-025-F-030 outcomes, and negative-control
-liveness. If RM-01's append-path smoke gate already exists, add all seven
-families before 06j close-out; otherwise publish their exact smoke cases as
-blocking input to RM-01. Independent exact-subject acceptance is required before
+liveness. If RM-01's append-path smoke gate already exists on current `main`,
+add all nine families and run the registry-to-smoke-manifest completeness check
+before 06j merge. Otherwise publish their exact smoke cases as blocking input
+to RM-01's final candidate reconciliation. The plan that merges second owns the
+final complete gate. Independent exact-subject acceptance is required before
 RM-03 may consume this capability.

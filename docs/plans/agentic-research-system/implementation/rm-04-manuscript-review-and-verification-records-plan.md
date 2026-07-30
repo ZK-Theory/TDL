@@ -2,16 +2,19 @@
 
 > **For the implementing Worker:** use contract-first-tdd,
 > research-assurance-triage, and executing-plans-extras. External sessions may
-> propose; operators may report; ARS records. ARS executes nothing here.
+> propose; operators may report; ARS records. ARS executes nothing here. Read
+> PR198-F5 from the PR #198 pre-merge review before starting.
 
-**Status:** REVISED 2026-07-30 (revision 3). Dispatch is blocked on G-RM-3,
+**Status:** REVISED 2026-07-30 (suite revision 4). Dispatch is blocked on G-RM-3,
 merged RM-03, and the accepted 06i/06j interfaces RM-03 binds. The pilot is
-separately blocked on G-RM-5.
+separately blocked on G-RM-5; any follow-up export of an
+`OperatorVerificationRun` is blocked on G-RM-13 for that exact run and scope.
 
 **Goal:** record verification requests and operator-reported runs as candidate
 artefacts, render an exact prior run into a follow-up brief, and pilot a
-manuscript-review flow without execution, acceptance, promotion or claim
-mutation.
+manuscript-review flow without execution, result acceptance, promotion or
+claim mutation. Review/manuscript use authority is external, exact-scope and
+does not convert the operator report into execution truth.
 
 ## Honest verification boundary
 
@@ -19,9 +22,13 @@ mutation.
 - `OperatorVerificationRun` records what an attributed operator reports
   happened outside ARS. `passed` is not ARS execution evidence, scientific
   validity, result acceptance or claim authority.
-- Follow-up export resolves the exact run through the 06i
-  `resolve_for_review`/`resolve_for_manuscript` port and binds it to the 06j
-  packet before rendering traceback bytes.
+- A run remains forced `candidate` until an eligible unrelated reviewer records
+  an independent scientific review through 06i and Stephen accepts the exact
+  run/hash for a named `review_evidence` or `manuscript_evidence` scope at
+  G-RM-13. That use-authority event accepts only bounded consumption of an
+  operator-reported trace; it does not certify execution or scientific truth.
+- Follow-up export resolves the exact run through the corresponding 06i port
+  and binds it to the 06j packet before rendering traceback bytes.
 - G-RM-11 is the only route to future ARS execution.
 
 ## Global constraints
@@ -35,8 +42,10 @@ mutation.
 - All records register via 06i at forced candidate state.
 - Every canonical read uses a 06i production consumer; no direct object read,
   local status or projection is authority.
-- No `SetArtefactUseAuthority`, scientific review verdict, result acceptance,
-  claim object or P-005 decision is produced by RM-04.
+- RM-04 code produces no `SetArtefactUseAuthority`, scientific review verdict,
+  result acceptance, claim object or P-005 decision. The operator/human workflow
+  invokes accepted 06i review and authority commands outside the RM-04 writer,
+  with Stephen as the G-RM-13 acceptor.
 
 ## File map
 
@@ -93,9 +102,12 @@ reference:
 {schema_id, schema_version, operator_verification_run_id, content_hash}
 ~~~
 
-It resolves the candidate through the 06i production consumer at review or
-manuscript scope, requires the exact 06j packet purpose/scope, and renders the
-resolved outcome/traceback. The reference object never embeds open result data.
+It resolves only after G-RM-13 through the 06i production consumer at the exact
+accepted review/manuscript scope, requires the matching 06j packet
+purpose/scope, and renders the resolved outcome/traceback. The reference object
+never embeds open result data. The default traceback-feedback flow uses
+`review_evidence`; manuscript display requires a separate explicitly named
+G-RM-13 scope.
 
 ## Obligations
 
@@ -111,6 +123,7 @@ resolved outcome/traceback. The reference object never embeds open result data.
 | R4-8 | self-attestation labelled | const and review question |
 | R4-9 | RM-03/04 schema/reference equality | shared contract test |
 | R4-10 | Paper Claim governance | assurance + no promotion |
+| R4-11 | candidate run cannot traverse follow-up consumer | independent 06i review + Stephen's exact G-RM-13 use-authority event |
 
 ## Tasks
 
@@ -121,12 +134,17 @@ resolved outcome/traceback. The reference object never embeds open result data.
 2. **Record writer.** Validate request/run and register each through 06i.
    Reject wrong script/request/candidate, wrong attestation, execution-implying
    fields and caller-selected accepted state.
-3. **Round trip.** Import candidate -> request -> operator run -> follow-up
-   export. Resolve through 06i, packet through 06j, verify exact hash/schema and
-   byte-identical traceback rendering.
-4. **Consumer/capability controls.** Candidate cannot satisfy result, claim or
-   manuscript consumption; accepted review-scoped evidence can feed only the
-   matching consumer. Plant execution/network/dynamic-import evasion in methods,
+3. **Round trip.** Import candidate -> request -> operator run at forced
+   candidate -> eligible unrelated `RecordScientificReview` -> Stephen's
+   G-RM-13 `SetArtefactUseAuthority` for exact run/hash and review/manuscript
+   scope -> follow-up export. Resolve through 06i, packet through 06j, verify
+   exact hash/schema and byte-identical traceback rendering. Missing, stale,
+   wrong-review, wrong-scope or superseded authority fails.
+4. **Consumer/capability controls.** Candidate cannot satisfy review,
+   manuscript, result or claim consumption. Accepted review-scoped evidence can
+   feed only `resolve_for_review`; result/claim and unaccepted manuscript use
+   remain blocked. A separately accepted manuscript scope cannot imply result
+   or claim use. Plant execution/network/dynamic-import evasion in methods,
    exact CLI handler and transitive fixture; every plant fails.
 5. **Manuscript pilot (G-RM-5).** Export Stephen's exact draft subject with the
    adversarial-review asset, run the external session manually, import the
@@ -146,8 +164,8 @@ accepts those exact bytes/evidence, RM-05 remains unwritten.
 
 - **Lanes:** Output/Provenance and Paper Claim governance.
 - **Partial:** any execution primitive; direct object consumption; need for a
-  lifecycle/P-005 write; changed 06i/06j interface; claim that ARS observed the
-  run.
+  runtime-written authority transition inside RM-04; changed 06i/06j interface;
+  claim that G-RM-13 certifies execution/truth; claim that ARS observed the run.
 
 ~~~powershell
 uv run --no-sync python -m pytest -q tests/research_system/unit/test_verification_records.py tests/research_system/integration/test_verification_round_trip.py tests/research_system/unit/test_methods_capability_boundary.py tests/research_system/integration/test_methods_production_consumers.py -o "addopts=" -p no:cacheprovider -p no:cov
@@ -156,4 +174,5 @@ uv run --no-sync ruff check research_system
 
 Run broader tests only if shared CLI/consumer changes trigger the RM-03 final
 suite. Update `implementation/README.md`, Pipeline-Overview and the pilot record
-with exact subjects, hashes, consumer purpose, and explicit non-actions.
+with exact subjects, hashes, reviewer evidence, G-RM-13 event/receipt, consumer
+purpose, and explicit non-actions.

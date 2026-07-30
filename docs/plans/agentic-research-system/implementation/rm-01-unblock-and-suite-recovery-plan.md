@@ -3,9 +3,10 @@
 > **For the implementing Worker:** use contract-first-tdd,
 > research-assurance-triage, and executing-plans-extras. Read handoffs 26/28,
 > the accepted 06h close-out, and RR-M3. This plan performs no “pre-06h”
-> measurement after 06h has merged.
+> measurement after 06h has merged. Read PR198-F3 from the PR #198 pre-merge
+> review before starting.
 
-**Status:** REVISED 2026-07-30 (revision 3). Dispatch is blocked on G-RM-3 and
+**Status:** REVISED 2026-07-30 (suite revision 4). Dispatch is blocked on G-RM-3 and
 merged/accepted 06h. Close-out is blocked on G-RM-7.
 
 **Goal:** run the exact post-06h suite against the independently reviewed
@@ -36,6 +37,7 @@ docs/plans/agentic-research-system/implementation/06h-prechange-suite-baseline-<
 
 ~~~text
 docs/plans/agentic-research-system/implementation/rm-01-post-06h-suite-delta-<date>.md
+tests/research_system/smoke/append_path_family_manifest.yaml
 tests/research_system/smoke/test_append_path_smoke.py
 ~~~
 
@@ -60,6 +62,7 @@ docs/plans/agentic-research-system/implementation/README.md
 | R1-5 | append divergence fails before merge | Task D + liveness negative |
 | R1-7 | cohort and full universe both reported | Task B |
 | R1-8 | README/vault status current | close-out |
+| R1-9 | every production family landed before merge is in the live smoke gate | Task D final-candidate reconciliation + merge-order matrix |
 
 ## Research assurance
 
@@ -120,19 +123,35 @@ Reparse `pyproject.toml` after the edit and assert both keys exactly once. Run
 
 ## Task D: append-path smoke gate
 
-Create a sub-60-second smoke test covering generic core, T2, guarded release,
-and every other accepted production command/event family present at RM-01's
-exact dispatch head. Submit through production services and validate emitted
-events against registered schemas.
+Create a machine-readable family manifest and sub-60-second smoke test covering
+generic core, T2, guarded release, and every other accepted production
+command/event family present at the **final candidate head**, not the earlier
+dispatch head. Each row binds command/event schema IDs and versions, production
+submit/builder symbols, reducer, positive test and missing-triple negative.
+Submit through production services and validate emitted events against
+registered schemas.
 
-06i/06j are not RM-01 prerequisites. If either has already landed, include its
-families. Otherwise record those families as deferred to that successor plan's
-close-out; the later plan must extend this gate before it closes.
+Immediately before merge, update the branch onto current `main`, regenerate a
+read-only inventory from the accepted runtime bindings and producer matrix, and
+fail if any landed production family is absent from the smoke manifest. A
+commandless/bootstrap path requires an explicit non-command disposition; it
+cannot disappear from the inventory.
+
+06i/06j are not RM-01 dispatch prerequisites. Final ownership is:
+
+| Merge order | Reconciliation owner |
+|---|---|
+| 06i/06j is already on `main` before RM-01 final candidate | RM-01 consumes its published cases, updates the manifest and runs the gate |
+| RM-01 is already on `main` before a successor final candidate | that successor updates and runs the installed manifest/gate before merge |
+| candidates overlap and neither is yet on `main` | whichever candidate merges second updates onto current `main`, reconciles all landed families and reruns the gate |
+
+No plan may close or merge using only its original dispatch-head family set.
 
 Required liveness control: remove one required `command_schema_*` field from an
 otherwise valid command-originated event and prove the gate fails. Include a
-T2-specific missing-triple control. G-RM-6 chooses installation in the
-quality-gate command list or `.githooks/pre-push`; never `.git/hooks`.
+T2-specific missing-triple control and a planted unmanifested-family fixture
+that proves completeness reconciliation fails. G-RM-6 chooses installation in
+the quality-gate command list or `.githooks/pre-push`; never `.git/hooks`.
 
 ## Close-out
 
@@ -141,7 +160,8 @@ uv run --no-sync python -m pytest -q tests/research_system/smoke/test_append_pat
 uv run --no-sync ruff check research_system
 ~~~
 
-The full tree is Task B and is not repeated. Update
+Record the final `main` SHA, manifest hash, family count and successor-case
+inputs consumed. The full tree is Task B and is not repeated. Update
 `docs/plans/agentic-research-system/implementation/README.md`, not the
 higher-level ARS README. The PR and vault entry name both exact subjects,
 cohort/full-universe results, smoke liveness, distinct defects, and open
