@@ -6,11 +6,14 @@
 > P-005, P-043, RR-C1/RR-C2 from the 2026-07-30 rereview, and PR198-F1/F4
 > from the PR #198 pre-merge review.
 
-**Status:** REVISED 2026-07-30 (suite revision 4). This plan replaces the
-rejected authority and test-only consumer portions of 06h/RM-03 revision 2.
-Its bounded candidate-authoring stage is blocked on accepted 06h and fresh
-G-RM-3 review. Runtime implementation is separately blocked on independent
-review and G-RM-10 acceptance of the exact candidate bytes.
+**Status:** REVISED 2026-07-30 (suite revision 5 authority correction). This
+plan replaces the rejected authority and test-only consumer portions of 06h/
+RM-03 revision 2. Stage A is non-dispatchable until accepted 06h, an independent
+exact-subject `accept`, Stephen's separate explicit G-RM-3 decision, and an
+accepted decision-register amendment authorizing the Stage A scope and proposed
+G-RM-14. Runtime implementation is separately blocked on independent review and
+G-RM-14 acceptance of the exact candidate bytes. Historical G-RM-10 retains its
+narrow meaning: confirm use of the already accepted artefact command family.
 
 **Goal:** make `RegisterArtefact`, `SetArtefactUseAuthority`,
 `RecordScientificReview`, and the P-005 decision path authoritative in
@@ -45,11 +48,11 @@ the same port.
   NA/NI controls at artefact register/use-authority rows. Generated schema
   shape alone does not enforce them.
 
-## G-RM-10 exact decision subject
+## G-RM-14 exact decision subject
 
 ### Stage A: bounded candidate authoring
 
-After accepted 06h and G-RM-3, a contract author may create only:
+Only after every Stage A authority prerequisite in the status paragraph is satisfied may a contract author create:
 
 ~~~text
 .research-system/contracts/candidates/06i-artefact-authority-v1/
@@ -69,7 +72,7 @@ runtime registration surface. It grants no implementation or use authority.
 An independent exact-subject review checks catalogue completeness, every
 NA/NI control, the six-dimensional predicates, the complete existing-consumer
 inventory, review/P-005 bindings, atomic failure semantics, and candidate
-identity. Only then may Stephen decide G-RM-10.
+identity. Only then may Stephen decide G-RM-14, provided the accepted decision-register amendment has first made that proposed gate operative.
 
 ### Gate decision
 
@@ -85,12 +88,12 @@ Stephen reviews and pins:
 The decision record binds Git blobs and canonical SHA-256 values for the policy
 registry, review rules, identity manifest, and public interface specification.
 A Worker-authored policy file without that accepted subject is not authority.
-Any post-review candidate-byte change invalidates G-RM-10 and returns to
+Any post-review candidate-byte change invalidates G-RM-14 and returns to
 Stage A.
 
 ## File map
 
-**Stage B creates or materializes exactly from the G-RM-10 candidate:**
+**Stage B creates or materializes exactly from the G-RM-14 candidate:**
 
 ~~~text
 .research-system/policies/artefact-consumer-predicates.v1.yaml
@@ -123,7 +126,7 @@ tests/research_system/integration/test_eval_cli.py
 ~~~
 
 Stage B copies/materializes every accepted candidate component without
-alteration. Every canonical loader requires the exact G-RM-10 identity-manifest
+alteration. Every canonical loader requires the exact G-RM-14 identity-manifest
 blob/hash and verifies each mapped canonical file's SHA-256 against its accepted
 candidate leaf before registration or use. Generated command/event schemas
 remain fixed. If an accepted schema cannot
@@ -221,7 +224,7 @@ artefact, independently written from the sidecar bytes.
 
 ## Stage B tasks
 
-1. **Materialize accepted contracts.** Copy the G-RM-10 candidate registry,
+1. **Materialize accepted contracts.** Copy the G-RM-14 candidate registry,
    schema, review rules, interface and identity manifest into their canonical
    file-map paths byte-for-byte. At load, require the exact accepted manifest
    blob/hash and verify every mapped component against its bound candidate
@@ -281,5 +284,5 @@ exists on current `main`, add the 06i command/event families and run the
 registry-to-smoke-manifest completeness check before 06i merge. Otherwise
 publish their exact smoke cases as blocking input to RM-01's final candidate
 reconciliation. The plan that merges second owns the final complete gate.
-Independent exact-subject review and Stephen's G-RM-10 acceptance are distinct
+Independent exact-subject review and Stephen's G-RM-14 acceptance are distinct
 from test success.
