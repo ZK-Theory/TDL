@@ -94,8 +94,10 @@ Stage A.
 
 ~~~text
 .research-system/policies/artefact-consumer-predicates.v1.yaml
+.research-system/policies/governing-review-set-rules.v1.yaml
 .research-system/schemas/policy/artefact-consumer-predicates.schema.json
 .research-system/contracts/artefact-authority-interface.v1.yaml
+.research-system/contracts/artefact-authority-v1/identity-manifest.yaml
 research_system/artefacts/__init__.py
 research_system/artefacts/authority.py
 research_system/artefacts/use_resolver.py
@@ -120,8 +122,11 @@ tests/research_system/integration/test_release_event_publication.py
 tests/research_system/integration/test_eval_cli.py
 ~~~
 
-Stage B copies/materializes accepted candidate semantics without alteration.
-Generated command/event schemas remain fixed. If an accepted schema cannot
+Stage B copies/materializes every accepted candidate component without
+alteration. Every canonical loader requires the exact G-RM-10 identity-manifest
+blob/hash and verifies each mapped canonical file's SHA-256 against its accepted
+candidate leaf before registration or use. Generated command/event schemas
+remain fixed. If an accepted schema cannot
 express the catalogue semantics, stop Partial and return to a separately
 reviewed candidate decision; do not weaken authority in Python to fit it.
 
@@ -217,9 +222,11 @@ artefact, independently written from the sidecar bytes.
 ## Stage B tasks
 
 1. **Materialize accepted contracts.** Copy the G-RM-10 candidate registry,
-   schema, review rules and interface into canonical paths byte-for-byte;
-   require the accepted identity manifest on load. Add wrong-but-valid registry,
-   rule mutation, candidate/canonical divergence and self-pinned policy
+   schema, review rules, interface and identity manifest into their canonical
+   file-map paths byte-for-byte. At load, require the exact accepted manifest
+   blob/hash and verify every mapped component against its bound candidate
+   SHA-256. Add wrong-but-valid registry, rule mutation, missing component,
+   manifest substitution, candidate/canonical divergence and self-pinned policy
    negatives.
 2. **Registration authority.** Implement `RegisterArtefact` with forced
    candidate state, exact grant/scope checks, immutable object write, event,
