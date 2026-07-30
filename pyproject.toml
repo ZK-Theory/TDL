@@ -52,7 +52,6 @@ dependencies = [
     # is retained for envs that strip it, and pinned to upstream semantics by
     # test_schema_registry.py::test_fallback_date_time_checker_matches_upstream.
     "rfc3339-validator>=0.1.4",
-    "petls>=1.0.1",
     # Used by run_t128_bh_fdr.py, run_fdr_correction.py, nssec_missingness.py,
     # age_stratified.py, assess_information_content.py -- was already imported
     # in 5 files but never declared; latent gap, not previously hit until
@@ -78,6 +77,31 @@ mapper = [
 ]
 wasserstein = [
     "pot>=0.9.0",
+]
+
+# PETLS is deliberately a dependency GROUP, not an extra. The documented Windows
+# provisioning step is `uv sync --all-extras`, which selects every extra -- an
+# extra would put the build back exactly where it was. Groups are selected only
+# by `--group`/`--all-groups`, so the default sync stays clean.
+#
+# Why it is optional at all (2026-07-29): petls ships no Windows wheel, so every
+# fresh worktree fell back to the sdist, whose CMake step needs Boost and fails.
+# That failure surfaced through the pre-commit contract gate, which reports it as
+# a contract violation -- an environment problem wearing a correctness problem's
+# clothes, in a repo whose history already includes a gate being routed around.
+#
+# Nothing depends on it being installed. `trajectory_tda.topology.persistent_laplacian`
+# resolves petls -> petls-pytorch -> numpy-schur-scratch behind `PETLS_AVAILABLE`,
+# and every result JSON records `backend_used`, so provenance survives its absence.
+# The C1 Fiedler line that used it closed NEGATIVE and terminal (2026-07-07); the
+# `t128-spike-4-persistent-laplacians` line may want it again, which is why this is
+# a demotion and not a removal.
+#
+# To install (works cleanly on Linux, where the cp313 manylinux wheel exists):
+#   uv sync --group petls
+[dependency-groups]
+petls = [
+    "petls>=1.0.1",
 ]
 
 [build-system]
@@ -130,13 +154,13 @@ exclude_dirs = ["tests"]
 [tool.uv]
 # petls 1.0.1's sdist sets `cmake.verbose`, which scikit-build-core >= 0.10
 # rejects with a hard error at build time ("Use build.verbose instead"), and
-# petls ships no Windows wheels, so a fresh `uv sync` fails building it.
-# The installed uv 0.6.5 IGNORES this key (observed 2026-07-17: sync still
-# failed with it set) - it applies only on newer uv. The operative Windows
-# procedure (using-git-worktrees-extras skill): `uv sync --all-extras
-# --no-install-package petls`, then seed petls/, petls-1.0.1.dist-info/,
-# include/, lib/ from a surviving venv AFTER the final sync, and verify via
-# trajectory_tda.topology.persistent_laplacian (which injects the MSYS2
-# UCRT64 DLL dir; a bare `import petls` always fails on Windows).
-# Keep this constraint for forward-compatibility until petls ships a fix.
+# petls ships no Windows wheels, so any sync that selects it falls back to the
+# sdist. Retained because `uv sync --group petls` still hits that build path;
+# the default sync no longer selects petls at all (see [dependency-groups]).
+#
+# Superseded 2026-07-29: the note that uv 0.6.5 ignores this key no longer
+# applies -- uv is 0.11.29 and honours it. The `--no-install-package petls`
+# plus manual venv-seeding ritual in using-git-worktrees-extras is likewise no
+# longer needed for a working environment; it is only relevant to someone
+# deliberately provisioning the backend on Windows.
 build-constraint-dependencies = ["scikit-build-core<0.10"]

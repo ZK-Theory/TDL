@@ -90,16 +90,21 @@ the runtime workspace. Do not retry from the orchestrating task.
   seeded copy, since uv's satisfaction check is name+version, not
   provenance.
   The seed source is direction-agnostic: when the main venv was rebuilt, a
-  surviving worktree venv was the authoritative source. For PETLS specifically,
-  use `uv sync --all-extras --no-install-package petls`, then copy every payload
-  named by the installed distribution's `RECORD` (package, dist-info, and any
-  `include`/`lib` files). Verify through the repository import guard:
-  `python -c "from trajectory_tda.topology import persistent_laplacian as pl;
-  print(pl.PETLS_AVAILABLE, pl.PETLS_BACKEND_NAME)"`. Never use bare
-  `import petls` as the Windows probe; the module guard adds the required MSYS2
-  UCRT64 DLL directory, so the bare import is a false negative. The
-  `--all-extras` is required because the minimal sync can silently omit
-  `pytest-cov`, which the contract gate needs.
+  surviving worktree venv was the authoritative source. The `--all-extras` is
+  required because the minimal sync can silently omit `pytest-cov`, which the
+  contract gate needs.
+  **PETLS no longer needs any of this (2026-07-29).** It moved from a runtime
+  dependency to the `petls` dependency group, so `uv sync --all-extras` does not
+  select it and no fresh worktree attempts the CMake build. Nothing requires it
+  installed: `persistent_laplacian` resolves petls → petls-pytorch →
+  numpy-schur-scratch, and forcing `backend="petls"` when it is absent raises
+  rather than substituting silently. Only provision it when you actually need the
+  C++ backend, via `uv sync --group petls` — clean on Linux, still an sdist build
+  on Windows, where the seeding procedure above applies. Verify through the
+  repository import guard: `python -c "from trajectory_tda.topology import
+  persistent_laplacian as pl; print(pl.PETLS_AVAILABLE, pl.PETLS_BACKEND_NAME)"`.
+  Never use bare `import petls` as the Windows probe; the module guard adds the
+  required MSYS2 UCRT64 DLL directory, so the bare import is a false negative.
 - **`manager_dispatch_check`'s contract sub-check is not worktree-venv-safe.**
   It shells `uv run python .claude/hooks/contract_binding_check.py
 --validate-only` with `cwd=<worktree>` and no `--no-sync`; a brand-new
