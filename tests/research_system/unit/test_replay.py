@@ -69,10 +69,18 @@ def test_s009_projection_rebuild_is_deterministic_and_disposable(tmp_path):
     events, harness = _events(tmp_path)
     output = tmp_path / "projection.json"
     canonical_before = tuple(path.read_bytes() for path in sorted(harness.ledger.events_root.rglob("*.jsonl")))
-    first = rebuild_projection(events, output)
+    first = rebuild_projection(
+        events,
+        output,
+        schema_registry=harness.service.schemas,
+    )
     first_bytes = output.read_bytes()
     output.unlink()
-    second = rebuild_projection(events, output)
+    second = rebuild_projection(
+        events,
+        output,
+        schema_registry=harness.service.schemas,
+    )
     assert first == second
     assert output.read_bytes() == first_bytes
     assert tuple(path.read_bytes() for path in sorted(harness.ledger.events_root.rglob("*.jsonl"))) == canonical_before

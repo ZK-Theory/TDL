@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 import time
 
@@ -11,6 +10,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from research_system.command.lifecycle import (
+    changed_task_fields,
+    content_hash_matches,
+    has_unique_member_ids,
+)
 from research_system.command.models import Command, Receipt
 from research_system.command.t2 import T2_COMMAND_TYPES, T2Receipt, submit_t2
 from research_system.errors import (
@@ -50,6 +54,20 @@ _CALLER_PROVENANCE_FIELDS = frozenset(
         "command_schema_id",
         "command_schema_version",
         "command_schema_sha256",
+    }
+)
+_SCOPE_COMMAND_TYPES = frozenset(
+    {
+        "CreateScopeDefinition",
+        "AmendScopeDefinition",
+        "SupersedeScopeDefinition",
+    }
+)
+_TASK_REVISION_COMMAND_TYPES = frozenset(
+    {
+        "CreateTask",
+        "AmendTask",
+        "SupersedeTask",
     }
 )
 
@@ -117,6 +135,19 @@ class _CommandView:
                 first.get("command_schema_sha256"),
             )
         ] = batch
+
+
+@dataclass(frozen=True)
+class _TaskRevisionEvidence:
+    schema_id: str
+    definition: dict[str, Any] | None
+
+    @property
+    def exact(self) -> bool:
+        return self.schema_id in {
+            "ars://core/event/TaskCreated",
+            "ars://core/event/TaskAmended",
+        }
 
 
 class CommandService:
@@ -242,6 +273,24 @@ class CommandService:
             ReleasePublicationRequest.from_dict(validated_envelope["payload"])
         command = Command(validated_envelope)
         with self._submission_lock(command):
+            if (
+                command.envelope["command_type"] in _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
+                and command.envelope.get("project_id") != self.ledger.project_id
+            ):
+                snapshot = self.ledger.snapshot()
+                observed_version = snapshot.stream_versions.get(
+                    command.target_stream_id,
+                    0,
+                )
+                return self._write_receipt(
+                    command,
+                    self._rejected(
+                        command,
+                        observed_version,
+                        "invalid_command_project",
+                        "Lifecycle command project must match the control-store project.",
+                    ),
+                )
             self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
             if scoped is not None:
@@ -332,10 +381,24 @@ class CommandService:
                     reason_code="stream_version_conflict",
                 )
                 return self._write_receipt(command, receipt)
-            if command.envelope["command_type"] == "SupersedeTask":
-                prepared = self._prepare_supersession(command, snapshot, observed_version)
+            if command.envelope["command_type"] in _SCOPE_COMMAND_TYPES:
+                prepared = self._prepare_scope_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
                 if isinstance(prepared, Receipt):
-                    return self.receipts.write(prepared)
+                    return self._write_receipt(command, prepared)
+                prepared_payload = prepared
+            elif command.envelope["command_type"] in _TASK_REVISION_COMMAND_TYPES:
+                prepared = self._prepare_task_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                    command_schema=command_schema,
+                )
+                if isinstance(prepared, Receipt):
+                    return self._write_receipt(command, prepared)
                 prepared_payload = prepared
             elif command.envelope["command_type"] == "RevokeAuthorityGrant":
                 try:
@@ -611,12 +674,7 @@ class CommandService:
         matches = sorted(directory.glob(f"{revision:08d}-*.json"))
         if not matches:
             return None
-        if len(matches) != 1:
-            raise IntegrityError("duplicate immutable Task revision")
-        try:
-            value = json.loads(matches[0].read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise IntegrityError("invalid immutable Task revision") from exc
+        value = self.objects.read("task", task_id, revision)
         if not isinstance(value, dict):
             raise IntegrityError("Task revision object must be a mapping")
         return value
@@ -627,19 +685,54 @@ class CommandService:
     ) -> tuple[
         dict[str, int],
         dict[tuple[str, int], tuple[str, int]],
+        dict[tuple[str, int], _TaskRevisionEvidence],
     ]:
         current: dict[str, int] = {}
         edges: dict[tuple[str, int], tuple[str, int]] = {}
+        evidence: dict[tuple[str, int], _TaskRevisionEvidence] = {}
         for event in snapshot.events:
             if event["event_type"] == "TaskCreated":
-                revision = int(event.get("payload", {}).get("revision", 1))
+                payload = event.get("payload", {})
+                if event.get("schema_id") == "ars://core/event/TaskCreated":
+                    definition = payload.get("definition", {})
+                    revision = int(definition["revision"])
+                else:
+                    definition = payload if isinstance(payload, dict) else None
+                    revision = int(payload.get("revision", 1))
                 current.setdefault(event["stream_id"], revision)
+                evidence[(event["stream_id"], revision)] = _TaskRevisionEvidence(
+                    str(event.get("schema_id", "")),
+                    definition,
+                )
+            elif event["event_type"] == "TaskAmended":
+                payload = event["payload"]
+                task_id = str(payload["task_id"])
+                prior_revision = int(payload["prior_revision"])
+                new_revision = int(payload["new_revision"])
+                if current.get(task_id) != prior_revision:
+                    raise IntegrityError("Task amendment history is not current")
+                source = (task_id, prior_revision)
+                if source in edges:
+                    raise IntegrityError("Task revision has multiple successor edges")
+                edges[source] = (task_id, new_revision)
+                current[task_id] = new_revision
+                evidence[(task_id, new_revision)] = _TaskRevisionEvidence(
+                    str(event.get("schema_id", "")),
+                    payload.get("replacement_definition"),
+                )
             elif event["event_type"] == "TaskSuperseded":
                 payload = event["payload"]
-                source = (
-                    str(payload["source_task_id"]),
-                    int(payload["source_task_revision"]),
-                )
+                if event.get("schema_id") == "ars://core/event/TaskSuperseded":
+                    source_id = str(payload["task_id"])
+                    source_revision = current.get(source_id)
+                    if source_revision is None:
+                        raise IntegrityError("Task supersession source history is absent")
+                    source = (source_id, source_revision)
+                else:
+                    source = (
+                        str(payload["source_task_id"]),
+                        int(payload["source_task_revision"]),
+                    )
                 replacement = (
                     str(payload["replacement_task_id"]),
                     int(payload["replacement_task_revision"]),
@@ -649,7 +742,13 @@ class CommandService:
                 edges[source] = replacement
                 if source[0] == replacement[0]:
                     current[source[0]] = replacement[1]
-        return current, edges
+                    source_evidence = evidence.get(source)
+                    if source_evidence is not None:
+                        evidence[replacement] = _TaskRevisionEvidence(
+                            source_evidence.schema_id,
+                            None,
+                        )
+        return current, edges, evidence
 
     @staticmethod
     def _reaches(
@@ -689,6 +788,580 @@ class CommandService:
         lineage.append(replacement)
         return [{"task_id": task_id, "revision": revision} for task_id, revision in lineage]
 
+    @staticmethod
+    def _content_hash_matches(value: dict[str, Any]) -> bool:
+        return content_hash_matches(value)
+
+    @classmethod
+    def _is_rich_task_definition(cls, value: dict[str, Any]) -> bool:
+        return (
+            isinstance(value.get("task_id"), str)
+            and isinstance(value.get("revision"), int)
+            and not isinstance(value.get("revision"), bool)
+            and isinstance(value.get("project_id"), str)
+            and cls._content_hash_matches(value)
+        )
+
+    def _task_revision_kind(
+        self,
+        value: dict[str, Any],
+        evidence: _TaskRevisionEvidence | None,
+        *,
+        task_id: str,
+        revision: int,
+    ) -> str | None:
+        if evidence is None:
+            return None
+        if evidence.definition is not None and value != evidence.definition:
+            raise IntegrityError("Task revision object differs from committed event content")
+        if evidence.exact:
+            if (
+                evidence.definition is None
+                or not self._is_rich_task_definition(value)
+                or value.get("task_id") != task_id
+                or value.get("revision") != revision
+                or value.get("project_id") != self.ledger.project_id
+            ):
+                return None
+            return "rich"
+        consumers = value.get("continuing_consumers")
+        if (
+            not isinstance(value.get("task_type"), str)
+            or not value["task_type"]
+            or not isinstance(consumers, list)
+            or not consumers
+            or not all(isinstance(item, str) and item for item in consumers)
+        ):
+            return None
+        return "generic"
+
+    def _scope_revision_object(
+        self,
+        scope_id: str,
+        revision: int,
+        committed_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        directory = self.control_root / "objects" / "scope_definition" / scope_id
+        if not list(directory.glob(f"{revision:08d}-*.json")):
+            return None
+        value = self.objects.read("scope_definition", scope_id, revision)
+        if not isinstance(value, dict):
+            raise IntegrityError("ScopeDefinition revision object must be a mapping")
+        if committed_payload is not None and value != committed_payload:
+            raise IntegrityError("ScopeDefinition revision object differs from committed event content")
+        return value
+
+    @staticmethod
+    def _scope_revision_graph(
+        snapshot: LedgerSnapshot,
+    ) -> tuple[
+        dict[str, int],
+        dict[tuple[str, int], tuple[str, int]],
+        dict[tuple[str, int], dict[str, Any]],
+    ]:
+        current: dict[str, int] = {}
+        edges: dict[tuple[str, int], tuple[str, int]] = {}
+        evidence: dict[tuple[str, int], dict[str, Any]] = {}
+        for event in snapshot.events:
+            event_type = event["event_type"]
+            if event_type == "ScopeDefinitionCreated":
+                payload = event["payload"]
+                scope_id = str(payload["new_scope_definition_id"])
+                revision = int(payload["revision"])
+                current.setdefault(scope_id, revision)
+                if event.get("schema_id") == "ars://core/event/ScopeDefinitionCreated":
+                    evidence[(scope_id, revision)] = payload
+            elif event_type == "ScopeDefinitionAmended":
+                payload = event["payload"]
+                scope_id = str(payload["scope_definition_id"])
+                prior = int(payload["prior_revision"])
+                new = int(payload["new_revision"])
+                if current.get(scope_id) != prior:
+                    raise IntegrityError("ScopeDefinition amendment history is not current")
+                source = (scope_id, prior)
+                if source in edges:
+                    raise IntegrityError("ScopeDefinition revision has multiple successor edges")
+                edges[source] = (scope_id, new)
+                current[scope_id] = new
+                if event.get("schema_id") == "ars://core/event/ScopeDefinitionAmended":
+                    evidence[(scope_id, new)] = payload
+            elif event_type == "ScopeDefinitionSuperseded":
+                payload = event["payload"]
+                source_id = str(payload["scope_definition_id"])
+                source_revision = current.get(source_id)
+                if source_revision is None:
+                    raise IntegrityError("ScopeDefinition supersession source history is absent")
+                source = (source_id, source_revision)
+                replacement = (
+                    str(payload["replacement_scope_definition_id"]),
+                    int(payload["replacement_revision"]),
+                )
+                if source in edges:
+                    raise IntegrityError("ScopeDefinition revision has multiple successor edges")
+                edges[source] = replacement
+                if source[0] == replacement[0]:
+                    current[source[0]] = replacement[1]
+        return current, edges, evidence
+
+    def _scope_members(
+        self,
+        scope_id: str,
+        revision: int,
+        evidence: dict[tuple[str, int], dict[str, Any]],
+    ) -> dict[str, str]:
+        created = self._scope_revision_object(
+            scope_id,
+            1,
+            evidence.get((scope_id, 1)),
+        )
+        if created is None:
+            raise IntegrityError("ScopeDefinition base revision is absent")
+        members = {str(member["member_id"]): str(member["member_kind"]) for member in created.get("members", [])}
+        for candidate_revision in range(2, revision + 1):
+            amendment = self._scope_revision_object(
+                scope_id,
+                candidate_revision,
+                evidence.get((scope_id, candidate_revision)),
+            )
+            if amendment is None:
+                raise IntegrityError("ScopeDefinition amendment revision is absent")
+            for change in amendment.get("member_changes", []):
+                member_id = str(change["member_id"])
+                if change["disposition"] == "removed_by_amendment":
+                    members.pop(member_id, None)
+                else:
+                    members[member_id] = str(change["member_kind"])
+        return members
+
+    def _prepare_task_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> dict[str, Any] | Receipt:
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_project",
+                "Task command project must match the control-store project.",
+            )
+        task_id = payload.get("new_task_id") if command_type == "CreateTask" else payload.get("task_id")
+        if task_id != command.target_stream_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_subject_identity",
+                "Task payload identity must equal the target stream.",
+            )
+
+        if command_type == "CreateTask":
+            definition = payload["definition"]
+            if (
+                definition.get("task_id") != task_id
+                or definition.get("project_id") != self.ledger.project_id
+                or command.envelope.get("project_id") != self.ledger.project_id
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "Task definition identity and project must bind the command.",
+                )
+            if definition.get("revision") != 1:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_task_revision",
+                    "A new Task must begin at revision 1.",
+                )
+            if not self._content_hash_matches(definition):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_task_definition_hash",
+                    "Task definition content hash does not match canonical content.",
+                )
+            return payload
+
+        if command_type == "SupersedeTask":
+            return self._prepare_supersession(
+                command,
+                snapshot,
+                observed_version,
+            )
+
+        current, edges, evidence = self._revision_graph(snapshot)
+        prior_revision = int(payload["prior_revision"])
+        new_revision = int(payload["new_revision"])
+        replacement = payload["replacement_definition"]
+        if (
+            current.get(command.target_stream_id) != prior_revision
+            or (command.target_stream_id, prior_revision) in edges
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "stale_task_revision",
+                "Task amendment must name the current nonterminal revision.",
+            )
+        if new_revision != prior_revision + 1:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_task_revision",
+                "Task amendment must advance exactly one revision.",
+            )
+        if (
+            replacement.get("task_id") != command.target_stream_id
+            or replacement.get("revision") != new_revision
+            or replacement.get("project_id") != self.ledger.project_id
+            or command.envelope.get("project_id") != self.ledger.project_id
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_subject_identity",
+                "Replacement Task definition must bind the command and revision.",
+            )
+        if not self._content_hash_matches(replacement):
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_task_definition_hash",
+                "Replacement Task definition hash does not match canonical content.",
+            )
+        source_definition = self._task_revision_object(
+            command.target_stream_id,
+            prior_revision,
+        )
+        if source_definition is None:
+            return self._rejected(
+                command,
+                observed_version,
+                "task_revision_missing",
+                "The prior immutable Task revision is absent.",
+            )
+        source_kind = self._task_revision_kind(
+            source_definition,
+            evidence.get((command.target_stream_id, prior_revision)),
+            task_id=command.target_stream_id,
+            revision=prior_revision,
+        )
+        if source_kind != "rich":
+            return self._rejected(
+                command,
+                observed_version,
+                "source_task_definition_incompatible",
+                "Task amendment requires a matching rich source definition.",
+            )
+        actual_changes = changed_task_fields(
+            source_definition,
+            replacement,
+        )
+        if not actual_changes or set(payload["changed_fields"]) != actual_changes:
+            return self._rejected(
+                command,
+                observed_version,
+                "task_changed_fields_mismatch",
+                "Task changed_fields must name the exact typed definition delta.",
+            )
+        if command_schema.schema_id != "ars://core/command/AmendTask":
+            raise IntegrityError("Task amendment used an unexpected schema identity")
+        return payload
+
+    def _prepare_scope_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_project",
+                "ScopeDefinition command project must match the control-store project.",
+            )
+        scope_id = (
+            payload.get("new_scope_definition_id")
+            if command_type == "CreateScopeDefinition"
+            else payload.get("scope_definition_id")
+        )
+        if scope_id != command.target_stream_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_subject_identity",
+                "ScopeDefinition payload identity must equal the target stream.",
+            )
+
+        if command_type == "CreateScopeDefinition":
+            members = payload["members"]
+            if (
+                payload["revision"] != 1
+                or not has_unique_member_ids(members)
+                or command.envelope.get("project_id") != self.ledger.project_id
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_scope_definition",
+                    "A new ScopeDefinition requires revision 1 and unique members.",
+                )
+            return payload
+
+        current, edges, evidence = self._scope_revision_graph(snapshot)
+        source_revision = current.get(command.target_stream_id)
+        if source_revision is None:
+            return self._rejected(
+                command,
+                observed_version,
+                "scope_revision_missing",
+                "The current ScopeDefinition revision is absent.",
+            )
+        source = (command.target_stream_id, source_revision)
+        if source in edges:
+            return self._rejected(
+                command,
+                observed_version,
+                "scope_revision_terminal",
+                "The current ScopeDefinition revision is terminal.",
+            )
+
+        if command_type == "AmendScopeDefinition":
+            prior_revision = int(payload["prior_revision"])
+            new_revision = int(payload["new_revision"])
+            if source_revision != prior_revision:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "stale_scope_revision",
+                    "ScopeDefinition amendment must name the current revision.",
+                )
+            if new_revision != prior_revision + 1:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_scope_revision",
+                    "ScopeDefinition amendment must advance exactly one revision.",
+                )
+            if set(payload["changed_fields"]) != {"members"}:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "unsupported_scope_amendment_field",
+                    "The accepted delta contract materializes only member changes.",
+                )
+            member_changes = payload["member_changes"]
+            if not member_changes or not has_unique_member_ids(member_changes):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_scope_definition",
+                    "ScopeDefinition amendment member identities must be unique.",
+                )
+            if (
+                self._scope_revision_object(
+                    command.target_stream_id,
+                    prior_revision,
+                    evidence.get((command.target_stream_id, prior_revision)),
+                )
+                is None
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "scope_revision_missing",
+                    "The prior immutable ScopeDefinition revision is absent.",
+                )
+            return payload
+
+        replacement = (
+            str(payload["replacement_scope_definition_id"]),
+            int(payload["replacement_revision"]),
+        )
+        if self._reaches(edges, replacement, source):
+            return self._rejected(
+                command,
+                observed_version,
+                "scope_supersession_cycle",
+                "The replacement ScopeDefinition reaches the source revision.",
+            )
+        if replacement in edges:
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_scope_revision_terminal",
+                "The replacement ScopeDefinition revision is terminal.",
+            )
+        if (
+            current.get(replacement[0]) != replacement[1]
+            or self._scope_revision_object(
+                *replacement,
+                committed_payload=evidence.get(replacement),
+            )
+            is None
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_scope_revision_missing",
+                "The replacement must be the current immutable ScopeDefinition revision.",
+            )
+        expected_members = self._scope_members(*source, evidence=evidence)
+        if not has_unique_member_ids(payload["member_dispositions"]):
+            return self._rejected(
+                command,
+                observed_version,
+                "duplicate_scope_member_disposition",
+                "Each current ScopeDefinition member requires one disposition.",
+            )
+        dispositions = {str(item["member_id"]): str(item["member_kind"]) for item in payload["member_dispositions"]}
+        if dispositions != expected_members:
+            return self._rejected(
+                command,
+                observed_version,
+                "missing_scope_member_disposition",
+                "Every current ScopeDefinition member requires one exact disposition.",
+            )
+        return payload
+
+    def _prepare_exact_supersession(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        payload = command.envelope["payload"]
+        replacement_id = str(payload["replacement_task_id"])
+        replacement_revision = int(payload["replacement_task_revision"])
+        dispositions = payload["continuing_consumer_dispositions"]
+        if not dispositions:
+            return self._rejected(
+                command,
+                observed_version,
+                "missing_continuing_consumer_disposition",
+                "Task supersession requires explicit continuing-consumer dispositions.",
+            )
+
+        current, edges, evidence = self._revision_graph(snapshot)
+        source_id = command.target_stream_id
+        source_revision = current.get(source_id)
+        if source_revision is None:
+            return self._rejected(
+                command,
+                observed_version,
+                "source_revision_missing",
+                "The source Task revision is absent from committed events.",
+            )
+        source = (source_id, source_revision)
+        replacement = (replacement_id, replacement_revision)
+        if source in edges:
+            return self._rejected(
+                command,
+                observed_version,
+                "source_revision_terminal",
+                "The source Task revision is already terminal.",
+            )
+        if self._reaches(edges, replacement, source):
+            return self._rejected(
+                command,
+                observed_version,
+                "supersession_cycle",
+                "The proposed replacement reaches the source revision.",
+            )
+        if replacement in edges:
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_terminal",
+                "The replacement Task revision is already terminal.",
+            )
+
+        source_object = self._task_revision_object(source_id, source_revision)
+        replacement_object = self._task_revision_object(*replacement)
+        if source_object is None or replacement_object is None:
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_missing",
+                "The replacement must be an existing immutable Task revision.",
+            )
+        if replacement_id == source_id:
+            if replacement_revision <= source_revision:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "replacement_revision_stale",
+                    "A same-Task replacement must be a higher revision.",
+                )
+        elif current.get(replacement_id) != replacement_revision:
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_stale",
+                "The replacement is not the current Task revision.",
+            )
+        source_evidence = evidence.get(source)
+        source_kind = self._task_revision_kind(
+            source_object,
+            source_evidence,
+            task_id=source_id,
+            revision=source_revision,
+        )
+        if replacement_id == source_id and source_kind == "rich":
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_uncommitted",
+                "A rich same-Task replacement requires a committed revision transition.",
+            )
+        replacement_evidence = evidence.get(replacement)
+        if (
+            replacement_id == source_id
+            and replacement_evidence is None
+            and source_evidence is not None
+            and not source_evidence.exact
+        ):
+            replacement_evidence = _TaskRevisionEvidence(
+                source_evidence.schema_id,
+                None,
+            )
+        replacement_kind = self._task_revision_kind(
+            replacement_object,
+            replacement_evidence,
+            task_id=replacement_id,
+            revision=replacement_revision,
+        )
+        if (
+            source_kind is None
+            or replacement_kind is None
+            or source_kind != replacement_kind
+            or (source_kind == "generic" and source_object.get("task_type") != replacement_object.get("task_type"))
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_incompatible",
+                "The replacement Task revision is type-incompatible.",
+            )
+        expected_consumers = source_object.get("continuing_consumers")
+        if expected_consumers is not None and set(dispositions) != set(expected_consumers):
+            return self._rejected(
+                command,
+                observed_version,
+                "continuing_consumers_mismatch",
+                "Continuing-consumer dispositions must equal the legacy source contract.",
+            )
+        return dict(payload)
+
     def _prepare_supersession(
         self,
         command: Command,
@@ -696,6 +1369,12 @@ class CommandService:
         observed_version: int,
     ) -> dict[str, Any] | Receipt:
         """Validate a revision-qualified edge from one committed snapshot."""
+        if command.envelope.get("schema_id") == "ars://core/command/SupersedeTask":
+            return self._prepare_exact_supersession(
+                command,
+                snapshot,
+                observed_version,
+            )
         payload = command.envelope["payload"]
         exact_fields = {
             "replacement_task_id",
@@ -735,7 +1414,7 @@ class CommandService:
                 "SupersedeTask requires positive revisions and non-empty exact sets.",
             )
 
-        current, edges = self._revision_graph(snapshot)
+        current, edges, evidence = self._revision_graph(snapshot)
         source_id = command.target_stream_id
         source_revision = current.get(source_id)
         if source_revision is None:
@@ -781,13 +1460,6 @@ class CommandService:
                 "replacement_revision_missing",
                 "The replacement must be an existing immutable Task revision.",
             )
-        if source_object.get("task_type", "task") != replacement_object.get("task_type", "task"):
-            return self._rejected(
-                command,
-                observed_version,
-                "replacement_revision_incompatible",
-                "The replacement Task revision is type-incompatible.",
-            )
         if replacement_id == source_id:
             if replacement_revision <= source_revision:
                 return self._rejected(
@@ -802,6 +1474,40 @@ class CommandService:
                 observed_version,
                 "replacement_revision_stale",
                 "The replacement is not the current Task revision.",
+            )
+        source_kind = self._task_revision_kind(
+            source_object,
+            evidence.get(source),
+            task_id=source_id,
+            revision=source_revision,
+        )
+        replacement_evidence = evidence.get(replacement)
+        if (
+            replacement_id == source_id
+            and replacement_evidence is None
+            and evidence.get(source) is not None
+            and not evidence[source].exact
+        ):
+            replacement_evidence = _TaskRevisionEvidence(
+                evidence[source].schema_id,
+                None,
+            )
+        replacement_kind = self._task_revision_kind(
+            replacement_object,
+            replacement_evidence,
+            task_id=replacement_id,
+            revision=replacement_revision,
+        )
+        if (
+            source_kind != "generic"
+            or replacement_kind != "generic"
+            or source_object.get("task_type") != replacement_object.get("task_type")
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "replacement_revision_incompatible",
+                "The replacement Task revision is type-incompatible.",
             )
         expected_consumers = source_object.get("continuing_consumers")
         if expected_consumers is not None and set(consumers) != set(expected_consumers):
@@ -904,7 +1610,28 @@ class CommandService:
         command_schema: SchemaIdentity,
     ) -> dict[str, Any]:
         command_type = command.envelope["command_type"]
-        if command_type == "CreateTask":
+        if command_type == "CreateScopeDefinition":
+            self.objects.write(
+                "scope_definition",
+                command.target_stream_id,
+                int(command.envelope["payload"]["revision"]),
+                command.envelope["payload"],
+            )
+            event_type = "ScopeDefinitionCreated"
+            payload = command.envelope["payload"]
+        elif command_type == "AmendScopeDefinition":
+            self.objects.write(
+                "scope_definition",
+                command.target_stream_id,
+                int(command.envelope["payload"]["new_revision"]),
+                command.envelope["payload"],
+            )
+            event_type = "ScopeDefinitionAmended"
+            payload = command.envelope["payload"]
+        elif command_type == "SupersedeScopeDefinition":
+            event_type = "ScopeDefinitionSuperseded"
+            payload = command.envelope["payload"]
+        elif command_type == "CreateTask":
             create_binding = self.schemas.command_binding("CreateTask")
             activated_create = create_binding is not None and (
                 command_schema.schema_id,
@@ -920,6 +1647,15 @@ class CommandService:
                 (command.envelope["payload"]["definition"] if activated_create else command.envelope["payload"]),
             )
             event_type = "TaskCreated"
+            payload = command.envelope["payload"]
+        elif command_type == "AmendTask":
+            self.objects.write(
+                "task",
+                command.target_stream_id,
+                int(command.envelope["payload"]["new_revision"]),
+                command.envelope["payload"]["replacement_definition"],
+            )
+            event_type = "TaskAmended"
             payload = command.envelope["payload"]
         elif command_type == "ClaimDispatch":
             event_type = "DispatchClaimed"

@@ -258,6 +258,10 @@ class EventLedger:
                 validation_payload,
                 schema_version=event_binding.schema_version,
             )
+            return
+        payload_schema = f"{event_schema}/payload"
+        if event_schema != "ars://core/event" and schemas.contains(payload_schema):
+            schemas.validate(payload_schema, validation_payload.get("payload"))
 
     def append(
         self,
@@ -370,6 +374,8 @@ class EventLedger:
             event_schema_version = str(event.get("schema_version", ""))
             event_binding = self.schemas.event_binding(event_type)
             event_schema = str(event.get("schema_id", ""))
+            payload_schema = f"{event_schema}/payload"
+            payload_backed_event = self.schemas.contains(payload_schema)
             if event_binding is not None and (
                 event_schema,
                 event_schema_version,
@@ -386,6 +392,7 @@ class EventLedger:
                 and event_binding is None
                 and event_type != "ReleaseGateDecisionPublished"
                 and not t2_event
+                and not payload_backed_event
                 and event_schema != "ars://core/event"
             ):
                 raise ArsError(f"inactive event schema: {event_schema} version {event_schema_version}")

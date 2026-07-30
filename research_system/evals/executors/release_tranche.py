@@ -266,10 +266,13 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     def command(command_id: str, command_type: str, target: str, body: dict[str, Any]):
         exact_create = command_type == "CreateTask"
+        exact_supersede = command_type == "SupersedeTask"
         envelope = {
             "command_id": command_id,
             "command_type": command_type,
-            "schema_id": ("ars://core/command/CreateTask" if exact_create else "ars://core/command"),
+            "schema_id": (
+                f"ars://core/command/{command_type}" if exact_create or exact_supersede else "ars://core/command"
+            ),
             "schema_version": "1.0.0",
             "submitted_at": "2026-07-11T00:00:00Z",
             "actor_id": actor_id,
@@ -293,16 +296,17 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 else body
             ),
         }
-        if exact_create:
+        if exact_create or exact_supersede:
             envelope["project_id"] = project_id
         return envelope
 
-    def supersession(replacement: str) -> dict[str, Any]:
+    def supersession(source: str, replacement: str) -> dict[str, Any]:
         return {
+            "task_id": source,
             "replacement_task_id": replacement,
             "replacement_task_revision": 1,
-            "supersession_scope": ["full_task_authority"],
-            "continuing_consumers": ["audit"],
+            "continuing_consumer_dispositions": ["audit retains the immutable source revision"],
+            "lineage_reason": "Exercise the S-015 revision-qualified graph.",
         }
 
     with tempfile.TemporaryDirectory() as directory:
@@ -330,10 +334,31 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                     },
                 )
             )
-        service.submit(command(command_ids[3], "SupersedeTask", task_ids[0], supersession(task_ids[1])))
-        service.submit(command(command_ids[4], "SupersedeTask", task_ids[1], supersession(task_ids[2])))
+        service.submit(
+            command(
+                command_ids[3],
+                "SupersedeTask",
+                task_ids[0],
+                supersession(task_ids[0], task_ids[1]),
+            )
+        )
+        service.submit(
+            command(
+                command_ids[4],
+                "SupersedeTask",
+                task_ids[1],
+                supersession(task_ids[1], task_ids[2]),
+            )
+        )
         before = tuple(event.copy() for event in ledger.iter_events())
-        rejected = service.submit(command(command_ids[5], "SupersedeTask", task_ids[2], supersession(task_ids[0])))
+        rejected = service.submit(
+            command(
+                command_ids[5],
+                "SupersedeTask",
+                task_ids[2],
+                supersession(task_ids[2], task_ids[0]),
+            )
+        )
         after = tuple(event.copy() for event in ledger.iter_events())
         return {
             "cycle_accepted": rejected.status == "accepted",

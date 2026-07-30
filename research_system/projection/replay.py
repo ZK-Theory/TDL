@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.command.reducers import reduce_task
+from research_system.command.reducers import (
+    reduce_scope,
+    reduce_task,
+    validate_scope_lifecycle_event,
+    validate_task_lifecycle_event,
+)
+from research_system.command.lifecycle import validate_exact_lifecycle_envelope
 from research_system.command.t2 import apply_t2_event
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
@@ -23,6 +29,52 @@ _ALLOWED_DISPOSITIONS = frozenset(
         "rejected",
     }
 )
+
+
+def _validate_active_lifecycle_binding(
+    event: dict[str, Any],
+    schema_registry: SchemaRegistry | None,
+) -> None:
+    try:
+        command_type = validate_exact_lifecycle_envelope(event)
+    except (TypeError, ValueError) as exc:
+        raise IntegrityError("exact lifecycle event provenance mismatch") from exc
+    if command_type is None:
+        return
+    if schema_registry is None:
+        raise IntegrityError("exact lifecycle schema registry unavailable")
+    command_binding = schema_registry.command_binding(command_type)
+    event_binding = schema_registry.event_binding(event["event_type"])
+    if (
+        command_binding is None
+        or event_binding is None
+        or (
+            command_binding.schema_id,
+            command_binding.schema_version,
+        )
+        != (
+            event["command_schema_id"],
+            event["command_schema_version"],
+        )
+        or (
+            event_binding.schema_id,
+            event_binding.schema_version,
+        )
+        != (
+            event["schema_id"],
+            event["schema_version"],
+        )
+    ):
+        raise IntegrityError("exact lifecycle active binding mismatch")
+    try:
+        command_identity = schema_registry.resolve_identity(
+            command_binding.schema_id,
+            command_binding.schema_version,
+        )
+    except SchemaError as exc:
+        raise IntegrityError("exact lifecycle command binding is unresolved") from exc
+    if event["command_schema_sha256"] != command_identity.sha256:
+        raise IntegrityError("exact lifecycle command schema hash mismatch")
 
 
 def _validate_scope_completion(payload: dict[str, Any]) -> None:
@@ -191,8 +243,16 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "revocation_event_id": event["event_id"],
             "revocation_position": event["global_position"],
         }
-    elif event_type in {"TaskCreated", "TaskSuperseded"}:
+    elif event_type in {"TaskCreated", "TaskAmended", "TaskSuperseded"}:
+        validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
+    elif event_type in {
+        "ScopeDefinitionCreated",
+        "ScopeDefinitionAmended",
+        "ScopeDefinitionSuperseded",
+    }:
+        validate_scope_lifecycle_event(streams, event)
+        streams[stream_id] = reduce_scope(streams.get(stream_id, {}), event)
     elif event_type == "DispatchClaimed":
         current = streams.get(
             stream_id,
@@ -427,6 +487,7 @@ def replay(
             raise IntegrityError("event hash-chain mismatch")
         if not _verify_event_hash(event):
             raise IntegrityError(f"event hash mismatch at {position}")
+        _validate_active_lifecycle_binding(event, schema_registry)
         project_id = event.get("project_id")
         if state["project_id"] is None:
             state["project_id"] = project_id

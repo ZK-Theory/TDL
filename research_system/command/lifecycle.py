@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+from research_system.canonical import canonical_bytes, sha256_hex
+
+
+EXACT_LIFECYCLE_BINDINGS = {
+    "ars://core/event/ScopeDefinitionCreated": (
+        "ScopeDefinitionCreated",
+        "CreateScopeDefinition",
+        "ars://core/command/CreateScopeDefinition",
+    ),
+    "ars://core/event/ScopeDefinitionAmended": (
+        "ScopeDefinitionAmended",
+        "AmendScopeDefinition",
+        "ars://core/command/AmendScopeDefinition",
+    ),
+    "ars://core/event/ScopeDefinitionSuperseded": (
+        "ScopeDefinitionSuperseded",
+        "SupersedeScopeDefinition",
+        "ars://core/command/SupersedeScopeDefinition",
+    ),
+    "ars://core/event/TaskCreated": (
+        "TaskCreated",
+        "CreateTask",
+        "ars://core/command/CreateTask",
+    ),
+    "ars://core/event/TaskAmended": (
+        "TaskAmended",
+        "AmendTask",
+        "ars://core/command/AmendTask",
+    ),
+    "ars://core/event/TaskSuperseded": (
+        "TaskSuperseded",
+        "SupersedeTask",
+        "ars://core/command/SupersedeTask",
+    ),
+}
+
+
+def validate_exact_lifecycle_envelope(
+    event: Mapping[str, Any],
+) -> str | None:
+    binding = EXACT_LIFECYCLE_BINDINGS.get(str(event.get("schema_id", "")))
+    if binding is None:
+        return None
+    event_type, command_type, command_schema_id = binding
+    payload = event.get("payload")
+    if (
+        event.get("event_type") != event_type
+        or event.get("schema_version") != "1.0.0"
+        or event.get("command_type") != command_type
+        or event.get("command_schema_id") != command_schema_id
+        or event.get("command_schema_version") != "1.0.0"
+        or event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
+    ):
+        raise ValueError("exact lifecycle event provenance mismatch")
+    return command_type
+
+
+def content_hash_matches(value: Mapping[str, Any]) -> bool:
+    recorded = value.get("content_sha256")
+    if not isinstance(recorded, str):
+        return False
+    unsigned = dict(value)
+    unsigned.pop("content_sha256", None)
+    try:
+        return recorded == sha256_hex(canonical_bytes(unsigned))
+    except (TypeError, ValueError):
+        return False
+
+
+def changed_task_fields(
+    source: Mapping[str, Any],
+    replacement: Mapping[str, Any],
+) -> set[str]:
+    metadata = {"revision", "content_sha256"}
+    return {
+        field
+        for field in source.keys() | replacement.keys()
+        if field not in metadata and source.get(field) != replacement.get(field)
+    }
+
+
+def has_unique_member_ids(records: Iterable[Mapping[str, Any]]) -> bool:
+    member_ids = [record.get("member_id") for record in records]
+    return len(member_ids) == len(set(member_ids))

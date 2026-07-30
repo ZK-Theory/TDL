@@ -284,17 +284,45 @@ def test_materialized_schema_is_inert_until_exact_binding_is_active():
     assert active.is_active(schema_id, "1.0.0")
 
 
-def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
+def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
     registry = runtime_schema_registry(SCHEMAS)
 
     expected_commands = {
+        "CreateScopeDefinition": (
+            "ars://core/command/CreateScopeDefinition",
+            "1.0.0",
+        ),
+        "AmendScopeDefinition": (
+            "ars://core/command/AmendScopeDefinition",
+            "1.0.0",
+        ),
+        "SupersedeScopeDefinition": (
+            "ars://core/command/SupersedeScopeDefinition",
+            "1.0.0",
+        ),
         "CreateTask": ("ars://core/command/CreateTask", "1.0.0"),
+        "AmendTask": ("ars://core/command/AmendTask", "1.0.0"),
+        "SupersedeTask": ("ars://core/command/SupersedeTask", "1.0.0"),
         "IssueCostGrant": ("ars://wp6-2/t2/command/IssueCostGrant", "1.0.0"),
         "AuthorizeProviderIssue": ("ars://wp6-2/t2/command/AuthorizeProviderIssue", "1.0.0"),
         "RecordProviderReceipt": ("ars://wp6-2/t2/command/RecordProviderReceipt", "1.0.0"),
     }
     expected_events = {
+        "ScopeDefinitionCreated": (
+            "ars://core/event/ScopeDefinitionCreated",
+            "1.0.0",
+        ),
+        "ScopeDefinitionAmended": (
+            "ars://core/event/ScopeDefinitionAmended",
+            "1.0.0",
+        ),
+        "ScopeDefinitionSuperseded": (
+            "ars://core/event/ScopeDefinitionSuperseded",
+            "1.0.0",
+        ),
         "TaskCreated": ("ars://core/event/TaskCreated", "1.0.0"),
+        "TaskAmended": ("ars://core/event/TaskAmended", "1.0.0"),
+        "TaskSuperseded": ("ars://core/event/TaskSuperseded", "1.0.0"),
         "ReleaseGateDecisionPublished": (
             "ars://core/event/ReleaseGateDecisionPublished",
             "1.1.0",
@@ -306,20 +334,25 @@ def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
         "CostGrantReconciled": ("ars://wp6-2/t2/event/CostGrantReconciled", "1.1.0"),
     }
 
-    assert {
-        command_type: (
-            registry.command_binding(command_type).schema_id,
-            registry.command_binding(command_type).schema_version,
+    observed_commands = {}
+    for command_type in expected_commands:
+        binding = registry.command_binding(command_type)
+        assert binding is not None, f"missing runtime command binding: {command_type}"
+        observed_commands[command_type] = (
+            binding.schema_id,
+            binding.schema_version,
         )
-        for command_type in expected_commands
-    } == expected_commands
-    assert {
-        event_type: (
-            registry.event_binding(event_type).schema_id,
-            registry.event_binding(event_type).schema_version,
+    assert observed_commands == expected_commands
+
+    observed_events = {}
+    for event_type in expected_events:
+        binding = registry.event_binding(event_type)
+        assert binding is not None, f"missing runtime event binding: {event_type}"
+        observed_events[event_type] = (
+            binding.schema_id,
+            binding.schema_version,
         )
-        for event_type in expected_events
-    } == expected_events
+    assert observed_events == expected_events
     assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
     assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
 

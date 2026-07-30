@@ -43,6 +43,7 @@ PUBLICATION_ID = "agr_01978abc-1001-7000-8000-000000001001"
 DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 CMD_REVOKE = "cmd_01978abc-1005-7000-8000-000000001005"
 CMD_RETRY = "cmd_01978abc-1006-7000-8000-000000001006"
+CMD_EXACT_TASK = "cmd_01978abc-1016-7000-8000-000000001016"
 SUBSTITUTE_ACTOR_ID = "act_01978abc-1010-7000-8000-000000001010"
 SUBSTITUTE_DECISION_ID = "rgd_01978abc-1011-7000-8000-000000001011"
 FOREIGN_PUBLICATION_ID = "agr_01978abc-1012-7000-8000-000000001012"
@@ -232,6 +233,61 @@ def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path)
     assert [event["transaction_index"] for event in events] == [1, 2]
     state = replay(events)
     assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
+
+
+def test_authority_store_exact_retry_replays_activated_lifecycle_history(
+    tmp_path,
+) -> None:
+    control_root, bootstrap, identity = _initialized(tmp_path)
+    schemas = runtime_schema_registry(tmp_path / "repo" / ".research-system" / "schemas")
+    command = create_task_command(
+        CMD_EXACT_TASK,
+        "authority-retry-exact-task",
+        REUSED_TASK_ID,
+        {"title": "Exact lifecycle authority retry"},
+    )
+    command_identity = schemas.resolve_identity(
+        command["schema_id"],
+        command["schema_version"],
+    )
+    event_identity = schemas.resolve_identity(
+        "ars://core/event/TaskCreated",
+        "1.0.0",
+    )
+    EventLedger(control_root, PROJECT_ID, schemas).append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": REUSED_TASK_ID,
+                "command_id": command["command_id"],
+                "command_type": command["command_type"],
+                "command_schema_id": command_identity.schema_id,
+                "command_schema_version": command_identity.schema_version,
+                "command_schema_sha256": command_identity.sha256,
+                "actor_id": command["actor_id"],
+                "authority_grant_id": command["authority_grant_id"],
+                "idempotency_key": command["idempotency_key"],
+                "command_payload_hash": sha256_hex(canonical_bytes(command["payload"])),
+                "correlation_id": command["correlation_id"],
+                "causation_id": command["causation_id"],
+                "schema_id": event_identity.schema_id,
+                "schema_version": event_identity.schema_version,
+                "occurred_at": None,
+                "payload": command["payload"],
+            }
+        ]
+    )
+
+    assert (
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+        == identity
+    )
 
 
 def test_genesis_records_validated_generic_command_identity_and_replays_at_default_cutoff(

@@ -76,6 +76,36 @@ class SchemaBinding:
 
 _RUNTIME_BINDINGS = (
     SchemaBinding(
+        "ars://core/command/CreateScopeDefinition",
+        "1.0.0",
+        command_type="CreateScopeDefinition",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScopeDefinitionCreated",
+        "1.0.0",
+        event_type="ScopeDefinitionCreated",
+    ),
+    SchemaBinding(
+        "ars://core/command/AmendScopeDefinition",
+        "1.0.0",
+        command_type="AmendScopeDefinition",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScopeDefinitionAmended",
+        "1.0.0",
+        event_type="ScopeDefinitionAmended",
+    ),
+    SchemaBinding(
+        "ars://core/command/SupersedeScopeDefinition",
+        "1.0.0",
+        command_type="SupersedeScopeDefinition",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScopeDefinitionSuperseded",
+        "1.0.0",
+        event_type="ScopeDefinitionSuperseded",
+    ),
+    SchemaBinding(
         "ars://core/command/CreateTask",
         "1.0.0",
         command_type="CreateTask",
@@ -84,6 +114,26 @@ _RUNTIME_BINDINGS = (
         "ars://core/event/TaskCreated",
         "1.0.0",
         event_type="TaskCreated",
+    ),
+    SchemaBinding(
+        "ars://core/command/AmendTask",
+        "1.0.0",
+        command_type="AmendTask",
+    ),
+    SchemaBinding(
+        "ars://core/event/TaskAmended",
+        "1.0.0",
+        event_type="TaskAmended",
+    ),
+    SchemaBinding(
+        "ars://core/command/SupersedeTask",
+        "1.0.0",
+        command_type="SupersedeTask",
+    ),
+    SchemaBinding(
+        "ars://core/event/TaskSuperseded",
+        "1.0.0",
+        event_type="TaskSuperseded",
     ),
     SchemaBinding(
         "ars://core/event/ReleaseGateDecisionPublished",
@@ -391,3 +441,9 @@ def runtime_schema_registry(root: Path | str) -> SchemaRegistry:
 def bundled_schema_registry() -> SchemaRegistry:
     """Return the inert schema catalogue shipped with this code checkout."""
     return SchemaRegistry(Path(__file__).resolve().parent.parent / ".research-system" / "schemas")
+
+
+@lru_cache(maxsize=1)
+def bundled_runtime_schema_registry() -> SchemaRegistry:
+    """Return the bundled catalogue with accepted runtime bindings active."""
+    return runtime_schema_registry(Path(__file__).resolve().parent.parent / ".research-system" / "schemas")
