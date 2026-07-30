@@ -6,7 +6,7 @@ authority correction) after the PR #198 exact-subject `d6c9647` rereview returne
 amendment remain accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
 bytes. An independent `accept` only makes the exact subject eligible for
 Stephen's separate explicit G-RM-3 decision; it does not close the gate,
-dispatch any stage, authorize merge, or activate a proposed owner gate.**
+dispatch any stage, authorize merge, or satisfy a stage-specific owner gate.**
 
 **Created:** 2026-07-28 · **Revised:** 2026-07-30
 **Supersedes for execution:**
@@ -78,7 +78,7 @@ No child plan may contain an owner decision absent from this table.
 | Gate | Required owner action | Blocks | Mechanism/evidence required before choice |
 |---|---|---|---|
 | G-RM-1 | **CLOSED 2026-07-28:** P-043 recorded | 06h direction | decision register |
-| G-RM-2 | **CLOSED 2026-07-28:** P-044 recorded | RM lane direction | decision register |
+| G-RM-2 | **CLOSED:** P-044 recorded 2026-07-28; bounded candidate-stage amendment accepted 2026-07-30 | RM lane direction and 06i/06j Stage A authority | decision register |
 | G-RM-3 | **OPEN:** after an admissible independent exact-subject review, Stephen separately accepts the exact reviewed suite bytes | every plan | owner record pins exact commit/blobs and cites the review; reviewer `accept` is evidence only; `reject` blocks and required changes need independent closure |
 | G-RM-4 | Accept selected Methods Pack assets for exact consumer scope | RM-03 export of those assets | 06i production command; exact asset IDs/hashes; review set; replay-derived authority |
 | G-RM-5 | Choose the manuscript-review pilot subject | RM-04 pilot only | exact subject/scope record |
