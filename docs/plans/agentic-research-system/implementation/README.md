@@ -30,8 +30,8 @@
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols
-9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **proposed staged plan; non-dispatchable**. Historical G-RM-10 retains the accepted-family choice; proposed G-RM-14 would accept an inert exact candidate only after an owner-accepted P-044 amendment. Stage B would materialize it, migrate the release-publication consumer, add catalogue-complete authority and enforce repository-wide fail-closed consumption
-10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **proposed staged plan; non-dispatchable**. Proposed G-RM-12 requires an owner-accepted P-044 amendment before Stage A may author the inert nine-command candidate. Stage B specifies phase-qualified failure evidence, a sealed lifecycle capability and immutable prevalidated provider-command template across the requested-through-delivered lifecycle
+9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **staged plan; non-dispatchable**. The accepted P-044 amendment preserves historical G-RM-10 and defines open G-RM-14. Stage A remains blocked on accepted 06h, an admissible suite review and explicit G-RM-3; Stage B additionally requires acceptance of the exact G-RM-14 candidate
+10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **staged plan; non-dispatchable**. The accepted P-044 amendment defines open G-RM-12. Stage A remains blocked on accepted 06h, an admissible suite review and explicit G-RM-3; Stage B additionally requires acceptance of the exact nine-command candidate and preserves phase-qualified failures plus the sealed capability/template boundary
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
@@ -62,9 +62,10 @@ separate from reviewer disposition.
 
 **G-RM-3 remains open.** A fresh independent `accept` only makes the exact
 subject eligible for Stephen's separate decision; it does not close G-RM-3 or
-authorize dispatch/merge. P-044 currently authorizes RM-01 through RM-04 only,
-so 06i/06j Stage A and proposed G-RM-12/G-RM-13/G-RM-14 additionally remain
-inert until Stephen accepts a decision-register amendment defining that scope.
+authorize dispatch/merge. Stephen accepted the bounded P-044 candidate-stage
+amendment against exact PR #198 head `fa7d8a6`; it preserves G-RM-10 and defines
+G-RM-12/G-RM-13/G-RM-14, but satisfies none of them. No Stage A is dispatchable
+before accepted 06h, the admissible review and explicit G-RM-3.
 
 1. [RM-00 — lane master plan, gate checklist, and obligation register](rm-00-research-methods-lane-master-plan.md) (governing; readiness verdict, not a dispatch verdict)
 2. [RM-01 — suite recovery and quality accounting](rm-01-unblock-and-suite-recovery-plan.md) (consumes the pre-06h baseline and compares the same post-change cohort)
