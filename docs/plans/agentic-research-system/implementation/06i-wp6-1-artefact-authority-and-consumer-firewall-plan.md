@@ -10,7 +10,7 @@
 plan replaces the rejected authority and test-only consumer portions of 06h/
 RM-03 revision 2. Stage A is non-dispatchable until accepted 06h, an independent
 exact-subject `accept`, Stephen's separate explicit G-RM-3 decision, and an
-accepted decision-register amendment authorizing the Stage A scope and proposed
+accepted decision-register amendment authorizing the Stage A scope and defining
 G-RM-14. Runtime implementation is separately blocked on independent review and
 G-RM-14 acceptance of the exact candidate bytes. Historical G-RM-10 retains its
 narrow meaning: confirm use of the already accepted artefact command family.
@@ -72,7 +72,7 @@ runtime registration surface. It grants no implementation or use authority.
 An independent exact-subject review checks catalogue completeness, every
 NA/NI control, the six-dimensional predicates, the complete existing-consumer
 inventory, review/P-005 bindings, atomic failure semantics, and candidate
-identity. Only then may Stephen decide G-RM-14, provided the accepted decision-register amendment has first made that proposed gate operative.
+identity. Only then may Stephen separately decide the now-defined but still-open G-RM-14.
 
 ### Gate decision
 
