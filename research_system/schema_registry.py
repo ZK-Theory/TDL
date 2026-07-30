@@ -86,6 +86,11 @@ _RUNTIME_BINDINGS = (
         event_type="TaskCreated",
     ),
     SchemaBinding(
+        "ars://core/event/ReleaseGateDecisionPublished",
+        "1.1.0",
+        event_type="ReleaseGateDecisionPublished",
+    ),
+    SchemaBinding(
         "ars://wp6-2/t2/command/IssueCostGrant",
         "1.0.0",
         command_type="IssueCostGrant",
@@ -145,11 +150,16 @@ class SchemaRegistry:
 
         Args:
             root: Directory containing registered ``*.schema.json`` files.
+            active_bindings: Exact schema ID/version bindings selected for
+                trusted runtime command and event discriminators.
 
         Raises:
-            SchemaError: If a schema is unreadable, invalid, or duplicated.
+            SchemaError: If a schema is unreadable, invalid, or duplicated; an
+                active binding is unknown; or command/event discriminators are
+                bound more than once.
         """
         self._schemas: dict[tuple[str, str | None], _CatalogueEntry] = {}
+        self._schemas_by_id: dict[str, dict[str | None, _CatalogueEntry]] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
                 raw_bytes = path.read_bytes()
@@ -178,7 +188,9 @@ class SchemaRegistry:
                 raw_bytes=raw_bytes,
                 source_path=path.resolve(),
             )
-            self._schemas[key] = _CatalogueEntry(identity, schema)
+            entry = _CatalogueEntry(identity, schema)
+            self._schemas[key] = entry
+            self._schemas_by_id.setdefault(schema_id, {})[schema_version] = entry
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
         self._event_bindings: dict[str, SchemaBinding] = {}
@@ -203,14 +215,12 @@ class SchemaRegistry:
             if entry is None:
                 raise SchemaError(f"unknown schema: {schema_id} version {schema_version}")
             return entry
-        matches = [
-            entry for (candidate_id, _candidate_version), entry in self._schemas.items() if candidate_id == schema_id
-        ]
-        if not matches:
+        versions = self._schemas_by_id.get(schema_id)
+        if not versions:
             raise SchemaError(f"unknown schema: {schema_id}")
-        if len(matches) != 1:
+        if len(versions) != 1:
             raise SchemaError(f"schema version required: {schema_id}")
-        return matches[0]
+        return next(iter(versions.values()))
 
     def validate(
         self,
@@ -312,7 +322,7 @@ class SchemaRegistry:
         Returns:
             Whether the registry contains the identifier.
         """
-        return any(candidate_id == schema_id for candidate_id, _ in self._schemas)
+        return schema_id in self._schemas_by_id
 
 
 def authority_schema_registry(root: Path) -> SchemaRegistry:
@@ -327,7 +337,11 @@ def authority_schema_registry(root: Path) -> SchemaRegistry:
     Raises:
         SchemaError: If any schema is invalid or a required schema is absent.
     """
-    registry = SchemaRegistry(root)
+    return require_authority_schemas(SchemaRegistry(root))
+
+
+def require_authority_schemas(registry: SchemaRegistry) -> SchemaRegistry:
+    """Require authority genesis and governed-operation schemas on one registry."""
     missing = sorted(schema_id for schema_id in _AUTHORITY_SCHEMA_IDS if not registry.contains(schema_id))
     if missing:
         raise SchemaError(f"authority schema registry is incomplete: {', '.join(missing)}")
@@ -360,12 +374,17 @@ def cached_schema_registry(root: Path | str) -> SchemaRegistry:
     return _registry_for_resolved_root(Path(root).resolve())
 
 
-def runtime_schema_registry(root: Path | str) -> SchemaRegistry:
-    """Load the catalogue with the explicitly accepted runtime bindings."""
+@lru_cache(maxsize=8)
+def _runtime_registry_for_resolved_root(root: Path) -> SchemaRegistry:
     return SchemaRegistry(
-        Path(root).resolve(),
+        root,
         active_bindings=_RUNTIME_BINDINGS,
     )
+
+
+def runtime_schema_registry(root: Path | str) -> SchemaRegistry:
+    """Load the catalogue with the explicitly accepted runtime bindings."""
+    return _runtime_registry_for_resolved_root(Path(root).resolve())
 
 
 @lru_cache(maxsize=1)

@@ -11,7 +11,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError
 from research_system.ids import new_id, validate_id
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaBinding, SchemaRegistry
 
 _PROTECTED_FIELDS = frozenset(
     {
@@ -224,6 +224,41 @@ class EventLedger:
         )
         return self._snapshot
 
+    def _validate_event_schema(
+        self,
+        validation_payload: dict[str, Any],
+        *,
+        t2_event: bool,
+        event_type: str,
+        event_schema: str,
+        event_schema_version: str,
+        event_binding: SchemaBinding | None,
+    ) -> None:
+        schemas = self.schemas
+        if schemas is None:
+            raise ArsError("event append requires an explicit SchemaRegistry")
+        if t2_event:
+            schemas.validate(
+                event_schema,
+                validation_payload,
+                schema_version=event_schema_version,
+            )
+            return
+        if event_type == "ReleaseGateDecisionPublished":
+            schemas.validate(
+                event_schema,
+                validation_payload,
+                schema_version=event_schema_version,
+            )
+            return
+        schemas.validate("ars://core/event", validation_payload)
+        if event_binding is not None:
+            schemas.validate_active(
+                event_binding.schema_id,
+                validation_payload,
+                schema_version=event_binding.schema_version,
+            )
+
     def append(
         self,
         proposed_events: Iterable[Mapping[str, Any] | EventDraft],
@@ -354,39 +389,23 @@ class EventLedger:
                 and event_schema != "ars://core/event"
             ):
                 raise ArsError(f"inactive event schema: {event_schema} version {event_schema_version}")
-            if t2_event:
-                self.schemas.validate(
-                    event_schema,
-                    prehash,
-                    schema_version=event_schema_version,
-                )
-            else:
-                self.schemas.validate("ars://core/event", prehash)
-                if event_type == "ReleaseGateDecisionPublished":
-                    self.schemas.validate(event_schema, prehash)
-                elif event_binding is not None:
-                    self.schemas.validate_active(
-                        event_binding.schema_id,
-                        prehash,
-                        schema_version=event_binding.schema_version,
-                    )
+            self._validate_event_schema(
+                prehash,
+                t2_event=t2_event,
+                event_type=event_type,
+                event_schema=event_schema,
+                event_schema_version=event_schema_version,
+                event_binding=event_binding,
+            )
             event["event_hash"] = sha256_hex(canonical_bytes(event))
-            if t2_event:
-                self.schemas.validate(
-                    event_schema,
-                    event,
-                    schema_version=event_schema_version,
-                )
-            else:
-                self.schemas.validate("ars://core/event", event)
-                if event_type == "ReleaseGateDecisionPublished":
-                    self.schemas.validate(event_schema, event)
-                elif event_binding is not None:
-                    self.schemas.validate_active(
-                        event_binding.schema_id,
-                        event,
-                        schema_version=event_binding.schema_version,
-                    )
+            self._validate_event_schema(
+                event,
+                t2_event=t2_event,
+                event_type=event_type,
+                event_schema=event_schema,
+                event_schema_version=event_schema_version,
+                event_binding=event_binding,
+            )
             previous_hash = event["event_hash"]
             events.append(event)
         date_root = self.events_root / f"{recorded_at.year:04d}" / f"{recorded_at.month:02d}"

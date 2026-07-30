@@ -388,23 +388,22 @@ def replay(
                         event,
                         schema_version=str(event.get("schema_version", "")),
                     )
-                else:
-                    schema_registry.validate("ars://core/event", event)
-                if release_event:
+                elif release_event:
                     schema_registry.validate(
                         "ars://core/event/ReleaseGateDecisionPublished",
                         event,
+                        schema_version=str(event.get("schema_version", "")),
                     )
-                elif not t2_event:
+                else:
+                    schema_registry.validate("ars://core/event", event)
                     recorded_event_schema = str(event.get("schema_id", ""))
+                    payload_schema = f"{recorded_event_schema}/payload"
                     if recorded_event_schema != "ars://core/event" and schema_registry.contains(recorded_event_schema):
                         schema_registry.validate(
                             recorded_event_schema,
                             event,
                             schema_version=str(event.get("schema_version", "")),
                         )
-                    else:
-                        payload_schema = f"{recorded_event_schema}/payload"
                     if (
                         recorded_event_schema != "ars://core/event"
                         and not schema_registry.contains(recorded_event_schema)

@@ -955,7 +955,8 @@ class CommandService:
             raise ArsError(f"unsupported command type: {command_type}")
         event_binding = self.schemas.event_binding(event_type)
         event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
-        if event_type == "ReleaseGateDecisionPublished":
+        event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
+        if event_type == "ReleaseGateDecisionPublished" and event_binding is None:
             event_schema_id = "ars://core/event/ReleaseGateDecisionPublished"
         envelope = {
             "event_type": event_type,
@@ -972,7 +973,7 @@ class CommandService:
             "correlation_id": command.envelope["correlation_id"],
             "causation_id": command.envelope["causation_id"],
             "schema_id": event_schema_id,
-            "schema_version": "1.0.0",
+            "schema_version": event_schema_version,
             "occurred_at": None,
         }
         return envelope if payload is None else {**envelope, "payload": payload}

@@ -18,7 +18,8 @@ from research_system.schema_registry import (
 )
 
 
-SCHEMAS = Path(".research-system/schemas")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SCHEMAS = REPO_ROOT / ".research-system" / "schemas"
 UUID7 = "01978abc-0001-7000-8000-000000000001"
 
 # Instances chosen to separate "does not apply" from "applies and fails".
@@ -294,6 +295,10 @@ def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
     }
     expected_events = {
         "TaskCreated": ("ars://core/event/TaskCreated", "1.0.0"),
+        "ReleaseGateDecisionPublished": (
+            "ars://core/event/ReleaseGateDecisionPublished",
+            "1.1.0",
+        ),
         "CostGrantIssued": ("ars://wp6-2/t2/event/CostGrantIssued", "1.1.0"),
         "CostGrantReserved": ("ars://wp6-2/t2/event/CostGrantReserved", "1.1.0"),
         "ProviderCommandIssued": ("ars://wp6-2/t2/event/ProviderCommandIssued", "1.1.0"),
@@ -317,6 +322,38 @@ def test_runtime_bindings_activate_only_create_task_and_t2_verticals():
     } == expected_events
     assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
     assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
+
+
+def test_runtime_registry_reuses_one_instance_for_resolved_root_aliases():
+    registry = runtime_schema_registry(SCHEMAS)
+
+    assert runtime_schema_registry(str(SCHEMAS)) is registry
+    assert registry.requires_command_provenance
+    assert registry.command_binding("CreateTask") == SchemaBinding(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+        command_type="CreateTask",
+    )
+
+
+def test_schema_id_index_avoids_catalogue_scan_for_contains_and_unversioned_resolution():
+    class IterationForbiddenDict(dict):
+        def __iter__(self):
+            raise AssertionError("schema catalogue was scanned")
+
+        def items(self):
+            raise AssertionError("schema catalogue was scanned")
+
+    registry = SchemaRegistry(SCHEMAS)
+    registry._schemas = IterationForbiddenDict(registry._schemas)
+
+    assert registry.contains("ars://core/command")
+    registry.validate("ars://core/command", _command_payload())
+    with pytest.raises(SchemaError, match="schema version required"):
+        registry.validate(
+            "ars://wp6-2/t2/event/CostGrantIssued",
+            {"schema_version": "1.1.0"},
+        )
 
 
 def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
@@ -431,6 +468,7 @@ def test_every_core_schema_declares_closed_object_contract():
         "receipt.schema.json",
         "receipt-v2.schema.json",
         "release-gate-decision-published.schema.json",
+        "release-gate-decision-published.v1-1.schema.json",
         "revoke-authority-grant.schema.json",
         "store-identity-1.1.schema.json",
         "task.schema.json",

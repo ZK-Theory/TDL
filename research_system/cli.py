@@ -47,7 +47,7 @@ from research_system.evals.retention_authorizer import (
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import (
     SchemaRegistry,
-    authority_schema_registry,
+    require_authority_schemas,
     runtime_schema_registry,
 )
 from research_system.store.identity import load_store_manifest, manifest_schema_root
@@ -299,8 +299,8 @@ def _schemas_for_store_manifest(
         if not persisted.is_dir():
             raise ConfigurationError("store manifest schema root is missing")
         try:
-            authority_schema_registry(persisted)
-            return runtime_schema_registry(persisted)
+            registry = runtime_schema_registry(persisted)
+            return require_authority_schemas(registry)
         except ArsError as exc:
             raise ConfigurationError("store manifest schema root is unusable") from exc
     candidates = [Path(root) / ".research-system" / "schemas" for root in manifest.get("code_roots", [])]
@@ -314,8 +314,8 @@ def _schemas_for_store_manifest(
     unique = sorted(set(existing), key=str)
     if len(unique) != 1:
         raise ConfigurationError("store manifest has ambiguous schema roots")
-    authority_schema_registry(unique[0])
-    return runtime_schema_registry(unique[0])
+    registry = runtime_schema_registry(unique[0])
+    return require_authority_schemas(registry)
 
 
 def _rederive_bound_decision(
