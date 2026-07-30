@@ -3,10 +3,10 @@
 > **For the implementing Worker:** use contract-first-tdd,
 > schema-contract-design, research-assurance-triage, and
 > executing-plans-extras. Read accepted W3 sections 9-12, 14-16 and 19, W2
-> command/event rules, RR-M4, and PR198-F2/F4 from the PR #198 pre-merge
-> review before starting.
+> command/event rules, RR-M4, PR198-F2/F4 from the PR #198 pre-merge review,
+> and PR198-RR1 from the independent `8e091a1` pre-merge rereview.
 
-**Status:** REVISED 2026-07-30 (suite revision 4). The exact-subject runtime has
+**Status:** REVISED 2026-07-30 (suite revision 4; PR198-RR1 amendment). The exact-subject runtime has
 `ContextCandidate`, `compile_candidate`, `SourceResolver`, and token gates, but
 no authoritative packet object, lifecycle writer, delivery record, or
 acceptance resolver. Bounded candidate authoring is blocked on accepted 06h and
@@ -93,6 +93,8 @@ research_system/context/service.py
 tests/research_system/contracts/test_context_packet_materialization.py
 tests/research_system/integration/test_context_packet_lifecycle.py
 tests/research_system/integration/test_context_packet_resolution.py
+tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py
+tests/research_system/unit/test_context_packet_w4_w7_boundary.py
 ~~~
 
 **Modify:**
@@ -102,9 +104,18 @@ accepted WP6.1 owner catalogue/materializer sources named by G-RM-12
 research_system/context/models.py
 research_system/context/compiler.py
 research_system/context/sources.py
+research_system/routing/orchestrator.py
+research_system/routing/engine.py
+research_system/operations/coordinator.py
+research_system/adapters/provider.py
 research_system/command/service.py
 research_system/projection/replay.py
 research_system/cli.py
+tests/research_system/integration/test_context_routing_fixtures.py
+tests/research_system/integration/test_context_routing_fixture_corpus.py
+tests/research_system/integration/test_adapter_operations_fixtures.py
+tests/research_system/unit/test_routing_engine.py
+tests/research_system/unit/test_routing_orchestrator.py
 ~~~
 
 No `ars://methods/event/**` family is created. Stage B materializes every
@@ -115,6 +126,13 @@ table, authority scopes, command/event schemas and object schemas against their
 bound candidate SHA-256 values before registration or use. Core schema
 materialization is allowed only inside this plan after G-RM-12, not by RM-03.
 
+The Stage B boundary inventories every first-party caller of `plan_dispatch`,
+`select_route`, provider `revalidate`, `validate_wrapper_accounting`, and
+`issue_prepared_dispatch`. A compiled packet may enter W4/W7 only through the
+context lifecycle service. The structural test rejects any direct compiled-
+packet path, returned route-failure dictionary, or pre-command revalidation
+exception that bypasses that service.
+
 ## Packet authority contract
 
 `ContextPacketManifest` contains every accepted W3 section 9.2 field:
@@ -124,7 +142,14 @@ identity and source position/hash, both token gates, candidate-set digest,
 included/omitted/conflict entries, freshness/security/independence evidence,
 delivery refs, currency triggers, retention, and supersession lineage.
 
-The compiler:
+`ValidateContextPacket` binds the immutable W4 `RouteDecision` and verifier-
+route witness plus the exact W7 selected-route revalidation evidence: provider/
+adapter/capability/parity identities, rendered hash, exact or accepted upper-
+bound count, wrapper/system reserve, both token gates, policy and currentness.
+`FailContextPacket` binds the exact packet revision/hash, lifecycle phase,
+failure code, route request/decision when present, and W7 evidence identities.
+
+The context lifecycle service:
 
 1. submits `RequestContextPacket` before source resolution and receives the
    stable request/context identity;
@@ -135,12 +160,22 @@ The compiler:
    gate;
 4. writes immutable packet/manifest objects and submits
    `CompleteContextCompilation`;
-5. exposes the compiled, unissued candidate to W4/W7 only for evaluated routing
-   and bound-provider counting, then submits `ValidateContextPacket` only after
-   the provider-capacity, manifest, security and independence checks pass; and
-6. submits `FailContextPacket` from requested, compiling or compiled on any
-   source, conflict, security, token, rendering, provider-capacity, manifest or
-   independence failure.
+5. passes the compiled, unissued packet into W4 `plan_dispatch`, records the
+   route decision and verifier-route witness, and converts candidate-capacity,
+   no-eligible-route, packet/manifest, security or independence rejection into
+   `FailContextPacket` while the packet is still `compiled`;
+6. invokes a split, non-issuing W7 coordinator seam to revalidate the selected
+   route, rendered hash, exact or accepted upper-bound provider count, wrapper/
+   system reserve, policy, parity and currentness; it converts every rejection
+   or exception into `FailContextPacket` from `compiled`;
+7. after successful W7 revalidation, pre-resolves the exact issue grant,
+   expected version and idempotency under the lifecycle writer lock, then
+   submits `ValidateContextPacket` and `IssueContextPacket` without releasing
+   that lock or performing another external or fallible W3/W4/W7 check. A crash
+   after validation resumes the exact issue command idempotently; and
+8. hands only the issued packet and revalidated dispatch downstream to W8
+   grant/lease and provider issue. Existing direct W4 failure returns and W7
+   pre-command raises are not public lifecycle outcomes.
 
 The producer cannot issue its own candidate. Validation binds independent
 source/current-snapshot evidence; issuance requires an exact authority grant;
@@ -160,13 +195,18 @@ or caller assertions never select state.
 - `requested -> compiling -> compiled -> validated -> issued -> delivered`;
 - `requested|compiling|compiled -> failed`;
 - `issued|delivered -> expired|superseded`;
+- `ValidateContextPacket` is legal only after the recorded W4 decision/witness
+  and successful selected-route W7 revalidation identities are bound;
+- no fallible W3/W4/W7 validation is legal after `validated`; the same locked
+  boundary issues the packet, and crash recovery retries that exact issue;
 - no reverse transition; no in-place revision; changed bytes create a new
   revision/object;
 - missing mandatory source, unsafe source, unresolved governing conflict,
   token-gate failure, unverifiable freshness, rendering failure, insufficient
-  provider capacity, packet/manifest mismatch, wrong delivery hash, or
-  independence failure emits an attributable failed state and no
-  issued/delivered state;
+  provider capacity, no eligible route, accounting unavailable, wrapper
+  accounting missing/invalid/overflow, packet/manifest mismatch, rendered-hash
+  drift, policy/parity/currentness drift or independence failure emits one
+  attributable failed state and no validated/issued/delivered state;
 - discovering an incomplete issued base supersedes/fails it and requires a new
   complete packet; an addendum cannot repair it.
 
@@ -179,11 +219,14 @@ token gate; wrong role/risk/purpose/scope; wrong packet revision/hash; delivery
 recipient/session/adapter/hash mismatch; changed currency source position;
 addendum against failed base; duplicate/reordered lineage; non-idempotent retry;
 direct ledger append; missing reducer; genesis/incremental replay equality;
-failure before source resolution; failure during compiling; provider-capacity
-failure after compiled; packet/manifest mismatch after compiled; an attributable
-`ContextPacketFailed` replay record for each validation-precondition rejection;
-retry of every failed phase; and the distinguishing absence of a request for a
-never-requested packet.
+failure before source resolution; failure during compiling; W4 candidate-
+capacity rejection; no eligible route; accounting unavailable; wrapper
+accounting missing, invalid or overflowing; packet/manifest mismatch; rendered-
+hash drift; policy/parity/currentness drift; and an attributable
+`ContextPacketFailed` replay record for each production-seam rejection. Each
+case asserts no validated/issued/delivered state, genesis/incremental replay
+equality, exact failure-evidence bindings, idempotent retry, and the
+distinguishing absence of a request for a never-requested packet.
 
 The exact-subject W3 fixtures F-025 through F-030 remain the semantic oracle.
 Schema tests alone are not closure.
@@ -199,32 +242,43 @@ Schema tests alone are not closure.
 2. **Immutable producer.** Extend the current compiler; command-write requested
    and compiling before fallible work, store exact rendered bytes/manifest, and
    command-write compiled or failed.
-3. **Lifecycle authority.** Implement validation, issuance, delivery, expiry,
+3. **W4/W7 lifecycle boundary.** Make the context lifecycle service the only
+   compiled-packet orchestrator. Split W7 revalidation from downstream issue,
+   bind the W4 decision/witness and W7 evidence, translate every production-
+   seam rejection into `FailContextPacket`, and perform validate/issue under
+   one writer lock with all issue preconditions resolved first.
+4. **Call-graph firewall.** Inventory and structurally reject direct compiled-
+   packet calls to routing, accounting, revalidation or issue seams outside the
+   lifecycle service; ordinary failure dictionaries/exceptions cannot be final
+   lifecycle outcomes.
+5. **Lifecycle authority.** Implement validation, issuance, delivery, expiry,
    failure from every W3-permitted phase, supersession, idempotency and pure
    reducers.
-4. **Resolver.** Implement the only public consumption interface with
+6. **Resolver.** Implement the only public consumption interface with
    load/consumption revalidation.
-5. **CLI.** Add bounded
+7. **CLI.** Add bounded
    request/begin-compilation/complete-compilation/validate/issue/deliver/fail/
    expire/supersede operations. A high-level compile operation may orchestrate
    the first three but cannot omit their receipts. Every lifecycle write
    submits its named command; no direct append/object mutation.
-6. **Adversarial corpus.** Prove CLI reachability for all nine lifecycle
-   commands, including pre-registration `fail`, successful `expire`,
-   invalid-state rejection, idempotent retry, and genesis/incremental replay.
-   Run all required controls through production
-   producer/resolver call sites, including F-025-F-030.
+8. **Adversarial corpus.** Prove CLI reachability for all nine lifecycle
+   commands and run every W4/W7 negative through the production routing/
+   coordinator/adapter seams, including F-025-F-030. Prove invalid-state
+   rejection, exact failure bindings, idempotent retry, genesis/incremental
+   replay equality and the direct-call firewall.
 
 ## Validation and close-out
 
 ~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/contracts/test_context_packet_materialization.py tests/research_system/integration/test_context_packet_lifecycle.py tests/research_system/integration/test_context_packet_resolution.py tests/research_system/integration/test_context_routing_fixtures.py tests/research_system/integration/test_context_routing_fixture_corpus.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/contracts/test_context_packet_materialization.py tests/research_system/integration/test_context_packet_lifecycle.py tests/research_system/integration/test_context_packet_resolution.py tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py tests/research_system/unit/test_context_packet_w4_w7_boundary.py tests/research_system/integration/test_context_routing_fixtures.py tests/research_system/integration/test_context_routing_fixture_corpus.py tests/research_system/integration/test_adapter_operations_fixtures.py tests/research_system/unit/test_routing_engine.py tests/research_system/unit/test_routing_orchestrator.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync ruff check research_system/context research_system/command research_system/projection
 ~~~
 
 Run the full `tests/research_system` tree once at final head because core
 command/replay/schema surfaces change. Record exact schema identities, catalogue
-rows, CLI reachability and transition coverage for all nine commands,
+rows, CLI reachability and transition coverage for all nine commands, the
+complete W4/W7 caller inventory, route-decision/witness and revalidation
+bindings, direct-call firewall, production-seam failure/replay outcomes,
 producer/resolver call sites, F-025-F-030 outcomes, and negative-control
 liveness. If RM-01's append-path smoke gate already exists on current `main`,
 add all nine families and run the registry-to-smoke-manifest completeness check
