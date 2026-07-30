@@ -10,8 +10,8 @@
 > proved the previous approach could not be executed.
 
 **Status:** PROPOSED — **main-path WP6.1 work, not RM lane work.** Dispatch
-blocked on owner gates G-RM-8, G-RM-9, G-RM-10 (rm-00 §3) and on an independent
-adversarial review of this plan.
+blocked on G-RM-3 (which closes only through a fresh independent adversarial
+review of this plan) and owner gates G-RM-8, G-RM-9, G-RM-10 (rm-00 §3).
 **Created:** 2026-07-29
 **Supersedes:** RM-01 Task A (the producer-emits repair), which this plan
 absorbs. RM-01 retains only suite recovery.
@@ -209,9 +209,11 @@ uv run --no-sync python -m pytest -q tests/research_system/unit/test_schema_regi
   (`schema_id`, `schema_version`, `source_path`, `raw_bytes`,
   `raw_bytes_sha256`, `parsed`). Read bytes once; parse from those exact bytes;
   digest those exact bytes. Store the record in `_schemas`. `validate()`
-  resolves the record and validates against `record.parsed`. `contains()`
-  unchanged in behaviour. Keep the existing `lru_cache` sharing semantics —
-  measure the memory delta across the full schema tree and record it in the PR.
+  resolves the record, validates against `record.parsed`, and returns that same
+  `RegisteredSchema` instance on success so the caller cannot perform a second
+  lookup or re-read before deriving provenance. `contains()` is unchanged in
+  behaviour. Keep the existing `lru_cache` sharing semantics — measure the
+  memory delta across the full schema tree and record it in the PR.
 - [ ] **Step 4 — Negative controls.** (a) mutate the schema file on disk after
   construction → digest and validation behaviour unchanged (TOCTOU); (b) a
   registry built over a tree containing a byte-identical duplicate `$id` still
@@ -235,10 +237,18 @@ uv run --no-sync python -m pytest -q tests/research_system/unit/test_schema_regi
   `main` with the three-required-properties error quoted in handoff 26. A
   collection error is not the required red.
 - [ ] **Step 2 — Run red** (worktree venv provisioned per Global constraints).
-- [ ] **Step 3 — Implement minimally.** Derive the triple at submit time from
-  the `RegisteredSchema` used for command validation. Sweep every
-  event-producing call site (`grep -rn "ledger.append"` plus any event-factory
-  helpers) and route all of them through the single derivation point. Do not
+- [ ] **Step 3 — Implement minimally.** Introduce one
+  `CommandService.validate_command(envelope) -> RegisteredSchema` derivation
+  point. Resolve the **command-specific** schema from `command_type`: core
+  commands map to `ars://core/command/{command_type}` and T2 commands use the
+  accepted T2 command-identity mapping. The generic `ars://core/command` schema
+  may remain a base-envelope check, but its identity is never emitted as the
+  provenance of a command-specific validation. Fail closed if the mapping or
+  registered schema is absent. Have `validate_command()` return the exact
+  instance returned by `SchemaRegistry.validate()` and derive the triple at
+  submit time from that record. Sweep every event-producing call site
+  (`grep -rn "ledger.append"` plus any event-factory helpers) and route every
+  command-originated append through this single derivation point; do not
   special-case event types. Where a producer legitimately has no originating
   command (internal/system appends), do **not** fabricate command provenance —
   report the path and its correct disposition in the PR; inventing a false
@@ -308,8 +318,9 @@ uv run --no-sync ruff check research_system
 
   The full `tests/research_system` tree runs **once**, at the final exact head,
   as RM-01 Task B's delta run — not per task (handoff 28: ~1:13 h).
-- Update the WP6.1 row in `docs/plans/agentic-research-system/README.md` in the
-  same PR (H-11).
+- Update the WP6.1 row in
+  `docs/plans/agentic-research-system/implementation/README.md` in the same PR
+  (H-11).
 - Vault: top-of-page `[PIPELINE]` entry in `04-Methods/Pipeline-Overview.md`
   naming P-043, the registry interface, the artefact seam, and the G-RM-8
   decision as taken. No Computational-Log entry (no numerical result).
