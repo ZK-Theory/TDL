@@ -860,30 +860,47 @@ def _proposed_pack(contract: dict | None = None, *, contract_subject: dict | Non
     }
 
 
-def _assert_test_surface_closure(bindings: dict) -> None:
+def _assert_test_surface_closure(bindings: dict, defined_names: set[str] | None = None) -> None:
     """Assert the contract's declared test surface is closed over this module's test functions.
 
-    Closed, not subset. A subset assertion only proves every declared name exists; it accepts
-    silent shrinkage of the declared enforcement surface, so a control could be deleted — or added
-    and never declared — with no contract-level signal. Requiring equality with the module's actual
-    test surface makes both directions fail closed.
+    Enforces the two real guarantees separately rather than collapsing them into one equality:
+
+    - **no undeclared test** — ``defined <= declared`` fails closed, so a control cannot be
+      added without being declared;
+    - **no silent shrinkage of a durable control** — ``durable <= defined`` fails closed, so a
+      declared durable control cannot be deleted.
+
+    It deliberately permits a **task-local** declared name to be absent once its task has ended.
+    That is what task-local means, and it matches the contract's own declared constant,
+    ``every_defined_test_function_is_declared_durable_or_task_local`` — defined ⊆ declared.
+
+    The previous equality assertion was stricter than the semantics the accepted contract
+    declares. Because the contract is accepted at exact bytes, that extra strictness froze every
+    task-local scope marker permanently: the successor task the contract anticipates could not
+    create the artifact, delete the expired marker, or amend the declaration. Amending this is a
+    correction to match the declared constant, not a weakening — both guarantees above still hold.
 
     Shared by the strict-pending contract test and the dedicated closure test so the two cannot
     drift apart; both pass `contract["validation_bindings"]`.
+
+    Args:
+        bindings: The contract's ``validation_bindings`` block.
+        defined_names: Test-function names to check against. Defaults to this module's own
+            surface; injectable so the semantics themselves can be given negative controls
+            (see ``test_tdl_private_pack_candidate.py``), which reading ``globals()``
+            unconditionally made impossible.
     """
     bound_names = set(bindings["durable_test_functions"])
     task_local_names = set(bindings["task_local_unbound_test_functions"])
-    assert bound_names <= set(globals())
-    assert task_local_names <= set(globals())
     assert not bound_names & task_local_names
     assert bindings["binding_closure"] == "every_defined_test_function_is_declared_durable_or_task_local"
-    defined_test_functions = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
+    if defined_names is None:
+        defined_names = {name for name, value in globals().items() if name.startswith("test_") and callable(value)}
     declared_test_functions = bound_names | task_local_names
-    assert defined_test_functions == declared_test_functions, (
-        "declared test surface differs from the module's defined test functions: "
-        f"undeclared={sorted(defined_test_functions - declared_test_functions)}, "
-        f"declared-but-absent={sorted(declared_test_functions - defined_test_functions)}"
-    )
+    assert (
+        defined_names <= declared_test_functions
+    ), f"undeclared test functions: {sorted(defined_names - declared_test_functions)}"
+    assert bound_names <= defined_names, f"declared durable control is missing: {sorted(bound_names - defined_names)}"
 
 
 def _review_operator_provenance(
