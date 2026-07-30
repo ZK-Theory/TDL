@@ -70,11 +70,21 @@ class SchemaBinding:
 
     schema_id: str
     schema_version: str
+    command_type: str | None = None
+    event_type: str | None = None
 
 
 _RUNTIME_BINDINGS = (
-    SchemaBinding("ars://core/command/CreateTask", "1.0.0"),
-    SchemaBinding("ars://core/event/TaskCreated", "1.0.0"),
+    SchemaBinding(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+        command_type="CreateTask",
+    ),
+    SchemaBinding(
+        "ars://core/event/TaskCreated",
+        "1.0.0",
+        event_type="TaskCreated",
+    ),
 )
 
 
@@ -130,8 +140,18 @@ class SchemaRegistry:
             )
             self._schemas[key] = _CatalogueEntry(identity, schema)
         self._active_bindings = frozenset(active_bindings)
+        self._command_bindings: dict[str, SchemaBinding] = {}
+        self._event_bindings: dict[str, SchemaBinding] = {}
         for binding in self._active_bindings:
             self._resolve(binding.schema_id, binding.schema_version)
+            if binding.command_type is not None:
+                if binding.command_type in self._command_bindings:
+                    raise SchemaError(f"duplicate command binding: {binding.command_type}")
+                self._command_bindings[binding.command_type] = binding
+            if binding.event_type is not None:
+                if binding.event_type in self._event_bindings:
+                    raise SchemaError(f"duplicate event binding: {binding.event_type}")
+                self._event_bindings[binding.event_type] = binding
 
     def _resolve(
         self,
@@ -207,7 +227,23 @@ class SchemaRegistry:
 
     def is_active(self, schema_id: str, schema_version: str) -> bool:
         """Return whether the exact version has an explicit runtime binding."""
-        return SchemaBinding(schema_id, schema_version) in self._active_bindings
+        return any(
+            binding.schema_id == schema_id and binding.schema_version == schema_version
+            for binding in self._active_bindings
+        )
+
+    @property
+    def requires_command_provenance(self) -> bool:
+        """Return whether this registry is enforcing explicit runtime bindings."""
+        return bool(self._active_bindings)
+
+    def command_binding(self, command_type: str) -> SchemaBinding | None:
+        """Return the active schema selected by a trusted command discriminator."""
+        return self._command_bindings.get(command_type)
+
+    def event_binding(self, event_type: str) -> SchemaBinding | None:
+        """Return the active schema selected by a trusted event discriminator."""
+        return self._event_bindings.get(event_type)
 
     def validate_active(
         self,

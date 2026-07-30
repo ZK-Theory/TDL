@@ -335,7 +335,10 @@ def replay(
     events: Iterable[dict[str, Any]],
     supported_major: int = 1,
     schema_registry: SchemaRegistry | None = None,
+    legacy_command_provenance_through_position: int = 0,
 ) -> dict[str, Any]:
+    if legacy_command_provenance_through_position < 0:
+        raise ValueError("legacy command provenance position must be non-negative")
     state: dict[str, Any] = {
         "streams": {},
         "last_position": 0,
@@ -354,15 +357,21 @@ def replay(
         t2_event = str(event.get("schema_id", "")).startswith("ars://wp6-2/t2/event/")
         if release_event and schema_registry is None:
             raise IntegrityError("release event schema validator unavailable")
+        provenance_fields = {
+            "command_schema_id",
+            "command_schema_version",
+            "command_schema_sha256",
+        }
+        recorded_provenance = provenance_fields.intersection(event)
+        if recorded_provenance and recorded_provenance != provenance_fields:
+            raise IntegrityError(f"incomplete command schema identity at {position}")
+        if (
+            schema_registry is not None
+            and not recorded_provenance
+            and (not isinstance(position, int) or position > legacy_command_provenance_through_position)
+        ):
+            raise IntegrityError(f"missing command schema identity at {position}")
         if schema_registry is not None:
-            provenance_fields = {
-                "command_schema_id",
-                "command_schema_version",
-                "command_schema_sha256",
-            }
-            recorded_provenance = provenance_fields.intersection(event)
-            if recorded_provenance and recorded_provenance != provenance_fields:
-                raise IntegrityError(f"incomplete command schema identity at {position}")
             if recorded_provenance:
                 try:
                     schema_registry.resolve_identity(
@@ -382,22 +391,21 @@ def replay(
                         "ars://core/event/ReleaseGateDecisionPublished",
                         event,
                     )
-                elif (
-                    recorded_provenance
-                    and not t2_event
-                    and schema_registry.is_active(
-                        str(event.get("schema_id", "")),
-                        str(event.get("schema_version", "")),
-                    )
-                ):
-                    schema_registry.validate_active(
-                        event["schema_id"],
-                        event,
-                        schema_version=event["schema_version"],
-                    )
                 elif not t2_event:
-                    payload_schema = f"{event.get('schema_id')}/payload"
-                    if schema_registry.contains(payload_schema):
+                    recorded_event_schema = str(event.get("schema_id", ""))
+                    if recorded_event_schema != "ars://core/event" and schema_registry.contains(recorded_event_schema):
+                        schema_registry.validate(
+                            recorded_event_schema,
+                            event,
+                            schema_version=str(event.get("schema_version", "")),
+                        )
+                    else:
+                        payload_schema = f"{recorded_event_schema}/payload"
+                    if (
+                        recorded_event_schema != "ars://core/event"
+                        and not schema_registry.contains(recorded_event_schema)
+                        and schema_registry.contains(payload_schema)
+                    ):
                         schema_registry.validate(payload_schema, event.get("payload"))
             except SchemaError as exc:
                 raise IntegrityError(f"event schema validation failed at {position}") from exc
@@ -405,7 +413,9 @@ def replay(
             raise IntegrityError(f"unsupported major at {position}")
         schema_id = event.get("schema_id")
         if not isinstance(schema_id, str) or not (
-            schema_id.startswith("ars://core/event/") or schema_id.startswith("ars://wp6-2/t2/event/")
+            schema_id == "ars://core/event"
+            or schema_id.startswith("ars://core/event/")
+            or schema_id.startswith("ars://wp6-2/t2/event/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from research_system.schema_registry import bundled_schema_registry
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.schema_registry import runtime_schema_registry
 
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -77,6 +79,58 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
 }
 
 
+def _create_task_payload(
+    task_id: str,
+    title: str,
+    *,
+    project_id: str,
+    actor_id: str,
+) -> dict[str, Any]:
+    """Build the complete frozen WP6.1 task definition for synthetic fixtures."""
+    definition: dict[str, Any] = {
+        "task_id": task_id,
+        "revision": 1,
+        "aliases": [],
+        "project_id": project_id,
+        "portfolio_refs": [],
+        "scope_refs": [],
+        "title": title,
+        "objective": f"Complete {title}",
+        "bounded_scope": "Synthetic Gate 5 release-tranche scope",
+        "non_goals": [],
+        "dependencies": [],
+        "governing_design_refs": ["ars://design/synthetic-gate5"],
+        "risk_tier_request": "R1",
+        "assurance_lanes": ["output-provenance"],
+        "machine_checks": ["frozen-schema-validation"],
+        "human_questions": ["Is the synthetic task definition suitable?"],
+        "independent_review_requirements": ["review exact synthetic fixture"],
+        "expected_artefact_types": ["test-result"],
+        "acceptance_criteria": ["command and event schemas validate"],
+        "partial_criteria": ["report any schema mismatch"],
+        "prohibited_shortcuts": ["do not relax frozen schemas"],
+        "root_binding_requirements": [],
+        "concurrency_mode": "exclusive",
+        "resource_policy_ref": "ars://resource-policy/synthetic",
+        "checkpoint_expectation": "No checkpoint required",
+        "dispatch_authority": "synthetic-owner",
+        "amend_authority": "synthetic-owner",
+        "cancel_authority": "synthetic-owner",
+        "review_authority": "synthetic-reviewer",
+        "accept_authority": "synthetic-owner",
+        "reopen_authority": "synthetic-owner",
+        "supersede_authority": "synthetic-owner",
+        "creator_actor_id": actor_id,
+        "created_at": "2026-07-11T00:00:00Z",
+        "source_import_refs": [],
+    }
+    definition["content_sha256"] = sha256_hex(canonical_bytes(definition))
+    return {
+        "new_task_id": task_id,
+        "definition": definition,
+    }
+
+
 def _execute(fixture_id: str, subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Return evidence derived from the selected synthetic control path."""
     if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
@@ -88,15 +142,12 @@ def _execute(fixture_id: str, subject: str, payload: dict[str, Any]) -> dict[str
 def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Exercise moved-store authorization through the real command service."""
     import tempfile
-    from pathlib import Path
-
     from research_system.command.service import CommandService
     from research_system.errors import ArsError
     from research_system.operations.backups import (
         RestorePreflightResult,
         seal_restore_preflight_result,
     )
-    from research_system.schema_registry import SchemaRegistry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
     from research_system.store.receipts import ReceiptStore
@@ -109,12 +160,13 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory) / "moved-control"
         root.mkdir()
+        schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
         service = CommandService(
             root,
-            EventLedger(root, project_id, bundled_schema_registry()),
+            EventLedger(root, project_id, schemas),
             ObjectStore(root),
             ReceiptStore(root),
-            SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas"),
+            schemas,
         )
         failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
         preflight = seal_restore_preflight_result(
@@ -147,7 +199,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         command = {
             "command_id": "cmd_01978abc-5140-7000-8000-000000005140",
             "command_type": "CreateTask",
-            "schema_id": "ars://core/command",
+            "schema_id": "ars://core/command/CreateTask",
             "schema_version": "1.0.0",
             "submitted_at": "2026-07-11T00:00:00Z",
             "actor_id": actor_id,
@@ -160,7 +212,13 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "causation_id": None,
             "reason": "exercise S-014 restore authorization",
             "evidence_refs": [],
-            "payload": {"title": "S-014 synthetic restore"},
+            "payload": _create_task_payload(
+                "tsk_01978abc-5141-7000-8000-000000005141",
+                "S-014 synthetic restore",
+                project_id=project_id,
+                actor_id=actor_id,
+            ),
+            "project_id": project_id,
         }
         attempted = True
         try:
@@ -182,10 +240,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     if subject == "known_bad":
         return dict(_EVIDENCE["S-015"][0])
     import tempfile
-    from pathlib import Path
-
     from research_system.command.service import CommandService
-    from research_system.schema_registry import SchemaRegistry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
     from research_system.store.receipts import ReceiptStore
@@ -210,10 +265,11 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     ]
 
     def command(command_id: str, command_type: str, target: str, body: dict[str, Any]):
-        return {
+        exact_create = command_type == "CreateTask"
+        envelope = {
             "command_id": command_id,
             "command_type": command_type,
-            "schema_id": "ars://core/command",
+            "schema_id": ("ars://core/command/CreateTask" if exact_create else "ars://core/command"),
             "schema_version": "1.0.0",
             "submitted_at": "2026-07-11T00:00:00Z",
             "actor_id": actor_id,
@@ -226,8 +282,20 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "causation_id": None,
             "reason": "exercise S-015 supersession graph",
             "evidence_refs": [],
-            "payload": body,
+            "payload": (
+                _create_task_payload(
+                    target,
+                    str(body.get("title", "Synthetic task")),
+                    project_id=project_id,
+                    actor_id=actor_id,
+                )
+                if exact_create
+                else body
+            ),
         }
+        if exact_create:
+            envelope["project_id"] = project_id
+        return envelope
 
     def supersession(replacement: str) -> dict[str, Any]:
         return {
@@ -240,13 +308,14 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory) / "control"
         root.mkdir()
-        ledger = EventLedger(root, project_id, bundled_schema_registry())
+        schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
+        ledger = EventLedger(root, project_id, schemas)
         service = CommandService(
             root,
             ledger,
             ObjectStore(root),
             ReceiptStore(root),
-            SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas"),
+            schemas,
         )
         for index, task_id in enumerate(task_ids):
             service.submit(
@@ -264,17 +333,13 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         service.submit(command(command_ids[3], "SupersedeTask", task_ids[0], supersession(task_ids[1])))
         service.submit(command(command_ids[4], "SupersedeTask", task_ids[1], supersession(task_ids[2])))
         before = tuple(event.copy() for event in ledger.iter_events())
-        rejected = service.submit(
-            command(command_ids[5], "SupersedeTask", task_ids[2], supersession(task_ids[0]))
-        )
+        rejected = service.submit(command(command_ids[5], "SupersedeTask", task_ids[2], supersession(task_ids[0])))
         after = tuple(event.copy() for event in ledger.iter_events())
         return {
             "cycle_accepted": rejected.status == "accepted",
             "authority_unchanged": before == after,
             "rejection_reason": rejected.reason_code,
-            "rejected_receipt_count": len(
-                list(service.receipts.receipts_root.glob(f"{command_ids[5]}.json"))
-            ),
+            "rejected_receipt_count": len(list(service.receipts.receipts_root.glob(f"{command_ids[5]}.json"))),
         }
 
 
@@ -330,9 +395,7 @@ class _S016IssueAdapter:
         self.provider = ProviderAdapter(
             ["fake-provider"],
             transport,
-            operation_policy=default_provider_operation_policy(
-                live_provider_enabled=True
-            ),
+            operation_policy=default_provider_operation_policy(live_provider_enabled=True),
         )
         self.managed_content = ""
 
@@ -509,11 +572,7 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     pre_dispatch = select_route(request, candidates, PreDispatchOutageEvidence())
     pre_dispatch_trace = _S016CommandTrace()
     codes = sorted(
-        {
-            reason
-            for _candidate, failures in pre_dispatch["evaluated"]
-            for reason in failures
-        },
+        {reason for _candidate, failures in pre_dispatch["evaluated"] for reason in failures},
         key=REJECTION_ORDER.index,
     )
 
@@ -543,25 +602,12 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         trace,
     )
 
-    issue_events = [
-        event
-        for event in trace.events
-        if event.get("event_type") == "ProviderCommandIssued"
-    ]
-    fallback_events = [
-        event
-        for event in trace.events
-        if event.get("event_type") == "FallbackDispatchIssued"
-    ]
-    acceptance_events = [
-        event
-        for event in trace.events
-        if event.get("event_type") == "TaskAccepted"
-    ]
+    issue_events = [event for event in trace.events if event.get("event_type") == "ProviderCommandIssued"]
+    fallback_events = [event for event in trace.events if event.get("event_type") == "FallbackDispatchIssued"]
+    acceptance_events = [event for event in trace.events if event.get("event_type") == "TaskAccepted"]
     selected_profile = prepared.route["winner"].profile_id
     fallback_issued = bool(
-        fallback_events
-        or any(event.get("profile_id") != selected_profile for event in issue_events)
+        fallback_events or any(event.get("profile_id") != selected_profile for event in issue_events)
     )
     bindings_unchanged = (
         request_before == asdict(request)
@@ -570,33 +616,24 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         and provider_command.authorized
     )
     return {
-        "pre_dispatch_failure": (
-            "no_eligible_route" if pre_dispatch["kind"] == "failure" else None
-        ),
+        "pre_dispatch_failure": ("no_eligible_route" if pre_dispatch["kind"] == "failure" else None),
         "candidate_rejection_codes": codes,
-        "pre_dispatch_prepared_count": (
-            0 if pre_dispatch["kind"] == "failure" else 1
-        ),
+        "pre_dispatch_prepared_count": (0 if pre_dispatch["kind"] == "failure" else 1),
         "issue_time_prepared_count": int(isinstance(prepared, PreparedDispatch)),
         "pre_dispatch_issued_command_count": len(
-            [
-                event
-                for event in pre_dispatch_trace.events
-                if event.get("event_type") == "ProviderCommandIssued"
-            ]
+            [event for event in pre_dispatch_trace.events if event.get("event_type") == "ProviderCommandIssued"]
         ),
         "issue_time_issued_command_count": len(issue_events),
         "fallback_issued": fallback_issued,
         "provider_receipt_status": provider_receipt.status,
         "provider_failure_code": provider_receipt.failure_code,
-        "provider_output_present": bool(
-            provider_receipt.output_refs or provider_receipt.output_hash
-        ),
+        "provider_output_present": bool(provider_receipt.output_refs or provider_receipt.output_hash),
         "bindings_unchanged": bindings_unchanged,
         "canonical_dispatch_events": len(fallback_events),
         "canonical_acceptance_events": len(acceptance_events),
         "task_accepted": trace.task_state == "accepted",
     }
+
 
 RELEASE_TRANCHE_EXECUTORS = {
     "S-014": execute_s014,

@@ -32,5 +32,10 @@
     "previous_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
+  "dependentRequired": {
+    "command_schema_id": ["command_schema_version", "command_schema_sha256"],
+    "command_schema_version": ["command_schema_id", "command_schema_sha256"],
+    "command_schema_sha256": ["command_schema_id", "command_schema_version"]
+  },
   "additionalProperties": false
 }

@@ -8,7 +8,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
@@ -318,6 +318,38 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert [item["global_position"] for item in events] == [1]
     assert events[0]["previous_event_hash"] == "0" * 64
     assert receipt["event_batch_id"] == events[0]["transaction_id"]
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {},
+        {"command_schema_id": "ars://core/command"},
+    ],
+)
+def test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance(
+    tmp_path,
+    provenance,
+):
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=runtime_schema_registry(SCHEMAS),
+    )
+
+    with pytest.raises(ArsError, match="command schema"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event",
+                    **provenance,
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
 
 
 def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):

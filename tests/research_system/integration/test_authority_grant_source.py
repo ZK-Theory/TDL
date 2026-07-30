@@ -28,7 +28,7 @@ from research_system.errors import (
     SchemaError,
 )
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
@@ -231,6 +231,26 @@ def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path)
     ]
     assert [event["transaction_index"] for event in events] == [1, 2]
     state = replay(events)
+    assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
+
+
+def test_genesis_records_validated_generic_command_identity_and_replays_at_default_cutoff(
+    tmp_path,
+) -> None:
+    control_root, _, _ = _initialized(tmp_path)
+    events = tuple(EventLedger(control_root, PROJECT_ID).iter_events())
+    command_identity = SCHEMAS.resolve_identity(
+        "ars://core/command",
+        "1.0.0",
+    )
+
+    assert len(events) == 2
+    for event in events:
+        assert event["command_schema_id"] == command_identity.schema_id
+        assert event["command_schema_version"] == command_identity.schema_version
+        assert event["command_schema_sha256"] == command_identity.sha256
+
+    state = replay(events, schema_registry=SCHEMAS)
     assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
 
 
@@ -745,12 +765,13 @@ def test_scoped_retry_rejects_changed_payload_or_grant_hash(tmp_path, field, val
 
 def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, schemas),
         ObjectStore(control_root),
         ReceiptStore(control_root),
-        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        schemas,
         authority_resolver=_resolver(control_root, PROJECT_ID, identity),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )

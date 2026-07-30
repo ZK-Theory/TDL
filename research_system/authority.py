@@ -749,14 +749,41 @@ def initialize_authority_control_store(
         )
         _bootstrap_failpoint("after-publication-object")
         command_id = new_id("command")
+        idempotency_key = f"authority-bootstrap:{bootstrap_hash}"
+        bootstrap_command = {
+            "command_id": command_id,
+            "command_type": "InitializeAuthorityRoot",
+            "schema_id": "ars://core/command",
+            "schema_version": "1.0.0",
+            "submitted_at": value["root_grant"]["effective_at"],
+            "actor_id": root.actor_id,
+            "on_behalf_of_actor_id": None,
+            "authority_grant_id": root.authority_grant_id,
+            "target_stream_id": root.authority_grant_id,
+            "expected_stream_version": 0,
+            "idempotency_key": idempotency_key,
+            "correlation_id": idempotency_key,
+            "causation_id": None,
+            "reason": "initialize the approved authority root",
+            "evidence_refs": [],
+            "payload": value,
+        }
+        command_schema = bootstrap_schemas.validate(
+            "ars://core/command",
+            bootstrap_command,
+            schema_version="1.0.0",
+        )
         common = {
             "command_id": command_id,
             "command_type": "InitializeAuthorityRoot",
+            "command_schema_id": command_schema.schema_id,
+            "command_schema_version": command_schema.schema_version,
+            "command_schema_sha256": command_schema.sha256,
             "actor_id": root.actor_id,
             "authority_grant_id": root.authority_grant_id,
-            "idempotency_key": f"authority-bootstrap:{bootstrap_hash}",
+            "idempotency_key": idempotency_key,
             "command_payload_hash": bootstrap_hash,
-            "correlation_id": f"authority-bootstrap:{bootstrap_hash}",
+            "correlation_id": idempotency_key,
             "causation_id": None,
             "schema_version": "1.0.0",
             "occurred_at": None,

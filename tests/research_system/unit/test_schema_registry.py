@@ -169,6 +169,35 @@ def test_generic_event_envelope_accepts_optional_command_schema_provenance():
     registry.validate("ars://core/event", current)
 
 
+@pytest.mark.parametrize(
+    "field",
+    [
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ],
+)
+def test_generic_event_envelope_rejects_partial_command_schema_provenance(field):
+    event = _event_payload()
+    event[field] = {
+        "command_schema_id": "ars://core/command/CreateTask",
+        "command_schema_version": "1.0.0",
+        "command_schema_sha256": "3" * 64,
+    }[field]
+
+    with pytest.raises(SchemaError, match="command_schema"):
+        SchemaRegistry(SCHEMAS).validate("ars://core/event", event)
+
+
+def test_generic_event_instance_version_remains_1_0_0_after_provenance_tightening():
+    # ``schema_version`` identifies the persisted event instance family. Exact
+    # validator bytes remain independently identifiable through SchemaIdentity,
+    # so making optional provenance all-or-none does not reinterpret instances.
+    schema = json.loads((SCHEMAS / "core" / "event.schema.json").read_text(encoding="utf-8"))
+
+    assert schema["properties"]["schema_version"] == {"const": "1.0.0"}
+
+
 def test_registry_rejects_malformed_command_submission_timestamp():
     registry = SchemaRegistry(SCHEMAS)
     payload = _command_payload()

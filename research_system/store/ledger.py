@@ -27,6 +27,13 @@ _PROTECTED_FIELDS = frozenset(
         "recorded_at",
     }
 )
+_COMMAND_SCHEMA_FIELDS = frozenset(
+    {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -249,6 +256,15 @@ class EventLedger:
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:
                 raise ArsError(f"caller supplied protected event fields: {sorted(protected)}")
+            recorded_provenance = _COMMAND_SCHEMA_FIELDS.intersection(candidate)
+            if self.schemas.requires_command_provenance and recorded_provenance != _COMMAND_SCHEMA_FIELDS:
+                raise ArsError("runtime event requires complete command schema identity")
+            if recorded_provenance == _COMMAND_SCHEMA_FIELDS:
+                self.schemas.resolve_identity(
+                    str(candidate["command_schema_id"]),
+                    str(candidate["command_schema_version"]),
+                    expected_sha256=str(candidate["command_schema_sha256"]),
+                )
             try:
                 event_type = candidate.pop("event_type")
                 stream_id = candidate.pop("stream_id")
@@ -314,23 +330,39 @@ class EventLedger:
                 ):
                     raise ArsError("release event finalizer violated ledger allocation")
             prehash = {**event, "event_hash": "0" * 64}
-            event_schema = candidate["schema_id"] if t2_event else f"ars://core/event/{event_type}"
             event_schema_version = str(event.get("schema_version", ""))
-            event_schema_active = self.schemas.is_active(
+            event_binding = self.schemas.event_binding(event_type)
+            event_schema = str(event.get("schema_id", ""))
+            if event_binding is not None and (
                 event_schema,
                 event_schema_version,
-            )
+            ) != (
+                event_binding.schema_id,
+                event_binding.schema_version,
+            ):
+                raise ArsError(
+                    f"active event binding mismatch: {event_type} requires "
+                    f"{event_binding.schema_id} version {event_binding.schema_version}"
+                )
+            if (
+                self.schemas.requires_command_provenance
+                and event_binding is None
+                and event_type != "ReleaseGateDecisionPublished"
+                and not t2_event
+                and event_schema != "ars://core/event"
+            ):
+                raise ArsError(f"inactive event schema: {event_schema} version {event_schema_version}")
             if t2_event:
                 self.schemas.validate(event_schema, prehash)
             else:
                 self.schemas.validate("ars://core/event", prehash)
                 if event_type == "ReleaseGateDecisionPublished":
                     self.schemas.validate(event_schema, prehash)
-                elif event_schema_active:
+                elif event_binding is not None:
                     self.schemas.validate_active(
-                        event_schema,
+                        event_binding.schema_id,
                         prehash,
-                        schema_version=event_schema_version,
+                        schema_version=event_binding.schema_version,
                     )
             event["event_hash"] = sha256_hex(canonical_bytes(event))
             if t2_event:
@@ -339,11 +371,11 @@ class EventLedger:
                 self.schemas.validate("ars://core/event", event)
                 if event_type == "ReleaseGateDecisionPublished":
                     self.schemas.validate(event_schema, event)
-                elif event_schema_active:
+                elif event_binding is not None:
                     self.schemas.validate_active(
-                        event_schema,
+                        event_binding.schema_id,
                         event,
-                        schema_version=event_schema_version,
+                        schema_version=event_binding.schema_version,
                     )
             previous_hash = event["event_hash"]
             events.append(event)

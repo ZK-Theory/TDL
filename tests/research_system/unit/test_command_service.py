@@ -4,10 +4,19 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes
+from research_system.command.models import Command
 from research_system.command.reducers import reduce_task
 from research_system.command.service import CommandService
 from research_system.errors import ConflictError, IntegrityError, SchemaError
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
+from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
+    ACTORS,
+    AUTHORITY_GRANT_ID,
+    PROJECT_ID,
+    REPO_ROOT,
     claim_dispatch_command,
     control_plane,
     create_task_command,
@@ -114,6 +123,95 @@ def test_active_command_avoids_unsatisfiable_generic_specific_intersection(
         schema_version=command["schema_version"],
     )
     assert harness.service.submit(command).status == "accepted"
+
+
+def test_generic_schema_cannot_bypass_active_create_task_binding(tmp_path):
+    harness = control_plane(tmp_path)
+    command = create_task_command(
+        CMD_CREATE,
+        "generic-create-bypass",
+        TASK_ID,
+        {"title": "Generic bypass"},
+    )
+    command["schema_id"] = "ars://core/command"
+    command.pop("project_id")
+    command["payload"] = {"title": "Generic bypass"}
+
+    with pytest.raises(SchemaError, match="CreateTask"):
+        harness.service.submit(command)
+
+    assert tuple(harness.ledger.iter_batches()) == ()
+    assert harness.receipts.load(CMD_CREATE) is None
+    assert not list((harness.objects.control_root / "objects").rglob("*.json"))
+
+
+def test_inactive_event_records_generic_schema_identity(tmp_path):
+    harness = control_plane(tmp_path)
+    command = claim_dispatch_command(
+        CMD_CLAIM_A,
+        "actor-a",
+        DISPATCH_ID,
+        expected_version=0,
+    )
+
+    assert harness.service.submit(command).status == "accepted"
+    event = tuple(harness.ledger.iter_events())[0]
+
+    assert event["event_type"] == "DispatchClaimed"
+    assert event["schema_id"] == "ars://core/event"
+    assert event["schema_version"] == "1.0.0"
+
+
+def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):
+    root = tmp_path / "control"
+    root.mkdir()
+    schema_root = REPO_ROOT / ".research-system" / "schemas"
+    inert = SchemaRegistry(schema_root)
+    runtime = runtime_schema_registry(schema_root)
+    command = create_task_command(
+        CMD_CREATE,
+        "schema-aware-idempotency",
+        TASK_ID,
+        {"title": "Schema-aware idempotency"},
+    )
+    generic_identity = runtime.resolve_identity("ars://core/command", "1.0.0")
+    command_model = Command(command)
+    EventLedger(root, PROJECT_ID, inert).append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "command_id": command["command_id"],
+                "command_type": command["command_type"],
+                "command_schema_id": generic_identity.schema_id,
+                "command_schema_version": generic_identity.schema_version,
+                "command_schema_sha256": generic_identity.sha256,
+                "actor_id": ACTORS["actor-a"],
+                "authority_grant_id": AUTHORITY_GRANT_ID,
+                "idempotency_key": command["idempotency_key"],
+                "command_payload_hash": command_model.payload_hash,
+                "correlation_id": command["correlation_id"],
+                "causation_id": command["causation_id"],
+                "schema_id": "ars://core/event",
+                "schema_version": "1.0.0",
+                "occurred_at": None,
+                "payload": command["payload"],
+            }
+        ]
+    )
+    service = CommandService(
+        root,
+        EventLedger(root, PROJECT_ID, runtime),
+        ObjectStore(root),
+        ReceiptStore(root),
+        runtime,
+    )
+
+    with pytest.raises(ConflictError, match="idempotency"):
+        service.submit(command)
+
+    assert len(tuple(service.ledger.iter_batches())) == 1
+    assert service.receipts.load(CMD_CREATE) is None
 
 
 def test_derived_lineage_fails_closed_on_corrupt_existing_cycle():
