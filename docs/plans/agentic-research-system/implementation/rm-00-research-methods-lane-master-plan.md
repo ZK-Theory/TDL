@@ -59,12 +59,12 @@ therefore imported in its recording half only.
 
 | Plan | Scope | Depends on | Branch prefix |
 |---|---|---|---|
-| [06h](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) *(main path, not RM)* | Exact-byte schema identity; producer emits the `command_schema_*` triple; accepted artefact command family wired through command/ledger/replay | P-043; gates G-RM-8, G-RM-9, G-RM-10 | `pipe/wp6-1-*` |
+| [06h](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) *(main path, not RM)* | Exact-byte schema identity; producer emits the `command_schema_*` triple; accepted artefact command family wired through command/ledger/replay | P-043; G-RM-3 (fresh independent review); gates G-RM-8, G-RM-9, G-RM-10 | `pipe/wp6-1-*` |
 | [rm-01](rm-01-unblock-and-suite-recovery-plan.md) | Post-fix suite delta against a fresh dispatch-head manifest, coverage/lint accounting, append-path smoke gate | 06h merged; G-RM-7 for close-out | `pipe/rm-01-*` |
 | [rm-02](rm-02-research-methods-pack-plan.md) | Methods Pack v1: manifest schema, revision history, five method assets, fail-closed loader, negative controls | P-044; no code-path dependency on 06h or RM-01 | `pipe/rm-02-*` |
 | [rm-03](rm-03-brief-export-import-plan.md) | `ars brief export` / `ars brief import` on the accepted artefact path; W3 packet binding; consumer firewall; capability-boundary guard | **accepted artefact-record capability** (delivered by 06h) AND RM-02 | `pipe/rm-03-*` |
 | [rm-04](rm-04-manuscript-review-and-verification-records-plan.md) | Manuscript-review lane; non-executing verification request/result records | RM-03 | `pipe/rm-04-*` |
-| rm-05 *(unwritten)* | Isolated verification execution | **G-RM-11** — not planned until the owner funds an isolation substrate | — |
+| rm-05 *(unwritten)* | Isolated verification execution | **G-RM-11** — not planned until the implemented isolation substrate and its evidence receive independent readiness acceptance | — |
 
 Permitted parallelism: **06h and RM-02** may run concurrently — disjoint file
 sets, no shared module. RM-01 follows 06h. RM-03 follows both RM-02 and the 06h
@@ -88,11 +88,11 @@ contain the words "owner decision" without a row here.**
 | G-RM-4 | Accept Methods Pack assets (`candidate -> reviewed -> accepted`); **only `accepted` assets are exportable, with no override flag** | RM-02 close-out; RM-03 export | W3 §13.1-13.2; review M-1 |
 | G-RM-5 | Choose the manuscript-review pilot subject (suggested: one P01 draft section) | RM-04 pilot | Stephen's steer: TDA as testbed, not definition |
 | G-RM-6 | Confirm append-path smoke-gate wiring location (quality-gate command list vs `.githooks` pre-push) | RM-01 close-out | observer log Obs. 137; `.githooks` discipline |
-| **G-RM-7** | **NEW.** Resolve R1-3b: add `receipt-v2.schema.json` to the closed 13-name literal in `test_every_core_schema_declares_closed_object_contract`, or confirm the omission is a deliberate unreviewed-schema-addition gate | RM-01 close-out; **any "suite green" claim** | handoff 28 §"NOT Defect 3"; review M-1, M-9 |
+| **G-RM-7** | **NEW.** Resolve R1-3b through an owner record choosing one branch. **Add:** add `receipt-v2.schema.json` to the closed 13-name literal and record evidence that the literal and submit-signature guards were verified. **Deliberate omission:** record why this is an unreviewed-schema-addition gate, name the follow-up owner/action, and keep RM-01 non-green until the closed-set failure is actually resolved. RM-01 remains non-green while either the known closed-set or signature-guard failure is unresolved; the signature guard is fixed at current currency by `a681180` but must be reverified at dispatch head | RM-01 close-out; **any "suite green" claim** | handoff 28 §"NOT Defect 3"; review M-1, M-9 |
 | **G-RM-8** | **NEW.** Historical-event policy: migrate events predating the `command_schema_*` triple, grandfather them behind a documented predicate, or assert with evidence that no prior durable store exists | 06h Task 2 | handoff 26 §"existing events"; review C-1 |
 | **G-RM-9** | **NEW.** Approve the `RegisteredSchema` exact-byte registry interface (the only sanctioned edit to `schema_registry.py`) | 06h Task 1 | review C-1 |
 | **G-RM-10** | **NEW.** Confirm RM records use the **accepted artefact command family** (`RegisterArtefact` / `SetArtefactUseAuthority`) rather than a new reviewed event family | 06h Task 3; RM-03 | review C-3; see §5a |
-| **G-RM-11** | **NEW.** Decide whether isolated verification execution is funded behind an OS-enforced isolation + W8 substrate, or stays deferred indefinitely | RM-05 (unwritten); any execution anywhere in the lane | review C-4 |
+| **G-RM-11** | **NEW.** Either keep execution deferred, or independently accept the implemented isolation substrate as ready: OS-enforced isolation, deny-by-default egress, W8 grant/lease/process/stop records, attributed exact-script approval, and passing escape-control negative evidence must all be reviewed at an exact subject. Funding or implementation alone does not clear the gate | RM-05 (unwritten); any execution anywhere in the lane | review C-4 |
 
 **G-RM-3 semantics (tightened per review M-1).** Revision 1 required only
 "accepted review disposition; zero unresolved Critical", which would have let a
