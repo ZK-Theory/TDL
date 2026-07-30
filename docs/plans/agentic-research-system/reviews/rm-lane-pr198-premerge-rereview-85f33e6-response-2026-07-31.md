@@ -1,8 +1,8 @@
 # PR #198 `85f33e6` pre-merge rereview remediation response
 
-**Reviewed PR head:** `85f33e6148b366b956eb7ca64f759c8a0da9c23e`  
-**Review artifact:** [`pr-198-premerge-rereview-85f33e6-2026-07-30.md`](pr-198-premerge-rereview-85f33e6-2026-07-30.md)  
-**Review SHA-256:** `a5a6beb7b7094afd5fa8f642d6bee93526d9af2d98a6e893d097387d9d078817`  
+**Reviewed PR head:** `85f33e6148b366b956eb7ca64f759c8a0da9c23e`
+**Review artifact:** [`pr-198-premerge-rereview-85f33e6-2026-07-30.md`](pr-198-premerge-rereview-85f33e6-2026-07-30.md)
+**Review SHA-256:** `a5a6beb7b7094afd5fa8f642d6bee93526d9af2d98a6e893d097387d9d078817`
 **Disposition:** `transitive_caller_inventory_remediated`
 
 The single Major finding was verified against the exact reviewed code and was
