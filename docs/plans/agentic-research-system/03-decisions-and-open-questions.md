@@ -872,20 +872,19 @@ register and forward-obligation scan);
 `proposals/rm-decision-entry-drafts-2026-07-28.md` (drafts these entries were
 entered from, on Stephen's instruction, 2026-07-28).
 
-#### Proposed P-044 amendment — 06i/06j candidate stages and gate identities
+#### P-044 amendment — 06i/06j candidate stages and gate identities
 
-**Date proposed:** 2026-07-30<br>
-**Status:** **Not accepted; explicit Stephen decision required.** This proposal
-has no authority effect. Independent review, plan prose, PR approval or merge
-cannot change that status.<br>
-**Proposed decision:** Extend P-044 only enough to permit bounded, inert contract
-candidate authoring in 06i Stage A and 06j Stage A after accepted 06h, an
-admissible independent exact-subject suite review, and Stephen's separate
-explicit G-RM-3 acceptance of those exact suite bytes. Stage A remains confined
-to each plan's candidate directory and contract-shape tests; it may not modify
-canonical schemas/policies, `research_system/**`, replay, CLI, registration or
-runtime surfaces.<br>
-**Proposed gate identities:**
+**Date accepted:** 2026-07-30<br>
+**Status:** **Accepted by Stephen** against exact PR #198 head
+`fa7d8a6dec4f8d31b9a94747c33e137d4048c376`.<br>
+**Decision:** Extend P-044 only enough to permit bounded, inert contract candidate
+authoring in 06i Stage A and 06j Stage A after accepted 06h, an admissible
+independent exact-subject suite review, and Stephen's separate explicit G-RM-3
+acceptance of those exact suite bytes. Stage A remains confined to each plan's
+candidate directory and contract-shape tests; it may not modify canonical
+schemas/policies, `research_system/**`, replay, CLI, registration or runtime
+surfaces.<br>
+**Gate identities:**
 
 - preserve G-RM-10 unchanged as confirmation that RM uses the already accepted
   `RegisterArtefact` / `SetArtefactUseAuthority` family rather than a new event
@@ -898,11 +897,12 @@ runtime surfaces.<br>
 - define G-RM-14 as Stephen's acceptance of the independently reviewed exact 06i
   Stage A candidate bytes before 06i Stage B or canonical RM consumption.
 
-**Limits:** This proposed amendment grants no Stage B implementation, provider,
+**Limits:** This amendment grants no Stage B implementation, provider,
 credential, execution, result, claim, migration, pilot, merge or automatic gate
-authority. Each candidate gate still requires its own independent exact-subject
-review and explicit Stephen decision. Until this paragraph is separately marked
-accepted by Stephen, 06i/06j Stage A and G-RM-12/G-RM-13/G-RM-14 remain inert.
+authority. G-RM-3, G-RM-12, G-RM-13 and G-RM-14 remain separately open; each
+requires its own prerequisites and explicit Stephen decision. Acceptance of this
+amendment activates the gate definitions and bounded Stage A authority only—it
+does not satisfy any of those gates.
 
 ## W11 specification status (non-decision)
 
