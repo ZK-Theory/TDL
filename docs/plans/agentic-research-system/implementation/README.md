@@ -50,15 +50,16 @@ therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
 authorized. ARS does not invoke Claude or Codex or handle their OAuth
 credentials.
 
-## Research Methods lane (RM) — accepted P-044 direction, revision 5, **no stage dispatchable**
+## Research Methods lane (RM) — accepted P-044 direction, revision 6, **no stage dispatchable**
 
 An independent lane parallel to the WP6.1+WP6.3 → WP6.4 → Gate 6 path and never
-on it (P-044, accepted 2026-07-28). The adversarial suite rereview and all three
-PR #198 pre-merge reviews returned rework verdicts on their exact subjects.
-Revision 5 preserves producer completeness (06h), corrects 06i/06j lifecycle and
-identity constructibility, inventories the live W4/W7 callers, distinguishes
-executable F-025-F-028 from reserved P1 F-029/F-030, and keeps owner authority
-separate from reviewer disposition.
+on it (P-044, accepted 2026-07-28). The latest PR #198 exact-subject rereview at
+`85f33e6` found one remaining transitive caller-inventory blocker. Revision 6
+closes that plan defect by literally classifying the calibration, variant,
+registry, CLI and rederivation paths, removing the generic provider-wrapper
+exemption, and requiring a full transitive lifecycle-capability negative. It
+preserves the earlier producer, constructibility and authority corrections and
+keeps reviewer disposition separate from owner authority.
 
 **G-RM-3 remains open.** A fresh independent `accept` only makes the exact
 subject eligible for Stephen's separate decision; it does not close G-RM-3 or
@@ -84,7 +85,9 @@ the [revision-4 response](../reviews/rm-lane-pr198-premerge-review-response-2026
 the [PR #198 exact-subject rereview](../reviews/pr-198-premerge-rereview-8e091a1-2026-07-30.md),
 the [PR198-RR1 response](../reviews/rm-lane-pr198-premerge-rereview-response-2026-07-30.md),
 the [`d6c9647` constructibility/authority rereview](../reviews/pr-198-premerge-rereview-d6c9647-2026-07-30.md),
-and its [revision-5 response](../reviews/rm-lane-pr198-premerge-rereview-d6c9647-response-2026-07-30.md).
+its [revision-5 response](../reviews/rm-lane-pr198-premerge-rereview-d6c9647-response-2026-07-30.md),
+the [`85f33e6` transitive caller rereview](../reviews/pr-198-premerge-rereview-85f33e6-2026-07-30.md),
+and its [revision-6 response](../reviews/rm-lane-pr198-premerge-rereview-85f33e6-response-2026-07-31.md).
 ARS invokes no provider and handles no OAuth credentials in any RM plan
 (P-042), and no RM plan executes externally-proposed code (review C-4).
 
