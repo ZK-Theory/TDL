@@ -4,11 +4,12 @@
 > schema-contract-design, research-assurance-triage, and
 > executing-plans-extras. Read accepted W3 sections 9-12, 14-16 and 19, W2
 > command/event rules, RR-M4, PR198-F2/F4 from the PR #198 pre-merge review,
-> PR198-RR1 from the independent `8e091a1` rereview, and PR198-RR1-A through
-> PR198-GRM12 from the independent `d6c9647` rereview.
+> PR198-RR1 from the independent `8e091a1` rereview, PR198-RR1-A through
+> PR198-GRM12 from the independent `d6c9647` rereview, and the transitive
+> PR198-RR1-A follow-up from the independent `85f33e6` rereview.
 
-**Status:** REVISED 2026-07-30 (suite revision 5; PR198-RR1 constructibility
-amendment). The exact-subject runtime has `ContextCandidate`,
+**Status:** REVISED 2026-07-31 (suite revision 6; transitive evaluation caller
+inventory amendment). The exact-subject runtime has `ContextCandidate`,
 `compile_candidate`, `SourceResolver`, and token gates, but no authoritative
 packet object, lifecycle writer, delivery record, or acceptance resolver. Stage
 A is non-dispatchable until accepted 06h, an independent exact-subject `accept`,
@@ -102,6 +103,7 @@ tests/research_system/contracts/test_context_packet_materialization.py
 tests/research_system/integration/test_context_packet_lifecycle.py
 tests/research_system/integration/test_context_packet_resolution.py
 tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py
+tests/research_system/integration/test_context_packet_eval_transitive_boundary.py
 tests/research_system/unit/test_context_packet_w4_w7_boundary.py
 ~~~
 
@@ -109,6 +111,7 @@ tests/research_system/unit/test_context_packet_w4_w7_boundary.py
 
 ~~~text
 accepted WP6.1 owner catalogue/materializer sources named by G-RM-12
+.research-system/evals/p0-variant-matrix.yaml
 research_system/context/models.py
 research_system/context/compiler.py
 research_system/context/sources.py
@@ -117,6 +120,7 @@ research_system/routing/engine.py
 research_system/operations/coordinator.py
 research_system/adapters/provider.py
 research_system/evals/scenarios.py
+research_system/evals/calibration.py
 research_system/evals/harness.py
 research_system/evals/executors/__init__.py
 research_system/evals/executors/context_routing.py
@@ -129,6 +133,10 @@ research_system/cli.py
 tests/research_system/integration/test_context_routing_fixtures.py
 tests/research_system/integration/test_context_routing_fixture_corpus.py
 tests/research_system/integration/test_adapter_operations_fixtures.py
+tests/research_system/integration/test_eval_cli.py
+tests/research_system/integration/test_gate5_variant_execution.py
+tests/research_system/unit/test_calibration.py
+tests/research_system/unit/test_executors.py
 tests/research_system/unit/test_routing_engine.py
 tests/research_system/unit/test_routing_orchestrator.py
 ~~~
@@ -152,24 +160,37 @@ constructible `PreparedDispatch` at the production boundary. Missing, copied or
 forged capabilities and directly constructed dispatches are rejected before any
 route, grant, lease or provider side effect.
 
-The exact-subject first-party inventory is normative; Stage B may not defer it:
+The exact-subject first-party inventory is normative; Stage B may not defer it.
+The registry classification below is closed: a new fixture ID or matrix row has
+no default class and fails registration until this table and its structural test
+are updated.
 
-| Symbol/seam | Current `research_system/**` callers or wrappers | Required Stage B disposition |
+| Symbol/seam | Current `research_system/**` callers, wrappers or entries | Required Stage B disposition |
 |---|---|---|
 | `context.compiler.validate_provider_gate` | no shipped caller; direct compiled-candidate capacity function | move behind the capability-bearing lifecycle prevalidation step; the public unguarded signature disappears |
 | `routing.engine.select_route` | `routing.orchestrator.plan_dispatch`; direct calls in `evals/scenarios.py`, `evals/executors/context_routing.py`, and `evals/executors/release_tranche.py` | capability-bearing internal routing kernel only; migrate every listed caller through the lifecycle service and convert failure dictionaries to one lifecycle failure write |
 | `routing.engine.PreparedDispatch` | constructed by `routing.orchestrator.plan_dispatch`, `evals/scenarios.py`, and `evals/executors/release_tranche.py`; consumed by `operations/coordinator.py` | replace production construction with sealed `LifecycleBoundDispatch`; no public constructor or duck-typed substitute is accepted |
 | `operations.coordinator.issue_prepared_dispatch` and its `AdapterIssuePort.revalidate/build_command` calls | direct callers in `evals/scenarios.py` and `evals/executors/release_tranche.py` | split into pre-issue template validation and post-W8 issue; both require the same capability and immutable template digest |
-| `adapters.provider.validate_wrapper_accounting` and operation-policy enforcement | `ProviderAdapter.issue`; `normalize_receipt`; provider wrappers in `evals/scenarios.py` and `evals/executors/release_tranche.py` | validate the exact template before context issue; later fail-closed checks accept only the sealed unchanged template and cannot introduce caller-supplied W3/W4/W7 fields |
-| evaluation registration paths | `evals/harness.py`, `evals/executors/__init__.py`, and CLI scenario/eval dispatch | migrate transitive registrations to the capability-bearing service; registration indirection is not an exemption |
-| adapter-only scientific fixtures | direct `ProviderCommand`/`ProviderAdapter.issue` calls in `evals/executors/adapter_scientific.py` and `evals/variants.py` | keep explicitly outside W3 only if their signatures cannot accept a context packet or lifecycle dispatch; structural tests prove no compiled-packet flow reaches them |
+| `adapters.provider.validate_wrapper_accounting` and operation-policy enforcement | `ProviderAdapter.issue`; `normalize_receipt`; provider wrappers in `evals/scenarios.py`, `evals/executors/release_tranche.py`, and generic `evals/variants.py::_execute_through_fake_provider` | validate the exact template before context issue; remove the generic arbitrary-fixture direct-issue path; later checks accept only the sealed unchanged template |
+| `evals.calibration.calibrate_fixture -> require_executor` | direct `eval calibrate` root plus `evals.harness.run_p0_coverage`; executes known-good, known-bad and every mutation repeatedly through the registered executor | consume a typed registered executor whose execution class is closed below; lifecycle-required entries cannot expose or invoke a raw executor without the lifecycle service/capability |
+| `evals.harness.run_p0_coverage` | called by CLI `_eval_run`, `_rederive_bound_decision`, and `_publication_evidence`; calls `calibrate_fixture` and `execute_gate5_variant_rows_twice` | pass the lifecycle service through both transitive branches; missing/forged capability fails the protected fixture path before route/grant/lease/provider effects and writes the one attributable failure event |
+| `evals.variants.execute_gate5_variant_rows_twice -> require_executor -> _execute_through_fake_provider -> ProviderAdapter.issue` | every row in `.research-system/evals/p0-variant-matrix.yaml`; current generic wrapper builds operation, policy, context/rendered hashes and wrapper accounting locally | delete the arbitrary-fixture provider wrapper. Use a lifecycle variant runner for lifecycle-required IDs, a dedicated exact-ID adapter-scientific runner, and a pure no-provider runner for all remaining IDs; no caller-built W3/W4/W7 command field survives |
+| `evals.executors.CONTEXT_ROUTING_EXECUTORS` | exact IDs `F-021`, `F-022`, `F-025`-`F-028`, `F-031`, `F-033`, `F-035`; F-031/F-033 call routing directly and F-025-F-028 are the executable W3 P0 oracle | classify the map as lifecycle-required for provider variants; F-025-F-028 and F-031/F-033 execute through the full lifecycle boundary, while the other pure observations cannot be wrapped in direct provider issue |
+| `evals.executors.RELEASE_TRANCHE_EXECUTORS` | exact IDs `S-014`, `S-015`, `S-016`; S-016 constructs `PreparedDispatch`, invokes the coordinator, builds the provider command and issues | classify S-016 as lifecycle-required; S-014/S-015 remain pure release observations and cannot be wrapped in generic provider issue |
+| `evals.executors.ADAPTER_SCIENTIFIC_EXECUTORS` | exact IDs `F-007`-`F-014`, `F-020`, `F-032`, `F-034`, `F-036`, `S-003`, `S-004`, `S-013` | only these exact IDs may use the dedicated adapter-scientific runner, and only when its signature rejects context packet, lifecycle dispatch and capability inputs; this exemption never applies to `variants.py` generically |
+| `evals.executors.CONTROL_STORE_EXECUTORS` | exact IDs `F-001`-`F-005`, `S-001`, `S-002`, `S-006`, `S-008`-`S-012` | keep as pure observations; their matrix rows cannot construct or issue a provider command |
+| CLI and rederivation roots | `eval calibrate -> _eval_calibrate`; `eval run -> _eval_run`; `eval publish-release -> _eval_publish_release -> _publication_evidence`; unused `_rederive_bound_decision`; `eval release -> _eval_release -> rederive_release_from_snapshot` | guard every live-execution root through the typed registry/lifecycle path or remove the unused root; keep `eval release`/snapshot rederivation reconstruction-only with a negative proving it never loads an executor or invokes a provider |
+| transitive registration | `evals/executors/__init__.py::EXECUTORS/require_executor`, `evals/harness.py`, `evals/calibration.py`, `evals/variants.py`, and CLI handlers above | registration indirection is not an exemption; the execution class and permitted runner are checked at lookup and again at the runner boundary |
 
-A repository-wide AST/import test rejects new or unlisted callers, imports of
-the private mint key, direct dispatch construction, a returned route-failure
-dictionary as a terminal result, and any revalidation/accounting exception that
-escapes the lifecycle service. Runtime negatives separately attempt calls with
-missing and forged capabilities and must fail before side effects; a source-file
-allowlist alone is not closure.
+A repository-wide AST/import/registry test rejects new or unclassified entries,
+imports of the private mint key, direct dispatch construction, a returned route-
+failure dictionary as a terminal result, and any arbitrary-fixture construction
+of `ProviderCommand`. Runtime negatives enter through each CLI/rederivation root
+and through `run_p0_coverage`, `calibrate_fixture`, and the variant runner; for
+each lifecycle-required ID they attempt missing and forged capabilities and
+assert rejection before route/grant/lease/provider side effects, exactly one
+accepted `ContextPacketFailed` event/batch, and the original receipt on retry.
+A source-file allowlist or direct-call-only probe is not closure.
 
 ## Packet authority contract
 
@@ -323,12 +344,14 @@ closure.
    W4 decision/witness, W7 evidence and exact prevalidated provider-command
    template; translate every rejection into the phase-qualified deterministic
    failure; and perform validate/issue under one writer lock.
-4. **Call-graph firewall.** Implement every row in the normative caller table.
-   Reject missing/forged capability, direct dispatch construction, unlisted
-   imports/callers, escaped failure dictionaries/exceptions and any mutable or
-   late-built W3/W4/W7 command field. The negative must prove the direct call is
-   rejected by the signature/runtime boundary before side effects, not merely
-   absent from an allowlisted source file.
+4. **Call-graph firewall.** Implement every row and exact registry classification
+   in the normative caller table. Split the generic variant provider wrapper,
+   type `require_executor` results, and guard calibration, coverage, variant,
+   CLI and rederivation roots. Reject missing/forged capability, unclassified
+   entries, direct dispatch construction, arbitrary-fixture provider commands,
+   escaped failures and late W3/W4/W7 fields. The negative traverses the full
+   transitive path and proves rejection before side effects, not merely absence
+   from an allowlisted source file.
 5. **Lifecycle authority.** Implement validation, issuance, delivery, expiry,
    failure from every W3-permitted phase, supersession, idempotency and pure
    reducers.
@@ -341,25 +364,28 @@ closure.
    submits its named command; no direct append/object mutation.
 8. **Adversarial corpus.** Prove CLI reachability for all nine lifecycle
    commands and run every W4/W7 negative through the production routing/
-   coordinator/adapter seams, including executable F-025-F-028. Prove sealed
-   template immutability, capability rejection before side effects, phase-
-   qualified failure bindings, exactly one event/batch, original-receipt retry,
-   genesis/incremental replay equality and the direct-call firewall. Record
+   coordinator/adapter seams, including executable F-025-F-028. Exercise the
+   full CLI/rederivation -> coverage -> calibration/variant -> registry ->
+   routing/coordinator/provider chain for every protected registry class. Prove
+   sealed-template immutability, missing/forged-capability rejection before
+   side effects, phase-qualified failure, exactly one event/batch, original-
+   receipt retry, replay equality and registry-classification liveness. Record
    F-029/F-030 as reserved P1 mappings only.
 
 ## Validation and close-out
 
 ~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/contracts/test_context_packet_materialization.py tests/research_system/integration/test_context_packet_lifecycle.py tests/research_system/integration/test_context_packet_resolution.py tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py tests/research_system/unit/test_context_packet_w4_w7_boundary.py tests/research_system/integration/test_context_routing_fixtures.py tests/research_system/integration/test_context_routing_fixture_corpus.py tests/research_system/integration/test_adapter_operations_fixtures.py tests/research_system/unit/test_routing_engine.py tests/research_system/unit/test_routing_orchestrator.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/contracts/test_context_packet_materialization.py tests/research_system/integration/test_context_packet_lifecycle.py tests/research_system/integration/test_context_packet_resolution.py tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py tests/research_system/integration/test_context_packet_eval_transitive_boundary.py tests/research_system/integration/test_eval_cli.py tests/research_system/integration/test_gate5_variant_execution.py tests/research_system/unit/test_calibration.py tests/research_system/unit/test_executors.py tests/research_system/unit/test_context_packet_w4_w7_boundary.py tests/research_system/integration/test_context_routing_fixtures.py tests/research_system/integration/test_context_routing_fixture_corpus.py tests/research_system/integration/test_adapter_operations_fixtures.py tests/research_system/unit/test_routing_engine.py tests/research_system/unit/test_routing_orchestrator.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync ruff check research_system/context research_system/command research_system/projection
 ~~~
 
 Run the full `tests/research_system` tree once at final head because core
 command/replay/schema surfaces change. Record exact schema identities, catalogue
 rows, CLI reachability and transition coverage for all nine commands, the
-complete literal caller-table disposition, capability and sealed-template
-bindings, direct-call firewall, exactly-once failure/retry/replay outcomes,
-producer/resolver call sites, executable F-025-F-028 outcomes, explicit P1
+complete literal caller-table and registry-class disposition, capability and
+sealed-template bindings, full transitive CLI/calibration/variant negatives,
+exactly-once failure/retry/replay outcomes, producer/resolver call sites,
+executable F-025-F-028 outcomes, explicit P1
 F-029/F-030 deferral mappings, and negative-control liveness. If RM-01's
 append-path smoke gate already exists on current `main`,
 add all nine families and run the registry-to-smoke-manifest completeness check
