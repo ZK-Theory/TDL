@@ -79,6 +79,10 @@ patch a failed base.
 **Stage B creates or materializes byte-for-byte from the G-RM-12 candidate:**
 
 ~~~text
+.research-system/contracts/context-packet-v1/catalogue-addendum.yaml
+.research-system/contracts/context-packet-v1/transition-table.yaml
+.research-system/contracts/context-packet-v1/authority-scopes.yaml
+.research-system/contracts/context-packet-v1/identity-manifest.yaml
 .research-system/schemas/core/commands/<nine context command schemas>
 .research-system/schemas/core/events/<nine context event schemas>
 .research-system/schemas/context/context-packet.schema.json
@@ -103,8 +107,12 @@ research_system/projection/replay.py
 research_system/cli.py
 ~~~
 
-No `ars://methods/event/**` family is created. Stage B materializes the accepted
-catalogue addendum and schemas without semantic alteration. Core schema
+No `ars://methods/event/**` family is created. Stage B materializes every
+accepted candidate component into its mapped canonical destination without
+semantic alteration. Every canonical loader requires the exact G-RM-12
+identity-manifest blob/hash and verifies the catalogue addendum, transition
+table, authority scopes, command/event schemas and object schemas against their
+bound candidate SHA-256 values before registration or use. Core schema
 materialization is allowed only inside this plan after G-RM-12, not by RM-03.
 
 ## Packet authority contract
@@ -131,7 +139,8 @@ The compiler:
    and bound-provider counting, then submits `ValidateContextPacket` only after
    the provider-capacity, manifest, security and independence checks pass; and
 6. submits `FailContextPacket` from requested, compiling or compiled on any
-   source, conflict, security, token, rendering or independence failure.
+   source, conflict, security, token, rendering, provider-capacity, manifest or
+   independence failure.
 
 The producer cannot issue its own candidate. Validation binds independent
 source/current-snapshot evidence; issuance requires an exact authority grant;
@@ -154,8 +163,9 @@ or caller assertions never select state.
 - no reverse transition; no in-place revision; changed bytes create a new
   revision/object;
 - missing mandatory source, unsafe source, unresolved governing conflict,
-  token-gate failure, unverifiable freshness, rendering failure, wrong delivery
-  hash, or independence failure emits an attributable failed state and no
+  token-gate failure, unverifiable freshness, rendering failure, insufficient
+  provider capacity, packet/manifest mismatch, wrong delivery hash, or
+  independence failure emits an attributable failed state and no
   issued/delivered state;
 - discovering an incomplete issued base supersedes/fails it and requires a new
   complete packet; an addendum cannot repair it.
@@ -169,18 +179,23 @@ token gate; wrong role/risk/purpose/scope; wrong packet revision/hash; delivery
 recipient/session/adapter/hash mismatch; changed currency source position;
 addendum against failed base; duplicate/reordered lineage; non-idempotent retry;
 direct ledger append; missing reducer; genesis/incremental replay equality;
-failure before source resolution; failure during compiling; failure after
-compiled but before validation; retry of every failed phase; and the
-distinguishing absence of a request for a never-requested packet.
+failure before source resolution; failure during compiling; provider-capacity
+failure after compiled; packet/manifest mismatch after compiled; an attributable
+`ContextPacketFailed` replay record for each validation-precondition rejection;
+retry of every failed phase; and the distinguishing absence of a request for a
+never-requested packet.
 
 The exact-subject W3 fixtures F-025 through F-030 remain the semantic oracle.
 Schema tests alone are not closure.
 
 ## Stage B tasks
 
-1. **Catalogue and schemas.** Materialize the exact G-RM-12 nine-command family
-   and closed packet/manifest/receipt schemas byte-for-byte from the accepted
-   candidate; reject candidate/canonical divergence.
+1. **Catalogue and schemas.** Materialize the catalogue addendum, transition
+   table, authority scopes, identity manifest, exact nine-command/event family
+   and closed packet/manifest/receipt schemas into their canonical file-map
+   paths byte-for-byte. At load, require the exact accepted manifest blob/hash
+   and verify every mapped component against its bound candidate SHA-256; reject
+   missing components, manifest substitution and candidate/canonical divergence.
 2. **Immutable producer.** Extend the current compiler; command-write requested
    and compiling before fallible work, store exact rendered bytes/manifest, and
    command-write compiled or failed.
