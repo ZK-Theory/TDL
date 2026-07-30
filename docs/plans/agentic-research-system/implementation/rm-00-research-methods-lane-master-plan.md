@@ -1,18 +1,18 @@
 # RM-00: Research Methods Lane — Master Plan
 
-**Status:** REVISED 2026-07-30 (revision 5; PR198-RR1 constructibility and
-authority correction) after the PR #198 exact-subject `d6c9647` rereview returned
+**Status:** REVISED 2026-07-31 (revision 6; PR198-RR1 transitive caller
+inventory correction) after the PR #198 exact-subject `85f33e6` rereview returned
 `rework_required_before_merge`. P-043, P-044 and its accepted candidate-stage
 amendment remain accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
 bytes. An independent `accept` only makes the exact subject eligible for
 Stephen's separate explicit G-RM-3 decision; it does not close the gate,
 dispatch any stage, authorize merge, or satisfy a stage-specific owner gate.**
 
-**Created:** 2026-07-28 · **Revised:** 2026-07-30
+**Created:** 2026-07-28 · **Revised:** 2026-07-31
 **Supersedes for execution:**
 `../proposals/research-methods-integration-plan-2026-07-28.md`
 **Latest review response:**
-`../reviews/rm-lane-pr198-premerge-rereview-d6c9647-response-2026-07-30.md`
+`../reviews/rm-lane-pr198-premerge-rereview-85f33e6-response-2026-07-31.md`
 
 This document grants no runtime, provider, migration, packet, pilot, result, or
 claim authority.
@@ -107,7 +107,7 @@ Independent-review verdict semantics:
 ## 4. Master obligation register
 
 Forward scan sources: P-042/P-043/P-044, W2, W3, W5, W8, handoffs 25/26/28,
-the 2026-07-29/30 reviews, both PR #198 pre-merge reviews, prior responses,
+the 2026-07-29/30 reviews, all four PR #198 pre-merge reviews, prior responses,
 implementation README, CLAUDE/AGENTS/APM rules.
 
 | ID | Obligation | Enforced by |
@@ -136,7 +136,7 @@ implementation README, CLAUDE/AGENTS/APM rules.
 | O-RM-22 | RM-03/RM-04 are Paper Claim governance as well as provenance | assurance sections |
 | O-RM-23 | Historical policy cannot admit newly malformed events | 06h G-RM-8 position/store/fingerprint bounds |
 | O-RM-24 | Production consumption cannot bypass replay authority through direct object reads or projections | 06i public port + repository-wide first-party boundary + existing release and RM-03/RM-04 call sites |
-| O-RM-25 | W3 failure before validation remains attributable and replayable across compilation and real W4/W7 production seams | 06j lifecycle service, compiled-state failure bindings, call-graph firewall and phase-specific replay controls |
+| O-RM-25 | W3 failure before validation remains attributable and replayable across compilation and real W4/W7 production seams | 06j lifecycle service, compiled-state failure bindings, complete CLI/calibration/variant/registry call-graph firewall and phase-specific replay controls |
 | O-RM-26 | Owner gates bind exact pre-authored candidate bytes, never later Worker outputs | 06i/06j Stage A packages, independent reviews and operative G-RM-14/G-RM-12 |
 | O-RM-27 | Every landed production family enters the live append-path smoke gate under every merge ordering | RM-01 final candidate reconciliation plus second-to-merge ownership in 06i/06j |
 | O-RM-28 | Candidate operator reports cannot traverse canonical consumers | RM-04 G-RM-13 external review/use-authority step and result/claim negatives |
@@ -190,8 +190,10 @@ implementation README, CLAUDE/AGENTS/APM rules.
 - **06j:** an independently reviewed Stage A package is accepted before
   implementation; requested, compiling, compiled and failed states remain
   attributable/replayable before validation; W4 routing and selected-route W7
-  revalidation cannot fail outside the lifecycle writer; no fallible W3/W4/W7
-  check remains between validation and issue; a W3-complete packet is issued,
+  revalidation cannot fail outside the lifecycle writer; every CLI/rederivation,
+  coverage, calibration, variant and registry path is literally classified and
+  rejects missing/forged lifecycle capability before side effects; no fallible
+  W3/W4/W7 check remains between validation and issue; a W3-complete packet is issued,
   delivered and resolved by exact current state; executable F-025-F-028 pass and F-029/F-030 remain explicit P1 reservations with owned pre-pilot follow-up.
 - **RM-01:** the same pre-06h 156-node cohort and full universe are observed
   post-06h; additions/removals/renames are explicit; the final candidate
