@@ -42,7 +42,7 @@ model provider. TDA appears only in clearly marked examples/pilots.
 | [06h](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) *(main path)* | Exact validated schema identity; complete generic/T2 producer binding; executable historical policy; pinned pre-change suite record | P-043; G-RM-3; G-RM-8; G-RM-9 | `pipe/wp6-1-schema-identity-*` |
 | [06i](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Catalogue-complete artefact authority, production writer, review/P-005 binding, canonical consumer firewall | accepted 06h; G-RM-3; G-RM-10 | `pipe/wp6-1-artefact-authority-*` |
 | [06j](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | W3 packet object, command-written lifecycle, delivery evidence, authoritative resolver | accepted 06h; G-RM-3; G-RM-12 | `pipe/w3-context-packet-*` |
-| [RM-01](rm-01-unblock-and-suite-recovery-plan.md) | Post-06h run against the pinned pre-06h cohort/universe; quality accounting; smoke gate | merged 06h; G-RM-7 close-out | `pipe/rm-01-*` |
+| [RM-01](rm-01-unblock-and-suite-recovery-plan.md) | Post-06h run against the pinned pre-06h cohort/universe; quality accounting; smoke gate for command/event families landed at its exact dispatch head | merged 06h; G-RM-7 close-out | `pipe/rm-01-*` |
 | [RM-02](rm-02-research-methods-pack-plan.md) | Five candidate assets; independently anchored Git history; fail-closed pack loader | G-RM-3; candidate authorship independent of 06h/06i | `pipe/rm-02-*` |
 | [RM-03](rm-03-brief-export-import-plan.md) | Export/import over accepted packet and artefact-use resolvers; closed capability boundary | accepted 06i + 06j; RM-02; G-RM-4 | `pipe/rm-03-*` |
 | [RM-04](rm-04-manuscript-review-and-verification-records-plan.md) | Manuscript-review lane and non-executing verification records | RM-03; accepted 06i/06j | `pipe/rm-04-*` |
@@ -50,8 +50,11 @@ model provider. TDA appears only in clearly marked examples/pilots.
 
 Permitted parallelism: after G-RM-3, 06h and candidate-only RM-02 may proceed
 on disjoint files. 06i and 06j follow accepted 06h and may proceed in separate
-worktrees if their exact file maps remain disjoint. RM-01 follows 06h. RM-03
-follows accepted 06i/06j and RM-02. RM-04 follows RM-03.
+worktrees if their exact file maps remain disjoint. RM-01 follows 06h and may
+run in parallel with 06i/06j; it covers only families landed at its exact
+dispatch head. Any 06i/06j family landing later extends the smoke gate in that
+plan's close-out. RM-03 follows accepted 06i/06j and RM-02. RM-04 follows
+RM-03.
 
 ## 3. Gate checklist
 

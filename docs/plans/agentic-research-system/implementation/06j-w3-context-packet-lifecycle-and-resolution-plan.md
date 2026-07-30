@@ -133,9 +133,12 @@ Schema tests alone are not closure.
    failure, supersession, idempotency and pure reducers.
 4. **Resolver.** Implement the only public consumption interface with
    load/consumption revalidation.
-5. **CLI.** Add bounded compile/register/validate/issue/deliver/supersede
-   operations. Every write submits a command; no direct append/object mutation.
-6. **Adversarial corpus.** Run all required controls through production
+5. **CLI.** Add bounded compile plus
+   register/validate/issue/deliver/fail/expire/supersede operations. Every
+   lifecycle write submits its named command; no direct append/object mutation.
+6. **Adversarial corpus.** Prove CLI reachability for all seven lifecycle
+   commands, including successful `fail`/`expire`, invalid-state rejection and
+   idempotent retry. Run all required controls through production
    producer/resolver call sites, including F-025-F-030.
 
 ## Validation and close-out
@@ -147,6 +150,9 @@ uv run --no-sync ruff check research_system/context research_system/command rese
 
 Run the full `tests/research_system` tree once at final head because core
 command/replay/schema surfaces change. Record exact schema identities, catalogue
-rows, transition coverage, producer/resolver call sites, F-025-F-030 outcomes,
-and negative-control liveness. Independent exact-subject acceptance is required
-before RM-03 may consume this capability.
+rows, CLI reachability and transition coverage for all seven commands,
+producer/resolver call sites, F-025-F-030 outcomes, and negative-control
+liveness. If RM-01's append-path smoke gate already exists, add all seven
+families before 06j close-out; otherwise publish their exact smoke cases as
+blocking input to RM-01. Independent exact-subject acceptance is required before
+RM-03 may consume this capability.

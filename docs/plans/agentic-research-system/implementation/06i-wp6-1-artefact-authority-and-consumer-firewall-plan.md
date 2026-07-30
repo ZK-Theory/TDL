@@ -199,5 +199,8 @@ uv run --no-sync ruff check research_system
 Run the full `tests/research_system` tree once at final exact head because this
 changes the shared command service and replay. Record the accepted policy
 subject, grants, review-set evidence, P-005 fixtures, atomicity results, and
-remaining unwired command families. Independent exact-subject review and
-Stephen's G-RM-10 acceptance are distinct from test success.
+remaining unwired command families. If RM-01's append-path smoke gate already
+exists, add the 06i command/event families before 06i close-out; otherwise
+publish their exact smoke cases as blocking input to RM-01. Independent
+exact-subject review and Stephen's G-RM-10 acceptance are distinct from test
+success.

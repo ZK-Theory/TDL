@@ -120,10 +120,14 @@ Reparse `pyproject.toml` after the edit and assert both keys exactly once. Run
 
 ## Task D: append-path smoke gate
 
-Create a sub-60-second smoke test covering at least generic core, T2, guarded
-release, and each command/event family accepted in 06i/06j once those plans
-land. Submit through production services and validate emitted events against
-registered schemas.
+Create a sub-60-second smoke test covering generic core, T2, guarded release,
+and every other accepted production command/event family present at RM-01's
+exact dispatch head. Submit through production services and validate emitted
+events against registered schemas.
+
+06i/06j are not RM-01 prerequisites. If either has already landed, include its
+families. Otherwise record those families as deferred to that successor plan's
+close-out; the later plan must extend this gate before it closes.
 
 Required liveness control: remove one required `command_schema_*` field from an
 otherwise valid command-originated event and prove the gate fails. Include a
