@@ -56,11 +56,11 @@ dependencies remain open).
 docs/plans/agentic-research-system/implementation/rm-01a-dispatch-head-collection-manifest-<date>.md
 ~~~
 
-**Modify (Task A pre-step, per R1-3a):**
+**Task A preflight (read-only, per R1-3a):**
 
-~~~text
-tests/research_system/unit/test_release_publication.py   # signature guard: Receipt -> Receipt | T2Receipt
-~~~
+`a681180` repaired the submit-signature guard before this revision, and that
+commit is an ancestor of the current plan head. Reverify the guard at dispatch
+head; RM-01 owns no signature-guard edit.
 
 **Create (Task B):**
 
@@ -87,7 +87,7 @@ tests/research_system/smoke/test_append_path_smoke.py
 | R1-1 | P-043 / handoff 26 Defect 3 | Producer emits the three `command_schema_*` fields; schemas not relaxed | **Moved to 06h Task 2.** RM-01 measures its effect, it does not implement it |
 | R1-2 | handoff 26 | Every producing path covered, not just `TaskCreated` | **Moved to 06h Task 4** (producer coverage matrix). RM-01 Task D smoke-tests the outcome |
 | R1-3 | handoff 28 + review M-9 | The 156 Defect-3 cases must be shown to move together, against a *current* universe | Task A manifest + Task B delta |
-| R1-3a | handoff 28 §"NOT Defect 3" (2) | Stale signature guard pins `CommandService.submit` return as `Receipt`; actual is `Receipt \| T2Receipt`. Refresh it **before** 06h Task 2 so it guards the method being changed | Task A pre-step. The review confirmed this ordering is correct — keep it |
+| R1-3a | handoff 28 §"NOT Defect 3" (2) | Stale signature guard pinned `CommandService.submit` return as `Receipt`; actual is `Receipt \| T2Receipt` | **Discharged before this revision by `a681180`.** Task A reverifies the annotation and guard at dispatch head; it does not edit them |
 | R1-3b | handoff 28 §"NOT Defect 3" (1) | `test_every_core_schema_declares_closed_object_contract` red because `receipt-v2.schema.json` is absent from a hand-written 13-name literal | **G-RM-7** (hoisted to rm-00 §3 per review M-1). Blocks any "green" claim |
 | R1-4 | Report 1 F1-A (verified: `pyproject.toml:106,113`) | `research_system` absent from coverage and ruff first-party | Task C |
 | R1-5 | Observer log Obs. 137 | Append-path divergence needs a pre-merge signal with a negative control | Task D; G-RM-6 for wiring location |
@@ -120,12 +120,14 @@ The first-ever complete baseline exists (handoff 28: tree `97f447f`, 1:12:45,
 longer the comparator: the review's read-only collection at `6e7d0e0` found
 **1,561 tests**. This task establishes the true comparator.
 
-- [ ] **Pre-step (per R1-3a).** Update the stale signature guard in
-  `test_release_publication.py` (handoff 28 cites ~line 956) from `'Receipt'`
-  to `'Receipt | T2Receipt'`. One-line change. This must land **before** 06h
-  Task 2 runs, so the guard is live on the method 06h changes rather than
-  known-noise. Coordinate: if 06h is already in flight, hand this line to that
-  Worker rather than racing it.
+- [ ] **Preflight (per R1-3a; read-only).** Confirm
+  `CommandService.submit` and
+  `test_command_service_submit_preserves_public_signature_and_guard_metadata`
+  both require `Receipt | T2Receipt`, and record the fixing commit
+  (`a681180`) in the collection manifest. This repair already precedes 06h and
+  is not RM-01 work. If either assertion has regressed at dispatch head, stop
+  Partial and restore the prerequisite before dispatching 06h; do not hide an
+  ordering defect inside this post-06h plan.
 - [ ] **Step 1 — Collect read-only at dispatch head**, before any production
   mutation, with bytecode/cache/coverage writes disabled:
 
