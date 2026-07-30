@@ -97,6 +97,41 @@ def test_broken_event_hash_fails_closed(tmp_path):
         replay(events)
 
 
+def test_replay_rejects_wrong_recorded_command_schema_hash(tmp_path):
+    events, harness = _events(tmp_path)
+    events[0]["command_schema_sha256"] = "0" * 64
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="command schema identity"):
+        replay(events, schema_registry=harness.service.schemas)
+
+
+def test_replay_rejects_wrong_recorded_command_schema_version(tmp_path):
+    events, harness = _events(tmp_path)
+    events[0]["command_schema_version"] = "2.0.0"
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="command schema identity"):
+        replay(events, schema_registry=harness.service.schemas)
+
+
+def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
+    events, harness = _events(tmp_path)
+    legacy = events[0]
+    for field in (
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ):
+        legacy.pop(field)
+    legacy["payload"] = {"title": "Legacy task"}
+    events[0] = _rehash(legacy)
+
+    projection = replay(events, schema_registry=harness.service.schemas)
+
+    assert projection["streams"][TASK_ID]["status"] == "draft"
+
+
 def test_s012_store_identity_mismatch_and_worktree_local_store_are_rejected(
     tmp_path,
 ):

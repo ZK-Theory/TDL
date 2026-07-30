@@ -91,9 +91,7 @@ def _release_draft_protocol():
             ):
                 nonlocal used
                 if used or ledger is not self.ledger:
-                    raise ArsError(
-                        "release append continuation is one-shot and ledger-specific"
-                    )
+                    raise ArsError("release append continuation is one-shot and ledger-specific")
                 used = True
                 session = _Session(ledger)
                 return ledger._append_release_from_validated_submit(
@@ -109,10 +107,7 @@ def _release_draft_protocol():
         guarded_submit.__qualname__ = submit_impl.__qualname__
         guarded_submit.__doc__ = submit_impl.__doc__
         guarded_submit.__module__ = submit_impl.__module__
-        guarded_submit.__annotations__ = {
-            key: submit_impl.__annotations__[key]
-            for key in ("envelope", "return")
-        }
+        guarded_submit.__annotations__ = {key: submit_impl.__annotations__[key] for key in ("envelope", "return")}
         return guarded_submit
 
     def take_guard():
@@ -129,25 +124,16 @@ def _release_draft_protocol():
             or session.draft is not None
             or session.consumed
         ):
-            raise ArsError(
-                "release publication requires the validated CommandService.submit continuation"
-            )
+            raise ArsError("release publication requires the validated CommandService.submit continuation")
         session.draft = draft
         issued[id(draft)] = (session, ledger, draft)
 
     def consume(ledger: object, draft: EventDraft) -> None:
         entry = issued.pop(id(draft), None)
         if entry is None:
-            raise ArsError(
-                "release event draft requires the validated CommandService.submit continuation"
-            )
+            raise ArsError("release event draft requires the validated CommandService.submit continuation")
         session, issued_ledger, issued_draft = entry
-        if (
-            issued_ledger is not ledger
-            or issued_draft is not draft
-            or session.draft is not draft
-            or session.consumed
-        ):
+        if issued_ledger is not ledger or issued_draft is not draft or session.draft is not draft or session.consumed:
             raise ArsError("release event draft is foreign, forged, or consumed")
         session.draft = None
         session.consumed = True
@@ -272,9 +258,7 @@ class EventLedger:
             stream_versions[stream_id] = stream_version
             event_id = new_id("event")
             recorded_at_text = recorded_at.isoformat().replace("+00:00", "Z")
-            t2_event = str(candidate.get("schema_id", "")).startswith(
-                "ars://wp6-2/t2/event/"
-            )
+            t2_event = str(candidate.get("schema_id", "")).startswith("ars://wp6-2/t2/event/")
             transaction_index = offset if t2_event else offset + 1
             if draft is None and event_type == "ReleaseGateDecisionPublished":
                 raise ArsError("release publication requires a ledger event finalizer")
@@ -330,24 +314,37 @@ class EventLedger:
                 ):
                     raise ArsError("release event finalizer violated ledger allocation")
             prehash = {**event, "event_hash": "0" * 64}
-            event_schema = (
-                candidate["schema_id"]
-                if t2_event
-                else f"ars://core/event/{event_type}"
+            event_schema = candidate["schema_id"] if t2_event else f"ars://core/event/{event_type}"
+            event_schema_version = str(event.get("schema_version", ""))
+            event_schema_active = self.schemas.is_active(
+                event_schema,
+                event_schema_version,
             )
             if t2_event:
                 self.schemas.validate(event_schema, prehash)
             else:
                 self.schemas.validate("ars://core/event", prehash)
-                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+                if event_type == "ReleaseGateDecisionPublished":
                     self.schemas.validate(event_schema, prehash)
+                elif event_schema_active:
+                    self.schemas.validate_active(
+                        event_schema,
+                        prehash,
+                        schema_version=event_schema_version,
+                    )
             event["event_hash"] = sha256_hex(canonical_bytes(event))
             if t2_event:
                 self.schemas.validate(event_schema, event)
             else:
                 self.schemas.validate("ars://core/event", event)
-                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
+                if event_type == "ReleaseGateDecisionPublished":
                     self.schemas.validate(event_schema, event)
+                elif event_schema_active:
+                    self.schemas.validate_active(
+                        event_schema,
+                        event,
+                        schema_version=event_schema_version,
+                    )
             previous_hash = event["event_hash"]
             events.append(event)
         date_root = self.events_root / f"{recorded_at.year:04d}" / f"{recorded_at.month:02d}"

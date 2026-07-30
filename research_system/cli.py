@@ -49,6 +49,7 @@ from research_system.schema_registry import (
     SchemaRegistry,
     authority_schema_registry,
     bundled_schema_registry,
+    runtime_schema_registry,
 )
 from research_system.store.identity import load_store_manifest, manifest_schema_root
 from research_system.store.ledger import EventLedger
@@ -142,7 +143,7 @@ def _store_init(args: argparse.Namespace) -> int:
 def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     command = _read_json(args.command)
-    schemas = SchemaRegistry(binding.schema_root)
+    schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     service = CommandService(
         binding.control_root,
@@ -298,7 +299,8 @@ def _schemas_for_store_manifest(
         if not persisted.is_dir():
             raise ConfigurationError("store manifest schema root is missing")
         try:
-            return authority_schema_registry(persisted)
+            authority_schema_registry(persisted)
+            return runtime_schema_registry(persisted)
         except ArsError as exc:
             raise ConfigurationError("store manifest schema root is unusable") from exc
     candidates = [Path(root) / ".research-system" / "schemas" for root in manifest.get("code_roots", [])]
@@ -312,7 +314,8 @@ def _schemas_for_store_manifest(
     unique = sorted(set(existing), key=str)
     if len(unique) != 1:
         raise ConfigurationError("store manifest has ambiguous schema roots")
-    return authority_schema_registry(unique[0])
+    authority_schema_registry(unique[0])
+    return runtime_schema_registry(unique[0])
 
 
 def _rederive_bound_decision(
@@ -339,7 +342,7 @@ def _publication_evidence(
     binding: ControlBinding,
     source: dict[str, Any],
 ) -> tuple[StoredReleasePublicationEvidence, str, str]:
-    schemas = SchemaRegistry(binding.schema_root)
+    schemas = runtime_schema_registry(binding.schema_root)
     existing_projection = replay(
         EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
         schema_registry=schemas,
@@ -446,7 +449,7 @@ def _publish_reserved_output(
 def _eval_publish_release(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     source = _read_json(args.evaluation_runs)
-    schemas = SchemaRegistry(binding.schema_root)
+    schemas = runtime_schema_registry(binding.schema_root)
     schemas.validate("ars://evals/release-gate-decision", source)
     if source.get("canonical_event_ref") != "unpublished:p0":
         raise ArsError("publication requires unpublished:p0 source evidence")
@@ -527,7 +530,7 @@ def _eval_release(args: argparse.Namespace) -> int:
     supplied_document = supplied.get("decision_document", supplied)
     if not isinstance(supplied_document, dict):
         raise ConfigurationError("evaluation runs require a decision document")
-    schema_registry = SchemaRegistry(binding.schema_root)
+    schema_registry = runtime_schema_registry(binding.schema_root)
     schema_registry.validate("ars://evals/release-gate-decision", supplied_document)
     if supplied_document.get("canonical_event_ref") == "unpublished:p0":
         raise ArsError("eval release requires a canonical published event reference")

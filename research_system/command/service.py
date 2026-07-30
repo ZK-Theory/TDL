@@ -32,7 +32,7 @@ from research_system.operations.backups import (
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaIdentity, SchemaRegistry
 from research_system.store.ledger import (
     EventLedger,
     LedgerSnapshot,
@@ -44,6 +44,13 @@ from research_system.store.receipts import ReceiptStore
 
 
 _release_submit_guard = _take_release_submit_guard()
+_CALLER_PROVENANCE_FIELDS = frozenset(
+    {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    }
+)
 
 
 @dataclass
@@ -180,19 +187,32 @@ class CommandService:
             raise ArsError("CommandService.submit requires its guarded release continuation")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
             return submit_t2(self, envelope)
-        self.schemas.validate("ars://core/command", envelope)
-        if envelope.get("command_type") == "RevokeAuthorityGrant":
+        validated_envelope = {key: value for key, value in envelope.items() if key not in _CALLER_PROVENANCE_FIELDS}
+        schema_id = str(validated_envelope.get("schema_id", ""))
+        schema_version = str(validated_envelope.get("schema_version", ""))
+        if self.schemas.is_active(schema_id, schema_version):
+            command_schema = self.schemas.validate_active(
+                schema_id,
+                validated_envelope,
+                schema_version=schema_version,
+            )
+        else:
+            command_schema = self.schemas.validate(
+                "ars://core/command",
+                validated_envelope,
+            )
+        if validated_envelope.get("command_type") == "RevokeAuthorityGrant":
             self.schemas.validate(
                 "ars://core/command/RevokeAuthorityGrant/payload",
-                envelope.get("payload"),
+                validated_envelope.get("payload"),
             )
-        elif envelope.get("command_type") == "PublishReleaseGateDecision":
+        elif validated_envelope.get("command_type") == "PublishReleaseGateDecision":
             self.schemas.validate(
                 "ars://evals/release-publication-request",
-                envelope.get("payload"),
+                validated_envelope.get("payload"),
             )
-            ReleasePublicationRequest.from_dict(envelope["payload"])
-        command = Command(dict(envelope))
+            ReleasePublicationRequest.from_dict(validated_envelope["payload"])
+        command = Command(validated_envelope)
         with self._submission_lock(command):
             self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
@@ -298,14 +318,16 @@ class CommandService:
                         str(exc),
                     )
                     return self._write_receipt(command, rejected)
-            event = self._build_event(command, prepared_payload)
+            event = self._build_event(
+                command,
+                prepared_payload,
+                command_schema=command_schema,
+            )
             if isinstance(prepared_payload, VerifiedReleasePublication):
                 ledger_receipt = release_append(
                     self.ledger,
                     event,
-                    lambda allocated: prepared_payload.payload_for(
-                        allocated.event_id
-                    ),
+                    lambda allocated: prepared_payload.payload_for(allocated.event_id),
                     snapshot=snapshot,
                 )
             else:
@@ -832,14 +854,19 @@ class CommandService:
         self,
         command: Command,
         prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None,
+        *,
+        command_schema: SchemaIdentity,
     ) -> dict[str, Any]:
         command_type = command.envelope["command_type"]
         if command_type == "CreateTask":
+            activated_create = (
+                command_schema.schema_id == "ars://core/command/CreateTask" and command_schema.schema_version == "1.0.0"
+            )
             self.objects.write(
                 "task",
                 command.target_stream_id,
                 1,
-                command.envelope["payload"],
+                (command.envelope["payload"]["definition"] if activated_create else command.envelope["payload"]),
             )
             event_type = "TaskCreated"
             payload = command.envelope["payload"]
@@ -880,6 +907,9 @@ class CommandService:
             "stream_id": command.target_stream_id,
             "command_id": command.command_id,
             "command_type": command_type,
+            "command_schema_id": command_schema.schema_id,
+            "command_schema_version": command_schema.schema_version,
+            "command_schema_sha256": command_schema.sha256,
             "actor_id": command.actor_id,
             "authority_grant_id": command.envelope["authority_grant_id"],
             "idempotency_key": command.idempotency_key,

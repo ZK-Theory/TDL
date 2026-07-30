@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -50,8 +53,44 @@ if "date-time" not in Draft202012Validator.FORMAT_CHECKER.checkers:
     Draft202012Validator.FORMAT_CHECKER.checks("date-time")(_is_rfc3339_date_time)
 
 
+@dataclass(frozen=True)
+class SchemaIdentity:
+    """Exact source identity of one validated schema version."""
+
+    schema_id: str
+    schema_version: str | None
+    sha256: str
+    raw_bytes: bytes
+    source_path: Path
+
+
+@dataclass(frozen=True)
+class SchemaBinding:
+    """Explicit activation of one exact catalogue entry."""
+
+    schema_id: str
+    schema_version: str
+
+
+_RUNTIME_BINDINGS = (
+    SchemaBinding("ars://core/command/CreateTask", "1.0.0"),
+    SchemaBinding("ars://core/event/TaskCreated", "1.0.0"),
+)
+
+
+@dataclass(frozen=True)
+class _CatalogueEntry:
+    identity: SchemaIdentity
+    schema: dict[str, Any]
+
+
 class SchemaRegistry:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        active_bindings: Iterable[SchemaBinding] = (),
+    ) -> None:
         """Load and validate every JSON Schema below a registry root.
 
         Args:
@@ -60,34 +99,88 @@ class SchemaRegistry:
         Raises:
             SchemaError: If a schema is unreadable, invalid, or duplicated.
         """
-        self._schemas: dict[str, dict[str, Any]] = {}
+        self._schemas: dict[tuple[str, str | None], _CatalogueEntry] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
-                schema = json.loads(path.read_text(encoding="utf-8"))
+                raw_bytes = path.read_bytes()
+                schema = json.loads(raw_bytes)
                 Draft202012Validator.check_schema(schema)
                 schema_id = schema["$id"]
-            except (OSError, json.JSONDecodeError, JsonSchemaError, KeyError) as exc:
+                schema_version = schema.get("properties", {}).get("schema_version", {}).get("const")
+                if schema_version is not None and not isinstance(schema_version, str):
+                    raise TypeError("schema version const must be a string")
+            except (
+                OSError,
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+                JsonSchemaError,
+                KeyError,
+                TypeError,
+            ) as exc:
                 raise SchemaError(f"invalid schema: {path}") from exc
-            if schema_id in self._schemas:
-                raise SchemaError(f"duplicate schema: {schema_id}")
-            self._schemas[schema_id] = schema
+            key = (schema_id, schema_version)
+            if key in self._schemas:
+                raise SchemaError(f"duplicate schema: {schema_id} version {schema_version}")
+            identity = SchemaIdentity(
+                schema_id=schema_id,
+                schema_version=schema_version,
+                sha256=sha256(raw_bytes).hexdigest(),
+                raw_bytes=raw_bytes,
+                source_path=path.resolve(),
+            )
+            self._schemas[key] = _CatalogueEntry(identity, schema)
+        self._active_bindings = frozenset(active_bindings)
+        for binding in self._active_bindings:
+            self._resolve(binding.schema_id, binding.schema_version)
 
-    def validate(self, schema_id: str, value: Any) -> None:
+    def _resolve(
+        self,
+        schema_id: str,
+        schema_version: str | None = None,
+    ) -> _CatalogueEntry:
+        if schema_version is not None:
+            entry = self._schemas.get((schema_id, schema_version))
+            if entry is None:
+                raise SchemaError(f"unknown schema: {schema_id} version {schema_version}")
+            return entry
+        matches = [
+            entry for (candidate_id, _candidate_version), entry in self._schemas.items() if candidate_id == schema_id
+        ]
+        if not matches:
+            raise SchemaError(f"unknown schema: {schema_id}")
+        if len(matches) != 1:
+            raise SchemaError(f"schema version required: {schema_id}")
+        return matches[0]
+
+    def validate(
+        self,
+        schema_id: str,
+        value: Any,
+        *,
+        schema_version: str | None = None,
+        expected_sha256: str | None = None,
+    ) -> SchemaIdentity:
         """Validate a value against an exact registered schema identifier.
 
         Args:
             schema_id: Exact ``$id`` of the schema to apply.
             value: JSON-compatible value to validate.
+            schema_version: Exact semantic version, required when more than one
+                catalogue entry shares ``schema_id``.
+            expected_sha256: Recorded exact-source digest that must match.
 
         Raises:
             SchemaError: If the schema is unknown or the value is invalid.
+
+        Returns:
+            Exact raw-source identity of the schema used for validation.
         """
-        schema = self._schemas.get(schema_id)
-        if schema is None:
-            raise SchemaError(f"unknown schema: {schema_id}")
+        entry = self._resolve(schema_id, schema_version)
+        if expected_sha256 is not None and entry.identity.sha256 != expected_sha256:
+            raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.identity.schema_version}")
         errors = sorted(
             Draft202012Validator(
-                schema,
+                entry.schema,
                 format_checker=Draft202012Validator.FORMAT_CHECKER,
             ).iter_errors(value),
             key=lambda error: list(error.absolute_path),
@@ -97,6 +190,42 @@ class SchemaRegistry:
                 f"{'.'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}" for error in errors
             )
             raise SchemaError(f"{schema_id}: {message}")
+        return entry.identity
+
+    def resolve_identity(
+        self,
+        schema_id: str,
+        schema_version: str,
+        *,
+        expected_sha256: str | None = None,
+    ) -> SchemaIdentity:
+        """Resolve an exact version and optionally verify its recorded digest."""
+        entry = self._resolve(schema_id, schema_version)
+        if expected_sha256 is not None and entry.identity.sha256 != expected_sha256:
+            raise SchemaError(f"schema hash mismatch: {schema_id} version {schema_version}")
+        return entry.identity
+
+    def is_active(self, schema_id: str, schema_version: str) -> bool:
+        """Return whether the exact version has an explicit runtime binding."""
+        return SchemaBinding(schema_id, schema_version) in self._active_bindings
+
+    def validate_active(
+        self,
+        schema_id: str,
+        value: Any,
+        *,
+        schema_version: str,
+        expected_sha256: str | None = None,
+    ) -> SchemaIdentity:
+        """Validate through one explicitly activated schema binding."""
+        if not self.is_active(schema_id, schema_version):
+            raise SchemaError(f"inactive schema: {schema_id} version {schema_version}")
+        return self.validate(
+            schema_id,
+            value,
+            schema_version=schema_version,
+            expected_sha256=expected_sha256,
+        )
 
     def contains(self, schema_id: str) -> bool:
         """Return whether an exact schema identifier is registered.
@@ -107,7 +236,7 @@ class SchemaRegistry:
         Returns:
             Whether the registry contains the identifier.
         """
-        return schema_id in self._schemas
+        return any(candidate_id == schema_id for candidate_id, _ in self._schemas)
 
 
 def authority_schema_registry(root: Path) -> SchemaRegistry:
@@ -155,7 +284,15 @@ def cached_schema_registry(root: Path | str) -> SchemaRegistry:
     return _registry_for_resolved_root(Path(root).resolve())
 
 
+def runtime_schema_registry(root: Path | str) -> SchemaRegistry:
+    """Load the catalogue with the explicitly accepted runtime bindings."""
+    return SchemaRegistry(
+        Path(root).resolve(),
+        active_bindings=_RUNTIME_BINDINGS,
+    )
+
+
 @lru_cache(maxsize=1)
 def bundled_schema_registry() -> SchemaRegistry:
-    """Return the immutable schema registry shipped with this code checkout."""
+    """Return the inert schema catalogue shipped with this code checkout."""
     return SchemaRegistry(Path(__file__).resolve().parent.parent / ".research-system" / "schemas")

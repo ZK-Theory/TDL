@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 import shutil
 
@@ -9,9 +10,11 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from research_system.errors import SchemaError
 from research_system.schema_registry import (
+    SchemaBinding,
     SchemaRegistry,
     _is_rfc3339_date_time,
     authority_schema_registry,
+    runtime_schema_registry,
 )
 
 
@@ -57,6 +60,35 @@ def _command_payload():
         "reason": "synthetic P0 test",
         "evidence_refs": [],
         "payload": {},
+    }
+
+
+def _event_payload():
+    return {
+        "event_id": f"evt_{UUID7}",
+        "event_type": "TaskCreated",
+        "schema_id": "ars://core/event/TaskCreated",
+        "schema_version": "1.0.0",
+        "project_id": "prj_01978abc-0002-7000-8000-000000000002",
+        "stream_id": "tsk_01978abc-0003-7000-8000-000000000003",
+        "stream_version": 1,
+        "global_position": 1,
+        "transaction_id": "txb_01978abc-0004-7000-8000-000000000004",
+        "transaction_index": 1,
+        "transaction_count": 1,
+        "command_id": "cmd_01978abc-0005-7000-8000-000000000005",
+        "command_type": "CreateTask",
+        "idempotency_key": "create-task-1",
+        "command_payload_hash": "1" * 64,
+        "correlation_id": "synthetic-workflow-1",
+        "causation_id": None,
+        "actor_id": "act_01978abc-0006-7000-8000-000000000006",
+        "authority_grant_id": "agr_01978abc-0007-7000-8000-000000000007",
+        "occurred_at": None,
+        "recorded_at": "2026-07-01T12:00:00Z",
+        "payload": {},
+        "previous_event_hash": "0" * 64,
+        "event_hash": "2" * 64,
     }
 
 
@@ -123,6 +155,20 @@ def test_registry_validates_command_envelope():
     SchemaRegistry(SCHEMAS).validate("ars://core/command", _command_payload())
 
 
+def test_generic_event_envelope_accepts_optional_command_schema_provenance():
+    registry = SchemaRegistry(SCHEMAS)
+    legacy = _event_payload()
+    registry.validate("ars://core/event", legacy)
+
+    current = {
+        **legacy,
+        "command_schema_id": "ars://core/command/CreateTask",
+        "command_schema_version": "1.0.0",
+        "command_schema_sha256": "3" * 64,
+    }
+    registry.validate("ars://core/event", current)
+
+
 def test_registry_rejects_malformed_command_submission_timestamp():
     registry = SchemaRegistry(SCHEMAS)
     payload = _command_payload()
@@ -143,6 +189,78 @@ def test_registry_rejects_non_uuid7_command_identity():
 def test_registry_rejects_unknown_schema():
     with pytest.raises(SchemaError, match="unknown schema"):
         SchemaRegistry(SCHEMAS).validate("ars://missing", {})
+
+
+def test_versioned_catalogue_returns_exact_validated_source_identity(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    schema_id = "ars://test/versioned"
+    sources = {
+        version: (
+            "{\n"
+            '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+            f'  "$id": "{schema_id}",\n'
+            '  "type": "object",\n'
+            f'  "properties": {{"schema_version": {{"const": "{version}"}}}},\n'
+            '  "required": ["schema_version"],\n'
+            '  "additionalProperties": false\n'
+            "}\n"
+        ).encode()
+        for version in ("1.0.0", "2.0.0")
+    }
+    for version, raw_bytes in sources.items():
+        (root / f"{version}.schema.json").write_bytes(raw_bytes)
+
+    identity = SchemaRegistry(root).validate(
+        schema_id,
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+
+    assert identity.schema_id == schema_id
+    assert identity.schema_version == "1.0.0"
+    assert identity.raw_bytes == sources["1.0.0"]
+    assert identity.sha256 == sha256(sources["1.0.0"]).hexdigest()
+
+
+def test_validation_rejects_wrong_recorded_source_hash():
+    registry = SchemaRegistry(SCHEMAS)
+
+    with pytest.raises(SchemaError, match="schema hash mismatch"):
+        registry.validate(
+            "ars://core/command",
+            _command_payload(),
+            schema_version="1.0.0",
+            expected_sha256="0" * 64,
+        )
+
+
+def test_materialized_schema_is_inert_until_exact_binding_is_active():
+    schema_id = "ars://core/command/CreateTask"
+    registry = SchemaRegistry(SCHEMAS)
+
+    assert not registry.is_active(schema_id, "1.0.0")
+    with pytest.raises(SchemaError, match="inactive schema"):
+        registry.validate_active(
+            schema_id,
+            {},
+            schema_version="1.0.0",
+        )
+
+    active = SchemaRegistry(
+        SCHEMAS,
+        active_bindings=(SchemaBinding(schema_id, "1.0.0"),),
+    )
+    assert active.is_active(schema_id, "1.0.0")
+
+
+def test_runtime_bindings_activate_only_create_task_vertical_pair():
+    registry = runtime_schema_registry(SCHEMAS)
+
+    assert registry.is_active("ars://core/command/CreateTask", "1.0.0")
+    assert registry.is_active("ars://core/event/TaskCreated", "1.0.0")
+    assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
+    assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
 
 
 @pytest.mark.parametrize(
@@ -184,6 +302,7 @@ def test_every_core_schema_declares_closed_object_contract():
         "command.schema.json",
         "event.schema.json",
         "receipt.schema.json",
+        "receipt-v2.schema.json",
         "release-gate-decision-published.schema.json",
         "revoke-authority-grant.schema.json",
         "store-identity-1.1.schema.json",
