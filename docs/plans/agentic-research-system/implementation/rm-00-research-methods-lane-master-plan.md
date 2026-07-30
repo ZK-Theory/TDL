@@ -1,12 +1,12 @@
 # RM-00: Research Methods Lane — Master Plan
 
-**Status:** REVISED 2026-07-30 (revision 4; PR198-RR1 amendment) after the
-PR #198 exact-subject `8e091a1` pre-merge rereview returned
-`rework_required_before_merge`. P-043 and P-044 remain
+**Status:** REVISED 2026-07-30 (revision 5; PR198-RR1 constructibility and
+authority correction) after the PR #198 exact-subject `d6c9647` rereview returned
+`rework_required_before_merge`. P-043 and the existing P-044 scope remain
 accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
-bytes. No candidate-authoring or implementation stage is dispatchable until a
-fresh independent review returns an admissible verdict and every stage-specific
-owner gate is separately satisfied.**
+bytes. An independent `accept` only makes the exact subject eligible for
+Stephen's separate explicit G-RM-3 decision; it does not close the gate,
+dispatch any stage, authorize merge, or activate a proposed owner gate.**
 
 **Created:** 2026-07-28 · **Revised:** 2026-07-30
 **Supersedes for execution:**
@@ -16,6 +16,16 @@ owner gate is separately satisfied.**
 
 This document grants no runtime, provider, migration, packet, pilot, result, or
 claim authority.
+
+P-044 currently authorizes bounded implementation of RM-01 through RM-04 only
+and records owner gates only through G-RM-11. It does not authorize 06i/06j
+Stage A. Historical G-RM-10 is preserved as the choice to use the already
+accepted artefact command family. G-RM-12, G-RM-13 and G-RM-14 below are
+**proposed, inert labels** until Stephen accepts a decision-register amendment
+that authorizes the two candidate-authoring stages and defines those gates.
+Plan prose, reviewer disposition and PR mergeability cannot activate them.
+Until that amendment exists, both Stage A plans and every dependent stage remain
+non-dispatchable even after an independent `accept` and explicit G-RM-3.
 
 ## 1. Lane charter
 
@@ -43,20 +53,22 @@ model provider. TDA appears only in clearly marked examples/pilots.
 | Plan | Scope | Depends on | Branch |
 |---|---|---|---|
 | [06h](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) *(main path)* | Exact validated schema identity; complete generic/T2 producer binding; executable historical policy; pinned pre-change suite record | P-043; G-RM-3; G-RM-8; G-RM-9 | `pipe/wp6-1-schema-identity-*` |
-| [06i Stage A](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Inert candidate package for catalogue-complete artefact authority, predicates, review rules and complete consumer inventory | accepted 06h; G-RM-3 | `plan/wp6-1-artefact-authority-candidate-*` |
-| [06i Stage B](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Materialize accepted candidate; production writer; existing release migration; review/P-005 binding; canonical consumer firewall | accepted 06i Stage A exact subject; G-RM-10 | `pipe/wp6-1-artefact-authority-*` |
-| [06j Stage A](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Inert candidate package for the nine-command W3 packet lifecycle, schemas, transitions and authority scopes | accepted 06h; G-RM-3 | `plan/w3-context-packet-candidate-*` |
-| [06j Stage B](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Materialize accepted candidate; requested-through-delivered lifecycle; W4/W7 production-seam failure evidence; authoritative resolver | accepted 06j Stage A exact subject; G-RM-12 | `pipe/w3-context-packet-*` |
+| [06i Stage A](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Inert candidate package for catalogue-complete artefact authority, predicates, review rules and complete consumer inventory | accepted 06h; independent suite `accept`; Stephen's explicit G-RM-3; accepted P-044 amendment authorizing Stage A and G-RM-14 | `plan/wp6-1-artefact-authority-candidate-*` |
+| [06i Stage B](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) *(main path)* | Materialize accepted candidate; production writer; existing release migration; review/P-005 binding; canonical consumer firewall | accepted 06i Stage A exact subject; operative G-RM-14 | `pipe/wp6-1-artefact-authority-*` |
+| [06j Stage A](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Inert candidate package for the nine-command W3 packet lifecycle, schemas, transitions and authority scopes | accepted 06h; independent suite `accept`; Stephen's explicit G-RM-3; accepted P-044 amendment authorizing Stage A and G-RM-12 | `plan/w3-context-packet-candidate-*` |
+| [06j Stage B](06j-w3-context-packet-lifecycle-and-resolution-plan.md) *(main path)* | Materialize accepted candidate; requested-through-delivered lifecycle; W4/W7 production-seam failure evidence; authoritative resolver | accepted 06j Stage A exact subject; operative G-RM-12 | `pipe/w3-context-packet-*` |
 | [RM-01](rm-01-unblock-and-suite-recovery-plan.md) | Post-06h run against the pinned pre-06h cohort/universe; quality accounting; final-candidate reconciliation of every landed production family into the smoke gate | merged 06h; G-RM-7 close-out | `pipe/rm-01-*` |
 | [RM-02](rm-02-research-methods-pack-plan.md) | Five candidate assets; independently anchored Git history; fail-closed pack loader | G-RM-3; candidate authorship independent of 06h/06i | `pipe/rm-02-*` |
 | [RM-03](rm-03-brief-export-import-plan.md) | Export/import over accepted packet and artefact-use resolvers; closed capability boundary | accepted 06i + 06j; RM-02; G-RM-4 | `pipe/rm-03-*` |
 | [RM-04](rm-04-manuscript-review-and-verification-records-plan.md) | Manuscript-review lane and non-executing verification records | RM-03; accepted 06i/06j; G-RM-13 before follow-up use | `pipe/rm-04-*` |
 | RM-05 *(unwritten)* | Isolated verification execution | G-RM-11 only after exact-subject isolation acceptance | — |
 
-Permitted parallelism: after G-RM-3, 06h and candidate-only RM-02 may proceed
-on disjoint files. After accepted 06h, 06i Stage A and 06j Stage A may proceed
-in separate worktrees; Stage B for each waits for its own accepted candidate
-and owner gate. RM-01 follows 06h and may run in parallel with 06i/06j. At
+Permitted parallelism: only after an independent `accept` and Stephen's explicit
+G-RM-3 may 06h and candidate-only RM-02 proceed on disjoint files. Even then,
+06i Stage A and 06j Stage A remain blocked until the accepted P-044 amendment;
+after that amendment and accepted 06h they may proceed in separate worktrees.
+Stage B for each waits for its accepted exact candidate and operative owner gate.
+RM-01 follows 06h and may run in parallel with authorized 06i/06j work. At
 merge, whichever of RM-01, 06i Stage B or 06j Stage B is second relative to an
 installed family owns final smoke-manifest reconciliation against current
 `main`. RM-03 follows accepted 06i/06j and RM-02. RM-04 follows RM-03.
@@ -69,25 +81,30 @@ No child plan may contain an owner decision absent from this table.
 |---|---|---|---|
 | G-RM-1 | **CLOSED 2026-07-28:** P-043 recorded | 06h direction | decision register |
 | G-RM-2 | **CLOSED 2026-07-28:** P-044 recorded | RM lane direction | decision register |
-| G-RM-3 | Accept the independent exact-subject disposition of the revised suite | every plan | review binds exact commit/blobs; `reject` always blocks; required changes need independent closure |
+| G-RM-3 | **OPEN:** after an admissible independent exact-subject review, Stephen separately accepts the exact reviewed suite bytes | every plan | owner record pins exact commit/blobs and cites the review; reviewer `accept` is evidence only; `reject` blocks and required changes need independent closure |
 | G-RM-4 | Accept selected Methods Pack assets for exact consumer scope | RM-03 export of those assets | 06i production command; exact asset IDs/hashes; review set; replay-derived authority |
 | G-RM-5 | Choose the manuscript-review pilot subject | RM-04 pilot only | exact subject/scope record |
 | G-RM-6 | Choose smoke-gate location: quality-gate list or `.githooks` pre-push | RM-01 close-out | liveness negative control |
 | G-RM-7 | Resolve the known closed-schema literal defect by **add** or an attributed deliberate omission with continuing non-green status and follow-up owner | any RM-01 “green” claim | exact dispatch-head guard/literal evidence |
 | G-RM-8 | Choose 06h migrate, bounded grandfather, or independently evidenced no-store | 06h historical implementation | all three executable protocols and branch-specific positive/bypass/repeat/replay/rollback evidence in 06h |
 | G-RM-9 | Accept exact `RegisteredSchema` interface | 06h Task 1 | exact source, identity/path controls, memory measurement |
-| G-RM-10 | Accept the independently reviewed 06i Stage A candidate: artefact commands, exact grants/scopes, consumer-policy registry, review-set resolver, P-005 binding, complete existing-consumer inventory, public use resolver and atomic failure contract | 06i Stage B; RM-03/RM-04 canonical use | exact candidate Git blobs/canonical hashes and independent review; plan prose or later Worker bytes are insufficient |
+| G-RM-10 | **PRESERVED:** confirm RM records use the already accepted `RegisterArtefact` / `SetArtefactUseAuthority` family rather than a new event family | 06h artefact-family wiring; RM-03 family choice | accepted family identities and explicit owner confirmation; this gate does not accept 06i candidate bytes |
 | G-RM-11 | Keep execution deferred, or independently accept implemented OS isolation, deny-by-default egress, W8 records, exact-script approval, cleanup and escape controls | RM-05 / any execution | exact-subject readiness review; funding or implementation alone is insufficient |
-| G-RM-12 | Accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, authority scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, requested/compiling/compiled plus W4/W7 production-seam failure bindings, ordering controls and W3 fixture mapping |
-| G-RM-13 | Stephen accepts an exact `OperatorVerificationRun` for explicitly named `review_evidence` or `manuscript_evidence` scope after independent scientific review | RM-04 follow-up export of that run | exact run ID/hash, eligible unrelated reviewer evidence, 06i predicate/scope, `SetArtefactUseAuthority` event/receipt; result/claim use remains prohibited |
+| G-RM-12 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** accept the independently reviewed 06j Stage A nine-command W3 packet lifecycle candidate, schemas, transitions, scopes and resolver contract | 06j Stage B; RM-03 packet use | exact candidate Git blobs/canonical hashes, phase-qualified failures, sealed capability/template, ordering controls and executable F-025-F-028 plus reserved F-029/F-030 mapping |
+| G-RM-13 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** Stephen accepts an exact `OperatorVerificationRun` for named `review_evidence` or `manuscript_evidence` scope after independent scientific review | RM-04 follow-up export of that run | exact run ID/hash, eligible unrelated reviewer evidence, 06i predicate/scope, `SetArtefactUseAuthority` event/receipt; result/claim use remains prohibited |
+| G-RM-14 | **PROPOSED; INERT UNTIL ACCEPTED P-044 AMENDMENT:** accept the independently reviewed 06i Stage A candidate without changing the accepted artefact command family | 06i Stage B; RM-03/RM-04 canonical use | exact candidate blobs/hashes, grants/scopes, predicates, review/P-005 bindings, complete consumer inventory, public resolver and atomic failure contract |
 
-G-RM-3 verdict semantics:
+Independent-review verdict semantics:
 
 - `reject` blocks the named plan;
 - `not_ready` on RM-00 blocks the suite;
-- `accept_with_required_changes` clears only after every dispatch-blocking
-  condition has independent closure evidence;
-- `accept` clears G-RM-3 only; it does not clear any owner gate above.
+- `accept_with_required_changes` makes the subject eligible only after every
+  dispatch-blocking condition has independent closure evidence;
+- `accept` makes the exact subject eligible for Stephen's separate G-RM-3
+  decision; it does not itself clear G-RM-3, dispatch a stage, authorize merge,
+  accept candidate bytes, or activate G-RM-12/G-RM-13/G-RM-14;
+- G-RM-3 closes only when Stephen records an explicit owner decision binding the
+  exact reviewed commit and review after the admissible verdict.
 
 ## 4. Master obligation register
 
@@ -122,7 +139,7 @@ implementation README, CLAUDE/AGENTS/APM rules.
 | O-RM-23 | Historical policy cannot admit newly malformed events | 06h G-RM-8 position/store/fingerprint bounds |
 | O-RM-24 | Production consumption cannot bypass replay authority through direct object reads or projections | 06i public port + repository-wide first-party boundary + existing release and RM-03/RM-04 call sites |
 | O-RM-25 | W3 failure before validation remains attributable and replayable across compilation and real W4/W7 production seams | 06j lifecycle service, compiled-state failure bindings, call-graph firewall and phase-specific replay controls |
-| O-RM-26 | Owner gates bind exact pre-authored candidate bytes, never later Worker outputs | 06i/06j Stage A packages, independent reviews and G-RM-10/G-RM-12 |
+| O-RM-26 | Owner gates bind exact pre-authored candidate bytes, never later Worker outputs | 06i/06j Stage A packages, independent reviews and operative G-RM-14/G-RM-12 |
 | O-RM-27 | Every landed production family enters the live append-path smoke gate under every merge ordering | RM-01 final candidate reconciliation plus second-to-merge ownership in 06i/06j |
 | O-RM-28 | Candidate operator reports cannot traverse canonical consumers | RM-04 G-RM-13 external review/use-authority step and result/claim negatives |
 
@@ -161,6 +178,7 @@ implementation README, CLAUDE/AGENTS/APM rules.
 | Lean/formalization expansion | Stephen | after RM-04 pilot identifies warranted claims |
 | TDA-on-proof-state / sheaf consistency | Discovery Harness | assay + PROMOTE |
 | Remote MCP / fine-tuning | Stephen | later legal/governance gate |
+| P-044 amendment for 06i/06j Stage A and G-RM-12/G-RM-13/G-RM-14 | Stephen | explicit accepted decision-register entry; until then all named stages/gates are inert |
 
 ## 7. Success criteria
 
@@ -177,7 +195,7 @@ implementation README, CLAUDE/AGENTS/APM rules.
   attributable/replayable before validation; W4 routing and selected-route W7
   revalidation cannot fail outside the lifecycle writer; no fallible W3/W4/W7
   check remains between validation and issue; a W3-complete packet is issued,
-  delivered and resolved by exact current state; F-025-F-030 pass.
+  delivered and resolved by exact current state; executable F-025-F-028 pass and F-029/F-030 remain explicit P1 reservations with owned pre-pilot follow-up.
 - **RM-01:** the same pre-06h 156-node cohort and full universe are observed
   post-06h; additions/removals/renames are explicit; the final candidate
   smoke-manifest covers every production family landed on current `main`; smoke
