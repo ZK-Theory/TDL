@@ -31,7 +31,7 @@
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols
 9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **proposed staged plan**. Stage A authors an inert exact candidate for G-RM-10; Stage B materializes it, migrates the existing release-publication consumer, adds catalogue-complete authority and enforces repository-wide fail-closed consumption
-10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **proposed staged plan**. Stage A authors an inert exact nine-command candidate for G-RM-12; Stage B materializes the W3 requested/compiling/compiled-through-delivered lifecycle, phase failures, replay state and resolver
+10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **proposed staged plan**. Stage A authors an inert exact nine-command candidate for G-RM-12; Stage B materializes the W3 requested/compiling/compiled-through-delivered lifecycle, closes real W4/W7 production failure exits, and supplies replay state and resolver
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
@@ -50,14 +50,15 @@ therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
 authorized. ARS does not invoke Claude or Codex or handle their OAuth
 credentials.
 
-## Research Methods lane (RM) — accepted direction under P-044, revision 4, **no stage dispatchable**
+## Research Methods lane (RM) — accepted direction under P-044, revision 4 + PR198-RR1 amendment, **no stage dispatchable**
 
 An independent lane parallel to the WP6.1+WP6.3 → WP6.4 → Gate 6 path and never
 on it (P-044, accepted 2026-07-28). Its 2026-07-30 independent adversarial
-rereview returned `rework_required` on the whole suite, and the PR #198
-pre-merge review returned `rework_required_before_merge`. Revision 4 preserves
-producer completeness (06h), splits 06i/06j candidate authoring from gated
-implementation, covers the existing release consumer and complete W3 lifecycle,
+rereview returned `rework_required` on the whole suite, and both PR #198
+pre-merge reviews returned `rework_required_before_merge`. Revision 4 plus the
+PR198-RR1 amendment preserves producer completeness (06h), splits 06i/06j
+candidate authoring from gated implementation, covers the existing release
+consumer, closes the complete W3 and W4/W7 pre-validation failure lifecycle,
 and adds final smoke reconciliation plus scoped operator-run authority.
 **G-RM-3 remains open** — nothing here may be dispatched until a fresh
 independent review clears the complete revised suite.
@@ -75,7 +76,9 @@ the [initial response](../reviews/rm-lane-review-response-2026-07-29.md), the
 [2026-07-30 adversarial rereview](../reviews/adversarial-rm-lane-plan-suite-rereview-2026-07-30.md),
 the [revision-3 remediation response](../reviews/rm-lane-rereview-response-2026-07-30.md),
 the [PR #198 pre-merge review](../reviews/pr-198-premerge-review-c7ace86-2026-07-30.md),
-and the [revision-4 response](../reviews/rm-lane-pr198-premerge-review-response-2026-07-30.md).
+the [revision-4 response](../reviews/rm-lane-pr198-premerge-review-response-2026-07-30.md),
+the [PR #198 exact-subject rereview](../reviews/pr-198-premerge-rereview-8e091a1-2026-07-30.md),
+and the [PR198-RR1 response](../reviews/rm-lane-pr198-premerge-rereview-response-2026-07-30.md).
 ARS invokes no provider and handles no OAuth credentials in any RM plan
 (P-042), and no RM plan executes externally-proposed code (review C-4).
 
