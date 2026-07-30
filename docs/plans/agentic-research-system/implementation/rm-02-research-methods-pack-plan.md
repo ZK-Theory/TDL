@@ -98,11 +98,22 @@ external manifest alone records identity, and the binding test compares all
 duplicated non-hash fields while recomputing the external identity
 independently.
 
-**Lifecycle transitions are externally authorized (M-3).** `review_state` may
-only be `accepted` when `owner_acceptance` names an exact external accepted
-decision (register entry ID plus its blob identity), and the loader resolves
-that reference rather than trusting the field. A hand-written
-`owner_acceptance` that resolves to nothing is rejected.
+**Lifecycle transitions are externally authorized (M-3).** The authoritative
+decision register is the external control store, resolved through the existing
+`ContentAddressedAuthorityResolver` protocol and
+`ControlStoreAuthorityResolver`; the repository manifest is never the source of
+an acceptance body or hash oracle. `load_methods_pack` receives a trusted
+resolver plus an independently supplied authority root. For each accepted
+asset, it resolves the opaque `owner_acceptance.record_id` as record class
+`methods_asset_owner_acceptance` at pre-validation and pre-return phases. The
+resolved record must be stable across phases, active, and bind the exact
+`{asset_id, version, identity, identity_scheme}` tuple. Its canonical SHA-256
+must equal the reference's `record_sha256`; the control-store object read also
+verifies its content-addressed filename and bytes. Missing, unavailable,
+foreign-root, unstable, subject-mismatched, or digest-mismatched records raise
+typed `MethodsPackUnconsumable`. A pack-provided record body is forbidden. If
+no production path exists to author the external record at G-RM-4, the asset
+stays `candidate`; do not manufacture acceptance through `ObjectStore.write`.
 
 Nothing in this plan touches the event ledger, CLI, or eval corpus.
 
@@ -159,8 +170,11 @@ Nothing in this plan touches the event ledger, CLI, or eval corpus.
   `permissions`, `observer_overlays`, `review_state`
   (enum `candidate|reviewed|accepted|rejected|stale|superseded|retired`),
   `supersedes` (nullable), `lineage` (`{source, source_sha256, sections[]}`),
-  `owner_acceptance` (nullable object `{decision_id, decision_blob,
-  accepted_on}`; required non-null **iff** `review_state: accepted`).
+  `owner_acceptance` (nullable object `{record_id, record_class,
+  record_sha256, accepted_on}`, where `record_class` is const
+  `methods_asset_owner_acceptance`; required non-null **iff**
+  `review_state: accepted`). The authority root is supplied independently to
+  the loader, never selected by this candidate object.
   **The schema must forbid any per-asset property that would hold the asset's
   own content hash** — this is C-2's structural fix, not a convention.
 - [ ] **Step 3 — Revision-history schema.** `methods-pack-revisions.schema.json`
@@ -172,8 +186,12 @@ Nothing in this plan touches the event ledger, CLI, or eval corpus.
   recompute every asset identity under its declared scheme → check the current
   identity against the history (a `(asset_id, version)` pair whose identity
   differs from its history entry is a same-version replacement and is rejected)
-  → resolve every `owner_acceptance` reference → return frozen dataclasses.
-  Typed errors per `research_system.errors` conventions.
+  → resolve every `owner_acceptance` through the trusted external-control-store
+  resolver at pre-validation and pre-return → independently canonicalize and
+  hash the resolved body → verify record class/state, authority root, exact
+  asset subject tuple, pinned `record_sha256`, and phase stability → return
+  frozen dataclasses. Any missing or unverifiable source data raises
+  `MethodsPackUnconsumable`; there is no candidate-body or best-effort fallback.
 - [ ] **Step 5 — Green.**
 
 ~~~powershell
@@ -232,8 +250,10 @@ of five assets.
 - [ ] (a) Tampered asset byte → identity mismatch rejection.
 - [ ] (b) `review_state: accepted` with null `owner_acceptance` → schema
       rejection.
-- [ ] (c) `owner_acceptance` naming a decision that does not resolve → loader
-      rejection (**forged acceptance**, M-3).
+- [ ] (c) `owner_acceptance` with a missing/unavailable record, foreign
+      authority root, wrong record class, wrong asset subject, mismatched
+      canonical SHA-256, or a record that changes between resolution phases →
+      `MethodsPackUnconsumable` (**forged or unverifiable acceptance**, M-3).
 - [ ] (d) Unknown `asset_id` requested from the loader → typed error.
 - [ ] (e) Duplicate `asset_id` → rejection.
 - [ ] (f) **Same-version identity replacement** (version unchanged, bytes and
