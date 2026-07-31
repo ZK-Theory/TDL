@@ -28,7 +28,7 @@ from research_system.errors import (
     SchemaError,
 )
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
@@ -231,6 +231,26 @@ def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path)
     ]
     assert [event["transaction_index"] for event in events] == [1, 2]
     state = replay(events)
+    assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
+
+
+def test_genesis_records_validated_generic_command_identity_and_replays_at_default_cutoff(
+    tmp_path,
+) -> None:
+    control_root, _, _ = _initialized(tmp_path)
+    events = tuple(EventLedger(control_root, PROJECT_ID).iter_events())
+    command_identity = SCHEMAS.resolve_identity(
+        "ars://core/command",
+        "1.0.0",
+    )
+
+    assert len(events) == 2
+    for event in events:
+        assert event["command_schema_id"] == command_identity.schema_id
+        assert event["command_schema_version"] == command_identity.schema_version
+        assert event["command_schema_sha256"] == command_identity.sha256
+
+    state = replay(events, schema_registry=SCHEMAS)
     assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
 
 
@@ -630,7 +650,7 @@ def _revoke_command(command_id: str) -> dict[str, object]:
 
 def test_revoke_payload_schema_rejects_extra_field_before_mutation(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
-    ledger = EventLedger(control_root, PROJECT_ID)
+    ledger = EventLedger(control_root, PROJECT_ID, SCHEMAS)
     service = CommandService(
         control_root,
         ledger,
@@ -656,7 +676,7 @@ def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -668,7 +688,7 @@ def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -
     assert original.status == "accepted"
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -701,7 +721,7 @@ def test_scoped_retry_rejects_changed_expected_stream_version(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -728,7 +748,7 @@ def test_scoped_retry_rejects_changed_payload_or_grant_hash(tmp_path, field, val
     control_root, _, identity = _initialized(tmp_path)
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -745,12 +765,13 @@ def test_scoped_retry_rejects_changed_payload_or_grant_hash(tmp_path, field, val
 
 def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, schemas),
         ObjectStore(control_root),
         ReceiptStore(control_root),
-        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        schemas,
         authority_resolver=_resolver(control_root, PROJECT_ID, identity),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
@@ -773,7 +794,7 @@ def test_rejected_exact_retry_is_returned_before_current_authority_recheck(tmp_p
     resolver = _resolver(control_root, PROJECT_ID, identity)
     rejected_service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -786,7 +807,7 @@ def test_rejected_exact_retry_is_returned_before_current_authority_recheck(tmp_p
 
     current_service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -803,7 +824,7 @@ def test_authority_integrity_failure_propagates_without_cached_rejection(tmp_pat
     root_path.write_bytes(canonical_bytes({**bootstrap["root_grant"], "risk_ceiling": "R3"}))
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -821,7 +842,7 @@ def test_replay_rejects_foreign_project_in_revocation_payload(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -844,7 +865,7 @@ def test_scoped_retry_replays_tampered_canonical_revocation_history(tmp_path) ->
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -867,7 +888,7 @@ def test_scoped_retry_replays_tampered_canonical_revocation_history(tmp_path) ->
 
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -884,7 +905,7 @@ def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -898,7 +919,7 @@ def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None
     index_path.write_bytes(canonical_bytes(record))
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -916,7 +937,7 @@ def test_scoped_receipt_reconciles_accepted_outcome_with_ledger(tmp_path, tamper
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -936,7 +957,7 @@ def test_scoped_receipt_reconciles_accepted_outcome_with_ledger(tmp_path, tamper
     (control_root / "receipts" / f"{CMD_REVOKE}.json").write_bytes(canonical_bytes(index["receipt"]))
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -953,7 +974,7 @@ def test_scoped_receipt_rejects_malformed_index_and_embedded_receipt(tmp_path) -
     receipts = ReceiptStore(control_root)
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         receipts,
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -992,7 +1013,7 @@ def test_scoped_receipt_exact_retry_recovers_stale_matching_temp(tmp_path, monke
     receipts = ReceiptStore(control_root)
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         receipts,
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
@@ -1024,7 +1045,7 @@ def test_restart_rebuilds_missing_scoped_index_from_canonical_batch(tmp_path) ->
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1036,7 +1057,7 @@ def test_restart_rebuilds_missing_scoped_index_from_canonical_batch(tmp_path) ->
     index_path.unlink()
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1055,7 +1076,7 @@ def test_restart_rebuilds_missing_operational_receipt_from_scoped_index(
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1067,7 +1088,7 @@ def test_restart_rebuilds_missing_operational_receipt_from_scoped_index(
     receipt_path.unlink()
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1086,7 +1107,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1099,7 +1120,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
     changed_version["expected_stream_version"] = 2
     restarted = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
@@ -1740,7 +1761,7 @@ def test_governed_authority_hook_rechecks_under_same_writer_lock_as_revoke(tmp_p
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
-        EventLedger(control_root, PROJECT_ID),
+        EventLedger(control_root, PROJECT_ID, SCHEMAS),
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,

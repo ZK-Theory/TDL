@@ -1069,7 +1069,11 @@ def test_r3_red_i1_protected_membership_is_explicit_and_omission_sensitive() -> 
 
 def test_protected_membership_recomputes_exact_live_set() -> None:
     contract = yaml.safe_load((REPO_ROOT / PROTECTED_MEMBERSHIP_PATH).read_text(encoding="utf-8"))
-    validation.validate_protected_membership_contract(contract, REPO_ROOT)
+    validation.validate_protected_membership_contract(
+        contract,
+        REPO_ROOT,
+        authorized_successors=validation.p045_authorized_successors(REPO_ROOT),
+    )
 
 
 def test_protected_membership_expected_side_has_no_materializer_dependency() -> None:

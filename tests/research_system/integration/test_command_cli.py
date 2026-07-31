@@ -1,14 +1,81 @@
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
+
+import pytest
 
 import research_system.cli as cli
 from research_system.command.models import Receipt
+from research_system.errors import ConfigurationError
+from research_system.schema_registry import SchemaRegistry
+from research_system.store.identity import initialize_control_store
+from research_system.store.ledger import EventLedger
 from tests.research_system.factories import PROJECT_ID
 
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMAS = ROOT / ".research-system" / "schemas"
+TASK_ID = "tsk_01978abc-3002-7000-8000-000000003002"
+
+
+def _external_v1_store(tmp_path, *, schema_bound):
+    code_root = tmp_path / "code"
+    code_root.mkdir()
+    projection_root = code_root / ".research-system" / "projections"
+    projection_root.mkdir(parents=True)
+    if schema_bound:
+        shutil.copytree(SCHEMAS, code_root / ".research-system" / "schemas")
+    control_root = tmp_path / "control"
+    initialize_control_store([code_root], control_root, PROJECT_ID)
+    return code_root, control_root, projection_root
+
+
+@pytest.mark.parametrize("command", ["replay", "projection"])
+def test_history_commands_reject_v1_store_without_runtime_schema_authority(
+    tmp_path,
+    command,
+    capsys,
+):
+    _code_root, control_root, projection_root = _external_v1_store(
+        tmp_path,
+        schema_bound=False,
+    )
+    EventLedger(
+        control_root,
+        PROJECT_ID,
+        SchemaRegistry(SCHEMAS),
+    ).append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
+
+    argv = [command, "verify", "--control-root", str(control_root)]
+    if command == "projection":
+        output = projection_root / "rebuilt.json"
+        argv = [command, "rebuild", "--control-root", str(control_root), "--output", str(output)]
+
+    with pytest.raises(
+        ConfigurationError,
+        match="store manifest does not bind a usable runtime schema root",
+    ):
+        cli.main(argv)
+    assert capsys.readouterr().out == ""
+    if command == "projection":
+        assert not output.exists()
+
+
+@pytest.mark.parametrize("command", ["replay", "projection"])
+def test_history_commands_accept_schema_bound_current_store(tmp_path, command):
+    _code_root, control_root, projection_root = _external_v1_store(
+        tmp_path,
+        schema_bound=True,
+    )
+    argv = [command, "verify", "--control-root", str(control_root)]
+    if command == "projection":
+        output = projection_root / "rebuilt.json"
+        argv = [command, "rebuild", "--control-root", str(control_root), "--output", str(output)]
+
+    assert cli.main(argv) == 0
+    if command == "projection":
+        assert output.is_file()
 
 
 def test_command_submit_derives_retention_policy_path_from_binding(
@@ -70,21 +137,22 @@ def test_command_submit_derives_retention_policy_path_from_binding(
     registry_path = tmp_path / "registry.yaml"
     registry_path.write_text("{}", encoding="utf-8")
 
-    assert cli.main(
-        [
-            "command",
-            "submit",
-            "--config",
-            str(config),
-            "--command",
-            str(command),
-            "--evidence-store-registry",
-            str(registry_path),
-        ]
-    ) == 0
+    assert (
+        cli.main(
+            [
+                "command",
+                "submit",
+                "--config",
+                str(config),
+                "--command",
+                str(command),
+                "--evidence-store-registry",
+                str(registry_path),
+            ]
+        )
+        == 0
+    )
 
     assert captured["registry"] is registry
-    assert captured["kwargs"] == {
-        "retention_policy_path": SCHEMAS.parent / "evals" / "retention-policy.yaml"
-    }
+    assert captured["kwargs"] == {"retention_policy_path": SCHEMAS.parent / "evals" / "retention-policy.yaml"}
     assert json.loads(capsys.readouterr().out)["status"] == "accepted"

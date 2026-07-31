@@ -12,7 +12,7 @@ from research_system.command.service import CommandService
 from research_system.command.t2 import T2Receipt
 from research_system.errors import IntegrityError
 from research_system.projection.replay import rebuild_projection, replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -53,7 +53,7 @@ ZERO_AUTHORITY = {
     "subject_hash": DIGESTS["zero"],
 }
 NOW = datetime(2026, 7, 23, 12, tzinfo=UTC)
-SCHEMAS = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+SCHEMAS = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
 
 
 def _subject(
@@ -267,18 +267,19 @@ class Records:
 def _service(
     tmp_path: Path,
     records: Records | None = None,
+    schemas: SchemaRegistry = SCHEMAS,
 ) -> tuple[CommandService, EventLedger, ReceiptStore, Records]:
     root = tmp_path / "control"
     root.mkdir()
     resolver = records or Records()
-    ledger = EventLedger(root, PROJECT_ID, SCHEMAS)
+    ledger = EventLedger(root, PROJECT_ID, schemas)
     receipts = ReceiptStore(root)
     service = CommandService(
         root,
         ledger,
         ObjectStore(root),
         receipts,
-        SCHEMAS,
+        schemas,
         clock=lambda: NOW,
         t2_authority_resolver=resolver,
     )
@@ -530,6 +531,20 @@ def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_pat
         "ars://wp6-2/t2/event/ProviderReceiptRecorded",
         "ars://wp6-2/t2/event/CostGrantReconciled",
     ]
+    expected_command_schemas = {
+        command["command_type"]: service.schemas.resolve_identity(
+            command["schema_id"],
+            command["schema_version"],
+        )
+        for command in (issue, authorize, record)
+    }
+    for batch in batches:
+        for event in batch:
+            identity = expected_command_schemas[event["command_type"]]
+            assert event["schema_version"] == "1.1.0"
+            assert event["command_schema_id"] == identity.schema_id
+            assert event["command_schema_version"] == identity.schema_version
+            assert event["command_schema_sha256"] == identity.sha256
     assert accepted[1].events[0]["resulting_stream_version"] == 2
     assert accepted[1].events[1]["resulting_stream_version"] == 1
     assert receipts.load_t2(record["command_id"]) == accepted[2]
@@ -547,7 +562,13 @@ def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_pat
     assert len(list(ledger.iter_batches())) == 3
     assert invocations["count"] == 0
 
-    ledger.append(
+    legacy_root = tmp_path / "legacy-control"
+    legacy_ledger = EventLedger(
+        legacy_root,
+        PROJECT_ID,
+        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+    )
+    legacy_ledger.append(
         [
             {
                 "event_type": "LegacyIndexProbe",
@@ -557,9 +578,59 @@ def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_pat
             }
         ]
     )
-    legacy_event = list(ledger.iter_batches())[-1][0]
+    legacy_event = list(legacy_ledger.iter_batches())[-1][0]
     assert legacy_event["transaction_index"] == 1
     assert legacy_event["schema_id"] == "ars://core/event/LegacyIndexProbe"
+
+
+def test_inactive_t2_command_binding_rejects_before_event_publication(tmp_path: Path) -> None:
+    inert = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service, ledger, _, _ = _service(tmp_path, schemas=inert)
+
+    receipt = service.submit(issue_command())
+
+    assert receipt.status == "rejected"
+    assert receipt.record["stable_reason"] == "schema_identity_mismatch"
+    assert tuple(ledger.iter_events()) == ()
+
+
+def test_caller_provenance_cannot_override_validated_t2_command_identity(tmp_path: Path) -> None:
+    service, ledger, _, _ = _service(tmp_path)
+    command = issue_command()
+    command.update(
+        {
+            "command_schema_id": "ars://caller/forged",
+            "command_schema_version": "9.0.0",
+            "command_schema_sha256": "0" * 64,
+        }
+    )
+
+    receipt = service.submit(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.record["stable_reason"] == "schema_identity_mismatch"
+    assert tuple(ledger.iter_events()) == ()
+
+
+@pytest.mark.parametrize("mutation", ["version", "missing_provenance"])
+def test_replay_rejects_t2_event_schema_or_provenance_drift(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    service, ledger, _, _ = _service(tmp_path)
+    assert service.submit(issue_command()).status == "accepted"
+    event = deepcopy(tuple(ledger.iter_events())[0])
+    if mutation == "version":
+        event["schema_version"] = "1.0.0"
+    else:
+        event.pop("command_schema_sha256")
+    unsigned = dict(event)
+    unsigned.pop("event_hash")
+    event["event_hash"] = sha256_hex(canonical_bytes(unsigned))
+
+    expected = "event schema validation" if mutation == "version" else "incomplete command schema identity"
+    with pytest.raises(IntegrityError, match=expected):
+        replay([event], schema_registry=service.schemas)
 
 
 def test_atomic_append_failure_publishes_no_partial_batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

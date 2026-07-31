@@ -160,20 +160,20 @@ artifacts:
   repository_path: tests/research_system/contracts/test_wp6_2_t2_authority_contract.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: 0e9429aef35a61e4621412f6c4ce17fbc5088d8d
-  raw_utf8_lf_sha256: 4d35340efe26779723963088ab4797219c8c02365c623dfc7f785c44b12a94a9
+  git_blob_id: 6257fe99015fa3efe234ef72ed651ca2eb656780
+  raw_utf8_lf_sha256: af4148556a7097d90e24bf50852de0d3560b7cc3a74d929c81c3dce2a14b3df0
 - artifact_role: contract_test
   repository_path: tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: bf12b00792f8388ab2661a920f6e7623fe0d841f
-  raw_utf8_lf_sha256: 0d9fb0dd04f3cd3e79c4b58b8f03dc49d150ddad352830b1058234a4f8a5bf9c
+  git_blob_id: a3d30826968cf60196be67003a69081a1e024f11
+  raw_utf8_lf_sha256: 6a167fd712cf2892c3e79e0f3cad6be37e1c16f06d32e2fb4fee44123a2365c1
 - artifact_role: semantic_validator
   repository_path: tests/research_system/contracts/wp6_2_t2_authority_validation.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: 33ee525640f2425aab33845d3877be5c8bf4e2fd
-  raw_utf8_lf_sha256: bb193a32833bc7196e962c6fe3fc90bc84d442cf077a553da4a4d694a4f62e9e
+  git_blob_id: a9211047ebae89ab03bbb50030932724e01265fd
+  raw_utf8_lf_sha256: 55271b3a663d61ca7bc5ac0775d3547e22a4db1a6b75ad33976b393efb9fea46
 - artifact_role: independent_oracle
   repository_path: tests/research_system/contracts/wp6_2_t2_expectations.py
   canonical_schema_id: null

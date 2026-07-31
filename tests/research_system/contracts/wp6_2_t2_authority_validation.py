@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -39,6 +40,11 @@ from tests.research_system.contracts.wp6_2_t2_expectations import (
 UUID7_RE = re.compile(
     r"^(?P<prefix>[a-z][a-z0-9]*)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
+_P045_PATH = ".research-system/schemas/core/event.schema.json"
+_P045_DECISION_PATH = "docs/plans/agentic-research-system/03-decisions-and-open-questions.md"
+_P045_BASELINE_BLOB = "188deb32ce833cec9a59ab74026762eb93f5a607"
+_P045_SUCCESSOR_BLOB = "bc3efc0fd41e3d9f24c383f2d0d196e26ba0d1e5"
+_P045_SUCCESSOR_RAW_SHA256 = "3aaaa6d609dce1271db3e22d8620935929fc272add1fe5c06badb77050f6d021"
 
 
 class T2ContractError(ValueError):
@@ -304,7 +310,54 @@ def _protected_aggregate(members: Sequence[Mapping[str, str]]) -> str:
     return _sha256("".join(rows).encode("utf-8"))
 
 
-def validate_protected_membership_contract(contract: Mapping[str, Any], repo_root: Path) -> None:
+def p045_authorized_successors(
+    repo_root: Path,
+    *,
+    revision: str | None = None,
+    decision_override: str | None = None,
+) -> dict[str, dict[str, str]]:
+    """Resolve the one exact owner-authorized successor without widening the baseline."""
+    selected = revision or os.environ.get("P045_BINDING_REVISION", "HEAD")
+    if decision_override is None:
+        if selected == "WORKTREE":
+            decisions = (repo_root / _P045_DECISION_PATH).read_text(encoding="utf-8")
+        else:
+            decisions = _git_object_bytes(repo_root, f"{selected}:{_P045_DECISION_PATH}").decode("utf-8")
+    else:
+        decisions = decision_override
+    try:
+        start = decisions.index("### P-045 - Generic event envelope clean-start activation")
+        end = decisions.index("\n## ", start)
+    except ValueError as exc:
+        raise T2ContractError("P-045 decision missing") from exc
+    decision = decisions[start:end]
+    for literal in (
+        "**Date:** 2026-07-30",
+        "**Status:** Accepted by Stephen",
+        _P045_PATH,
+        _P045_BASELINE_BLOB,
+        _P045_SUCCESSOR_BLOB,
+        _P045_SUCCESSOR_RAW_SHA256,
+        "global position `0`",
+        "No configured external history was",
+        "stop replay and migration",
+    ):
+        _require(literal in decision, f"P-045 decision drift: {literal}")
+    return {
+        _P045_PATH: {
+            "baseline_git_blob_id": _P045_BASELINE_BLOB,
+            "successor_git_blob_id": _P045_SUCCESSOR_BLOB,
+            "successor_raw_sha256": _P045_SUCCESSOR_RAW_SHA256,
+        }
+    }
+
+
+def validate_protected_membership_contract(
+    contract: Mapping[str, Any],
+    repo_root: Path,
+    *,
+    authorized_successors: Mapping[str, Mapping[str, str]] | None = None,
+) -> None:
     baseline = contract.get("baseline_revision")
     _require(isinstance(baseline, str), "protected baseline revision missing")
     expected_paths = _derive_protected_paths(repo_root, baseline)
@@ -327,7 +380,35 @@ def validate_protected_membership_contract(contract: Mapping[str, Any], repo_roo
     aggregate = _protected_aggregate(baseline_members)
     _require(contract.get("path_blob_rawsha_map_sha256") == aggregate, "protected membership aggregate mismatch")
     current_members = [_protected_member(repo_root, "HEAD", path) for path in expected_paths]
-    _require(current_members == baseline_members, "protected predecessor bytes changed")
+    if authorized_successors is None:
+        _require(current_members == baseline_members, "protected predecessor bytes changed")
+        return
+    _require(set(authorized_successors) == {_P045_PATH}, "authorized successor path set mismatch")
+    successor = authorized_successors[_P045_PATH]
+    _require(
+        dict(successor)
+        == {
+            "baseline_git_blob_id": _P045_BASELINE_BLOB,
+            "successor_git_blob_id": _P045_SUCCESSOR_BLOB,
+            "successor_raw_sha256": _P045_SUCCESSOR_RAW_SHA256,
+        },
+        "authorized successor identity mismatch",
+    )
+    baseline_by_path = {member["repository_path"]: member for member in baseline_members}
+    current_by_path = {member["repository_path"]: member for member in current_members}
+    _require(
+        baseline_by_path[_P045_PATH]["git_blob_id"] == successor["baseline_git_blob_id"],
+        "authorized successor baseline mismatch",
+    )
+    for path in expected_paths:
+        expected = baseline_by_path[path]
+        if path == _P045_PATH:
+            expected = {
+                "repository_path": path,
+                "git_blob_id": successor["successor_git_blob_id"],
+                "raw_git_blob_sha256": successor["successor_raw_sha256"],
+            }
+        _require(current_by_path[path] == expected, f"protected predecessor bytes changed:{path}")
 
 
 def _expected_manifest_schema_identity(repo_root: Path, relative_path: str) -> tuple[str | None, str | None]:
@@ -446,7 +527,11 @@ def _validate_manifest(manifest: Mapping[str, Any], repo_root: Path, catalogue: 
     )
 
 
-def validate_t2_authority_contract(repo_root: Path) -> None:
+def validate_t2_authority_contract(
+    repo_root: Path,
+    *,
+    authorized_successors: Mapping[str, Mapping[str, str]] | None = None,
+) -> None:
     """Validate the complete materialized T2 candidate at ``repo_root``."""
 
     repo_root = repo_root.resolve()
@@ -464,7 +549,11 @@ def validate_t2_authority_contract(repo_root: Path) -> None:
         PROTECTED_MEMBERSHIP_SCHEMA_PATH,
     )
     _validate_json_schema(protected_schema, protected_contract, "protected membership")
-    validate_protected_membership_contract(protected_contract, repo_root)
+    validate_protected_membership_contract(
+        protected_contract,
+        repo_root,
+        authorized_successors=authorized_successors,
+    )
 
     crosswalk_raw = _raw_utf8_lf(repo_root, CROSSWALK_PATH)
     crosswalk = _load_yaml_bytes(crosswalk_raw, CROSSWALK_PATH)

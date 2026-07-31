@@ -11,7 +11,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError
 from research_system.ids import new_id, validate_id
-from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
+from research_system.schema_registry import SchemaBinding, SchemaRegistry
 
 _PROTECTED_FIELDS = frozenset(
     {
@@ -25,6 +25,13 @@ _PROTECTED_FIELDS = frozenset(
         "previous_event_hash",
         "event_hash",
         "recorded_at",
+    }
+)
+_COMMAND_SCHEMA_FIELDS = frozenset(
+    {
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
     }
 )
 
@@ -91,9 +98,7 @@ def _release_draft_protocol():
             ):
                 nonlocal used
                 if used or ledger is not self.ledger:
-                    raise ArsError(
-                        "release append continuation is one-shot and ledger-specific"
-                    )
+                    raise ArsError("release append continuation is one-shot and ledger-specific")
                 used = True
                 session = _Session(ledger)
                 return ledger._append_release_from_validated_submit(
@@ -109,10 +114,7 @@ def _release_draft_protocol():
         guarded_submit.__qualname__ = submit_impl.__qualname__
         guarded_submit.__doc__ = submit_impl.__doc__
         guarded_submit.__module__ = submit_impl.__module__
-        guarded_submit.__annotations__ = {
-            key: submit_impl.__annotations__[key]
-            for key in ("envelope", "return")
-        }
+        guarded_submit.__annotations__ = {key: submit_impl.__annotations__[key] for key in ("envelope", "return")}
         return guarded_submit
 
     def take_guard():
@@ -129,25 +131,16 @@ def _release_draft_protocol():
             or session.draft is not None
             or session.consumed
         ):
-            raise ArsError(
-                "release publication requires the validated CommandService.submit continuation"
-            )
+            raise ArsError("release publication requires the validated CommandService.submit continuation")
         session.draft = draft
         issued[id(draft)] = (session, ledger, draft)
 
     def consume(ledger: object, draft: EventDraft) -> None:
         entry = issued.pop(id(draft), None)
         if entry is None:
-            raise ArsError(
-                "release event draft requires the validated CommandService.submit continuation"
-            )
+            raise ArsError("release event draft requires the validated CommandService.submit continuation")
         session, issued_ledger, issued_draft = entry
-        if (
-            issued_ledger is not ledger
-            or issued_draft is not draft
-            or session.draft is not draft
-            or session.consumed
-        ):
+        if issued_ledger is not ledger or issued_draft is not draft or session.draft is not draft or session.consumed:
             raise ArsError("release event draft is foreign, forged, or consumed")
         session.draft = None
         session.consumed = True
@@ -180,11 +173,11 @@ class EventLedger:
         self,
         control_root: Path,
         project_id: str,
-        schemas: SchemaRegistry = bundled_schema_registry(),
+        schemas: SchemaRegistry | None = None,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
-        if not isinstance(schemas, SchemaRegistry):
+        if schemas is not None and not isinstance(schemas, SchemaRegistry):
             raise TypeError("EventLedger requires a trusted SchemaRegistry")
         self.schemas = schemas
         self.events_root = control_root / "events" / project_id
@@ -231,6 +224,41 @@ class EventLedger:
         )
         return self._snapshot
 
+    def _validate_event_schema(
+        self,
+        validation_payload: dict[str, Any],
+        *,
+        t2_event: bool,
+        event_type: str,
+        event_schema: str,
+        event_schema_version: str,
+        event_binding: SchemaBinding | None,
+    ) -> None:
+        schemas = self.schemas
+        if schemas is None:
+            raise ArsError("event append requires an explicit SchemaRegistry")
+        if t2_event:
+            schemas.validate(
+                event_schema,
+                validation_payload,
+                schema_version=event_schema_version,
+            )
+            return
+        if event_type == "ReleaseGateDecisionPublished":
+            schemas.validate(
+                event_schema,
+                validation_payload,
+                schema_version=event_schema_version,
+            )
+            return
+        schemas.validate("ars://core/event", validation_payload)
+        if event_binding is not None:
+            schemas.validate_active(
+                event_binding.schema_id,
+                validation_payload,
+                schema_version=event_binding.schema_version,
+            )
+
     def append(
         self,
         proposed_events: Iterable[Mapping[str, Any] | EventDraft],
@@ -238,6 +266,8 @@ class EventLedger:
         snapshot: LedgerSnapshot | None = None,
     ) -> dict[str, Any]:
         """Atomically append a batch using a caller-verified materialized state."""
+        if self.schemas is None:
+            raise ArsError("event append requires an explicit SchemaRegistry")
         proposed = list(proposed_events)
         if not proposed:
             raise ArsError("event batch must not be empty")
@@ -263,6 +293,15 @@ class EventLedger:
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:
                 raise ArsError(f"caller supplied protected event fields: {sorted(protected)}")
+            recorded_provenance = _COMMAND_SCHEMA_FIELDS.intersection(candidate)
+            if self.schemas.requires_command_provenance and recorded_provenance != _COMMAND_SCHEMA_FIELDS:
+                raise ArsError("runtime event requires complete command schema identity")
+            if recorded_provenance == _COMMAND_SCHEMA_FIELDS:
+                self.schemas.resolve_identity(
+                    str(candidate["command_schema_id"]),
+                    str(candidate["command_schema_version"]),
+                    expected_sha256=str(candidate["command_schema_sha256"]),
+                )
             try:
                 event_type = candidate.pop("event_type")
                 stream_id = candidate.pop("stream_id")
@@ -272,9 +311,7 @@ class EventLedger:
             stream_versions[stream_id] = stream_version
             event_id = new_id("event")
             recorded_at_text = recorded_at.isoformat().replace("+00:00", "Z")
-            t2_event = str(candidate.get("schema_id", "")).startswith(
-                "ars://wp6-2/t2/event/"
-            )
+            t2_event = str(candidate.get("schema_id", "")).startswith("ars://wp6-2/t2/event/")
             transaction_index = offset if t2_event else offset + 1
             if draft is None and event_type == "ReleaseGateDecisionPublished":
                 raise ArsError("release publication requires a ledger event finalizer")
@@ -330,24 +367,45 @@ class EventLedger:
                 ):
                     raise ArsError("release event finalizer violated ledger allocation")
             prehash = {**event, "event_hash": "0" * 64}
-            event_schema = (
-                candidate["schema_id"]
-                if t2_event
-                else f"ars://core/event/{event_type}"
+            event_schema_version = str(event.get("schema_version", ""))
+            event_binding = self.schemas.event_binding(event_type)
+            event_schema = str(event.get("schema_id", ""))
+            if event_binding is not None and (
+                event_schema,
+                event_schema_version,
+            ) != (
+                event_binding.schema_id,
+                event_binding.schema_version,
+            ):
+                raise ArsError(
+                    f"active event binding mismatch: {event_type} requires "
+                    f"{event_binding.schema_id} version {event_binding.schema_version}"
+                )
+            if (
+                self.schemas.requires_command_provenance
+                and event_binding is None
+                and event_type != "ReleaseGateDecisionPublished"
+                and not t2_event
+                and event_schema != "ars://core/event"
+            ):
+                raise ArsError(f"inactive event schema: {event_schema} version {event_schema_version}")
+            self._validate_event_schema(
+                prehash,
+                t2_event=t2_event,
+                event_type=event_type,
+                event_schema=event_schema,
+                event_schema_version=event_schema_version,
+                event_binding=event_binding,
             )
-            if t2_event:
-                self.schemas.validate(event_schema, prehash)
-            else:
-                self.schemas.validate("ars://core/event", prehash)
-                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
-                    self.schemas.validate(event_schema, prehash)
             event["event_hash"] = sha256_hex(canonical_bytes(event))
-            if t2_event:
-                self.schemas.validate(event_schema, event)
-            else:
-                self.schemas.validate("ars://core/event", event)
-                if event_type == "ReleaseGateDecisionPublished" or self.schemas.contains(event_schema):
-                    self.schemas.validate(event_schema, event)
+            self._validate_event_schema(
+                event,
+                t2_event=t2_event,
+                event_type=event_type,
+                event_schema=event_schema,
+                event_schema_version=event_schema_version,
+                event_binding=event_binding,
+            )
             previous_hash = event["event_hash"]
             events.append(event)
         date_root = self.events_root / f"{recorded_at.year:04d}" / f"{recorded_at.month:02d}"
