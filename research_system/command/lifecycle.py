@@ -43,6 +43,19 @@ EXACT_LIFECYCLE_BINDINGS = {
 def validate_exact_lifecycle_envelope(
     event: Mapping[str, Any],
 ) -> str | None:
+    """Validate provenance carried by an exact lifecycle event.
+
+    Args:
+        event: Recorded event envelope to inspect.
+
+    Returns:
+        The originating command type for an exact lifecycle event, or ``None``
+        for an event outside the exact lifecycle bindings.
+
+    Raises:
+        ValueError: If an exact event's type, schema identity, command
+            provenance, or canonical payload hash is inconsistent.
+    """
     binding = EXACT_LIFECYCLE_BINDINGS.get(str(event.get("schema_id", "")))
     if binding is None:
         return None
@@ -61,6 +74,15 @@ def validate_exact_lifecycle_envelope(
 
 
 def content_hash_matches(value: Mapping[str, Any]) -> bool:
+    """Check a mapping's recorded hash against its canonical unsigned content.
+
+    Args:
+        value: Mapping whose ``content_sha256`` field records the expected hash.
+
+    Returns:
+        Whether the recorded hash equals the canonical hash after removing the
+        hash field, or ``False`` when the value cannot be hashed canonically.
+    """
     recorded = value.get("content_sha256")
     if not isinstance(recorded, str):
         return False
@@ -76,6 +98,16 @@ def changed_task_fields(
     source: Mapping[str, Any],
     replacement: Mapping[str, Any],
 ) -> set[str]:
+    """Return changed Task definition fields excluding revision metadata.
+
+    Args:
+        source: Current immutable Task definition.
+        replacement: Proposed replacement Task definition.
+
+    Returns:
+        Names of fields whose values differ, excluding ``revision`` and
+        ``content_sha256``.
+    """
     metadata = {"revision", "content_sha256"}
     return {
         field
@@ -88,6 +120,22 @@ def materialize_scope_member_changes(
     current_members: Iterable[Mapping[str, Any]],
     member_changes: Iterable[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Apply a typed ScopeDefinition member delta to committed membership.
+
+    Args:
+        current_members: Materialized members of the current immutable
+            ScopeDefinition revision.
+        member_changes: Typed additions, disposition changes, or removals.
+
+    Returns:
+        The materialized member list with existing order preserved and new
+        members appended.
+
+    Raises:
+        ValueError: If a removal names an absent member, an existing member is
+            named under the wrong kind, or the resulting membership is
+            semantically unchanged.
+    """
     members = [dict(member) for member in current_members]
     original_members = [dict(member) for member in members]
     member_indexes = {str(member["member_id"]): index for index, member in enumerate(members)}
@@ -130,5 +178,13 @@ def materialize_scope_member_changes(
 
 
 def has_unique_member_ids(records: Iterable[Mapping[str, Any]]) -> bool:
+    """Return whether every member record has a unique member identity.
+
+    Args:
+        records: Member or member-change records to inspect.
+
+    Returns:
+        Whether no two records carry the same ``member_id`` value.
+    """
     member_ids = [record.get("member_id") for record in records]
     return len(member_ids) == len(set(member_ids))

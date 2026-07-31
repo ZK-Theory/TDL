@@ -19,7 +19,7 @@ _TASK_TERMINAL = frozenset({"accepted", "rejected", "partial", "cancelled", "sup
 @dataclass(frozen=True)
 class ControlPlaneState:
     active_attempt_ids: frozenset[str]
-    task_states: dict[str, dict[str, Any]]
+    stream_states: dict[str, dict[str, Any]]
 
 
 def _reaches(
@@ -505,7 +505,7 @@ def reduce_scope(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]
 
 def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
     attempts: set[str] = set()
-    tasks: dict[str, dict[str, Any]] = {}
+    stream_states: dict[str, dict[str, Any]] = {}
     for event in events:
         if event["event_type"] in {
             "TaskCreated",
@@ -513,18 +513,24 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "TaskSuperseded",
         }:
             stream_id = event["stream_id"]
-            validate_task_lifecycle_event(tasks, event)
-            tasks[stream_id] = reduce_task(tasks.get(stream_id, {}), event)
+            validate_task_lifecycle_event(stream_states, event)
+            stream_states[stream_id] = reduce_task(
+                stream_states.get(stream_id, {}),
+                event,
+            )
         elif event["event_type"] in {
             "ScopeDefinitionCreated",
             "ScopeDefinitionAmended",
             "ScopeDefinitionSuperseded",
         }:
             stream_id = event["stream_id"]
-            validate_scope_lifecycle_event(tasks, event)
-            tasks[stream_id] = reduce_scope(tasks.get(stream_id, {}), event)
+            validate_scope_lifecycle_event(stream_states, event)
+            stream_states[stream_id] = reduce_scope(
+                stream_states.get(stream_id, {}),
+                event,
+            )
         elif event["event_type"] == "DispatchClaimed":
             attempts.add(event["payload"]["attempt_id"])
         else:
             raise ValueError(f"unsupported event type: {event['event_type']}")
-    return ControlPlaneState(frozenset(attempts), tasks)
+    return ControlPlaneState(frozenset(attempts), stream_states)

@@ -694,11 +694,13 @@ class CommandService:
         for event in snapshot.events:
             if event["event_type"] == "TaskCreated":
                 payload = event.get("payload", {})
+                if not isinstance(payload, dict):
+                    raise IntegrityError("TaskCreated payload must be a mapping")
                 if event.get("schema_id") == "ars://core/event/TaskCreated":
                     definition = payload.get("definition", {})
                     revision = int(definition["revision"])
                 else:
-                    definition = payload if isinstance(payload, dict) else None
+                    definition = payload
                     revision = int(payload.get("revision", 1))
                 current.setdefault(event["stream_id"], revision)
                 evidence[(event["stream_id"], revision)] = _TaskRevisionEvidence(
