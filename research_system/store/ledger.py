@@ -261,7 +261,9 @@ class EventLedger:
             return
         payload_schema = f"{event_schema}/payload"
         if event_schema != "ars://core/event":
-            if schemas.contains(event_schema):
+            if schemas.requires_command_provenance and schemas.contains(payload_schema):
+                schemas.validate(payload_schema, validation_payload.get("payload"))
+            elif schemas.contains(event_schema):
                 schemas.validate(
                     event_schema,
                     validation_payload,

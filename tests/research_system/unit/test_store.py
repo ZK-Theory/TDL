@@ -438,6 +438,34 @@ def test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance(
     assert tuple(ledger.iter_batches()) == ()
 
 
+def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
+    schemas = runtime_schema_registry(SCHEMAS)
+    command_identity = schemas.resolve_identity("ars://core/command", "1.0.0")
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=schemas,
+    )
+
+    with pytest.raises(ArsError, match="inactive event schema"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event/DispatchClaimed",
+                    "schema_version": "1.0.0",
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "payload": {},
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
 def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
     ledger = _catalogue_only_ledger(tmp_path)
     ledger.append(

@@ -235,6 +235,81 @@ def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path)
     assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
 
 
+@pytest.mark.parametrize(
+    "extra_full_version",
+    [None, "9.9.9"],
+    ids=["matching-version", "additional-arbitrary-version"],
+)
+def test_runtime_authority_payload_schema_cannot_be_shadowed_by_unbound_full_schema(
+    tmp_path,
+    extra_full_version,
+) -> None:
+    control_root, _, _ = _initialized(tmp_path)
+    schema_root = tmp_path / "collision-schemas"
+    shutil.copytree(REPO_ROOT / ".research-system" / "schemas", schema_root)
+    event_schema_id = "ars://core/event/AuthorityRootInitialized"
+    full_versions = ("1.0.0",) if extra_full_version is None else ("1.0.0", extra_full_version)
+    for index, full_schema_version in enumerate(full_versions):
+        (schema_root / f"authority-root-full-shadow-{index}.schema.json").write_bytes(
+            canonical_bytes(
+                {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$id": event_schema_id,
+                    "type": "object",
+                    "properties": {
+                        "schema_version": {"const": full_schema_version},
+                    },
+                    "required": ["schema_version"],
+                    "additionalProperties": True,
+                }
+            )
+        )
+    schemas = runtime_schema_registry(schema_root)
+    assert all(not schemas.is_active(event_schema_id, version) for version in full_versions)
+
+    ledger = EventLedger(control_root, PROJECT_ID, schemas)
+    root_event = next(ledger.iter_events())
+    candidate = {
+        field: root_event[field]
+        for field in (
+            "event_type",
+            "stream_id",
+            "schema_id",
+            "command_id",
+            "command_type",
+            "command_schema_id",
+            "command_schema_version",
+            "command_schema_sha256",
+            "actor_id",
+            "authority_grant_id",
+            "idempotency_key",
+            "command_payload_hash",
+            "correlation_id",
+            "causation_id",
+            "occurred_at",
+        )
+    }
+    candidate.update(
+        {
+            "schema_version": root_event["schema_version"],
+            "payload": {},
+        }
+    )
+    before = tuple(ledger.iter_batches())
+
+    with pytest.raises(SchemaError, match="bootstrap_manifest_sha256"):
+        ledger.append([candidate])
+
+    assert tuple(ledger.iter_batches()) == before
+
+    recorded = deepcopy(root_event)
+    recorded["payload"] = {}
+    recorded.pop("event_hash")
+    recorded["event_hash"] = sha256_hex(canonical_bytes(recorded))
+    with pytest.raises(IntegrityError, match="event schema validation failed"):
+        replay([recorded], schema_registry=schemas)
+
+
 def test_authority_store_exact_retry_replays_activated_lifecycle_history(
     tmp_path,
 ) -> None:

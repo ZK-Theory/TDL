@@ -53,6 +53,8 @@ def validate_exact_lifecycle_envelope(
         for an event outside the exact lifecycle bindings.
 
     Raises:
+        TypeError: If the payload contains a value unsupported by P0 canonical
+            JSON.
         ValueError: If an exact event's type, schema identity, command
             provenance, or canonical payload hash is inconsistent.
     """

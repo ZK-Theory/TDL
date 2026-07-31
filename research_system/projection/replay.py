@@ -77,6 +77,45 @@ def _validate_active_lifecycle_binding(
         raise IntegrityError("exact lifecycle command schema hash mismatch")
 
 
+def _validate_recorded_event_schema(
+    event: dict[str, Any],
+    schema_registry: SchemaRegistry,
+) -> None:
+    recorded_schema = str(event.get("schema_id", ""))
+    recorded_version = str(event.get("schema_version", ""))
+    if recorded_schema == "ars://core/event":
+        return
+    event_binding = schema_registry.event_binding(str(event.get("event_type", "")))
+    if event_binding is not None:
+        if (recorded_schema, recorded_version) != (
+            event_binding.schema_id,
+            event_binding.schema_version,
+        ):
+            raise SchemaError(
+                f"active event binding mismatch: {event_binding.schema_id} version {event_binding.schema_version}"
+            )
+        schema_registry.validate_active(
+            event_binding.schema_id,
+            event,
+            schema_version=event_binding.schema_version,
+        )
+        return
+    payload_schema = f"{recorded_schema}/payload"
+    if schema_registry.requires_command_provenance:
+        if schema_registry.contains(payload_schema):
+            schema_registry.validate(payload_schema, event.get("payload"))
+            return
+        raise SchemaError(f"inactive event schema: {recorded_schema} version {recorded_version}")
+    if schema_registry.contains(recorded_schema):
+        schema_registry.validate(
+            recorded_schema,
+            event,
+            schema_version=recorded_version,
+        )
+    elif schema_registry.contains(payload_schema):
+        schema_registry.validate(payload_schema, event.get("payload"))
+
+
 def _validate_scope_completion(payload: dict[str, Any]) -> None:
     reference = payload.get("scope_definition_ref")
     if (
@@ -456,20 +495,7 @@ def replay(
                     )
                 else:
                     schema_registry.validate("ars://core/event", event)
-                    recorded_event_schema = str(event.get("schema_id", ""))
-                    payload_schema = f"{recorded_event_schema}/payload"
-                    if recorded_event_schema != "ars://core/event" and schema_registry.contains(recorded_event_schema):
-                        schema_registry.validate(
-                            recorded_event_schema,
-                            event,
-                            schema_version=str(event.get("schema_version", "")),
-                        )
-                    if (
-                        recorded_event_schema != "ars://core/event"
-                        and not schema_registry.contains(recorded_event_schema)
-                        and schema_registry.contains(payload_schema)
-                    ):
-                        schema_registry.validate(payload_schema, event.get("payload"))
+                    _validate_recorded_event_schema(event, schema_registry)
             except SchemaError as exc:
                 raise IntegrityError(f"event schema validation failed at {position}") from exc
         if _major(event) != supported_major:
