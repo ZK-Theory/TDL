@@ -161,9 +161,11 @@ forged capabilities and directly constructed dispatches are rejected before any
 route, grant, lease or provider side effect.
 
 The exact-subject first-party inventory is normative; Stage B may not defer it.
-The registry classification below is closed: a new fixture ID or matrix row has
-no default class and fails registration until this table and its structural test
-are updated.
+The registry and CLI-root classifications below are closed. The structural test
+derives the required root set from the `eval` parser bindings and first-party
+reachability into coverage or rederivation, so a newly bound handler, fixture ID
+or matrix row has no default class and fails until this table and its structural
+test are updated.
 
 | Symbol/seam | Current `research_system/**` callers, wrappers or entries | Required Stage B disposition |
 |---|---|---|
@@ -179,18 +181,24 @@ are updated.
 | `evals.executors.RELEASE_TRANCHE_EXECUTORS` | exact IDs `S-014`, `S-015`, `S-016`; S-016 constructs `PreparedDispatch`, invokes the coordinator, builds the provider command and issues | classify S-016 as lifecycle-required; S-014/S-015 remain pure release observations and cannot be wrapped in generic provider issue |
 | `evals.executors.ADAPTER_SCIENTIFIC_EXECUTORS` | exact IDs `F-007`, `F-008`, `F-009`, `F-010`, `F-011`, `F-012`, `F-013`, `F-014`, `F-020`, `F-032`, `F-034`, `F-036`, `S-003`, `S-004`, `S-013` | only these exact IDs may use the dedicated adapter-scientific runner, and only when its signature rejects context packet, lifecycle dispatch and capability inputs; this exemption never applies to `variants.py` generically |
 | `evals.executors.CONTROL_STORE_EXECUTORS` | exact IDs `F-001`, `F-002`, `F-003`, `F-004`, `F-005`, `S-001`, `S-002`, `S-006`, `S-008`, `S-009`, `S-010`, `S-011`, `S-012` | keep as pure observations; their matrix rows cannot construct or issue a provider command |
-| CLI and rederivation roots | `eval calibrate -> _eval_calibrate`; `eval run -> _eval_run`; `eval publish-release -> _eval_publish_release -> _publication_evidence`; unused `_rederive_bound_decision`; `eval release -> _eval_release -> rederive_release_from_snapshot` | guard every live-execution root through the typed registry/lifecycle path or remove the unused root; keep `eval release`/snapshot rederivation reconstruction-only with a negative proving it never loads an executor or invokes a provider |
+| CLI and rederivation roots | `eval validate -> _eval_validate -> load_p0_coverage`; `eval calibrate -> _eval_calibrate`; `eval run -> _eval_run`; `eval publish-release -> _eval_publish_release -> _publication_evidence`; unused `_rederive_bound_decision`; `eval release -> _eval_release -> rederive_release_from_snapshot` | classify `eval validate` as pure package/coverage validation and prove it never loads an executor, constructs lifecycle dispatch, routes, coordinates or issues a provider command; guard every live-execution root through the typed registry/lifecycle path or remove the unused root; keep `eval release`/snapshot rederivation reconstruction-only with the same executor/provider-free negative |
 | transitive registration | `evals/executors/__init__.py::EXECUTORS/require_executor`, `evals/harness.py`, `evals/calibration.py`, `evals/variants.py`, and CLI handlers above | registration indirection is not an exemption; the execution class and permitted runner are checked at lookup and again at the runner boundary |
 
-A repository-wide AST/import/registry test rejects new or unclassified entries,
-imports of the private mint key, direct dispatch construction, a returned route-
-failure dictionary as a terminal result, and any arbitrary-fixture construction
-of `ProviderCommand`. Runtime negatives enter through each CLI/rederivation root
-and through `run_p0_coverage`, `calibrate_fixture`, and the variant runner; for
-each lifecycle-required ID they attempt missing and forged capabilities and
-assert rejection before route/grant/lease/provider side effects, exactly one
-accepted `ContextPacketFailed` event/batch, and the original receipt on retry.
-A source-file allowlist or direct-call-only probe is not closure.
+A repository-wide AST/import/registry test derives the required CLI-root set
+from the `eval` parser bindings and first-party reachability into coverage or
+rederivation, fails when any such root lacks a literal class, and rejects new or
+unclassified entries, imports of the private mint key, direct dispatch
+construction, a returned route-failure dictionary as a terminal result, and any
+arbitrary-fixture construction of `ProviderCommand`. Runtime negatives enter
+through each protected CLI/rederivation root and through `run_p0_coverage`,
+`calibrate_fixture`, and the variant runner; for each lifecycle-required ID they
+attempt missing and forged capabilities and assert rejection before route/grant/
+lease/provider side effects, exactly one accepted `ContextPacketFailed` event/
+batch, and the original receipt on retry. A distinguishing parser-dispatched
+`eval validate -> _eval_validate -> load_p0_coverage` negative proves that the
+pure validation root never resolves an executor, constructs lifecycle dispatch,
+routes, coordinates or issues a provider command. A source-file allowlist or
+direct-call-only probe is not closure.
 
 ## Packet authority contract
 
@@ -345,13 +353,16 @@ closure.
    template; translate every rejection into the phase-qualified deterministic
    failure; and perform validate/issue under one writer lock.
 4. **Call-graph firewall.** Implement every row and exact registry classification
-   in the normative caller table. Split the generic variant provider wrapper,
-   type `require_executor` results, and guard calibration, coverage, variant,
-   CLI and rederivation roots. Reject missing/forged capability, unclassified
-   entries, direct dispatch construction, arbitrary-fixture provider commands,
-   escaped failures and late W3/W4/W7 fields. The negative traverses the full
-   transitive path and proves rejection before side effects, not merely absence
-   from an allowlisted source file.
+   in the normative caller table. Derive the required root set from the `eval`
+   parser bindings and first-party reachability; classify `eval validate` as
+   executor/provider-free. Split the generic variant provider wrapper, type
+   `require_executor` results, and guard calibration, coverage, variant, CLI and
+   rederivation roots. Reject missing/forged capability, unclassified entries,
+   direct dispatch construction, arbitrary-fixture provider commands, escaped
+   failures and late W3/W4/W7 fields. The negatives traverse the full transitive
+   paths and prove protected-root rejection before side effects plus pure-root
+   absence of executor/lifecycle/provider effects, not merely absence from an
+   allowlisted source file.
 5. **Lifecycle authority.** Implement validation, issuance, delivery, expiry,
    failure from every W3-permitted phase, supersession, idempotency and pure
    reducers.
@@ -366,10 +377,12 @@ closure.
    commands and run every W4/W7 negative through the production routing/
    coordinator/adapter seams, including executable F-025-F-028. Exercise the
    full CLI/rederivation -> coverage -> calibration/variant -> registry ->
-   routing/coordinator/provider chain for every protected registry class. Prove
-   sealed-template immutability, missing/forged-capability rejection before
-   side effects, phase-qualified failure, exactly one event/batch, original-
-   receipt retry, replay equality and registry-classification liveness. Record
+   routing/coordinator/provider chain for every protected registry class.
+   Dispatch `eval validate` through the real parser and prove that its pure
+   validation path remains executor/lifecycle/provider-free. Prove sealed-
+   template immutability, missing/forged-capability rejection before side
+   effects, phase-qualified failure, exactly one event/batch, original-receipt
+   retry, replay equality and registry/root-classification liveness. Record
    F-029/F-030 as reserved P1 mappings only.
 
 ## Validation and close-out
@@ -382,9 +395,10 @@ uv run --no-sync ruff check research_system/context research_system/command rese
 Run the full `tests/research_system` tree once at final head because core
 command/replay/schema surfaces change. Record exact schema identities, catalogue
 rows, CLI reachability and transition coverage for all nine commands, the
-complete literal caller-table and registry-class disposition, capability and
-sealed-template bindings, full transitive CLI/calibration/variant negatives,
-exactly-once failure/retry/replay outcomes, producer/resolver call sites,
+complete literal caller-table, parser-derived CLI-root set and registry/root-
+class disposition, capability and sealed-template bindings, full transitive
+CLI/calibration/variant negatives, the executor/provider-free `eval validate`
+negative, exactly-once failure/retry/replay outcomes, producer/resolver call sites,
 executable F-025-F-028 outcomes, explicit P1
 F-029/F-030 deferral mappings, and negative-control liveness. If RM-01's
 append-path smoke gate already exists on current `main`,
