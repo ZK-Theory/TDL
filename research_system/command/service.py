@@ -14,6 +14,7 @@ from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
     has_unique_member_ids,
+    materialize_scope_member_changes,
 )
 from research_system.command.models import Command, Receipt
 from research_system.command.t2 import T2_COMMAND_TYPES, T2Receipt, submit_t2
@@ -903,12 +904,12 @@ class CommandService:
                     current[source[0]] = replacement[1]
         return current, edges, evidence
 
-    def _scope_members(
+    def _scope_definition(
         self,
         scope_id: str,
         revision: int,
         evidence: dict[tuple[str, int], dict[str, Any]],
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         created = self._scope_revision_object(
             scope_id,
             1,
@@ -916,7 +917,7 @@ class CommandService:
         )
         if created is None:
             raise IntegrityError("ScopeDefinition base revision is absent")
-        members = {str(member["member_id"]): str(member["member_kind"]) for member in created.get("members", [])}
+        definition = dict(created)
         for candidate_revision in range(2, revision + 1):
             amendment = self._scope_revision_object(
                 scope_id,
@@ -925,13 +926,30 @@ class CommandService:
             )
             if amendment is None:
                 raise IntegrityError("ScopeDefinition amendment revision is absent")
-            for change in amendment.get("member_changes", []):
-                member_id = str(change["member_id"])
-                if change["disposition"] == "removed_by_amendment":
-                    members.pop(member_id, None)
-                else:
-                    members[member_id] = str(change["member_kind"])
-        return members
+            try:
+                members = materialize_scope_member_changes(
+                    definition.get("members", []),
+                    amendment.get("member_changes", []),
+                )
+            except ValueError as exc:
+                raise IntegrityError(
+                    "ScopeDefinition amendment history contains an invalid typed member delta"
+                ) from exc
+            definition = {
+                **definition,
+                "revision": candidate_revision,
+                "members": members,
+            }
+        return definition
+
+    def _scope_members(
+        self,
+        scope_id: str,
+        revision: int,
+        evidence: dict[tuple[str, int], dict[str, Any]],
+    ) -> dict[str, str]:
+        definition = self._scope_definition(scope_id, revision, evidence)
+        return {str(member["member_id"]): str(member["member_kind"]) for member in definition.get("members", [])}
 
     def _prepare_task_command(
         self,
@@ -1180,6 +1198,23 @@ class CommandService:
                     observed_version,
                     "scope_revision_missing",
                     "The prior immutable ScopeDefinition revision is absent.",
+                )
+            source_definition = self._scope_definition(
+                command.target_stream_id,
+                prior_revision,
+                evidence,
+            )
+            try:
+                materialize_scope_member_changes(
+                    source_definition.get("members", []),
+                    member_changes,
+                )
+            except ValueError as exc:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_scope_definition",
+                    str(exc),
                 )
             return payload
 

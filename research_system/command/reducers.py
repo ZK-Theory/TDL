@@ -8,6 +8,7 @@ from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
     has_unique_member_ids,
+    materialize_scope_member_changes,
     validate_exact_lifecycle_envelope,
 )
 
@@ -388,31 +389,13 @@ def _materialize_scope_definition(
     definition: dict[str, Any],
     amendment: dict[str, Any],
 ) -> dict[str, Any]:
-    members = [dict(member) for member in definition["members"]]
-    member_indexes = {str(member["member_id"]): index for index, member in enumerate(members)}
-    removed: set[str] = set()
-    additions: list[dict[str, Any]] = []
-    for change in amendment["member_changes"]:
-        member_id = str(change["member_id"])
-        if change["disposition"] == "removed_by_amendment":
-            removed.add(member_id)
-            continue
-        member = {
-            "member_id": member_id,
-            "member_kind": change["member_kind"],
-            "required_disposition": change["disposition"],
-        }
-        index = member_indexes.get(member_id)
-        if index is None:
-            additions.append(member)
-        else:
-            members[index] = member
-    members = [member for member in members if str(member["member_id"]) not in removed]
     return {
         **definition,
         "revision": int(amendment["new_revision"]),
-        "members": [*members, *additions],
-        "amendment_authority": amendment["amendment_authority"],
+        "members": materialize_scope_member_changes(
+            definition["members"],
+            amendment["member_changes"],
+        ),
     }
 
 

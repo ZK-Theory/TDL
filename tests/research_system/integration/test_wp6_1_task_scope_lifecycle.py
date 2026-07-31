@@ -323,7 +323,7 @@ def test_scope_definition_create_amend_supersede_is_exact_and_replayable(
         "changed_fields": ["members"],
         "rationale": "Defer the member without rewriting revision 1.",
         "effective_boundary": "after current attempts stop",
-        "amendment_authority": "synthetic-owner",
+        "amendment_authority": "independent-scope-reviewer",
     }
     amended_event = _submit_idempotently(
         harness,
@@ -391,6 +391,8 @@ def test_scope_definition_create_amend_supersede_is_exact_and_replayable(
         "scope_definition_id": SCOPE_B,
         "revision": 1,
     }
+    assert scope["definition"]["amendment_authority"] == "synthetic-owner"
+    assert scope["last_amendment"]["amendment_authority"] == "independent-scope-reviewer"
     assert set(scope["revision_history"]) == {"1", "2"}
 
 
@@ -1722,6 +1724,96 @@ def test_submit_and_replay_reject_noop_revisions(tmp_path):
         replay(
             scope_harness.ledger.iter_events(),
             schema_registry=scope_harness.service.schemas,
+        )
+
+
+@pytest.mark.parametrize(
+    ("member_change", "replay_error"),
+    [
+        (
+            {
+                "member_id": TASK_A,
+                "member_kind": "task",
+                "disposition": "accepted",
+            },
+            "ScopeDefinitionAmended has no semantic member delta",
+        ),
+        (
+            {
+                "member_id": TASK_A,
+                "member_kind": "scope",
+                "disposition": "removed_by_amendment",
+            },
+            "ScopeDefinitionAmended member kind mismatch",
+        ),
+        (
+            {
+                "member_id": TASK_B,
+                "member_kind": "task",
+                "disposition": "removed_by_amendment",
+            },
+            "ScopeDefinitionAmended member change refers to absent member",
+        ),
+    ],
+    ids=("identical-member", "wrong-kind-removal", "absent-removal"),
+)
+def test_scope_amendment_requires_a_typed_semantic_member_delta(
+    tmp_path,
+    member_change,
+    replay_error,
+):
+    harness = control_plane(tmp_path)
+    _submit_idempotently(
+        harness,
+        _command(
+            "cmd_01978abc-6917-7000-8000-000000006917",
+            "CreateScopeDefinition",
+            SCOPE_A,
+            0,
+            _scope_create_payload(
+                SCOPE_A,
+                completion="all required members accepted",
+            ),
+        ),
+    )
+    payload = {
+        "scope_definition_id": SCOPE_A,
+        "prior_revision": 1,
+        "new_revision": 2,
+        "member_changes": [member_change],
+        "changed_fields": ["members"],
+        "rationale": "Reject a malformed or semantically empty typed member delta.",
+        "effective_boundary": "after current attempts stop",
+        "amendment_authority": "independent-scope-reviewer",
+    }
+
+    before_events = tuple(harness.ledger.iter_events())
+    receipt = harness.service.submit(
+        _command(
+            "cmd_01978abc-6918-7000-8000-000000006918",
+            "AmendScopeDefinition",
+            SCOPE_A,
+            1,
+            payload,
+        )
+    )
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "invalid_scope_definition"
+    assert tuple(harness.ledger.iter_events()) == before_events
+
+    _append_exact_event(
+        harness,
+        command_id="cmd_01978abc-6919-7000-8000-000000006919",
+        command_type="AmendScopeDefinition",
+        event_type="ScopeDefinitionAmended",
+        stream_id=SCOPE_A,
+        payload=payload,
+    )
+    with pytest.raises(ValueError, match=replay_error):
+        replay(
+            harness.ledger.iter_events(),
+            schema_registry=harness.service.schemas,
         )
 
 

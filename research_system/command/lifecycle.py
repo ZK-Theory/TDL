@@ -84,6 +84,51 @@ def changed_task_fields(
     }
 
 
+def materialize_scope_member_changes(
+    current_members: Iterable[Mapping[str, Any]],
+    member_changes: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    members = [dict(member) for member in current_members]
+    original_members = [dict(member) for member in members]
+    member_indexes = {str(member["member_id"]): index for index, member in enumerate(members)}
+    removed: set[str] = set()
+    additions: list[dict[str, Any]] = []
+
+    for change in member_changes:
+        member_id = str(change["member_id"])
+        member_kind = str(change["member_kind"])
+        disposition = str(change["disposition"])
+        index = member_indexes.get(member_id)
+        if index is None:
+            if disposition == "removed_by_amendment":
+                raise ValueError("ScopeDefinitionAmended member change refers to absent member")
+            additions.append(
+                {
+                    "member_id": member_id,
+                    "member_kind": member_kind,
+                    "required_disposition": disposition,
+                }
+            )
+            continue
+
+        if str(members[index]["member_kind"]) != member_kind:
+            raise ValueError("ScopeDefinitionAmended member kind mismatch")
+        if disposition == "removed_by_amendment":
+            removed.add(member_id)
+        else:
+            members[index] = {
+                "member_id": member_id,
+                "member_kind": member_kind,
+                "required_disposition": disposition,
+            }
+
+    materialized = [member for member in members if str(member["member_id"]) not in removed]
+    materialized.extend(additions)
+    if materialized == original_members:
+        raise ValueError("ScopeDefinitionAmended has no semantic member delta")
+    return materialized
+
+
 def has_unique_member_ids(records: Iterable[Mapping[str, Any]]) -> bool:
     member_ids = [record.get("member_id") for record in records]
     return len(member_ids) == len(set(member_ids))
