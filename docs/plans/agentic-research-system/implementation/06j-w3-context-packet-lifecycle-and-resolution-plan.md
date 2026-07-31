@@ -229,6 +229,18 @@ snapshot and template rather than performing a new current-policy lookup or
 accepting mutable accounting. A mismatched template/envelope cannot be formed by
 the public constructors and is rejected before provider transport.
 
+The authority-grant ordering is explicit and one-directional: the W8 grant/
+lease envelope is never verified or bound before `IssueContextPacket` freezes
+the `PrevalidatedProviderCommandTemplate`, and it never becomes part of the
+context-packet lifecycle state machine. It is instead verified and bound
+strictly after packet issuance, at `ProviderAdapter.issue` time, as a
+separate sealed envelope alongside the unchanged frozen template.
+`ProviderAdapter.issue` rejects, before provider transport: a missing grant or
+lease, a grant/lease that does not match the frozen template's context,
+rendered-hash, operation or provider/model/profile identities, and a grant or
+lease presented after its own validity/expiry window (a late grant). These
+are required negative cases alongside the other adversarial controls.
+
 `FailContextPacket` always binds request ID, context ID, lifecycle phase,
 failure code and a deterministic failure command/idempotency key. Its packet
 evidence is phase-qualified: `requested` and `compiling` require
@@ -320,7 +332,8 @@ failure before source resolution; failure during compiling; W4 candidate-
 capacity rejection; no eligible route; accounting unavailable; wrapper
 accounting missing, invalid or overflowing; packet/manifest mismatch; rendered-
 hash drift; operation/policy/parity/currentness drift; late template mutation;
-and missing or forged lifecycle capability.
+missing or forged lifecycle capability; and missing, mismatched, or late W8
+grant/lease binding at provider issue.
 
 For every production-seam rejection, tests derive the deterministic failure
 command/idempotency key, submit it twice, and assert exactly one accepted
@@ -389,7 +402,7 @@ closure.
 
 ~~~powershell
 uv run --no-sync python -m pytest -q tests/research_system/contracts/test_context_packet_materialization.py tests/research_system/integration/test_context_packet_lifecycle.py tests/research_system/integration/test_context_packet_resolution.py tests/research_system/integration/test_context_packet_w4_w7_lifecycle.py tests/research_system/integration/test_context_packet_eval_transitive_boundary.py tests/research_system/integration/test_eval_cli.py tests/research_system/integration/test_gate5_variant_execution.py tests/research_system/unit/test_calibration.py tests/research_system/unit/test_executors.py tests/research_system/unit/test_context_packet_w4_w7_boundary.py tests/research_system/integration/test_context_routing_fixtures.py tests/research_system/integration/test_context_routing_fixture_corpus.py tests/research_system/integration/test_adapter_operations_fixtures.py tests/research_system/unit/test_routing_engine.py tests/research_system/unit/test_routing_orchestrator.py -o "addopts=" -p no:cacheprovider -p no:cov
-uv run --no-sync ruff check research_system/context research_system/command research_system/projection
+uv run --no-sync ruff check research_system/context research_system/command research_system/projection research_system/routing research_system/operations research_system/adapters research_system/evals research_system/cli.py
 ~~~
 
 Run the full `tests/research_system` tree once at final head because core
