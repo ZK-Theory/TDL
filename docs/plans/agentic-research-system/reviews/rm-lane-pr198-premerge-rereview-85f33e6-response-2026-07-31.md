@@ -51,7 +51,7 @@ must fail until the literal table and its coverage are updated.
 ## Preserved closures and authority
 
 The rereview's other determinations remain unchanged: PR198-RR1-B/C,
-AUTH1, and GRM12 stay closed. The accepted P-044 amendment remains historical
+AUTH1, and the PR198-GRM12 finding stay closed. The accepted P-044 amendment remains historical
 authority for the recorded candidate-stage limits only. G-RM-3 and all
 stage-specific owner gates remain open; this response does not accept the
 revised bytes, dispatch work, authorize merge, or close an owner gate.
