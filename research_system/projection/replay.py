@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import SCOPED_AUTHORITY_ADMISSION_VERSION
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_scope,
@@ -259,6 +260,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             }
         elif event.get("command_type") == "ActivateAuthorityGrant":
             expected_fields = {
+                "authority_admission_version",
                 "project_id",
                 "bootstrap_manifest_sha256",
                 "root_grant_id",
@@ -285,6 +287,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 or event.get("transaction_count") != 1
                 or event.get("authority_grant_id") != root_id
                 or event.get("actor_id") != updated.get("authority_owner_actor_id")
+                or payload.get("authority_admission_version") != SCOPED_AUTHORITY_ADMISSION_VERSION
                 or payload.get("project_id") != updated.get("project_id")
                 or payload.get("bootstrap_manifest_sha256") != updated.get("bootstrap_manifest_sha256")
                 or payload.get("root_grant_id") != root_id
@@ -321,6 +324,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 "administration_decision_sha256": payload["administration_decision_sha256"],
                 "event_id": event["event_id"],
                 "position": event["global_position"],
+                "recorded_at": event["recorded_at"],
             }
         else:
             raise IntegrityError("unbound authority activation producer")
@@ -356,6 +360,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 raise IntegrityError("authority revocation root mismatch")
         elif event.get("command_type") == "RevokeIssuedAuthorityGrant":
             expected_fields = {
+                "authority_admission_version",
                 "project_id",
                 "bootstrap_manifest_sha256",
                 "root_grant_id",
@@ -378,6 +383,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 or event.get("transaction_count") != 1
                 or event.get("authority_grant_id") != root_id
                 or event.get("actor_id") != updated.get("authority_owner_actor_id")
+                or payload.get("authority_admission_version") != SCOPED_AUTHORITY_ADMISSION_VERSION
                 or payload.get("project_id") != updated.get("project_id")
                 or payload.get("bootstrap_manifest_sha256") != updated.get("bootstrap_manifest_sha256")
                 or payload.get("root_grant_id") != root_id
@@ -400,6 +406,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 "administration_decision_sha256": payload["administration_decision_sha256"],
                 "event_id": event["event_id"],
                 "position": event["global_position"],
+                "recorded_at": event["recorded_at"],
             }
         else:
             raise IntegrityError("unbound authority revocation producer")
@@ -408,6 +415,14 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "status": "revoked",
             "revocation_event_id": event["event_id"],
             "revocation_position": event["global_position"],
+            **(
+                {
+                    "revocation_administration_decision_id": decision_id,
+                    "revocation_administration_decision_sha256": payload["administration_decision_sha256"],
+                }
+                if event.get("command_type") == "RevokeIssuedAuthorityGrant"
+                else {}
+            ),
         }
     elif event_type in {"TaskCreated", "TaskAmended", "TaskSuperseded"}:
         validate_task_lifecycle_event(streams, event)
@@ -562,6 +577,7 @@ def replay(
     supported_major: int = 1,
     schema_registry: SchemaRegistry | None = None,
     legacy_command_provenance_through_position: int = 0,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     if legacy_command_provenance_through_position < 0:
         raise ValueError("legacy command provenance position must be non-negative")
@@ -672,6 +688,10 @@ def replay(
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:
         raise IntegrityError("incomplete event transaction")
+    if state.get("authority_administration_decisions"):
+        if authority_state_validator is None:
+            raise IntegrityError("authority administration decision validator unavailable")
+        authority_state_validator(state)
     return state
 
 
@@ -679,8 +699,13 @@ def rebuild_projection(
     events: Iterable[dict[str, Any]],
     output: Path,
     schema_registry: SchemaRegistry | None = None,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    state = replay(events, schema_registry=schema_registry)
+    state = replay(
+        events,
+        schema_registry=schema_registry,
+        authority_state_validator=authority_state_validator,
+    )
     data = canonical_bytes(state) + b"\n"
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.tmp")

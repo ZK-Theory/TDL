@@ -59,6 +59,7 @@
     "payload": {
       "type": "object",
       "required": [
+        "authority_admission_version",
         "project_id",
         "bootstrap_manifest_sha256",
         "root_grant_id",
@@ -73,6 +74,7 @@
         "reason"
       ],
       "properties": {
+        "authority_admission_version": {"const": "owner-bound-v1"},
         "project_id": {"type": "string", "pattern": "^prj_"},
         "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "root_grant_id": {"type": "string", "pattern": "^agr_"},

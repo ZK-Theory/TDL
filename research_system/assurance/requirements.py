@@ -54,7 +54,6 @@ class LedgerBackedAuthorityPolicy:
     Attributes:
         resolver: Replay-backed authority grant resolver.
         grant_ids_by_actor: Grant identity each actor claims authority under.
-        actor_classes_by_actor: Trusted actor class for each attributed actor.
         policy_action: Exact active policy-action schema identity.
         project_id: Project identity of the governed subject.
         subject_kind: Registered governed subject kind.
@@ -64,7 +63,6 @@ class LedgerBackedAuthorityPolicy:
 
     resolver: LedgerAuthorityGrantResolver
     grant_ids_by_actor: Mapping[str, str]
-    actor_classes_by_actor: Mapping[str, str]
     policy_action: GrantedPolicyActionIdentity
     project_id: str
     subject_kind: str
@@ -100,14 +98,13 @@ class LedgerBackedAuthorityPolicy:
             IntegrityError: If canonical store evidence fails verification.
         """
         grant_id = self.grant_ids_by_actor.get(actor_id)
-        actor_class = self.actor_classes_by_actor.get(actor_id)
-        if grant_id is None or actor_class is None or action != self.policy_action.policy_action_type:
+        if grant_id is None or action != _R3_ACCEPTANCE_ACTION or action != self.policy_action.policy_action_type:
             return False
         try:
             self.resolver.resolve_policy_action(
                 grant_id,
                 actor_id,
-                actor_class,
+                "human",
                 self.policy_action,
                 "R3",
                 self.project_id,

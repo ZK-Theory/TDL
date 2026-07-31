@@ -178,7 +178,6 @@ def _ledger_policy(resolver: _Resolver) -> LedgerBackedAuthorityPolicy:
     return LedgerBackedAuthorityPolicy(
         resolver=resolver,
         grant_ids_by_actor={ACCEPTOR: GRANT_ID},
-        actor_classes_by_actor={ACCEPTOR: "human"},
         policy_action=POLICY_ACTION,
         project_id="prj-under-test",
         subject_kind="assurance_requirement",
@@ -203,6 +202,10 @@ def test_ledger_policy_permits_only_on_a_resolved_grant():
             NOW,
         )
     ]
+
+
+def test_ledger_policy_has_no_caller_asserted_actor_class_input():
+    assert "actor_classes_by_actor" not in LedgerBackedAuthorityPolicy.__dataclass_fields__
 
 
 @pytest.mark.parametrize(

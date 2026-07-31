@@ -4,18 +4,25 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import threading
+from types import SimpleNamespace
 
 import pytest
 
 from research_system.authority import (
+    GrantedCommandIdentity,
     GrantedPolicyActionIdentity,
     LedgerAuthorityGrantResolver,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.cli import _replay_verify
 from research_system.command.service import CommandService
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
-from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.schema_registry import (
+    SchemaBinding,
+    SchemaRegistry,
+    runtime_schema_registry,
+)
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -47,7 +54,12 @@ def _runtime_registry():
     return runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
 
 
-def _scoped_grant(schemas) -> dict[str, object]:
+def _scoped_grant(
+    schemas,
+    *,
+    actor_id: str = ACTOR_ID,
+    actor_classes: list[str] | None = None,
+) -> dict[str, object]:
     policy = schemas.resolve_identity(
         "ars://core/policy-action/AcceptR3AssuranceRequirement",
         "1.0.0",
@@ -56,8 +68,8 @@ def _scoped_grant(schemas) -> dict[str, object]:
         "schema_id": "ars://core/scoped-authority-grant",
         "schema_version": "2.0.0",
         "authority_grant_id": GRANT_ID,
-        "actor_id": GRANTEE_ID,
-        "allowed_actor_classes": ["human"],
+        "actor_id": actor_id,
+        "allowed_actor_classes": actor_classes or ["human"],
         "allowed_commands": [],
         "allowed_policy_actions": [
             {
@@ -204,6 +216,106 @@ def _revocation_command(
     }
 
 
+def _raw_scoped_administration_event(
+    schemas,
+    *,
+    event_type: str,
+    command_type: str,
+    stream_id: str,
+    payload: dict[str, object],
+    suffix: str,
+) -> dict[str, object]:
+    command_binding = schemas.command_binding(command_type)
+    event_binding = schemas.event_binding(event_type, command_type)
+    assert command_binding is not None
+    assert event_binding is not None
+    command_schema = schemas.resolve_identity(
+        command_binding.schema_id,
+        command_binding.schema_version,
+    )
+    return {
+        "event_type": event_type,
+        "stream_id": stream_id,
+        "schema_id": event_binding.schema_id,
+        "schema_version": event_binding.schema_version,
+        "command_id": f"cmd_01978abc-626{suffix}-7000-8000-00000000626{suffix}",
+        "command_type": command_type,
+        "command_schema_id": command_schema.schema_id,
+        "command_schema_version": command_schema.schema_version,
+        "command_schema_sha256": command_schema.sha256,
+        "idempotency_key": f"raw-scoped-administration-{suffix}",
+        "command_payload_hash": sha256_hex(canonical_bytes(payload)),
+        "correlation_id": "synthetic-raw-scoped-administration",
+        "causation_id": None,
+        "actor_id": ACTOR_ID,
+        "authority_grant_id": ROOT_ID,
+        "occurred_at": None,
+        "payload": payload,
+    }
+
+
+def _activation_event_payload(
+    resolver: LedgerAuthorityGrantResolver,
+    schemas,
+    grant: dict[str, object],
+    *,
+    decision_id: str,
+    decision_sha256: str,
+) -> dict[str, object]:
+    context = resolver.administration_context()
+    grant_schema = schemas.resolve_identity(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    )
+    return {
+        "authority_admission_version": "owner-bound-v1",
+        "project_id": PROJECT_ID,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "administration_decision_id": decision_id,
+        "administration_decision_sha256": decision_sha256,
+        "activated_grant_id": grant["authority_grant_id"],
+        "activated_grant_sha256": sha256_hex(canonical_bytes(grant)),
+        "activated_grant_schema_id": grant_schema.schema_id,
+        "activated_grant_schema_version": grant_schema.schema_version,
+        "activated_grant_schema_sha256": grant_schema.sha256,
+        "subject_scope": grant["subject_scope"],
+        "effective_at": grant["effective_at"],
+        "expires_at": grant["expires_at"],
+    }
+
+
+def _revocation_event_payload(
+    resolver: LedgerAuthorityGrantResolver,
+    schemas,
+    grant: dict[str, object],
+    *,
+    decision_id: str,
+    decision_sha256: str,
+) -> dict[str, object]:
+    context = resolver.administration_context()
+    grant_schema = schemas.resolve_identity(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    )
+    return {
+        "authority_admission_version": "owner-bound-v1",
+        "project_id": PROJECT_ID,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "administration_decision_id": decision_id,
+        "administration_decision_sha256": decision_sha256,
+        "target_grant_id": grant["authority_grant_id"],
+        "target_grant_sha256": sha256_hex(canonical_bytes(grant)),
+        "target_grant_schema_id": grant_schema.schema_id,
+        "target_grant_schema_version": grant_schema.schema_version,
+        "target_grant_schema_sha256": grant_schema.sha256,
+        "reason": "fabricated direct revocation",
+    }
+
+
 def _system(tmp_path):
     control_root, _, identity = _initialized(tmp_path)
     schemas = _runtime_registry()
@@ -281,7 +393,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     )
     resolved = resolver.resolve_policy_action(
         GRANT_ID,
-        GRANTEE_ID,
+        ACTOR_ID,
         "human",
         GrantedPolicyActionIdentity(
             "accept_r3_assurance_requirement",
@@ -305,7 +417,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     with pytest.raises(ArsError, match="policy-action schema is not active"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             GrantedPolicyActionIdentity(
                 "wrong_policy_action",
@@ -319,10 +431,10 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
             REQUIREMENT_ID,
             NOW,
         )
-    with pytest.raises(ArsError, match="actor class"):
+    with pytest.raises(ArsError, match="bound human owner"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "importer",
             exact_policy,
             "R3",
@@ -334,7 +446,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     with pytest.raises(ArsError, match="subject scope"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             exact_policy,
             "R3",
@@ -346,7 +458,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     with pytest.raises(ArsError, match="expired"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             exact_policy,
             "R3",
@@ -358,7 +470,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     with pytest.raises(ArsError, match="schema identity"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             GrantedPolicyActionIdentity(
                 "accept_r3_assurance_requirement",
@@ -391,7 +503,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
     with pytest.raises(ArsError, match="revoked"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             GrantedPolicyActionIdentity(
                 "accept_r3_assurance_requirement",
@@ -427,7 +539,7 @@ def test_scoped_resolver_enforces_risk_ceiling(tmp_path) -> None:
     with pytest.raises(ArsError, match="risk ceiling"):
         resolver.resolve_policy_action(
             GRANT_ID,
-            GRANTEE_ID,
+            ACTOR_ID,
             "human",
             GrantedPolicyActionIdentity(
                 "accept_r3_assurance_requirement",
@@ -441,6 +553,58 @@ def test_scoped_resolver_enforces_risk_ceiling(tmp_path) -> None:
             REQUIREMENT_ID,
             NOW,
         )
+
+
+def test_scoped_administration_events_require_owner_bound_admission_version(
+    tmp_path,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write(
+        "assurance_record",
+        ACTIVATE_DECISION_ID,
+        1,
+        activation_decision,
+    )
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    revocation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=REVOKE_DECISION_ID,
+        action="revoke_issued_authority_grant",
+    )
+    objects.write(
+        "assurance_record",
+        REVOKE_DECISION_ID,
+        1,
+        revocation_decision,
+    )
+    assert service.submit(_revocation_command(resolver, grant, revocation_decision)).status == "accepted"
+
+    administration_events = [
+        event
+        for event in ledger.iter_events()
+        if event["command_type"] in {"ActivateAuthorityGrant", "RevokeIssuedAuthorityGrant"}
+    ]
+    assert len(administration_events) == 2
+    for event in administration_events:
+        assert event["payload"].get("authority_admission_version") == "owner-bound-v1"
+        pre_remediation_event = deepcopy(event)
+        del pre_remediation_event["payload"]["authority_admission_version"]
+        with pytest.raises(SchemaError):
+            schemas.validate_active(
+                pre_remediation_event["schema_id"],
+                pre_remediation_event,
+                schema_version=pre_remediation_event["schema_version"],
+            )
 
 
 def test_unactivated_grant_object_is_inert(tmp_path) -> None:
@@ -527,6 +691,510 @@ def test_authority_event_producer_cannot_downgrade_to_legacy_schema(
             tuple(EventLedger(control_root, PROJECT_ID, inert_schemas).iter_events()),
             schema_registry=schemas,
         )
+
+
+def test_direct_activation_append_requires_sealed_verified_decision(
+    tmp_path,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, _ = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    objects.write("authority_grant", GRANT_ID, 1, grant)
+    variants: list[tuple[str, str]] = [
+        ("arec_01978abc-6280-7000-8000-000000006280", "0" * 64),
+    ]
+    for index, mutation in enumerate(
+        ["foreign_owner", "wrong_target", "wrong_hash"],
+        start=1,
+    ):
+        decision_id = f"arec_01978abc-628{index}-7000-8000-00000000628{index}"
+        decision = _decision(
+            resolver,
+            schemas,
+            grant,
+            record_id=decision_id,
+            action="activate_authority_grant",
+        )
+        if mutation == "foreign_owner":
+            decision["owner_actor_id"] = FOREIGN_ACTOR_ID
+        elif mutation == "wrong_target":
+            decision["target_grant_id"] = FOREIGN_ROOT_ID
+        objects.write("assurance_record", decision_id, 1, decision)
+        decision_sha256 = sha256_hex(canonical_bytes(decision))
+        if mutation == "wrong_hash":
+            decision_sha256 = "f" * 64
+        variants.append((decision_id, decision_sha256))
+    before = ledger.snapshot()
+
+    for suffix, (decision_id, decision_sha256) in enumerate(variants):
+        payload = _activation_event_payload(
+            resolver,
+            schemas,
+            grant,
+            decision_id=decision_id,
+            decision_sha256=decision_sha256,
+        )
+        event = _raw_scoped_administration_event(
+            schemas,
+            event_type="AuthorityGrantActivated",
+            command_type="ActivateAuthorityGrant",
+            stream_id=GRANT_ID,
+            payload=payload,
+            suffix=str(suffix),
+        )
+        with pytest.raises(
+            ArsError,
+            match="validated CommandService scoped-authority continuation",
+        ):
+            ledger.append([event], snapshot=before)
+        assert ledger.snapshot() == before
+        assert ReceiptStore(control_root).load(event["command_id"]) is None
+    with pytest.raises(ArsError, match="not activated"):
+        resolver.scoped_grant_identity(GRANT_ID)
+    assert objects.read("authority_grant", GRANT_ID, 1) == grant
+
+
+def test_direct_issued_revocation_append_requires_sealed_verified_decision(
+    tmp_path,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, activation_decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+
+    variants: list[tuple[str, str]] = [
+        ("arec_01978abc-6290-7000-8000-000000006290", "0" * 64),
+    ]
+    for index, mutation in enumerate(
+        ["foreign_owner", "wrong_target", "wrong_hash"],
+        start=1,
+    ):
+        decision_id = f"arec_01978abc-629{index}-7000-8000-00000000629{index}"
+        decision = _decision(
+            resolver,
+            schemas,
+            grant,
+            record_id=decision_id,
+            action="revoke_issued_authority_grant",
+        )
+        if mutation == "foreign_owner":
+            decision["owner_actor_id"] = FOREIGN_ACTOR_ID
+        elif mutation == "wrong_target":
+            decision["target_grant_id"] = FOREIGN_ROOT_ID
+        objects.write("assurance_record", decision_id, 1, decision)
+        decision_sha256 = sha256_hex(canonical_bytes(decision))
+        if mutation == "wrong_hash":
+            decision_sha256 = "f" * 64
+        variants.append((decision_id, decision_sha256))
+    before = ledger.snapshot()
+
+    for suffix, (decision_id, decision_sha256) in enumerate(variants, start=4):
+        payload = _revocation_event_payload(
+            resolver,
+            schemas,
+            grant,
+            decision_id=decision_id,
+            decision_sha256=decision_sha256,
+        )
+        event = _raw_scoped_administration_event(
+            schemas,
+            event_type="AuthorityGrantRevoked",
+            command_type="RevokeIssuedAuthorityGrant",
+            stream_id=GRANT_ID,
+            payload=payload,
+            suffix=str(suffix),
+        )
+        with pytest.raises(
+            ArsError,
+            match="validated CommandService scoped-authority continuation",
+        ):
+            ledger.append([event], snapshot=before)
+        assert ledger.snapshot() == before
+        assert ReceiptStore(control_root).load(event["command_id"]) is None
+    assert resolver.scoped_grant_identity(GRANT_ID).status == "active"
+
+
+@pytest.mark.parametrize(
+    "decision_mutation",
+    ["missing", "foreign_owner", "wrong_hash"],
+)
+def test_restart_revalidates_immutable_activation_decision(
+    tmp_path,
+    decision_mutation,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    decision_path = objects.write(
+        "assurance_record",
+        ACTIVATE_DECISION_ID,
+        1,
+        decision,
+    )
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+    events = ledger.snapshot().events
+    with pytest.raises(
+        IntegrityError,
+        match="administration decision validator unavailable",
+    ):
+        replay(events, schema_registry=schemas)
+
+    if decision_mutation == "missing":
+        decision_path.unlink()
+    else:
+        changed = deepcopy(decision)
+        if decision_mutation == "foreign_owner":
+            changed["owner_actor_id"] = FOREIGN_ACTOR_ID
+        else:
+            changed["decided_at"] = "2026-07-12T10:59:59Z"
+        changed_bytes = canonical_bytes(changed)
+        replacement = decision_path.with_name(f"00000001-{sha256_hex(changed_bytes)}.json")
+        decision_path.unlink()
+        replacement.write_bytes(changed_bytes)
+
+    with pytest.raises(IntegrityError, match="administration decision"):
+        replay(
+            events,
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+    with pytest.raises(IntegrityError, match="administration decision"):
+        resolver.scoped_grant_identity(GRANT_ID)
+
+
+def test_restart_revalidates_immutable_revocation_decision(tmp_path) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write(
+        "assurance_record",
+        ACTIVATE_DECISION_ID,
+        1,
+        activation_decision,
+    )
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    revocation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=REVOKE_DECISION_ID,
+        action="revoke_issued_authority_grant",
+    )
+    decision_path = objects.write(
+        "assurance_record",
+        REVOKE_DECISION_ID,
+        1,
+        revocation_decision,
+    )
+    assert service.submit(_revocation_command(resolver, grant, revocation_decision)).status == "accepted"
+    changed = deepcopy(revocation_decision)
+    changed["target_grant_id"] = FOREIGN_ROOT_ID
+    changed_bytes = canonical_bytes(changed)
+    replacement = decision_path.with_name(f"00000001-{sha256_hex(changed_bytes)}.json")
+    decision_path.unlink()
+    replacement.write_bytes(changed_bytes)
+
+    with pytest.raises(IntegrityError, match="administration decision"):
+        replay(
+            ledger.snapshot().events,
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+    with pytest.raises(IntegrityError, match="administration decision"):
+        resolver.scoped_grant_identity(GRANT_ID)
+
+
+def test_cli_replay_uses_bound_owner_decision_validator(
+    tmp_path,
+    capsys,
+) -> None:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    decision_path = objects.write(
+        "assurance_record",
+        ACTIVATE_DECISION_ID,
+        1,
+        decision,
+    )
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+
+    assert _replay_verify(SimpleNamespace(control_root=control_root)) == 0
+    assert GRANT_ID in capsys.readouterr().out
+    decision_path.unlink()
+    with pytest.raises(IntegrityError, match="administration decision"):
+        _replay_verify(SimpleNamespace(control_root=control_root))
+
+
+@pytest.mark.parametrize(
+    "identity_case",
+    [
+        "inactive_command",
+        "unresolved_command",
+        "wrong_command_hash",
+        "wrong_command_subject",
+        "wrong_policy_subject",
+    ],
+)
+def test_activation_rejects_unresolved_inactive_or_wrong_subject_identity(
+    tmp_path,
+    identity_case,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    grant["allowed_policy_actions"] = []
+    grant["subject_scope"] = {
+        "project_id": PROJECT_ID,
+        "subject": {
+            "kind": "task",
+            "id": "tsk_01978abc-6270-7000-8000-000000006270",
+        },
+    }
+    if identity_case == "inactive_command":
+        identity = schemas.resolve_identity(
+            "ars://core/command/CreateAttempt",
+            "1.0.0",
+        )
+        grant["subject_scope"]["subject"] = {
+            "kind": "attempt",
+            "id": "att_01978abc-6271-7000-8000-000000006271",
+        }
+        command_type = "CreateAttempt"
+        schema_id = identity.schema_id
+        schema_version = identity.schema_version
+        schema_sha256 = identity.sha256
+    elif identity_case == "unresolved_command":
+        command_type = "MissingCommand"
+        schema_id = "ars://core/command/MissingCommand"
+        schema_version = "1.0.0"
+        schema_sha256 = "1" * 64
+    else:
+        identity = schemas.resolve_identity(
+            "ars://core/command/CreateTask",
+            "1.0.0",
+        )
+        command_type = "CreateTask"
+        schema_id = identity.schema_id
+        schema_version = identity.schema_version
+        schema_sha256 = identity.sha256
+        if identity_case == "wrong_command_hash":
+            schema_sha256 = "2" * 64
+        elif identity_case == "wrong_command_subject":
+            grant["subject_scope"]["subject"] = {
+                "kind": "assurance_requirement",
+                "id": REQUIREMENT_ID,
+            }
+        elif identity_case == "wrong_policy_subject":
+            policy = schemas.resolve_identity(
+                "ars://core/policy-action/AcceptR3AssuranceRequirement",
+                "1.0.0",
+            )
+            grant["allowed_commands"] = []
+            grant["allowed_policy_actions"] = [
+                {
+                    "policy_action_type": "accept_r3_assurance_requirement",
+                    "schema_id": policy.schema_id,
+                    "schema_version": policy.schema_version,
+                    "schema_sha256": policy.sha256,
+                }
+            ]
+            command_type = ""
+            schema_id = ""
+            schema_version = ""
+            schema_sha256 = ""
+    if identity_case != "wrong_policy_subject":
+        grant["allowed_commands"] = [
+            {
+                "command_type": command_type,
+                "schema_id": schema_id,
+                "schema_version": schema_version,
+                "schema_sha256": schema_sha256,
+            }
+        ]
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    before = ledger.snapshot()
+
+    receipt = service.submit(_activation_command(resolver, schemas, grant, decision))
+
+    assert receipt.status == "rejected"
+    assert ledger.snapshot() == before
+    assert objects.latest_revision("authority_grant", GRANT_ID) is None
+
+
+def test_later_binding_cannot_wake_rejected_inactive_identity(tmp_path) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    inactive = schemas.resolve_identity(
+        "ars://core/command/CreateAttempt",
+        "1.0.0",
+    )
+    grant["allowed_policy_actions"] = []
+    grant["allowed_commands"] = [
+        {
+            "command_type": "CreateAttempt",
+            "schema_id": inactive.schema_id,
+            "schema_version": inactive.schema_version,
+            "schema_sha256": inactive.sha256,
+        }
+    ]
+    grant["subject_scope"] = {
+        "project_id": PROJECT_ID,
+        "subject": {
+            "kind": "attempt",
+            "id": "att_01978abc-6272-7000-8000-000000006272",
+        },
+    }
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    before = ledger.snapshot()
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "rejected"
+    assert ledger.snapshot() == before
+
+    later_registry = SchemaRegistry(
+        REPO_ROOT / ".research-system" / "schemas",
+        active_bindings=(
+            *schemas._active_bindings,
+            SchemaBinding(
+                inactive.schema_id,
+                inactive.schema_version,
+                command_type="CreateAttempt",
+            ),
+        ),
+    )
+    later_resolver = LedgerAuthorityGrantResolver(
+        control_root,
+        PROJECT_ID,
+        resolver.expected_store_identity,
+        later_registry,
+    )
+    with pytest.raises(ArsError, match="not activated"):
+        later_resolver.scoped_grant_identity(GRANT_ID)
+
+
+def test_active_command_identity_uses_its_closed_subject_mapping(tmp_path) -> None:
+    _, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas, actor_id=GRANTEE_ID)
+    identity = schemas.resolve_identity(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+    )
+    task_id = "tsk_01978abc-6273-7000-8000-000000006273"
+    grant["allowed_policy_actions"] = []
+    grant["allowed_commands"] = [
+        {
+            "command_type": "CreateTask",
+            "schema_id": identity.schema_id,
+            "schema_version": identity.schema_version,
+            "schema_sha256": identity.sha256,
+        }
+    ]
+    grant["subject_scope"] = {
+        "project_id": PROJECT_ID,
+        "subject": {
+            "kind": "task",
+            "id": task_id,
+        },
+    }
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+
+    resolved = resolver.resolve_command(
+        GRANT_ID,
+        GRANTEE_ID,
+        "human",
+        GrantedCommandIdentity(
+            "CreateTask",
+            identity.schema_id,
+            str(identity.schema_version),
+            identity.sha256,
+        ),
+        "R3",
+        PROJECT_ID,
+        "task",
+        task_id,
+        NOW,
+    )
+    assert resolved.status == "active"
+
+
+@pytest.mark.parametrize(
+    ("actor_id", "actor_classes"),
+    [
+        (ACTOR_ID, ["agent"]),
+        (ACTOR_ID, ["service"]),
+        (GRANTEE_ID, ["human"]),
+    ],
+)
+def test_r3_policy_grant_requires_bound_human_owner(
+    tmp_path,
+    actor_id,
+    actor_classes,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(
+        schemas,
+        actor_id=actor_id,
+        actor_classes=actor_classes,
+    )
+    decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    before = ledger.snapshot()
+
+    receipt = service.submit(_activation_command(resolver, schemas, grant, decision))
+
+    assert receipt.status == "rejected"
+    assert ledger.snapshot() == before
+    assert objects.latest_revision("authority_grant", GRANT_ID) is None
 
 
 def test_activation_rejects_wrong_owner_root_project_bootstrap_decision_and_schema(

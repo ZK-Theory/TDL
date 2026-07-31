@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any
 from pathlib import Path
 
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
@@ -169,9 +170,16 @@ def verify_restore_before_writer_lease(
     try:
         schemas = bundled_runtime_schema_registry()
         ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
+        resolver = LedgerAuthorityGrantResolver(
+            target,
+            receipt.project_id,
+            receipt.store_identity,
+            schemas,
+        )
         replay_state = replay(
             ledger_snapshot.events,
             schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
         )
         ledger_hash = sha256_hex(canonical_bytes(list(ledger_snapshot.events)))
         if (

@@ -64,13 +64,14 @@ class AllocatedEvent:
 
 @dataclass(frozen=True, init=False)
 class EventDraft:
-    """One-shot ledger-issued event finalized after allocation."""
+    """One-shot validated-submit event finalized after ledger allocation."""
 
     envelope: Mapping[str, Any]
     finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]]
+    admission: str
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
-        raise ArsError("release event drafts require CommandService capability")
+        raise ArsError("event drafts require CommandService capability")
 
 
 def _release_draft_protocol():
@@ -87,7 +88,8 @@ def _release_draft_protocol():
 
     def guard(submit_impl):
         def guarded_submit(self, envelope):
-            used = False
+            release_used = False
+            authority_used = False
 
             def append_release(
                 ledger,
@@ -96,10 +98,10 @@ def _release_draft_protocol():
                 *,
                 snapshot=None,
             ):
-                nonlocal used
-                if used or ledger is not self.ledger:
+                nonlocal release_used
+                if release_used or ledger is not self.ledger:
                     raise ArsError("release append continuation is one-shot and ledger-specific")
-                used = True
+                release_used = True
                 session = _Session(ledger)
                 return ledger._append_release_from_validated_submit(
                     session,
@@ -108,7 +110,29 @@ def _release_draft_protocol():
                     snapshot=snapshot,
                 )
 
-            return submit_impl(self, envelope, append_release)
+            def append_scoped_authority(
+                ledger,
+                event_envelope,
+                *,
+                snapshot=None,
+            ):
+                nonlocal authority_used
+                if authority_used or ledger is not self.ledger:
+                    raise ArsError("scoped-authority append continuation is one-shot and ledger-specific")
+                authority_used = True
+                session = _Session(ledger)
+                return ledger._append_scoped_authority_from_validated_submit(
+                    session,
+                    event_envelope,
+                    snapshot=snapshot,
+                )
+
+            return submit_impl(
+                self,
+                envelope,
+                append_release,
+                append_scoped_authority,
+            )
 
         guarded_submit.__name__ = submit_impl.__name__
         guarded_submit.__qualname__ = submit_impl.__qualname__
@@ -198,6 +222,33 @@ class EventLedger:
         draft = object.__new__(EventDraft)
         object.__setattr__(draft, "envelope", envelope)
         object.__setattr__(draft, "finalize_payload", finalize_payload)
+        object.__setattr__(draft, "admission", "release")
+        _register_release_draft(session, self, draft)
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _discard_release_session(session)
+
+    def _append_scoped_authority_from_validated_submit(
+        self,
+        session: object,
+        envelope: Mapping[str, Any],
+        *,
+        snapshot: LedgerSnapshot | None = None,
+    ) -> dict[str, Any]:
+        """Append one scoped administration event from its verified continuation."""
+        candidate = dict(envelope)
+        payload = candidate.pop("payload", None)
+        if not isinstance(payload, Mapping):
+            raise ArsError("scoped-authority continuation requires an event payload")
+        draft = object.__new__(EventDraft)
+        object.__setattr__(draft, "envelope", candidate)
+        object.__setattr__(
+            draft,
+            "finalize_payload",
+            lambda _allocated: dict(payload),
+        )
+        object.__setattr__(draft, "admission", "scoped_authority")
         _register_release_draft(session, self, draft)
         try:
             return self.append([draft], snapshot=snapshot)
@@ -320,6 +371,22 @@ class EventLedger:
                 stream_id = candidate.pop("stream_id")
             except KeyError as exc:
                 raise ArsError(f"missing event field: {exc.args[0]}") from exc
+            producer = str(candidate.get("command_type", ""))
+            scoped_authority_event = (event_type, producer) in {
+                ("AuthorityGrantActivated", "ActivateAuthorityGrant"),
+                ("AuthorityGrantRevoked", "RevokeIssuedAuthorityGrant"),
+            }
+            if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
+                raise ArsError(
+                    "scoped authority administration requires the validated "
+                    "CommandService scoped-authority continuation"
+                )
+            if draft is not None and (
+                (draft.admission == "release" and event_type != "ReleaseGateDecisionPublished")
+                or (draft.admission == "scoped_authority" and not scoped_authority_event)
+                or draft.admission not in {"release", "scoped_authority"}
+            ):
+                raise ArsError("event draft admission does not match its event family")
             stream_version = stream_versions.get(stream_id, 0) + 1
             stream_versions[stream_id] = stream_version
             event_id = new_id("event")

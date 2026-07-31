@@ -10,7 +10,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from research_system.authority import ScopedAuthorityGrant
+from research_system.authority import (
+    SCOPED_AUTHORITY_ADMISSION_VERSION,
+    ScopedAuthorityGrant,
+    validate_scoped_grant_activation,
+)
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -96,8 +100,13 @@ class _CommandView:
         cls,
         snapshot: LedgerSnapshot,
         schemas: SchemaRegistry,
+        authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
     ) -> _CommandView:
-        replay(snapshot.events, schema_registry=schemas)
+        replay(
+            snapshot.events,
+            schema_registry=schemas,
+            authority_state_validator=authority_state_validator,
+        )
         view = cls(
             snapshot.fingerprint,
             {},
@@ -238,10 +247,11 @@ class CommandService:
         self,
         envelope: dict[str, Any],
         release_append: Callable[..., dict[str, Any]] | None = None,
+        scoped_authority_append: Callable[..., dict[str, Any]] | None = None,
     ) -> Receipt | T2Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
-        if release_append is None:
-            raise ArsError("CommandService.submit requires its guarded release continuation")
+        if release_append is None or scoped_authority_append is None:
+            raise ArsError("CommandService.submit requires its guarded continuations")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
             return submit_t2(self, envelope)
         validated_envelope = {key: value for key, value in envelope.items() if key not in _CALLER_PROVENANCE_FIELDS}
@@ -457,6 +467,12 @@ class CommandService:
                     lambda allocated: prepared_payload.payload_for(allocated.event_id),
                     snapshot=snapshot,
                 )
+            elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
+                ledger_receipt = scoped_authority_append(
+                    self.ledger,
+                    event,
+                    snapshot=snapshot,
+                )
             else:
                 ledger_receipt = self.ledger.append([event], snapshot=snapshot)
             updated = self.ledger.snapshot()
@@ -529,7 +545,11 @@ class CommandService:
             {"command_id": new_id("command")},
         ):
             snapshot = self.ledger.snapshot()
-            replay(snapshot.events, schema_registry=self.schemas)
+            replay(
+                snapshot.events,
+                schema_registry=self.schemas,
+                authority_state_validator=self._authority_state_validator(),
+            )
             resolved = resolver.resolve(
                 authority_grant_id,
                 actor_id,
@@ -606,7 +626,11 @@ class CommandService:
     def _reconcile_scoped_authority_receipt(self, command: Command, receipt: Receipt) -> None:
         scope = self._authority_scope(command)
         snapshot = self.ledger.snapshot()
-        replay(snapshot.events, schema_registry=self.schemas)
+        replay(
+            snapshot.events,
+            schema_registry=self.schemas,
+            authority_state_validator=self._authority_state_validator(),
+        )
         events = tuple(snapshot.events)
         scoped_events = tuple(
             event
@@ -1627,8 +1651,22 @@ class CommandService:
 
     def _view_for(self, snapshot: LedgerSnapshot) -> _CommandView:
         if self._view is None or self._view.fingerprint != snapshot.fingerprint:
-            self._view = _CommandView.from_snapshot(snapshot, self.schemas)
+            self._view = _CommandView.from_snapshot(
+                snapshot,
+                self.schemas,
+                self._authority_state_validator(),
+            )
         return self._view
+
+    def _authority_state_validator(
+        self,
+    ) -> Callable[[dict[str, Any]], None] | None:
+        validator = getattr(
+            self.authority_resolver,
+            "validate_replayed_administration_state",
+            None,
+        )
+        return validator if callable(validator) else None
 
     def _matching_committed(
         self,
@@ -1924,6 +1962,11 @@ class CommandService:
             schema_version="2.0.0",
             expected_sha256=schema_identity.sha256,
         )
+        validate_scoped_grant_activation(
+            grant,
+            self.schemas,
+            owner_actor_id=context.owner_actor_id,
+        )
         decision = resolver.verify_owner_administration_decision(
             str(payload.get("administration_decision_id", "")),
             str(payload.get("administration_decision_sha256", "")),
@@ -1946,6 +1989,7 @@ class CommandService:
             grant_value,
         )
         return {
+            "authority_admission_version": SCOPED_AUTHORITY_ADMISSION_VERSION,
             "project_id": self.ledger.project_id,
             "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
             "root_grant_id": context.root_grant_id,
@@ -2009,6 +2053,7 @@ class CommandService:
         if decision.record_id not in command.envelope.get("evidence_refs", []):
             raise ArsError("owner authority administration decision evidence missing")
         return {
+            "authority_admission_version": SCOPED_AUTHORITY_ADMISSION_VERSION,
             "project_id": self.ledger.project_id,
             "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
             "root_grant_id": context.root_grant_id,

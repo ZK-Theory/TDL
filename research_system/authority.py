@@ -23,6 +23,9 @@ from research_system.schema_registry import (
 from research_system.store.identity import SCHEMA_BINDING_VERSION
 
 
+SCOPED_AUTHORITY_ADMISSION_VERSION = "owner-bound-v1"
+
+
 _GRANT_FIELDS = frozenset(
     {
         "schema_id",
@@ -121,6 +124,18 @@ _SCOPED_SUBJECT_PREFIXES = {
     "project_store": ("prj",),
 }
 _SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
+_SCOPED_COMMAND_SUBJECT_KINDS = {
+    "CreateScopeDefinition": "scope_definition",
+    "AmendScopeDefinition": "scope_definition",
+    "SupersedeScopeDefinition": "scope_definition",
+    "CreateTask": "task",
+    "AmendTask": "task",
+    "SupersedeTask": "task",
+}
+_SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
+    "accept_r3_assurance_requirement": "assurance_requirement",
+}
+_R3_ASSURANCE_POLICY_ACTION = "accept_r3_assurance_requirement"
 _SEMANTIC_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UUID7_ID = re.compile(
@@ -444,6 +459,66 @@ class ScopedAuthorityGrant:
             expires_at=expires_at,
             canonical_sha256=sha256_hex(canonical_bytes(value)),
         )
+
+
+def validate_scoped_grant_activation(
+    grant: ScopedAuthorityGrant,
+    schema_registry: SchemaRegistry,
+    *,
+    owner_actor_id: str,
+) -> None:
+    """Resolve and freeze the closed authority semantics admitted at activation."""
+    owner = validate_id(owner_actor_id, "actor")
+    command_types = tuple(identity.command_type for identity in grant.allowed_commands)
+    action_types = tuple(identity.policy_action_type for identity in grant.allowed_policy_actions)
+    if len(command_types) != len(set(command_types)):
+        raise ArsError("scoped authority command types must be unique")
+    if len(action_types) != len(set(action_types)):
+        raise ArsError("scoped authority policy-action types must be unique")
+    for identity in grant.allowed_commands:
+        binding = schema_registry.command_binding(identity.command_type)
+        expected_subject_kind = _SCOPED_COMMAND_SUBJECT_KINDS.get(identity.command_type)
+        if (
+            binding is None
+            or expected_subject_kind != grant.subject_scope.subject_kind
+            or (binding.schema_id, binding.schema_version) != (identity.schema_id, identity.schema_version)
+        ):
+            raise ArsError("scoped authority command identity is inactive or has the wrong subject kind")
+        try:
+            resolved = schema_registry.resolve_identity(
+                identity.schema_id,
+                identity.schema_version,
+                expected_sha256=identity.schema_sha256,
+            )
+        except SchemaError as exc:
+            raise ArsError("scoped authority command identity mismatch") from exc
+        if resolved.sha256 != identity.schema_sha256:
+            raise ArsError("scoped authority command identity mismatch")
+    for identity in grant.allowed_policy_actions:
+        binding = schema_registry.policy_action_binding(identity.policy_action_type)
+        expected_subject_kind = _SCOPED_POLICY_ACTION_SUBJECT_KINDS.get(identity.policy_action_type)
+        if (
+            binding is None
+            or expected_subject_kind != grant.subject_scope.subject_kind
+            or (binding.schema_id, binding.schema_version) != (identity.schema_id, identity.schema_version)
+        ):
+            raise ArsError("scoped authority policy-action identity is inactive or has the wrong subject kind")
+        try:
+            resolved = schema_registry.resolve_identity(
+                identity.schema_id,
+                identity.schema_version,
+                expected_sha256=identity.schema_sha256,
+            )
+        except SchemaError as exc:
+            raise ArsError("scoped authority policy-action identity mismatch") from exc
+        if resolved.sha256 != identity.schema_sha256:
+            raise ArsError("scoped authority policy-action identity mismatch")
+    if _R3_ASSURANCE_POLICY_ACTION in action_types and (
+        grant.actor_id != owner
+        or grant.allowed_actor_classes != ("human",)
+        or grant.subject_scope.subject_kind != "assurance_requirement"
+    ):
+        raise ArsError("R3 assurance acceptance requires the bound human owner")
 
 
 @dataclass(frozen=True)
@@ -976,7 +1051,17 @@ def _verify_complete_store(
     events = tuple(event for batch in batches for event in batch)
     if require_genesis_only and (len(batches) != 1 or len(events) != 2):
         raise IntegrityError("staged authority store contains non-genesis history")
-    state = replay(events, schema_registry=schemas)
+    resolver = LedgerAuthorityGrantResolver(
+        store_root,
+        project_id,
+        str(manifest["store_identity"]),
+        schemas,
+    )
+    state = replay(
+        events,
+        schema_registry=schemas,
+        authority_state_validator=resolver.validate_replayed_administration_state,
+    )
     _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
 
@@ -1338,7 +1423,11 @@ class LedgerAuthorityGrantResolver:
                 self.schema_registry,
             ).iter_events()
         )
-        projection = replay(events, schema_registry=self.schema_registry)
+        projection = replay(
+            events,
+            schema_registry=self.schema_registry,
+            authority_state_validator=self.validate_replayed_administration_state,
+        )
         if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
             raise IntegrityError("authority bootstrap ledger binding mismatch")
         _verify_bootstrap_bindings(
@@ -1349,6 +1438,140 @@ class LedgerAuthorityGrantResolver:
             projection,
         )
         return projection
+
+    def _administration_context_from_projection(
+        self,
+        projection: dict[str, Any],
+    ) -> AuthorityAdministrationContext:
+        from research_system.store.identity import load_store_manifest
+
+        manifest = load_store_manifest(self.control_root)
+        bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
+        try:
+            bootstrap_bytes = bootstrap_path.read_bytes()
+            bootstrap = json.loads(bootstrap_bytes)
+            if bootstrap_bytes != canonical_bytes(bootstrap):
+                raise ValueError("bootstrap manifest is not canonical")
+            _, root, _ = _validate_bootstrap(bootstrap, self.project_id)
+        except (
+            OSError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise IntegrityError("authority bootstrap manifest invalid") from exc
+        bootstrap_hash = authority_bootstrap_sha256(bootstrap)
+        if (
+            manifest.get("store_identity") != self.expected_store_identity
+            or manifest.get("project_id") != self.project_id
+            or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash
+            or projection.get("project_id") != self.project_id
+            or projection.get("authority_root_id") != root.authority_grant_id
+            or projection.get("authority_owner_actor_id") != root.actor_id
+            or projection.get("bootstrap_manifest_sha256") != bootstrap_hash
+        ):
+            raise IntegrityError("authority administration context mismatch")
+        return AuthorityAdministrationContext(
+            project_id=self.project_id,
+            store_identity=self.expected_store_identity,
+            bootstrap_manifest_sha256=bootstrap_hash,
+            root_grant_id=root.authority_grant_id,
+            root_grant_sha256=root.canonical_sha256,
+            owner_actor_id=root.actor_id,
+        )
+
+    def _load_owner_administration_decision(
+        self,
+        decision_id: str,
+    ) -> OwnerAuthorityAdministrationDecision:
+        from research_system.store.objects import ObjectStore
+
+        try:
+            value = ObjectStore(self.control_root).read(
+                "assurance_record",
+                decision_id,
+                1,
+            )
+            self.schema_registry.validate_active(
+                "ars://core/owner-authority-administration-decision",
+                value,
+                schema_version="1.0.0",
+            )
+            return OwnerAuthorityAdministrationDecision.from_dict(value)
+        except (IntegrityError, SchemaError, ValueError) as exc:
+            raise IntegrityError("owner authority administration decision invalid") from exc
+
+    def validate_replayed_administration_state(
+        self,
+        projection: dict[str, Any],
+    ) -> None:
+        """Re-load every consumed owner decision against replayed exact state."""
+        decisions = projection.get("authority_administration_decisions", {})
+        if not decisions:
+            return
+        if not isinstance(decisions, dict):
+            raise IntegrityError("authority administration decision projection invalid")
+        context = self._administration_context_from_projection(projection)
+        grants = projection.get("authority_grants")
+        if not isinstance(grants, dict):
+            raise IntegrityError("authority grant projection invalid")
+        for decision_id, evidence in decisions.items():
+            if not isinstance(evidence, dict):
+                raise IntegrityError("authority administration decision evidence invalid")
+            target_grant_id = evidence.get("target_grant_id")
+            grant = grants.get(target_grant_id)
+            if not isinstance(grant, dict):
+                raise IntegrityError("authority administration decision target missing")
+            try:
+                subject_scope = _scoped_authority_scope(grant.get("subject_scope"))
+                effective_at = _utc(
+                    grant.get("effective_at"),
+                    "effective_at",
+                )
+                expires_at = _utc(
+                    grant.get("expires_at"),
+                    "expires_at",
+                )
+                _utc(
+                    evidence.get("recorded_at"),
+                    "recorded_at",
+                )
+            except ValueError as exc:
+                raise IntegrityError("authority administration decision evidence invalid") from exc
+            decision = self._load_owner_administration_decision(str(decision_id))
+            action = evidence.get("action")
+            activation_link = (
+                action == "activate_authority_grant"
+                and grant.get("administration_decision_id") == decision_id
+                and grant.get("administration_decision_sha256") == evidence.get("administration_decision_sha256")
+            )
+            revocation_link = (
+                action == "revoke_issued_authority_grant"
+                and grant.get("revocation_administration_decision_id") == decision_id
+                and grant.get("revocation_administration_decision_sha256")
+                == evidence.get("administration_decision_sha256")
+            )
+            if not (
+                (activation_link or revocation_link)
+                and decision.record_id == decision_id
+                and decision.canonical_sha256 == evidence.get("administration_decision_sha256")
+                and decision.project_id == context.project_id
+                and decision.store_identity == context.store_identity
+                and decision.bootstrap_manifest_sha256 == context.bootstrap_manifest_sha256
+                and decision.root_grant_id == context.root_grant_id
+                and decision.root_grant_sha256 == context.root_grant_sha256
+                and decision.owner_actor_id == context.owner_actor_id
+                and decision.action == action
+                and decision.target_grant_id == target_grant_id
+                and decision.target_grant_sha256 == grant.get("authority_grant_sha256")
+                and decision.target_grant_schema_id == "ars://core/scoped-authority-grant"
+                and decision.target_grant_schema_version == "2.0.0"
+                and decision.target_grant_schema_sha256 == grant.get("schema_sha256")
+                and decision.subject_scope == subject_scope
+                and decision.effective_at == effective_at
+                and decision.expires_at == expires_at
+            ):
+                raise IntegrityError("owner authority administration decision evidence mismatch")
 
     def _load_grant(self, grant_id: str, projection: dict[str, Any]) -> tuple[AuthorityGrant, dict[str, Any]]:
         record = projection.get("authority_grants", {}).get(grant_id)
@@ -1485,30 +1708,9 @@ class LedgerAuthorityGrantResolver:
 
     def administration_context(self) -> AuthorityAdministrationContext:
         """Read the verified, store-bound owner administration trust anchor."""
-        from research_system.store.identity import load_store_manifest
-
         projection = self._projection()
-        manifest = load_store_manifest(self.control_root)
-        bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
-        try:
-            bootstrap = json.loads(bootstrap_path.read_bytes())
-            _, root, _ = _validate_bootstrap(bootstrap, self.project_id)
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            raise IntegrityError("authority bootstrap manifest invalid") from exc
-        if (
-            manifest.get("store_identity") != self.expected_store_identity
-            or projection.get("authority_root_id") != root.authority_grant_id
-            or projection.get("authority_owner_actor_id") != root.actor_id
-            or projection.get("bootstrap_manifest_sha256") != manifest.get("bootstrap_manifest_sha256")
-        ):
-            raise IntegrityError("authority administration context mismatch")
-        return AuthorityAdministrationContext(
-            project_id=self.project_id,
-            store_identity=self.expected_store_identity,
-            bootstrap_manifest_sha256=str(manifest["bootstrap_manifest_sha256"]),
-            root_grant_id=root.authority_grant_id,
-            root_grant_sha256=root.canonical_sha256,
-            owner_actor_id=root.actor_id,
+        return self._administration_context_from_projection(
+            projection,
         )
 
     def verify_owner_administration_decision(
@@ -1527,28 +1729,13 @@ class LedgerAuthorityGrantResolver:
         now: datetime,
     ) -> OwnerAuthorityAdministrationDecision:
         """Verify one immutable owner decision from the bound production store."""
-        from research_system.store.objects import ObjectStore
-
         if now.tzinfo != UTC:
             raise ValueError("trusted authority time must be UTC")
-        context = self.administration_context()
         projection = self._projection()
+        context = self._administration_context_from_projection(projection)
         if decision_id in projection.get("authority_administration_decisions", {}):
             raise ArsError("owner authority administration decision already consumed")
-        try:
-            value = ObjectStore(self.control_root).read(
-                "assurance_record",
-                decision_id,
-                1,
-            )
-            self.schema_registry.validate_active(
-                "ars://core/owner-authority-administration-decision",
-                value,
-                schema_version="1.0.0",
-            )
-            decision = OwnerAuthorityAdministrationDecision.from_dict(value)
-        except (SchemaError, ValueError) as exc:
-            raise IntegrityError("owner authority administration decision invalid") from exc
+        decision = self._load_owner_administration_decision(decision_id)
         expected = (
             decision.canonical_sha256 == decision_sha256
             and decision.project_id == context.project_id
@@ -1611,6 +1798,14 @@ class LedgerAuthorityGrantResolver:
             or grant.expires_at != _utc(record.get("expires_at"), "expires_at")
         ):
             raise IntegrityError("scoped authority grant object binding mismatch")
+        try:
+            validate_scoped_grant_activation(
+                grant,
+                self.schema_registry,
+                owner_actor_id=str(projection.get("authority_owner_actor_id", "")),
+            )
+        except (ArsError, ValueError) as exc:
+            raise IntegrityError("scoped authority grant activation binding invalid") from exc
         return grant, record
 
     def _scoped_resolution(
@@ -1761,6 +1956,10 @@ class LedgerAuthorityGrantResolver:
         now: datetime,
     ) -> ScopedAuthorityGrantResolution:
         """Resolve one exact policy action against an active scoped grant."""
+        if policy_action.policy_action_type == _R3_ASSURANCE_POLICY_ACTION:
+            context = self.administration_context()
+            if actor_class != "human" or validate_id(actor_id, "actor") != context.owner_actor_id:
+                raise ArsError("R3 assurance acceptance requires the bound human owner")
         binding = self.schema_registry.policy_action_binding(
             policy_action.policy_action_type,
         )
