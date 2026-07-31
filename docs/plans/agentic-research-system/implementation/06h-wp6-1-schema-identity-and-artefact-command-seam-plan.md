@@ -1,330 +1,203 @@
-# 06h: WP6.1 Schema Identity and Artefact Command Seam Implementation Plan
+# 06h: WP6.1 Schema Identity and Producer-Completeness Implementation Plan
 
 > **For the implementing Worker:** use contract-first-tdd,
-> research-assurance-triage, and executing-plans-extras. Write one failing
-> public-seam test before each production change. Read
-> `../handoffs/26-research-system-suite-red-briefing.md` (defect briefing),
-> `../handoffs/28-research-system-suite-baseline-inventory.md` (measured
-> baseline) and `../reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md`
-> §C-1/§C-3 in full before starting. This plan exists because that review
-> proved the previous approach could not be executed.
+> research-assurance-triage, and executing-plans-extras. This is main-path
+> WP6.1 work, not an RM-lane shortcut. Read handoffs 26 and 28, P-043, and the
+> 2026-07-30 G-RM-3 rereview before starting.
 
-**Status:** PROPOSED — **main-path WP6.1 work, not RM lane work.** Dispatch
-blocked on G-RM-3 (which closes only through a fresh independent adversarial
-review of this plan) and owner gates G-RM-8, G-RM-9, G-RM-10 (rm-00 §3).
-**Created:** 2026-07-29
-**Supersedes:** RM-01 Task A (the producer-emits repair), which this plan
-absorbs. RM-01 retains only suite recovery.
-**Goal:** Close the WP6.1 runtime/specification currency gap at its root: make
-registered schema identity retrievable as exact bytes, make every command
-producer emit truthful schema identity, and wire the accepted artefact command
-family through command, ledger and replay so that append-only artefact records
-are authoritatively producible and deterministically replayable.
-**Owner authorization:** P-043 (producer emits, accepted 2026-07-28) for Tasks
-1-2. Task 3 additionally requires G-RM-10.
+**Status:** REVISED 2026-07-30 (revision 3). The rereview found the
+`RegisteredSchema` design feasible but only partially closed: producer and path
+controls were incomplete, T2 bypassed the claimed single producer seam,
+historical-event policy was only a list of names, and RM-01 could not construct
+a pre/post-06h comparison after 06h had merged.
+Task 0 evidence collection is blocked on a fresh G-RM-3 verdict. Task 1 is
+additionally blocked on G-RM-9. Task 3 is blocked on G-RM-8, whose choice can
+occur only after Task 0 supplies the branch evidence.
 
-## Why this plan exists
+**Goal:** retain the exact bytes used for command validation, carry that same
+validated identity into every command-originated event path including T2,
+define the historical-event policy as an executable protocol, and preserve a
+pinned pre-change suite/cohort record before any implementation mutation.
 
-Handoff 26 recorded three defects. Two were fixed. The third — 86 generated
-event schemas requiring `command_schema_id`, `command_schema_version` and
-`command_schema_sha256` that no producer emits — was assigned to RM-01. The
-2026-07-29 adversarial review proved that assignment unexecutable and, in doing
-so, exposed a larger fact.
+**Out of scope:** artefact command authority and consumer enforcement moved to
+[06i](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md). W3 context
+packet lifecycle moved to
+[06j](06j-w3-context-packet-lifecycle-and-resolution-plan.md). No generated
+command or event schema is relaxed.
 
-The gap is not "one missing producer field". It is that the WP6.1 **runtime**
-implements a fraction of the WP6.1 **accepted surface**:
+## Verified runtime seams
 
-| Accepted surface | Runtime state |
-|---|---|
-| 86 command schemas under `.research-system/schemas/core/commands/`, all `x-lifecycle: proposed_materialized` | `CommandService._build_event` handles **6** command types and raises `unsupported command type` for the rest (`research_system/command/service.py:831-893`) |
-| 86 event schemas under `.research-system/schemas/core/events/`, each requiring the `command_schema_*` triple | No producer emits any of the three fields (handoff 26 Defect 3; 156 failing cases in handoff 28) |
-| `ars://core/command/RegisterArtefact`, `SetArtefactUseAuthority`, `SupersedeArtefact`, `RecordScientificReview`, `RecordStructuralValidation` | none wired |
-| `ars://core/command`'s `target_stream_id` already admits `art_`; `artefact: art` registered in `.research-system/config/id-kind-registry.yaml` | no artefact stream reachable through the command path |
-| P-043: the digest is of "the exact schema bytes used for that validation — never of a reserialized or reconstructed representation" | `SchemaRegistry` stores only `json.loads(...)` output; raw bytes and `source_path` are discarded at construction (`research_system/schema_registry.py:63-73`) |
+The plan is grounded in the exact `c99cec8` source, not an expected interface:
 
-Three consumers are blocked behind this one seam: the failing suite (RM-01),
-any append-only artefact record (RM-03), and P-043 itself. Fixing it in one
-reviewed place is cheaper and safer than three partial workarounds, and it is
-the only place where editing `schema_registry.py` is in scope.
+| Path / symbol | Observed behavior | Required change |
+|---|---|---|
+| `research_system/schema_registry.py::SchemaRegistry` | retains parsed JSON only | retain one immutable `RegisteredSchema` made from one byte read |
+| `research_system/command/service.py::CommandService.submit` | routes T2 before generic validation; generic path appends at `service.py:312` | return/pass the exact validated record on the generic path |
+| `research_system/command/t2.py::submit_t2` / `_event_envelope` | performs separate validation and appends directly at `t2.py:1153`; events omit the triple | accept the exact validated record and derive the triple in the T2 builder |
+| `research_system/authority.py::initialize_control_store` | commandless bootstrap append | classify as system/bootstrap, never fabricate command provenance |
+| `research_system/store/ledger.py::_append_release_from_validated_submit` | guarded continuation of a submitted command | inherits the submitting command's record |
+| `research_system/evals/**` direct appends | evaluation-only synthetic events | classify as commandless fixtures; never admit them as production provenance |
 
-## Architecture
-
-**The generated schemas are the accepted, stricter authority; the runtime rises
-to meet them.** Nothing in this plan relaxes a schema.
-
-Three seams, in dependency order:
-
-1. **Schema identity.** `SchemaRegistry` gains an immutable `RegisteredSchema`
-   record carrying `schema_id`, `schema_version`, `source_path`, the exact
-   `raw_bytes` read from disk, and `raw_bytes_sha256` computed over those same
-   bytes. `validate()` resolves through that record. The producer consumes the
-   **same instance** `validate()` used — not a second lookup, not a re-read.
-   This is what makes P-043's byte-exactness true rather than asserted, and it
-   closes the time-of-check/time-of-use seam the review identified.
-
-2. **Producer truthfulness.** Command submission derives the triple from the
-   `RegisteredSchema` actually used to validate the command, at the single
-   point every producer flows through. Never caller-supplied, never
-   hard-coded, never per-event-type special-cased.
-
-3. **Artefact command family.** `RegisterArtefact` and
-   `SetArtefactUseAuthority` are wired end to end: command validation →
-   `_build_event` → ledger append → pure replay reducer → projection. These
-   two are chosen because they are the minimum pair that makes an artefact
-   *exist* and makes its *use authority* transition — together they are the
-   accepted mechanism the RM lane needs, and W2's own answer to "how does
-   candidate material become admissible evidence".
-
-**Deliberately out of scope:** the other 78 unwired command types. This plan
-proves the pattern on two and leaves a documented path; a sweep is separate
-reviewed work.
+The Worker must regenerate this table from the dispatch head before editing.
+Any additional command-originated path joins the implementation file map.
+Any genuinely commandless path gets an explicit reason and schema disposition;
+it never receives a made-up command identity.
 
 ## Global constraints
 
-- All standing constraints of `rm-00-research-methods-lane-master-plan.md` §5
-  apply **except** §5.6 (assurance lanes — see below) and the RM-lane naming
-  rule, which is an RM convention and not binding on main-path WP6.1 work.
-- Branch `pipe/wp6-1-schema-identity-seam` from approved `main`, in a worktree
-  under `.apm/worktrees/`, with `.env` copied immediately.
-- **Environment.** A fresh worktree `.venv` is an empty stub and the main-repo
-  interpreter lacks `jsonschema`. Provision with
-  `uv sync --all-extras --no-install-package petls`, then run pytest as
-  `uv run --no-sync python -m pytest -q <target> -o "addopts=" -p no:cacheprovider -p no:cov`.
-  Do not pipe long background runs through `tail` — output buffers until exit.
-- **Do not modify** any file under `.research-system/schemas/core/events/` or
-  `.research-system/schemas/core/commands/`. The generated schemas are the
-  fixed target. If a generated schema proves genuinely defective rather than
-  merely strict, **stop Partial and escalate** — do not relax it.
-- **Do not modify** the WP6.3 accepted-byte files
-  (`.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`,
-  `.research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json`)
-  or anything under `.research-system/schemas/wp6-2-*/**`.
-- No CLI surface, no provider-related code, no eval-corpus change. The P0
-  invariants (37 fixtures / 14 blocked / 122 results / candidate blocked) are
-  untouched; if any task moves them, stop Partial.
+- All standing constraints in RM-00 section 5 apply, except RM-only naming.
+- Branch `pipe/wp6-1-schema-identity-seam` from the exact accepted pre-change
+  head. Copy `.env` into the worktree and record branch, HEAD, and clean status.
+- Do not modify `.research-system/schemas/core/commands/**`,
+  `.research-system/schemas/core/events/**`, WP6.2 accepted schemas, or WP6.3
+  accepted-byte files.
+- No provider, CLI, eval-corpus, mathematical, statistical, topological, or
+  representation change.
+- A source-derived producer matrix and the pre-06h suite record are
+  prerequisites, not post-implementation paperwork.
 
 ## File map
 
-**Modify (Task 1):**
+**Create before production edits:**
 
 ~~~text
-research_system/schema_registry.py                      # RegisteredSchema; validate() through it
+docs/plans/agentic-research-system/implementation/06h-prechange-producer-matrix-<date>.md
+docs/plans/agentic-research-system/implementation/06h-prechange-suite-baseline-<date>.md
+~~~
+
+**Modify:**
+
+~~~text
+research_system/schema_registry.py
+research_system/command/service.py
+research_system/command/t2.py
+research_system/store/ledger.py                      # only the guarded release continuation if required
+research_system/projection/replay.py                 # historical admission only for the chosen G-RM-8 branch
 tests/research_system/unit/test_schema_registry.py
-~~~
-
-**Modify (Task 2):**
-
-~~~text
-research_system/command/service.py                      # single derivation point
-research_system/store/ledger.py                         # only if envelope assembly lives here
 tests/research_system/unit/test_command_service.py
+tests/research_system/unit/test_wp6_2_t2_runtime.py
+tests/research_system/unit/test_replay.py             # only for the chosen historical branch
 ~~~
 
-**Modify (Task 3):**
-
-~~~text
-research_system/command/service.py                      # _build_event: two accepted command types
-research_system/projection/replay.py                    # reducers for the two artefact events
-tests/research_system/unit/test_command_service.py
-tests/research_system/unit/test_replay.py
-~~~
-
-**Create (Task 3):**
-
-~~~text
-tests/research_system/integration/test_artefact_command_seam.py
-~~~
-
-The Task 2 file map is the *expected* seam (handoff 26 names
-`CommandService.submit` → `ledger.append`). First action of Task 2 is to
-confirm where the envelope is actually assembled. If assembly happens outside
-`research_system/command/` + `research_system/store/`, report the actual seam
-in the PR and stop Partial rather than widening scope silently.
-
-`test_schema_registry.py` and `test_replay.py` are flagged by Repowise as
-high-change-entropy files. Read `get_risk` before editing them.
+No other production file is added silently. A newly found command producer is
+added to the matrix and plan before its code is edited.
 
 ## Obligation register
 
 | ID | Source | Obligation | Disposition |
 |---|---|---|---|
-| H-1 | P-043 (03-decisions) | Digest is of the exact validated schema bytes, never a reserialization; independent recomputation from the schema file must reproduce it | Task 1 + Task 2 binding test |
-| H-2 | Review C-1 | `validate()` and the producer must consume the *same* `RegisteredSchema` instance (no second lookup, no re-read) | Task 1 interface; Task 2 test asserts instance identity |
-| H-3 | Review C-1 / handoff 26 §"existing events" | Events already durably stored lack the triple; a migrate / grandfather / no-prior-store decision is required and must be recorded | **G-RM-8** — owner decision; Task 2 blocked on it |
-| H-4 | handoff 26 | 88 files repo-wide require `command_schema_sha256`; every producing path must be covered, including direct-append, T2 and internal paths | Task 2 Step 3 sweep; Task 4 matrix |
-| H-5 | Review C-3 / W2 §16 | Artefact records must be authoritatively producible and deterministically replayable through accepted interfaces | Task 3 |
-| H-6 | W2 §§8, 16.2 | Authority, expected-version, idempotency and state-transition validation precede any write; replay reducers are pure and versioned | Task 3; reducer purity test |
-| H-7 | Review C-3 | Direct `ledger.append` must not be able to manufacture artefact events outside command authority | Task 3 negative control (direct-append bypass) |
-| H-8 | Review §"Coverage and fixture gaps" 1 | TOCTOU substitution and valid-but-wrong-identity-triple fixtures | Task 1/2 negative controls |
-| H-9 | Review §"Coverage and fixture gaps" 3 | Unknown-family, unknown-major, reducer-absence, genesis and incremental replay fixtures | Task 3 |
-| H-10 | Vault discipline | `[PIPELINE]` entry in `04-Methods/Pipeline-Overview.md` | Close-out |
-| H-11 | Observer log Obs. 136 | README status drift when acceptance records land | Close-out: README row updated in the same PR |
+| H-1 | P-043 | Digest the exact bytes validated, never a reserialization | Task 1 |
+| H-2 | prior C-1 | Validator and producer use the same immutable identity record | Tasks 1-2 |
+| H-3 | RR-M2 | Migrate, grandfather, and no-store must each be executable and distinguish old events from new malformed events | G-RM-8 protocol table + Task 3 |
+| H-4 | RR-M1 / handoff 26 | Cover generic, T2, guarded release, and every other command-originated append | Task 0 matrix + Task 2 |
+| H-5 | RR-M3 | Observe the same 156-node cohort at pinned pre- and post-06h subjects | Task 0 + RM-01 |
+| H-6 | P-043 | Commandless bootstrap/eval paths carry an explicit non-command disposition | Task 0 matrix |
+| H-7 | rereview fixture list | Alias, symlink, case variant, valid-wrong schema, T2 bypass, and missing mapping controls | Tasks 1-2 |
+| H-8 | vault/status discipline | README and Pipeline-Overview reflect exact completion state | Close-out |
+
+## G-RM-8: inspectable branch protocols
+
+Stephen chooses only after the following evidence exists. The decision record
+pins the selected protocol version and exact evidence identities.
+
+| Branch | Independent evidence | Admission / transformation | Repeat and replay semantics | Stop / rollback | Distinguishing negative |
+|---|---|---|---|---|---|
+| **Migrate** | Read-only inventory from the bound store: store identity, ledger fingerprint, global positions, event IDs, command IDs, schema IDs/versions, and exact pre-migration batch hashes | A named migration ID maps each eligible historical command event to one canonical replacement/addendum carrying the registry-derived triple; input and output manifests are content-addressed | A second run is a no-op returning the first receipt; replay of migrated output equals the pre-migration projection for every non-provenance field and is deterministic from genesis/incremental paths | Any unmapped/ambiguous command, changed input fingerprint, duplicate target, or projection delta aborts before cutover; original store remains immutable and active until an atomic owner-approved binding switch | A newly appended event missing the triple is ineligible because eligibility is bounded by the pinned pre-migration maximum global position and inventory hash |
+| **Grandfather** | Same store inventory plus a signed/attributed decision pinning `store_identity`, `ledger_fingerprint`, and `max_global_position` | Replay admits a missing triple only when all three pins match and the event position is at or below the bound maximum; no field-shape predicate alone is sufficient | Repeated replay returns the same projection and grandfather set; any store/fingerprint drift invalidates the predicate | No rewrite. Any missing/changed pin, position above the bound, or historical-set growth fails closed and requires a superseding owner decision | A new malformed event with identical shape but a greater global position must fail |
+| **No prior store** | Independent filesystem/store discovery over declared roots, store registry, backup registry, and operator attestation; record commands, roots, time, and zero-store result | Fresh store only; every command-originated event requires the triple from genesis | Reinitialization is idempotent only against the same empty/new store identity; discovery is rerun before activation | Discovery of any prior store, backup, or ledger is a hard stop; choose migrate or grandfather instead | Plant a discoverable historical-store fixture outside the first searched root; the assertion must fail |
+
+No branch may be selected from a Worker-authored summary alone.
 
 ## Research assurance requirements
 
-- **Lanes:** Output/Provenance **and** provenance-integrity. No mathematical,
-  statistical, topological or representation logic is created or altered; any
-  task finding itself in such logic stops Partial. (RM-00 §5.6's blanket
-  "Output/Provenance only" is replaced here because schema identity *is* the
-  provenance substrate other lanes' claims rest on.)
-- **Machine-checkable claims:**
-  - **byte-exactness** — the emitted `command_schema_sha256` equals a digest
-    the test computes independently by reading the schema file's bytes;
-  - **instance identity** — the record the producer reads is the record
-    `validate()` used (asserted directly, not inferred from equal values);
-  - **TOCTOU resistance** — mutating the schema file on disk after registry
-    construction does not change the emitted digest, and the emitted digest
-    still matches the bytes actually validated against;
-  - **fail-closed** — a command whose schema is unregistered fails at submit
-    rather than appending an event with absent or null identity fields;
-  - **no caller override** — a submitted payload supplying `command_schema_*`
-    values is rejected in favour of registry-derived values;
-  - **valid-but-wrong** — a syntactically valid triple naming a *different*
-    registered schema is rejected, not accepted because it parses;
-  - **authority** — an artefact event cannot be produced by direct
-    `ledger.append` outside the command path;
-  - **replay determinism** — genesis and incremental replay of a stream
-    containing both artefact events reproduce identical projection state.
-- **Human-review-only:** does the derivation sit at the single point every
-  producer flows through, or does it patch the paths the tests happen to
-  exercise? Is `RegisteredSchema` immutable in fact, or merely by convention?
-- **Partial criteria:** generated-schema defect discovered; envelope seam
-  outside command/store; any P0 invariant drift; retaining raw bytes proves
-  memory-prohibitive at the real schema-tree size (measure before concluding);
-  the artefact reducers require projection-state shape changes beyond additive.
+- **Lanes:** Output/Provenance and provenance-integrity.
+- **Machine-checkable:** exact byte hash; same object instance; TOCTOU
+  resistance; alias/symlink/case normalization; command-specific schema
+  binding; generic and T2 event triples; fail-closed missing mapping; chosen
+  historical protocol; pre/post cohort identity.
+- **Human review:** whether the producer inventory is complete and whether the
+  G-RM-8 evidence is independent of the branch implementation.
+- **Partial:** generated schema defect; unbounded producer path; inability to
+  identify the pre-change cohort; historical inventory ambiguity; any P0
+  invariant movement.
 
-## Task 1: Exact-byte schema identity (blocked on G-RM-9)
+## Task 0: freeze producer and pre-change evidence
 
-- [ ] **Step 1 — Failing test.** In `test_schema_registry.py`, assert that a
-  registry exposes, for a known `$id`, a record whose `raw_bytes_sha256` equals
-  an independently computed SHA-256 of that schema file's bytes, and whose
-  `source_path` resolves to that file. Red — no such interface exists.
-- [ ] **Step 2 — Run red.**
+1. Record cwd, branch, exact pre-06h HEAD, merge-base, and clean status.
+2. Generate the producer matrix by searching actual append and event-builder
+   call sites. Classify generic submit, T2, guarded release, authority bootstrap,
+   eval fixtures, and every additional hit.
+3. Reverify the handoff-28 public-signature prerequisite and record its current
+   defining commit.
+4. At this exact pre-change head, collect the full `tests/research_system` node
+   list with bytecode/cache/coverage writes disabled. Persist the exact node
+   IDs, count, command, interpreter, commit, and clean-status check.
+5. Persist the handoff-28 156-node Defect-3 cohort verbatim and resolve every
+   node at the pre-change head. Record additions, removals, and renames rather
+   than replacing the cohort.
+6. Commit only the two evidence records:
+   `[PIPELINE] P00: freeze pre-06h producer and suite evidence (P-043)`.
 
-~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/unit/test_schema_registry.py -o "addopts=" -p no:cacheprovider -p no:cov
-~~~
+Task 1 cannot start until independent review confirms that these records were
+collected before production mutation.
 
-- [ ] **Step 3 — Implement.** Introduce a frozen `RegisteredSchema`
-  (`schema_id`, `schema_version`, `source_path`, `raw_bytes`,
-  `raw_bytes_sha256`, `parsed`). Read bytes once; parse from those exact bytes;
-  digest those exact bytes. Store the record in `_schemas`. `validate()`
-  resolves the record, validates against `record.parsed`, and returns that same
-  `RegisteredSchema` instance on success so the caller cannot perform a second
-  lookup or re-read before deriving provenance. `contains()` is unchanged in
-  behaviour. Keep the existing `lru_cache` sharing semantics — measure the
-  memory delta across the full schema tree and record it in the PR.
-- [ ] **Step 4 — Negative controls.** (a) mutate the schema file on disk after
-  construction → digest and validation behaviour unchanged (TOCTOU); (b) a
-  registry built over a tree containing a byte-identical duplicate `$id` still
-  raises `duplicate schema`; (c) `RegisteredSchema` mutation attempt raises.
-- [ ] **Step 5 — Commit.** `[PIPELINE] P00: retain exact schema bytes and source path in the registry (P-043)`.
+## Task 1: exact-byte schema identity (G-RM-9)
 
-## Task 2: Producer emits command-schema identity (blocked on G-RM-8)
+1. Add a failing public test for frozen `RegisteredSchema(schema_id,
+   schema_version, source_path, raw_bytes, raw_bytes_sha256, parsed)`.
+2. Read each schema once as bytes; parse and hash those bytes; store the record.
+   `validate()` validates `record.parsed` and returns that same record.
+3. Normalize the registered source identity once and reject a second path
+   (relative alias, symlink, Windows case variant) that resolves to a different
+   file or attempts to shadow an existing ID.
+4. Prove file mutation after registry construction does not change validation
+   or the returned digest; prove record mutation and duplicate IDs fail.
+5. Measure and record full-tree memory cost.
 
-- [ ] **Pre-step — record the G-RM-8 decision** in the PR description and in
-  the plan close-out: migrate existing events, grandfather them behind a
-  documented predicate, or assert no prior durable store exists. If the
-  decision is "migrate", the migration and its replay fixture are in scope
-  here; if "grandfather", the predicate and its negative control are in scope;
-  if "no prior store", the assertion needs evidence, not assumption.
-- [ ] **Step 1 — Failing public-seam test.** In `test_command_service.py`,
-  submit a valid command through the real `CommandService` and assert (a) the
-  appended event validates against its generated schema
-  (`ars://core/event/TaskCreated` at minimum), (b) `command_schema_sha256`
-  matches an independently recomputed hash of the command schema file, and
-  (c) the record consulted is the same instance `validate()` used. Must fail on
-  `main` with the three-required-properties error quoted in handoff 26. A
-  collection error is not the required red.
-- [ ] **Step 2 — Run red** (worktree venv provisioned per Global constraints).
-- [ ] **Step 3 — Implement minimally.** Introduce one
-  `CommandService.validate_command(envelope) -> RegisteredSchema` derivation
-  point. Resolve the **command-specific** schema from `command_type`: core
-  commands map to `ars://core/command/{command_type}` and T2 commands use the
-  accepted T2 command-identity mapping. The generic `ars://core/command` schema
-  may remain a base-envelope check, but its identity is never emitted as the
-  provenance of a command-specific validation. Fail closed if the mapping or
-  registered schema is absent. Have `validate_command()` return the exact
-  instance returned by `SchemaRegistry.validate()` and derive the triple at
-  submit time from that record. Sweep every event-producing call site
-  (`grep -rn "ledger.append"` plus any event-factory helpers) and route every
-  command-originated append through this single derivation point; do not
-  special-case event types. Where a producer legitimately has no originating
-  command (internal/system appends), do **not** fabricate command provenance —
-  report the path and its correct disposition in the PR; inventing a false
-  command identity is worse than the current absent one.
-- [ ] **Step 4 — Negative controls.** Caller-supplied triple rejected;
-  valid-but-wrong triple (naming a different registered schema) rejected;
-  unregistered schema fails at submit without appending.
-- [ ] **Step 5 — Green + no-regression slice.** Re-run Step 2's target plus
-  `tests/research_system/unit/test_adapter_parity.py` (handoff 26 attributes
-  its 16 setup errors to Defects 2→3; it should now collect and run). Record
-  results either way.
-- [ ] **Step 6 — Commit.** `[PIPELINE] P00: emit command-schema identity on every append path (P-043)`.
+## Task 2: complete command-producer binding
 
-## Task 3: Wire the accepted artefact command family (blocked on G-RM-10)
+1. Add one shared `validate_command(envelope) -> RegisteredSchema` contract,
+   but do not claim one control-flow point. Generic submit and T2 are two real
+   producer paths that must both consume it.
+2. Generic submit uses the active command-specific binding and passes the exact
+   returned record into event construction and the guarded release continuation.
+3. `submit_t2` performs its accepted T2 checks, obtains the exact registered T2
+   command schema used, and passes that record into `_event_envelope`; every T2
+   event derives the triple there before append.
+4. A missing mapping, wrong registered schema, caller-supplied triple, or
+   command/event builder that lacks a validated record fails before append.
+5. Commandless paths remain as recorded in Task 0 and receive no fabricated
+   triple. Their event schemas and admission are tested separately.
+6. Re-run the producer search and fail if any command-originated path is absent
+   from the matrix.
 
-- [ ] **Step 1 — Failing test.** `test_artefact_command_seam.py`: submit
-  `RegisterArtefact` with a schema-valid manifest through the real
-  `CommandService`; assert an `ars://core/event/ArtefactRegistered` event is
-  appended, validates against its generated schema, and carries the Task 2
-  identity triple. Red with `unsupported command type: RegisterArtefact`.
-- [ ] **Step 2 — Implement `RegisterArtefact`.** Extend `_build_event` for the
-  accepted command type. Honour W2 §8 ordering: authority, expected version,
-  idempotency and state-transition validation precede the write. Write the
-  artefact object through the existing `ObjectStore` seam, mirroring the
-  `CreateTask` pattern. Do not invent payload fields — the accepted
-  `ars://core/command/RegisterArtefact` payload schema is the contract.
-- [ ] **Step 3 — Implement `SetArtefactUseAuthority`.** Same seam. Enforce the
-  accepted `use_authority` enum
-  (`candidate | accepted_for_scope | rejected | superseded | restricted`) as a
-  *state transition*, not a field write: define and test which transitions are
-  legal, and reject the rest. `subject_sha256` must match the registered
-  artefact's `content_sha256` or the command is rejected — this is what makes
-  the transition bind to exact bytes rather than to an identifier.
-- [ ] **Step 4 — Replay reducers.** Add pure, versioned reducers for both
-  events in `replay.py`. Both event `schema_id`s are already under
-  `ars://core/event/`, so the existing prefix admission needs no change —
-  confirm this rather than assuming it, and if the admission check needs
-  widening, stop Partial and report (that would be a core-routing change).
-- [ ] **Step 5 — Negative controls (all required).** (a) direct `ledger.append`
-  of an artefact event outside the command path is rejected or provably cannot
-  produce authoritative state; (b) unknown command type still raises;
-  (c) unknown major version raises; (d) a missing reducer raises rather than
-  silently no-ops; (e) genesis replay and incremental replay produce identical
-  state; (f) an illegal use-authority transition is rejected; (g) a
-  `subject_sha256` mismatch is rejected.
-- [ ] **Step 6 — Commit.** `[PIPELINE] P00: wire the accepted artefact command family through command, ledger and replay`.
+## Task 3: implement the selected historical protocol
 
-## Task 4: Producer coverage matrix
+Implement only the G-RM-8 branch Stephen selected from the completed protocol
+table. Add one positive, one new-malformed-event bypass negative, repeat-run,
+genesis replay, incremental replay, and rollback/stop test. The decision record,
+inventory, migration/predicate identity, and evidence hashes are required test
+inputs; no ambient current-directory or field-shape inference is accepted.
 
-- [ ] Record, as a table in the PR description and in the close-out note, every
-  event-producing path found in Task 2's sweep, with its disposition: routed
-  through the derivation point, legitimately command-less (with the recorded
-  decision), or out of scope with a reason. This is the artifact that makes
-  H-4's "every producing path" checkable by the next reviewer rather than
-  asserted by this one.
-- [ ] Note explicitly which of the 78 still-unwired accepted command types
-  remain, so the follow-up sweep has a starting inventory.
+## Task 4: post-change targeted proof
 
-## Close-out
-
-- Full targeted verification, exactly:
+Run:
 
 ~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/unit/test_schema_registry.py tests/research_system/unit/test_command_service.py tests/research_system/unit/test_replay.py tests/research_system/integration/test_artefact_command_seam.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/unit/test_schema_registry.py tests/research_system/unit/test_command_service.py tests/research_system/unit/test_wp6_2_t2_runtime.py tests/research_system/unit/test_replay.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync ruff check research_system
 ~~~
 
-  The full `tests/research_system` tree runs **once**, at the final exact head,
-  as RM-01 Task B's delta run — not per task (handoff 28: ~1:13 h).
-- Update the WP6.1 row in
-  `docs/plans/agentic-research-system/implementation/README.md` in the same PR
-  (H-11).
-- Vault: top-of-page `[PIPELINE]` entry in `04-Methods/Pipeline-Overview.md`
-  naming P-043, the registry interface, the artefact seam, and the G-RM-8
-  decision as taken. No Computational-Log entry (no numerical result).
-- PR description lists: the actual envelope seam found, the producer coverage
-  matrix, the G-RM-8 decision and its evidence, the memory delta from retaining
-  raw bytes, and the remaining unwired command types.
-- **Acceptance is recorded against WP6.1, not the RM lane.**
+The full `tests/research_system` run belongs to RM-01 after this exact head is
+merged. Do not collect a substitute "pre" baseline here after mutation.
+
+## Close-out
+
+- Update the 06h/WP6.1 row in `implementation/README.md`.
+- PR description includes both Task 0 records, the final producer matrix, the
+  G-RM-8 decision/evidence, exact targeted results, memory delta, and remaining
+  commandless paths.
+- Vault `[PIPELINE]` entry names P-043, the exact pre/post subjects, and the
+  selected historical protocol.
+- Independent exact-subject review precedes Stephen's acceptance. Passing tests
+  do not close G-RM-9 or establish plan acceptance.

@@ -1,248 +1,178 @@
 # RM-04: Manuscript Review Lane and Verification Records Implementation Plan
 
 > **For the implementing Worker:** use contract-first-tdd,
-> research-assurance-triage, and executing-plans-extras. The governing idea:
-> the external model *proposes*; a human *verifies*; ARS *records*. A passing
-> verification is **evidence about a candidate**, never acceptance of a result
-> (W5 two-key). Keep that asymmetry visible in every interface name.
-> **ARS executes nothing in this plan.** If a task finds itself running
-> returned content, stop Partial — that is G-RM-11 territory.
+> research-assurance-triage, and executing-plans-extras. External sessions may
+> propose; operators may report; ARS records. ARS executes nothing here. Read
+> PR198-F5 from the PR #198 pre-merge review before starting.
 
-**Status:** REVISED 2026-07-29 (revision 2). Renamed from
-`rm-04-verification-execution-and-manuscript-review-plan.md`, which the
-adversarial review returned `reject` on for a Critical (C-4): it executed
-model-proposed Python with the project interpreter beside a gitignored `.env`
-and the vault, without isolation, egress control, or non-self-attested
-approval. **All execution is removed.** Dispatch blocked on **G-RM-3** and on
-**RM-03 merged**. The pilot additionally requires **G-RM-5**.
-**Goal:** (1) The manuscript-review lane: a draft section exported with the
-adversarial-review asset, its `ReviewFindingSet` bound to the draft's exact
-hash, landing as a `candidate` artefact. (2) Verification *records*: a
-`VerificationRequest` capturing a proposed recipe, and an
-`OperatorVerificationRun` capturing an outcome the **operator** produced and
-attests to. (3) Round-trip support so a follow-up brief can carry a prior
-outcome including its traceback. (4) One owner-chosen manuscript pilot.
-**Owner authorization:** P-044 (accepted 2026-07-28; G-RM-3 and plan-specific
-dependencies remain open); G-RM-5 for the pilot.
+**Status:** REVISED 2026-07-30 (suite revision 4). Dispatch is blocked on G-RM-3,
+merged RM-03, and the accepted 06i/06j interfaces RM-03 binds. The pilot is
+separately blocked on G-RM-5; any follow-up export of an
+`OperatorVerificationRun` is blocked on G-RM-13 for that exact run and scope.
 
-## What changed in revision 2, and why
+**Goal:** record verification requests and operator-reported runs as candidate
+artefacts, render an exact prior run into a follow-up brief, and pilot a
+manuscript-review flow without execution, result acceptance, promotion or
+claim mutation. Review/manuscript use authority is external, exact-scope and
+does not convert the operator report into execution truth.
 
-| Revision 1 | Revision 2 | Driver |
-|---|---|---|
-| `ars brief verify` executed model-proposed Python via subprocess | **Removed.** No runner, no `verify` command, no execution anywhere | **C-4**: `cwd` and a wall-time timeout are not a security boundary. A returned recipe could read `.env`, walk the vault, open a socket, write to the repository, or spawn a child outliving the timeout |
-| `approved_for_execution_by` / `--approved-by` free string | Gone with execution. The operator-run record carries an **actor ID resolved by ARS**, not a typed name | **C-4**: any caller could type Stephen's name |
-| "W8 spirit (bounded resources)" | W8 is either satisfied properly or not invoked. This plan invokes no resource, so it claims nothing | **C-4**: W8 requires typed roots, grants, leases, process identity and stop evidence — "spirit" was a downgrade |
-| The counterexample pilot ran a recipe | Pilot is manuscript-review only | **C-4**; the counterexample lane returns with RM-05 |
-| `verification_context` embedded a complete result in a closed schema | A versioned reference object, specified in RM-03 | **M-8** |
-| Assurance lane: Output/Provenance | Output/Provenance **and Paper Claim governance** | **M-12** |
-| `P-044 (pending)`; "Full gates" | Accepted status; exact command set | **m-1**, **m-3** |
+## Honest verification boundary
 
-## The honest position on verification
-
-The source paper's neuro-symbolic loop is: the model proposes a check, the
-check runs, the traceback feeds back. ARS can hold three of those four steps.
-It cannot safely run the check, so it does not pretend to.
-
-What this plan records instead:
-
-- **`VerificationRequest`** — a proposed recipe, content-addressed and bound to
-  the candidate it came from. Recording it is not approving it.
-- **`OperatorVerificationRun`** — an outcome the operator produced **on their
-  own responsibility, outside ARS**, with the environment they used described
-  and the exact script hash bound. This is **self-attested evidence** and the
-  schema description says so in those words. It is weaker than an ARS-executed
-  result would be, and the weakness is recorded rather than hidden.
-- The feedback loop still closes: `--attach-result` places the reference-only
-  `verification_context` in the manifest, resolves and hash-checks that
-  artefact, and renders its outcome and traceback into the follow-up brief,
-  with the operator as relay — exactly the P-042 posture the rest of the lane
-  already assumes.
-
-Only after G-RM-11 independently accepts an implemented isolation substrate and
-its exact-subject evidence may RM-05 add an ARS-executed result type that does
-**not** carry the self-attestation caveat. Funding or implementation alone is
-insufficient. Until readiness acceptance, no interface in this lane implies
-ARS ran anything.
+- `VerificationRequest` records opaque proposed script text/hash.
+- `OperatorVerificationRun` records what an attributed operator reports
+  happened outside ARS. `passed` is not ARS execution evidence, scientific
+  validity, result acceptance or claim authority.
+- A run remains forced `candidate` until an eligible unrelated reviewer records
+  an independent scientific review through 06i and Stephen accepts the exact
+  run/hash for a named `review_evidence` or `manuscript_evidence` scope at
+  G-RM-13. That use-authority event accepts only bounded consumption of an
+  operator-reported trace; it does not certify execution or scientific truth.
+- Follow-up export resolves the exact run through the corresponding 06i port
+  and binds it to the 06j packet before rendering traceback bytes.
+- G-RM-11 is the only route to future ARS execution.
 
 ## Global constraints
 
-- All standing constraints of rm-00 §5 apply. Branch
-  `pipe/rm-04-manuscript-and-verification-records`. Copy `.env` into the
-  worktree.
-- **No execution, no subprocess, no runner.** RM-03's capability boundary
-  (Task 5 there) extends over every file this plan creates **and over the new
-  brief command handlers and their call graph in `research_system/cli.py`**.
-  Its CLI AST check rejects dynamic import, sockets, `eval`/`exec`, process
-  launch, and every other prohibited execution primitive from those handlers.
-  The only module-level subprocess allowance is the pre-existing fixed-argv Git
-  root discovery in `_registered_code_roots`; the guard identifies that
-  function and exact operation structurally, and any additional subprocess use
-  in `cli.py` fails. Negative fixtures must prove each CLI prohibition fires.
-- No W5 lifecycle transition is performed by any code here: no review verdict,
-  no result acceptance, no claim object, no `SetArtefactUseAuthority`. The
-  manuscript lane *feeds* W5 review by producing bound evidence; a human takes
-  it from there.
-- Imported records land as `candidate` artefacts via the accepted
-  `RegisterArtefact` command, exactly as in RM-03. No new event family.
-- An `OperatorVerificationRun` never mutates the candidate it concerns; it is a
-  new artefact referencing it (append-only, O-RM-16).
+- No execution, subprocess, runner, network, dynamic import, credentials or
+  provider operation.
+- RM-03's capability boundary covers every new methods module, the exact
+  `brief_export` handler with `--attach-result`, and their complete transitive
+  graph. The only subprocess exception remains the pre-existing exact
+  `_registered_code_roots` Git discovery operation.
+- All records register via 06i at forced candidate state.
+- Every canonical read uses a 06i production consumer; no direct object read,
+  local status or projection is authority.
+- RM-04 code produces no `SetArtefactUseAuthority`, scientific review verdict,
+  result acceptance, claim object or P-005 decision. The operator/human workflow
+  invokes accepted 06i review and authority commands outside the RM-04 writer,
+  with Stephen as the G-RM-13 acceptor.
 
 ## File map
 
 **Create:**
 
 ~~~text
-.research-system/schemas/methods/verification-request.schema.json      # ars://methods/verification-request
-.research-system/schemas/methods/operator-verification-run.schema.json # ars://methods/import/OperatorVerificationRun
+.research-system/schemas/methods/verification-request.schema.json
+.research-system/schemas/methods/operator-verification-run.schema.json
 research_system/methods/verification_records.py
 tests/research_system/unit/test_verification_records.py
 tests/research_system/integration/test_verification_round_trip.py
-docs/plans/agentic-research-system/implementation/rm-04a-manuscript-pilot-record-<date>.md
+docs/plans/agentic-research-system/implementation/rm-04-manuscript-pilot-record-<date>.md
 ~~~
 
 **Modify:**
 
 ~~~text
-research_system/cli.py                     # `brief export --attach-result`
-research_system/methods/brief.py           # populate the verification_context reference
+.research-system/schemas/methods/brief-manifest.schema.json
+research_system/cli.py
+research_system/methods/brief.py
+tests/research_system/unit/test_methods_capability_boundary.py
+tests/research_system/integration/test_methods_production_consumers.py
 ~~~
 
-Note the module is `verification_records.py`, not `verification.py`: the name
-states that it records rather than performs. Keep it.
+## Interfaces
 
-## Interface specifications
+`VerificationRequest`:
 
-- **`VerificationRequest`** — `{request_artefact_id (art_ UUIDv7),
-  candidate_artefact_id, script_sha256, script_source (opaque text, bounded
-  length), proposed_by: const "external_session", recorded_at}`.
-  **No interpreter field, no wall-time field, no approver field** — ARS is not
-  going to run it, so declaring how it would be run would be theatre.
-- **`OperatorVerificationRun`** — `{run_artefact_id, request_artefact_id,
-  candidate_artefact_id, script_sha256, outcome: enum passed|failed|error|timeout,
-  exit_code (nullable), stdout_excerpt, stderr_excerpt (bounded), traceback
-  (nullable), environment_description (free text supplied by the operator),
-  executed_by_actor_id, executed_on, attestation: const "operator_self_attested"}`.
-  The schema description states in words: *`passed` means the operator reports
-  the script exited 0 in an environment ARS did not observe; semantic meaning
-  belongs to the human reading it* (O-RM-5, R4-2). `script_sha256` must match
-  the referenced `VerificationRequest` or the import is rejected.
-- **`ars brief export --attach-result <run_artefact_id>`** — embeds
-  `verification_context` per RM-03's specified reference object
-  `{schema_id, schema_version, verification_result_id, content_hash}` (M-8).
-  No schema version bump, because RM-03 specified the field rather than
-  reserving it open.
-- **Manuscript lane needs no new code.** It is RM-03's exporter with asset 1
-  and a draft file as subject. This plan's contribution is the pilot proving it
-  end to end plus the documented recipe in the pilot record.
+~~~text
+request_artefact_id, candidate_artefact_id, script_sha256,
+script_source, proposed_by: external_session, recorded_at
+~~~
 
-## Obligation register
+No interpreter, timeout or approver field: ARS will not run it.
 
-| ID | Source | Obligation | Disposition |
-|---|---|---|---|
-| R4-1 | Paper §2.6 | Propose → capture traceback → feed back | `VerificationRequest` + `OperatorVerificationRun` + `--attach-result`, with the operator as relay |
-| R4-2 | W5 §17 / O-RM-5 | Execution success is not acceptance | `outcome` semantics stated in the schema; `attestation` const; no lifecycle code; review question |
-| R4-3 | P-042 / O-RM-1 | No network/provider in the lane | RM-03 capability boundary extends over new files |
-| R4-4 | **Review C-4 / O-RM-19** | ARS must not execute externally-proposed code without an isolation substrate | **Satisfied by not executing.** Execution deferred to RM-05 under G-RM-11 |
-| R4-5 | O-RM-16 / W2 | Records append-only, bound by artefact IDs and hashes | `RegisterArtefact`; replay test |
-| R4-6 | G-RM-5 | Stephen picks the pilot subject | Task 4 gate |
-| R4-7 | Vault discipline | Pilot outcome recorded; `[PIPELINE]` entry; daily note for the pilot story | Close-out |
-| R4-8 | Honesty rule (no security theater) | Self-attested evidence is labelled as such, and no interface implies ARS observed the run | `attestation` const; schema descriptions; docstring requirement |
-| R4-9 | M-8 | RM-03 and RM-04 must agree exactly on shared schema identities | Shared schema-equality contract test (Task 1) |
-| R4-10 | M-12 / O-RM-22 | Paper Claim governance applies | Assurance section |
+`OperatorVerificationRun`:
 
-## Research assurance requirements
+~~~text
+run_artefact_id, request_artefact_id, candidate_artefact_id,
+script_sha256, outcome: passed|failed|error|timeout,
+exit_code, stdout_excerpt, stderr_excerpt, traceback,
+environment_description, executed_by_actor_id, executed_on,
+attestation: operator_self_attested
+~~~
 
-- **Lanes:** Output/Provenance **and Paper Claim governance** (M-12). The
-  manuscript lane carries external review findings toward a draft, which is
-  where wording-strength and human-authority controls matter most.
-  Verification records certify **nothing about scientific validity** — they
-  inherit no scientific lane from the candidate they reference, and the review
-  question below exists to keep that true.
-- **Machine-checkable claims:** an `OperatorVerificationRun` whose
-  `script_sha256` differs from its `VerificationRequest` is rejected; a run
-  referencing an unknown request is rejected; `--attach-result` round-trips the
-  outcome and traceback byte-identically; replay reproduces the projection;
-  imported runs land `candidate` and cannot be consumed as evidence (RM-03's
-  firewall test extended); **no module or new CLI handler in this plan imports
-  or invokes `subprocess` or any execution primitive** (capability-boundary
-  guard, with only the pre-existing fixed Git-discovery exception above).
-- **Human-review-only:** does the pilot brief plus findings read as a coherent
-  evidence chain to someone who was not in the session? Does any interface name
-  or description imply ARS verified something it did not?
-- **Partial criteria:** any need for W5 lifecycle writes; any execution
-  primitive appearing anywhere; any sandboxing or "verified by ARS" claim
-  creeping into docs or schema descriptions; the recipe format proving too weak
-  for the pilot (report — do not improvise a DSL).
+The schema description states: `passed` means the operator reports exit zero in
+an environment ARS did not observe. The record certifies neither ARS execution
+nor acceptance. `script_sha256` must equal the request's exact value.
+
+`ars brief export --attach-result <run_artefact_id>` uses RM-03's closed
+reference:
+
+~~~text
+{schema_id, schema_version, operator_verification_run_id, content_hash}
+~~~
+
+It resolves only after G-RM-13 through the 06i production consumer at the exact
+accepted review/manuscript scope, requires the matching 06j packet
+purpose/scope, and renders the resolved outcome/traceback. The reference object
+never embeds open result data. The default traceback-feedback flow uses
+`review_evidence`; manuscript display requires a separate explicitly named
+G-RM-13 scope.
+
+## Obligations
+
+| ID | Obligation | Enforcement |
+|---|---|---|
+| R4-1 | propose -> operator run -> traceback feedback | request/run/attach-result |
+| R4-2 | operational/schema success is not scientific/authority acceptance | explicit semantics and candidate authority |
+| R4-3 | no provider/network/process | complete RM-03 capability graph |
+| R4-4 | no untrusted execution | absence; G-RM-11 deferral |
+| R4-5 | immutable/replayable records | 06i registration/replay |
+| R4-6 | Stephen chooses pilot | G-RM-5 |
+| R4-7 | durable pilot/vault record | close-out |
+| R4-8 | self-attestation labelled | const and review question |
+| R4-9 | RM-03/04 schema/reference equality | shared contract test |
+| R4-10 | Paper Claim governance | assurance + no promotion |
+| R4-11 | candidate run cannot traverse follow-up consumer | independent 06i review + Stephen's exact G-RM-13 use-authority event |
 
 ## Tasks
 
-- [ ] **Task 1 — Schemas + shared-contract test.** Author the two schemas.
-      Add the **shared RM-03/RM-04 schema-equality test** (R4-9, M-8):
-      equality-check the artefact ID conventions, the `$id`s, and the
-      `verification_context` object shape against RM-03's definitions, so the
-      two plans cannot drift.
-      Commit: `[PIPELINE] P00: verification record schema family`.
-- [ ] **Task 2 — Record handling.** Implement `verification_records.py`:
-      validate and register a `VerificationRequest` and an
-      `OperatorVerificationRun` as `candidate` artefacts. Negative controls
-      (each red first): script-hash mismatch against the request; unknown
-      request reference; unknown candidate reference; an `attestation` value
-      other than the const; a payload carrying an execution-implying field.
-      Commit: `[PIPELINE] P00: verification request and operator-run records`.
-- [ ] **Task 3 — Round trip.** `--attach-result` in the exporter; integration
-      test: import a candidate → import a failing operator run → export a
-      follow-up brief → assert the manifest's reference-only
-      `verification_context` resolves to that exact artefact and passes its
-      schema/hash checks, then assert the traceback rendered into the brief is
-      byte-identical to the resolved imported record.
-      Commit: `[PIPELINE] P00: verification round-trip into follow-up briefs`.
-- [ ] **Task 4 — Manuscript pilot (owner-gated, G-RM-5).** With Stephen's
-      chosen subject: export a draft section with asset 1, the operator runs
-      the session, import the `ReviewFindingSet` bound to the draft's exact
-      hash, hand the findings to the normal human review path. Write
-      `rm-04a-manuscript-pilot-record-<date>.md` with a **redacted command
-      inventory** (tool/operation, sanitized argument shape, timestamp, status,
-      and command hash), artefact IDs, friction observations, and an explicit
-      statement of what was *not* done — no acceptance, no claim, no promotion,
-      no execution. Never commit an unredacted transcript: exclude stdout,
-      stderr, credentials, tokens, raw returned content, sensitive paths, and
-      any other restricted data.
-      Commit: `[PIPELINE] P00: manuscript-review lane pilot record`.
+1. **Schemas/shared contract.** Create the two closed record schemas and extend
+   RM-03's closed brief schema from `verification_context: null` to the exact
+   shared `OperatorVerificationRun` reference. Equality-check IDs, `art_` UUIDv7
+   conventions and the reference shape across the two plans.
+2. **Record writer.** Validate request/run and register each through 06i.
+   Reject wrong script/request/candidate, wrong attestation, execution-implying
+   fields and caller-selected accepted state.
+3. **Round trip.** Import candidate -> request -> operator run at forced
+   candidate -> eligible unrelated `RecordScientificReview` -> Stephen's
+   G-RM-13 `SetArtefactUseAuthority` for exact run/hash and review/manuscript
+   scope -> follow-up export. Resolve through 06i, packet through 06j, verify
+   exact hash/schema and byte-identical traceback rendering. Missing, stale,
+   wrong-review, wrong-scope or superseded authority fails.
+4. **Consumer/capability controls.** Candidate cannot satisfy review,
+   manuscript, result or claim consumption. Accepted review-scoped evidence can
+   feed only `resolve_for_review`; result/claim and unaccepted manuscript use
+   remain blocked. A separately accepted manuscript scope cannot imply result
+   or claim use. Plant execution/network/dynamic-import evasion in methods,
+   exact CLI handler and transitive fixture; every plant fails.
+5. **Manuscript pilot (G-RM-5).** Export Stephen's exact draft subject with the
+   adversarial-review asset, run the external session manually, import the
+   finding set, and hand it to normal human review. Record sanitized command
+   inventory and exact artefact IDs/hashes. State explicitly: no acceptance,
+   claim, promotion, provider invocation by ARS, or execution.
 
-## Deferred to RM-05 (G-RM-11)
+## Deferred to RM-05
 
-Not dropped — owner and gate named, per rm-00 §6:
+Threat model first; then OS-enforced disposable interpreter, sanitized
+environment, deny-by-default egress, read-only exact inputs, isolated scratch,
+no repository/home/`.env`/vault access, W8 grants/leases/process/stop evidence,
+canonical exact-script approval, and escape/cleanup negatives. Until G-RM-11
+accepts those exact bytes/evidence, RM-05 remains unwritten.
 
-- ARS-executed verification with an OS-enforced isolation profile: disposable
-  interpreter, sanitized environment with no inherited credentials,
-  deny-by-default network egress, read-only exact input mounts plus one
-  disposable writable scratch mount, and no repository, `.env`, vault or home
-  visibility.
-- W8 `ResourceGrant`, `ExecutionLease`, `ProcessIdentity`, child-process and
-  stop-confirmation records.
-- An attributed approval command resolving canonical actor and authority and
-  binding the exact request and script hash.
-- Escape negative controls: absolute-path read, `.env` access, network egress,
-  repository write, environment leak, child survival past timeout, forged
-  approver identity, timeout cleanup.
-- The counterexample-verification pilot, which needs the above to be safe.
+## Assurance and close-out
 
-A threat model is written and reviewed **before** RM-05 is planned, not as part
-of it.
-
-## Close-out
-
-- Exact verification commands (m-3):
+- **Lanes:** Output/Provenance and Paper Claim governance.
+- **Partial:** any execution primitive; direct object consumption; need for a
+  runtime-written authority transition inside RM-04; changed 06i/06j interface;
+  claim that G-RM-13 certifies execution/truth; claim that ARS observed the run.
 
 ~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/unit/test_verification_records.py tests/research_system/integration/test_verification_round_trip.py tests/research_system/unit/test_methods_capability_boundary.py tests/research_system/integration/test_claim_consumer_firewall.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/unit/test_verification_records.py tests/research_system/integration/test_verification_round_trip.py tests/research_system/unit/test_methods_capability_boundary.py tests/research_system/integration/test_methods_production_consumers.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync ruff check research_system
 ~~~
 
-  Full-tree validation triggers only if `cli.py` changes beyond adding the
-  `--attach-result` flag.
-- PR; CodeRabbit concludes; merge per house rule.
-- README lane row; vault `[PIPELINE]` entry in Pipeline-Overview; daily note
-  capturing pilot friction — that friction is the evidence base for deciding
-  whether the lane earns further investment, and specifically for whether
-  G-RM-11 is worth funding.
+Run broader tests only if shared CLI/consumer changes trigger the RM-03 final
+suite. Update `implementation/README.md`, Pipeline-Overview and the pilot record
+with exact subjects, hashes, reviewer evidence, G-RM-13 event/receipt, consumer
+purpose, and explicit non-actions.

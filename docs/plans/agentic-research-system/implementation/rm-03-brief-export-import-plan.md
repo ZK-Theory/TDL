@@ -1,344 +1,226 @@
 # RM-03: Brief Export/Import Implementation Plan
 
 > **For the implementing Worker:** use contract-first-tdd,
-> research-assurance-triage, and executing-plans-extras. This plan tools the
-> P-042 sentence "ARS prepares and records bounded briefs … an authorized
-> operator starts the external model session." Everything here is fail-closed:
-> an export that cannot prove its inputs does not export; an import that cannot
-> prove its shape, provenance, and session record does not land. **Read
-> `../reviews/adversarial-rm-lane-plan-suite-review-2026-07-29.md` §C-3 and
-> §§M-4-M-8, M-10, M-12 before starting** — revision 1 of this plan was
-> rejected on all of them.
+> research-assurance-triage, and executing-plans-extras. Read P-042, accepted
+> 06i/06j interfaces, RM-02, and RR-C2/RR-M4/RR-M6 before starting.
 
-**Status:** REVISED 2026-07-29 (revision 2). The adversarial review returned
-`reject` on revision 1 for one Critical (C-3, an unrouteable event family) and
-seven Majors. Dispatch blocked on **G-RM-3** (fresh review of the revised
-suite), on **G-RM-10** (confirming the artefact-family architecture), on the
-**accepted artefact-record capability delivered by 06h**, and on **RM-02
-merged**.
-**Goal:** Deliver `ars brief export` and `ars brief import`: brief bundles
-rendered from an accepted W3 context packet and methods-pack assets, and typed,
-append-only, replayable landing of operator-returned material as `candidate`
-artefacts that no consumer may treat as evidence without an attributed owner
-transition.
-**Owner authorization:** P-044 (accepted 2026-07-28; G-RM-3 and plan-specific
-dependencies remain open).
+**Status:** REVISED 2026-07-30 (revision 3). Dispatch is blocked on G-RM-3,
+accepted 06i and 06j exact subjects, RM-02 candidate assets, and G-RM-4
+acceptance of every asset selected for export.
 
-## What changed in revision 2, and why
-
-| Revision 1 | Revision 2 | Driver |
-|---|---|---|
-| New `ars://methods/event/MethodBriefRecorded` and `MethodResultImported` | **No new event family.** Briefs and imported results are **artefacts**, registered via the accepted `RegisterArtefact` command | **C-3**: `_build_event` rejects unknown command types and hard-codes `ars://core/event/...`; replay raises `unknown event schema` for anything outside the core and T2 prefixes. The invented family was unreachable and fatal on replay |
-| Escalation "structurally unrepresentable" via four local status enums | Claim narrowed to **schema-local** escalation; the real firewall is the accepted `SetArtefactUseAuthority` transition | **M-5**: nothing stopped a consumer citing an `imported` record directly, reclassifying it in a projection, or believing a self-asserted `verified_by_operator` |
-| Brief manifest was a bounded "W3 packet" | The brief **binds** an accepted W3 packet by `context_id`, revision and hash, and is explicitly a **non-governing rendering** of it | **M-6**: revision 1's manifest omitted most of W3's mandatory closure fields; `subjects[].sha256` alone does not establish it |
-| `application_family` validated against the WP6.3 assurance-pack allowlist | An **RM-owned session record** captures the operator's chosen application as attributed evidence; no eligibility gate; the WP6.3 pack is not read | **M-7**: that allowlist governs independent *review* agents (`codex_standalone`/`claude_standalone`), not research-application sessions. Reusing it would reject valid sessions and silently inherit WP6.3 policy changes |
-| `--allow-candidate` flag on export | **Removed entirely** | **M-1**: it bypassed the owner gate G-RM-4 with a local flag |
-| "new ULID per `research_system.ids` conventions" | `art_`-prefixed UUIDv7 under the registered `artefact` kind | **M-8**: `research_system.ids` generates prefixed UUIDv7, not ULIDs; no brief/result kind exists in the catalogue, and `artefact: art` already does |
-| `verification_context` reserved as nullable, unspecified | Specified as the reference-only `{schema_id, schema_version, verification_result_id, content_hash}`; RM-04 resolves the referenced artefact before rendering traceback bytes | **M-8**: RM-04 would otherwise embed an open object into a closed schema or leave it unconstrained |
-| De-identification sidecar `{stripped, mapping_sha256}` | Opaque `sidecar_id` + hash in the brief; the sidecar is an immutable ARS-side object | **M-10**: a digest neither locates nor authorizes the mapping |
-| Provider denylist guard | **Capability boundary**: AST import allowlist plus dependency-graph constraint | **M-4**: a denylist is open-world — `importlib`, subprocess, sockets, config-driven endpoints and transitive dependencies all evade it, and it forced provider names into the lane's own files |
-| Assurance lane: Output/Provenance | Output/Provenance **and Paper Claim governance** | **M-12** |
-| `P-044 (pending)`; "Full quality gates" | Accepted status; exact command set | **m-1**, **m-3** |
+**Goal:** provide `ars brief export` and `ars brief import` over authoritative
+W3 packet and artefact-use interfaces. Export is a non-governing rendering of
+an issued/delivered packet. Import lands immutable candidate artefacts. Every
+canonical use of an artefact subject or sensitive sidecar calls the 06i
+production resolver.
 
 ## Architecture
 
-**Export** compiles a bundle from two inputs: an accepted **W3 context packet**
-(the governing authority for what may be shown) and the RM-02 methods pack (the
-protocol to follow). The bundle is a *rendering* — it governs nothing. Its
-manifest binds the packet by `context_id`, revision and exact packet hash, so a
-reader can always recover the governing object. The export is recorded by
-registering the bundle as an artefact.
+**Export inputs:**
 
-**Import** validates returned material against closed schemas, requires the
-session record, re-verifies the brief manifest hash it responds to, stores the
-document content-addressed, and registers it as an artefact at
-`use_authority: candidate`.
+1. `resolve_context_packet_for_consumer` from accepted 06j, binding exact
+   context ID/revision/hash, purpose, consumer, scope and delivery;
+2. current RM-02 asset bytes/identity plus G-RM-4 replay-derived acceptance
+   through 06i; and
+3. exact subjects. Any subject that is an artefact is resolved through the 06i
+   production consumer method selected by brief purpose.
 
-**The firewall** is not the import schemas. It is the accepted
-`ars://core/command/SetArtefactUseAuthority` transition: moving an artefact from
-`candidate` to `accepted_for_scope` requires an attributed command whose
-`subject_sha256` matches the artefact's `content_sha256`, carrying a
-`consumer_predicate`. Nothing in this plan issues that command. Import schemas
-still carry closed status enums, but the claim made for them is only the narrow,
-true one: **schema-local escalation is unrepresentable** — a returned document
-cannot spell itself into acceptance. Consumer-level protection is the artefact
-authority state, and it is tested end to end (Task 6).
+Closed purpose mapping:
+
+| Brief purpose | Required 06i production method |
+|---|---|
+| result analysis/reproduction | `resolve_for_result` |
+| scientific/independent review | `resolve_for_review` |
+| manuscript review | `resolve_for_manuscript` |
+| claim review/promotion preparation | `resolve_for_claim` |
+| de-identification reversal | `resolve_sensitive_sidecar` |
+
+The bundle is never authority. The 06j packet remains the governing context
+object; 06i remains the use-authority source.
+
+**Import:** validate closed document/session schemas, bind the registered brief,
+store exact bytes, and invoke the 06i production `RegisterArtefact` writer.
+Initial authority is forced `candidate`; RM code cannot request
+`accepted_for_scope`.
+
+No tests define an alternative firewall. Integration tests exercise the 06i
+production consumer methods used by the exporter/sidecar resolver.
 
 ## Global constraints
 
-- All standing constraints of rm-00 §5 apply. Branch
-  `pipe/rm-03-brief-export-import`. Copy `.env` into the worktree.
-- **P-042 hard boundary (O-RM-1):** no provider SDK import, no HTTP call, no
-  subprocess spawning any model CLI, no credential file read, anywhere in this
-  change. Task 5 builds the capability boundary.
-- **No new event family and no core-routing change.** Brief and import records
-  use the accepted artefact command family wired by 06h. If that capability is
-  absent or behaves differently than 06h's acceptance record states, **stop
-  Partial** — do not fall back to a direct `ledger.append`.
-- **No execution of anything.** `verification_recipe` is recorded as opaque
-  text and never run (G-RM-11, review C-4). If a task finds itself needing to
-  run returned content, stop Partial.
-- Do not modify RM-02's manifest, revision history, assets, or their lifecycle
-  fields. The exporter consumes the pack strictly read-only.
-- Do not read `.research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml`
-  (M-7) — it is neither a do-not-touch violation nor a dependency; it is simply
-  not this lane's authority.
+- P-042: no provider SDK, HTTP, provider CLI, credentials, or provider choice.
+- No execution, runner, dynamic code loading or recipe invocation.
+- No new event family or core schema edit. Use accepted 06i/06j commands.
+- RM-02 is read-only. WP6.3 accepted pack bytes are neither read nor written.
+- If 06i/06j public interfaces or accepted hashes differ, stop Partial.
 
 ## File map
 
 **Create:**
 
 ~~~text
-.research-system/schemas/methods/brief-manifest.schema.json           # ars://methods/brief-manifest
-.research-system/schemas/methods/session-record.schema.json           # ars://methods/session-record
-.research-system/schemas/methods/deidentification-sidecar.schema.json # ars://methods/deidentification-sidecar
-.research-system/schemas/methods/review-finding-set.schema.json       # ars://methods/import/ReviewFindingSet
-.research-system/schemas/methods/counterexample-candidate.schema.json # ars://methods/import/CounterexampleCandidate
-.research-system/schemas/methods/theorem-citation.schema.json         # ars://methods/import/TheoremCitation
-.research-system/schemas/methods/operator-verification.schema.json    # ars://methods/import/OperatorVerification
-.research-system/schemas/methods/exploratory-memo.schema.json         # ars://methods/import/ExploratoryMemo
-research_system/methods/brief.py           # compile/export
-research_system/methods/importer.py        # validate/land
+.research-system/schemas/methods/brief-manifest.schema.json
+.research-system/schemas/methods/session-record.schema.json
+.research-system/schemas/methods/deidentification-sidecar.schema.json
+.research-system/schemas/methods/review-finding-set.schema.json
+.research-system/schemas/methods/counterexample-candidate.schema.json
+.research-system/schemas/methods/theorem-citation.schema.json
+.research-system/schemas/methods/exploratory-memo.schema.json
+research_system/methods/brief.py
+research_system/methods/importer.py
 tests/research_system/unit/test_brief_export.py
 tests/research_system/unit/test_brief_import.py
 tests/research_system/unit/test_methods_capability_boundary.py
 tests/research_system/integration/test_brief_round_trip.py
-tests/research_system/integration/test_claim_consumer_firewall.py
+tests/research_system/integration/test_methods_production_consumers.py
 ~~~
 
 **Modify:**
 
 ~~~text
-research_system/cli.py                     # new `brief` group: export, import
+research_system/cli.py   # exact handler functions: brief_export, brief_import
 ~~~
 
-These schemas are **document** schemas under `ars://methods/...`, not event
-schemas. No `ars://methods/event/...` id appears anywhere in this plan.
+The capability boundary names these exact handlers and resolves their complete
+call/import graph. It does not allow all `research_system.*`.
 
-## Interface specifications
+## Interfaces
 
-### Brief bundle (output of export)
+### Brief manifest
 
-A directory containing:
+Closed `ars://methods/brief-manifest` fields:
 
-1. **`brief-manifest.json`** — validates against `ars://methods/brief-manifest`.
-   Required:
-   - `brief_artefact_id` — `art_`-prefixed UUIDv7 from `research_system.ids`
-     under the registered `artefact` kind (M-8);
-   - `context_packet` — `{context_id, revision, packet_sha256}` binding the
-     **accepted W3 packet** this brief renders (M-6, O-RM-20). Export fails if
-     the packet is absent, superseded, or hash-mismatched;
-   - `created_at`;
-   - `subjects[]` — `{path_or_name, sha256, role}`, exact-subject discipline,
-     each entry required to be present in the bound packet's scope;
-   - `assets[]` — `{asset_id, version, identity, identity_scheme}` copied from
-     the verified RM-02 pack;
-   - `expected_import_types[]` — the import `$id`s this brief solicits;
-   - `deidentification` — nullable `{sidecar_id, sidecar_hash}` **only** (M-10);
-     the mapping never appears in the bundle;
-   - `prohibitions` — const block, verbatim: no claim promotion, no result
-     acceptance, no transcript return, session record required;
-   - `required_session_fields` — const list, per the session record below;
-   - `verification_context` — nullable, **reference-only**, and specified as
-     `{schema_id, schema_version, verification_result_id, content_hash}` (M-8).
-     RM-04 must resolve that exact content-addressed verification artefact,
-     verify its schema identity and hash, and render traceback bytes from the
-     resolved record; traceback bytes never expand this closed manifest object.
-2. **`brief.md`** — the operator-facing document: rendered subjects (or their
-   de-identified forms), the selected asset protocol bodies, the expected-output
-   section naming the import types, and the prohibitions block. Its SHA-256 is
-   recorded in the manifest.
+~~~text
+brief_artefact_id
+brief_purpose
+context_packet: {context_id, revision, packet_sha256, delivery_receipt_id,
+                 delivery_receipt_sha256}
+created_at
+subjects[]: {subject_id, subject_kind, path_or_name, sha256, role,
+             use_predicate_id, use_predicate_version, use_predicate_sha256}
+assets[]: {asset_id, version, identity, identity_scheme,
+           accepted_use_event_id, accepted_use_event_sha256}
+expected_import_types[]
+deidentification: null | {sidecar_artefact_id, revision, content_sha256}
+prohibitions
+required_session_fields
+verification_context: null
+brief_sha256
+~~~
 
-**The bundle governs nothing.** State this in the manifest schema description
-and in `brief.md`: it is a rendering of the bound context packet, and the packet
-is the authority (M-6).
+Export re-resolves the 06j packet at load and immediately before return. It
+requires current, issued, delivered state; exact recipient/purpose/scope;
+complete mandatory closure; no governing omission/conflict; safe source set;
+matching delivery hash; and exact subject membership.
 
-**Export rules, all fail-closed:** any selected asset not `accepted` in the pack
-manifest → error, **with no override flag** (M-1); bound packet missing,
-superseded or hash-mismatched → error; a subject outside the packet's scope →
-error; a subject file unreadable → error; recomputed asset identity mismatch →
-error; an unresolved conflict recorded in the packet → error; a source the
-packet marks unsafe or restricted → error. On success, register the bundle as an
-artefact via the accepted `RegisterArtefact` command.
+Every artefact subject and RM asset is then resolved through the mapped 06i
+consumer method. A local path, manifest status or projection cannot substitute.
 
-### Session record (required on every import; P-042 O-RM-3, corrected per M-7)
+### Session record
 
-`ars://methods/session-record`:
-`{operator_actor_id, application_family, application_version (nullable),
-application_choice_by: const "operator", session_date,
+`{operator_actor_id, application_family, application_version,
+application_choice_by: "operator", session_date,
 responds_to_brief_manifest_sha256}`.
 
-`application_family` is a **recorded free string with an attributed actor** —
-evidence of what the operator chose, not an eligibility check. There is no
-allowlist. Rationale (M-7): the WP6.3 assurance pack's `operator_model` list
-governs independent review agents, not research-application sessions; borrowing
-it would reject valid sessions and make RM policy a silent dependent of WP6.3
-review policy.
+`application_family` is attributed free text, not an eligibility allowlist.
+The WP6.3 independent-review pack is not an authority for operator applications.
 
-### Import types (closed status enums — the *schema-local* no-escalation rule)
+### Import types
 
-- `ReviewFindingSet` — `brief_artefact_id`, `findings[]` each
-  `{location, severity: note|minor|major|critical, statement,
-  falsifiable_check (nullable), self_critique_survived: bool}`;
-  `status` enum: **`imported`** only.
-- `CounterexampleCandidate` — `brief_artefact_id`, `target_statement`,
-  `instance` (structured), `claimed_violation`,
-  `verification_recipe` (nullable, **recorded as opaque text, never executed**);
-  `status` enum: **`candidate`** only.
-- `TheoremCitation` — `brief_artefact_id`, `statement`, `source_reference`;
-  `status` enum: **`imported`** only. **No `verification` field** (M-5) — see
-  below.
-- `ExploratoryMemo` — `brief_artefact_id`, `body`, `decomposition[]` (nullable);
-  `status` enum: **`imported`** only.
+- `ReviewFindingSet`: imported-only local status, exact brief, typed findings;
+- `CounterexampleCandidate`: candidate-only, opaque unexecuted recipe;
+- `TheoremCitation`: imported-only, no embedded verification assertion;
+- `ExploratoryMemo`: imported-only.
 
-All: `additionalProperties: false`. The ban on `transcript`, `reasoning`,
-`chain_of_thought` fields is expressed by the closed property set; Task 4(c)
-tests it.
+All schemas are closed and forbid transcript/hidden-reasoning fields.
+Schema-local status is descriptive only. RM-03 requires
+`verification_context: null`; RM-04 alone may add the separately attributed
+`OperatorVerificationRun` reference and record contract.
 
-**Operator verification is a separate attributed record (M-5).** Revision 1 put
-`verification: verified_by_operator | unverified` inside `TheoremCitation` —
-but that value arrives inside the document the model returned, so it was the
-model asserting the operator's act. Verification now lands as
-`ars://methods/import/OperatorVerification`:
-`{cites_artefact_id, citation_content_hash, verified_by_actor_id, verified_on,
-verification_basis}`, imported separately, binding the exact citation bytes. A
-`TheoremCitation` with no such record is simply unverified — a state, not a
-claim in the document.
+### Sidecar
 
-### Import landing
+The sidecar bytes contain ID/revision/hash/subject set/transform/sensitivity/
+retention and the reversible mapping. They contain no consumer allowlist.
+Operator bundles contain only ID/revision/hash. Reversal calls
+`resolve_sensitive_sidecar`; 06i replay state independently decides consumer,
+scope and current access.
 
-`ars brief import --bundle <path>`: validate the document against its declared
-import `$id` → validate the session record → verify
-`responds_to_brief_manifest_sha256` matches a registered brief artefact →
-resolve that brief manifest and require the payload's `brief_artefact_id` to
-equal the resolved brief's `brief_artefact_id` → store the document
-content-addressed in the object store → register it as an artefact via
-`RegisterArtefact` with `authority.use_authority: candidate`. The two fields
-must bind the same brief; independently valid references to different briefs
-are rejected. Replay reproduces the projection (Task 6).
+## Obligations
 
-Nothing in this plan issues `SetArtefactUseAuthority`. Promotion to
-`accepted_for_scope` is Stephen's attributed act (O-RM-4, W5 §19.3).
+| ID | Obligation | Enforcement |
+|---|---|---|
+| R3-1 | bounded exact brief/session/evidence | manifest/session/06i registration |
+| R3-2 | no provider operation | complete capability graph |
+| R3-3 | candidate cannot feed canonical evidence | 06i production consumers, not test helper |
+| R3-4 | no transcript/hidden reasoning | closed schemas |
+| R3-5 | exact subject inside accepted packet | 06j resolver + subject mapping |
+| R3-6 | operator verification is neither embedded nor implied | null slot; RM-04 owns separate request/run records |
+| R3-7 | append-only replay | 06i commands |
+| R3-8 | rollback without delete | 06i rejected/restricted/superseded |
+| R3-9 | RM-owned session provenance | session schema |
+| R3-10 | accepted reachable W3 packet | 06j |
+| R3-11 | reversible, independently authorized sidecar | 06i sensitive-sidecar consumer |
+| R3-12 | Paper Claim governance | assurance + claim resolver |
 
-## Obligation register
+## Capability boundary
 
-| ID | Source | Obligation | Disposition |
-|---|---|---|---|
-| R3-1 | P-042 | Record bounded briefs, exact subjects, returned evidence, operator session choice | Brief manifest + session record + artefact registration |
-| R3-2 | P-042 / O-RM-1 | No provider invocation surface | Task 5 capability boundary |
-| R3-3 | W5 §19 / O-RM-4 | Structurally below acceptance/promotion | Closed status enums (schema-local) **plus** the artefact use-authority firewall; Task 6 |
-| R3-4 | W3 §15 / O-RM-6 | No transcripts/hidden reasoning ingested | `additionalProperties: false`; Task 4(c) |
-| R3-5 | W3 §9 packet discipline | Subjects bound by exact hash **within a bound accepted packet** | Manifest `context_packet` + `subjects`; Task 4 |
-| R3-6 | R2-6 / M-5 | Operator verification is a separate attributed act, not a self-asserted field | `OperatorVerification` record |
-| R3-7 | O-RM-16 / W2 | Append-only, replayable through accepted interfaces | `RegisterArtefact`; Task 6 replay |
-| R3-8 | O-RM-15 | Rollback = `superseded`/`rejected` use-authority; artefacts immutable, never deleted | No delete path exists in this change; assert in review |
-| R3-9 | M-7 | Session authority is RM-owned; the WP6.3 pack is not read | Session record schema |
-| R3-10 | M-6 / O-RM-20 | The brief binds an accepted W3 packet and is non-governing | Manifest `context_packet`; Task 4 controls |
-| R3-11 | M-10 / O-RM-21 | De-identification is reversible by ARS and not by the operator | Sidecar object; Task 4 round-trip controls |
-| R3-12 | M-12 / O-RM-22 | Paper Claim governance applies | Assurance section below |
+Analyze:
 
-## Research assurance requirements
+- every created/modified `research_system/methods/**` module;
+- exact AST bodies of `brief_export` and `brief_import` in `cli.py`; and
+- the fully resolved transitive first-party call/import graph from those roots.
 
-- **Lanes:** Output/Provenance **and Paper Claim governance** (M-12). This plan
-  carries externally-produced review findings and counterexamples toward work
-  that may reach a manuscript, so claim-consumer, wording-strength and
-  human-authority controls apply — not provenance controls alone.
-- **Machine-checkable claims:** every rule in the two fail-closed lists has a
-  red-then-green test; replay reproduces import projections; imported artefacts
-  are `candidate` and provably cannot be consumed as evidence (Task 6); the
-  capability boundary fires on every evasion path in Task 5.
-- **Human-review-only:** is `brief.md` usable by an operator mid-session? Does
-  the prohibitions block read as instructions to the *external model* too (it
-  should)? Does the bundle make its non-governing status obvious to a reader
-  who never sees the packet?
-- **Partial criteria:** the 06h artefact capability is absent or differs from
-  its acceptance record; core validation routing would have to change; no
-  accepted W3 packet mechanism is reachable to bind (report — do not invent a
-  substitute packet, which is exactly what M-6 rejected); the sidecar needs an
-  object store this plan does not own.
+The allowed module set is closed and enumerated from accepted 06i/06j ports,
+standard-library parsing/path primitives, `jsonschema`, and `yaml`. A blanket
+`research_system.*` allowance is forbidden.
+
+Reject dynamic import, `eval`/`exec`, process launch, socket/network/URL/tool/MCP
+seams, credential paths and config-selected transport. Preserve only the
+pre-existing fixed-argv Git-root-discovery operation in
+`_registered_code_roots`, matched by exact function and AST shape; any second
+subprocess call fails.
+
+Neutral fixtures plant each direct, CLI-only, and transitive evasion and prove
+the guard fires.
 
 ## Tasks
 
-- [ ] **Task 1 — Schemas first.** Author all eight document schemas; contract
-      test validating each against the meta-schema and its `$id` uniqueness,
-      plus a test asserting **no schema in this plan uses an
-      `ars://methods/event/...` id** (C-3 regression guard).
-      Commit: `[PIPELINE] P00: methods brief, session, and import schema family`.
-- [ ] **Task 2 — Exporter.** Failing test: export for a fixture task where one
-      selected asset is `candidate` → typed error with no override available;
-      with `accepted` assets and a valid bound packet → bundle validates,
-      identities recomputed, brief artefact registered and schema-valid. Then
-      implement `brief.py` + CLI `brief export`.
-      Commit: `[PIPELINE] P00: fail-closed brief exporter (ars brief export)`.
-- [ ] **Task 3 — Importer.** Failing test: a conforming `ReviewFindingSet`
-      bundle referencing a registered brief lands as a `candidate` artefact and
-      replays. Then implement `importer.py` + CLI `brief import`.
-      Commit: `[PIPELINE] P00: typed fail-closed brief importer (ars brief import)`.
-- [ ] **Task 4 — Negative controls** (each red first):
-      (a) unknown/absent brief hash → rejected;
-      (b) missing any session-record field → rejected;
-      (c) extra field `transcript`/`reasoning`/`chain_of_thought` → rejected;
-      (d) doctored `status` (`accepted`, `promoted`) → schema rejection;
-      (e) hash-mismatched subject reference → rejected;
-      (f) subject outside the bound packet's scope → rejected;
-      (g) **stale packet** (superseded revision) → rejected;
-      (h) **omitted governing source** recorded in the packet → rejected;
-      (i) unresolved conflict recorded in the packet → rejected;
-      (j) unsafe/restricted source in the packet → rejected;
-      (k) delivery/packet hash mismatch → rejected;
-      (l) sidecar: wrong join, missing sidecar, stale revision, unauthorized
-      consumer → each rejected; exact round-trip re-identification succeeds;
-      (m) `OperatorVerification` whose `citation_content_hash` does not match
-      the cited artefact → rejected (forged operator verification).
-      (n) payload `brief_artefact_id` and
-      `responds_to_brief_manifest_sha256` each resolve, but to different valid
-      briefs → rejected (cross-field brief substitution).
-      Commit: `[PIPELINE] P00: brief import negative controls`.
-- [ ] **Task 5 — Capability boundary (replaces the denylist, M-4).**
-      `test_methods_capability_boundary.py` asserts, by AST analysis over
-      `research_system/methods/**`:
-      (i) every import resolves to an **allowlisted** module set (stdlib subset
-      + `jsonschema` + `yaml` + first-party `research_system.*`);
-      (ii) no transport or tool interface appears anywhere in the package's
-      **transitive** dependency graph;
-      (iii) no dynamic import (`importlib`, `__import__`, `eval`, `exec`);
-      (iv) no `subprocess`/`os.system`/`os.exec*`;
-      (v) no `socket`, no URL literal, no credential-path literal.
-      Negative controls plant, in **test fixtures using neutral synthetic
-      module names** (never real provider names — O-RM-14, M-4), each of:
-      indirect import, dynamic import, subprocess, generic URL, socket,
-      MCP/tool seam, and a transitive dependency that itself calls out. Each
-      must make the guard fail. Do not commit any plant.
-      Commit: `[PIPELINE] P00: capability-boundary guard for the methods package (P-042)`.
-- [ ] **Task 6 — Round trip, replay, and the claim-consumer firewall.**
-      `test_brief_round_trip.py`: export → write a conforming result bundle by
-      hand in the test (simulating the operator) → import → replay/projection
-      rebuild reproduces identical state.
-      `test_claim_consumer_firewall.py` (M-5) proves the end-to-end property the
-      status enums do not:
-      (a) an imported `candidate` artefact cannot be consumed as result or
-      claim evidence;
-      (b) a projection cannot reclassify it;
-      (c) a `SetArtefactUseAuthority` with a mismatched `subject_sha256` is
-      rejected;
-      (d) supersession of an imported artefact leaves the original immutable;
-      (e) a consumer parsing `status` loosely still fails the authority check;
-      (f) absent an attributed P-005 decision, no promotion path exists.
-      Commit: `[PIPELINE] P00: brief round-trip, replay, and claim-consumer firewall`.
+1. **Schemas.** Author seven closed document schemas and `$id` uniqueness tests;
+   assert no `ars://methods/event/**`.
+2. **Exporter.** Resolve 06j packet twice, 06i assets/subjects by purpose, and
+   sidecar when needed; build/register the exact bundle. Candidate asset,
+   wrong-purpose consumer or direct-path substitution fails.
+3. **Importer.** Validate session/document/brief bindings; content-address bytes;
+   call 06i registration writer; assert forced candidate state.
+4. **Controls.** Absent/stale/wrong-but-valid/cross-packet/delivery-mismatched
+   packet; omitted governing source; unresolved conflict; unsafe source; wrong
+   subject; cross-brief substitution; transcript field; unexpected verification
+   assertion; wrong/missing/stale sidecar; unauthorized sidecar consumer.
+5. **Capability graph.** Implement the closed roots and all direct/CLI/
+   transitive negative fixtures above.
+6. **Production consumer proof.** Through the real exporter/consumer port,
+   prove candidate, local-status parse, projection reclassification,
+   wrong-but-valid authority record, superseded artefact, missing P-005
+   decision, wrong predicate/scope/consumer, and unauthorized sidecar all fail.
+   Prove a correctly accepted review/manuscript subject succeeds without claim
+   promotion.
+7. **Round trip/replay.** Export -> hand-authored operator bundle -> import ->
+   replay equality; no provider call and no execution.
 
-## Close-out
+## Assurance and close-out
 
-- Exact verification commands (m-3):
+- **Lanes:** Output/Provenance and Paper Claim governance.
+- **Partial:** missing accepted 06i/06j interface; direct-read bypass cannot be
+  closed; packet or sidecar authority is caller supplied; capability graph
+  cannot resolve a changed handler.
 
 ~~~powershell
-uv run --no-sync python -m pytest -q tests/research_system/unit/test_brief_export.py tests/research_system/unit/test_brief_import.py tests/research_system/unit/test_methods_capability_boundary.py tests/research_system/integration/test_brief_round_trip.py tests/research_system/integration/test_claim_consumer_firewall.py -o "addopts=" -p no:cacheprovider -p no:cov
+uv run --no-sync python -m pytest -q tests/research_system/unit/test_brief_export.py tests/research_system/unit/test_brief_import.py tests/research_system/unit/test_methods_capability_boundary.py tests/research_system/integration/test_brief_round_trip.py tests/research_system/integration/test_methods_production_consumers.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync python -m pytest -q tests/research_system/smoke/test_append_path_smoke.py -o "addopts=" -p no:cacheprovider -p no:cov
 uv run --no-sync ruff check research_system
 ~~~
 
-  The full `tests/research_system` tree runs once at final exact head, because
-  this plan touches `cli.py` and the artefact seam — a broader blast radius than
-  RM-02's.
-- PR; CodeRabbit concludes; merge per house rule.
-- README lane row; vault `[PIPELINE]` entry naming the two CLI commands, the
-  schema family, the artefact-family binding, and the P-042 boundary.
+Run the full `tests/research_system` tree once at final head because `cli.py`
+and shared authority ports are consumed. Update `implementation/README.md` and
+Pipeline-Overview with exact 06i/06j subjects, handler graph, and consumer
+call-site matrix.
