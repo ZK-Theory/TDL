@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import ScopedAuthorityGrant
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -69,6 +70,12 @@ _TASK_REVISION_COMMAND_TYPES = frozenset(
         "CreateTask",
         "AmendTask",
         "SupersedeTask",
+    }
+)
+_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
+    {
+        "ActivateAuthorityGrant",
+        "RevokeIssuedAuthorityGrant",
     }
 )
 
@@ -414,6 +421,30 @@ class CommandService:
                         str(exc),
                     )
                     return self._write_receipt(command, rejected)
+            elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
+                try:
+                    if command.envelope["command_type"] == "ActivateAuthorityGrant":
+                        prepared_payload = self._prepare_scoped_authority_activation(
+                            command,
+                            observed_version,
+                        )
+                    else:
+                        prepared_payload = self._prepare_issued_authority_revocation(
+                            command,
+                            observed_version,
+                        )
+                except IntegrityError:
+                    raise
+                except ConflictError:
+                    raise
+                except ArsError as exc:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        "scoped_authority_administration_unauthorized",
+                        str(exc),
+                    )
+                    return self._write_receipt(command, rejected)
             event = self._build_event(
                 command,
                 prepared_payload,
@@ -524,11 +555,15 @@ class CommandService:
         if command_type not in {
             "RevokeAuthorityGrant",
             "PublishReleaseGateDecision",
+            *_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES,
         }:
             return None
-        hash_field = (
-            "publication_authority_sha256" if command_type == "PublishReleaseGateDecision" else "authority_grant_sha256"
-        )
+        if command_type == "PublishReleaseGateDecision":
+            hash_field = "publication_authority_sha256"
+        elif command_type == "RevokeAuthorityGrant":
+            hash_field = "authority_grant_sha256"
+        else:
+            hash_field = "root_grant_sha256"
         grant_hash = command.envelope.get("payload", {}).get(hash_field)
         if not isinstance(grant_hash, str):
             return None
@@ -589,7 +624,11 @@ class CommandService:
             expected_event_type = (
                 "ReleaseGateDecisionPublished"
                 if command.envelope["command_type"] == "PublishReleaseGateDecision"
-                else "AuthorityGrantRevoked"
+                else (
+                    "AuthorityGrantActivated"
+                    if command.envelope["command_type"] == "ActivateAuthorityGrant"
+                    else "AuthorityGrantRevoked"
+                )
             )
             if (
                 len(matching) != 1
@@ -615,10 +654,16 @@ class CommandService:
         if command_type not in {
             "RevokeAuthorityGrant",
             "PublishReleaseGateDecision",
+            *_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES,
         }:
             return self.receipts.write(receipt)
         publication = command_type == "PublishReleaseGateDecision"
-        hash_field = "publication_authority_sha256" if publication else "authority_grant_sha256"
+        if publication:
+            hash_field = "publication_authority_sha256"
+        elif command_type == "RevokeAuthorityGrant":
+            hash_field = "authority_grant_sha256"
+        else:
+            hash_field = "root_grant_sha256"
         grant_hash = command.envelope["payload"].get(hash_field)
         if not isinstance(grant_hash, str):
             return self.receipts.write(receipt)
@@ -1719,6 +1764,16 @@ class CommandService:
                 raise IntegrityError("RevokeAuthorityGrant requires prepared payload")
             event_type = "AuthorityGrantRevoked"
             payload = prepared_payload
+        elif command_type == "ActivateAuthorityGrant":
+            if prepared_payload is None:
+                raise IntegrityError("ActivateAuthorityGrant requires prepared payload")
+            event_type = "AuthorityGrantActivated"
+            payload = prepared_payload
+        elif command_type == "RevokeIssuedAuthorityGrant":
+            if prepared_payload is None:
+                raise IntegrityError("RevokeIssuedAuthorityGrant requires prepared payload")
+            event_type = "AuthorityGrantRevoked"
+            payload = prepared_payload
         elif command_type == "PublishReleaseGateDecision":
             if not isinstance(prepared_payload, VerifiedReleasePublication):
                 raise IntegrityError("PublishReleaseGateDecision requires verified publication")
@@ -1726,7 +1781,7 @@ class CommandService:
             payload = None
         else:
             raise ArsError(f"unsupported command type: {command_type}")
-        event_binding = self.schemas.event_binding(event_type)
+        event_binding = self.schemas.event_binding(event_type, command_type)
         event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
         event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
         if event_type == "ReleaseGateDecisionPublished" and event_binding is None:
@@ -1819,6 +1874,152 @@ class CommandService:
             "target_grant_sha256": target.authority_grant_sha256,
             "authorizing_grant_id": authorizing.authority_grant_id,
             "authorizing_grant_sha256": authorizing.authority_grant_sha256,
+            "reason": payload["reason"],
+        }
+
+    def _prepare_scoped_authority_activation(
+        self,
+        command: Command,
+        observed_version: int,
+    ) -> dict[str, Any]:
+        resolver = self.authority_resolver
+        if resolver is None:
+            raise ArsError("ActivateAuthorityGrant requires authority resolver")
+        payload = command.envelope["payload"]
+        context = resolver.administration_context()
+        if (
+            observed_version != 0
+            or command.envelope.get("project_id") != self.ledger.project_id
+            or payload.get("project_id") != self.ledger.project_id
+            or payload.get("bootstrap_manifest_sha256") != context.bootstrap_manifest_sha256
+            or command.envelope.get("authority_grant_id") != context.root_grant_id
+            or payload.get("root_grant_id") != context.root_grant_id
+            or payload.get("root_grant_sha256") != context.root_grant_sha256
+            or command.actor_id != context.owner_actor_id
+            or command.envelope.get("on_behalf_of_actor_id") is not None
+        ):
+            raise ArsError("scoped authority activation anchor mismatch")
+        grant_value = payload.get("new_grant")
+        try:
+            grant = ScopedAuthorityGrant.from_dict(grant_value)
+        except ValueError as exc:
+            raise ArsError("scoped authority grant invalid") from exc
+        if grant.authority_grant_id != command.target_stream_id or grant.canonical_sha256 != payload.get(
+            "new_grant_sha256"
+        ):
+            raise ArsError("scoped authority activation target mismatch")
+        schema_identity = self.schemas.resolve_identity(
+            "ars://core/scoped-authority-grant",
+            "2.0.0",
+            expected_sha256=str(payload.get("new_grant_schema_sha256", "")),
+        )
+        if not self.schemas.is_active(
+            schema_identity.schema_id,
+            str(schema_identity.schema_version),
+        ):
+            raise ArsError("scoped authority grant schema is not active")
+        self.schemas.validate_active(
+            schema_identity.schema_id,
+            grant_value,
+            schema_version="2.0.0",
+            expected_sha256=schema_identity.sha256,
+        )
+        decision = resolver.verify_owner_administration_decision(
+            str(payload.get("administration_decision_id", "")),
+            str(payload.get("administration_decision_sha256", "")),
+            action="activate_authority_grant",
+            target_grant_id=grant.authority_grant_id,
+            target_grant_sha256=grant.canonical_sha256,
+            target_grant_schema_sha256=schema_identity.sha256,
+            subject_scope=grant.subject_scope,
+            effective_at=grant.effective_at,
+            expires_at=grant.expires_at,
+            owner_actor_id=command.actor_id,
+            now=self.clock(),
+        )
+        if decision.record_id not in command.envelope.get("evidence_refs", []):
+            raise ArsError("owner authority administration decision evidence missing")
+        self.objects.write(
+            "authority_grant",
+            grant.authority_grant_id,
+            1,
+            grant_value,
+        )
+        return {
+            "project_id": self.ledger.project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": decision.record_id,
+            "administration_decision_sha256": decision.canonical_sha256,
+            "activated_grant_id": grant.authority_grant_id,
+            "activated_grant_sha256": grant.canonical_sha256,
+            "activated_grant_schema_id": schema_identity.schema_id,
+            "activated_grant_schema_version": schema_identity.schema_version,
+            "activated_grant_schema_sha256": schema_identity.sha256,
+            "subject_scope": grant.subject_scope.to_dict(),
+            "effective_at": payload["new_grant"]["effective_at"],
+            "expires_at": payload["new_grant"]["expires_at"],
+        }
+
+    def _prepare_issued_authority_revocation(
+        self,
+        command: Command,
+        observed_version: int,
+    ) -> dict[str, Any]:
+        resolver = self.authority_resolver
+        if resolver is None:
+            raise ArsError("RevokeIssuedAuthorityGrant requires authority resolver")
+        payload = command.envelope["payload"]
+        context = resolver.administration_context()
+        if (
+            observed_version != 1
+            or command.envelope.get("project_id") != self.ledger.project_id
+            or payload.get("project_id") != self.ledger.project_id
+            or payload.get("bootstrap_manifest_sha256") != context.bootstrap_manifest_sha256
+            or command.envelope.get("authority_grant_id") != context.root_grant_id
+            or payload.get("root_grant_id") != context.root_grant_id
+            or payload.get("root_grant_sha256") != context.root_grant_sha256
+            or command.actor_id != context.owner_actor_id
+            or command.envelope.get("on_behalf_of_actor_id") is not None
+            or payload.get("target_grant_id") != command.target_stream_id
+            or payload.get("reason") != command.envelope.get("reason")
+        ):
+            raise ArsError("issued authority revocation anchor mismatch")
+        target = resolver.scoped_grant_identity(command.target_stream_id)
+        if (
+            target.status != "active"
+            or target.authority_grant_sha256 != payload.get("target_grant_sha256")
+            or target.schema_sha256 != payload.get("target_grant_schema_sha256")
+        ):
+            raise ArsError("issued authority revocation target mismatch")
+        decision = resolver.verify_owner_administration_decision(
+            str(payload.get("administration_decision_id", "")),
+            str(payload.get("administration_decision_sha256", "")),
+            action="revoke_issued_authority_grant",
+            target_grant_id=target.authority_grant_id,
+            target_grant_sha256=target.authority_grant_sha256,
+            target_grant_schema_sha256=target.schema_sha256,
+            subject_scope=target.subject_scope,
+            effective_at=target.effective_at,
+            expires_at=target.expires_at,
+            owner_actor_id=command.actor_id,
+            now=self.clock(),
+        )
+        if decision.record_id not in command.envelope.get("evidence_refs", []):
+            raise ArsError("owner authority administration decision evidence missing")
+        return {
+            "project_id": self.ledger.project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": decision.record_id,
+            "administration_decision_sha256": decision.canonical_sha256,
+            "target_grant_id": target.authority_grant_id,
+            "target_grant_sha256": target.authority_grant_sha256,
+            "target_grant_schema_id": target.schema_id,
+            "target_grant_schema_version": target.schema_version,
+            "target_grant_schema_sha256": target.schema_sha256,
             "reason": payload["reason"],
         }
 

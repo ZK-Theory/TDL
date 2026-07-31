@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/owner-authority-administration-decision",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_id",
+    "revision",
+    "project_id",
+    "store_identity",
+    "bootstrap_manifest_sha256",
+    "root_grant_id",
+    "root_grant_sha256",
+    "owner_actor_id",
+    "action",
+    "target_grant_id",
+    "target_grant_sha256",
+    "target_grant_schema_id",
+    "target_grant_schema_version",
+    "target_grant_schema_sha256",
+    "subject_scope",
+    "effective_at",
+    "expires_at",
+    "one_time_use",
+    "state",
+    "decided_at"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/owner-authority-administration-decision"},
+    "schema_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "pattern": "^arec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "revision": {"const": 1},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "store_identity": {"type": "string", "minLength": 1},
+    "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "root_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "action": {"enum": ["activate_authority_grant", "revoke_issued_authority_grant"]},
+    "target_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_grant_schema_id": {"const": "ars://core/scoped-authority-grant"},
+    "target_grant_schema_version": {"const": "2.0.0"},
+    "target_grant_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["project_id", "subject"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "subject": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "message", "blocker", "artefact", "review", "decision", "rule_evaluation", "corrected_record", "resource", "project_store", "assurance_requirement", "assurance_pack"]},
+            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+          },
+          "oneOf": [
+            {"properties": {"kind": {"const": "scope_definition"}, "id": {"pattern": "^obj_"}}},
+            {"properties": {"kind": {"const": "task"}, "id": {"pattern": "^tsk_"}}},
+            {"properties": {"kind": {"const": "dispatch"}, "id": {"pattern": "^dsp_"}}},
+            {"properties": {"kind": {"const": "lease"}, "id": {"pattern": "^els_"}}},
+            {"properties": {"kind": {"const": "attempt"}, "id": {"pattern": "^att_"}}},
+            {"properties": {"kind": {"const": "message"}, "id": {"pattern": "^msg_"}}},
+            {"properties": {"kind": {"const": "blocker"}, "id": {"pattern": "^blk_"}}},
+            {"properties": {"kind": {"const": "artefact"}, "id": {"pattern": "^art_"}}},
+            {"properties": {"kind": {"const": "review"}, "id": {"pattern": "^rev_"}}},
+            {"properties": {"kind": {"const": "decision"}, "id": {"pattern": "^dec_"}}},
+            {"properties": {"kind": {"const": "rule_evaluation"}, "id": {"pattern": "^val_"}}},
+            {"properties": {"kind": {"const": "corrected_record"}, "id": {"pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr)_"}}},
+            {"properties": {"kind": {"const": "resource"}, "id": {"pattern": "^(?:rsq|rgr|rcf)_"}}},
+            {"properties": {"kind": {"const": "project_store"}, "id": {"pattern": "^prj_"}}},
+            {"properties": {"kind": {"const": "assurance_requirement"}, "id": {"pattern": "^asr_"}}},
+            {"properties": {"kind": {"const": "assurance_pack"}, "id": {"pattern": "^asp_"}}}
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "one_time_use": {"const": true},
+    "state": {"const": "active"},
+    "decided_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  },
+  "additionalProperties": false
+}

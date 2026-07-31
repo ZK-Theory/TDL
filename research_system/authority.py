@@ -3,6 +3,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import re
 import secrets
 import shutil
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.ids import new_id, validate_id
 from research_system.schema_registry import (
     SchemaRegistry,
@@ -37,11 +38,94 @@ _GRANT_FIELDS = frozenset(
         "revoked",
     }
 )
+_SCOPED_GRANT_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "authority_grant_id",
+        "actor_id",
+        "allowed_actor_classes",
+        "allowed_commands",
+        "allowed_policy_actions",
+        "subject_scope",
+        "risk_ceiling",
+        "effective_at",
+        "expires_at",
+        "delegable",
+        "revoked",
+    }
+)
 _SUBJECT_KINDS = {
     "authority_grant": "authority_grant",
     "release_gate_decision": "release_gate_decision",
     "assurance_requirement": "assurance_requirement",
 }
+_SCOPED_SUBJECT_KINDS = {
+    "assurance_requirement": "assurance_requirement",
+    "assurance_pack": "assurance_pack",
+    "scope_definition": "scope_definition",
+    "task": "task",
+    "dispatch": "dispatch",
+    "lease": "execution_lease",
+    "attempt": "attempt",
+    "message": None,
+    "blocker": None,
+    "artefact": "artefact",
+    "review": None,
+    "decision": None,
+    "rule_evaluation": None,
+    "corrected_record": None,
+    "resource": None,
+    "project_store": "project",
+}
+_SCOPED_SUBJECT_PREFIXES = {
+    "assurance_requirement": ("asr",),
+    "assurance_pack": ("asp",),
+    "scope_definition": ("obj",),
+    "task": ("tsk",),
+    "dispatch": ("dsp",),
+    "lease": ("els",),
+    "attempt": ("att",),
+    "message": ("msg",),
+    "blocker": ("blk",),
+    "artefact": ("art",),
+    "review": ("rev",),
+    "decision": ("dec",),
+    "rule_evaluation": ("val",),
+    "corrected_record": (
+        "obj",
+        "tsk",
+        "dsp",
+        "els",
+        "att",
+        "cpm",
+        "msg",
+        "blk",
+        "art",
+        "rev",
+        "dec",
+        "val",
+        "rsq",
+        "rgr",
+        "rcf",
+        "hbt",
+        "pid",
+        "stp",
+        "rsd",
+        "rcv",
+        "opc",
+        "opr",
+        "bkr",
+    ),
+    "resource": ("rsq", "rgr", "rcf"),
+    "project_store": ("prj",),
+}
+_SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
+_SEMANTIC_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_UUID7_ID = re.compile(
+    r"^(?P<prefix>[a-z][a-z0-9]{2,3})_" r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-" r"[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
 
 
 def _utc(value: object, field: str) -> datetime:
@@ -192,6 +276,294 @@ class AuthorityGrant:
         )
 
 
+def _exact_identity_token(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value or not value.isascii() or value == "*" or "*" in value or "\\" in value:
+        raise ValueError(f"{field} must be an exact ASCII identity")
+    return value
+
+
+def _schema_identity_fields(value: dict[str, Any]) -> tuple[str, str, str]:
+    schema_id = _exact_identity_token(value["schema_id"], "schema_id")
+    if not schema_id.startswith("ars://"):
+        raise ValueError("schema_id must be an exact ARS schema identity")
+    schema_version = value["schema_version"]
+    if not isinstance(schema_version, str) or _SEMANTIC_VERSION.fullmatch(schema_version) is None:
+        raise ValueError("schema_version must be semantic")
+    schema_sha256 = value["schema_sha256"]
+    if not isinstance(schema_sha256, str) or _SHA256.fullmatch(schema_sha256) is None:
+        raise ValueError("schema_sha256 must be a lowercase SHA-256")
+    return schema_id, schema_version, schema_sha256
+
+
+def _scoped_authority_scope(value: object) -> AuthorityScope:
+    if not isinstance(value, dict) or set(value) != {
+        "project_id",
+        "subject",
+    }:
+        raise ValueError("subject_scope fields must be exact")
+    subject = value["subject"]
+    if not isinstance(subject, dict) or set(subject) != {"kind", "id"}:
+        raise ValueError("subject fields must be exact")
+    project_id = validate_id(str(value["project_id"]), "project")
+    subject_kind = subject["kind"]
+    if subject_kind not in _SCOPED_SUBJECT_KINDS:
+        raise ValueError("unsupported scoped authority subject kind")
+    subject_id = str(subject["id"])
+    registered_kind = _SCOPED_SUBJECT_KINDS[str(subject_kind)]
+    if registered_kind is not None:
+        validate_id(subject_id, registered_kind)
+    match = _UUID7_ID.fullmatch(subject_id)
+    if match is None or match.group("prefix") not in _SCOPED_SUBJECT_PREFIXES[str(subject_kind)]:
+        raise ValueError("scoped authority subject kind and ID mismatch")
+    return AuthorityScope(project_id, str(subject_kind), subject_id)
+
+
+@dataclass(frozen=True)
+class GrantedCommandIdentity:
+    """Exact command schema identity admitted by a scoped grant."""
+
+    command_type: str
+    schema_id: str
+    schema_version: str
+    schema_sha256: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> GrantedCommandIdentity:
+        if not isinstance(value, dict) or set(value) != {
+            "command_type",
+            "schema_id",
+            "schema_version",
+            "schema_sha256",
+        }:
+            raise ValueError("granted command identity fields must be exact")
+        command_type = _exact_identity_token(value["command_type"], "command_type")
+        if "/" in command_type:
+            raise ValueError("command_type must be an exact command name")
+        schema_id, schema_version, schema_sha256 = _schema_identity_fields(value)
+        return cls(command_type, schema_id, schema_version, schema_sha256)
+
+
+@dataclass(frozen=True)
+class GrantedPolicyActionIdentity:
+    """Exact policy-action schema identity admitted by a scoped grant."""
+
+    policy_action_type: str
+    schema_id: str
+    schema_version: str
+    schema_sha256: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> GrantedPolicyActionIdentity:
+        if not isinstance(value, dict) or set(value) != {
+            "policy_action_type",
+            "schema_id",
+            "schema_version",
+            "schema_sha256",
+        }:
+            raise ValueError("granted policy-action identity fields must be exact")
+        policy_action_type = _exact_identity_token(
+            value["policy_action_type"],
+            "policy_action_type",
+        )
+        if "/" in policy_action_type:
+            raise ValueError("policy_action_type must be an exact policy action")
+        schema_id, schema_version, schema_sha256 = _schema_identity_fields(value)
+        return cls(
+            policy_action_type,
+            schema_id,
+            schema_version,
+            schema_sha256,
+        )
+
+
+@dataclass(frozen=True)
+class ScopedAuthorityGrant:
+    """Immutable, non-delegable post-genesis authority grant v2."""
+
+    authority_grant_id: str
+    actor_id: str
+    allowed_actor_classes: tuple[str, ...]
+    allowed_commands: tuple[GrantedCommandIdentity, ...]
+    allowed_policy_actions: tuple[GrantedPolicyActionIdentity, ...]
+    subject_scope: AuthorityScope
+    risk_ceiling: str
+    effective_at: datetime
+    expires_at: datetime
+    canonical_sha256: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> ScopedAuthorityGrant:
+        canonical_bytes(value)
+        if not isinstance(value, dict) or set(value) != _SCOPED_GRANT_FIELDS:
+            raise ValueError("ScopedAuthorityGrant fields must be exact")
+        if value["schema_id"] != "ars://core/scoped-authority-grant":
+            raise ValueError("invalid ScopedAuthorityGrant schema")
+        if value["schema_version"] != "2.0.0":
+            raise ValueError("ScopedAuthorityGrant 2.0.0 is required")
+        if value["delegable"] is not False or value["revoked"] is not False:
+            raise ValueError("ScopedAuthorityGrant must be non-delegable and immutable-active")
+        grant_id = validate_id(str(value["authority_grant_id"]), "authority_grant")
+        actor_id = validate_id(str(value["actor_id"]), "actor")
+        actor_classes = value["allowed_actor_classes"]
+        if (
+            not isinstance(actor_classes, list)
+            or not actor_classes
+            or any(actor_class not in _SCOPED_ACTOR_CLASSES for actor_class in actor_classes)
+            or len(actor_classes) != len(set(actor_classes))
+        ):
+            raise ValueError("allowed actor classes must be unique and exclude importer")
+        command_values = value["allowed_commands"]
+        action_values = value["allowed_policy_actions"]
+        if not isinstance(command_values, list) or not isinstance(action_values, list):
+            raise ValueError("scoped grant identities must be arrays")
+        commands = tuple(GrantedCommandIdentity.from_dict(item) for item in command_values)
+        actions = tuple(GrantedPolicyActionIdentity.from_dict(item) for item in action_values)
+        if not commands and not actions:
+            raise ValueError("scoped grant requires a command or policy action")
+        if len(commands) != len(set(commands)):
+            raise ValueError("granted command identities must be unique")
+        if len(actions) != len(set(actions)):
+            raise ValueError("granted policy-action identities must be unique")
+        risk = value["risk_ceiling"]
+        if not isinstance(risk, str) or risk not in {"R0", "R1", "R2", "R3"}:
+            raise ValueError("invalid risk ceiling")
+        effective_at = _utc(value["effective_at"], "effective_at")
+        expires_at = _utc(value["expires_at"], "expires_at")
+        if expires_at <= effective_at:
+            raise ValueError("expires_at must be strictly after effective_at")
+        scope = _scoped_authority_scope(value["subject_scope"])
+        return cls(
+            authority_grant_id=grant_id,
+            actor_id=actor_id,
+            allowed_actor_classes=tuple(actor_classes),
+            allowed_commands=commands,
+            allowed_policy_actions=actions,
+            subject_scope=scope,
+            risk_ceiling=risk,
+            effective_at=effective_at,
+            expires_at=expires_at,
+            canonical_sha256=sha256_hex(canonical_bytes(value)),
+        )
+
+
+@dataclass(frozen=True)
+class OwnerAuthorityAdministrationDecision:
+    """One immutable owner-reserved decision for one scoped grant mutation."""
+
+    record_id: str
+    project_id: str
+    store_identity: str
+    bootstrap_manifest_sha256: str
+    root_grant_id: str
+    root_grant_sha256: str
+    owner_actor_id: str
+    action: str
+    target_grant_id: str
+    target_grant_sha256: str
+    target_grant_schema_id: str
+    target_grant_schema_version: str
+    target_grant_schema_sha256: str
+    subject_scope: AuthorityScope
+    effective_at: datetime
+    expires_at: datetime
+    decided_at: datetime
+    canonical_sha256: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> OwnerAuthorityAdministrationDecision:
+        fields = {
+            "schema_id",
+            "schema_version",
+            "record_id",
+            "revision",
+            "project_id",
+            "store_identity",
+            "bootstrap_manifest_sha256",
+            "root_grant_id",
+            "root_grant_sha256",
+            "owner_actor_id",
+            "action",
+            "target_grant_id",
+            "target_grant_sha256",
+            "target_grant_schema_id",
+            "target_grant_schema_version",
+            "target_grant_schema_sha256",
+            "subject_scope",
+            "effective_at",
+            "expires_at",
+            "one_time_use",
+            "state",
+            "decided_at",
+        }
+        canonical_bytes(value)
+        if not isinstance(value, dict) or set(value) != fields:
+            raise ValueError("owner authority administration decision fields must be exact")
+        if (
+            value["schema_id"] != "ars://core/owner-authority-administration-decision"
+            or value["schema_version"] != "1.0.0"
+            or value["revision"] != 1
+            or value["one_time_use"] is not True
+            or value["state"] != "active"
+        ):
+            raise ValueError("invalid owner authority administration decision")
+        record_id = validate_id(str(value["record_id"]), "assurance_record")
+        project_id = validate_id(str(value["project_id"]), "project")
+        root_grant_id = validate_id(str(value["root_grant_id"]), "authority_grant")
+        owner_actor_id = validate_id(str(value["owner_actor_id"]), "actor")
+        target_grant_id = validate_id(
+            str(value["target_grant_id"]),
+            "authority_grant",
+        )
+        hashes = (
+            value["store_identity"],
+            value["bootstrap_manifest_sha256"],
+            value["root_grant_sha256"],
+            value["target_grant_sha256"],
+            value["target_grant_schema_sha256"],
+        )
+        if any(not isinstance(item, str) or _SHA256.fullmatch(item) is None for item in hashes):
+            raise ValueError("owner authority administration hashes must be exact")
+        action = value["action"]
+        if action not in {
+            "activate_authority_grant",
+            "revoke_issued_authority_grant",
+        }:
+            raise ValueError("unsupported owner authority administration action")
+        if (
+            value["target_grant_schema_id"] != "ars://core/scoped-authority-grant"
+            or value["target_grant_schema_version"] != "2.0.0"
+        ):
+            raise ValueError("owner decision requires scoped grant v2")
+        scope = _scoped_authority_scope(value["subject_scope"])
+        effective_at = _utc(value["effective_at"], "effective_at")
+        expires_at = _utc(value["expires_at"], "expires_at")
+        if expires_at <= effective_at:
+            raise ValueError("expires_at must be strictly after effective_at")
+        decided_at = _utc(value["decided_at"], "decided_at")
+        if decided_at > expires_at:
+            raise ValueError("owner decision occurs after its authority window")
+        return cls(
+            record_id=record_id,
+            project_id=project_id,
+            store_identity=str(value["store_identity"]),
+            bootstrap_manifest_sha256=str(value["bootstrap_manifest_sha256"]),
+            root_grant_id=root_grant_id,
+            root_grant_sha256=str(value["root_grant_sha256"]),
+            owner_actor_id=owner_actor_id,
+            action=str(action),
+            target_grant_id=target_grant_id,
+            target_grant_sha256=str(value["target_grant_sha256"]),
+            target_grant_schema_id=str(value["target_grant_schema_id"]),
+            target_grant_schema_version=str(value["target_grant_schema_version"]),
+            target_grant_schema_sha256=str(value["target_grant_schema_sha256"]),
+            subject_scope=scope,
+            effective_at=effective_at,
+            expires_at=expires_at,
+            decided_at=decided_at,
+            canonical_sha256=sha256_hex(canonical_bytes(value)),
+        )
+
+
 @dataclass(frozen=True)
 class AuthorityGrantResolution:
     """Replay-derived immutable identity plus current grant status.
@@ -217,6 +589,39 @@ class AuthorityGrantResolution:
     expires_at: datetime | None
     activation_event_id: str
     activation_position: int
+    status: str
+    revocation_event_id: str | None
+
+
+@dataclass(frozen=True)
+class AuthorityAdministrationContext:
+    """Verified owner-reserved administration anchor for one bound store."""
+
+    project_id: str
+    store_identity: str
+    bootstrap_manifest_sha256: str
+    root_grant_id: str
+    root_grant_sha256: str
+    owner_actor_id: str
+
+
+@dataclass(frozen=True)
+class ScopedAuthorityGrantResolution:
+    """Replay-derived immutable identity and status for a scoped grant v2."""
+
+    authority_grant_id: str
+    authority_grant_sha256: str
+    schema_id: str
+    schema_version: str
+    schema_sha256: str
+    actor_id: str
+    subject_scope: AuthorityScope
+    effective_at: datetime
+    expires_at: datetime
+    activation_event_id: str
+    activation_position: int
+    administration_decision_id: str
+    administration_decision_sha256: str
     status: str
     revocation_event_id: str | None
 
@@ -358,11 +763,19 @@ def _verify_bootstrap_bindings(
     ):
         raise IntegrityError("authority bootstrap publication binding mismatch")
     grants = projection.get("authority_grants", {})
+    genesis_grants = {root.authority_grant_id, publication.authority_grant_id}
+    additional_grants = set(grants).difference(genesis_grants)
     if (
         projection.get("project_id") != project_id
         or projection.get("bootstrap_manifest_sha256") != bootstrap_hash
         or projection.get("authority_root_id") != root.authority_grant_id
-        or set(grants) != {root.authority_grant_id, publication.authority_grant_id}
+        or projection.get("authority_owner_actor_id") != value["owner_actor_id"]
+        or not genesis_grants.issubset(grants)
+        or any(
+            grants[grant_id].get("schema_id") != "ars://core/scoped-authority-grant"
+            or grants[grant_id].get("activation_position", 0) <= 2
+            for grant_id in additional_grants
+        )
         or grants[root.authority_grant_id].get("authority_grant_sha256") != root.canonical_sha256
         or grants[publication.authority_grant_id].get("authority_grant_sha256") != publication.canonical_sha256
     ):
@@ -1068,4 +1481,312 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority command mismatch")
         if result.subject_scope != AuthorityScope(project_id, subject_kind, subject_id):
             raise ArsError("authority subject scope mismatch")
+        return result
+
+    def administration_context(self) -> AuthorityAdministrationContext:
+        """Read the verified, store-bound owner administration trust anchor."""
+        from research_system.store.identity import load_store_manifest
+
+        projection = self._projection()
+        manifest = load_store_manifest(self.control_root)
+        bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
+        try:
+            bootstrap = json.loads(bootstrap_path.read_bytes())
+            _, root, _ = _validate_bootstrap(bootstrap, self.project_id)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise IntegrityError("authority bootstrap manifest invalid") from exc
+        if (
+            manifest.get("store_identity") != self.expected_store_identity
+            or projection.get("authority_root_id") != root.authority_grant_id
+            or projection.get("authority_owner_actor_id") != root.actor_id
+            or projection.get("bootstrap_manifest_sha256") != manifest.get("bootstrap_manifest_sha256")
+        ):
+            raise IntegrityError("authority administration context mismatch")
+        return AuthorityAdministrationContext(
+            project_id=self.project_id,
+            store_identity=self.expected_store_identity,
+            bootstrap_manifest_sha256=str(manifest["bootstrap_manifest_sha256"]),
+            root_grant_id=root.authority_grant_id,
+            root_grant_sha256=root.canonical_sha256,
+            owner_actor_id=root.actor_id,
+        )
+
+    def verify_owner_administration_decision(
+        self,
+        decision_id: str,
+        decision_sha256: str,
+        *,
+        action: str,
+        target_grant_id: str,
+        target_grant_sha256: str,
+        target_grant_schema_sha256: str,
+        subject_scope: AuthorityScope,
+        effective_at: datetime,
+        expires_at: datetime,
+        owner_actor_id: str,
+        now: datetime,
+    ) -> OwnerAuthorityAdministrationDecision:
+        """Verify one immutable owner decision from the bound production store."""
+        from research_system.store.objects import ObjectStore
+
+        if now.tzinfo != UTC:
+            raise ValueError("trusted authority time must be UTC")
+        context = self.administration_context()
+        projection = self._projection()
+        if decision_id in projection.get("authority_administration_decisions", {}):
+            raise ArsError("owner authority administration decision already consumed")
+        try:
+            value = ObjectStore(self.control_root).read(
+                "assurance_record",
+                decision_id,
+                1,
+            )
+            self.schema_registry.validate_active(
+                "ars://core/owner-authority-administration-decision",
+                value,
+                schema_version="1.0.0",
+            )
+            decision = OwnerAuthorityAdministrationDecision.from_dict(value)
+        except (SchemaError, ValueError) as exc:
+            raise IntegrityError("owner authority administration decision invalid") from exc
+        expected = (
+            decision.canonical_sha256 == decision_sha256
+            and decision.project_id == context.project_id
+            and decision.store_identity == context.store_identity
+            and decision.bootstrap_manifest_sha256 == context.bootstrap_manifest_sha256
+            and decision.root_grant_id == context.root_grant_id
+            and decision.root_grant_sha256 == context.root_grant_sha256
+            and decision.owner_actor_id == context.owner_actor_id
+            and decision.owner_actor_id == owner_actor_id
+            and decision.action == action
+            and decision.target_grant_id == target_grant_id
+            and decision.target_grant_sha256 == target_grant_sha256
+            and decision.target_grant_schema_id == "ars://core/scoped-authority-grant"
+            and decision.target_grant_schema_version == "2.0.0"
+            and decision.target_grant_schema_sha256 == target_grant_schema_sha256
+            and decision.subject_scope == subject_scope
+            and decision.effective_at == effective_at
+            and decision.expires_at == expires_at
+        )
+        if not expected:
+            raise ArsError("owner authority administration decision mismatch")
+        if now < decision.effective_at or now >= decision.expires_at or now < decision.decided_at:
+            raise ArsError("owner authority administration decision is not current")
+        return decision
+
+    def _load_scoped_grant(
+        self,
+        grant_id: str,
+        projection: dict[str, Any],
+    ) -> tuple[ScopedAuthorityGrant, dict[str, Any]]:
+        from research_system.store.objects import ObjectStore
+
+        record = projection.get("authority_grants", {}).get(grant_id)
+        if (
+            not isinstance(record, dict)
+            or record.get("schema_id") != "ars://core/scoped-authority-grant"
+            or record.get("schema_version") != "2.0.0"
+        ):
+            raise ArsError("scoped authority grant is not activated")
+        try:
+            value = ObjectStore(self.control_root).read(
+                "authority_grant",
+                grant_id,
+                1,
+            )
+            self.schema_registry.validate_active(
+                "ars://core/scoped-authority-grant",
+                value,
+                schema_version="2.0.0",
+                expected_sha256=str(record.get("schema_sha256", "")),
+            )
+            grant = ScopedAuthorityGrant.from_dict(value)
+        except (SchemaError, ValueError) as exc:
+            raise IntegrityError("scoped authority grant object invalid") from exc
+        if (
+            grant.authority_grant_id != grant_id
+            or grant.canonical_sha256 != record.get("authority_grant_sha256")
+            or grant.subject_scope.to_dict() != record.get("subject_scope")
+            or grant.effective_at != _utc(record.get("effective_at"), "effective_at")
+            or grant.expires_at != _utc(record.get("expires_at"), "expires_at")
+        ):
+            raise IntegrityError("scoped authority grant object binding mismatch")
+        return grant, record
+
+    def _scoped_resolution(
+        self,
+        grant_id: str,
+        projection: dict[str, Any],
+    ) -> tuple[
+        ScopedAuthorityGrantResolution,
+        ScopedAuthorityGrant,
+        dict[str, Any],
+    ]:
+        grant, record = self._load_scoped_grant(grant_id, projection)
+        return (
+            ScopedAuthorityGrantResolution(
+                authority_grant_id=grant_id,
+                authority_grant_sha256=grant.canonical_sha256,
+                schema_id=str(record["schema_id"]),
+                schema_version=str(record["schema_version"]),
+                schema_sha256=str(record["schema_sha256"]),
+                actor_id=grant.actor_id,
+                subject_scope=grant.subject_scope,
+                effective_at=grant.effective_at,
+                expires_at=grant.expires_at,
+                activation_event_id=str(record["activation_event_id"]),
+                activation_position=int(record["activation_position"]),
+                administration_decision_id=str(record["administration_decision_id"]),
+                administration_decision_sha256=str(record["administration_decision_sha256"]),
+                status=str(record["status"]),
+                revocation_event_id=record.get("revocation_event_id"),
+            ),
+            grant,
+            record,
+        )
+
+    @staticmethod
+    def _validate_current_scoped_grant(
+        grant: ScopedAuthorityGrant,
+        record: dict[str, Any],
+        now: datetime,
+    ) -> None:
+        if now.tzinfo != UTC:
+            raise ValueError("trusted authority time must be UTC")
+        if record.get("status") == "revoked":
+            raise ArsError("authority grant revoked")
+        if now < grant.effective_at:
+            raise ArsError("authority grant not effective")
+        if now >= grant.expires_at:
+            raise ArsError("authority grant expired")
+
+    def scoped_grant_identity(
+        self,
+        grant_id: str,
+    ) -> ScopedAuthorityGrantResolution:
+        """Resolve immutable v2 grant identity without claiming current authority."""
+        projection = self._projection()
+        result, _, _ = self._scoped_resolution(grant_id, projection)
+        return result
+
+    def _resolve_scoped(
+        self,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> tuple[
+        ScopedAuthorityGrantResolution,
+        ScopedAuthorityGrant,
+    ]:
+        if actor_class == "importer" or actor_class not in _SCOPED_ACTOR_CLASSES:
+            raise ArsError("authority actor class prohibited")
+        if required_risk not in {"R0", "R1", "R2", "R3"}:
+            raise ValueError("required risk must be R0 through R3")
+        projection = self._projection()
+        result, grant, record = self._scoped_resolution(grant_id, projection)
+        self._validate_current_scoped_grant(grant, record, now)
+        if result.actor_id != validate_id(actor_id, "actor"):
+            raise ArsError("authority actor mismatch")
+        if actor_class not in grant.allowed_actor_classes:
+            raise ArsError("authority actor class mismatch")
+        requested_scope = _scoped_authority_scope(
+            {
+                "project_id": project_id,
+                "subject": {"kind": subject_kind, "id": subject_id},
+            }
+        )
+        if result.subject_scope != requested_scope:
+            raise ArsError("authority subject scope mismatch")
+        risk_order = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
+        if risk_order[grant.risk_ceiling] < risk_order[required_risk]:
+            raise ArsError("authority risk ceiling exceeded")
+        return result, grant
+
+    def resolve_command(
+        self,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        command: GrantedCommandIdentity,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> ScopedAuthorityGrantResolution:
+        """Resolve one exact command identity against an active scoped grant."""
+        binding = self.schema_registry.command_binding(command.command_type)
+        if binding is None or (binding.schema_id, binding.schema_version) != (
+            command.schema_id,
+            command.schema_version,
+        ):
+            raise ArsError("authority command schema is not active")
+        try:
+            identity = self.schema_registry.resolve_identity(
+                command.schema_id,
+                command.schema_version,
+                expected_sha256=command.schema_sha256,
+            )
+        except SchemaError as exc:
+            raise ArsError("authority command schema identity mismatch") from exc
+        result, grant = self._resolve_scoped(
+            grant_id,
+            actor_id,
+            actor_class,
+            required_risk,
+            project_id,
+            subject_kind,
+            subject_id,
+            now,
+        )
+        if identity.sha256 != command.schema_sha256 or command not in grant.allowed_commands:
+            raise ArsError("authority command identity mismatch")
+        return result
+
+    def resolve_policy_action(
+        self,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        policy_action: GrantedPolicyActionIdentity,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> ScopedAuthorityGrantResolution:
+        """Resolve one exact policy action against an active scoped grant."""
+        binding = self.schema_registry.policy_action_binding(
+            policy_action.policy_action_type,
+        )
+        if binding is None or (binding.schema_id, binding.schema_version) != (
+            policy_action.schema_id,
+            policy_action.schema_version,
+        ):
+            raise ArsError("authority policy-action schema is not active")
+        try:
+            identity = self.schema_registry.resolve_identity(
+                policy_action.schema_id,
+                policy_action.schema_version,
+                expected_sha256=policy_action.schema_sha256,
+            )
+        except SchemaError as exc:
+            raise ArsError("authority policy-action schema identity mismatch") from exc
+        result, grant = self._resolve_scoped(
+            grant_id,
+            actor_id,
+            actor_class,
+            required_risk,
+            project_id,
+            subject_kind,
+            subject_id,
+            now,
+        )
+        if identity.sha256 != policy_action.schema_sha256 or policy_action not in grant.allowed_policy_actions:
+            raise ArsError("authority policy-action identity mismatch")
         return result

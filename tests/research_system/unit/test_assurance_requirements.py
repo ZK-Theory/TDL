@@ -12,6 +12,7 @@ from research_system.assurance.requirements import (
     LedgerBackedAuthorityPolicy,
     validate_requirement,
 )
+from research_system.authority import GrantedPolicyActionIdentity
 from research_system.errors import ArsError, IntegrityError
 
 
@@ -123,7 +124,7 @@ NOW = datetime(2026, 7, 29, 12, tzinfo=UTC)
 
 
 class _Resolver:
-    """Stand-in for LedgerAuthorityGrantResolver's ``resolve`` outcome.
+    """Stand-in for ``resolve_policy_action`` outcomes.
 
     The grant semantics themselves — expiry, revocation, scope — are already covered against a real store
     in ``integration/test_authority_grant_source.py``. What is untested is the adapter: whether
@@ -135,17 +136,50 @@ class _Resolver:
         self.outcome = outcome
         self.calls: list[tuple] = []
 
-    def resolve(self, grant_id, actor_id, command_type, project_id, subject_kind, subject_id, now):
-        self.calls.append((grant_id, actor_id, command_type, project_id, subject_kind, subject_id, now))
+    def resolve_policy_action(
+        self,
+        grant_id,
+        actor_id,
+        actor_class,
+        policy_action,
+        required_risk,
+        project_id,
+        subject_kind,
+        subject_id,
+        now,
+    ):
+        self.calls.append(
+            (
+                grant_id,
+                actor_id,
+                actor_class,
+                policy_action,
+                required_risk,
+                project_id,
+                subject_kind,
+                subject_id,
+                now,
+            )
+        )
         if self.outcome is not None:
             raise self.outcome
         return object()
+
+
+POLICY_ACTION = GrantedPolicyActionIdentity(
+    "accept_r3_assurance_requirement",
+    "ars://core/policy-action/AcceptR3AssuranceRequirement",
+    "1.0.0",
+    "a" * 64,
+)
 
 
 def _ledger_policy(resolver: _Resolver) -> LedgerBackedAuthorityPolicy:
     return LedgerBackedAuthorityPolicy(
         resolver=resolver,
         grant_ids_by_actor={ACCEPTOR: GRANT_ID},
+        actor_classes_by_actor={ACCEPTOR: "human"},
+        policy_action=POLICY_ACTION,
         project_id="prj-under-test",
         subject_kind="assurance_requirement",
         subject_id="asr_" + "7" * 32,
@@ -160,7 +194,9 @@ def test_ledger_policy_permits_only_on_a_resolved_grant():
         (
             GRANT_ID,
             ACCEPTOR,
-            "accept_r3_assurance_requirement",
+            "human",
+            POLICY_ACTION,
+            "R3",
             "prj-under-test",
             "assurance_requirement",
             "asr_" + "7" * 32,
@@ -176,7 +212,7 @@ def test_ledger_policy_permits_only_on_a_resolved_grant():
         "authority grant revoked",
         "authority subject scope mismatch",
         "authority actor mismatch",
-        "authority command mismatch",
+        "authority policy-action identity mismatch",
     ],
 )
 def test_ledger_policy_denies_when_the_grant_does_not_resolve(reason):

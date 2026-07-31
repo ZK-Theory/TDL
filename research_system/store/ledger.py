@@ -381,8 +381,32 @@ class EventLedger:
                     raise ArsError("release event finalizer violated ledger allocation")
             prehash = {**event, "event_hash": "0" * 64}
             event_schema_version = str(event.get("schema_version", ""))
-            event_binding = self.schemas.event_binding(event_type)
+            event_binding = self.schemas.event_binding(
+                event_type,
+                str(candidate.get("command_type", "")),
+            )
             event_schema = str(event.get("schema_id", ""))
+            legacy_authority_event = (
+                event_type,
+                str(candidate.get("command_type", "")),
+                event_schema,
+                event_schema_version,
+            ) in {
+                (
+                    "AuthorityGrantActivated",
+                    "InitializeAuthorityRoot",
+                    "ars://core/event/AuthorityGrantActivated",
+                    "1.0.0",
+                ),
+                (
+                    "AuthorityGrantRevoked",
+                    "RevokeAuthorityGrant",
+                    "ars://core/event",
+                    "1.0.0",
+                ),
+            }
+            if event_binding is None and self.schemas.has_producer_bindings(event_type) and not legacy_authority_event:
+                raise ArsError(f"unbound event producer: {event_type} from {candidate.get('command_type', '')}")
             payload_schema = f"{event_schema}/payload"
             payload_backed_event = self.schemas.contains(payload_schema)
             if event_binding is not None and (
