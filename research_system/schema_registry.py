@@ -156,6 +156,11 @@ _RUNTIME_BINDINGS = (
         policy_action_type="accept_r3_assurance_requirement",
     ),
     SchemaBinding(
+        "ars://core/policy-action/BindRestoredControlStore",
+        "1.0.0",
+        policy_action_type="bind_restored_control_store",
+    ),
+    SchemaBinding(
         "ars://core/command/ActivateAuthorityGrant",
         "1.0.0",
         command_type="ActivateAuthorityGrant",

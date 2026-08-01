@@ -50,6 +50,7 @@ from research_system.operations.backups import (
     ArtefactBinding,
     BackupReceipt,
     finalize_verified_restore_binding,
+    restore_binding_writer_locks,
     verify_restore_before_writer_lease,
 )
 from research_system.projection.replay import rebuild_projection, replay
@@ -59,6 +60,8 @@ from research_system.schema_registry import (
     runtime_schema_registry,
 )
 from research_system.store.identity import (
+    _fsync_directory,
+    complete_restore_binding_output,
     load_restore_binding_evidence,
     load_store_manifest,
     load_store_manifest_unbound,
@@ -202,6 +205,7 @@ def _preflight_restore_binding_load(
 
 def _store_restore_bind(args: argparse.Namespace) -> int:
     target_root = args.control_root.resolve(strict=True)
+    requested_source = args.source_root.resolve(strict=True)
     source_manifest = load_store_manifest_unbound(target_root)
     schemas = _schemas_for_store_manifest(source_manifest)
     schema_root = args.schema_root.resolve(strict=True)
@@ -221,14 +225,34 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         evidence = load_restore_binding_evidence(target_root)
         if evidence is None:
             raise ArsError("restore binding evidence is missing")
-        source_root = Path(evidence["source_root"]).resolve(strict=False)
+        if Path(evidence["source_root"]).resolve(strict=False) != requested_source:
+            raise ArsError("restore source binding evidence conflicts with independently supplied source")
+        source_root = requested_source
     else:
-        source_root = recorded_root
+        if recorded_root != requested_source:
+            raise ArsError("restore source root does not match the copied store manifest")
+        source_root = requested_source
     existing_binding: ControlBinding | None = None
+    expected_output = canonical_bytes(config_value)
     if args.config_output.exists():
         if not already_bound:
             raise ArsError(f"output path exists: {args.config_output}")
-        existing_binding = ControlBinding.load(args.config_output)
+        try:
+            actual_output = args.config_output.read_bytes()
+        except OSError as exc:
+            raise ArsError(
+                f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
+            ) from exc
+        if actual_output != expected_output:
+            raise ArsError(
+                f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
+            )
+        try:
+            existing_binding = ControlBinding.load(args.config_output)
+        except (ArsError, OSError) as exc:
+            raise ArsError(
+                f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
+            ) from exc
         if (
             existing_binding.control_root != target_root
             or existing_binding.project_id != source_manifest["project_id"]
@@ -254,27 +278,25 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         "registry": registry,
         "actor_id": args.actor_id,
         "authority_grant_id": args.authority_grant_id,
+        "source_root": source_root,
         "schema_registry": schemas,
         "now": _authority_clock(),
+        "expected_output": expected_output,
     }
     supplied = verify_restore_before_writer_lease(**preflight_kwargs)
     if supplied.status != "verified":
         raise ArsError(f"restore preflight is not verified: {', '.join(supplied.failed_predicates)}")
     temporary: Path | None = None
-    descriptor: int | None = None
+    output_preparation_durable = True
     if existing_binding is None:
-        temporary, descriptor = _reserve_output(args.config_output)
+        temporary, output_preparation_durable = _prepare_restore_output(args.config_output, expected_output)
     current: Any = supplied
-    published = existing_binding is not None
     try:
-        with WriterLock(
-            target_root / "runtime" / "writer.lock",
-            {"operation": "restore-bind", "target_root": str(target_root)},
-        ):
+        with restore_binding_writer_locks(source_root, target_root, lock_factory=WriterLock):
             current = verify_restore_before_writer_lease(**preflight_kwargs)
             finalize_verified_restore_binding(
                 target_root=target_root,
-                source_root=Path(current.source_root),
+                source_root=source_root,
                 supplied=supplied,
                 current=current,
                 project_id=receipt.project_id,
@@ -282,26 +304,52 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 authority_grant_id=args.authority_grant_id,
                 schema_registry=schemas,
                 now=_authority_clock(),
+                expected_output=expected_output,
             )
-        if not published:
-            assert temporary is not None and descriptor is not None
-            _publish_reserved_output(
+            output_publication_durable = True
+            if temporary is not None:
+                reserved = temporary
+                temporary = None
+                output_publication_durable = _publish_reserved_output(
+                    args.config_output,
+                    reserved,
+                    None,
+                    expected_output,
+                )
+            complete_restore_binding_output(
+                target_root,
                 args.config_output,
-                temporary,
-                descriptor,
-                canonical_bytes(config_value),
+                expected_output,
+                directory_durable=output_preparation_durable and output_publication_durable,
             )
-            descriptor = None
-            published = True
+    except (ArsError, OSError) as exc:
+        committed = load_restore_binding_evidence(target_root)
+        if committed is not None and committed["operation_status"] == "bound-but-config-unpublished":
+            detail = (
+                f"restore binding status=bound-but-config-unpublished; "
+                f"expected output sha256={committed['expected_output_sha256']}"
+            )
+            if isinstance(exc, OSError):
+                raise OSError(f"{exc}; {detail}") from exc
+            raise ArsError(f"{detail}; {exc}") from exc
+        raise
     finally:
-        if descriptor is not None:
-            os.close(descriptor)
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+    evidence = load_restore_binding_evidence(target_root)
+    if evidence is None:
+        raise ArsError("restore binding evidence is missing after finalization")
     binding = ControlBinding.load(args.config_output)
     _print_json(
         {
-            "status": "bound",
+            "status": (
+                "bound"
+                if evidence["operation_status"] == "bound-and-config-published"
+                and evidence["durability_status"] == "durable"
+                else "pending"
+            ),
+            "operation_status": evidence["operation_status"],
+            "durability_status": evidence["durability_status"],
             "config": str(args.config_output.resolve()),
             "control_root": str(binding.control_root),
             "project_id": binding.project_id,
@@ -642,6 +690,26 @@ def _reserve_output(output: Path) -> tuple[Path, int]:
     return temporary, descriptor
 
 
+def _prepare_restore_output(output: Path, data: bytes) -> tuple[Path, bool]:
+    """Prepare the exact restore config before the manifest commit."""
+    temporary, descriptor = _reserve_output(output)
+    try:
+        handle = os.fdopen(descriptor, "wb")
+        descriptor = -1
+        with handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _after_receipt_output_fsync(temporary)
+        return temporary, _fsync_directory(output.parent)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    finally:
+        if descriptor != -1:
+            os.close(descriptor)
+
+
 def _after_receipt_output_fsync(_temporary: Path) -> None:
     """Test seam after durable temporary output and before publication."""
 
@@ -649,21 +717,33 @@ def _after_receipt_output_fsync(_temporary: Path) -> None:
 def _publish_reserved_output(
     output: Path,
     temporary: Path,
-    descriptor: int,
+    descriptor: int | None,
     data: bytes,
-) -> None:
-    """Durably write then atomically link a receipt without clobbering."""
-    with os.fdopen(descriptor, "wb") as handle:
-        handle.write(data)
-        handle.flush()
-        os.fsync(handle.fileno())
-    _after_receipt_output_fsync(temporary)
+) -> bool:
+    """Atomically link one owned reserved output without clobbering."""
+    if descriptor is not None:
+        owned_descriptor = descriptor
+        descriptor = None
+        try:
+            handle = os.fdopen(owned_descriptor, "wb")
+            owned_descriptor = -1
+            with handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _after_receipt_output_fsync(temporary)
+        except BaseException:
+            if owned_descriptor != -1:
+                os.close(owned_descriptor)
+            temporary.unlink(missing_ok=True)
+            raise
     try:
         os.link(temporary, output)
     except FileExistsError as exc:
         raise ArsError(f"output path exists: {output}") from exc
     finally:
         temporary.unlink(missing_ok=True)
+    return _fsync_directory(output.parent)
 
 
 def _eval_publish_release(args: argparse.Namespace) -> int:
@@ -819,6 +899,7 @@ def _parser() -> argparse.ArgumentParser:
 
     restore_bind = store_commands.add_parser("restore-bind")
     restore_bind.add_argument("--control-root", type=Path, required=True)
+    restore_bind.add_argument("--source-root", type=Path, required=True)
     restore_bind.add_argument("--receipt", type=Path, required=True)
     restore_bind.add_argument("--snapshot", type=Path, required=True)
     restore_bind.add_argument("--endpoint-ownership", type=Path, required=True)

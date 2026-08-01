@@ -41,6 +41,7 @@ from research_system.ids import new_id
 from research_system.operations.backups import (
     RestorePreflightResult,
     finalize_verified_restore_binding,
+    restore_binding_writer_locks,
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
@@ -507,6 +508,14 @@ class CommandService:
     @contextmanager
     def _submission_lock(self, command: Command):
         """Serialize release retries while preserving fail-fast legacy locks."""
+        if self._restore_source_root is not None:
+            with restore_binding_writer_locks(
+                self._restore_source_root,
+                self.control_root,
+                lock_factory=WriterLock,
+            ):
+                yield
+            return
         identity = {"command_id": command.command_id}
         path = self.control_root / "runtime" / "writer.lock"
         deadline = self._monotonic() + self.release_lock_timeout_seconds

@@ -12,11 +12,15 @@ import pytest
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
 from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
-from research_system.canonical import canonical_bytes, jsonable
+from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.cli import main
 from research_system.config import ControlBinding
-from research_system.errors import ConfigurationError
-from research_system.store.identity import rebind_restored_store
+from research_system.errors import ArsError, ConfigurationError
+from research_system.store.identity import (
+    load_restore_binding_evidence,
+    load_store_manifest_unbound,
+    rebind_restored_store,
+)
 from tests.research_system.factories import authority_bootstrap
 
 
@@ -104,6 +108,8 @@ def _restore_cli_case(tmp_path: Path) -> tuple[dict[str, object], list[str]]:
         "restore-bind",
         "--control-root",
         str(case["target"]),
+        "--source-root",
+        str(case["source"]),
         "--receipt",
         str(receipt_path),
         "--snapshot",
@@ -321,6 +327,8 @@ def test_restore_bind_cli_rebinds_only_after_verified_preflight(
                 "restore-bind",
                 "--control-root",
                 str(case["target"]),
+                "--source-root",
+                str(case["source"]),
                 "--receipt",
                 str(receipt_path),
                 "--snapshot",
@@ -344,7 +352,14 @@ def test_restore_bind_cli_rebinds_only_after_verified_preflight(
         == 0
     )
     output = json.loads(capsys.readouterr().out)
-    assert output["status"] == "bound"
+    evidence = load_restore_binding_evidence(case["target"])
+    assert evidence is not None
+    assert output["status"] == (
+        "bound"
+        if evidence["operation_status"] == "bound-and-config-published" and evidence["durability_status"] == "durable"
+        else "pending"
+    )
+    assert evidence["operation_status"] == "bound-and-config-published"
     fresh = ControlBinding.load(config_output)
     assert fresh.control_root == case["target"].resolve()
     resolved = ControlStoreAuthorityResolver(fresh).resolve(
@@ -387,6 +402,22 @@ def test_restore_bind_cli_preflights_fresh_binding_failure_before_rebind(tmp_pat
     assert not (tmp_path / "restored-binding.json").exists()
 
 
+def test_restore_bind_cli_rejects_preexisting_output_collision_before_bind(tmp_path: Path) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    output_path = tmp_path / "restored-binding.json"
+    foreign_output = b"foreign output\n"
+    output_path.write_bytes(foreign_output)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+
+    with pytest.raises(ArsError, match="output path exists"):
+        main(args)
+
+    assert manifest_path.read_bytes() == before_manifest
+    assert load_restore_binding_evidence(case["target"]) is None
+    assert output_path.read_bytes() == foreign_output
+
+
 def test_restore_bind_cli_retry_recovers_after_output_publication_failure(tmp_path: Path, monkeypatch) -> None:
     import research_system.cli as cli_module
     from research_system.store.identity import load_restore_binding_evidence, load_store_manifest
@@ -398,12 +429,101 @@ def test_restore_bind_cli_retry_recovers_after_output_publication_failure(tmp_pa
         raise OSError("simulated output publication failure")
 
     monkeypatch.setattr(cli_module, "_publish_reserved_output", fail_publication)
-    with pytest.raises(OSError, match="simulated output publication failure"):
+    with pytest.raises(OSError, match="simulated output publication failure") as failure:
         main(args)
+    assert "bound-but-config-unpublished" in str(failure.value)
     assert load_store_manifest(case["target"])["control_root"] == str(case["target"].resolve())
-    assert load_restore_binding_evidence(case["target"]) is not None
+    evidence = load_restore_binding_evidence(case["target"])
+    assert evidence is not None
+    assert evidence["operation_status"] == "bound-but-config-unpublished"
+    assert evidence["expected_output_sha256"]
     assert not (tmp_path / "restored-binding.json").exists()
 
     monkeypatch.setattr(cli_module, "_publish_reserved_output", original_publish)
     assert main(args) == 0
     assert ControlBinding.load(tmp_path / "restored-binding.json").control_root == case["target"].resolve()
+
+
+def test_restore_bind_cli_rejects_retry_after_governed_grant_revocation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tests.research_system.integration.test_gate5_release_tranche import _revoke_restore_grant
+
+    case, args = _restore_cli_case(tmp_path)
+    assert main(args) == 0
+    capsys.readouterr()
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+    output_path = tmp_path / "restored-binding.json"
+    before_output = output_path.read_bytes()
+    before_events = sorted(
+        (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+        for path in (case["target"] / "events").rglob("*.jsonl")
+    )
+
+    _revoke_restore_grant(case)
+
+    with pytest.raises(ArsError, match="restore_binding_evidence_mismatch"):
+        main(args)
+    assert manifest_path.read_bytes() == before_manifest
+    assert (
+        sorted(
+            (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+            for path in (case["target"] / "events").rglob("*.jsonl")
+        )
+        == before_events
+    )
+    assert output_path.read_bytes() == before_output
+
+
+def test_restore_bind_retries_require_independent_original_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    assert main(args) == 0
+    capsys.readouterr()
+
+    foreign_source = tmp_path / "foreign-source"
+    shutil.copytree(case["source"], foreign_source)
+    foreign_manifest_path = foreign_source / "manifests" / "store-identity.json"
+    foreign_manifest = json.loads(foreign_manifest_path.read_text(encoding="utf-8"))
+    foreign_manifest["control_root"] = str(foreign_source.resolve())
+    foreign_manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in foreign_manifest.items() if key != "manifest_hash"})
+    )
+    foreign_manifest_path.write_bytes(canonical_bytes(foreign_manifest))
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["source_root"] = str(foreign_source.resolve())
+    evidence_path.write_bytes(canonical_bytes(evidence))
+
+    with pytest.raises(ArsError, match="source"):
+        main(args)
+    assert load_store_manifest_unbound(case["target"])["control_root"] == str(case["target"].resolve())
+
+
+def test_restore_bind_reports_pending_when_directory_fsync_is_unsupported(
+    tmp_path: Path,
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    before = load_store_manifest_unbound(case["target"])
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: False)
+
+    assert main(args) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "pending"
+
+    after = load_store_manifest_unbound(case["target"])
+    assert after["control_root"] == str(case["target"].resolve())
+    assert {key: value for key, value in after.items() if key not in {"control_root", "manifest_hash"}} == {
+        key: value for key, value in before.items() if key not in {"control_root", "manifest_hash"}
+    }
+    evidence = load_restore_binding_evidence(case["target"])
+    assert evidence is not None
+    assert evidence["operation_status"] == "bound-and-config-published"
+    assert evidence["durability_status"] == "pending"

@@ -35,6 +35,8 @@ TASK_RESTORE = "tsk_01978abc-5102-7000-8000-000000005102"
 RESTORE_GRANT = "agr_01978abc-5103-7000-8000-000000005103"
 RESTORE_DECISION = "arec_01978abc-5104-7000-8000-000000005104"
 RESTORE_ACTIVATION = "cmd_01978abc-5105-7000-8000-000000005105"
+RESTORE_REVOKE_DECISION = "arec_01978abc-5106-7000-8000-000000005106"
+RESTORE_REVOKE_COMMAND = "cmd_01978abc-5107-7000-8000-000000005107"
 RESTORE_ACTOR = ACTORS["actor-a"]
 RESTORE_NOW = datetime(2026, 7, 12, 12, tzinfo=UTC)
 
@@ -151,7 +153,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
     with pytest.raises(ArsError, match="restore preflight"):
         harness.service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
@@ -188,22 +190,25 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
         canonical_schema_root=code_root / ".research-system" / "schemas",
     )
     authority = LedgerAuthorityGrantResolver(source, project_id, store_identity, schemas)
-    command_identity = schemas.resolve_identity("ars://core/command/VerifyRestore", "1.0.0")
+    policy_identity = schemas.resolve_identity(
+        "ars://core/policy-action/BindRestoredControlStore",
+        "1.0.0",
+    )
     restore_grant = {
         "schema_id": "ars://core/scoped-authority-grant",
         "schema_version": "2.0.0",
         "authority_grant_id": RESTORE_GRANT,
         "actor_id": RESTORE_ACTOR,
         "allowed_actor_classes": ["human"],
-        "allowed_commands": [
+        "allowed_commands": [],
+        "allowed_policy_actions": [
             {
-                "command_type": "VerifyRestore",
-                "schema_id": command_identity.schema_id,
-                "schema_version": command_identity.schema_version,
-                "schema_sha256": command_identity.sha256,
+                "policy_action_type": "bind_restored_control_store",
+                "schema_id": policy_identity.schema_id,
+                "schema_version": policy_identity.schema_version,
+                "schema_sha256": policy_identity.sha256,
             }
         ],
-        "allowed_policy_actions": [],
         "subject_scope": {
             "project_id": project_id,
             "subject": {"kind": "project_store", "id": project_id},
@@ -441,6 +446,89 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
     }
 
 
+def _revoke_restore_grant(case) -> None:
+    """Exercise governed v2 revocation for the public restore-bind negative."""
+    from research_system.schema_registry import runtime_schema_registry
+
+    source = case["source"]
+    project_id = case["receipt"].project_id
+    store_identity = case["receipt"].store_identity
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    authority = LedgerAuthorityGrantResolver(source, project_id, store_identity, schemas)
+    context = authority.administration_context()
+    target = authority.scoped_grant_identity(case["authority_grant_id"])
+    effective_at = target.effective_at.isoformat().replace("+00:00", "Z")
+    expires_at = target.expires_at.isoformat().replace("+00:00", "Z")
+    decision = {
+        "schema_id": "ars://core/owner-authority-administration-decision",
+        "schema_version": "1.0.0",
+        "record_id": RESTORE_REVOKE_DECISION,
+        "revision": 1,
+        "project_id": project_id,
+        "store_identity": context.store_identity,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "owner_actor_id": context.owner_actor_id,
+        "action": "revoke_issued_authority_grant",
+        "target_grant_id": target.authority_grant_id,
+        "target_grant_sha256": target.authority_grant_sha256,
+        "target_grant_schema_id": target.schema_id,
+        "target_grant_schema_version": target.schema_version,
+        "target_grant_schema_sha256": target.schema_sha256,
+        "subject_scope": target.subject_scope.to_dict(),
+        "effective_at": effective_at,
+        "expires_at": expires_at,
+        "one_time_use": True,
+        "state": "active",
+        "decided_at": RESTORE_NOW.isoformat().replace("+00:00", "Z"),
+    }
+    reason = "revoke governed restore binding authority"
+    ObjectStore(source).write("assurance_record", RESTORE_REVOKE_DECISION, 1, decision)
+    command = {
+        "command_id": RESTORE_REVOKE_COMMAND,
+        "command_type": "RevokeIssuedAuthorityGrant",
+        "schema_id": "ars://core/command/RevokeIssuedAuthorityGrant",
+        "schema_version": "1.0.0",
+        "submitted_at": RESTORE_NOW.isoformat().replace("+00:00", "Z"),
+        "actor_id": context.owner_actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": context.root_grant_id,
+        "target_stream_id": target.authority_grant_id,
+        "expected_stream_version": 1,
+        "idempotency_key": "revoke-restore-binding-grant",
+        "correlation_id": "revoke-restore-binding-grant",
+        "causation_id": None,
+        "reason": reason,
+        "evidence_refs": [RESTORE_REVOKE_DECISION],
+        "project_id": project_id,
+        "payload": {
+            "project_id": project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": RESTORE_REVOKE_DECISION,
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "target_grant_id": target.authority_grant_id,
+            "target_grant_sha256": target.authority_grant_sha256,
+            "target_grant_schema_sha256": target.schema_sha256,
+            "reason": reason,
+        },
+    }
+    service = CommandService(
+        source,
+        EventLedger(source, project_id, schemas),
+        ObjectStore(source),
+        ReceiptStore(source),
+        schemas,
+        authority_resolver=authority,
+        clock=lambda: RESTORE_NOW,
+    )
+    result = service.submit(command)
+    assert result.status == "accepted", result
+    assert authority.scoped_grant_identity(target.authority_grant_id).status == "revoked"
+
+
 def _verify_restore(case, **changes):
     from research_system.operations.backups import verify_restore_before_writer_lease
 
@@ -453,9 +541,145 @@ def _verify_restore(case, **changes):
         "registry": case["registry"],
         "actor_id": case["actor_id"],
         "authority_grant_id": case["authority_grant_id"],
+        "source_root": case["source"],
     }
     values.update(changes)
     return verify_restore_before_writer_lease(**values)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "code_roots",
+        "schema_root",
+        "code_root_file",
+        "schema_root_file",
+        "target_code_root_file",
+        "target_schema_root_file",
+        "bootstrap",
+        "authority_grant",
+        "ledger",
+        "target_manifest",
+        "target_bootstrap",
+        "target_grant",
+        "target_ledger",
+    ],
+)
+def test_restore_finalization_rechecks_source_snapshot_before_manifest_replace(tmp_path, monkeypatch, mutation):
+    import research_system.store.identity as identity_module
+    from research_system.operations.backups import finalize_verified_restore_binding
+    from research_system.schema_registry import runtime_schema_registry
+
+    case = _build_restore_case(tmp_path)
+    supplied = _verify_restore(case)
+
+    def mutate_source() -> None:
+        if mutation == "target_manifest":
+            target_manifest_path = case["target"] / "manifests" / "store-identity.json"
+            target_manifest = json.loads(target_manifest_path.read_text(encoding="utf-8"))
+            target_manifest["endpoint_scheme"] = "foreign"
+            target_manifest["manifest_hash"] = sha256_hex(
+                canonical_bytes({key: value for key, value in target_manifest.items() if key != "manifest_hash"})
+            )
+            target_manifest_path.write_bytes(canonical_bytes(target_manifest))
+            return
+        if mutation.startswith("target_"):
+            target = case["target"]
+            mutation_kind = mutation.removeprefix("target_")
+        else:
+            target = case["source"]
+            mutation_kind = mutation
+        if mutation_kind == "code_root_file":
+            (case["code_root"] / "restore-binding-code-mutation.py").write_bytes(b"mutated code root\n")
+        elif mutation_kind == "schema_root_file":
+            (case["code_root"] / ".research-system" / "schemas" / "restore-binding-schema-mutation.json").write_bytes(
+                b'{"mutated":true}'
+            )
+        elif mutation_kind in {"code_roots", "schema_root"}:
+            manifest = json.loads((target / "manifests" / "store-identity.json").read_text(encoding="utf-8"))
+            if mutation_kind == "code_roots":
+                foreign_root = tmp_path / "foreign-code"
+                foreign_root.mkdir(exist_ok=True)
+                manifest["code_roots"] = [str(foreign_root.resolve())]
+            else:
+                manifest["schema_root"] = str((tmp_path / "foreign-schema").resolve())
+            manifest["manifest_hash"] = sha256_hex(
+                canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+            )
+            (target / "manifests" / "store-identity.json").write_bytes(canonical_bytes(manifest))
+        elif mutation_kind == "bootstrap":
+            bootstrap_path = target / "manifests" / "authority-bootstrap.json"
+            bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            bootstrap["owner_actor_id"] = ACTORS["actor-b"]
+            bootstrap_path.write_bytes(canonical_bytes(bootstrap))
+        elif mutation_kind in {"authority_grant", "grant"}:
+            grant_path = next((target / "objects" / "authority_grant" / RESTORE_GRANT).glob("*.json"))
+            grant = json.loads(grant_path.read_text(encoding="utf-8"))
+            grant["actor_id"] = ACTORS["actor-b"]
+            grant_path.write_bytes(canonical_bytes(grant))
+        else:
+            event_path = next((target / "events").rglob("*.jsonl"))
+            event_path.write_bytes(
+                event_path.read_bytes().replace(
+                    b'"occurred_at":null',
+                    b'"occurred_at":"2026-07-12T12:00:01Z"',
+                    1,
+                )
+            )
+
+    monkeypatch.setattr(identity_module, "_before_restore_manifest_replace", mutate_source, raising=False)
+    with pytest.raises(ArsError, match="snapshot"):
+        finalize_verified_restore_binding(
+            target_root=case["target"],
+            source_root=case["source"],
+            supplied=supplied,
+            current=supplied,
+            project_id=case["receipt"].project_id,
+            actor_id=case["actor_id"],
+            authority_grant_id=case["authority_grant_id"],
+            schema_registry=runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas"),
+            now=RESTORE_NOW,
+        )
+    assert json.loads((case["target"] / "manifests" / "store-identity.json").read_text(encoding="utf-8"))[
+        "control_root"
+    ] == str(case["source"].resolve())
+
+
+def test_proposed_verify_restore_is_not_an_active_scoped_authority_identity():
+    from research_system.authority import ScopedAuthorityGrant, validate_scoped_grant_activation
+    from research_system.schema_registry import runtime_schema_registry
+
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    command = schemas.resolve_identity("ars://core/command/VerifyRestore", "1.0.0")
+    grant = ScopedAuthorityGrant.from_dict(
+        {
+            "schema_id": "ars://core/scoped-authority-grant",
+            "schema_version": "2.0.0",
+            "authority_grant_id": "agr_01978abc-1005-7000-8000-000000001005",
+            "actor_id": ACTORS["actor-a"],
+            "allowed_actor_classes": ["human"],
+            "allowed_commands": [
+                {
+                    "command_type": "VerifyRestore",
+                    "schema_id": command.schema_id,
+                    "schema_version": command.schema_version,
+                    "schema_sha256": command.sha256,
+                }
+            ],
+            "allowed_policy_actions": [],
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "project_store", "id": PROJECT_ID},
+            },
+            "risk_ceiling": "R2",
+            "effective_at": "2026-07-12T00:00:00Z",
+            "expires_at": "2099-07-13T00:00:00Z",
+            "delegable": False,
+            "revoked": False,
+        }
+    )
+    with pytest.raises(ArsError, match="inactive"):
+        validate_scoped_grant_activation(grant, schemas, owner_actor_id=ACTORS["actor-a"])
 
 
 def test_restore_preflight_independently_verifies_moved_store_and_artifacts(tmp_path):
@@ -497,7 +721,7 @@ def test_restore_preflight_requires_current_replayed_restore_grant(tmp_path, mut
     result = _verify_restore(case)
 
     assert result.status == "diagnostic_only"
-    assert "verification_authority_mismatch" in result.failed_predicates
+    assert "source_snapshot_mismatch" in result.failed_predicates
 
 
 @pytest.mark.parametrize(
@@ -744,7 +968,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
     command["authority_grant_id"] = case["authority_grant_id"]
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(service.ledger.iter_batches()) == before_batches
     assert service.receipts.load(CMD_RESTORE) is None
     assert (

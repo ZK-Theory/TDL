@@ -5,7 +5,7 @@ import errno
 import os
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -18,6 +18,8 @@ from research_system.store.layout import (
 _IDENTITY_NAME = "store-identity.json"
 _RESTORE_BINDING_EVIDENCE_NAME = "restore-binding-evidence.json"
 _RESTORE_BINDING_PENDING_NAME = ".restore-binding-evidence.pending"
+_RESTORE_OPERATION_STATUSES = frozenset({"unbound", "bound-and-config-published", "bound-but-config-unpublished"})
+_RESTORE_DURABILITY_STATUSES = frozenset({"durable", "pending"})
 _SCHEMA_SUFFIX = Path(".research-system") / "schemas"
 SCHEMA_BINDING_VERSION = "1.0.0"
 
@@ -200,9 +202,11 @@ def _read_restore_binding_evidence(
     *,
     include_pending: bool,
 ) -> tuple[dict[str, Any] | None, Path | None]:
-    candidates = [_restore_binding_evidence_path(control_root)]
-    if include_pending:
-        candidates.append(_restore_binding_pending_path(control_root))
+    candidates = (
+        [_restore_binding_pending_path(control_root), _restore_binding_evidence_path(control_root)]
+        if include_pending
+        else [_restore_binding_evidence_path(control_root)]
+    )
     for path in candidates:
         if not path.exists():
             continue
@@ -220,8 +224,19 @@ def _read_restore_binding_evidence(
             "store_identity",
             "manifest_hash",
             "receipt_hash",
+            "source_snapshot",
+            "source_snapshot_hash",
+            "operation_status",
+            "durability_status",
+            "expected_output_bytes",
+            "expected_output_sha256",
+            "target_manifest_bytes_sha256",
         }:
             raise IntegrityError("restore binding evidence fields are invalid")
+        snapshot = value["source_snapshot"]
+        snapshot_hash = value["source_snapshot_hash"]
+        expected_output = value["expected_output_bytes"]
+        expected_output_hash = value["expected_output_sha256"]
         if (
             not isinstance(value["source_root"], str)
             or not Path(value["source_root"]).is_absolute()
@@ -234,6 +249,24 @@ def _read_restore_binding_evidence(
             or not isinstance(value["receipt_hash"], str)
             or value["receipt_hash"]
             and len(value["receipt_hash"]) != 64
+            or not isinstance(snapshot, dict)
+            or not isinstance(snapshot_hash, str)
+            or bool(snapshot)
+            and (not snapshot_hash or snapshot_hash != sha256_hex(canonical_bytes(snapshot)))
+            or not snapshot
+            and snapshot_hash
+            or not isinstance(value["operation_status"], str)
+            or value["operation_status"] not in _RESTORE_OPERATION_STATUSES
+            or not isinstance(value["durability_status"], str)
+            or value["durability_status"] not in _RESTORE_DURABILITY_STATUSES
+            or not isinstance(expected_output, str)
+            or not isinstance(expected_output_hash, str)
+            or expected_output_hash
+            and expected_output_hash != sha256_hex(expected_output.encode("utf-8"))
+            or not expected_output_hash
+            and expected_output
+            or not isinstance(value["target_manifest_bytes_sha256"], str)
+            or len(value["target_manifest_bytes_sha256"]) != 64
         ):
             raise IntegrityError("restore binding evidence values are invalid")
         if Path(value["target_root"]).resolve(strict=False) != control_root.resolve(strict=False):
@@ -251,13 +284,36 @@ def load_restore_binding_evidence(control_root: Path) -> dict[str, Any] | None:
     return value
 
 
-def _write_restore_binding_pending(control_root: Path, value: dict[str, Any]) -> None:
+def _write_restore_binding_pending(
+    control_root: Path,
+    value: dict[str, Any],
+    *,
+    replace: bool = False,
+) -> bool:
     pending = _restore_binding_pending_path(control_root)
     data = canonical_bytes(value)
-    if pending.exists():
+    if pending.exists() and not replace:
         if pending.read_bytes() != data:
             raise ConflictError("restore binding evidence conflicts with a pending retry")
-        return
+        return True
+    if pending.exists() and replace and pending.read_bytes() == data:
+        return True
+    if replace:
+        temporary = pending.with_name(f".{pending.name}.{secrets.token_hex(16)}.tmp")
+        descriptor = -1
+        try:
+            descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(descriptor, "wb") as handle:
+                descriptor = -1
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, pending)
+            return _fsync_directory(pending.parent)
+        finally:
+            if descriptor != -1:
+                os.close(descriptor)
+            temporary.unlink(missing_ok=True)
     descriptor = -1
     try:
         descriptor = os.open(pending, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -266,18 +322,22 @@ def _write_restore_binding_pending(control_root: Path, value: dict[str, Any]) ->
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        _fsync_directory(pending.parent)
+        return _fsync_directory(pending.parent)
     finally:
         if descriptor != -1:
             os.close(descriptor)
 
 
-def _publish_restore_binding_pending(control_root: Path) -> None:
+def _publish_restore_binding_pending(control_root: Path) -> bool:
     pending = _restore_binding_pending_path(control_root)
     if not pending.exists():
         raise IntegrityError("restore binding evidence is missing")
     os.replace(pending, _restore_binding_evidence_path(control_root))
-    _fsync_directory(pending.parent)
+    return _fsync_directory(pending.parent)
+
+
+def _before_restore_manifest_replace() -> None:
+    """Test seam immediately before the final source/target revalidation."""
 
 
 def rebind_restored_store(
@@ -289,6 +349,11 @@ def rebind_restored_store(
     expected_code_roots: list[Path] | None = None,
     expected_schema_root: Path | None = None,
     expected_restore_receipt_hash: str | None = None,
+    source_snapshot: dict[str, Any] | None = None,
+    expected_source_snapshot_hash: str | None = None,
+    expected_target_manifest_bytes_sha256: str | None = None,
+    expected_output: bytes | None = None,
+    source_snapshot_validator: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Atomically bind one verified restored store to its target root.
 
@@ -302,6 +367,8 @@ def rebind_restored_store(
         raise ConflictError("restored store source must differ from target")
 
     manifest_path = _manifest_path(target)
+    original_manifest_bytes = manifest_path.read_bytes()
+    original_manifest_bytes_sha256 = sha256_hex(original_manifest_bytes)
     manifest = load_store_manifest_unbound(target)
     current_value = manifest.get("control_root")
     if not isinstance(current_value, str):
@@ -344,10 +411,51 @@ def rebind_restored_store(
             raise IntegrityError("restore binding evidence identity mismatch")
         if evidence["manifest_hash"] != manifest["manifest_hash"]:
             raise IntegrityError("restore binding evidence manifest mismatch")
+        if evidence["target_manifest_bytes_sha256"] != original_manifest_bytes_sha256:
+            raise IntegrityError("restore binding evidence target manifest mismatch")
         if expected_restore_receipt_hash is not None and evidence["receipt_hash"] != expected_restore_receipt_hash:
             raise ConflictError("restore receipt binding mismatch")
+        if expected_source_snapshot_hash is not None:
+            if evidence["source_snapshot_hash"] != expected_source_snapshot_hash:
+                raise ConflictError("restore source snapshot binding mismatch")
+            if (
+                source_snapshot is not None
+                and sha256_hex(canonical_bytes(source_snapshot)) != expected_source_snapshot_hash
+            ):
+                raise ConflictError("restore source snapshot hash mismatch")
+        if expected_output is not None:
+            expected_output_text = expected_output.decode("utf-8")
+            if (
+                evidence["expected_output_sha256"] != sha256_hex(expected_output)
+                or evidence["expected_output_bytes"] != expected_output_text
+            ):
+                raise ConflictError("restore output binding mismatch")
+        if source_snapshot_validator is not None:
+            source_snapshot_validator()
+        if evidence["operation_status"] == "unbound":
+            evidence["operation_status"] = (
+                "bound-and-config-published"
+                if not evidence["expected_output_sha256"]
+                else "bound-but-config-unpublished"
+            )
+        if evidence["durability_status"] == "pending":
+            manifest_durable = _fsync_directory(manifest_path.parent)
+            evidence["durability_status"] = "durable" if manifest_durable else "pending"
+            evidence_durable = _write_restore_binding_pending(
+                target,
+                evidence,
+                replace=evidence_path == _restore_binding_pending_path(target),
+            )
+            if not evidence_durable:
+                evidence["durability_status"] = "pending"
+                _write_restore_binding_pending(target, evidence, replace=True)
+            evidence_path = _restore_binding_pending_path(target)
         if evidence_path != _restore_binding_evidence_path(target):
-            _publish_restore_binding_pending(target)
+            publication_durable = _publish_restore_binding_pending(target)
+            if not publication_durable:
+                evidence["durability_status"] = "pending"
+                _write_restore_binding_pending(target, evidence, replace=True)
+                _publish_restore_binding_pending(target)
         return manifest
 
     rebound = dict(manifest)
@@ -358,6 +466,14 @@ def rebind_restored_store(
     ):
         raise IntegrityError("restore rebind changed manifest fields")
     data = canonical_bytes(rebound)
+    expected_output_text = expected_output.decode("utf-8") if expected_output is not None else ""
+    source_snapshot_value = source_snapshot or {}
+    source_snapshot_hash = expected_source_snapshot_hash or (
+        sha256_hex(canonical_bytes(source_snapshot_value)) if source_snapshot else ""
+    )
+    if expected_source_snapshot_hash is not None:
+        if source_snapshot is None or sha256_hex(canonical_bytes(source_snapshot)) != expected_source_snapshot_hash:
+            raise ConflictError("restore source snapshot hash mismatch")
     evidence = {
         "source_root": str(source),
         "target_root": str(target),
@@ -365,6 +481,13 @@ def rebind_restored_store(
         "store_identity": str(manifest["store_identity"]),
         "manifest_hash": rebound["manifest_hash"],
         "receipt_hash": expected_restore_receipt_hash or "",
+        "source_snapshot": source_snapshot_value,
+        "source_snapshot_hash": source_snapshot_hash,
+        "operation_status": "bound-and-config-published" if expected_output is None else "bound-but-config-unpublished",
+        "durability_status": "pending",
+        "expected_output_bytes": expected_output_text,
+        "expected_output_sha256": sha256_hex(expected_output) if expected_output is not None else "",
+        "target_manifest_bytes_sha256": sha256_hex(data),
     }
     temporary = manifest_path.with_name(f".{manifest_path.name}.{secrets.token_hex(16)}.tmp")
     descriptor = -1
@@ -377,10 +500,27 @@ def rebind_restored_store(
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+        _before_restore_manifest_replace()
+        if source_snapshot_validator is not None:
+            source_snapshot_validator()
+        if (
+            expected_target_manifest_bytes_sha256 is not None
+            and original_manifest_bytes_sha256 != expected_target_manifest_bytes_sha256
+        ):
+            raise ConflictError("target manifest changed before restore binding")
         os.replace(temporary, manifest_path)
         published = True
-        _fsync_directory(manifest_path.parent)
-        _publish_restore_binding_pending(target)
+        manifest_durable = _fsync_directory(manifest_path.parent)
+        evidence["durability_status"] = "durable" if manifest_durable else "pending"
+        evidence_durable = _write_restore_binding_pending(target, evidence, replace=True)
+        if not evidence_durable:
+            evidence["durability_status"] = "pending"
+            _write_restore_binding_pending(target, evidence, replace=True)
+        publication_durable = _publish_restore_binding_pending(target)
+        if not publication_durable:
+            evidence["durability_status"] = "pending"
+            _write_restore_binding_pending(target, evidence, replace=True)
+            _publish_restore_binding_pending(target)
     finally:
         if descriptor != -1:
             os.close(descriptor)
@@ -388,6 +528,51 @@ def rebind_restored_store(
         if not published:
             _restore_binding_pending_path(target).unlink(missing_ok=True)
     return rebound
+
+
+def complete_restore_binding_output(
+    control_root: Path,
+    output_path: Path,
+    expected_output: bytes,
+    *,
+    directory_durable: bool = True,
+) -> dict[str, Any]:
+    """Complete the durable config side of a committed restore binding."""
+    target = control_root.resolve(strict=True)
+    evidence, evidence_path = _read_restore_binding_evidence(target, include_pending=True)
+    if evidence is None:
+        raise IntegrityError("restore binding evidence is missing")
+    expected_text = expected_output.decode("utf-8")
+    expected_hash = sha256_hex(expected_output)
+    if evidence["expected_output_sha256"] != expected_hash or evidence["expected_output_bytes"] != expected_text:
+        raise ConflictError("restore output binding mismatch")
+    output = output_path.resolve(strict=False)
+    if not output.is_file():
+        raise ArsError(f"restore binding status=bound-but-config-unpublished; expected output sha256={expected_hash}")
+    try:
+        actual = output.read_bytes()
+    except OSError as exc:
+        raise ArsError(
+            f"restore binding status=bound-but-config-unpublished; expected output sha256={expected_hash}"
+        ) from exc
+    if actual != expected_output:
+        raise ConflictError(
+            f"restore binding status=bound-but-config-unpublished; expected output sha256={expected_hash}"
+        )
+    output_directory_durable = _fsync_directory(output.parent)
+    output_durable = directory_durable and output_directory_durable
+    evidence["operation_status"] = "bound-and-config-published"
+    evidence["durability_status"] = "durable" if output_durable else "pending"
+    if evidence_path != _restore_binding_pending_path(target):
+        _write_restore_binding_pending(target, evidence)
+    else:
+        _write_restore_binding_pending(target, evidence, replace=True)
+    publication_durable = _publish_restore_binding_pending(target)
+    if not publication_durable:
+        evidence["durability_status"] = "pending"
+        _write_restore_binding_pending(target, evidence, replace=True)
+        _publish_restore_binding_pending(target)
+    return evidence
 
 
 def verify_store_identity(

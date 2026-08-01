@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/policy-action/BindRestoredControlStore",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_action_type",
+    "project_id",
+    "actor_id",
+    "actor_class",
+    "authority_grant_id",
+    "subject_scope",
+    "required_risk",
+    "action_at",
+    "source_root",
+    "source_store_identity",
+    "source_code_roots",
+    "source_code_roots_sha256",
+    "source_schema_root",
+    "source_schema_root_sha256",
+    "source_snapshot_sha256",
+    "target_root",
+    "target_store_identity",
+    "target_code_roots",
+    "target_code_roots_sha256",
+    "target_schema_root",
+    "target_schema_root_sha256",
+    "target_manifest_bytes_sha256",
+    "config_output_sha256"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/policy-action/BindRestoredControlStore"},
+    "schema_version": {"const": "1.0.0"},
+    "policy_action_type": {"const": "bind_restored_control_store"},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_class": {"enum": ["human", "agent", "service"]},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"const": "project_store"},
+        "id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+      },
+      "additionalProperties": false
+    },
+    "required_risk": {"const": "R2"},
+    "action_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "source_root": {"type": "string", "minLength": 1},
+    "source_store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_code_roots": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "source_code_roots_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_schema_root": {"type": "string", "minLength": 1},
+    "source_schema_root_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_root": {"type": "string", "minLength": 1},
+    "target_store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_code_roots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "target_code_roots_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_schema_root": {"type": "string", "minLength": 1},
+    "target_schema_root_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_manifest_bytes_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "config_output_sha256": {"type": "string", "pattern": "^(?:[0-9a-f]{64})?$"}
+  },
+  "additionalProperties": false
+}

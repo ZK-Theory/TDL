@@ -125,7 +125,6 @@ _SCOPED_SUBJECT_PREFIXES = {
 }
 _SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
 _SCOPED_COMMAND_SUBJECT_KINDS = {
-    "VerifyRestore": "project_store",
     "CreateScopeDefinition": "scope_definition",
     "AmendScopeDefinition": "scope_definition",
     "SupersedeScopeDefinition": "scope_definition",
@@ -135,6 +134,7 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",
+    "bind_restored_control_store": "project_store",
 }
 _R3_ASSURANCE_POLICY_ACTION = "accept_r3_assurance_requirement"
 _SEMANTIC_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -480,12 +480,9 @@ def validate_scoped_grant_activation(
         binding = schema_registry.command_binding(identity.command_type)
         expected_subject_kind = _SCOPED_COMMAND_SUBJECT_KINDS.get(identity.command_type)
         if (
-            (binding is None and identity.command_type != "VerifyRestore")
+            binding is None
             or expected_subject_kind != grant.subject_scope.subject_kind
-            or (
-                binding is not None
-                and (binding.schema_id, binding.schema_version) != (identity.schema_id, identity.schema_version)
-            )
+            or (binding.schema_id, binding.schema_version) != (identity.schema_id, identity.schema_version)
         ):
             raise ArsError("scoped authority command identity is inactive or has the wrong subject kind")
         try:
@@ -1924,9 +1921,9 @@ class LedgerAuthorityGrantResolver:
     ) -> ScopedAuthorityGrantResolution:
         """Resolve one exact command identity against an active scoped grant."""
         binding = self.schema_registry.command_binding(command.command_type)
-        if binding is None and command.command_type != "VerifyRestore":
+        if binding is None:
             raise ArsError("authority command schema is not active")
-        if binding is not None and (binding.schema_id, binding.schema_version) != (
+        if (binding.schema_id, binding.schema_version) != (
             command.schema_id,
             command.schema_version,
         ):
