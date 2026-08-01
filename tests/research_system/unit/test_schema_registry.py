@@ -382,6 +382,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         producer_command_type="RevokeIssuedAuthorityGrant",
     )
     assert registry.event_binding("AuthorityGrantActivated", "WrongProducer") is None
+    assert registry.event_binding("AuthorityGrantActivated", None) is None
     assert registry.has_producer_bindings("AuthorityGrantActivated")
     assert registry.is_active("ars://core/scoped-authority-grant", "2.0.0")
     assert registry.is_active(

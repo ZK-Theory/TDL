@@ -31,6 +31,22 @@ _ALLOWED_DISPOSITIONS = frozenset(
     }
 )
 
+_SCOPED_AUTHORITY_GRANT_SCHEMA = "ars://core/scoped-authority-grant"
+_SCOPED_AUTHORITY_GRANT_VERSION = "2.0.0"
+
+
+def _reject_legacy_revocation_of_typed_grant(
+    current: dict[str, Any],
+) -> None:
+    if "schema_id" not in current and "schema_version" not in current:
+        return
+    if (
+        current.get("schema_id") == _SCOPED_AUTHORITY_GRANT_SCHEMA
+        and current.get("schema_version") == _SCOPED_AUTHORITY_GRANT_VERSION
+    ):
+        raise IntegrityError("legacy authority revocation cannot target scoped grant")
+    raise IntegrityError("legacy authority revocation cannot target typed grant with unknown schema marker")
+
 
 def _validate_active_lifecycle_binding(
     event: dict[str, Any],
@@ -349,8 +365,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 raise IntegrityError("authority revocation project mismatch")
             if current is None or current["status"] != "active":
                 raise IntegrityError("authority revocation requires active grant")
-            if "schema_id" in current:
-                raise IntegrityError("legacy authority revocation cannot target scoped grant")
+            _reject_legacy_revocation_of_typed_grant(current)
             if (
                 payload.get("target_grant_id") != stream_id
                 or payload.get("target_grant_sha256") != current["authority_grant_sha256"]

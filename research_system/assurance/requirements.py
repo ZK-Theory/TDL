@@ -88,7 +88,7 @@ class LedgerBackedAuthorityPolicy:
 
         Args:
             actor_id: Actor whose authority is in question.
-            action: Assurance action, resolved as the grant's allowed command type.
+            action: Assurance action, resolved as the grant's allowed policy-action type.
 
         Returns:
             ``True`` only when a grant resolves for that exact actor, action, and subject scope.

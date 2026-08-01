@@ -32,7 +32,7 @@
     "record_id": {"type": "string", "pattern": "^arec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "revision": {"const": 1},
     "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "store_identity": {"type": "string", "minLength": 1},
+    "store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "root_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

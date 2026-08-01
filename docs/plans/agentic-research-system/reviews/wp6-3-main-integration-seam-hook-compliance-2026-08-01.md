@@ -20,16 +20,14 @@ ancestry, blob, decision-register, protected-hash, or path-count evidence. It is
 nevertheless a process defect and is recorded rather than hidden or rewritten
 out of branch history.
 
-## Corrective path
+## Corrective path — completed
 
-This addendum is the sole content change in the corrective commit. That commit
-must be created through the repository's normal `git commit -F` path, without
-`--no-verify`, and allowed to finish. A zero exit from that command establishes
-the final candidate tree through the configured pre-commit and commit-message
-gates. The configured pre-commit path checks skill-tree synchronization, Ruff
-when available, and the contract-binding suite; the commit-message hook checks
-the project prefix. The non-blocking post-commit hook is not acceptance
-evidence.
+Commit `570468d5747043fc0f5268ff7ac961e305ebc80b` is the completed corrective
+commit. Git proves that it descends from `1e2b048a8de2e6d3257742a2521eb974d68ac6e3`
+and that this addendum is its sole changed path. It was created through the
+normal `git commit -F` path without `--no-verify`. The repository does not
+retain a hook-output transcript, so this record claims no separate hook exit
+status beyond the committed Git evidence.
 
 The corrective commit does not reinterpret or extend the integration review.
 It adds no owner acceptance, live authority grant, external-store record,
