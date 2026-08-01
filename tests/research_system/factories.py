@@ -5,7 +5,8 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+import uuid
+from typing import Any, Callable
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
@@ -27,7 +28,7 @@ from research_system.evals.release_snapshot import (
     rederive_release_from_snapshot,
 )
 from research_system.errors import ArsError
-from research_system.schema_registry import runtime_schema_registry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -137,7 +138,7 @@ class ControlPlaneHarness:
     ledger: EventLedger
     objects: ObjectStore
     receipts: ReceiptStore
-    schemas: Any
+    schemas: SchemaRegistry
     authority_root: Path
     authority_ledger: EventLedger
     authority_objects: ObjectStore
@@ -156,6 +157,14 @@ def scoped_lifecycle_grant_id(subject_id: str) -> str:
 
 def _prefixed_identity(prefix: str, source_id: str) -> str:
     return f"{prefix}_{source_id.split('_', 1)[1]}"
+
+
+def _revocation_decision_id(grant_id: str) -> str:
+    """Derive a deterministic, registered assurance-record ID for revocation."""
+    raw = bytearray.fromhex(sha256_hex(f"revoke:{grant_id}".encode("utf-8"))[:32])
+    raw[6] = (raw[6] & 0x0F) | 0x70
+    raw[8] = (raw[8] & 0x3F) | 0x80
+    return f"arec_{uuid.UUID(bytes=bytes(raw))}"
 
 
 def activate_lifecycle_grant(
@@ -281,10 +290,12 @@ def revoke_lifecycle_grant(
     harness: ControlPlaneHarness,
     *,
     subject_id: str,
-    decision_id: str = "arec_01978abc-7301-7000-8000-000000007301",
+    decision_id: str | None = None,
 ) -> str:
     """Revoke one issued lifecycle grant through the governed authority ledger."""
     grant_id = scoped_lifecycle_grant_id(subject_id)
+    if decision_id is None:
+        decision_id = _revocation_decision_id(grant_id)
     resolution = harness.authority_resolver.scoped_grant_identity(grant_id)
     context = harness.authority_resolver.administration_context()
     decision = {
@@ -367,9 +378,15 @@ class _GovernedTestCommandService(CommandService):
         return super()._resolve_lifecycle_authority(command, command_schema, snapshot)
 
 
-def control_plane(tmp_path: Path, *, auto_authority: bool = True) -> ControlPlaneHarness:
+def control_plane(
+    tmp_path: Path,
+    *,
+    auto_authority: bool = True,
+    clock: Callable[[], datetime] | None = None,
+) -> ControlPlaneHarness:
     root = tmp_path / "control"
     root.mkdir()
+    clock = clock or (lambda: datetime(2026, 8, 1, tzinfo=UTC))
     schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     authority_root = root.parent / f".{root.name}.authority"
     bootstrap = authority_bootstrap()
@@ -396,7 +413,7 @@ def control_plane(tmp_path: Path, *, auto_authority: bool = True) -> ControlPlan
         authority_receipts,
         schemas,
         authority_resolver=authority_resolver,
-        clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
+        clock=clock,
     )
     ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas)
     objects = ObjectStore(root)
@@ -408,6 +425,7 @@ def control_plane(tmp_path: Path, *, auto_authority: bool = True) -> ControlPlan
         receipts,
         schemas,
         authority_resolver=authority_resolver,
+        clock=clock,
     )
     harness = ControlPlaneHarness(
         service,
@@ -432,6 +450,7 @@ def control_plane(tmp_path: Path, *, auto_authority: bool = True) -> ControlPlan
                 receipts,
                 schemas,
                 authority_resolver=authority_resolver,
+                clock=clock,
                 authority_harness=harness,
             ),
         )

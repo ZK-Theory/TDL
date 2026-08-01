@@ -1707,9 +1707,14 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority subject scope mismatch")
         return result
 
-    def administration_context(self) -> AuthorityAdministrationContext:
+    def administration_context(
+        self,
+        *,
+        projection: dict[str, Any] | None = None,
+    ) -> AuthorityAdministrationContext:
         """Read the verified, store-bound owner administration trust anchor."""
-        projection = self._projection()
+        if projection is None:
+            projection = self._projection()
         return self._administration_context_from_projection(
             projection,
         )
@@ -1859,9 +1864,12 @@ class LedgerAuthorityGrantResolver:
     def scoped_grant_identity(
         self,
         grant_id: str,
+        *,
+        projection: dict[str, Any] | None = None,
     ) -> ScopedAuthorityGrantResolution:
         """Resolve immutable v2 grant identity without claiming current authority."""
-        projection = self._projection()
+        if projection is None:
+            projection = self._projection()
         result, _, _ = self._scoped_resolution(grant_id, projection)
         return result
 
@@ -1917,6 +1925,8 @@ class LedgerAuthorityGrantResolver:
         subject_kind: str,
         subject_id: str,
         now: datetime,
+        *,
+        projection: dict[str, Any] | None = None,
     ) -> ScopedAuthorityGrantResolution:
         """Resolve one exact command identity against an active scoped grant."""
         binding = self.schema_registry.command_binding(command.command_type)
@@ -1942,6 +1952,7 @@ class LedgerAuthorityGrantResolver:
             subject_kind,
             subject_id,
             now,
+            projection=projection,
         )
         if identity.sha256 != command.schema_sha256 or command not in grant.allowed_commands:
             raise ArsError("authority command identity mismatch")

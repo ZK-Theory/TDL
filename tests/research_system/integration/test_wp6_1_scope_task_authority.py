@@ -8,6 +8,7 @@ import json
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
@@ -183,6 +184,8 @@ def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path, monkeypat
     retry = _submit(harness, command)
 
     assert receipt.status == "rejected"
+    assert receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert receipt.explanation == "authority command denied"
     assert retry == receipt
     assert len(calls) == 2
     call = calls[0]
@@ -745,6 +748,71 @@ def test_authority_evidence_is_durable_for_retry_and_conflicts_on_change(tmp_pat
     assert tuple(harness.ledger.iter_events()) == before_retry_events
 
 
+def test_default_revocation_decision_ids_are_unique_per_grant(tmp_path):
+    harness = control_plane(tmp_path)
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_B,
+    )
+
+    revoke_lifecycle_grant(harness, subject_id=TASK_A)
+    revoke_lifecycle_grant(harness, subject_id=TASK_B)
+
+    records = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in (harness.authority_root / "objects" / "assurance_record").rglob("*.json")
+    ]
+    revocations = [record for record in records if record.get("action") == "revoke_issued_authority_grant"]
+    assert len(revocations) == 2
+    assert len({record["record_id"] for record in revocations}) == 2
+    assert all(record["record_id"].startswith("arec_") for record in revocations)
+
+
+def test_control_plane_clock_override_is_shared_by_domain_and_authority_services(tmp_path):
+    expected = datetime(2031, 1, 1, tzinfo=UTC)
+    harness = control_plane(tmp_path, clock=lambda: expected)
+
+    assert harness.service.clock() == expected
+    assert harness.authority_service.clock() == expected
+
+
+def test_lifecycle_submit_reuses_one_authority_projection(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7247-7000-8000-000000007247",
+        "authority-projection-reuse",
+        TASK_A,
+        {"title": "Projection reuse"},
+    )
+    command["authority_grant_id"] = grant_id
+    resolver = harness.authority_resolver
+    original_projection = resolver._projection
+    calls = 0
+
+    def counted_projection():
+        nonlocal calls
+        calls += 1
+        return original_projection()
+
+    monkeypatch.setattr(resolver, "_projection", counted_projection)
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == "accepted"
+    assert calls == 1
+    assert tuple(harness.ledger.iter_events())
+
+
 def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     command = create_task_command(
@@ -761,9 +829,9 @@ def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_
     canonical_calls: list[str] = []
     original_identity = resolver.scoped_grant_identity
 
-    def record_canonical_identity(requested_grant_id: str):
+    def record_canonical_identity(requested_grant_id: str, **kwargs):
         canonical_calls.append(requested_grant_id)
-        return original_identity(requested_grant_id)
+        return original_identity(requested_grant_id, **kwargs)
 
     monkeypatch.setattr(resolver, "scoped_grant_identity", record_canonical_identity)
     index_paths = tuple(harness.receipts.index_root.glob("*.json"))
@@ -781,10 +849,19 @@ def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_
     assert tuple(harness.ledger.iter_events()) == before_events
 
 
-@pytest.mark.parametrize("failure", ["missing", "tampered", "ambiguous", "hash-mismatched"])
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        ("missing", "object revision must resolve exactly once"),
+        ("tampered", "object revision filename hash mismatch"),
+        ("ambiguous", "object revision must resolve exactly once"),
+        ("hash-mismatched", "owner authority administration decision evidence mismatch"),
+    ],
+)
 def test_missing_lifecycle_index_fails_closed_without_canonical_authority_evidence(
     tmp_path,
     failure,
+    reason,
 ):
     harness = control_plane(tmp_path)
     command = create_task_command(
@@ -815,16 +892,28 @@ def test_missing_lifecycle_index_fails_closed_without_canonical_authority_eviden
             for path in (harness.authority_root / "events" / PROJECT_ID).rglob("*.jsonl")
             if '"ActivateAuthorityGrant"' in path.read_text(encoding="utf-8")
         )
-        activation = json.loads(activation_path.read_text(encoding="utf-8"))
-        activation["payload"]["new_grant_sha256"] = "f" * 64
+        original_lines = activation_path.read_bytes().splitlines(keepends=True)
+        activation_path.write_bytes(b"".join((*original_lines, b"\n")))
+        lines = activation_path.read_bytes().splitlines(keepends=True)
+        target_index = next(index for index, line in enumerate(lines) if b'"ActivateAuthorityGrant"' in line)
+        activation = json.loads(lines[target_index].decode("utf-8"))
+        activation["payload"]["activated_grant_sha256"] = "f" * 64
         activation.pop("event_hash")
         activation["event_hash"] = sha256_hex(canonical_bytes(activation))
-        activation_path.write_bytes(canonical_bytes(activation) + b"\n")
+        line_ending = b"\r\n" if lines[target_index].endswith(b"\r\n") else b"\n"
+        lines[target_index] = canonical_bytes(activation) + line_ending
+        activation_path.write_bytes(b"".join(lines))
+        assert len(lines) == len(original_lines) + 1
+        assert all(
+            line == before
+            for index, (line, before) in enumerate(zip(lines, [*original_lines, b"\n"]))
+            if index != target_index
+        )
     before = _domain_snapshot(harness)
     before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
     restarted = _restarted_service(harness)
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError, match=reason):
         restarted.submit(command)
 
     assert _domain_snapshot(harness) == before
@@ -861,6 +950,42 @@ def test_lifecycle_resolution_hash_must_match_canonical_history_before_append(tm
 
     assert _domain_snapshot(harness) == before
     assert not tuple(harness.receipts.index_root.glob("*.json"))
+
+
+def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_path):
+    harness = control_plane(tmp_path)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7248-7000-8000-000000007248",
+        "authority-independent-hash",
+        TASK_A,
+        {"title": "Independent hash"},
+    )
+    command["authority_grant_id"] = grant_id
+    first = harness.service.submit(command)
+    assert first.status == "accepted"
+    event = tuple(harness.ledger.iter_events())[-1]
+    command_schema = harness.service.schemas.resolve_identity(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+    )
+    canonical = harness.service._canonical_lifecycle_resolution(grant_id)
+    forged = {**canonical, "authority_grant_sha256": "f" * 64}
+    projection = harness.authority_resolver._projection()
+
+    with pytest.raises(IntegrityError, match="canonical grant hash"):
+        harness.service._validate_lifecycle_authority_history(
+            Command(command),
+            command_schema=command_schema,
+            receipt=first,
+            resolution=forged,
+            event=event,
+            authority_projection=projection,
+        )
 
 
 def test_restart_rejects_currently_expired_lifecycle_grant(tmp_path):

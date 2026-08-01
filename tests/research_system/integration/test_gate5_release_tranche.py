@@ -8,6 +8,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command import service as service_module
 from research_system.command.models import Command
 from research_system.errors import ArsError, SchemaError
+from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry
 from research_system.store.ledger import EventLedger
@@ -26,6 +27,28 @@ from tests.research_system.factories import (
 
 CMD_RESTORE = "cmd_01978abc-5101-7000-8000-000000005101"
 TASK_RESTORE = "tsk_01978abc-5102-7000-8000-000000005102"
+
+
+def test_release_tranche_fails_closed_when_a_command_binding_is_missing(tmp_path, monkeypatch):
+    schemas = cached_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    original_binding = schemas.command_binding
+
+    def missing_binding(command_type):
+        if command_type == "CreateTask":
+            return None
+        return original_binding(command_type)
+
+    monkeypatch.setattr(schemas, "command_binding", missing_binding)
+
+    with pytest.raises(ArsError, match="missing active command binding: CreateTask"):
+        release_tranche._real_lifecycle_service(
+            tmp_path / "release-control",
+            schemas,
+            project_id=PROJECT_ID,
+            actor_id=ACTORS["actor-a"],
+            task_ids=[TASK_RESTORE],
+            command_types=("CreateTask",),
+        )
 
 
 def test_restore_preflight_status_is_biconditional_with_failed_predicates():

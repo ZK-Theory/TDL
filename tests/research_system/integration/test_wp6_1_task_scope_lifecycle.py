@@ -1016,6 +1016,7 @@ def test_project_binding_precedes_committed_idempotency_reconstruction(
     foreign_receipt = harness.service.submit(foreign_retry)
     assert foreign_receipt.status == "rejected"
     assert foreign_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert foreign_receipt.explanation == "authority subject scope mismatch"
 
     assert accepted.status == "accepted"
     assert tuple(harness.ledger.iter_events()) == before_events

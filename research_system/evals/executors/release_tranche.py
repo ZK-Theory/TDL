@@ -13,7 +13,7 @@ from research_system.authority import (
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
-from research_system.schema_registry import runtime_schema_registry
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -88,7 +88,7 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
 
 def _real_lifecycle_service(
     root: Path,
-    schemas,
+    schemas: SchemaRegistry,
     *,
     project_id: str,
     actor_id: str,
@@ -186,6 +186,8 @@ def _real_lifecycle_service(
         command_identities = []
         for command_type in command_types:
             binding = schemas.command_binding(command_type)
+            if binding is None:
+                raise ArsError(f"missing active command binding: {command_type}")
             identity = schemas.resolve_identity(binding.schema_id, binding.schema_version)
             command_identities.append(
                 {

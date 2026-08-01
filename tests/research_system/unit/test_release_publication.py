@@ -271,13 +271,27 @@ def canonical_publication_plane(tmp_path):
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     objects = ObjectStore(control_root)
     receipts = ReceiptStore(control_root)
-    service = CommandService(control_root, ledger, objects, receipts, schemas)
+    authority_resolver = LedgerAuthorityGrantResolver(
+        control_root,
+        PROJECT_ID,
+        identity,
+        schemas,
+    )
+    service = CommandService(
+        control_root,
+        ledger,
+        objects,
+        receipts,
+        schemas,
+        authority_resolver=authority_resolver,
+    )
     return SimpleNamespace(
         service=service,
         ledger=ledger,
         objects=objects,
         receipts=receipts,
         identity=identity,
+        authority_resolver=authority_resolver,
         authority_hash=bootstrap["publication_grant_sha256"],
     )
 
@@ -290,6 +304,21 @@ def canonical_publication_command(harness, command_id: str = COMMAND_ID) -> dict
         "publication_authority_sha256": harness.authority_hash,
     }
     return command
+
+
+def _stub_publication_resolver(
+    resolver: LedgerAuthorityGrantResolver,
+    authority_hash: str,
+) -> LedgerAuthorityGrantResolver:
+    resolver.resolve = lambda *_args, **_kwargs: SimpleNamespace(authority_grant_sha256=authority_hash)
+    return resolver
+
+
+def _use_stub_publication_authority(harness, authority_hash: str) -> None:
+    harness.service.authority_resolver = _stub_publication_resolver(
+        harness.authority_resolver,
+        authority_hash,
+    )
 
 
 def revoke_publication_command(harness) -> dict:
@@ -989,9 +1018,7 @@ def test_captured_release_draft_rejects_cross_ledger_and_reuse(
     second_root.mkdir()
     first = control_plane(first_root)
     second = control_plane(second_root)
-    first.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(first, "a" * 64)
     first.service.release_publication_evidence = evidence_resolver()
     captured = []
     consume = ledger_module._consume_release_draft
@@ -1017,9 +1044,7 @@ def test_stale_release_append_leaves_no_issuance_state_and_retry_succeeds(
     monkeypatch,
 ) -> None:
     harness = control_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(harness, "a" * 64)
     harness.service.release_publication_evidence = evidence_resolver()
     persisted_tail = harness.ledger._persisted_tail
     stale_once = [True]
@@ -1073,8 +1098,12 @@ def test_release_append_requires_exact_registered_release_schema(tmp_path) -> No
         ReceiptStore(control_root),
         schemas,
     )
-    service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
+    authority_root = tmp_path / "authority"
+    authority_root.mkdir()
+    authority_harness = canonical_publication_plane(authority_root)
+    service.authority_resolver = _stub_publication_resolver(
+        authority_harness.authority_resolver,
+        "a" * 64,
     )
     service.release_publication_evidence = evidence_resolver()
     with pytest.raises(SchemaError, match="ReleaseGateDecisionPublished"):
@@ -1083,7 +1112,7 @@ def test_release_append_requires_exact_registered_release_schema(tmp_path) -> No
     assert list(control_root.rglob("*.jsonl")) == []
 
 
-def test_valid_publication_request_fails_closed_without_authorizer(tmp_path) -> None:
+def test_publication_envelope_binding_mismatch_fails_closed(tmp_path) -> None:
     harness = control_plane(tmp_path)
     receipt = harness.service.submit(publication_command())
     assert receipt.status == "rejected"
@@ -1091,13 +1120,25 @@ def test_valid_publication_request_fails_closed_without_authorizer(tmp_path) -> 
     assert tuple(harness.ledger.iter_events()) == ()
 
 
+def test_valid_publication_request_fails_closed_without_authorizer(tmp_path) -> None:
+    harness = canonical_publication_plane(tmp_path)
+    harness.service.authority_resolver = None
+    before_events = tuple(harness.ledger.iter_events())
+
+    receipt = harness.service.submit(canonical_publication_command(harness))
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "release_publication_authorizer_unavailable"
+    assert receipt.explanation == "Release publication requires the canonical authority resolver."
+    assert receipt.event_batch_id is None
+    assert tuple(harness.ledger.iter_events()) == before_events
+
+
 def test_authorized_verified_command_publishes_one_self_referential_event(
     tmp_path,
 ) -> None:
     harness = control_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(harness, "a" * 64)
     harness.service.release_publication_evidence = evidence_resolver()
     receipt = harness.service.submit(publication_command())
     assert receipt.status == "accepted"
@@ -1126,9 +1167,7 @@ def test_authority_store_init_is_idempotent_after_release_publication(
     tmp_path,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     assert harness.service.submit(canonical_publication_command(harness)).status == ("accepted")
     bootstrap = authority_bootstrap()
@@ -1149,9 +1188,7 @@ def test_rejected_exact_retry_with_new_command_id_returns_original_outcome(
 ) -> None:
     harness = control_plane(tmp_path)
     original = harness.service.submit(publication_command())
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(harness, "a" * 64)
     harness.service.release_publication_evidence = evidence_resolver()
     retry = publication_command("cmd_01978abc-2006-7000-8000-000000002006")
     assert harness.service.submit(retry) == original
@@ -1180,9 +1217,7 @@ def test_accepted_exact_retry_with_new_command_id_returns_original_event(
     tmp_path,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     original = harness.service.submit(canonical_publication_command(harness))
     retry = canonical_publication_command(harness, "cmd_01978abc-2009-7000-8000-000000002009")
@@ -1417,9 +1452,7 @@ def test_replay_requires_schema_validation_and_rejects_self_reference_tamper(
     tmp_path,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(canonical_publication_command(harness))
     events = list(harness.ledger.iter_events())
@@ -1452,9 +1485,7 @@ def test_replay_rejects_release_source_and_chain_tamper(
     message,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(canonical_publication_command(harness))
     events = [deepcopy(item) for item in harness.ledger.iter_events()]
@@ -1575,7 +1606,8 @@ def test_authority_failures_return_stable_unauthorized_receipts(
     def reject(*_args):
         raise ArsError(failure)
 
-    harness.service.authority_resolver = SimpleNamespace(resolve=reject)
+    harness.authority_resolver.resolve = reject
+    harness.service.authority_resolver = harness.authority_resolver
     harness.service.release_publication_evidence = evidence_resolver()
     receipt = harness.service.submit(publication_command())
     assert receipt.status == "rejected"
@@ -1598,9 +1630,7 @@ def test_foreign_project_binding_is_a_stable_rejection(tmp_path) -> None:
 
 def test_stale_expected_version_conflicts_without_append(tmp_path) -> None:
     harness = control_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(harness, "a" * 64)
     harness.service.release_publication_evidence = evidence_resolver()
     command = publication_command()
     command["expected_stream_version"] = 1
@@ -1613,9 +1643,7 @@ def test_stale_expected_version_conflicts_without_append(tmp_path) -> None:
 
 def test_distinct_command_cannot_republish_existing_decision(tmp_path) -> None:
     harness = control_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
-    )
+    _use_stub_publication_authority(harness, "a" * 64)
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(publication_command())
     second = publication_command("cmd_01978abc-2012-7000-8000-000000002012")
@@ -1635,9 +1663,7 @@ def test_index_first_receipt_crash_recovers_exactly_one_publication(
     monkeypatch,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     original_write = harness.receipts.write
     monkeypatch.setattr(
@@ -1661,9 +1687,7 @@ def test_concurrent_exact_publications_serialize_to_one_original_receipt(
     monkeypatch,
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
-    harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
-    )
+    _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
     entered = threading.Event()
     release = threading.Event()
