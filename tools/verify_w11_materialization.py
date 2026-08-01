@@ -9,6 +9,7 @@ authority.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -26,6 +27,17 @@ from research_system.schema_registry import SchemaRegistry
 
 
 W11_MATERIALIZATION_BASE = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
+W11_FOUNDATION_COMMIT = "21e91d926ca3964f46c45024796cb1c16532ee00"
+W11_SPECIFICATION_COMMIT = "892d1d1650cdcf71d2a886318e174a18e11d5de0"
+W11_SPECIFICATION_PATH = "docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md"
+W11_SPECIFICATION_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
+W11_SPECIFICATION_SHA256 = "65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70"
+W11_SPECIFICATION_BYTES = 185214
+W11_BOOTSTRAP_PATH = ".research-system/contracts/w11/w11-materialization-bootstrap-contract.yaml"
+W11_BOOTSTRAP_SHA256 = "ebb7529a3bbf8faea9101b1556b3b71e6e0b3b9dbe0df163591466903d569d38"
+W11_CATALOGUE_RECORD_ID = "obj_00000000-0000-7000-8000-000000000003"
+W11_CATALOGUE_PROJECT_ID = "prj_00000000-0000-7000-8000-000000000001"
+W11_EXPECTED_SOURCE_ACTOR_ID = "act_00000000-0000-7000-8000-000000000001"
 _ENVELOPE_FIELDS = frozenset({"base_commit", "subject_commit", "subject_tree", "changed_paths"})
 _PATH_ENTRY_FIELDS = frozenset({"path", "blob"})
 _SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -175,6 +187,95 @@ _EXPECTED_SCHEMA_SOURCE_CLOSURE = frozenset(
     for kind in kinds
 )
 
+_W11_CONTENT_SCHEMA_KEYS = (
+    "programme",
+    "paper",
+    "hypothesis",
+    "candidate",
+    "method",
+    "dataset",
+    "claim",
+    "dependency-edge",
+    "assay-rubric-content",
+    "assay-evidence-scope-content",
+    "path-registration-content",
+    "dossier-expected-set-content",
+    "legacy-source-inventory-content",
+    "legacy-transition-mapping-content",
+    "legacy-cutover-closure-content",
+    "w11-schema-catalogue-content",
+)
+_W11_RELATION_SCHEMA_KEYS = (
+    "candidate",
+    "assay",
+    "spike",
+    "assay-request",
+    "assay-producer",
+    "assay-bar-acceptance",
+    "assay-outcome-review",
+    "assay-cancellation-review",
+    "spike-plan",
+    "spike-attempt",
+    "spike-outcome-review",
+    "spike-cancellation-review",
+    "discovery-promotion",
+    "discovery-revisit",
+    "authority-content-file-review-acceptance",
+    "spike-execution-authority",
+    "dossier-expected-set-acceptance",
+    "path-registration-acceptance",
+    "legacy-source-inventory-acceptance",
+    "migration-authority",
+    "legacy-path-cutover",
+    "dossier-six-family-closure",
+    "legacy-source-row-observation",
+    "legacy-source-row-target",
+    "inventory-mapping-transition-bijection",
+    "path-physical-identity",
+    "writer-revocation",
+    "cutover-closure",
+)
+_W11_ARTEFACT_SCHEMA_KEYS = (
+    "assay-scorecard",
+    "assay-partial",
+    "spike-plan",
+    "spike-verdict",
+    "scout-observation-batch",
+    "discovery-annotation",
+    "research-dossier-manifest",
+    "legacy-record-observed",
+    "legacy-portfolio-path-observation",
+    "authority-file-observation",
+    "review-evidence",
+    "collision-scan",
+    "writer-revocation-snapshot",
+    "projection-rebuild-proof",
+)
+_W11_BOOTSTRAP_SCHEMA_KEYS = (
+    "w11-catalogue-acceptance-envelope",
+    "w11-materialization-bootstrap-contract",
+    "import-accepted-w11-catalogue-genesis",
+)
+_W11_SCHEMA_PATHS = tuple(
+    sorted(
+        [
+            ".research-system/schemas/contracts/w11/w11-common-definitions.schema.json",
+            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_CONTENT_SCHEMA_KEYS),
+            *(
+                f".research-system/schemas/contracts/w11/relation-{key}.schema.json"
+                for key in _W11_RELATION_SCHEMA_KEYS
+            ),
+            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_ARTEFACT_SCHEMA_KEYS),
+            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_BOOTSTRAP_SCHEMA_KEYS),
+        ]
+    )
+)
+_W11_SCHEMA_ROOT = ".research-system/schemas/contracts/w11"
+_W11_EVENT_PATTERN = re.compile(r"W2\s+`([^`]+)`|E:[A-Za-z0-9_/-]+")
+_W11_EVENT_CLEANUP_PATTERN = re.compile(r"W2\s+`[^`]+`|`?E:[A-Za-z0-9_/-]+`?")
+_W11_COMMAND_PATTERN = re.compile(r"`([^`]+)`")
+_W11_COMMAND_SCHEMA_PATTERN = re.compile(r"\(\s*`C:([^`]+)`\s*\)")
+
 ReferenceValidator = Callable[[str, Mapping[str, Any]], None]
 
 
@@ -281,6 +382,367 @@ def verify_materialization_document(
         reference_documents=reference_documents,
         validate_reference=validate_reference,
     )
+
+
+def verify_expected_catalogue(
+    repo_root: Path,
+    value: Mapping[str, Any],
+    *,
+    schema_root: Path | None = None,
+) -> None:
+    """Admit one static W11 catalogue against the accepted independent sources.
+
+    The catalogue is the expected side of the W11 gate.  This function resolves
+    the accepted specification and the exact foundation schema bytes through
+    Git, compares complete records one-to-one, and never imports a runtime
+    registry or implementation enumeration.
+    """
+    if not isinstance(value, Mapping):
+        _invalid(W11_SCHEMA_CATALOGUE_SCHEMA_ID, "catalogue must be an object")
+
+    resolved_schema_root = schema_root or (repo_root / _W11_SCHEMA_ROOT)
+    verify_materialization_document(resolved_schema_root, W11_SCHEMA_CATALOGUE_SCHEMA_ID, value)
+
+    expected_source_refs = _expected_source_refs(repo_root)
+    _require_catalogue(
+        value.get("created_by_actor_id") == W11_EXPECTED_SOURCE_ACTOR_ID, "producer actor identity mismatch"
+    )
+    _require_catalogue(value.get("record_id") == W11_CATALOGUE_RECORD_ID, "catalogue record identity mismatch")
+    _require_catalogue(value.get("project_id") == W11_CATALOGUE_PROJECT_ID, "catalogue project identity mismatch")
+    _require_catalogue(value.get("source_refs") == expected_source_refs, "catalogue source provenance mismatch")
+    _require_catalogue(
+        value.get("owner_spec_identity") == _expected_spec_identity(repo_root), "owner specification identity mismatch"
+    )
+
+    unsigned = {key: item for key, item in value.items() if key != "content_hash"}
+    expected_content_hash = sha256_hex(canonical_bytes(unsigned))
+    _require_catalogue(
+        value.get("content_hash") == expected_content_hash, "content_hash must hash the P0 object excluding itself"
+    )
+
+    expected_schema_rows = _expected_schema_source_rows(repo_root, resolved_schema_root)
+    actual_schema_rows = value.get("schema_source_rows")
+    _require_catalogue(
+        actual_schema_rows == expected_schema_rows,
+        "schema_source_rows do not match the closed foundation byte manifest",
+    )
+
+    expected_owner_rows = _expected_owner_contract_rows(repo_root, expected_schema_rows)
+    actual_owner_rows = value.get("owner_contract_rows")
+    _require_catalogue(
+        actual_owner_rows == expected_owner_rows, "owner_contract_rows do not match the accepted W11 owner annex"
+    )
+    _require_catalogue(value.get("owner_row_count") == len(_OWNER_ROW_IDS), "owner_row_count must be exactly 81")
+    expected_range_hash = sha256_hex(canonical_bytes(sorted(_OWNER_ROW_IDS)))
+    _require_catalogue(
+        value.get("owner_row_range_hash") == expected_range_hash, "owner_row_range_hash is not deterministic"
+    )
+
+
+def _expected_source_refs(repo_root: Path) -> list[dict[str, str]]:
+    bootstrap_raw = _git_raw(repo_root, "cat-file", "blob", f"{W11_FOUNDATION_COMMIT}:{W11_BOOTSTRAP_PATH}")
+    bootstrap_sha256 = hashlib.sha256(bootstrap_raw).hexdigest()
+    if bootstrap_sha256 != W11_BOOTSTRAP_SHA256:
+        _require_catalogue(False, "bootstrap contract identity drifted at the foundation subject")
+    return [
+        {
+            "ref_kind": "external",
+            "locator": f"git:{W11_SPECIFICATION_COMMIT}:{W11_SPECIFICATION_PATH}",
+            "content_hash": W11_SPECIFICATION_SHA256,
+        },
+        {
+            "ref_kind": "external",
+            "locator": f"git:{W11_FOUNDATION_COMMIT}:{W11_BOOTSTRAP_PATH}",
+            "content_hash": W11_BOOTSTRAP_SHA256,
+        },
+    ]
+
+
+def _expected_spec_identity(repo_root: Path) -> dict[str, Any]:
+    raw = _git_raw(repo_root, "cat-file", "blob", f"{W11_SPECIFICATION_COMMIT}:{W11_SPECIFICATION_PATH}")
+    _require_catalogue(len(raw) == W11_SPECIFICATION_BYTES, "accepted W11 specification byte length drifted")
+    _require_catalogue(
+        hashlib.sha256(raw).hexdigest() == W11_SPECIFICATION_SHA256, "accepted W11 specification SHA-256 drifted"
+    )
+    blob = _git(repo_root, "rev-parse", f"{W11_SPECIFICATION_COMMIT}:{W11_SPECIFICATION_PATH}")
+    _require_catalogue(blob == W11_SPECIFICATION_BLOB, "accepted W11 specification Git blob drifted")
+    return {
+        "repository_path": W11_SPECIFICATION_PATH,
+        "reviewed_commit": W11_SPECIFICATION_COMMIT,
+        "git_blob": W11_SPECIFICATION_BLOB,
+        "raw_sha256": W11_SPECIFICATION_SHA256,
+        "raw_bytes": W11_SPECIFICATION_BYTES,
+    }
+
+
+def _expected_schema_source_rows(repo_root: Path, schema_root: Path) -> list[dict[str, Any]]:
+    if not schema_root.is_dir():
+        _require_catalogue(False, f"schema root does not exist: {schema_root}")
+
+    actual_paths = sorted(path.relative_to(schema_root).as_posix() for path in schema_root.glob("*.schema.json"))
+    expected_relative_paths = [path.removeprefix(f"{_W11_SCHEMA_ROOT}/") for path in _W11_SCHEMA_PATHS]
+    _require_catalogue(actual_paths == expected_relative_paths, "schema path manifest is not the closed 62-file set")
+
+    rows: list[dict[str, Any]] = []
+    for index, repository_path in enumerate(_W11_SCHEMA_PATHS, start=101):
+        relative_path = repository_path.removeprefix(f"{_W11_SCHEMA_ROOT}/")
+        raw = _git_raw(repo_root, "cat-file", "blob", f"{W11_FOUNDATION_COMMIT}:{repository_path}")
+        current_path = schema_root / relative_path
+        try:
+            current_raw = current_path.read_bytes()
+        except OSError as exc:
+            _require_catalogue(False, f"cannot read schema {repository_path}: {exc}")
+        _require_catalogue(
+            current_raw == raw, f"schema bytes drifted from the exact foundation subject: {repository_path}"
+        )
+        try:
+            schema = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            _require_catalogue(False, f"foundation schema is not UTF-8 JSON: {repository_path}: {exc}")
+        schema_id = schema.get("$id")
+        schema_version = schema.get("properties", {}).get("schema_version", {}).get("const", "1.0.0")
+        blob = _git(repo_root, "rev-parse", f"{W11_FOUNDATION_COMMIT}:{repository_path}")
+        source_row = {
+            "logical_key": Path(relative_path).stem,
+            "schema_id": schema_id,
+            "schema_version": schema_version,
+            "repository_path": repository_path,
+            "git_commit": W11_FOUNDATION_COMMIT,
+            "git_blob": blob,
+            "file_length": len(raw),
+            "file_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+        source_row["independent_observation_ref"] = _schema_observation_ref(index, source_row)
+        rows.append(source_row)
+
+    schema_ids = [row["schema_id"] for row in rows]
+    _require_catalogue(len(schema_ids) == len(set(schema_ids)), "schema IDs are not collision-free")
+    _require_catalogue(
+        rows == sorted(rows, key=lambda row: row["repository_path"]), "schema_source_rows are not path-sorted"
+    )
+    return rows
+
+
+def _schema_observation_ref(index: int, source_row: Mapping[str, Any]) -> dict[str, Any]:
+    observation_identity = {
+        "observation_kind": "w11-schema-source",
+        "logical_key": source_row["logical_key"],
+        "schema_id": source_row["schema_id"],
+        "schema_version": source_row["schema_version"],
+        "repository_path": source_row["repository_path"],
+        "git_commit": source_row["git_commit"],
+        "git_blob": source_row["git_blob"],
+        "file_length": source_row["file_length"],
+        "file_sha256": source_row["file_sha256"],
+    }
+    return {
+        "id": f"obj_00000000-0000-7000-8000-{index:012d}",
+        "record_revision": 1,
+        "content_hash": sha256_hex(canonical_bytes(observation_identity)),
+    }
+
+
+def _expected_owner_contract_rows(repo_root: Path, schema_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    raw = _git_raw(repo_root, "cat-file", "blob", f"{W11_SPECIFICATION_COMMIT}:{W11_SPECIFICATION_PATH}")
+    text = raw.decode("utf-8")
+    observed_rows: list[dict[str, str]] = []
+    for line in text.splitlines():
+        if not re.match(r"^\| OR-\d{3} \|", line):
+            continue
+        cells = [cell.strip() for cell in line.split("|")[1:-1]]
+        if len(cells) != 5:
+            _require_catalogue(False, "accepted W11 owner row is not a five-cell binding")
+        owner_row_id, command_cell, precondition_cell, effects_cell, implementation_cell = cells
+        command_match = _W11_COMMAND_PATTERN.search(command_cell)
+        schema_match = _W11_COMMAND_SCHEMA_PATTERN.search(command_cell)
+        if command_match is None or schema_match is None:
+            _require_catalogue(False, f"owner row {owner_row_id} has no exact command/schema token")
+        command_with_discriminator = command_match.group(1)
+        command_type, _, discriminator = command_with_discriminator.partition("/")
+        command_schema_token = schema_match.group(1)
+        command_parts = command_cell.split(";", 2)
+        if len(command_parts) != 3:
+            _require_catalogue(False, f"owner row {owner_row_id} has no complete authority subject")
+        eligible_profile = command_parts[1].strip()
+        authority_subject = command_parts[2].strip()
+        reducer_tokens = re.findall(r"`(U:[^`]+)`", implementation_cell)
+        projection_tokens = re.findall(r"`(P:[^`]+)`", implementation_cell)
+        receipt_tokens = re.findall(r"`(R:[^`]+)`", implementation_cell)
+        ordered_events = _ordered_event_tokens(effects_cell)
+        affected_streams = _affected_stream_clauses(effects_cell)
+        complete_write_set = [part.strip() for part in effects_cell.split(";") if part.strip()]
+        if not reducer_tokens or not projection_tokens or len(receipt_tokens) != 1 or not ordered_events:
+            _require_catalogue(False, f"owner row {owner_row_id} has an incomplete effect binding")
+        observed_rows.append(
+            {
+                "owner_row_id": owner_row_id,
+                "command_type": command_type,
+                "command_schema_token": command_schema_token,
+                "discriminator": discriminator,
+                "eligible_profile": eligible_profile,
+                "authority_subject": authority_subject,
+                "preconditions": precondition_cell,
+                "ordered_events": ordered_events,
+                "affected_streams": affected_streams,
+                "complete_write_set": complete_write_set,
+                "reducer": ", ".join(reducer_tokens),
+                "projection_targets": projection_tokens,
+                "receipt_identity": receipt_tokens[0],
+            }
+        )
+
+    observed_ids = [row["owner_row_id"] for row in observed_rows]
+    _require_catalogue(
+        observed_ids == sorted(_OWNER_ROW_IDS, key=_owner_sort_key),
+        "accepted W11 owner rows are not the exact 81-row set",
+    )
+    schema_by_id = {row["schema_id"]: row for row in schema_rows}
+    expected: list[dict[str, Any]] = []
+    for source_row in observed_rows:
+        owner_row_id = source_row["owner_row_id"]
+        logical_key = source_row["command_schema_token"]
+        if source_row["discriminator"]:
+            logical_key = f"{logical_key}/{source_row['discriminator']}"
+        schema_id = _owner_schema_id(owner_row_id, source_row["command_type"], source_row["discriminator"])
+        if schema_id not in schema_by_id:
+            _require_catalogue(False, f"owner row {owner_row_id} references a schema outside the closed manifest")
+        row = {
+            "owner_row_id": owner_row_id,
+            "logical_key": logical_key,
+            "schema_id": schema_id,
+            "schema_version": "1.0.0",
+            "file_observation_ref": dict(schema_by_id[schema_id]["independent_observation_ref"]),
+            "command_type": source_row["command_type"],
+            "payload_discriminant": logical_key,
+            "eligible_profile": source_row["eligible_profile"],
+            "authority_subject": source_row["authority_subject"],
+            "preconditions": [source_row["preconditions"]],
+            "ordered_events": source_row["ordered_events"],
+            "affected_streams": source_row["affected_streams"],
+            "complete_write_set": source_row["complete_write_set"],
+            "reducer": source_row["reducer"],
+            "projection_targets": source_row["projection_targets"],
+            "receipt_identity": source_row["receipt_identity"],
+            "positive_test_identity": f"W11-T01-{owner_row_id}",
+            "negative_mutation_test_identity": f"W11-T03-{owner_row_id}-owner-row-mutation",
+            "retry_test_identity": f"W11-T11-{owner_row_id}",
+        }
+        expected.append(row)
+    return expected
+
+
+def _owner_schema_id(owner_row_id: str, command_type: str, discriminator: str) -> str:
+    if owner_row_id in {"OR-001", "OR-002"}:
+        return "ars://portfolio/candidate"
+    if command_type == "RequestAssay":
+        return "ars://portfolio/relation/assay-request"
+    if command_type == "RecordAssayScore":
+        return "ars://portfolio/assay-scorecard"
+    if command_type == "RecordAssayPartial":
+        return "ars://portfolio/assay-partial"
+    if command_type in {"ReviewDiscoveryOutcome", "RequestDiscoveryOutcomeReview"}:
+        if discriminator.startswith("assay_cancelled"):
+            return "ars://portfolio/relation/assay-cancellation-review"
+        if discriminator.startswith("spike_cancelled"):
+            return "ars://portfolio/relation/spike-cancellation-review"
+        if discriminator.startswith("assay"):
+            return "ars://portfolio/relation/assay-outcome-review"
+        return "ars://portfolio/relation/spike-outcome-review"
+    if command_type == "CancelDiscoveryEvaluation":
+        return (
+            "ars://portfolio/relation/assay-cancellation-review"
+            if discriminator == "assay"
+            else "ars://portfolio/relation/spike-cancellation-review"
+        )
+    if command_type in {"ProposeRevisitDecision"} or discriminator.startswith("discovery_revisit"):
+        return "ars://portfolio/relation/discovery-revisit"
+    if command_type == "ProposePromotionDecision" or discriminator.startswith("discovery_promotion"):
+        return "ars://portfolio/relation/discovery-promotion"
+    if command_type == "RegisterSpikePlan":
+        return "ars://portfolio/relation/spike-plan"
+    if command_type == "ProposeSpikeExecutionDecision" or discriminator == "spike_execution_authority":
+        return "ars://portfolio/relation/spike-execution-authority"
+    if command_type == "StartSpike":
+        return "ars://portfolio/relation/spike-attempt"
+    if command_type == "RecordSpikeVerdict":
+        return "ars://portfolio/spike-verdict"
+    if command_type == "AdmitResearchDossier":
+        return "ars://portfolio/research-dossier-manifest"
+    if command_type == "IngestScoutObservationBatch":
+        return "ars://portfolio/scout-observation-batch"
+    if command_type == "IngestDiscoveryAnnotation":
+        return "ars://portfolio/discovery-annotation"
+    if command_type == "RecordLegacyPortfolioObservation":
+        return "ars://portfolio/legacy-portfolio-path-observation"
+    if command_type == "TransitionPortfolioOwnership":
+        return "ars://portfolio/relation/inventory-mapping-transition-bijection"
+    if command_type == "CutOverDiscoveryPath":
+        return "ars://portfolio/relation/legacy-path-cutover"
+    if command_type == "RegisterAssayRubricContent":
+        return "ars://portfolio/assay-rubric-content"
+    if command_type == "RegisterAssayEvidenceScopeContent":
+        return "ars://portfolio/assay-evidence-scope-content"
+    if command_type == "ObserveW11AuthorityFile":
+        return "ars://portfolio/authority-file-observation"
+    if command_type in {"RequestW11AuthorityReview", "RecordW11AuthorityReview"}:
+        return "ars://portfolio/relation/authority-content-file-review-acceptance"
+    if command_type in {"ProposeW11AuthorityDecision", "ResolveDecision"}:
+        decision_schemas = {
+            "assay_bar_acceptance": "ars://portfolio/relation/assay-bar-acceptance",
+            "dossier_expected_set_acceptance": "ars://portfolio/relation/dossier-expected-set-acceptance",
+            "path_registration_acceptance": "ars://portfolio/relation/path-registration-acceptance",
+            "legacy_source_inventory_acceptance": "ars://portfolio/relation/legacy-source-inventory-acceptance",
+            "migration_authority": "ars://portfolio/relation/migration-authority",
+            "legacy_path_cutover": "ars://portfolio/relation/legacy-path-cutover",
+        }
+        for suffix, schema_id in decision_schemas.items():
+            if suffix in discriminator:
+                return schema_id
+    if command_type == "RecordAssayBarStaleness":
+        return "ars://portfolio/relation/assay-bar-acceptance"
+    if command_type == "RegisterDossierExpectedSetContent":
+        return "ars://portfolio/dossier-expected-set-content"
+    if command_type == "RegisterPathRegistrationContent":
+        return "ars://portfolio/path-registration-content"
+    if command_type == "RegisterLegacySourceInventoryContent":
+        return "ars://portfolio/legacy-source-inventory-content"
+    if command_type == "RegisterLegacyTransitionMappingContent":
+        return "ars://portfolio/legacy-transition-mapping-content"
+    if command_type == "RegisterLegacyCutoverClosureContent":
+        return "ars://portfolio/legacy-cutover-closure-content"
+    if command_type == "ImportAcceptedW11CatalogueGenesis":
+        return "ars://portfolio/import-accepted-w11-catalogue-genesis"
+    _require_catalogue(False, f"no independent schema mapping exists for {owner_row_id} {command_type}/{discriminator}")
+
+
+def _ordered_event_tokens(effects: str) -> list[str]:
+    tokens: list[str] = []
+    for match in _W11_EVENT_PATTERN.finditer(effects):
+        if match.group(1) is not None:
+            tokens.append(f"W2:{match.group(1)}")
+        else:
+            tokens.append(match.group(0))
+    return tokens
+
+
+def _affected_stream_clauses(effects: str) -> list[str]:
+    clauses: list[str] = []
+    for segment in effects.split(";"):
+        cleaned = _W11_EVENT_CLEANUP_PATTERN.sub("", segment)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,")
+        if not cleaned or cleaned in {"Always", "only if policy-satisfying"}:
+            continue
+        clauses.append(cleaned)
+    return clauses or ["implicit W2 stream"]
+
+
+def _owner_sort_key(owner_row_id: str) -> tuple[int, int]:
+    return (0 if owner_row_id.startswith("OR-0") else 1, int(owner_row_id[3:]))
+
+
+def _require_catalogue(condition: bool, message: str) -> None:
+    if not condition:
+        _invalid(W11_SCHEMA_CATALOGUE_SCHEMA_ID, message)
 
 
 def verify_w11_document(
@@ -657,6 +1119,23 @@ def _git(repo_root: Path, *args: str) -> str:
         detail = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         _envelope_error(f"Git identity lookup failed for {' '.join(args)}: {detail}")
     return result.stdout.strip()
+
+
+def _git_raw(repo_root: Path, *args: str) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = (
+            exc.stderr.decode(errors="replace").strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        )
+        _envelope_error(f"Git raw identity lookup failed for {' '.join(args)}: {detail}")
+    return result.stdout
 
 
 def _invalid(schema_id: str, message: str) -> NoReturn:

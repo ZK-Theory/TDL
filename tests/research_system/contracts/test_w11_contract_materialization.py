@@ -3,7 +3,7 @@
 This test deliberately owns the expected family/path set.  It does not read a
 catalogue, enumerate a registry, or generate an expected side from the files
 under test.  The suite is for inert Stage-B materialization only: it does not
-activate W11 runtime bindings or create the future expected catalogue.
+activate W11 runtime bindings.
 """
 
 from __future__ import annotations
@@ -1520,7 +1520,6 @@ def test_w11_foundation_has_the_independent_closed_family_set() -> None:
     assert {schema["$id"] for _, schema in schemas} == EXPECTED_IDS
     assert len({path.as_posix() for path, _ in schemas}) == len(schemas)
     assert len({schema["$id"] for _, schema in schemas}) == len(schemas)
-    assert not (REPO_ROOT / ".research-system" / "evals" / "expected" / "w11-portfolio-discovery-v1.json").exists()
 
 
 def test_every_w11_schema_is_strict_and_versioned() -> None:
