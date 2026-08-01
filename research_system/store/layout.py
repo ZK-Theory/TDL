@@ -52,3 +52,19 @@ def require_external_control_root(code_roots: list[Path], control_root: Path) ->
     for name in _CONTROL_DIRECTORIES:
         (control / name).mkdir(parents=True, exist_ok=True)
     return control
+
+
+def require_existing_control_root(code_roots: list[Path], control_root: Path) -> Path:
+    """Return an existing control root with every required store directory present.
+
+    This check is deliberately read-only.  Binding and validation callers must
+    reject an absent or partial store rather than allowing the initializer to
+    repair it as a side effect of loading configuration.
+    """
+    control = require_control_root_disjoint_from_code_roots(code_roots, control_root)
+    if not control.is_dir():
+        raise ArsError("control root must be an existing directory")
+    missing = [name for name in _CONTROL_DIRECTORIES if not (control / name).is_dir()]
+    if missing:
+        raise ArsError(f"control root is missing required directories: {', '.join(missing)}")
+    return control

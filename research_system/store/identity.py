@@ -584,7 +584,8 @@ def _recover_restore_binding_journal(control_root: Path, output_path: Path, jour
             _restore_exact_path(manifest_path, original_manifest)
             _restore_exact_path(evidence_path, original_evidence)
             _restore_exact_path(pending_path, original_pending)
-            clear_restore_binding_journal(journal_path)
+            # Preserve the journal because the foreign output is external
+            # staleness, not bytes this transaction may safely overwrite.
             raise ConflictError("restore binding journal found foreign output")
         raise ConflictError(f"restore binding journal found foreign {foreign[0]}")
     if journal["phase"] == "prepared" and intended_manifest is None and intended_evidence is None:
@@ -850,6 +851,8 @@ def rebind_restored_store(
             raise ArsError("restore binding durability is incomplete")
         if final_output_validator is not None:
             final_output_validator()
+        if post_commit is not None:
+            post_commit()
         return manifest
     if evidence is not None:
         raise ConflictError("restore binding evidence conflicts with an unbound manifest")

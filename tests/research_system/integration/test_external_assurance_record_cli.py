@@ -382,6 +382,23 @@ def test_approved_project_binding_load_rejects_partial_store_without_repairing(t
     assert not (partial_root / "runtime").exists()
 
 
+def test_approved_project_binding_load_rejects_valid_manifest_with_missing_required_directory(
+    tmp_path: Path,
+) -> None:
+    case, _ = _restore_cli_case(tmp_path)
+    foundation = tmp_path / "missing-directory-foundation.yaml"
+    partial_root = case["source"]
+    shutil.rmtree(partial_root / "objects")
+    _write_foundation(foundation, case, control_root=partial_root)
+    before_root = _path_inventory(partial_root)
+
+    with pytest.raises(ConfigurationError, match="materialized|matching|missing|invalid"):
+        ApprovedProjectBinding.load(foundation)
+
+    assert _path_inventory(partial_root) == before_root
+    assert not (partial_root / "objects").exists()
+
+
 def test_assurance_record_write_cli_persists_and_resolves(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     config, control_root, authority_root = _config(tmp_path)
     record_path = tmp_path / "record.json"
@@ -730,7 +747,10 @@ def test_restore_bind_cli_rejects_foreign_output_swap_on_new_binding(
     with pytest.raises(ArsError, match="output|binding"):
         main(args)
 
-    assert _target_files(case["target"]) == before_target
+    assert (
+        tuple(item for item in _target_files(case["target"]) if item[0] != "manifests/.restore-binding-journal.json")
+        == before_target
+    )
     assert (
         manifest_path.read_bytes()
         == before_target[
@@ -738,6 +758,7 @@ def test_restore_bind_cli_rejects_foreign_output_swap_on_new_binding(
         ][1]
     )
     assert (tmp_path / "restored-binding.json").read_bytes() == foreign_output
+    assert (case["target"] / "manifests" / ".restore-binding-journal.json").is_file()
 
 
 def test_restore_bind_cli_rejects_foreign_output_swap_on_already_bound_retry(
@@ -791,9 +812,43 @@ def test_restore_bind_cli_revalidates_output_after_output_phase_before_manifest(
     with pytest.raises(ArsError, match="foreign output|output|binding"):
         main(args)
 
-    assert _target_files(case["target"]) == before_target
+    assert (
+        tuple(item for item in _target_files(case["target"]) if item[0] != "manifests/.restore-binding-journal.json")
+        == before_target
+    )
     assert output_path.read_bytes() == foreign_output
     assert not (case["target"] / "manifests" / "restore-binding-evidence.json").exists()
+    assert (case["target"] / "manifests" / ".restore-binding-journal.json").is_file()
+
+
+def test_restore_bind_cli_rolls_back_if_output_changes_after_prepublication_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import research_system.cli as cli_module
+
+    case, args = _restore_cli_case(tmp_path)
+    foreign_output = _foreign_binding_bytes(tmp_path, case)
+    output_path = Path(args[args.index("--config-output") + 1])
+    original_validate = cli_module._validate_restore_output_bytes
+
+    def validate_then_swap(*validation_args, **validation_kwargs) -> None:
+        original_validate(*validation_args, **validation_kwargs)
+        output_path.write_bytes(foreign_output)
+
+    monkeypatch.setattr(cli_module, "_validate_restore_output_bytes", validate_then_swap)
+    before_target = _target_files(case["target"])
+
+    with pytest.raises(ArsError, match="output|binding"):
+        main(args)
+
+    assert (
+        tuple(item for item in _target_files(case["target"]) if item[0] != "manifests/.restore-binding-journal.json")
+        == before_target
+    )
+    assert output_path.read_bytes() == foreign_output
+    assert not (case["target"] / "manifests" / "restore-binding-evidence.json").exists()
+    assert (case["target"] / "manifests" / ".restore-binding-journal.json").is_file()
 
 
 def test_restore_bind_cli_revalidates_output_on_already_bound_retry(

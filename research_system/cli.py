@@ -397,6 +397,7 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
             locked_approved,
             already_bound=already_bound,
         )
+        binding = existing_binding
         _preflight_restore_binding_load(
             target_root=target_root,
             source_root=source_root,
@@ -490,6 +491,25 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                     locked_approved,
                 )
 
+            def validate_published_output() -> None:
+                nonlocal binding, evidence
+                binding = ControlBinding.load(args.config_output)
+                _validate_restore_output_identity(
+                    args.config_output,
+                    binding,
+                    expected_output,
+                    target_root,
+                    locked_approved,
+                )
+                evidence = load_canonical_restore_binding_evidence(target_root)
+                if evidence is None:
+                    raise ArsError("restore binding canonical evidence is missing after finalization")
+                if (
+                    evidence["operation_status"] != "bound-and-config-published"
+                    or evidence["durability_status"] != "durable"
+                ):
+                    raise ArsError("restore binding canonical evidence is not durable")
+
             finalize_verified_restore_binding(
                 target_root=target_root,
                 source_root=source_root,
@@ -507,24 +527,9 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 output_commit=commit_output if temporary is not None else None,
                 output_rollback=rollback_output if temporary is not None else None,
                 final_output_validator=validate_final_output,
+                post_commit=validate_published_output,
                 journal_path=journal_path,
             )
-            binding = ControlBinding.load(args.config_output)
-            _validate_restore_output_identity(
-                args.config_output,
-                binding,
-                expected_output,
-                target_root,
-                locked_approved,
-            )
-            evidence = load_canonical_restore_binding_evidence(target_root)
-            if evidence is None:
-                raise ArsError("restore binding canonical evidence is missing after finalization")
-            if (
-                evidence["operation_status"] != "bound-and-config-published"
-                or evidence["durability_status"] != "durable"
-            ):
-                raise ArsError("restore binding canonical evidence is not durable")
         except BaseException:
             if journal_path is not None and journal_path.exists():
                 recover_restore_binding(target_root, args.config_output, expected_output)
