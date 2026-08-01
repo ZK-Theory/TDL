@@ -204,8 +204,9 @@ def test_ledger_policy_permits_only_on_a_resolved_grant():
     ]
 
 
-def test_ledger_policy_has_no_caller_asserted_actor_class_input():
+def test_ledger_policy_has_no_caller_asserted_actor_class_fields():
     assert "actor_classes_by_actor" not in LedgerBackedAuthorityPolicy.__dataclass_fields__
+    assert "actor_class" not in LedgerBackedAuthorityPolicy.__dataclass_fields__
 
 
 @pytest.mark.parametrize(
