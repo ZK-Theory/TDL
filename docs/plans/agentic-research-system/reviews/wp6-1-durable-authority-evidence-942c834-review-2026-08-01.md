@@ -92,6 +92,40 @@ control.
 
 ## Preserved closures and validation
 
+### PR #205 current-head CodeRabbit reconciliation
+
+CodeRabbit's completed review was pinned to the still-frozen PR head
+`bf2649c6a6fbc02bbd66e1b16403f564e1a22029`, not to this later correction.
+A separate read-only triage verified all seven actionable findings against
+both commits. Each finding is real on the PR head and already corrected in
+`942c834af92b928e403459df2951999d97724f74`:
+
+- lifecycle receipt hash comparison uses independently derived canonical
+  history;
+- one authority projection is reused through lifecycle resolution and receipt
+  validation;
+- missing release-tranche command bindings fail closed;
+- default revocation decision identities are unique per grant;
+- domain and authority test services share the injected clock;
+- the authority-history tamper rewrites only its target JSONL line; and
+- publication envelope-mismatch and missing-authorizer negatives are distinct.
+
+The corresponding focused tests are
+`test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value`,
+`test_lifecycle_submit_reuses_one_authority_projection`,
+`test_release_tranche_fails_closed_when_a_command_binding_is_missing`,
+`test_default_revocation_decision_ids_are_unique_per_grant`,
+`test_control_plane_clock_override_is_shared_by_domain_and_authority_services`,
+the hash-mismatched lifecycle-index case, and the two release-publication
+negatives.
+
+Of 19 lower-priority comments, five service cleanups are also already present.
+Most remaining items are naming, docstring, or mechanical churn and must not
+expand the security correction. Two functional negative assertions may be
+folded into its test files if touched: prove no writes when `CreateTask` names
+an unactivated successor schema, and pin the CLI replay denial reason to
+`lifecycle_authority_unauthorized`.
+
 The formal reviewer recorded the following successful exact-subject evidence
 using bytecode-, cache-, and coverage-disabled focused runs:
 
