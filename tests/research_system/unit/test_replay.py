@@ -383,9 +383,11 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, caps
         )
         == 0
     )
-    capsys.readouterr()
+    command_receipt = json.loads(capsys.readouterr().out)
+    assert command_receipt["status"] == "rejected"
     assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
-    capsys.readouterr()
+    replay_state = json.loads(capsys.readouterr().out)
+    assert replay_state["last_position"] == 2
     output = code_root / ".research-system" / "projections" / "state.json"
     assert (
         main(
@@ -400,7 +402,7 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, caps
         )
         == 0
     )
-    assert json.loads(output.read_text(encoding="utf-8"))["last_position"] == 3
+    assert json.loads(output.read_text(encoding="utf-8"))["last_position"] == 2
     with pytest.raises(ArsError, match="namespaced projection root"):
         main(
             [

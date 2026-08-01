@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from research_system.authority import authority_bootstrap_sha256
+from research_system.authority import (
+    AuthorityAdministrationContext,
+    AuthorityScope,
+    ScopedAuthorityGrantResolution,
+    authority_bootstrap_sha256,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
@@ -21,6 +27,7 @@ from research_system.evals.release_snapshot import (
     build_release_snapshot_documents,
     rederive_release_from_snapshot,
 )
+from research_system.errors import ArsError
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -136,6 +143,61 @@ class ControlPlaneHarness:
         return replay_control_plane(self.ledger.iter_events())
 
 
+class _SyntheticLifecycleAuthorityResolver:
+    """Fixture-only authority consumer for legacy unbound lifecycle tests."""
+
+    def __init__(self) -> None:
+        self._last_resolution: ScopedAuthorityGrantResolution | None = None
+
+    def administration_context(self) -> AuthorityAdministrationContext:
+        return AuthorityAdministrationContext(
+            project_id=PROJECT_ID,
+            store_identity="a" * 64,
+            bootstrap_manifest_sha256="b" * 64,
+            root_grant_id=ROOT_AUTHORITY_GRANT_ID,
+            root_grant_sha256="c" * 64,
+            owner_actor_id=ACTORS["actor-a"],
+        )
+
+    def resolve_command(
+        self,
+        *,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        command,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> ScopedAuthorityGrantResolution:
+        if actor_class != "human":
+            raise ArsError("synthetic fixture actor class mismatch")
+        resolution = ScopedAuthorityGrantResolution(
+            authority_grant_id=grant_id,
+            authority_grant_sha256="d" * 64,
+            schema_id="ars://core/scoped-authority-grant",
+            schema_version="2.0.0",
+            schema_sha256="e" * 64,
+            actor_id=actor_id,
+            subject_scope=AuthorityScope(project_id, subject_kind, subject_id),
+            effective_at=datetime(2026, 1, 1, tzinfo=UTC),
+            expires_at=datetime(2030, 1, 1, tzinfo=UTC),
+            activation_event_id="evt_01978abc-1005-7000-8000-000000001005",
+            activation_position=1,
+            administration_decision_id="arec_01978abc-1006-7000-8000-000000001006",
+            administration_decision_sha256="f" * 64,
+            status="active",
+            revocation_event_id=None,
+        )
+        self._last_resolution = resolution
+        return resolution
+
+    def scoped_grant_identity(self, _grant_id: str) -> ScopedAuthorityGrantResolution | None:
+        return self._last_resolution
+
+
 def control_plane(tmp_path: Path) -> ControlPlaneHarness:
     root = tmp_path / "control"
     root.mkdir()
@@ -143,7 +205,14 @@ def control_plane(tmp_path: Path) -> ControlPlaneHarness:
     ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas)
     objects = ObjectStore(root)
     receipts = ReceiptStore(root)
-    service = CommandService(root, ledger, objects, receipts, schemas)
+    service = CommandService(
+        root,
+        ledger,
+        objects,
+        receipts,
+        schemas,
+        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
+    )
     return ControlPlaneHarness(service, ledger, objects, receipts)
 
 
