@@ -11,7 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import shutil
+
+# Required for the narrow argv-only Git identity checks below; shell=False is explicit.
+import subprocess  # nosec B404
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from math import isfinite
 from pathlib import Path
@@ -29,6 +32,9 @@ _SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _OBJ_ID_RE = re.compile(r"^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _ART_ID_RE = re.compile(r"^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+_GIT_EXECUTABLE = shutil.which("git")
+if _GIT_EXECUTABLE is not None:
+    _GIT_EXECUTABLE = str(Path(_GIT_EXECUTABLE).resolve())
 
 W11_CONTENT_SCHEMA_IDS = frozenset(
     {
@@ -603,12 +609,18 @@ def _require_sha1(value: Any, field: str) -> str:
     return value
 
 
+def _git_executable() -> str:
+    if _GIT_EXECUTABLE is None:
+        _envelope_error("Git executable could not be resolved from PATH")
+    return _GIT_EXECUTABLE
+
+
 def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool:
     base_commit = _require_sha1(base_commit, "base_commit")
     subject_commit = _require_sha1(subject_commit, "subject_commit")
     try:
-        result = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", base_commit, subject_commit],
+        result = subprocess.run(  # nosec B603 - required argv-only Git ancestry check with validated SHAs.
+            [_git_executable(), "merge-base", "--is-ancestor", base_commit, subject_commit],
             cwd=repo_root,
             check=False,
             shell=False,
@@ -630,8 +642,8 @@ def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool
 
 def _git(repo_root: Path, *args: str) -> str:
     try:
-        result = subprocess.run(
-            ["git", *args],
+        result = subprocess.run(  # nosec B603 - required argv-only Git identity check with shell disabled.
+            [_git_executable(), *args],
             cwd=repo_root,
             check=True,
             shell=False,

@@ -293,7 +293,13 @@ VALID_SPIKE_PLAN = {
 
 
 def _test_canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def _test_hash(value: Any) -> str:
@@ -302,6 +308,23 @@ def _test_hash(value: Any) -> str:
 
 def _test_multiset_hash(rows: list[dict[str, Any]]) -> str:
     return _test_hash(sorted(rows, key=_test_canonical_bytes))
+
+
+def _test_expected_set_closure_hash(value: dict[str, Any]) -> str:
+    return _test_hash(
+        {
+            "manifest_schema_id": value["schema_id"],
+            "manifest_schema_version": value["schema_version"],
+            "package_version": value["package_version"],
+            "admission_profile_hash": value["admission_profile_ref"]["content_hash"],
+            "components": sorted(value["components"], key=_test_canonical_bytes),
+            "source_dependencies": sorted(value["sources"], key=_test_canonical_bytes),
+            "objects": sorted(value["objects"], key=_test_canonical_bytes),
+            "scope_definitions": sorted(value["scope_definitions"], key=_test_canonical_bytes),
+            "dependency_edges": sorted(value["dependency_edges"], key=_test_canonical_bytes),
+            "relationships": sorted(value["relationships"], key=_test_canonical_bytes),
+        }
+    )
 
 
 @lru_cache(maxsize=1)
@@ -642,20 +665,7 @@ def _valid_dossier_expected_set() -> dict[str, Any]:
     ):
         value[count_key] = len(rows[row_key])
         value[hash_key] = _test_multiset_hash(rows[row_key])
-    value["expected_set_closure_hash"] = _test_hash(
-        {
-            "manifest_schema_id": value["schema_id"],
-            "manifest_schema_version": value["schema_version"],
-            "package_version": value["package_version"],
-            "admission_profile_hash": value["admission_profile_ref"]["content_hash"],
-            "components": sorted(rows["components"], key=_test_canonical_bytes),
-            "source_dependencies": sorted(rows["sources"], key=_test_canonical_bytes),
-            "objects": sorted(rows["objects"], key=_test_canonical_bytes),
-            "scope_definitions": sorted(rows["scope_definitions"], key=_test_canonical_bytes),
-            "dependency_edges": sorted(rows["dependency_edges"], key=_test_canonical_bytes),
-            "relationships": sorted(rows["relationships"], key=_test_canonical_bytes),
-        }
-    )
+    value["expected_set_closure_hash"] = _test_expected_set_closure_hash(value)
     return value
 
 
@@ -756,17 +766,16 @@ def test_assay_axis_domains_and_scorecard_values_are_typed_and_closed() -> None:
 
 def test_spike_verdict_requires_evidence_and_an_applicable_predicate() -> None:
     schema = _schema_by_id("ars://portfolio/spike-verdict")
-    assert Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).is_valid(
-        VALID_SPIKE_VERDICT
-    )
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    assert validator.is_valid(VALID_SPIKE_VERDICT)
 
     empty_evidence = deepcopy(VALID_SPIKE_VERDICT)
     empty_evidence["success_predicates"][0]["evidence_refs"] = []
-    assert not Draft202012Validator(schema).is_valid(empty_evidence)
+    assert not validator.is_valid(empty_evidence)
 
     no_success_predicate = deepcopy(VALID_SPIKE_VERDICT)
     no_success_predicate["success_predicates"] = []
-    assert not Draft202012Validator(schema).is_valid(no_success_predicate)
+    assert not validator.is_valid(no_success_predicate)
 
     failure_with_evidence = deepcopy(VALID_SPIKE_VERDICT)
     failure_with_evidence["verdict"] = "FAIL"
@@ -774,7 +783,7 @@ def test_spike_verdict_requires_evidence_and_an_applicable_predicate() -> None:
     failure_with_evidence["failure_predicates"] = [
         {"predicate": "failure", "status": "failed", "evidence_refs": [_record_ref()]}
     ]
-    assert Draft202012Validator(schema).is_valid(failure_with_evidence)
+    assert validator.is_valid(failure_with_evidence)
 
 
 def test_review_evidence_cannot_accept_blocking_findings() -> None:
@@ -1378,20 +1387,7 @@ def test_w11_dossier_rejects_a_coordinated_duplicate_after_recomputing_all_hashe
     duplicated["components"].append(deepcopy(duplicated["components"][0]))
     duplicated["component_count"] = len(duplicated["components"])
     duplicated["component_multiset_hash"] = _test_multiset_hash(duplicated["components"])
-    duplicated["expected_set_closure_hash"] = _test_hash(
-        {
-            "manifest_schema_id": duplicated["schema_id"],
-            "manifest_schema_version": duplicated["schema_version"],
-            "package_version": duplicated["package_version"],
-            "admission_profile_hash": duplicated["admission_profile_ref"]["content_hash"],
-            "components": sorted(duplicated["components"], key=_test_canonical_bytes),
-            "source_dependencies": sorted(duplicated["sources"], key=_test_canonical_bytes),
-            "objects": sorted(duplicated["objects"], key=_test_canonical_bytes),
-            "scope_definitions": sorted(duplicated["scope_definitions"], key=_test_canonical_bytes),
-            "dependency_edges": sorted(duplicated["dependency_edges"], key=_test_canonical_bytes),
-            "relationships": sorted(duplicated["relationships"], key=_test_canonical_bytes),
-        }
-    )
+    duplicated["expected_set_closure_hash"] = _test_expected_set_closure_hash(duplicated)
 
     with pytest.raises(SchemaError, match="components contains duplicate component_key"):
         verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", duplicated)
