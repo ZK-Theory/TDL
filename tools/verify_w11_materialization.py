@@ -16,8 +16,9 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -51,11 +52,20 @@ W11_CONTENT_SCHEMA_IDS = frozenset(
     }
 )
 W11_SCHEMA_CATALOGUE_SCHEMA_ID = "ars://portfolio/w11-schema-catalogue-content"
+W11_DOSSIER_EXPECTED_SET_SCHEMA_ID = "ars://portfolio/dossier-expected-set-content"
 W11_ASSAY_RUBRIC_SCHEMA_ID = "ars://portfolio/assay-rubric-content"
 W11_ASSAY_SCORECARD_SCHEMA_ID = "ars://portfolio/assay-scorecard"
 
 _OWNER_ROW_IDS = frozenset(
     {*(f"OR-{number:03d}" for number in range(1, 42)), *(f"OR-{number:03d}" for number in range(101, 141))}
+)
+_DOSSIER_EXPECTED_SET_FAMILIES = (
+    ("components", "component_count", "component_multiset_hash"),
+    ("sources", "source_count", "source_multiset_hash"),
+    ("objects", "object_count", "object_multiset_hash"),
+    ("scope_definitions", "scope_count", "scope_multiset_hash"),
+    ("dependency_edges", "edge_count", "edge_multiset_hash"),
+    ("relationships", "relationship_count", "relationship_multiset_hash"),
 )
 
 ReferenceValidator = Callable[[str, Mapping[str, Any]], None]
@@ -181,6 +191,8 @@ def verify_w11_document(
         _validate_content_envelope(schema_id, value)
     if schema_id == W11_SCHEMA_CATALOGUE_SCHEMA_ID:
         _validate_owner_contract_rows(schema_id, value)
+    if schema_id == W11_DOSSIER_EXPECTED_SET_SCHEMA_ID:
+        _validate_dossier_expected_set(schema_id, value)
     if schema_id == W11_ASSAY_SCORECARD_SCHEMA_ID:
         _validate_scorecard_against_rubric(
             schema_id,
@@ -190,8 +202,15 @@ def verify_w11_document(
         )
 
 
-@lru_cache(maxsize=8)
 def _registry_for_root(schema_root: Path) -> SchemaRegistry:
+    nested_schema_paths = sorted(path for path in schema_root.rglob("*.schema.json") if path.parent != schema_root)
+    if nested_schema_paths:
+        raise SchemaError(f"nested schema files are not permitted: {nested_schema_paths[0]}")
+    return _cached_registry_for_root(schema_root)
+
+
+@lru_cache(maxsize=8)
+def _cached_registry_for_root(schema_root: Path) -> SchemaRegistry:
     return SchemaRegistry(schema_root)
 
 
@@ -213,6 +232,14 @@ def _validate_content_envelope(schema_id: str, value: Mapping[str, Any]) -> None
 
 
 def _validate_owner_contract_rows(schema_id: str, value: Mapping[str, Any]) -> None:
+    schema_source_rows = value["schema_source_rows"]
+    logical_keys = [row["logical_key"] for row in schema_source_rows]
+    schema_ids = [row["schema_id"] for row in schema_source_rows]
+    if len(set(logical_keys)) != len(logical_keys):
+        _invalid(schema_id, "schema_source_rows logical_key values must be unique")
+    if len(set(schema_ids)) != len(schema_ids):
+        _invalid(schema_id, "schema_source_rows schema_id values must be unique")
+
     rows = value["owner_contract_rows"]
     observed_ids = [row["owner_row_id"] for row in rows]
     if len(set(observed_ids)) != len(observed_ids):
@@ -234,6 +261,41 @@ def _validate_owner_contract_rows(schema_id: str, value: Mapping[str, Any]) -> N
                 _invalid(schema_id, f"owner row {owner_row_id} {field} must be {expected_value}")
 
 
+def _validate_dossier_expected_set(schema_id: str, value: Mapping[str, Any]) -> None:
+    sorted_rows: dict[str, list[Mapping[str, Any]]] = {}
+    for rows_key, count_key, hash_key in _DOSSIER_EXPECTED_SET_FAMILIES:
+        rows = value[rows_key]
+        if value[count_key] != len(rows):
+            _invalid(schema_id, f"{count_key} does not match row count")
+        try:
+            sorted_family = sorted(rows, key=canonical_bytes)
+            computed_hash = sha256_hex(canonical_bytes(sorted_family))
+        except (TypeError, ValueError) as exc:
+            _invalid(schema_id, f"{hash_key} cannot be computed from P0-canonical rows: {exc}")
+        sorted_rows[rows_key] = sorted_family
+        if value[hash_key] != computed_hash:
+            _invalid(schema_id, f"{hash_key} does not match the canonical row multiset")
+
+    closure_payload = {
+        "manifest_schema_id": value["schema_id"],
+        "manifest_schema_version": value["schema_version"],
+        "package_version": value["package_version"],
+        "admission_profile_hash": value["admission_profile_ref"]["content_hash"],
+        "components": sorted_rows["components"],
+        "source_dependencies": sorted_rows["sources"],
+        "objects": sorted_rows["objects"],
+        "scope_definitions": sorted_rows["scope_definitions"],
+        "dependency_edges": sorted_rows["dependency_edges"],
+        "relationships": sorted_rows["relationships"],
+    }
+    try:
+        computed_closure_hash = sha256_hex(canonical_bytes(closure_payload))
+    except (TypeError, ValueError) as exc:
+        _invalid(schema_id, f"expected_set_closure_hash cannot be computed from P0-canonical rows: {exc}")
+    if value["expected_set_closure_hash"] != computed_closure_hash:
+        _invalid(schema_id, "expected_set_closure_hash does not match the canonical closure")
+
+
 def _validate_scorecard_against_rubric(
     schema_id: str,
     value: Mapping[str, Any],
@@ -242,6 +304,9 @@ def _validate_scorecard_against_rubric(
     validate_reference: ReferenceValidator | None,
 ) -> None:
     rubric_ref = value["rubric_ref"]
+    reference_documents = tuple(reference_documents)
+    if reference_documents and validate_reference is None:
+        _invalid(schema_id, "reference documents require validate_reference")
     matches: list[Mapping[str, Any]] = []
     for candidate in reference_documents:
         if not isinstance(candidate, Mapping):
@@ -350,12 +415,17 @@ def _require_sha1(value: Any, field: str) -> str:
 
 
 def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool:
+    base_commit = _require_sha1(base_commit, "base_commit")
+    subject_commit = _require_sha1(subject_commit, "subject_commit")
     try:
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", base_commit, subject_commit],
             cwd=repo_root,
             check=False,
+            shell=False,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -375,7 +445,10 @@ def _git(repo_root: Path, *args: str) -> str:
             ["git", *args],
             cwd=repo_root,
             check=True,
+            shell=False,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -385,11 +458,11 @@ def _git(repo_root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _invalid(schema_id: str, message: str) -> None:
+def _invalid(schema_id: str, message: str) -> NoReturn:
     raise SchemaError(f"{schema_id}: {message}")
 
 
-def _envelope_error(message: str) -> None:
+def _envelope_error(message: str) -> NoReturn:
     raise MaterializationVerificationError(message)
 
 

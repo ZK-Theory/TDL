@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from copy import deepcopy
 import os
 import subprocess
+from copy import deepcopy
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -211,9 +212,105 @@ VALID_SCORECARD = {
     "review_requirements": [],
 }
 
+VALID_DISCOVERY_REVISIT = {
+    "schema_id": "ars://portfolio/relation/discovery-revisit",
+    "schema_version": "1.0.0",
+    "relation_kind": "discovery_revisit",
+    "decision_id": "dec_00000000-0000-7000-8000-000000000001",
+    "candidate_ref": _record_ref(),
+    "prior_aggregate_ref": _record_ref(),
+    "prior_outcome_review_ref": _record_ref(),
+    "satisfied_revisit_predicate_ref": _record_ref(),
+    "selected_option": "RETRY",
+    "actor_id": "act_00000000-0000-7000-8000-000000000001",
+}
 
-def _schemas() -> list[tuple[Path, dict[str, Any]]]:
-    return [(path, json.loads(path.read_text(encoding="utf-8"))) for path in sorted(SCHEMA_ROOT.glob("*.schema.json"))]
+VALID_SPIKE_VERDICT = {
+    "schema_id": "ars://portfolio/spike-verdict",
+    "schema_version": "1.0.0",
+    "spike_id": "spk_00000000-0000-7000-8000-000000000001",
+    "candidate_ref": _record_ref(),
+    "originating_assay_ref": _record_ref(),
+    "spike_plan_ref": _record_ref(),
+    "attempt_ref": _record_ref(),
+    "verdict": "PASS",
+    "success_predicates": [{"predicate": "success", "status": "passed", "evidence_refs": [_record_ref()]}],
+    "failure_predicates": [],
+    "kill_conditions": [],
+    "artefact_refs": [],
+    "validation_refs": [],
+    "completed_scope": "The declared scope completed.",
+    "unmet_scope": "None.",
+    "limitations": [],
+    "mechanical_recommendation": "NONE",
+    "prohibited_inferences": ["This verdict does not authorize dispatch."],
+}
+
+VALID_REVIEW_EVIDENCE = {
+    "schema_id": "ars://portfolio/review-evidence",
+    "schema_version": "1.0.0",
+    "subject_ref": _record_ref(),
+    "file_observation_ref": _record_ref(),
+    "reviewer_actor_id": "act_00000000-0000-7000-8000-000000000001",
+    "reviewer_relationship_ref": _record_ref(),
+    "verdict": "accept_exact_subject",
+    "severity_findings": [],
+    "reviewed_at": "2026-01-01T00:00:00Z",
+    "evidence_refs": [_record_ref()],
+}
+
+VALID_SPIKE_PLAN = {
+    "schema_id": "ars://portfolio/spike-plan",
+    "schema_version": "1.0.0",
+    "spike_id": "spk_00000000-0000-7000-8000-000000000001",
+    "candidate_ref": _record_ref(),
+    "originating_assay_ref": _record_ref(),
+    "source_scorecard_refs": [_record_ref()],
+    "assay_promotion_decision_ref": _record_ref(),
+    "required_approving_authority": "Stephen",
+    "time_resource_box": {
+        "time_limit_seconds": 3600,
+        "worker_limit": 1,
+        "memory_limit_mb": 1024,
+        "storage_limit_mb": 4096,
+        "network_access": False,
+    },
+    "question": "Does the bounded spike predicate hold?",
+    "scope": "Synthetic validation only.",
+    "inputs": ["input-a"],
+    "method_or_object": "bounded method",
+    "baselines": [],
+    "null_or_comparator": None,
+    "success_predicates": ["success"],
+    "failure_predicates": [],
+    "kill_conditions": [],
+    "partial_rules": [],
+    "planned_contracts": ["contract-a"],
+    "outputs": ["output-a"],
+    "prohibited_work": [],
+    "outcome_to_next_step": {"PASS": "stop"},
+}
+
+
+def _test_canonical_bytes(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def _test_hash(value: Any) -> str:
+    return hashlib.sha256(_test_canonical_bytes(value)).hexdigest()
+
+
+def _test_multiset_hash(rows: list[dict[str, Any]]) -> str:
+    return _test_hash(sorted(rows, key=_test_canonical_bytes))
+
+
+@lru_cache(maxsize=1)
+def _schemas() -> tuple[tuple[Path, dict[str, Any]], ...]:
+    paths = sorted(SCHEMA_ROOT.rglob("*.schema.json"))
+    nested_paths = [path for path in paths if path.parent != SCHEMA_ROOT]
+    if nested_paths:
+        pytest.fail(f"W11 schema catalogue must be flat; unexpected nested schema {nested_paths[0]}")
+    return tuple((path, json.loads(path.read_text(encoding="utf-8"))) for path in paths)
 
 
 def _validate(schema: dict[str, Any], value: dict[str, Any]) -> None:
@@ -384,10 +481,160 @@ def _valid_rubric() -> dict[str, Any]:
 VALID_RUBRIC = _valid_rubric()
 
 
+def _valid_dossier_expected_set() -> dict[str, Any]:
+    rows = {
+        "components": [
+            {
+                "component_key": "component-a",
+                "component_kind": "schema",
+                "schema_id": "ars://portfolio/component-a",
+                "schema_version": "1.0.0",
+                "root_id": "root-a",
+                "relative_path_or_object_ref": "component-a.json",
+                "size_bytes": 1,
+                "sha256": _HASH,
+                "required": True,
+                "dependency_keys": [],
+                "permitted_consumers": ["dossier-admission"],
+                "confidentiality_class": "public",
+            }
+        ],
+        "sources": [
+            {
+                "source_key": "source-a",
+                "source_kind": "file",
+                "schema_or_media_type": "application/json",
+                "root_id": "root-a",
+                "relative_path_or_locator": "source-a.json",
+                "size_bytes": 1,
+                "sha256": _HASH,
+                "source_authority_class": "independent",
+                "required": True,
+                "permitted_consumers": ["dossier-admission"],
+                "confidentiality_class": "public",
+                "independent_resolution_policy_id": "policy-a",
+                "independent_resolution_policy_hash": _HASH,
+            }
+        ],
+        "objects": [
+            {
+                "object_key": "object-a",
+                "portfolio_kind": "candidate",
+                "schema_id": "ars://portfolio/candidate",
+                "schema_version": "1.0.0",
+                "proposed_record_id": "obj_00000000-0000-7000-8000-000000000004",
+                "proposed_revision": 1,
+                "blueprint_hash": _HASH,
+                "expected_content_hash": _HASH,
+                "source_keys": ["source-a"],
+                "permitted_consumers": ["dossier-admission"],
+            }
+        ],
+        "scope_definitions": [
+            {
+                "scope_key": "scope-a",
+                "scope_schema_id": "ars://portfolio/scope",
+                "scope_schema_version": "1.0.0",
+                "proposed_scope_id": "scope-a-id",
+                "proposed_revision": 1,
+                "blueprint_hash": _HASH,
+                "expected_content_hash": _HASH,
+                "governing_object_keys": ["object-a"],
+                "permitted_consumers": ["dossier-admission"],
+            }
+        ],
+        "dependency_edges": [
+            {
+                "edge_key": "edge-a",
+                "edge_type": "requires",
+                "proposed_edge_id": "obj_00000000-0000-7000-8000-000000000005",
+                "proposed_revision": 1,
+                "from_key": "object-a",
+                "from_revision": 1,
+                "from_hash": _HASH,
+                "to_key": "object-a",
+                "to_revision": 1,
+                "to_hash": _HASH,
+                "required": True,
+                "satisfaction_predicate_ref_or_null": None,
+                "effective_scope_key": "scope-a",
+                "expected_content_hash": _HASH,
+            }
+        ],
+        "relationships": [
+            {
+                "relationship_key": "relationship-a",
+                "relationship_kind": "candidate",
+                "ordered_member_keys_with_revisions_hashes": [f"object-a:1:{_HASH}"],
+                "relation_schema_id": "ars://portfolio/relation/candidate",
+                "relation_schema_version": "1.0.0",
+                "relation_hash": _HASH,
+            }
+        ],
+    }
+    value: dict[str, Any] = {
+        "schema_id": "ars://portfolio/dossier-expected-set-content",
+        "schema_version": "1.0.0",
+        "record_id": "obj_00000000-0000-7000-8000-000000000003",
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": "prj_00000000-0000-7000-8000-000000000001",
+        "portfolio_kind": "dossier_expected_set_content",
+        "aliases": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by_actor_id": "act_00000000-0000-7000-8000-000000000001",
+        "source_refs": [_source_ref()],
+        "content_hash": _HASH,
+        "expected_set_id": "expected-set-a",
+        "dossier_ref": _record_ref(),
+        "package_version": "1.0.0",
+        "admission_profile_ref": _record_ref("obj_00000000-0000-7000-8000-000000000002"),
+        "effective_from": "2026-01-01T00:00:00Z",
+        "effective_until": None,
+        "accepted_owner_requirement_refs": [_record_ref()],
+        "source_authority_refs": [_record_ref()],
+        "author_actor_id": "act_00000000-0000-7000-8000-000000000001",
+        "producing_context_ref": _record_ref(),
+        **rows,
+    }
+    for row_key, count_key, hash_key in (
+        ("components", "component_count", "component_multiset_hash"),
+        ("sources", "source_count", "source_multiset_hash"),
+        ("objects", "object_count", "object_multiset_hash"),
+        ("scope_definitions", "scope_count", "scope_multiset_hash"),
+        ("dependency_edges", "edge_count", "edge_multiset_hash"),
+        ("relationships", "relationship_count", "relationship_multiset_hash"),
+    ):
+        value[count_key] = len(rows[row_key])
+        value[hash_key] = _test_multiset_hash(rows[row_key])
+    value["expected_set_closure_hash"] = _test_hash(
+        {
+            "manifest_schema_id": value["schema_id"],
+            "manifest_schema_version": value["schema_version"],
+            "package_version": value["package_version"],
+            "admission_profile_hash": value["admission_profile_ref"]["content_hash"],
+            "components": sorted(rows["components"], key=_test_canonical_bytes),
+            "source_dependencies": sorted(rows["sources"], key=_test_canonical_bytes),
+            "objects": sorted(rows["objects"], key=_test_canonical_bytes),
+            "scope_definitions": sorted(rows["scope_definitions"], key=_test_canonical_bytes),
+            "dependency_edges": sorted(rows["dependency_edges"], key=_test_canonical_bytes),
+            "relationships": sorted(rows["relationships"], key=_test_canonical_bytes),
+        }
+    )
+    return value
+
+
+VALID_DOSSIER_EXPECTED_SET = _valid_dossier_expected_set()
+
+
 def test_representative_valid_examples_cover_content_relation_and_artifact() -> None:
     _validate(_schema_by_id("ars://portfolio/programme"), VALID_PROGRAMME)
     _validate(_schema_by_id("ars://portfolio/relation/discovery-promotion"), VALID_DISCOVERY_PROMOTION)
+    _validate(_schema_by_id("ars://portfolio/relation/discovery-revisit"), VALID_DISCOVERY_REVISIT)
     _validate(_schema_by_id("ars://portfolio/assay-scorecard"), VALID_SCORECARD)
+    _validate(_schema_by_id("ars://portfolio/spike-verdict"), VALID_SPIKE_VERDICT)
+    _validate(_schema_by_id("ars://portfolio/review-evidence"), VALID_REVIEW_EVIDENCE)
+    _validate(_schema_by_id("ars://portfolio/spike-plan"), VALID_SPIKE_PLAN)
 
 
 def test_owner_row_ids_are_exactly_the_two_w11_ranges() -> None:
@@ -467,6 +714,61 @@ def test_assay_axis_domains_and_scorecard_values_are_typed_and_closed() -> None:
     wrong_integer_domain["axis_kind"] = "integer_score"
     wrong_integer_domain["value"] = True
     assert not _fragment_is_valid(scorecard_schema, "axisResult", wrong_integer_domain)
+    empty_evidence = deepcopy(VALID_SCORECARD["axis_results"][0])
+    empty_evidence["evidence_refs"] = []
+    assert not _fragment_is_valid(scorecard_schema, "axisResult", empty_evidence)
+
+
+def test_spike_verdict_requires_evidence_and_an_applicable_predicate() -> None:
+    schema = _schema_by_id("ars://portfolio/spike-verdict")
+    assert Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).is_valid(
+        VALID_SPIKE_VERDICT
+    )
+
+    empty_evidence = deepcopy(VALID_SPIKE_VERDICT)
+    empty_evidence["success_predicates"][0]["evidence_refs"] = []
+    assert not Draft202012Validator(schema).is_valid(empty_evidence)
+
+    no_success_predicate = deepcopy(VALID_SPIKE_VERDICT)
+    no_success_predicate["success_predicates"] = []
+    assert not Draft202012Validator(schema).is_valid(no_success_predicate)
+
+    failure_with_evidence = deepcopy(VALID_SPIKE_VERDICT)
+    failure_with_evidence["verdict"] = "FAIL"
+    failure_with_evidence["success_predicates"] = []
+    failure_with_evidence["failure_predicates"] = [
+        {"predicate": "failure", "status": "failed", "evidence_refs": [_record_ref()]}
+    ]
+    assert Draft202012Validator(schema).is_valid(failure_with_evidence)
+
+
+def test_review_evidence_cannot_accept_blocking_findings() -> None:
+    schema = _schema_by_id("ars://portfolio/review-evidence")
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    assert validator.is_valid(VALID_REVIEW_EVIDENCE)
+
+    for severity in ("Critical", "Major"):
+        blocking = deepcopy(VALID_REVIEW_EVIDENCE)
+        blocking["severity_findings"] = [{"severity": severity, "finding_id": "finding-1", "disposition": "open"}]
+        assert not validator.is_valid(blocking)
+
+    non_blocking = deepcopy(VALID_REVIEW_EVIDENCE)
+    non_blocking["severity_findings"] = [{"severity": "Minor", "finding_id": "finding-1", "disposition": "open"}]
+    assert validator.is_valid(non_blocking)
+
+
+def test_spike_plan_time_resource_box_is_bounded_and_non_empty() -> None:
+    schema = _schema_by_id("ars://portfolio/spike-plan")
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    assert validator.is_valid(VALID_SPIKE_PLAN)
+
+    empty = deepcopy(VALID_SPIKE_PLAN)
+    empty["time_resource_box"] = {}
+    assert not validator.is_valid(empty)
+
+    unknown_constraint = deepcopy(VALID_SPIKE_PLAN)
+    unknown_constraint["time_resource_box"]["unbounded_constraint"] = True
+    assert not validator.is_valid(unknown_constraint)
 
 
 def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
@@ -476,6 +778,132 @@ def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
     offset_timestamp["created_at"] = "2026-01-01T01:00:00+01:00"
     validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
     assert not validator.is_valid(offset_timestamp)
+
+
+def test_physical_identity_contracts_share_one_canonical_shape() -> None:
+    expected = {
+        "type": "object",
+        "required": [
+            "canonical_target",
+            "reparse_chain",
+            "volume_serial_number",
+            "stable_file_id",
+            "link_count",
+            "case_aliases",
+            "unicode_aliases",
+            "short_name_aliases",
+        ],
+        "properties": {
+            "canonical_target": {"type": "string", "minLength": 1},
+            "reparse_chain": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "volume_serial_number": {"type": "string", "minLength": 1},
+            "stable_file_id": {"type": "string", "minLength": 1},
+            "link_count": {"type": "integer", "minimum": 1},
+            "case_aliases": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "unicode_aliases": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "short_name_aliases": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        },
+        "additionalProperties": False,
+    }
+    definitions = (
+        ("ars://portfolio/path-registration-content", "resolved_physical_identity"),
+        ("ars://portfolio/legacy-source-inventory-content", "opened_physical_identity"),
+        ("ars://portfolio/legacy-cutover-closure-content", "physical_identity"),
+        ("ars://portfolio/legacy-portfolio-path-observation", "physical_identity"),
+        ("ars://portfolio/legacy-record-observed", "physical_source_identity"),
+    )
+    for schema_id, property_name in definitions:
+        schema = _schema_by_id(schema_id)
+        assert schema["properties"][property_name]["$ref"] == "#/$defs/physicalIdentity"
+        assert schema["$defs"]["physicalIdentity"] == expected
+
+    relation_schema = _schema_by_id("ars://portfolio/relation/path-physical-identity")
+    relation_shape = {key: relation_schema[key] for key in ("type", "required", "properties", "additionalProperties")}
+    assert relation_shape == {
+        "type": expected["type"],
+        "required": ["schema_id", "schema_version", "relation_kind", *expected["required"]],
+        "properties": {
+            "schema_id": {"const": "ars://portfolio/relation/path-physical-identity"},
+            "schema_version": {"const": "1.0.0"},
+            "relation_kind": {"const": "path-physical-identity"},
+            **expected["properties"],
+        },
+        "additionalProperties": False,
+    }
+
+
+def test_path_physical_identity_rejects_empty_alias_entries() -> None:
+    schema = _schema_by_id("ars://portfolio/relation/path-physical-identity")
+    value = {
+        "schema_id": "ars://portfolio/relation/path-physical-identity",
+        "schema_version": "1.0.0",
+        "relation_kind": "path-physical-identity",
+        "canonical_target": "C:/vault",
+        "reparse_chain": ["C:/vault"],
+        "volume_serial_number": "volume-1",
+        "stable_file_id": "file-1",
+        "link_count": 1,
+        "case_aliases": ["C:/VAULT"],
+        "unicode_aliases": ["C:/vault"],
+        "short_name_aliases": ["C:/VAULT~1"],
+    }
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(value)
+    for field in ("reparse_chain", "case_aliases", "unicode_aliases", "short_name_aliases"):
+        invalid = deepcopy(value)
+        invalid[field] = [""]
+        assert not validator.is_valid(invalid), field
+
+
+def test_relation_discriminators_match_bootstrap_slugs() -> None:
+    for kind in ("assay", "candidate", "spike-plan", "spike", "spike-attempt"):
+        schema = _schema_by_id(f"ars://portfolio/relation/{kind}")
+        assert schema["properties"]["relation_kind"]["const"] == kind
+
+
+def test_discovery_revisit_requires_actor_attribution() -> None:
+    schema = _schema_by_id("ars://portfolio/relation/discovery-revisit")
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(VALID_DISCOVERY_REVISIT)
+    missing_actor = deepcopy(VALID_DISCOVERY_REVISIT)
+    missing_actor.pop("actor_id")
+    assert not validator.is_valid(missing_actor)
+
+
+def test_research_dossier_prohibited_adoption_claims_reject_empty_strings() -> None:
+    schema = _schema_by_id("ars://portfolio/research-dossier-manifest")
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    manifest = {
+        "schema_id": "ars://portfolio/research-dossier-manifest",
+        "schema_version": "1.0.0",
+        "dossier_logical_id": "dossier-a",
+        "dossier_revision": 1,
+        "package_version": "1.0.0",
+        "purpose": "Fixture",
+        "author": "actor-a",
+        "created_at": "2026-01-01T00:00:00Z",
+        "governing_decisions": [],
+        "component_count": 0,
+        "components": [],
+        "source_dependency_count": 0,
+        "source_dependencies": [],
+        "object_blueprints": [],
+        "scope_definition_blueprints": [],
+        "dependency_edges": [],
+        "relationships": [],
+        "object_count": 0,
+        "scope_count": 0,
+        "edge_count": 0,
+        "relationship_count": 0,
+        "admission_profile_ref": _record_ref(),
+        "ownership_declarations": ["successor-owned only"],
+        "prohibited_adoption_claims": ["legacy prose is not authority"],
+        "closure_hash": _HASH,
+    }
+    assert validator.is_valid(manifest)
+    invalid = deepcopy(manifest)
+    invalid["prohibited_adoption_claims"] = [""]
+    assert not validator.is_valid(invalid)
 
 
 def test_production_w11_materialization_base_is_stable() -> None:
@@ -575,6 +1003,25 @@ def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
     with pytest.raises(SchemaError, match="owner row OR-140 positive_test_identity"):
         verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/w11-schema-catalogue-content", swapped)
 
+    duplicate_logical_key = deepcopy(catalogue)
+    duplicate_logical_key["schema_source_rows"].append(deepcopy(catalogue["schema_source_rows"][0]))
+    with pytest.raises(SchemaError, match="schema_source_rows logical_key values must be unique"):
+        verify_materialization_document(
+            SCHEMA_ROOT,
+            "ars://portfolio/w11-schema-catalogue-content",
+            duplicate_logical_key,
+        )
+
+    duplicate_schema_id = deepcopy(catalogue)
+    duplicate_schema_id["schema_source_rows"].append(deepcopy(catalogue["schema_source_rows"][0]))
+    duplicate_schema_id["schema_source_rows"][-1]["logical_key"] = "programme-copy"
+    with pytest.raises(SchemaError, match="schema_source_rows schema_id values must be unique"):
+        verify_materialization_document(
+            SCHEMA_ROOT,
+            "ars://portfolio/w11-schema-catalogue-content",
+            duplicate_schema_id,
+        )
+
 
 def test_w11_scorecard_resolves_the_frozen_rubric_at_inert_verifier_admission() -> None:
     verify_materialization_document(
@@ -587,6 +1034,16 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_inert_verifier_admission() 
     unresolved = deepcopy(VALID_SCORECARD)
     with pytest.raises(SchemaError, match="rubric_ref could not be resolved"):
         verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/assay-scorecard", unresolved)
+
+    malformed_rubric = deepcopy(VALID_RUBRIC)
+    malformed_rubric.pop("axis_definitions")
+    with pytest.raises(SchemaError, match="reference documents require validate_reference"):
+        w11_verifier.verify_w11_document(
+            "ars://portfolio/assay-scorecard",
+            VALID_SCORECARD,
+            reference_documents=[malformed_rubric],
+            validate_reference=None,
+        )
 
     unknown_axis = deepcopy(VALID_SCORECARD)
     unknown_axis["axis_results"][0]["axis_id"] = "unknown"
@@ -648,6 +1105,43 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_inert_verifier_admission() 
         )
 
 
+def test_w11_dossier_expected_set_recomputes_all_cross_field_identity() -> None:
+    dossier = deepcopy(VALID_DOSSIER_EXPECTED_SET)
+    verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", dossier)
+
+    for field in (
+        "component_count",
+        "source_count",
+        "object_count",
+        "scope_count",
+        "edge_count",
+        "relationship_count",
+    ):
+        mutated = deepcopy(dossier)
+        mutated[field] += 1
+        with pytest.raises(SchemaError, match=f"{field} does not match"):
+            verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", mutated)
+
+    for field in (
+        "component_multiset_hash",
+        "source_multiset_hash",
+        "object_multiset_hash",
+        "scope_multiset_hash",
+        "edge_multiset_hash",
+        "relationship_multiset_hash",
+        "expected_set_closure_hash",
+    ):
+        mutated = deepcopy(dossier)
+        mutated[field] = "f" * 64
+        with pytest.raises(SchemaError, match=f"{field} does not match"):
+            verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", mutated)
+
+    row_mutation = deepcopy(dossier)
+    row_mutation["components"][0]["component_kind"] = "different-kind"
+    with pytest.raises(SchemaError, match="component_multiset_hash does not match"):
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", row_mutation)
+
+
 def test_w11_representative_mutations_are_rejected() -> None:
     mutations = [
         ("ars://portfolio/programme", VALID_PROGRAMME, "title", 7),
@@ -663,13 +1157,18 @@ def test_w11_representative_mutations_are_rejected() -> None:
 
 
 def _git_bytes(revision: str, path: str) -> bytes:
-    return subprocess.run(
-        ["git", "cat-file", "-p", f"{revision}:{path}"],
-        cwd=REPO_ROOT,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ).stdout
+    try:
+        return subprocess.run(
+            ["git", "cat-file", "-p", f"{revision}:{path}"],
+            cwd=REPO_ROOT,
+            check=True,
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode("utf-8", errors="replace").strip()
+        pytest.fail(f"full-history W11 identity lookup failed for {revision}:{path}: {detail}")
 
 
 def _git_blob(repo_root: Path, revision: str, path: str) -> str:
@@ -677,6 +1176,7 @@ def _git_blob(repo_root: Path, revision: str, path: str) -> str:
         ["git", "rev-parse", f"{revision}:{path}"],
         cwd=repo_root,
         check=True,
+        shell=False,
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
@@ -687,6 +1187,7 @@ def _git_tree(repo_root: Path, revision: str) -> str:
         ["git", "rev-parse", f"{revision}^{{tree}}"],
         cwd=repo_root,
         check=True,
+        shell=False,
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
@@ -702,13 +1203,13 @@ def synthetic_w11_dag(tmp_path: Path) -> dict[str, Any]:
 
     (repo_root / "base.txt").write_text("base\n", encoding="utf-8")
     _git_test(repo_root, "add", "base.txt")
-    _git_test(repo_root, "commit", "--quiet", "-m", "synthetic base")
+    _git_test(repo_root, "commit", "--quiet", "--no-gpg-sign", "-m", "synthetic base")
     base = _git_test(repo_root, "rev-parse", "HEAD")
 
     (repo_root / "subject.txt").write_text("descendant\n", encoding="utf-8")
     (repo_root / "subject-meta.txt").write_text("descendant metadata\n", encoding="utf-8")
     _git_test(repo_root, "add", "subject.txt", "subject-meta.txt")
-    _git_test(repo_root, "commit", "--quiet", "-m", "synthetic descendant")
+    _git_test(repo_root, "commit", "--quiet", "--no-gpg-sign", "-m", "synthetic descendant")
     subject = _git_test(repo_root, "rev-parse", "HEAD")
 
     unrelated_blob = _git_test(repo_root, "hash-object", "-w", "--stdin", input_text="unrelated\n")
@@ -724,11 +1225,21 @@ def synthetic_w11_dag(tmp_path: Path) -> dict[str, Any]:
 
 
 def _git_test(repo_root: Path, *args: str, input_text: str | None = None, env: dict[str, str] | None = None) -> str:
+    isolated_env = os.environ.copy()
+    if env is not None:
+        isolated_env.update(env)
+    for key in tuple(isolated_env):
+        if key == "GIT_CONFIG_COUNT" or key.startswith("GIT_CONFIG_KEY_") or key.startswith("GIT_CONFIG_VALUE_"):
+            isolated_env.pop(key, None)
+    isolated_env["GIT_CONFIG_GLOBAL"] = str(repo_root / ".missing-global-config")
+    isolated_env["GIT_CONFIG_SYSTEM"] = str(repo_root / ".missing-system-config")
+    isolated_env["GIT_CONFIG_NOSYSTEM"] = "1"
     return subprocess.run(
         ["git", *args],
         cwd=repo_root,
         check=True,
-        env=env,
+        env=isolated_env,
+        shell=False,
         input=input_text,
         text=True,
         stdout=subprocess.PIPE,
@@ -741,6 +1252,7 @@ def _subject_envelope(repo_root: Path, base_commit: str, subject_commit: str) ->
         ["git", "diff", "--name-only", "--no-renames", base_commit, subject_commit],
         cwd=repo_root,
         check=True,
+        shell=False,
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.splitlines()
@@ -816,6 +1328,7 @@ def test_w11_content_schemas_forbid_self_attestation_and_runtime_state() -> None
         assert "catalogue_content_hash" not in properties
 
 
+@pytest.mark.integration
 def test_raw_w11_identity_uses_the_explicit_git_namespace() -> None:
     raw = _git_bytes(W11_COMMIT, W11_PATH)
     assert hashlib.sha256(raw).hexdigest() == W11_SHA256
@@ -877,6 +1390,27 @@ def test_w11_schemas_load_through_the_registry_without_activation() -> None:
     assert runtime.resolve_identity("ars://portfolio/programme", "1.0.0").schema_id == "ars://portfolio/programme"
 
 
+def test_w11_verifier_rejects_nested_late_schema_files(tmp_path: Path) -> None:
+    schema_root = tmp_path / "schemas"
+    schema_root.mkdir()
+    (schema_root / "programme.schema.json").write_bytes((SCHEMA_ROOT / "programme.schema.json").read_bytes())
+    nested = schema_root / "nested"
+    nested.mkdir()
+    (nested / "late.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "ars://portfolio/nested-late",
+                "type": "object",
+                "additionalProperties": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SchemaError, match="nested schema files are not permitted"):
+        verify_materialization_document(schema_root, "ars://portfolio/programme", VALID_PROGRAMME)
+
+
 def test_bootstrap_contract_is_inert_and_binds_the_accepted_w11_tuple() -> None:
     contract = yaml.safe_load(BOOTSTRAP_CONTRACT.read_text(encoding="utf-8"))
     _validate(_schema_by_id("ars://portfolio/w11-materialization-bootstrap-contract"), contract)
@@ -901,7 +1435,29 @@ def test_bootstrap_contract_is_inert_and_binds_the_accepted_w11_tuple() -> None:
         "no_implicit_working_copy_or_symbolic_ref": True,
     }
     assert contract["acceptance_instance"] == "forbidden_in_pr1"
-    assert set(contract["families"]["content"]) == set(CONTENT_KINDS)
-    assert set(contract["families"]["relation"]) == set(RELATION_KINDS)
-    assert set(contract["families"]["artefact"]) == set(ARTEFACT_KINDS)
-    assert set(contract["families"]["bootstrap"]) == set(BOOTSTRAP_KINDS)
+    assert contract["verification_rules"] == [
+        "accepted W11 raw-byte tuple is independently observed",
+        "every materialized schema is Draft 2020-12 valid and closed",
+        "W11 IDs remain absent from runtime bindings",
+        "no expected catalogue or acceptance instance is materialized",
+        "no runtime production Python is changed",
+        "the non-runtime verifier requires the caller-supplied external subject envelope",
+        "the envelope names the exact base, subject commit, subject tree, changed paths, and per-path blobs",
+    ]
+    for family, expected in (
+        ("content", CONTENT_KINDS),
+        ("relation", RELATION_KINDS),
+        ("artefact", ARTEFACT_KINDS),
+        ("bootstrap", BOOTSTRAP_KINDS),
+    ):
+        assert len(contract["families"][family]) == len(expected)
+        assert len(contract["families"][family]) == len(set(contract["families"][family]))
+        assert set(contract["families"][family]) == set(expected)
+
+    schema = _schema_by_id("ars://portfolio/w11-materialization-bootstrap-contract")
+    duplicate_family = deepcopy(contract)
+    duplicate_family["families"]["content"].append(duplicate_family["families"]["content"][0])
+    assert not Draft202012Validator(schema).is_valid(duplicate_family)
+    duplicate_rule = deepcopy(contract)
+    duplicate_rule["verification_rules"].append(duplicate_rule["verification_rules"][0])
+    assert not Draft202012Validator(schema).is_valid(duplicate_rule)
