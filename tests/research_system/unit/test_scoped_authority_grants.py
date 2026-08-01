@@ -134,6 +134,35 @@ def test_scoped_authority_grant_rejects_incompatible_or_unsafe_values(
         ScopedAuthorityGrant.from_dict(value)
 
 
+def test_scoped_authority_grant_rejects_empty_command_and_policy_action_lists() -> None:
+    value = _grant_value()
+    value["allowed_commands"] = []
+    value["allowed_policy_actions"] = []
+
+    with pytest.raises(ValueError, match="requires a command or policy action"):
+        ScopedAuthorityGrant.from_dict(value)
+    with pytest.raises(SchemaError):
+        bundled_runtime_schema_registry().validate_active(
+            "ars://core/scoped-authority-grant",
+            value,
+            schema_version="2.0.0",
+        )
+
+
+def test_scoped_authority_grant_rejects_caller_asserted_actor_class_field() -> None:
+    value = _grant_value()
+    value["actor_class"] = "human"
+
+    with pytest.raises(ValueError):
+        ScopedAuthorityGrant.from_dict(value)
+    with pytest.raises(SchemaError):
+        bundled_runtime_schema_registry().validate_active(
+            "ars://core/scoped-authority-grant",
+            value,
+            schema_version="2.0.0",
+        )
+
+
 def test_scoped_authority_grant_rejects_wildcards_and_duplicate_identities() -> None:
     wildcard = _grant_value()
     commands = wildcard["allowed_commands"]

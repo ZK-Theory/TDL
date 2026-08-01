@@ -848,6 +848,7 @@ def _verify_bootstrap_bindings(
         or not genesis_grants.issubset(grants)
         or any(
             grants[grant_id].get("schema_id") != "ars://core/scoped-authority-grant"
+            or grants[grant_id].get("schema_version") != "2.0.0"
             or grants[grant_id].get("activation_position", 0) <= 2
             for grant_id in additional_grants
         )
@@ -1874,6 +1875,8 @@ class LedgerAuthorityGrantResolver:
         subject_kind: str,
         subject_id: str,
         now: datetime,
+        *,
+        projection: dict[str, Any] | None = None,
     ) -> tuple[
         ScopedAuthorityGrantResolution,
         ScopedAuthorityGrant,
@@ -1882,7 +1885,8 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority actor class prohibited")
         if required_risk not in {"R0", "R1", "R2", "R3"}:
             raise ValueError("required risk must be R0 through R3")
-        projection = self._projection()
+        if projection is None:
+            projection = self._projection()
         result, grant, record = self._scoped_resolution(grant_id, projection)
         self._validate_current_scoped_grant(grant, record, now)
         if result.actor_id != validate_id(actor_id, "actor"):
@@ -1956,8 +1960,10 @@ class LedgerAuthorityGrantResolver:
         now: datetime,
     ) -> ScopedAuthorityGrantResolution:
         """Resolve one exact policy action against an active scoped grant."""
+        projection: dict[str, Any] | None = None
         if policy_action.policy_action_type == _R3_ASSURANCE_POLICY_ACTION:
-            context = self.administration_context()
+            projection = self._projection()
+            context = self._administration_context_from_projection(projection)
             if actor_class != "human" or validate_id(actor_id, "actor") != context.owner_actor_id:
                 raise ArsError("R3 assurance acceptance requires the bound human owner")
         binding = self.schema_registry.policy_action_binding(
@@ -1985,6 +1991,7 @@ class LedgerAuthorityGrantResolver:
             subject_kind,
             subject_id,
             now,
+            projection=projection,
         )
         if identity.sha256 != policy_action.schema_sha256 or policy_action not in grant.allowed_policy_actions:
             raise ArsError("authority policy-action identity mismatch")

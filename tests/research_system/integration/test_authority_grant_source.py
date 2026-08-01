@@ -13,6 +13,7 @@ import pytest
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
+    _verify_bootstrap_bindings,
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
@@ -1884,6 +1885,28 @@ def test_competing_initializers_converge_on_one_complete_identity(tmp_path) -> N
     assert len(identities) == 2
     assert identities[0] == identities[1]
     assert len(tuple(EventLedger(control_root, PROJECT_ID).iter_events())) == 2
+
+
+def test_non_genesis_bootstrap_projection_requires_scoped_grant_v2(tmp_path) -> None:
+    control_root, bootstrap, _ = _initialized(tmp_path)
+    events = tuple(EventLedger(control_root, PROJECT_ID, SCHEMAS).iter_events())
+    projection = replay(events, schema_registry=SCHEMAS)
+    projection["authority_grants"]["agr_01978abc-1090-7000-8000-000000001090"] = {
+        "authority_grant_id": "agr_01978abc-1090-7000-8000-000000001090",
+        "authority_grant_sha256": "a" * 64,
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": "1.0.0",
+        "activation_position": 3,
+    }
+
+    with pytest.raises(IntegrityError, match="authority bootstrap projection mismatch"):
+        _verify_bootstrap_bindings(
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            events,
+            projection,
+        )
 
 
 def test_governed_authority_hook_rechecks_under_same_writer_lock_as_revoke(tmp_path) -> None:
