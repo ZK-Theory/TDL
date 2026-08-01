@@ -660,6 +660,37 @@ class CommandService:
         ]
         return "competing" if target_events else "uncommitted"
 
+    def _reconcile_scoped_activation_marker(
+        self,
+        marker: dict[str, Any],
+        *,
+        status: str | None = None,
+    ) -> str:
+        status = self._scoped_activation_event_status(marker) if status is None else status
+        if status in {"committed", "competing"}:
+            try:
+                actual = self.objects.read(
+                    marker["object_kind"],
+                    marker["target_grant_id"],
+                    marker["object_revision"],
+                )
+            except (IntegrityError, ValueError) as exc:
+                raise IntegrityError(f"{status} scoped activation recovery object is invalid") from exc
+            if actual != marker["object_value"]:
+                raise IntegrityError(f"{status} scoped activation recovery object mismatch")
+            self._remove_scoped_activation_marker(marker["command_id"])
+        else:
+            self.objects.rollback_new_revision(
+                marker["object_kind"],
+                marker["target_grant_id"],
+                marker["object_revision"],
+                marker["object_value"],
+                existed_before=marker["object_existed_before"],
+            )
+            # Keep the canonical command identity until an exact retry
+            # commits or the command ID is otherwise collision-checked.
+        return status
+
     def _scoped_activation_marker_committed(self, marker: dict[str, Any]) -> bool:
         return self._scoped_activation_event_status(marker) == "committed"
 
@@ -675,40 +706,7 @@ class CommandService:
                 continue
             try:
                 status = self._scoped_activation_event_status(marker)
-                if status == "committed":
-                    try:
-                        actual = self.objects.read(
-                            marker["object_kind"],
-                            marker["target_grant_id"],
-                            marker["object_revision"],
-                        )
-                    except (IntegrityError, ValueError) as exc:
-                        raise IntegrityError("committed scoped activation recovery object is invalid") from exc
-                    if actual != marker["object_value"]:
-                        raise IntegrityError("committed scoped activation recovery object mismatch")
-                    self._remove_scoped_activation_marker(marker["command_id"])
-                elif status == "competing":
-                    try:
-                        actual = self.objects.read(
-                            marker["object_kind"],
-                            marker["target_grant_id"],
-                            marker["object_revision"],
-                        )
-                    except (IntegrityError, ValueError) as exc:
-                        raise IntegrityError("competing scoped activation recovery object is invalid") from exc
-                    if actual != marker["object_value"]:
-                        raise IntegrityError("competing scoped activation recovery object mismatch")
-                    self._remove_scoped_activation_marker(marker["command_id"])
-                else:
-                    self.objects.rollback_new_revision(
-                        marker["object_kind"],
-                        marker["target_grant_id"],
-                        marker["object_revision"],
-                        marker["object_value"],
-                        existed_before=marker["object_existed_before"],
-                    )
-                    # Keep the canonical command identity until an exact retry
-                    # commits or the command ID is otherwise collision-checked.
+                self._reconcile_scoped_activation_marker(marker, status=status)
             finally:
                 lock.__exit__(*sys.exc_info())
 
@@ -826,6 +824,8 @@ class CommandService:
             self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
             if scoped is not None:
+                if activation_command and scoped.status == "accepted":
+                    self._reconcile_scoped_activation_receipt(command, command_schema)
                 return scoped
             stored_conflict = self._stored_conflict_receipt(command)
             if stored_conflict is not None:
@@ -1099,6 +1099,21 @@ class CommandService:
         marker = self._load_scoped_activation_marker(path)
         self._validate_scoped_activation_marker_command(marker, command, command_schema)
         return self._scoped_activation_event_status(marker) == "committed"
+
+    def _reconcile_scoped_activation_receipt(
+        self,
+        command: Command,
+        command_schema: SchemaIdentity,
+    ) -> None:
+        marker_path = self._scoped_activation_marker_path(command.command_id)
+        if not marker_path.exists():
+            return
+        marker = self._load_scoped_activation_marker(marker_path)
+        self._validate_scoped_activation_marker_command(marker, command, command_schema)
+        status = self._scoped_activation_event_status(marker)
+        if status != "committed":
+            raise IntegrityError("scoped accepted receipt does not match recovery marker")
+        self._reconcile_scoped_activation_marker(marker, status=status)
 
     def _rollback_scoped_authority_activation(
         self,
