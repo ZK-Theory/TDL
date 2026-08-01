@@ -18,7 +18,7 @@
     "source_item_type": {"type": "string", "minLength": 1},
     "source_aliases": {"type": "array", "items": {"type": "string"}},
     "observed_row_bytes_hash": {"$ref": "#/$defs/sha256"},
-    "observed_at": {"type": "string", "format": "date-time"},
+    "observed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "non_inferences": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
   },
   "additionalProperties": false,

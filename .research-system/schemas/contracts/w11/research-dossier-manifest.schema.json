@@ -11,7 +11,7 @@
     "package_version": {"type": "string", "minLength": 1},
     "purpose": {"type": "string", "minLength": 1},
     "author": {"type": "string", "minLength": 1},
-    "created_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "governing_decisions": {"type": "array", "items": {"$ref": "#/$defs/recordRef"}},
     "component_count": {"type": "integer", "minimum": 0},
     "components": {"type": "array", "items": {"$ref": "#/$defs/componentRow"}},

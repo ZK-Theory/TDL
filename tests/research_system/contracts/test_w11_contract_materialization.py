@@ -32,6 +32,8 @@ W11_COMMIT = "892d1d1650cdcf71d2a886318e174a18e11d5de0"
 W11_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
 W11_SHA256 = "65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70"
 W11_BYTES = 185214
+W11_PARENT = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
+W11_SUBJECT = "04223674acdb82ee00d1410e960414d624c326b1"
 
 CONTENT_KINDS = (
     "programme",
@@ -216,16 +218,215 @@ def _validate(schema: dict[str, Any], value: dict[str, Any]) -> None:
     )
     if errors:
         pytest.fail("; ".join(error.message for error in errors))
+    if schema["$id"] in CONTENT_SCHEMA_IDS:
+        _validate_w11_content_semantics(schema["$id"], value)
 
 
 def _schema_by_id(schema_id: str) -> dict[str, Any]:
     return next(schema for _, schema in _schemas() if schema["$id"] == schema_id)
 
 
+def _validate_w11_content_semantics(schema_id: str, value: dict[str, Any]) -> None:
+    """Inert Stage-B semantic seam; no W11 runtime path imports this helper."""
+    if schema_id not in CONTENT_SCHEMA_IDS:
+        raise ValueError(f"not a W11 content schema: {schema_id}")
+
+    revision = value.get("record_revision")
+    predecessor = value.get("supersedes_revision")
+    if revision == 1 and predecessor is not None:
+        raise ValueError("revision 1 must have a null predecessor")
+    if isinstance(revision, int) and not isinstance(revision, bool) and revision > 1:
+        if predecessor != revision - 1:
+            raise ValueError("later revisions must name the exact predecessor")
+
+    for source_ref in value.get("source_refs", []):
+        ref_kind = source_ref.get("ref_kind")
+        fields = set(source_ref)
+        if ref_kind in {"record", "artefact"}:
+            expected = {"ref_kind", "id", "record_revision", "content_hash"}
+            if fields != expected:
+                raise ValueError("record and artefact references require id, record_revision, and content_hash only")
+        elif ref_kind == "external":
+            expected = {"ref_kind", "locator", "content_hash"}
+            if fields != expected:
+                raise ValueError("external references require locator and content_hash only")
+        else:
+            raise ValueError(f"unknown source reference kind: {ref_kind}")
+
+
+def _fragment_is_valid(schema: dict[str, Any], definition: str, value: dict[str, Any]) -> bool:
+    fragment = {
+        "$schema": schema["$schema"],
+        "$ref": f"#/$defs/{definition}",
+        "$defs": schema["$defs"],
+    }
+    return Draft202012Validator(
+        fragment,
+        format_checker=Draft202012Validator.FORMAT_CHECKER,
+    ).is_valid(value)
+
+
+def _owner_contract_row(owner_row_id: str) -> dict[str, Any]:
+    return {
+        "owner_row_id": owner_row_id,
+        "logical_key": "owner-row",
+        "schema_id": "ars://portfolio/test",
+        "schema_version": "1.0.0",
+        "file_observation_ref": _record_ref(),
+        "command_type": "C:test",
+        "payload_discriminant": "test",
+        "eligible_profile": "profile:test",
+        "authority_subject": "subject:test",
+        "preconditions": ["precondition"],
+        "ordered_events": ["event"],
+        "affected_streams": ["stream"],
+        "complete_write_set": ["write"],
+        "reducer": "U:test",
+        "projection_targets": ["P:test"],
+        "receipt_identity": "R:test",
+        "positive_test_identity": "W11-T01-OR-001",
+        "negative_mutation_test_identity": "W11-T03-OR-001-owner-row-mutation",
+        "retry_test_identity": "W11-T11-OR-001",
+    }
+
+
+def _axis_definition(axis_kind: str, value_type: str, domain: str) -> dict[str, Any]:
+    axis = {
+        "axis_id": f"{axis_kind}-axis",
+        "axis_kind": axis_kind,
+        "value_schema": value_type,
+        "value_type": value_type,
+        "required": True,
+        "evidence_type_allowlist": ["ars://portfolio/review-evidence"],
+        "validator_schema_id": f"ars://portfolio/validator/{axis_kind}",
+        "validator_schema_version": "1.0.0",
+        "failure_codes": ["not_met"],
+    }
+    if domain == "allowed_set":
+        axis["allowed_set"] = [False, True] if axis_kind == "gate" else [0, 1]
+    else:
+        axis["bounds"] = {"minimum": 0, "maximum": 1 if axis_kind == "registered_measure" else 3}
+    return axis
+
+
 def test_representative_valid_examples_cover_content_relation_and_artifact() -> None:
     _validate(_schema_by_id("ars://portfolio/programme"), VALID_PROGRAMME)
     _validate(_schema_by_id("ars://portfolio/relation/discovery-promotion"), VALID_DISCOVERY_PROMOTION)
     _validate(_schema_by_id("ars://portfolio/assay-scorecard"), VALID_SCORECARD)
+
+
+def test_owner_row_ids_are_exactly_the_two_w11_ranges() -> None:
+    schema = _schema_by_id("ars://portfolio/w11-schema-catalogue-content")
+    for owner_row_id in ("OR-001", "OR-040", "OR-041", "OR-101", "OR-140"):
+        assert _fragment_is_valid(schema, "ownerContractRow", _owner_contract_row(owner_row_id))
+    for owner_row_id in ("OR-000", "OR-042", "OR-100", "OR-141", "OR-01", "OR-1041"):
+        assert not _fragment_is_valid(schema, "ownerContractRow", _owner_contract_row(owner_row_id))
+
+
+def test_content_source_refs_use_only_their_ref_kind_identity() -> None:
+    valid_refs = (
+        {"ref_kind": "record", **_record_ref()},
+        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "content_hash": _HASH},
+        {"ref_kind": "external", "locator": "https://example.invalid/source", "content_hash": _HASH},
+    )
+    invalid_refs = (
+        {"ref_kind": "external", "locator": "https://example.invalid/source", "id": "obj_1", "content_hash": _HASH},
+        {"ref_kind": "record", "locator": "https://example.invalid/source", "content_hash": _HASH},
+        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "locator": "foreign", "content_hash": _HASH},
+    )
+    for schema_id in sorted(CONTENT_SCHEMA_IDS):
+        schema = _schema_by_id(schema_id)
+        for source_ref in valid_refs:
+            assert _fragment_is_valid(schema, "sourceRef", source_ref), schema_id
+        for source_ref in invalid_refs:
+            assert not _fragment_is_valid(schema, "sourceRef", source_ref), schema_id
+
+
+def test_assay_axis_domains_and_scorecard_values_are_typed_and_closed() -> None:
+    rubric_schema = _schema_by_id("ars://portfolio/assay-rubric-content")
+    for axis_kind, value_type, domain in (
+        ("gate", "boolean", "allowed_set"),
+        ("integer_score", "integer", "bounds"),
+        ("registered_measure", "number", "bounds"),
+    ):
+        assert _fragment_is_valid(
+            rubric_schema,
+            "axisDefinition",
+            _axis_definition(axis_kind, value_type, domain),
+        )
+
+    missing_type = _axis_definition("gate", "boolean", "allowed_set")
+    missing_type.pop("value_type")
+    assert not _fragment_is_valid(rubric_schema, "axisDefinition", missing_type)
+    missing_domain = _axis_definition("integer_score", "integer", "bounds")
+    missing_domain.pop("bounds")
+    assert not _fragment_is_valid(rubric_schema, "axisDefinition", missing_domain)
+    wrong_domain = _axis_definition("gate", "integer", "bounds")
+    assert not _fragment_is_valid(rubric_schema, "axisDefinition", wrong_domain)
+
+    scorecard_schema = _schema_by_id("ars://portfolio/assay-scorecard")
+    for axis_kind, value in (("gate", True), ("integer_score", 2), ("registered_measure", 0.5)):
+        axis_result = deepcopy(VALID_SCORECARD["axis_results"][0])
+        axis_result["axis_kind"] = axis_kind
+        axis_result["value"] = value
+        assert _fragment_is_valid(scorecard_schema, "axisResult", axis_result)
+    for value in (None, {}, [], "not-a-score"):
+        axis_result = deepcopy(VALID_SCORECARD["axis_results"][0])
+        axis_result["value"] = value
+        assert not _fragment_is_valid(scorecard_schema, "axisResult", axis_result)
+    wrong_gate_domain = deepcopy(VALID_SCORECARD["axis_results"][0])
+    wrong_gate_domain["value"] = 1
+    assert not _fragment_is_valid(scorecard_schema, "axisResult", wrong_gate_domain)
+    wrong_integer_domain = deepcopy(VALID_SCORECARD["axis_results"][0])
+    wrong_integer_domain["axis_kind"] = "integer_score"
+    wrong_integer_domain["value"] = True
+    assert not _fragment_is_valid(scorecard_schema, "axisResult", wrong_integer_domain)
+
+
+def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
+    schema = _schema_by_id("ars://portfolio/programme")
+    _validate(schema, VALID_PROGRAMME)
+    offset_timestamp = deepcopy(VALID_PROGRAMME)
+    offset_timestamp["created_at"] = "2026-01-01T01:00:00+01:00"
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    assert not validator.is_valid(offset_timestamp)
+
+
+def test_w11_exact_subject_range_keeps_runtime_python_inert() -> None:
+    changed_paths = subprocess.run(
+        ["git", "diff", "--name-only", f"{W11_PARENT}..{W11_SUBJECT}", "--", "research_system"],
+        cwd=REPO_ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.splitlines()
+    assert not [path for path in changed_paths if path.endswith(".py")]
+
+
+def test_w11_content_semantics_cover_every_content_schema() -> None:
+    valid = {
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "source_refs": [_source_ref()],
+    }
+    for schema_id in sorted(CONTENT_SCHEMA_IDS):
+        _validate_w11_content_semantics(schema_id, valid)
+
+    wrong_predecessor = {**valid, "record_revision": 3, "supersedes_revision": 1}
+    wrong_first_revision = {**valid, "supersedes_revision": 1}
+    foreign_record_fields = {
+        **valid,
+        "source_refs": [
+            {"ref_kind": "external", "locator": "https://example.invalid/source", "id": "obj_1", "content_hash": _HASH}
+        ],
+    }
+    for schema_id in sorted(CONTENT_SCHEMA_IDS):
+        with pytest.raises(ValueError, match="predecessor"):
+            _validate_w11_content_semantics(schema_id, wrong_predecessor)
+        with pytest.raises(ValueError, match="revision 1"):
+            _validate_w11_content_semantics(schema_id, wrong_first_revision)
+        with pytest.raises(ValueError, match="external"):
+            _validate_w11_content_semantics(schema_id, foreign_record_fields)
 
 
 def test_w11_representative_mutations_are_rejected() -> None:
@@ -344,25 +545,6 @@ def test_w11_ids_are_not_runtime_activated() -> None:
 def test_w11_schemas_load_through_the_registry_without_activation() -> None:
     registry = SchemaRegistry(SCHEMA_ROOT)
     assert registry.resolve_identity("ars://portfolio/programme", "1.0.0").schema_id == "ars://portfolio/programme"
-
-
-def test_no_runtime_production_python_file_is_changed() -> None:
-    unstaged = subprocess.run(
-        ["git", "diff", "--name-only", "--", "research_system", "research_system"],
-        cwd=REPO_ROOT,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.splitlines()
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--", "research_system", "research_system"],
-        cwd=REPO_ROOT,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.splitlines()
-    assert unstaged == []
-    assert staged == []
 
 
 def test_bootstrap_contract_is_inert_and_binds_the_accepted_w11_tuple() -> None:

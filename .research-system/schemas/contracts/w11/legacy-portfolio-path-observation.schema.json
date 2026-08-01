@@ -9,7 +9,7 @@
     "path_registration_ref": {"$ref": "#/$defs/recordRef"},
     "observed_path": {"type": "string", "minLength": 1},
     "physical_identity": {"$ref": "#/$defs/physicalIdentity"},
-    "observed_at": {"type": "string", "format": "date-time"},
+    "observed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "source_event_position": {"type": "integer", "minimum": 0},
     "source_event_hash": {"$ref": "#/$defs/sha256"}
   },
