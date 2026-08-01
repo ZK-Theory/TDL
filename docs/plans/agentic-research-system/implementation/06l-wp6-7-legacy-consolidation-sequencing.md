@@ -249,7 +249,7 @@ child/home selected by the owner.
 pilot-promotion evidence; accepted W11 specification/runtime chain; current
 Discovery inventory; current P01-A/P01-B and APM surface inventory; path/writer
 registry; the exact D-G6-4 first-batch relation; content-addressed source
-observations; and the Step-3 proof for every affected item.
+observations.
 **Output:** a proposed, bounded first batch with one row per item: source
 authority, successor object, source and target path, current writer, proposed
 writer, transition owner, evidence handles, and status. It must distinguish
@@ -263,8 +263,7 @@ missing writer identity, path collision, unresolved annotation epoch, or a
 paper/APM item without its own closed prerequisite. Delete no source and do
 not claim a batch was transitioned.
 **Proof before Step 5:** accepted inventory, disjoint path/writer registry,
-complete first-batch relation, exact source hashes, owner decision, and the
-Step-3 disposition proof for every affected item.
+complete first-batch relation, exact source hashes, and owner decision.
 
 ### Step 5 — Per-item ownership transition
 
