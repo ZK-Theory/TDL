@@ -946,6 +946,7 @@ def finalize_verified_restore_binding(
     expected_schema_root: Path | None = None,
     output_commit: Callable[[], Any] | None = None,
     output_rollback: Callable[[], None] | None = None,
+    final_output_validator: Callable[[], None] | None = None,
     post_commit: Callable[[], Any] | None = None,
     journal_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -1060,6 +1061,7 @@ def finalize_verified_restore_binding(
         source_snapshot_validator=revalidate_source_snapshot,
         output_commit=output_commit,
         output_rollback=output_rollback,
+        final_output_validator=final_output_validator,
         post_commit=post_commit,
         journal_path=journal_path,
     )

@@ -18,7 +18,7 @@ from research_system.assurance.external_records import ExternalAssuranceRecordSt
 from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
 from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.cli import main
-from research_system.config import ControlBinding
+from research_system.config import ApprovedProjectBinding, ControlBinding
 from research_system.errors import ArsError, ConfigurationError
 from research_system.store.identity import (
     load_restore_binding_evidence,
@@ -152,6 +152,21 @@ def _target_files(root: Path) -> tuple[tuple[str, bytes], ...]:
     )
 
 
+def _path_inventory(root: Path) -> tuple[tuple[str, str, bytes], ...]:
+    if not root.exists():
+        return ()
+    entries: list[tuple[str, str, bytes]] = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root).as_posix()
+        if path.is_dir():
+            entries.append((relative, "directory", b""))
+        elif path.is_file():
+            entries.append((relative, "file", path.read_bytes()))
+        else:
+            entries.append((relative, "other", b""))
+    return tuple(sorted(entries))
+
+
 def _foreign_binding_bytes(tmp_path: Path, case: dict[str, object]) -> bytes:
     foreign_code = tmp_path / "foreign-code"
     shutil.copytree(case["code_root"], foreign_code)
@@ -177,7 +192,7 @@ def _foreign_binding_bytes(tmp_path: Path, case: dict[str, object]) -> bytes:
     )
 
 
-def _run_restore_crash(args: list[str], foundation: Path) -> subprocess.CompletedProcess[str]:
+def _run_restore_crash(args: list[str], foundation: Path, crash_point: str) -> subprocess.CompletedProcess[str]:
     script = """
 import json
 import os
@@ -190,23 +205,48 @@ identity._fsync_directory = lambda _path: True
 cli._fsync_directory = lambda _path: True
 cli._CANONICAL_FOUNDATION_CONFIG = Path(os.environ["ARS_FOUNDATION"])
 target_manifest = Path(os.environ["ARS_TARGET"]).resolve() / "manifests" / "store-identity.json"
+target_evidence = Path(os.environ["ARS_TARGET"]).resolve() / "manifests" / "restore-binding-evidence.json"
+crash_point = os.environ["ARS_CRASH_POINT"]
 original_replace = identity.os.replace
+original_publish = cli._publish_reserved_output
+original_clear = identity.clear_restore_binding_journal
 
 def crash_after_manifest_replace(source, destination):
     result = original_replace(source, destination)
     if (
-        Path(destination).resolve() == target_manifest
+        crash_point == "manifest-published"
+        and Path(destination).resolve() == target_manifest
         and Path(source).name.startswith(".store-identity.json.")
+    ):
+        os._exit(77)
+    if (
+        crash_point == "evidence-published"
+        and Path(destination).resolve() == target_evidence
+        and Path(source).name.startswith(".restore-binding-evidence.json.")
     ):
         os._exit(77)
     return result
 
+def crash_after_output_publish(output, temporary, descriptor, data):
+    result = original_publish(output, temporary, descriptor, data)
+    if crash_point == "output-published":
+        os._exit(77)
+    return result
+
+def crash_after_journal_clear(path):
+    original_clear(path)
+    if crash_point == "journal-cleared":
+        os._exit(77)
+
+cli._publish_reserved_output = crash_after_output_publish
 identity.os.replace = crash_after_manifest_replace
+identity.clear_restore_binding_journal = crash_after_journal_clear
 cli.main(json.loads(os.environ["ARS_ARGS"]))
 """
     environment = os.environ.copy()
     environment["ARS_FOUNDATION"] = str(foundation)
     environment["ARS_ARGS"] = json.dumps(args)
+    environment["ARS_CRASH_POINT"] = crash_point
     environment["ARS_TARGET"] = args[args.index("--control-root") + 1]
     return subprocess.run(
         [sys.executable, "-c", script],
@@ -306,6 +346,40 @@ def test_restore_bind_cli_rejects_the_tracked_null_foundation(tmp_path: Path) ->
 
     assert _target_files(case["target"]) == before_target
     assert not (tmp_path / "restored-binding.json").exists()
+
+
+def test_approved_project_binding_load_rejects_absent_store_without_creating(tmp_path: Path) -> None:
+    case, _ = _restore_cli_case(tmp_path)
+    foundation = tmp_path / "absent-foundation.yaml"
+    absent_root = tmp_path / "absent-control"
+    _write_foundation(foundation, case, control_root=absent_root)
+    before_parent = _path_inventory(tmp_path)
+
+    with pytest.raises(ConfigurationError, match="materialized|matching|unavailable"):
+        ApprovedProjectBinding.load(foundation)
+
+    assert not absent_root.exists()
+    assert _path_inventory(tmp_path) == before_parent
+
+
+def test_approved_project_binding_load_rejects_partial_store_without_repairing(tmp_path: Path) -> None:
+    case, _ = _restore_cli_case(tmp_path)
+    foundation = tmp_path / "partial-foundation.yaml"
+    partial_root = tmp_path / "partial-control"
+    (partial_root / "objects").mkdir(parents=True)
+    (partial_root / "objects" / "sentinel.bin").write_bytes(b"preserve")
+    _write_foundation(foundation, case, control_root=partial_root)
+    before_root = _path_inventory(partial_root)
+
+    with pytest.raises(ConfigurationError, match="materialized|matching|invalid"):
+        ApprovedProjectBinding.load(foundation)
+
+    assert _path_inventory(partial_root) == before_root
+    assert not (partial_root / "manifests").exists()
+    assert not (partial_root / "events").exists()
+    assert not (partial_root / "receipts").exists()
+    assert not (partial_root / "snapshots").exists()
+    assert not (partial_root / "runtime").exists()
 
 
 def test_assurance_record_write_cli_persists_and_resolves(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -695,13 +769,73 @@ def test_restore_bind_cli_rejects_foreign_output_swap_on_already_bound_retry(
     assert Path(args[args.index("--config-output") + 1]).read_bytes() == foreign_output
 
 
+def test_restore_bind_cli_revalidates_output_after_output_phase_before_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    foreign_output = _foreign_binding_bytes(tmp_path, case)
+    output_path = Path(args[args.index("--config-output") + 1])
+    original_mark = identity_module.mark_restore_binding_journal
+
+    def mark_then_swap(path: Path, phase: str) -> None:
+        original_mark(path, phase)
+        if phase == "output-published":
+            output_path.write_bytes(foreign_output)
+
+    monkeypatch.setattr(identity_module, "mark_restore_binding_journal", mark_then_swap)
+    before_target = _target_files(case["target"])
+
+    with pytest.raises(ArsError, match="foreign output|output|binding"):
+        main(args)
+
+    assert _target_files(case["target"]) == before_target
+    assert output_path.read_bytes() == foreign_output
+    assert not (case["target"] / "manifests" / "restore-binding-evidence.json").exists()
+
+
+def test_restore_bind_cli_revalidates_output_on_already_bound_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import research_system.cli as cli_module
+
+    case, args = _restore_cli_case(tmp_path)
+    assert main(args) == 0
+    capsys.readouterr()
+    foreign_output = _foreign_binding_bytes(tmp_path, case)
+    output_path = Path(args[args.index("--config-output") + 1])
+    original_validate = cli_module._validate_restore_output_bytes
+    calls = 0
+
+    def swap_on_final_validation(*validation_args, **validation_kwargs) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            output_path.write_bytes(foreign_output)
+        original_validate(*validation_args, **validation_kwargs)
+
+    monkeypatch.setattr(cli_module, "_validate_restore_output_bytes", swap_on_final_validation)
+    before_target = _target_files(case["target"])
+
+    with pytest.raises(ArsError, match="output|binding"):
+        main(args)
+
+    assert calls == 1
+    assert _target_files(case["target"]) == before_target
+    assert output_path.read_bytes() == foreign_output
+
+
 def test_restore_bind_cli_recovers_after_process_crash_at_manifest_publication(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     case, args = _restore_cli_case(tmp_path)
     foundation = Path(args[args.index("--foundation-config") + 1])
-    result = _run_restore_crash(args, foundation)
+    result = _run_restore_crash(args, foundation, "manifest-published")
 
     assert result.returncode == 77, result.stderr
     manifest_path = case["target"] / "manifests" / "store-identity.json"
@@ -716,6 +850,47 @@ def test_restore_bind_cli_recovers_after_process_crash_at_manifest_publication(
     capsys.readouterr()
     assert evidence_path.is_file()
     assert not tuple(case["target"].joinpath("manifests").glob(".restore-binding-evidence.json.*.tmp"))
+
+
+@pytest.mark.parametrize("crash_point", ["output-published", "evidence-published", "journal-cleared"])
+def test_restore_bind_cli_recovers_after_process_crash_at_missing_journal_boundaries(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    crash_point: str,
+) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    foundation = Path(args[args.index("--foundation-config") + 1])
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    journal_path = case["target"] / "manifests" / ".restore-binding-journal.json"
+    output_path = Path(args[args.index("--config-output") + 1])
+    before_manifest = manifest_path.read_bytes()
+
+    result = _run_restore_crash(args, foundation, crash_point)
+    assert result.returncode == 77, result.stderr
+
+    if crash_point == "output-published":
+        assert manifest_path.read_bytes() == before_manifest
+        assert output_path.is_file()
+        assert not evidence_path.exists()
+        assert json.loads(journal_path.read_text(encoding="utf-8"))["phase"] == "intent-recorded"
+    elif crash_point == "evidence-published":
+        assert json.loads(manifest_path.read_text(encoding="utf-8"))["control_root"] == str(case["target"].resolve())
+        assert evidence_path.is_file()
+        assert json.loads(journal_path.read_text(encoding="utf-8"))["phase"] == "manifest-published"
+    else:
+        assert json.loads(manifest_path.read_text(encoding="utf-8"))["control_root"] == str(case["target"].resolve())
+        assert evidence_path.is_file()
+        assert not journal_path.exists()
+
+    assert main(args) == 0
+    capsys.readouterr()
+    assert evidence_path.is_file()
+    assert output_path.is_file()
+    assert not journal_path.exists()
+    assert not (case["target"] / "manifests" / ".restore-binding-evidence.pending").exists()
+    assert not tuple(case["target"].joinpath("manifests").glob("*.tmp"))
+    assert not tuple(output_path.parent.glob(f".{output_path.name}.*.tmp"))
 
 
 def test_restore_bind_cli_promotes_pending_evidence_before_success(

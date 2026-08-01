@@ -14,7 +14,10 @@ from research_system.store.identity import (
     manifest_schema_root,
     verify_store_identity,
 )
-from research_system.store.layout import require_external_control_root
+from research_system.store.layout import (
+    require_control_root_disjoint_from_code_roots,
+    require_external_control_root,
+)
 
 
 _FOUNDATION_REQUIRED_FIELDS = frozenset(
@@ -130,7 +133,7 @@ class ApprovedProjectBinding:
         if resolved_schema_root not in {root / ".research-system" / "schemas" for root in resolved_code_roots}:
             raise ConfigurationError("approved schema_root is not registered by an approved code root")
         try:
-            require_external_control_root(list(resolved_code_roots), resolved_control_root)
+            require_control_root_disjoint_from_code_roots(list(resolved_code_roots), resolved_control_root)
             manifest = load_store_manifest(resolved_control_root)
         except (ArsError, OSError, ValueError) as exc:
             raise ConfigurationError("approved control_root has no matching materialized store") from exc

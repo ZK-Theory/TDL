@@ -303,6 +303,33 @@ def _validate_restore_output_identity(
         raise ConfigurationError("restore binding output identity differs from canonical foundation")
 
 
+def _validate_restore_output_bytes(
+    output: Path,
+    expected_output: bytes,
+    target_root: Path,
+    approved: ApprovedProjectBinding,
+) -> None:
+    try:
+        actual = output.read_bytes() if output.is_file() else None
+    except OSError as exc:
+        raise ArsError("restore binding output changed during final publication") from exc
+    if actual != expected_output:
+        raise ArsError("restore binding output changed during final publication")
+    try:
+        value = json.loads(expected_output.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ArsError("restore binding output is not canonical JSON") from exc
+    expected_value = {
+        "code_roots": [str(root) for root in approved.code_roots],
+        "control_root": str(target_root),
+        "project_id": approved.project_id,
+        "schema_root": str(approved.schema_root),
+        "store_identity": approved.store_identity,
+    }
+    if value != expected_value or canonical_bytes(value) != expected_output:
+        raise ConfigurationError("restore binding output identity differs from canonical foundation")
+
+
 def _store_restore_bind(args: argparse.Namespace) -> int:
     target_root = args.control_root.resolve(strict=True)
     requested_source = args.source_root.resolve(strict=True)
@@ -455,6 +482,14 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                     except OSError:
                         return
 
+            def validate_final_output() -> None:
+                _validate_restore_output_bytes(
+                    args.config_output,
+                    expected_output,
+                    target_root,
+                    locked_approved,
+                )
+
             finalize_verified_restore_binding(
                 target_root=target_root,
                 source_root=source_root,
@@ -471,6 +506,7 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 expected_schema_root=locked_approved.schema_root,
                 output_commit=commit_output if temporary is not None else None,
                 output_rollback=rollback_output if temporary is not None else None,
+                final_output_validator=validate_final_output,
                 journal_path=journal_path,
             )
             binding = ControlBinding.load(args.config_output)

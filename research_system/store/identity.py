@@ -757,6 +757,7 @@ def rebind_restored_store(
     source_snapshot_validator: Callable[[], None] | None = None,
     output_commit: Callable[[], Any] | None = None,
     output_rollback: Callable[[], None] | None = None,
+    final_output_validator: Callable[[], None] | None = None,
     post_commit: Callable[[], Any] | None = None,
     journal_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -847,6 +848,8 @@ def rebind_restored_store(
             raise ArsError("restore binding output publication is incomplete")
         if evidence["durability_status"] != "durable":
             raise ArsError("restore binding durability is incomplete")
+        if final_output_validator is not None:
+            final_output_validator()
         return manifest
     if evidence is not None:
         raise ConflictError("restore binding evidence conflicts with an unbound manifest")
@@ -945,6 +948,8 @@ def rebind_restored_store(
                 raise ArsError("restore binding requires durable output publication")
             if journal_path is not None:
                 mark_restore_binding_journal(journal_path, "output-published")
+        if final_output_validator is not None:
+            final_output_validator()
         os.replace(temporary, manifest_path)
         manifest_published = True
         if not _fsync_directory(manifest_path.parent):
