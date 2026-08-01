@@ -11,7 +11,7 @@ from research_system.errors import ArsError, ConflictError, IntegrityError, Sche
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
-from research_system.store.lock import WriterLock
+from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
 
@@ -83,6 +83,44 @@ def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkey
         with WriterLock(path, {"writer_id": "w1"}):
             raise AssertionError("lock should not be entered")
     assert not path.exists()
+
+
+def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failure(tmp_path):
+    roots = tuple(tmp_path / name for name in ("a", "b", "c"))
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+    entered: list[str] = []
+    exited: list[str] = []
+
+    class FakeLock:
+        def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.label = path.parent.parent.name
+
+        def __enter__(self):
+            entered.append(self.label)
+            if self.label == "c":
+                raise RuntimeError("third lock acquisition failed")
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            exited.append(self.label)
+            if self.label == "b":
+                raise ValueError("second lock release failed")
+            return False
+
+    candidate = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd_composite-cleanup"},
+        lock_factory=FakeLock,
+    )
+    with pytest.raises(ValueError, match="second lock release failed"):
+        candidate.__enter__()
+
+    assert entered == ["a", "b", "c"]
+    assert exited == ["b", "a"]
+    assert candidate._acquired == []
+    candidate.__exit__(None, None, None)
+    assert exited == ["b", "a"]
 
 
 def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):

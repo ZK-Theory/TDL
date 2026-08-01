@@ -4,6 +4,8 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 import json
+import os
+from pathlib import Path
 import threading
 
 import pytest
@@ -1083,6 +1085,44 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
     assert not holder.is_alive()
     assert errors == []
     assert all(not path.exists() for path in first.paths)
+
+
+def test_composite_writer_lock_deduplicates_physical_windows_aliases(tmp_path):
+    root = tmp_path / "physical-root"
+    (root / "runtime").mkdir(parents=True)
+    aliases = [root, root.resolve(), Path(os.path.relpath(root, Path.cwd()))]
+    if os.name == "nt":
+        aliases.append(Path(str(root).swapcase()))
+        aliases.append(Path("\\\\?\\" + str(root.resolve())))
+
+    first = CompositeWriterLock(
+        aliases,
+        {"command_id": "cmd_01978abc-7267-7000-8000-000000007267"},
+    )
+    second = CompositeWriterLock(
+        tuple(reversed(aliases)),
+        {"command_id": "cmd_01978abc-7268-7000-8000-000000007268"},
+    )
+
+    assert len(first.paths) == 1
+    assert second.paths == first.paths
+
+
+def test_composite_writer_lock_deduplicates_reparse_alias_when_available(tmp_path):
+    root = tmp_path / "reparse-target"
+    alias = tmp_path / "reparse-alias"
+    (root / "runtime").mkdir(parents=True)
+    try:
+        alias.symlink_to(root, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink/reparse creation unavailable on this host")
+
+    lock = CompositeWriterLock(
+        (root, alias),
+        {"command_id": "cmd_01978abc-7269-7000-8000-000000007269"},
+    )
+
+    assert len(lock.paths) == 1
 
 
 def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):

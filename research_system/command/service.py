@@ -98,11 +98,18 @@ _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
         "RevokeIssuedAuthorityGrant",
     }
 )
+_T2_AUTHORITY_COORDINATED_COMMAND_TYPES = frozenset(
+    {
+        "IssueCostGrant",
+        "AuthorizeProviderIssue",
+    }
+)
 _AUTHORITY_COORDINATED_COMMAND_TYPES = _LIFECYCLE_COMMAND_TYPES | frozenset(
     {
         "PublishReleaseGateDecision",
         "RevokeAuthorityGrant",
         *_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES,
+        *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
     }
 )
 
@@ -233,6 +240,13 @@ class CommandService:
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
         self.t2_authority_resolver = t2_authority_resolver
+        self._t2_authority_root: Path | None = None
+        self._t2_authority_identity: tuple[int, int] | None = None
+        if t2_authority_resolver is not None:
+            (
+                self._t2_authority_root,
+                self._t2_authority_identity,
+            ) = self._freeze_t2_authority_root(t2_authority_resolver)
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: (
             Callable[
@@ -572,13 +586,20 @@ class CommandService:
     def _submission_lock(self, command: Command):
         """Serialize authority-governed submits across all participating roots."""
         identity = {"command_id": command.command_id}
+        command_type = command.envelope["command_type"]
         roots: tuple[Path, ...] = (self.control_root,)
-        resolver = self._canonical_authority_resolver()
-        if command.envelope["command_type"] in _AUTHORITY_COORDINATED_COMMAND_TYPES and resolver is not None:
-            roots = (self.control_root, resolver.control_root)
-        retry_on_conflict = command.envelope["command_type"] in {
+        if command_type in _T2_AUTHORITY_COORDINATED_COMMAND_TYPES:
+            t2_root = self._t2_authority_root_for_lock()
+            if t2_root is not None:
+                roots = (self.control_root, t2_root)
+        elif command_type in _AUTHORITY_COORDINATED_COMMAND_TYPES:
+            resolver = self._canonical_authority_resolver()
+            if resolver is not None:
+                roots = (self.control_root, resolver.control_root)
+        retry_on_conflict = command_type in {
             "PublishReleaseGateDecision",
             *_LIFECYCLE_COMMAND_TYPES,
+            *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
         }
         deadline = self._monotonic() + self.release_lock_timeout_seconds
         while True:
@@ -999,6 +1020,31 @@ class CommandService:
     def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
         resolver = self.authority_resolver
         return resolver if type(resolver) is LedgerAuthorityGrantResolver else None
+
+    @staticmethod
+    def _freeze_t2_authority_root(resolver: Any) -> tuple[Path, tuple[int, int]]:
+        if not callable(resolver):
+            raise ArsError("T2 authority resolver must be callable")
+        candidate = getattr(resolver, "control_root", None)
+        if candidate is None:
+            raise ArsError("T2 authority resolver requires an existing control_root")
+        try:
+            root = Path(candidate).resolve(strict=True)
+            observed = root.stat()
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise ArsError("T2 authority resolver control_root is not verifiable") from exc
+        if not root.is_dir():
+            raise ArsError("T2 authority resolver control_root must be an existing directory")
+        return root, (observed.st_dev, observed.st_ino)
+
+    def _t2_authority_root_for_lock(self) -> Path | None:
+        resolver = self.t2_authority_resolver
+        if resolver is None:
+            return None
+        root, identity = self._freeze_t2_authority_root(resolver)
+        if (root, identity) != (self._t2_authority_root, self._t2_authority_identity):
+            raise ArsError("T2 authority resolver control_root changed after construction")
+        return self._t2_authority_root
 
     @staticmethod
     def _authority_time(value: object) -> object:
