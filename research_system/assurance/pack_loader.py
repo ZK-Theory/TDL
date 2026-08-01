@@ -36,6 +36,7 @@ from typing import Protocol
 import yaml
 
 from research_system.errors import ArsError
+from research_system.assurance.external_records import _RECORD_ENVELOPE
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -50,36 +51,8 @@ _PACK_SCHEMA_PATH = _SCHEMAS_ROOT / "assurance" / "assurance-pack.schema.json"
 #: stable across all three; a record that changes between load and consumption is stale.
 AUTHORITY_RESOLUTION_PHASES = ("load", "acceptance", "consumption")
 
-#: Identity field, lifecycle field, and active lifecycle value per record class, read off the accepted
-#: external record schema catalogue.
-#:
-#: The catalogue defines no common record envelope. Every record class carries its own identity field name
-#: (``actor_id``, ``review_record_id``, ``owner_decision_id``, …) and its own lifecycle field name and
-#: active value (``status: active``, ``review_state: completed``, ``grant_state: active``, …), and every
-#: record schema sets ``additionalProperties: false``. A generic ``record_id`` / ``lifecycle_state`` check
-#: is therefore not merely lax against these records — it is unsatisfiable by any schema-valid record,
-#: because the schemas forbid those properties. This map is the reconciliation, and a record class absent
-#: from it is refused rather than waved through.
-#:
-#: ``authority_root`` is likewise absent from every record schema, so root binding cannot be enforced from
-#: a record body. It is enforced at the resolution channel instead: see
-#: :class:`~research_system.assurance.resolver.ControlStoreAuthorityResolver`, which serves records only
-#: from the control store whose own verified identity is the supplied root. A record body asserting its own
-#: authority root would in any case be self-attestation.
-_RECORD_ENVELOPE: Mapping[str, tuple[str, str, str]] = {
-    "canonical_actor": ("actor_id", "status", "active"),
-    "producer_relationship_evidence": ("relationship_record_id", "status", "active"),
-    "contract_schema_authorship": ("authorship_record_id", "authorship_state", "completed"),
-    "independent_contract_review": ("review_record_id", "review_state", "completed"),
-    "independent_schema_review": ("review_record_id", "review_state", "completed"),
-    "stephen_contract_schema_acceptance": ("owner_decision_id", "decision_state", "active"),
-    "obligation_applicability_confirmation": ("confirmation_record_id", "confirmation_state", "active"),
-    "accepted_assurance_requirement": ("acceptance_record_id", "acceptance_state", "active"),
-    "independent_pack_review": ("review_record_id", "review_state", "completed"),
-    "stephen_owner_acceptance": ("owner_decision_id", "decision_state", "active"),
-    "active_authority_grant": ("authority_grant_id", "grant_state", "active"),
-    "registered_pack_object": ("assurance_pack_id", "registration_state", "active"),
-}
+#: Identity field, lifecycle field, and active lifecycle value per record class,
+#: loaded from the shared exact external-record schema catalogue.
 
 #: Independence ordering spanning every grade the record schemas admit. The requirement models use I0-I2
 #: while the relationship record schema admits I2-I3, so the comparison needs the union, not either range.

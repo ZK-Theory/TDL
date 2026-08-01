@@ -25,20 +25,17 @@ contract demands of an external record:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 from research_system.assurance.pack_loader import AUTHORITY_RESOLUTION_PHASES
+from research_system.assurance.external_records import (
+    EXTERNAL_RECORD_KIND,
+    ExternalAssuranceRecordStore,
+    ExternalRecordSchemaCatalogue,
+    storage_object_id,
+)
+from research_system.config import ControlBinding
 from research_system.errors import ArsError, IntegrityError
-from research_system.store.identity import load_store_manifest
-from research_system.store.layout import require_control_root_disjoint_from_code_roots
-from research_system.store.objects import ObjectStore
-
-
-#: Object kind every external assurance lifecycle record is persisted under. The record's class is
-#: carried in its body and checked by the loader, which fails closed on a class mismatch, so one kind
-#: is sufficient and keeps the identity registry from growing a prefix per record class.
-EXTERNAL_RECORD_KIND = "assurance_record"
 
 
 class ControlStoreAuthorityResolver:
@@ -49,7 +46,7 @@ class ControlStoreAuthorityResolver:
         authority_root: Store-derived authority root every resolution must be bound to.
     """
 
-    def __init__(self, control_root: Path) -> None:
+    def __init__(self, binding: ControlBinding) -> None:
         """Bind a resolver to a control store, asserting externality and deriving its authority root.
 
         The authority root is read from the store's own verified identity manifest rather than accepted
@@ -65,18 +62,23 @@ class ControlStoreAuthorityResolver:
         roots the manifest itself registers.
 
         Args:
-            control_root: Canonical control-store root.
+            binding: A validated :class:`~research_system.config.ControlBinding`.
 
         Raises:
             ArsError: If the manifest registers no code roots, or the control root overlaps one.
             IntegrityError: If the store identity manifest is missing, malformed, or tampered.
         """
-        manifest = load_store_manifest(control_root)
-        code_roots = [Path(root) for root in manifest.get("code_roots", [])]
-        require_control_root_disjoint_from_code_roots(code_roots, control_root)
-        self.control_root = control_root
-        self.authority_root = str(manifest["store_identity"])
-        self._objects = ObjectStore(control_root)
+        if not isinstance(binding, ControlBinding):
+            raise TypeError("authority resolver requires a validated ControlBinding")
+        # Constructing the writer performs the binding's identity, disjointness,
+        # manifest and exact-catalogue checks once; resolution then reuses its
+        # read-only catalogue and the same bound control root.
+        writer = ExternalAssuranceRecordStore(binding)
+        self.binding = binding
+        self.control_root = binding.control_root
+        self.authority_root = binding.store_identity
+        self._catalogue: ExternalRecordSchemaCatalogue = writer.catalogue
+        self._objects = writer.objects
 
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
         """Return the current external record body for an opaque record id.
@@ -103,10 +105,11 @@ class ControlStoreAuthorityResolver:
             raise ArsError("record class must be a non-empty string")
         if authority_root != self.authority_root:
             raise ArsError("authority root is not the root this control store is bound to")
-        revision = self._objects.latest_revision(EXTERNAL_RECORD_KIND, record_id)
+        revision = self._objects.latest_revision(EXTERNAL_RECORD_KIND, storage_object_id(record_id))
         if revision is None:
             raise ArsError(f"external record has no persisted revision: {record_id}")
-        record: Any = self._objects.read(EXTERNAL_RECORD_KIND, record_id, revision)
+        record: Any = self._objects.read(EXTERNAL_RECORD_KIND, storage_object_id(record_id), revision)
         if not isinstance(record, dict):
             raise IntegrityError(f"external record is not a record body: {record_id}")
+        self._catalogue.validate(record_class, record_id, record)
         return record

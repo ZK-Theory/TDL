@@ -15,6 +15,7 @@ from research_system.authority import (
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
+from research_system.assurance.external_records import ExternalAssuranceRecordStore
 from research_system.canonical import canonical_bytes, jsonable
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
@@ -166,6 +167,20 @@ def _command_submit(args: argparse.Namespace) -> int:
             retention_policy_path=retention_policy_path,
         )
     _print_json(asdict(service.submit(command)))
+    return 0
+
+
+def _assurance_record_write(args: argparse.Namespace) -> int:
+    binding = ControlBinding.load(args.config)
+    record = _read_json(args.record)
+    receipt = ExternalAssuranceRecordStore(binding).write(
+        record_class=args.record_class,
+        record_id=args.record_id,
+        revision=args.revision,
+        expected_previous_revision=args.expected_previous_revision,
+        record=record,
+    )
+    _print_json(asdict(receipt))
     return 0
 
 
@@ -637,6 +652,17 @@ def _parser() -> argparse.ArgumentParser:
     submit.add_argument("--command", type=Path, required=True)
     submit.add_argument("--evidence-store-registry", type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
+
+    assurance_record = groups.add_parser("assurance-record")
+    assurance_record_actions = assurance_record.add_subparsers(dest="assurance_record_action", required=True)
+    write_record = assurance_record_actions.add_parser("write")
+    write_record.add_argument("--config", type=Path, required=True)
+    write_record.add_argument("--record-class", required=True)
+    write_record.add_argument("--record-id", required=True)
+    write_record.add_argument("--revision", type=int, required=True)
+    write_record.add_argument("--expected-previous-revision", type=int, required=True)
+    write_record.add_argument("--record", type=Path, required=True)
+    write_record.set_defaults(handler=_assurance_record_write)
 
     replay_parser = groups.add_parser("replay")
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)
