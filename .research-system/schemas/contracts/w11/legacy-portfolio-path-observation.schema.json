@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/legacy-portfolio-path-observation",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "path_registration_ref", "observed_path", "physical_identity", "observed_at", "source_event_position", "source_event_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/legacy-portfolio-path-observation"},
+    "schema_version": {"const": "1.0.0"},
+    "path_registration_ref": {"$ref": "#/$defs/recordRef"},
+    "observed_path": {"type": "string", "minLength": 1},
+    "physical_identity": {"$ref": "#/$defs/physicalIdentity"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "source_event_position": {"type": "integer", "minimum": 0},
+    "source_event_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "recordRef": {
+      "type": "object",
+      "required": ["id", "record_revision", "content_hash"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}},
+      "additionalProperties": false
+    },
+    "physicalIdentity": {
+      "type": "object",
+      "required": ["canonical_target", "reparse_chain", "volume_serial_number", "stable_file_id", "link_count", "case_aliases", "unicode_aliases", "short_name_aliases"],
+      "properties": {"canonical_target": {"type": "string", "minLength": 1}, "reparse_chain": {"type": "array", "items": {"type": "string"}}, "volume_serial_number": {"type": "string", "minLength": 1}, "stable_file_id": {"type": "string", "minLength": 1}, "link_count": {"type": "integer", "minimum": 1}, "case_aliases": {"type": "array", "items": {"type": "string"}}, "unicode_aliases": {"type": "array", "items": {"type": "string"}}, "short_name_aliases": {"type": "array", "items": {"type": "string"}}},
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/dependency-edge",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "record_id", "record_revision", "supersedes_revision", "project_id", "portfolio_kind", "aliases", "created_at", "created_by_actor_id", "source_refs", "content_hash", "edge_type", "from_ref", "to_ref", "satisfaction_predicate_ref_or_null", "required", "rationale", "evidence_refs", "effective_scope_ref"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/dependency-edge"}, "schema_version": {"const": "1.0.0"}, "record_id": {"$ref": "#/$defs/objId"}, "record_revision": {"type": "integer", "minimum": 1}, "supersedes_revision": {"type": ["integer", "null"], "minimum": 1}, "project_id": {"$ref": "#/$defs/projectId"}, "portfolio_kind": {"const": "dependency_edge"}, "aliases": {"type": "array", "items": {"$ref": "#/$defs/alias"}}, "created_at": {"type": "string", "format": "date-time"}, "created_by_actor_id": {"$ref": "#/$defs/actorId"}, "source_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceRef"}}, "content_hash": {"$ref": "#/$defs/sha256"},
+    "edge_type": {"enum": ["contains", "addresses", "proposes", "tests", "uses_method", "uses_dataset", "supports", "contradicts", "informs", "targets_paper", "depends_on", "blocks", "supersedes", "claim_supported_by"]}, "from_ref": {"$ref": "#/$defs/recordRef"}, "to_ref": {"$ref": "#/$defs/recordRef"}, "satisfaction_predicate_ref_or_null": {"anyOf": [{"$ref": "#/$defs/recordRef"}, {"type": "null"}]}, "required": {"type": "boolean"}, "rationale": {"type": "string", "minLength": 1}, "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/recordRef"}}, "effective_scope_ref": {"$ref": "#/$defs/recordRef"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "projectId": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actorId": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "objId": {"type": "string", "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "recordRef": {"type": "object", "required": ["id", "record_revision", "content_hash"], "properties": {"id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
+    "sourceRef": {"type": "object", "required": ["ref_kind", "content_hash"], "properties": {"ref_kind": {"enum": ["record", "artefact", "external"]}, "id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "locator": {"type": "string", "minLength": 1}, "content_hash": {"$ref": "#/$defs/sha256"}}, "oneOf": [{"required": ["id", "record_revision"]}, {"required": ["locator"]}], "additionalProperties": false},
+    "alias": {"type": "object", "required": ["namespace", "value", "scope_id"], "properties": {"namespace": {"type": "string", "minLength": 1}, "value": {"type": "string", "minLength": 1}, "scope_id": {"type": "string", "minLength": 1}}, "additionalProperties": false}
+  }
+}
