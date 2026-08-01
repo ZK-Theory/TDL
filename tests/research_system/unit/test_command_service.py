@@ -1,5 +1,4 @@
 import json
-import shutil
 import threading
 
 import pytest
@@ -10,19 +9,14 @@ from research_system.command.reducers import reduce_task
 from research_system.command.service import CommandService
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import (
-    SchemaBinding,
     SchemaRegistry,
-    runtime_schema_registry,
 )
 from research_system.store.ledger import EventLedger, LedgerSnapshot
-from research_system.store.objects import ObjectStore
-from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     ACTORS,
-    AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
-    _SyntheticLifecycleAuthorityResolver,
+    activate_lifecycle_grant,
     claim_dispatch_command,
     control_plane,
     create_task_command,
@@ -35,42 +29,6 @@ TASK_ID = "tsk_01978abc-2004-7000-8000-000000002004"
 DISPATCH_ID = "dsp_01978abc-2005-7000-8000-000000002005"
 ARTEFACT_ID = "art_01978abc-2006-7000-8000-000000002006"
 TASK_ID_B = "tsk_01978abc-2007-7000-8000-000000002007"
-
-
-def _registry_with_create_task_successor(tmp_path, version):
-    schema_root = tmp_path / "successor-schemas"
-    schema_root.mkdir()
-    source_root = REPO_ROOT / ".research-system" / "schemas"
-    for source in (
-        source_root / "core" / "command.schema.json",
-        source_root / "core" / "event.schema.json",
-        source_root / "core" / "commands" / "create_task.schema.json",
-        source_root / "core" / "events" / "task_created.schema.json",
-    ):
-        shutil.copy2(source, schema_root / source.name)
-
-    successor = json.loads(
-        (source_root / "core" / "commands" / "create_task.schema.json").read_text(
-            encoding="utf-8",
-        )
-    )
-    successor["properties"]["schema_version"]["const"] = version
-    (schema_root / "create_task_successor.schema.json").write_bytes(canonical_bytes(successor))
-    return SchemaRegistry(
-        schema_root,
-        active_bindings=(
-            SchemaBinding(
-                "ars://core/command/CreateTask",
-                version,
-                command_type="CreateTask",
-            ),
-            SchemaBinding(
-                "ars://core/event/TaskCreated",
-                "1.0.0",
-                event_type="TaskCreated",
-            ),
-        ),
-    )
 
 
 def test_create_task_vertical_uses_exact_activated_schema_identity(tmp_path):
@@ -103,19 +61,8 @@ def test_create_task_vertical_uses_exact_activated_schema_identity(tmp_path):
     assert event_identity.schema_id == "ars://core/event/TaskCreated"
 
 
-def test_create_task_object_shape_follows_resolved_successor_binding(tmp_path):
-    schemas = _registry_with_create_task_successor(tmp_path, "2.0.0")
-    root = tmp_path / "control"
-    root.mkdir()
-    objects = ObjectStore(root)
-    service = CommandService(
-        root,
-        EventLedger(root, PROJECT_ID, schemas),
-        objects,
-        ReceiptStore(root),
-        schemas,
-        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
-    )
+def test_create_task_rejects_unactivated_successor_schema(tmp_path):
+    harness = control_plane(tmp_path)
     command = create_task_command(
         CMD_CREATE,
         "successor-create",
@@ -124,8 +71,8 @@ def test_create_task_object_shape_follows_resolved_successor_binding(tmp_path):
     )
     command["schema_version"] = "2.0.0"
 
-    assert service.submit(command).status == "accepted"
-    assert objects.read("task", TASK_ID, 1) == command["payload"]["definition"]
+    with pytest.raises(SchemaError, match="CreateTask"):
+        harness.service.submit(command)
 
 
 @pytest.mark.parametrize("payload", [None, [], "not-a-mapping"])
@@ -252,17 +199,23 @@ def test_inactive_event_records_generic_schema_identity(tmp_path):
 
 
 def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):
+    harness = control_plane(tmp_path)
     root = tmp_path / "control"
-    root.mkdir()
     schema_root = REPO_ROOT / ".research-system" / "schemas"
     inert = SchemaRegistry(schema_root)
-    runtime = runtime_schema_registry(schema_root)
+    runtime = harness.schemas
     command = create_task_command(
         CMD_CREATE,
         "schema-aware-idempotency",
         TASK_ID,
         {"title": "Schema-aware idempotency"},
     )
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_ID,
+    )
+    command["authority_grant_id"] = grant_id
     generic_identity = runtime.resolve_identity("ars://core/command", "1.0.0")
     command_model = Command(command)
     EventLedger(root, PROJECT_ID, inert).append(
@@ -276,7 +229,7 @@ def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_pa
                 "command_schema_version": generic_identity.schema_version,
                 "command_schema_sha256": generic_identity.sha256,
                 "actor_id": ACTORS["actor-a"],
-                "authority_grant_id": AUTHORITY_GRANT_ID,
+                "authority_grant_id": grant_id,
                 "idempotency_key": command["idempotency_key"],
                 "command_payload_hash": command_model.payload_hash,
                 "correlation_id": command["correlation_id"],
@@ -288,14 +241,7 @@ def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_pa
             }
         ]
     )
-    service = CommandService(
-        root,
-        EventLedger(root, PROJECT_ID, runtime),
-        ObjectStore(root),
-        ReceiptStore(root),
-        runtime,
-        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
-    )
+    service = harness.service
 
     with pytest.raises(ConflictError, match="idempotency"):
         service.submit(command)

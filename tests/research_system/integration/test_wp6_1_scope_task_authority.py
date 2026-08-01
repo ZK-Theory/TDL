@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 import pytest
 
-from research_system.authority import (
-    AuthorityAdministrationContext,
-    AuthorityScope,
-    ScopedAuthorityGrantResolution,
-)
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.service import CommandService
 from research_system.errors import ArsError, ConflictError
 from research_system.projection.replay import replay
-from tests.research_system.factories import ACTORS, PROJECT_ID, control_plane, create_task_command
+from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
+from research_system.store.receipts import ReceiptStore
+from tests.research_system.factories import (
+    ACTORS,
+    PROJECT_ID,
+    activate_lifecycle_grant,
+    control_plane,
+    create_task_command,
+    revoke_lifecycle_grant,
+    scoped_lifecycle_grant_id,
+)
 
 
 TASK_ID = "tsk_01978abc-7101-7000-8000-000000007101"
@@ -23,77 +29,57 @@ SCOPE_A = "obj_01978abc-7201-7000-8000-000000007201"
 SCOPE_B = "obj_01978abc-7202-7000-8000-000000007202"
 TASK_A = "tsk_01978abc-7203-7000-8000-000000007203"
 TASK_B = "tsk_01978abc-7204-7000-8000-000000007204"
-GRANTS = tuple(f"agr_01978abc-72{index:02d}-7000-8000-0000000072{index:02d}" for index in range(10, 19))
+GRANTS = (None,) * 9
 
 
-@dataclass
-class DenyingResolver:
-    calls: list[dict]
+def _record_resolver(harness, monkeypatch, *, deny: bool = False):
+    """Spy on the exact resolver instance while retaining ledger semantics."""
+    resolver = harness.authority_resolver
+    calls: list[dict] = []
+    original = resolver.resolve_command
 
-    def administration_context(self) -> AuthorityAdministrationContext:
-        return AuthorityAdministrationContext(
-            project_id=PROJECT_ID,
-            store_identity="a" * 64,
-            bootstrap_manifest_sha256="b" * 64,
-            root_grant_id="agr_01978abc-7103-7000-8000-000000007103",
-            root_grant_sha256="c" * 64,
-            owner_actor_id=ACTORS["actor-a"],
-        )
-
-    def resolve_command(self, **kwargs):
-        self.calls.append(kwargs)
-        raise ArsError("authority command denied")
-
-
-@dataclass
-class RecordingResolver:
-    calls: list[dict] = field(default_factory=list)
-    resolutions: dict[str, ScopedAuthorityGrantResolution] = field(default_factory=dict)
-    allow: bool = True
-
-    def administration_context(self) -> AuthorityAdministrationContext:
-        return AuthorityAdministrationContext(
-            project_id=PROJECT_ID,
-            store_identity="a" * 64,
-            bootstrap_manifest_sha256="b" * 64,
-            root_grant_id="agr_01978abc-7209-7000-8000-000000007209",
-            root_grant_sha256="c" * 64,
-            owner_actor_id=ACTORS["actor-a"],
-        )
-
-    def resolve_command(self, **kwargs):
-        self.calls.append(kwargs)
-        if not self.allow:
+    def recorded(**kwargs):
+        calls.append(kwargs)
+        if deny:
             raise ArsError("authority command denied")
-        grant_id = kwargs["grant_id"]
-        resolution = self.resolutions.get(grant_id)
-        if resolution is None:
-            resolution = ScopedAuthorityGrantResolution(
-                authority_grant_id=grant_id,
-                authority_grant_sha256=sha256_hex(grant_id.encode("utf-8")),
-                schema_id="ars://core/scoped-authority-grant",
-                schema_version="2.0.0",
-                schema_sha256="e" * 64,
-                actor_id=kwargs["actor_id"],
-                subject_scope=AuthorityScope(
-                    kwargs["project_id"],
-                    kwargs["subject_kind"],
-                    kwargs["subject_id"],
-                ),
-                effective_at=datetime(2026, 1, 1, tzinfo=UTC),
-                expires_at=datetime(2030, 1, 1, tzinfo=UTC),
-                activation_event_id="evt_01978abc-7208-7000-8000-000000007208",
-                activation_position=1,
-                administration_decision_id="arec_01978abc-7207-7000-8000-000000007207",
-                administration_decision_sha256="f" * 64,
-                status="active",
-                revocation_event_id=None,
-            )
-            self.resolutions[grant_id] = resolution
-        return resolution
+        return original(**kwargs)
 
-    def scoped_grant_identity(self, grant_id: str):
-        return self.resolutions.get(grant_id)
+    monkeypatch.setattr(resolver, "resolve_command", recorded)
+    return resolver, calls
+
+
+def _submit(harness, command):
+    command_type = command["command_type"]
+    if command_type in {
+        "CreateScopeDefinition",
+        "AmendScopeDefinition",
+        "SupersedeScopeDefinition",
+    }:
+        subject_kind = "scope_definition"
+        subject_id = command["payload"].get(
+            "new_scope_definition_id" if command_type == "CreateScopeDefinition" else "scope_definition_id"
+        )
+    else:
+        subject_kind = "task"
+        subject_id = command["payload"].get("new_task_id" if command_type == "CreateTask" else "task_id")
+    command["authority_grant_id"] = activate_lifecycle_grant(
+        harness,
+        subject_kind=subject_kind,
+        subject_id=subject_id,
+    )
+    return harness.service.submit(command)
+
+
+def _restarted_service(harness, *, clock=None):
+    return CommandService(
+        harness.service.control_root,
+        EventLedger(harness.service.control_root, PROJECT_ID, harness.schemas),
+        ObjectStore(harness.service.control_root),
+        ReceiptStore(harness.service.control_root),
+        harness.schemas,
+        authority_resolver=harness.authority_resolver,
+        clock=clock,
+    )
 
 
 def _command(
@@ -103,7 +89,7 @@ def _command(
     target_stream_id: str,
     expected_stream_version: int,
     payload: dict,
-    grant_id: str,
+    grant_id: str | None,
 ) -> dict:
     command = create_task_command(
         command_id,
@@ -175,10 +161,9 @@ def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[str, ...]]:
     return events, files
 
 
-def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path):
+def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
-    resolver = DenyingResolver([])
-    harness.service.authority_resolver = resolver
+    resolver, calls = _record_resolver(harness, monkeypatch, deny=True)
     command = create_task_command(
         COMMAND_ID,
         "wp6-1-authority-denial",
@@ -192,13 +177,13 @@ def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path):
         if path.is_file() and "receipts" not in path.parts
     )
 
-    receipt = harness.service.submit(command)
-    retry = harness.service.submit(command)
+    receipt = _submit(harness, command)
+    retry = _submit(harness, command)
 
     assert receipt.status == "rejected"
     assert retry == receipt
-    assert len(resolver.calls) == 1
-    call = resolver.calls[0]
+    assert len(calls) == 2
+    call = calls[0]
     assert call["grant_id"] == command["authority_grant_id"]
     assert call["actor_id"] == command["actor_id"]
     assert call["actor_class"] == "human"
@@ -219,7 +204,7 @@ def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path):
     assert after_domain_files == before_domain_files
 
 
-def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path):
+def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path, monkeypatch):
     def new_harness(name: str):
         root = tmp_path / name
         root.mkdir()
@@ -245,7 +230,8 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
 
     amend_scope_harness = new_harness("amend-scope")
     assert (
-        amend_scope_harness.service.submit(
+        _submit(
+            amend_scope_harness,
             _command(
                 "CreateScopeDefinition",
                 "cmd_01978abc-7251-7000-8000-000000007251",
@@ -254,7 +240,7 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 0,
                 _scope_create_payload(SCOPE_A),
                 GRANTS[1],
-            )
+            ),
         ).status
         == "accepted"
     )
@@ -302,7 +288,8 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
         ),
     ):
         assert (
-            supersede_scope_harness.service.submit(
+            _submit(
+                supersede_scope_harness,
                 _command(
                     "CreateScopeDefinition",
                     command_id,
@@ -311,7 +298,7 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     0,
                     _scope_create_payload(scope_id),
                     grant_id,
-                )
+                ),
             ).status
             == "accepted"
         )
@@ -361,7 +348,8 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
 
     amend_task_harness = new_harness("amend-task")
     assert (
-        amend_task_harness.service.submit(
+        _submit(
+            amend_task_harness,
             _command(
                 "CreateTask",
                 "cmd_01978abc-7257-7000-8000-000000007257",
@@ -370,7 +358,7 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 0,
                 {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Task A", "R1")},
                 GRANTS[7],
-            )
+            ),
         ).status
         == "accepted"
     )
@@ -391,7 +379,7 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     "changed_fields": ["title", "objective", "risk_tier_request"],
                     "rationale": "Exercise denied task amendment.",
                     "effective_boundary": "before redispatch",
-                    "authority_evidence_refs": ["synthetic-authority-evidence"],
+                    "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
                 },
                 GRANTS[8],
             ),
@@ -412,7 +400,8 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
         ),
     ):
         assert (
-            supersede_task_harness.service.submit(
+            _submit(
+                supersede_task_harness,
                 _command(
                     "CreateTask",
                     command_id,
@@ -421,7 +410,7 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     0,
                     {"new_task_id": task_id, "definition": _task_definition(task_id, task_id, "R1")},
                     grant_id,
-                )
+                ),
             ).status
             == "accepted"
         )
@@ -447,19 +436,17 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
     )
 
     for index, (harness, command) in enumerate(cases):
-        resolver = DenyingResolver([])
-        harness.service.authority_resolver = resolver
+        resolver, calls = _record_resolver(harness, monkeypatch, deny=True)
         before = _domain_snapshot(harness)
-        receipt = harness.service.submit(command)
+        receipt = _submit(harness, command)
         assert receipt.status == "rejected", index
-        assert resolver.calls[0]["command"].command_type == command["command_type"]
+        assert calls[0]["command"].command_type == command["command_type"]
         assert _domain_snapshot(harness) == before
 
 
-def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
+def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
-    resolver = RecordingResolver()
-    harness.service.authority_resolver = resolver
+    resolver, calls = _record_resolver(harness, monkeypatch)
 
     scope_create = _command(
         "CreateScopeDefinition",
@@ -549,7 +536,7 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
             "changed_fields": ["title", "objective", "risk_tier_request"],
             "rationale": "Bind the task amendment to the current revision.",
             "effective_boundary": "before redispatch",
-            "authority_evidence_refs": ["synthetic-authority-evidence"],
+            "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
         },
         GRANTS[5],
     )
@@ -588,10 +575,10 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
         task_b_create,
         task_supersede,
     ):
-        receipt = harness.service.submit(command)
+        receipt = _submit(harness, command)
         assert receipt.status == "accepted", command["command_type"]
 
-    assert [call["command"].command_type for call in resolver.calls] == [
+    assert [call["command"].command_type for call in calls] == [
         "CreateScopeDefinition",
         "AmendScopeDefinition",
         "CreateScopeDefinition",
@@ -601,7 +588,7 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
         "CreateTask",
         "SupersedeTask",
     ]
-    assert [call["required_risk"] for call in resolver.calls] == [
+    assert [call["required_risk"] for call in calls] == [
         "R3",
         "R3",
         "R3",
@@ -611,7 +598,7 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
         "R1",
         "R3",
     ]
-    for call in resolver.calls:
+    for call in calls:
         identity = call["command"]
         assert identity.schema_id == f"ars://core/command/{identity.command_type}"
         assert identity.schema_version == "1.0.0"
@@ -628,10 +615,9 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path):
     assert replayed["streams"][TASK_A]["status"] == "superseded"
 
 
-def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp_path):
+def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
-    resolver = RecordingResolver()
-    harness.service.authority_resolver = resolver
+    _, calls = _record_resolver(harness, monkeypatch)
 
     create = _command(
         "CreateTask",
@@ -642,7 +628,7 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
         {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Risk task", "R2")},
         GRANTS[0],
     )
-    assert harness.service.submit(create).status == "accepted"
+    assert _submit(harness, create).status == "accepted"
 
     amend_definition = _task_definition(TASK_A, "Risk task amended", "R1", revision=2)
     amend = _command(
@@ -659,11 +645,11 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
             "changed_fields": ["title", "objective", "risk_tier_request"],
             "rationale": "Retain the higher current risk ceiling.",
             "effective_boundary": "before redispatch",
-            "authority_evidence_refs": ["synthetic-authority-evidence"],
+            "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
         },
         GRANTS[1],
     )
-    assert harness.service.submit(amend).status == "accepted"
+    assert _submit(harness, amend).status == "accepted"
 
     malformed = _task_definition(TASK_B, "Malformed risk task", "not-a-risk-tier")
     create_malformed = _command(
@@ -675,7 +661,7 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
         {"new_task_id": TASK_B, "definition": malformed},
         GRANTS[2],
     )
-    assert harness.service.submit(create_malformed).status == "accepted"
+    assert _submit(harness, create_malformed).status == "accepted"
 
     supersede = _command(
         "SupersedeTask",
@@ -692,15 +678,14 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
         },
         GRANTS[3],
     )
-    assert harness.service.submit(supersede).status == "accepted"
+    assert _submit(harness, supersede).status == "accepted"
 
-    assert [call["required_risk"] for call in resolver.calls] == ["R2", "R2", "R3", "R3"]
+    assert [call["required_risk"] for call in calls] == ["R2", "R2", "R3", "R3"]
 
 
-def test_non_owner_actor_class_is_unproven_and_denied_before_domain_mutation(tmp_path):
+def test_non_owner_actor_class_is_unproven_and_denied_before_domain_mutation(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
-    resolver = RecordingResolver()
-    harness.service.authority_resolver = resolver
+    _, calls = _record_resolver(harness, monkeypatch)
     command = create_task_command(
         "cmd_01978abc-7230-7000-8000-000000007230",
         "authority-unproven-actor",
@@ -710,10 +695,10 @@ def test_non_owner_actor_class_is_unproven_and_denied_before_domain_mutation(tmp
     command["actor_id"] = ACTORS["actor-b"]
     before = _domain_snapshot(harness)
 
-    receipt = harness.service.submit(command)
+    receipt = _submit(harness, command)
 
     assert receipt.status == "rejected"
-    assert resolver.calls[0]["actor_class"] == "unproven"
+    assert calls[0]["actor_class"] == "unproven"
     assert _domain_snapshot(harness) == before
     replayed = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.service.schemas)
     assert replayed["streams"] == {}
@@ -721,38 +706,69 @@ def test_non_owner_actor_class_is_unproven_and_denied_before_domain_mutation(tmp
     assert replayed.get("authority_administration_decisions", {}) == {}
 
 
-def test_authority_evidence_is_durable_for_retry_and_conflicts_on_change(tmp_path):
+def test_authority_evidence_is_durable_for_retry_and_conflicts_on_change(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
-    resolver = RecordingResolver()
-    harness.service.authority_resolver = resolver
+    resolver, calls = _record_resolver(harness, monkeypatch)
     command = create_task_command(
         "cmd_01978abc-7240-7000-8000-000000007240",
         "authority-evidence-retry",
         TASK_A,
         {"title": "Evidence-bound task"},
     )
-    first = harness.service.submit(command)
+    first = _submit(harness, command)
     before_retry_events = tuple(harness.ledger.iter_events())
-    second = harness.service.submit(command)
+    restarted = _restarted_service(harness)
+    second = restarted.submit(command)
 
     assert first.status == "accepted"
     assert second == first
-    assert len(resolver.calls) == 1
+    assert len(calls) == 2
     assert tuple(harness.ledger.iter_events()) == before_retry_events
+    resolution = resolver.scoped_grant_identity(command["authority_grant_id"])
+    event = before_retry_events[0]
+    assert event["authority_grant_id"] == resolution.authority_grant_id
+    assert event["actor_id"] == resolution.actor_id
 
     changed_payload = deepcopy(command)
     changed_payload["command_id"] = "cmd_01978abc-7241-7000-8000-000000007241"
     changed_payload["payload"]["definition"]["title"] = "Changed payload"
     with pytest.raises(ConflictError, match="idempotency key conflicts"):
-        harness.service.submit(changed_payload)
+        restarted.submit(changed_payload)
     assert tuple(harness.ledger.iter_events()) == before_retry_events
 
-    grant_id = command["authority_grant_id"]
-    resolver.resolutions[grant_id] = replace(
-        resolver.resolutions[grant_id],
-        status="revoked",
-        revocation_event_id="evt_01978abc-7242-7000-8000-000000007242",
-    )
-    with pytest.raises(ConflictError, match="idempotency key conflicts"):
-        harness.service.submit(command)
+    revoke_lifecycle_grant(harness, subject_id=TASK_A)
+    revoked_retry = restarted.submit(command)
+    assert revoked_retry.status == "rejected"
+    assert revoked_retry.reason_code == "lifecycle_authority_unauthorized"
     assert tuple(harness.ledger.iter_events()) == before_retry_events
+
+
+def test_restart_rejects_currently_expired_lifecycle_grant(tmp_path):
+    harness = control_plane(tmp_path)
+    command = create_task_command(
+        "cmd_01978abc-7243-7000-8000-000000007243",
+        "authority-evidence-expiry",
+        TASK_A,
+        {"title": "Expiry-bound task"},
+    )
+    assert _submit(harness, command).status == "accepted"
+    expired = _restarted_service(
+        harness,
+        clock=lambda: datetime(2031, 1, 1, tzinfo=UTC),
+    )
+    retry = expired.submit(command)
+    assert retry.status == "rejected"
+    assert retry.reason_code == "lifecycle_authority_unauthorized"
+
+
+def test_lifecycle_service_rejects_resolver_substitution(tmp_path):
+    harness = control_plane(tmp_path)
+    with pytest.raises(TypeError, match="LedgerAuthorityGrantResolver"):
+        CommandService(
+            harness.service.control_root,
+            harness.ledger,
+            harness.objects,
+            harness.receipts,
+            harness.schemas,
+            authority_resolver=object(),
+        )

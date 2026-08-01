@@ -16,9 +16,11 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
-    _SyntheticLifecycleAuthorityResolver,
+    _GovernedTestCommandService,
+    activate_lifecycle_grant,
     control_plane,
     create_task_command,
+    scoped_lifecycle_grant_id,
 )
 
 
@@ -411,7 +413,6 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
 
 
 def _moved_service(case):
-    from research_system.command.service import CommandService
     from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
@@ -419,13 +420,17 @@ def _moved_service(case):
 
     root = case["target"]
     schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-    return CommandService(
+    authority_root = root.parent / f".{root.name}-authority"
+    authority_root.mkdir()
+    authority_harness = control_plane(authority_root)
+    return _GovernedTestCommandService(
         root,
         EventLedger(root, case["receipt"].project_id, schemas),
         ObjectStore(root),
         ReceiptStore(root),
         schemas,
-        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
+        authority_resolver=authority_harness.authority_resolver,
+        authority_harness=authority_harness,
     )
 
 
@@ -506,9 +511,10 @@ def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     }
     assert execute_s014("known_bad", payload)["restore_preflight_status"] == "diagnostic_only"
     assert execute_s014("known_good", payload)["restore_preflight_status"] == "verified"
-    assert len(calls) == 2
-    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in calls)
-    assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in calls)
+    domain_calls = [command for command in calls if command["command_type"] == "CreateTask"]
+    assert len(domain_calls) == 2
+    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in domain_calls)
+    assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in domain_calls)
 
 
 def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
@@ -897,17 +903,19 @@ def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
     observed = execute_s015("known_good", payload)
     assert observed["rejection_reason"] == "supersession_cycle"
     assert observed["authority_unchanged"] is True
-    assert len(calls) == 6
-    creates = [command for command in calls if command["command_type"] == "CreateTask"]
+    domain_calls = [command for command in calls if command["command_type"] in {"CreateTask", "SupersedeTask"}]
+    assert len(domain_calls) == 6
+    creates = [command for command in domain_calls if command["command_type"] == "CreateTask"]
     assert len(creates) == 3
     assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in creates)
-    supersedes = [command for command in calls if command["command_type"] == "SupersedeTask"]
+    supersedes = [command for command in domain_calls if command["command_type"] == "SupersedeTask"]
     assert all(command["schema_id"] == "ars://core/command/SupersedeTask" for command in supersedes)
 
 
 def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
+    activate_lifecycle_grant(harness, subject_kind="task", subject_id=TASK_A)
     active = False
     original_lock = service_module.WriterLock
     original_prepare = harness.service._prepare_supersession
@@ -947,7 +955,9 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_
     monkeypatch.setattr(harness.service, "_prepare_supersession", prepare)
     monkeypatch.setattr(harness.receipts, "load", load)
     monkeypatch.setattr(harness.receipts, "write", write)
-    rejected = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
+    command = _supersede_command(CMD_AB, TASK_A, TASK_A)
+    command["authority_grant_id"] = scoped_lifecycle_grant_id(TASK_A)
+    rejected = harness.service.submit(command)
     assert rejected.reason_code == "supersession_cycle"
     assert active is False
 
