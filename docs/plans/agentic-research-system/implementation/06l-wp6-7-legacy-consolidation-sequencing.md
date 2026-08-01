@@ -236,7 +236,7 @@ then explicit owner acceptance. Wave-1 prose success, Tracker labels, or Jira
 quietly upgraded from draft to final, or a paper claim is changed. Retain
 unresolved records in legacy authority and amend only through an attributed
 decision.
-**Proof before Step 4:** for each affected ownership transition, cutover,
+**Proof before an affected Step 5 transition, Step 6 cutover, or Step 7 retirement:** for each affected ownership transition, cutover,
 deprecation, or retirement, an accepted manifest, explicit A-001 confirmation,
 and full Stage-2 scope decision; no claim that T1.28 alone sealed Phase 1.
 
