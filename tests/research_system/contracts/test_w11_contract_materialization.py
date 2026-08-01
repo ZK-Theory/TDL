@@ -343,8 +343,8 @@ def _owner_contract_row(owner_row_id: str, *, test_owner_row_id: str | None = No
     bound_test_owner_row_id = test_owner_row_id or owner_row_id
     return {
         "owner_row_id": owner_row_id,
-        "logical_key": "owner-row",
-        "schema_id": "ars://portfolio/test",
+        "logical_key": f"owner:{owner_row_id}",
+        "schema_id": f"ars://portfolio/owner/{owner_row_id.lower()}",
         "schema_version": "1.0.0",
         "file_observation_ref": _record_ref(),
         "command_type": "C:test",
@@ -361,6 +361,20 @@ def _owner_contract_row(owner_row_id: str, *, test_owner_row_id: str | None = No
         "positive_test_identity": f"W11-T01-{bound_test_owner_row_id}",
         "negative_mutation_test_identity": f"W11-T03-{bound_test_owner_row_id}-owner-row-mutation",
         "retry_test_identity": f"W11-T11-{bound_test_owner_row_id}",
+    }
+
+
+def _schema_source_row(logical_key: str, schema_id: str, filename: str) -> dict[str, Any]:
+    return {
+        "logical_key": logical_key,
+        "schema_id": schema_id,
+        "schema_version": "1.0.0",
+        "repository_path": f".research-system/schemas/contracts/w11/{filename}",
+        "git_commit": "0" * 40,
+        "git_blob": "0" * 40,
+        "file_length": 1,
+        "file_sha256": _HASH,
+        "independent_observation_ref": _record_ref(),
     }
 
 
@@ -392,17 +406,38 @@ def _valid_catalogue() -> dict[str, Any]:
         "owner_row_count": 81,
         "owner_row_range_hash": _HASH,
         "schema_source_rows": [
-            {
-                "logical_key": "programme",
-                "schema_id": "ars://portfolio/programme",
-                "schema_version": "1.0.0",
-                "repository_path": ".research-system/schemas/contracts/w11/programme.schema.json",
-                "git_commit": "0" * 40,
-                "git_blob": "0" * 40,
-                "file_length": 1,
-                "file_sha256": _HASH,
-                "independent_observation_ref": _record_ref(),
-            }
+            *(
+                _schema_source_row(
+                    f"content:{kind}",
+                    f"ars://portfolio/{kind}",
+                    f"{kind}.schema.json",
+                )
+                for kind in CONTENT_KINDS
+            ),
+            *(
+                _schema_source_row(
+                    f"relation:{kind}",
+                    f"ars://portfolio/relation/{kind}",
+                    f"relation-{kind}.schema.json",
+                )
+                for kind in RELATION_KINDS
+            ),
+            *(
+                _schema_source_row(
+                    f"artefact:{kind}",
+                    f"ars://portfolio/{kind}",
+                    f"{kind}.schema.json",
+                )
+                for kind in ARTEFACT_KINDS
+            ),
+            *(
+                _schema_source_row(
+                    f"bootstrap:{kind}",
+                    f"ars://portfolio/{kind}",
+                    f"{kind}.schema.json",
+                )
+                for kind in BOOTSTRAP_KINDS
+            ),
         ],
         "owner_contract_rows": [_owner_contract_row(owner_row_id) for owner_row_id in owner_row_ids],
     }
@@ -1004,7 +1039,9 @@ def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
         verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/w11-schema-catalogue-content", swapped)
 
     duplicate_logical_key = deepcopy(catalogue)
-    duplicate_logical_key["schema_source_rows"].append(deepcopy(catalogue["schema_source_rows"][0]))
+    duplicate_logical_key["schema_source_rows"][1]["logical_key"] = duplicate_logical_key["schema_source_rows"][0][
+        "logical_key"
+    ]
     with pytest.raises(SchemaError, match="schema_source_rows logical_key values must be unique"):
         verify_materialization_document(
             SCHEMA_ROOT,
@@ -1013,13 +1050,49 @@ def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
         )
 
     duplicate_schema_id = deepcopy(catalogue)
-    duplicate_schema_id["schema_source_rows"].append(deepcopy(catalogue["schema_source_rows"][0]))
-    duplicate_schema_id["schema_source_rows"][-1]["logical_key"] = "programme-copy"
+    duplicate_schema_id["schema_source_rows"][1]["schema_id"] = duplicate_schema_id["schema_source_rows"][0][
+        "schema_id"
+    ]
+    duplicate_schema_id["schema_source_rows"][1]["logical_key"] = "content:programme-copy"
     with pytest.raises(SchemaError, match="schema_source_rows schema_id values must be unique"):
         verify_materialization_document(
             SCHEMA_ROOT,
             "ars://portfolio/w11-schema-catalogue-content",
             duplicate_schema_id,
+        )
+
+
+def test_w11_catalogue_requires_exact_schema_family_closure_and_owner_identity_uniqueness() -> None:
+    catalogue = _valid_catalogue()
+    incomplete = deepcopy(catalogue)
+    incomplete["schema_source_rows"][-1]["logical_key"] = "bootstrap:unexpected"
+    incomplete["schema_source_rows"][-1]["schema_id"] = "ars://portfolio/unexpected"
+    incomplete["schema_source_rows"][-1]["repository_path"] = (
+        ".research-system/schemas/contracts/w11/unexpected.schema.json"
+    )
+    with pytest.raises(SchemaError, match="exact accepted 61-family schema closure"):
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/w11-schema-catalogue-content", incomplete)
+
+    duplicate_owner_logical = deepcopy(catalogue)
+    duplicate_owner_logical["owner_contract_rows"][1]["logical_key"] = duplicate_owner_logical["owner_contract_rows"][
+        0
+    ]["logical_key"]
+    with pytest.raises(SchemaError, match="owner_contract_rows logical_key values must be unique"):
+        verify_materialization_document(
+            SCHEMA_ROOT,
+            "ars://portfolio/w11-schema-catalogue-content",
+            duplicate_owner_logical,
+        )
+
+    duplicate_owner_schema = deepcopy(catalogue)
+    duplicate_owner_schema["owner_contract_rows"][1]["schema_id"] = duplicate_owner_schema["owner_contract_rows"][0][
+        "schema_id"
+    ]
+    with pytest.raises(SchemaError, match="owner_contract_rows schema_id values must be unique"):
+        verify_materialization_document(
+            SCHEMA_ROOT,
+            "ars://portfolio/w11-schema-catalogue-content",
+            duplicate_owner_schema,
         )
 
 
@@ -1105,6 +1178,18 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_inert_verifier_admission() 
         )
 
 
+def test_w11_scorecard_matching_malformed_rubric_with_noop_callback_is_controlled() -> None:
+    malformed_rubric = deepcopy(VALID_RUBRIC)
+    malformed_rubric.pop("axis_definitions")
+    with pytest.raises(SchemaError, match="axis_definitions"):
+        w11_verifier.verify_w11_document(
+            "ars://portfolio/assay-scorecard",
+            VALID_SCORECARD,
+            reference_documents=[malformed_rubric],
+            validate_reference=lambda _schema_id, _reference: None,
+        )
+
+
 def test_w11_dossier_expected_set_recomputes_all_cross_field_identity() -> None:
     dossier = deepcopy(VALID_DOSSIER_EXPECTED_SET)
     verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", dossier)
@@ -1140,6 +1225,30 @@ def test_w11_dossier_expected_set_recomputes_all_cross_field_identity() -> None:
     row_mutation["components"][0]["component_kind"] = "different-kind"
     with pytest.raises(SchemaError, match="component_multiset_hash does not match"):
         verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", row_mutation)
+
+
+def test_w11_dossier_rejects_a_coordinated_duplicate_after_recomputing_all_hashes() -> None:
+    duplicated = deepcopy(VALID_DOSSIER_EXPECTED_SET)
+    duplicated["components"].append(deepcopy(duplicated["components"][0]))
+    duplicated["component_count"] = len(duplicated["components"])
+    duplicated["component_multiset_hash"] = _test_multiset_hash(duplicated["components"])
+    duplicated["expected_set_closure_hash"] = _test_hash(
+        {
+            "manifest_schema_id": duplicated["schema_id"],
+            "manifest_schema_version": duplicated["schema_version"],
+            "package_version": duplicated["package_version"],
+            "admission_profile_hash": duplicated["admission_profile_ref"]["content_hash"],
+            "components": sorted(duplicated["components"], key=_test_canonical_bytes),
+            "source_dependencies": sorted(duplicated["sources"], key=_test_canonical_bytes),
+            "objects": sorted(duplicated["objects"], key=_test_canonical_bytes),
+            "scope_definitions": sorted(duplicated["scope_definitions"], key=_test_canonical_bytes),
+            "dependency_edges": sorted(duplicated["dependency_edges"], key=_test_canonical_bytes),
+            "relationships": sorted(duplicated["relationships"], key=_test_canonical_bytes),
+        }
+    )
+
+    with pytest.raises(SchemaError, match="components contains duplicate component_key"):
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", duplicated)
 
 
 def test_w11_representative_mutations_are_rejected() -> None:
@@ -1408,6 +1517,49 @@ def test_w11_verifier_rejects_nested_late_schema_files(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     with pytest.raises(SchemaError, match="nested schema files are not permitted"):
+        verify_materialization_document(schema_root, "ars://portfolio/programme", VALID_PROGRAMME)
+
+
+def test_w11_verifier_observes_a_same_root_late_schema(tmp_path: Path) -> None:
+    schema_root = tmp_path / "schemas"
+    schema_root.mkdir()
+    (schema_root / "programme.schema.json").write_bytes((SCHEMA_ROOT / "programme.schema.json").read_bytes())
+    verify_materialization_document(schema_root, "ars://portfolio/programme", VALID_PROGRAMME)
+
+    (schema_root / "late.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "ars://portfolio/late",
+                "type": "object",
+                "required": ["schema_id", "schema_version"],
+                "properties": {
+                    "schema_id": {"const": "ars://portfolio/late"},
+                    "schema_version": {"const": "1.0.0"},
+                },
+                "additionalProperties": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    verify_materialization_document(
+        schema_root,
+        "ars://portfolio/late",
+        {"schema_id": "ars://portfolio/late", "schema_version": "1.0.0"},
+    )
+
+
+def test_w11_verifier_observes_a_same_root_schema_replacement(tmp_path: Path) -> None:
+    schema_root = tmp_path / "schemas"
+    schema_root.mkdir()
+    programme_schema_path = schema_root / "programme.schema.json"
+    programme_schema_path.write_bytes((SCHEMA_ROOT / "programme.schema.json").read_bytes())
+    verify_materialization_document(schema_root, "ars://portfolio/programme", VALID_PROGRAMME)
+
+    replacement = json.loads(programme_schema_path.read_text(encoding="utf-8"))
+    replacement["required"].append("late_marker")
+    programme_schema_path.write_text(json.dumps(replacement), encoding="utf-8")
+    with pytest.raises(SchemaError, match="late_marker"):
         verify_materialization_document(schema_root, "ars://portfolio/programme", VALID_PROGRAMME)
 
 

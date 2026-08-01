@@ -13,7 +13,6 @@ import json
 import re
 import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from functools import lru_cache
 from math import isfinite
 from pathlib import Path
 from typing import Any, NoReturn
@@ -60,12 +59,114 @@ _OWNER_ROW_IDS = frozenset(
     {*(f"OR-{number:03d}" for number in range(1, 42)), *(f"OR-{number:03d}" for number in range(101, 141))}
 )
 _DOSSIER_EXPECTED_SET_FAMILIES = (
-    ("components", "component_count", "component_multiset_hash"),
-    ("sources", "source_count", "source_multiset_hash"),
-    ("objects", "object_count", "object_multiset_hash"),
-    ("scope_definitions", "scope_count", "scope_multiset_hash"),
-    ("dependency_edges", "edge_count", "edge_multiset_hash"),
-    ("relationships", "relationship_count", "relationship_multiset_hash"),
+    ("components", "component_count", "component_multiset_hash", "component_key"),
+    ("sources", "source_count", "source_multiset_hash", "source_key"),
+    ("objects", "object_count", "object_multiset_hash", "object_key"),
+    ("scope_definitions", "scope_count", "scope_multiset_hash", "scope_key"),
+    ("dependency_edges", "edge_count", "edge_multiset_hash", "edge_key"),
+    ("relationships", "relationship_count", "relationship_multiset_hash", "relationship_key"),
+)
+
+_SCHEMA_SOURCE_ROOT = ".research-system/schemas/contracts/w11"
+_SCHEMA_SOURCE_FAMILIES = (
+    (
+        "content",
+        "ars://portfolio/",
+        "",
+        (
+            "programme",
+            "paper",
+            "hypothesis",
+            "candidate",
+            "method",
+            "dataset",
+            "claim",
+            "dependency-edge",
+            "assay-rubric-content",
+            "assay-evidence-scope-content",
+            "path-registration-content",
+            "dossier-expected-set-content",
+            "legacy-source-inventory-content",
+            "legacy-transition-mapping-content",
+            "legacy-cutover-closure-content",
+            "w11-schema-catalogue-content",
+        ),
+    ),
+    (
+        "relation",
+        "ars://portfolio/relation/",
+        "relation-",
+        (
+            "candidate",
+            "assay",
+            "spike",
+            "assay-request",
+            "assay-producer",
+            "assay-bar-acceptance",
+            "assay-outcome-review",
+            "assay-cancellation-review",
+            "spike-plan",
+            "spike-attempt",
+            "spike-outcome-review",
+            "spike-cancellation-review",
+            "discovery-promotion",
+            "discovery-revisit",
+            "authority-content-file-review-acceptance",
+            "spike-execution-authority",
+            "dossier-expected-set-acceptance",
+            "path-registration-acceptance",
+            "legacy-source-inventory-acceptance",
+            "migration-authority",
+            "legacy-path-cutover",
+            "dossier-six-family-closure",
+            "legacy-source-row-observation",
+            "legacy-source-row-target",
+            "inventory-mapping-transition-bijection",
+            "path-physical-identity",
+            "writer-revocation",
+            "cutover-closure",
+        ),
+    ),
+    (
+        "artefact",
+        "ars://portfolio/",
+        "",
+        (
+            "assay-scorecard",
+            "assay-partial",
+            "spike-plan",
+            "spike-verdict",
+            "scout-observation-batch",
+            "discovery-annotation",
+            "research-dossier-manifest",
+            "legacy-record-observed",
+            "legacy-portfolio-path-observation",
+            "authority-file-observation",
+            "review-evidence",
+            "collision-scan",
+            "writer-revocation-snapshot",
+            "projection-rebuild-proof",
+        ),
+    ),
+    (
+        "bootstrap",
+        "ars://portfolio/",
+        "",
+        (
+            "w11-catalogue-acceptance-envelope",
+            "w11-materialization-bootstrap-contract",
+            "import-accepted-w11-catalogue-genesis",
+        ),
+    ),
+)
+_EXPECTED_SCHEMA_SOURCE_CLOSURE = frozenset(
+    (
+        f"{family}:{kind}",
+        f"{schema_prefix}{kind}",
+        f"{_SCHEMA_SOURCE_ROOT}/{filename_prefix}{kind}.schema.json",
+    )
+    for family, schema_prefix, filename_prefix, kinds in _SCHEMA_SOURCE_FAMILIES
+    for kind in kinds
 )
 
 ReferenceValidator = Callable[[str, Mapping[str, Any]], None]
@@ -206,11 +307,6 @@ def _registry_for_root(schema_root: Path) -> SchemaRegistry:
     nested_schema_paths = sorted(path for path in schema_root.rglob("*.schema.json") if path.parent != schema_root)
     if nested_schema_paths:
         raise SchemaError(f"nested schema files are not permitted: {nested_schema_paths[0]}")
-    return _cached_registry_for_root(schema_root)
-
-
-@lru_cache(maxsize=8)
-def _cached_registry_for_root(schema_root: Path) -> SchemaRegistry:
     return SchemaRegistry(schema_root)
 
 
@@ -240,7 +336,26 @@ def _validate_owner_contract_rows(schema_id: str, value: Mapping[str, Any]) -> N
     if len(set(schema_ids)) != len(schema_ids):
         _invalid(schema_id, "schema_source_rows schema_id values must be unique")
 
+    observed_schema_closure = {
+        (row["logical_key"], row["schema_id"], row["repository_path"]) for row in schema_source_rows
+    }
+    if observed_schema_closure != _EXPECTED_SCHEMA_SOURCE_CLOSURE:
+        missing = sorted(_EXPECTED_SCHEMA_SOURCE_CLOSURE - observed_schema_closure)
+        unexpected = sorted(observed_schema_closure - _EXPECTED_SCHEMA_SOURCE_CLOSURE)
+        _invalid(
+            schema_id,
+            "schema_source_rows must contain exact accepted 61-family schema closure; "
+            f"missing={missing}, unexpected={unexpected}",
+        )
+
     rows = value["owner_contract_rows"]
+    owner_logical_keys = [row["logical_key"] for row in rows]
+    owner_schema_ids = [row["schema_id"] for row in rows]
+    if len(set(owner_logical_keys)) != len(owner_logical_keys):
+        _invalid(schema_id, "owner_contract_rows logical_key values must be unique")
+    if len(set(owner_schema_ids)) != len(owner_schema_ids):
+        _invalid(schema_id, "owner_contract_rows schema_id values must be unique")
+
     observed_ids = [row["owner_row_id"] for row in rows]
     if len(set(observed_ids)) != len(observed_ids):
         _invalid(schema_id, "owner_contract_rows must contain each owner_row_id exactly once")
@@ -263,8 +378,11 @@ def _validate_owner_contract_rows(schema_id: str, value: Mapping[str, Any]) -> N
 
 def _validate_dossier_expected_set(schema_id: str, value: Mapping[str, Any]) -> None:
     sorted_rows: dict[str, list[Mapping[str, Any]]] = {}
-    for rows_key, count_key, hash_key in _DOSSIER_EXPECTED_SET_FAMILIES:
+    for rows_key, count_key, hash_key, identity_key in _DOSSIER_EXPECTED_SET_FAMILIES:
         rows = value[rows_key]
+        identities = [row[identity_key] for row in rows]
+        if len(set(identities)) != len(identities):
+            _invalid(schema_id, f"{rows_key} contains duplicate {identity_key} values")
         if value[count_key] != len(rows):
             _invalid(schema_id, f"{count_key} does not match row count")
         try:
@@ -328,6 +446,8 @@ def _validate_scorecard_against_rubric(
     rubric = matches[0]
     if validate_reference is not None:
         validate_reference(W11_ASSAY_RUBRIC_SCHEMA_ID, rubric)
+    if "axis_definitions" not in rubric:
+        _invalid(schema_id, "frozen rubric is missing axis_definitions")
 
     axes: dict[str, Mapping[str, Any]] = {}
     for axis in rubric["axis_definitions"]:
