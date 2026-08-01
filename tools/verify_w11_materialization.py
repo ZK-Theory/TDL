@@ -448,24 +448,53 @@ def _validate_scorecard_against_rubric(
         validate_reference(W11_ASSAY_RUBRIC_SCHEMA_ID, rubric)
     if "axis_definitions" not in rubric:
         _invalid(schema_id, "frozen rubric is missing axis_definitions")
+    axis_definitions = rubric["axis_definitions"]
+    if not isinstance(axis_definitions, list):
+        _invalid(schema_id, "frozen rubric axis_definitions must be a list")
 
     axes: dict[str, Mapping[str, Any]] = {}
-    for axis in rubric["axis_definitions"]:
-        axis_id = axis["axis_id"]
+    expected_value_types = {
+        "gate": "boolean",
+        "integer_score": "integer",
+        "registered_measure": "number",
+    }
+    for index, axis in enumerate(axis_definitions):
+        if not isinstance(axis, Mapping):
+            _invalid(schema_id, f"frozen rubric axis_definitions[{index}] must be a mapping")
+        axis_id = axis.get("axis_id")
+        if not isinstance(axis_id, str) or not axis_id:
+            _invalid(schema_id, f"frozen rubric axis_definitions[{index}] is missing axis_id")
         if axis_id in axes:
             _invalid(schema_id, f"frozen rubric contains duplicate axis {axis_id}")
         axes[axis_id] = axis
-        expected_value_type = {
-            "gate": "boolean",
-            "integer_score": "integer",
-            "registered_measure": "number",
-        }[axis["axis_kind"]]
-        if axis["value_type"] != expected_value_type:
+        axis_kind = axis.get("axis_kind")
+        if not isinstance(axis_kind, str):
+            _invalid(schema_id, f"frozen rubric axis {axis_id} is missing axis_kind")
+        if axis_kind not in expected_value_types:
+            _invalid(schema_id, f"frozen rubric axis {axis_id} has unknown axis_kind {axis_kind}")
+        expected_value_type = expected_value_types[axis_kind]
+        value_type = axis.get("value_type")
+        if not isinstance(value_type, str):
+            _invalid(schema_id, f"frozen rubric axis {axis_id} is missing value_type")
+        if value_type != expected_value_type:
             _invalid(schema_id, f"frozen rubric axis {axis_id} has an inconsistent value type")
-        if "bounds" in axis and axis["bounds"]["minimum"] > axis["bounds"]["maximum"]:
-            _invalid(schema_id, f"frozen rubric axis {axis_id} has descending bounds")
+        if "bounds" in axis:
+            bounds = axis["bounds"]
+            if not isinstance(bounds, Mapping) or "minimum" not in bounds or "maximum" not in bounds:
+                _invalid(schema_id, f"frozen rubric axis {axis_id} has malformed bounds")
+            try:
+                descending_bounds = bounds["minimum"] > bounds["maximum"]
+            except TypeError:
+                _invalid(schema_id, f"frozen rubric axis {axis_id} has malformed bounds")
+            if descending_bounds:
+                _invalid(schema_id, f"frozen rubric axis {axis_id} has descending bounds")
 
-    required_axis_ids = set(rubric["required_axis_ids"])
+    required_axis_ids_value = rubric.get("required_axis_ids")
+    if not isinstance(required_axis_ids_value, list) or not all(
+        isinstance(axis_id, str) for axis_id in required_axis_ids_value
+    ):
+        _invalid(schema_id, "frozen rubric required_axis_ids must be a list of strings")
+    required_axis_ids = set(required_axis_ids_value)
     missing_rubric_axes = sorted(required_axis_ids - axes.keys())
     if missing_rubric_axes:
         _invalid(schema_id, f"frozen rubric required axes are undefined: {missing_rubric_axes}")

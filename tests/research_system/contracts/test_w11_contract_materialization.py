@@ -1190,6 +1190,46 @@ def test_w11_scorecard_matching_malformed_rubric_with_noop_callback_is_controlle
         )
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("missing_axis_kind", "axis_kind"),
+        ("unknown_axis_kind", "unknown axis_kind"),
+        ("missing_required_axis_ids", "required_axis_ids"),
+        ("axes_not_a_list", "axis_definitions must be a list"),
+        ("malformed_axis_entry", "missing axis_id"),
+        ("non_mapping_axis_value", "must be a mapping"),
+    ),
+)
+def test_w11_scorecard_malformed_rubric_axis_shapes_are_controlled_with_noop_callback(
+    mutation: str,
+    message: str,
+) -> None:
+    malformed_rubric = deepcopy(VALID_RUBRIC)
+    if mutation == "missing_axis_kind":
+        malformed_rubric["axis_definitions"][0].pop("axis_kind")
+    elif mutation == "unknown_axis_kind":
+        malformed_rubric["axis_definitions"][0]["axis_kind"] = "unsupported"
+    elif mutation == "missing_required_axis_ids":
+        malformed_rubric.pop("required_axis_ids")
+    elif mutation == "axes_not_a_list":
+        malformed_rubric["axis_definitions"] = "not-a-list"
+    elif mutation == "malformed_axis_entry":
+        malformed_rubric["axis_definitions"] = [{}]
+    elif mutation == "non_mapping_axis_value":
+        malformed_rubric["axis_definitions"] = [None]
+    else:
+        raise AssertionError(f"unhandled test mutation: {mutation}")
+
+    with pytest.raises(SchemaError, match=message):
+        w11_verifier.verify_w11_document(
+            "ars://portfolio/assay-scorecard",
+            VALID_SCORECARD,
+            reference_documents=[malformed_rubric],
+            validate_reference=lambda _schema_id, _reference: None,
+        )
+
+
 def test_w11_dossier_expected_set_recomputes_all_cross_field_identity() -> None:
     dossier = deepcopy(VALID_DOSSIER_EXPECTED_SET)
     verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", dossier)
