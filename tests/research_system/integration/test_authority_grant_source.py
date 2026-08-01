@@ -1891,6 +1891,13 @@ def test_non_genesis_bootstrap_projection_requires_scoped_grant_v2(tmp_path) -> 
     control_root, bootstrap, _ = _initialized(tmp_path)
     events = tuple(EventLedger(control_root, PROJECT_ID, SCHEMAS).iter_events())
     projection = replay(events, schema_registry=SCHEMAS)
+    _verify_bootstrap_bindings(
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        events,
+        projection,
+    )
     projection["authority_grants"]["agr_01978abc-1090-7000-8000-000000001090"] = {
         "authority_grant_id": "agr_01978abc-1090-7000-8000-000000001090",
         "authority_grant_sha256": "a" * 64,
