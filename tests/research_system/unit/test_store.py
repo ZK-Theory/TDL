@@ -7,7 +7,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
@@ -307,13 +307,29 @@ def test_batch_is_invisible_until_atomic_replace(tmp_path, monkeypatch):
         lambda source, target: (_ for _ in ()).throw(OSError("crash")),
     )
     with pytest.raises(OSError, match="crash"):
-        ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
+        ledger.append(
+            [
+                {
+                    "event_type": "TaskCreated",
+                    "stream_id": TASK_ID,
+                    "schema_id": "ars://core/event",
+                }
+            ]
+        )
     assert list((tmp_path / "events").rglob("*.jsonl")) == []
 
 
 def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     ledger = _catalogue_only_ledger(tmp_path)
-    receipt = ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
+    receipt = ledger.append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            }
+        ]
+    )
     events = list(ledger.iter_events())
     assert [item["global_position"] for item in events] == [1]
     assert events[0]["previous_event_hash"] == "0" * 64
@@ -327,6 +343,67 @@ def test_default_ledger_rejects_append_without_explicit_schema_registry(tmp_path
         ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
 
     assert tuple(ledger.iter_batches()) == ()
+
+
+def test_unbound_payload_backed_event_prefers_registered_full_schema(tmp_path):
+    schema_root = tmp_path / "schemas"
+    schema_root.mkdir()
+    event_schema_id = "ars://test/event/StrictPayload"
+    schemas = {
+        "core_event.schema.json": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "ars://core/event",
+            "type": "object",
+        },
+        "strict_event.schema.json": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": event_schema_id,
+            "type": "object",
+            "properties": {
+                "schema_version": {"const": "1.0.0"},
+                "payload": {
+                    "type": "object",
+                    "required": ["must_exist"],
+                    "properties": {"must_exist": {"type": "string"}},
+                },
+            },
+            "required": ["schema_version", "payload"],
+        },
+        "strict_payload.schema.json": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": f"{event_schema_id}/payload",
+            "type": "object",
+        },
+    }
+    for name, schema in schemas.items():
+        (schema_root / name).write_bytes(canonical_bytes(schema))
+
+    ledger = EventLedger(
+        tmp_path / "control",
+        project_id=PROJECT_ID,
+        schemas=SchemaRegistry(schema_root),
+    )
+    incomplete = {
+        "event_type": "StrictPayloadRecorded",
+        "stream_id": TASK_ID,
+        "schema_id": event_schema_id,
+        "schema_version": "1.0.0",
+        "payload": {},
+    }
+
+    with pytest.raises(SchemaError, match="must_exist"):
+        ledger.append([incomplete])
+    assert tuple(ledger.iter_batches()) == ()
+
+    ledger.append(
+        [
+            {
+                **incomplete,
+                "payload": {"must_exist": "validated by the full event schema"},
+            }
+        ]
+    )
+    assert tuple(ledger.iter_events())[0]["payload"]["must_exist"] == ("validated by the full event schema")
 
 
 @pytest.mark.parametrize(
@@ -361,10 +438,54 @@ def test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance(
     assert tuple(ledger.iter_batches()) == ()
 
 
+def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
+    schemas = runtime_schema_registry(SCHEMAS)
+    command_identity = schemas.resolve_identity("ars://core/command", "1.0.0")
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=schemas,
+    )
+
+    with pytest.raises(ArsError, match="inactive event schema"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event/DispatchClaimed",
+                    "schema_version": "1.0.0",
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "payload": {},
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
 def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
     ledger = _catalogue_only_ledger(tmp_path)
-    ledger.append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
-    ledger.append([{"event_type": "ReadinessRequested", "stream_id": TASK_ID}])
+    ledger.append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            }
+        ]
+    )
+    ledger.append(
+        [
+            {
+                "event_type": "ReadinessRequested",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            }
+        ]
+    )
     batches = sorted(ledger.events_root.rglob("*.jsonl"), key=lambda path: path.name)
 
     later_date = ledger.events_root / "2027" / "01"

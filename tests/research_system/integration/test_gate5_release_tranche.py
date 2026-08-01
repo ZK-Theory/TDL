@@ -4,10 +4,21 @@ from pathlib import Path
 
 import pytest
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command import service as service_module
-from research_system.errors import ArsError
+from research_system.command.models import Command
+from research_system.errors import ArsError, SchemaError
 from research_system.evals.retention import EvidenceStoreRegistry
-from tests.research_system.factories import control_plane, create_task_command
+from research_system.schema_registry import cached_schema_registry
+from research_system.store.ledger import EventLedger
+from tests.research_system.factories import (
+    ACTORS,
+    AUTHORITY_GRANT_ID,
+    PROJECT_ID,
+    REPO_ROOT,
+    control_plane,
+    create_task_command,
+)
 
 
 CMD_RESTORE = "cmd_01978abc-5101-7000-8000-000000005101"
@@ -132,7 +143,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
 
 
-def _build_restore_case(tmp_path):
+def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
     import shutil
 
     from research_system.canonical import canonical_bytes, sha256_hex
@@ -142,6 +153,7 @@ def _build_restore_case(tmp_path):
         seal_backup_receipt,
     )
     from research_system.projection.replay import replay
+    from research_system.schema_registry import runtime_schema_registry
     from research_system.store.identity import initialize_control_store
 
     code_root = tmp_path / "code"
@@ -152,14 +164,55 @@ def _build_restore_case(tmp_path):
     target = tmp_path / "target"
     shutil.copytree(source, target)
 
-    state = replay(())
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    ledger = EventLedger(target, project_id, schemas)
+    if with_exact_task:
+        command = create_task_command(
+            CMD_RESTORE,
+            "restore-exact-lifecycle",
+            TASK_RESTORE,
+            {"title": "Exact lifecycle restore history"},
+        )
+        command_identity = schemas.resolve_identity(
+            command["schema_id"],
+            command["schema_version"],
+        )
+        event_identity = schemas.resolve_identity(
+            "ars://core/event/TaskCreated",
+            "1.0.0",
+        )
+        ledger.append(
+            [
+                {
+                    "event_type": "TaskCreated",
+                    "stream_id": TASK_RESTORE,
+                    "command_id": command["command_id"],
+                    "command_type": command["command_type"],
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "actor_id": command["actor_id"],
+                    "authority_grant_id": command["authority_grant_id"],
+                    "idempotency_key": command["idempotency_key"],
+                    "command_payload_hash": sha256_hex(canonical_bytes(command["payload"])),
+                    "correlation_id": command["correlation_id"],
+                    "causation_id": command["causation_id"],
+                    "schema_id": event_identity.schema_id,
+                    "schema_version": event_identity.schema_version,
+                    "occurred_at": None,
+                    "payload": command["payload"],
+                }
+            ]
+        )
+    ledger_snapshot = ledger.snapshot()
+    state = replay(ledger_snapshot.events, schema_registry=schemas)
     snapshot = {
         "snapshot_id": "snapshot-synthetic-r1",
-        "source_position": 0,
-        "source_hash": "0" * 64,
+        "source_position": ledger_snapshot.global_position,
+        "source_hash": ledger_snapshot.event_hash,
         "state_hash": sha256_hex(canonical_bytes(state)),
         "replay_start_position": 1,
-        "replay_end_position": 0,
+        "replay_end_position": ledger_snapshot.global_position,
         "schema_versions": ["core-v1"],
         "tool_versions": ["restore-tool-v1"],
     }
@@ -222,15 +275,15 @@ def _build_restore_case(tmp_path):
         receipt_hash="",
         project_id=project_id,
         store_identity=store_identity,
-        canonical_tail_position=0,
-        canonical_tail_hash="0" * 64,
+        canonical_tail_position=ledger_snapshot.global_position,
+        canonical_tail_hash=ledger_snapshot.event_hash,
         snapshot_id=snapshot["snapshot_id"],
         snapshot_hash=sha256_hex(snapshot_path.read_bytes()),
-        snapshot_source_position=0,
-        snapshot_source_hash="0" * 64,
+        snapshot_source_position=ledger_snapshot.global_position,
+        snapshot_source_hash=ledger_snapshot.event_hash,
         snapshot_state_hash=snapshot["state_hash"],
         replay_start_position=1,
-        replay_end_position=0,
+        replay_end_position=ledger_snapshot.global_position,
         schema_versions=("core-v1",),
         tool_versions=("restore-tool-v1",),
         encryption_class="synthetic-none",
@@ -287,6 +340,16 @@ def test_restore_preflight_independently_verifies_moved_store_and_artifacts(tmp_
     assert result.target_root == str(case["target"].resolve(strict=False))
     assert result.receipt_hash == case["receipt"].receipt_hash
     assert result.registry_hash == case["registry"].registry_hash
+
+
+def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
+    case = _build_restore_case(tmp_path, with_exact_task=True)
+
+    result = _verify_restore(case)
+
+    assert result.status == "verified"
+    assert result.failed_predicates == ()
+    assert result.tail_position == 1
 
 
 @pytest.mark.parametrize(
@@ -473,27 +536,77 @@ CMD_CA = "cmd_01978abc-5223-7000-8000-000000005223"
 CMD_DA = "cmd_01978abc-5224-7000-8000-000000005224"
 
 
-def _create_revision(harness, command_id, task_id, title):
-    return harness.service.submit(
-        create_task_command(
-            command_id,
-            f"create-{title}",
-            task_id,
+def _create_revision(
+    harness,
+    command_id,
+    task_id,
+    title,
+    *,
+    task_type="research_task",
+    continuing_consumers=("audit",),
+):
+    """Seed one authentic pre-cutover generic Task revision.
+
+    These supersession fixtures predate the accepted rich ``TaskDefinition``.
+    Keep their legacy type and consumer contract in generic history instead of
+    adding those retired fields to the current exact CreateTask payload.
+    """
+    payload = {
+        "title": title,
+        "task_type": task_type,
+        "continuing_consumers": list(continuing_consumers),
+    }
+    command = create_task_command(
+        command_id,
+        f"create-{title}",
+        task_id,
+        payload,
+    )
+    command["schema_id"] = "ars://core/command"
+    command["payload"] = payload
+    command.pop("project_id")
+    inert_schemas = cached_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    command_schema = inert_schemas.resolve_identity(
+        "ars://core/command",
+        "1.0.0",
+    )
+    harness.objects.write("task", task_id, 1, payload)
+    return EventLedger(
+        harness.service.control_root,
+        PROJECT_ID,
+        inert_schemas,
+    ).append(
+        [
             {
-                "title": title,
-                "task_type": "research_task",
-                "continuing_consumers": ["audit"],
-            },
-        )
+                "event_type": "TaskCreated",
+                "stream_id": task_id,
+                "command_id": command_id,
+                "command_type": "CreateTask",
+                "command_schema_id": command_schema.schema_id,
+                "command_schema_version": command_schema.schema_version,
+                "command_schema_sha256": command_schema.sha256,
+                "actor_id": ACTORS["actor-a"],
+                "authority_grant_id": AUTHORITY_GRANT_ID,
+                "idempotency_key": command["idempotency_key"],
+                "command_payload_hash": Command(command).payload_hash,
+                "correlation_id": command["correlation_id"],
+                "causation_id": command["causation_id"],
+                "schema_id": "ars://core/event",
+                "schema_version": "1.0.0",
+                "occurred_at": None,
+                "payload": payload,
+            }
+        ]
     )
 
 
 def _supersede_command(command_id, source_id, replacement_id, replacement_revision=1):
     payload = {
+        "task_id": source_id,
         "replacement_task_id": replacement_id,
         "replacement_task_revision": replacement_revision,
-        "supersession_scope": ["full_task_authority"],
-        "continuing_consumers": ["audit"],
+        "continuing_consumer_dispositions": ["audit"],
+        "lineage_reason": "Replace the exact source Task revision.",
     }
     command = create_task_command(
         command_id,
@@ -502,10 +615,9 @@ def _supersede_command(command_id, source_id, replacement_id, replacement_revisi
         payload,
     )
     command["command_type"] = "SupersedeTask"
-    command["schema_id"] = "ars://core/command"
+    command["schema_id"] = "ars://core/command/SupersedeTask"
     command["expected_stream_version"] = 1
     command["payload"] = payload
-    command.pop("project_id")
     return command
 
 
@@ -515,6 +627,76 @@ def _store_bytes(root):
         for path in root.rglob("*")
         if path.is_file() and "receipts" not in path.parts and "runtime" not in path.parts
     }
+
+
+def test_pre_cutover_generic_task_history_remains_replayable_and_resolvable(
+    tmp_path,
+):
+    from research_system.projection.replay import replay
+
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    events = tuple(harness.ledger.iter_events())
+
+    assert len(events) == 1
+    assert events[0]["schema_id"] == "ars://core/event"
+    assert events[0]["command_schema_id"] == "ars://core/command"
+    assert harness.objects.read("task", TASK_A, 1) == {
+        "title": "A",
+        "task_type": "research_task",
+        "continuing_consumers": ["audit"],
+    }
+    state = replay(
+        events,
+        schema_registry=harness.service.schemas,
+    )["streams"][TASK_A]
+    assert state["status"] == "draft"
+
+
+def test_exact_task_amendment_rejects_pre_cutover_generic_source(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    definition = create_task_command(
+        "cmd_01978abc-5298-7000-8000-000000005298",
+        "replacement-definition",
+        TASK_A,
+        {"title": "Modern replacement"},
+    )["payload"]["definition"]
+    definition["revision"] = 2
+    definition["title"] = "Modern replacement"
+    definition["objective"] = "Complete Modern replacement"
+    definition.pop("content_sha256")
+    definition["content_sha256"] = sha256_hex(canonical_bytes(definition))
+    command = create_task_command(
+        "cmd_01978abc-5299-7000-8000-000000005299",
+        "reject-legacy-amendment",
+        TASK_A,
+        {"title": "Modern replacement"},
+    )
+    command.update(
+        {
+            "command_type": "AmendTask",
+            "schema_id": "ars://core/command/AmendTask",
+            "expected_stream_version": 1,
+            "payload": {
+                "task_id": TASK_A,
+                "prior_revision": 1,
+                "new_revision": 2,
+                "replacement_definition": definition,
+                "changed_fields": ["title", "objective"],
+                "rationale": "Do not silently convert a generic legacy Task.",
+                "effective_boundary": "before redispatch",
+                "authority_evidence_refs": [AUTHORITY_GRANT_ID],
+            },
+        }
+    )
+
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "source_task_definition_incompatible"
+    assert len(tuple(harness.ledger.iter_events())) == 1
+    assert harness.objects.latest_revision("task", TASK_A) == 1
 
 
 def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_path):
@@ -528,7 +710,10 @@ def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_
     assert harness.service.submit(_supersede_command(CMD_BC, TASK_B, TASK_C)).status == "accepted"
 
     before_bytes = _store_bytes(harness.service.control_root)
-    before_projection = replay(harness.ledger.iter_events())
+    before_projection = replay(
+        harness.ledger.iter_events(),
+        schema_registry=harness.service.schemas,
+    )
     before_snapshot = harness.ledger.snapshot()
     command = _supersede_command(CMD_CA, TASK_C, TASK_A)
     first = harness.service.submit(command)
@@ -541,7 +726,13 @@ def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_
     assert first.unmet_preconditions == ("supersession_cycle",)
     assert first.observed_stream_version == 1
     assert _store_bytes(harness.service.control_root) == before_bytes
-    assert replay(harness.ledger.iter_events()) == before_projection
+    assert (
+        replay(
+            harness.ledger.iter_events(),
+            schema_registry=harness.service.schemas,
+        )
+        == before_projection
+    )
     after_snapshot = harness.ledger.snapshot()
     assert (after_snapshot.global_position, after_snapshot.event_hash) == (
         before_snapshot.global_position,
@@ -568,7 +759,9 @@ def test_supersession_rejects_terminal_replacement_after_cycle_check(tmp_path):
     assert len(list(harness.receipts.receipts_root.glob(f"{CMD_DA}.json"))) == 1
 
 
-def test_supersession_accepts_same_task_higher_revision_and_preserves_history(tmp_path):
+def test_legacy_supersession_accepts_same_task_higher_revision_and_preserves_history(
+    tmp_path,
+):
     from research_system.projection.replay import replay
 
     harness = control_plane(tmp_path)
@@ -586,18 +779,22 @@ def test_supersession_accepts_same_task_higher_revision_and_preserves_history(tm
     command = _supersede_command(CMD_AB, TASK_A, TASK_A, 2)
     receipt = harness.service.submit(command)
     assert receipt.status == "accepted"
-    state = replay(harness.ledger.iter_events())["streams"][TASK_A]
+    events = tuple(harness.ledger.iter_events())
+    assert events[0]["schema_id"] == "ars://core/event"
+    state = replay(
+        events,
+        schema_registry=harness.service.schemas,
+    )["streams"][TASK_A]
     assert state["status"] == "draft"
     assert state["current_revision"] == 2
     assert state["revision_history"]["1"]["status"] == "superseded"
-    event = list(harness.ledger.iter_events())[-1]
+    event = events[-1]
     assert event["event_type"] == "TaskSuperseded"
-    assert event["payload"]["source_task_revision"] == 1
+    assert event["schema_id"] == "ars://core/event/TaskSuperseded"
+    assert event["payload"]["task_id"] == TASK_A
     assert event["payload"]["replacement_task_revision"] == 2
-    assert event["payload"]["lineage"] == [
-        {"task_id": TASK_A, "revision": 1},
-        {"task_id": TASK_A, "revision": 2},
-    ]
+    assert event["payload"]["continuing_consumer_dispositions"] == ["audit"]
+    assert event["payload"]["lineage_reason"]
 
 
 def test_supersession_rejects_identical_node_and_terminal_source(tmp_path):
@@ -618,15 +815,15 @@ def test_supersession_rejects_identical_node_and_terminal_source(tmp_path):
     assert rejected.reason_code == "source_revision_terminal"
 
 
-def test_supersession_rejects_missing_stale_and_incompatible_replacements(tmp_path):
+def test_supersession_rejects_missing_replacement_revision(tmp_path):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
     missing = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B))
     assert missing.reason_code == "replacement_revision_missing"
 
-    stale_root = tmp_path / "stale"
-    stale_root.mkdir()
-    harness = control_plane(stale_root)
+
+def test_legacy_supersession_rejects_stale_replacement_revision(tmp_path):
+    harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
     _create_revision(harness, CMD_B, TASK_B, "B")
     harness.objects.write(
@@ -642,42 +839,41 @@ def test_supersession_rejects_missing_stale_and_incompatible_replacements(tmp_pa
     stale = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B, 2))
     assert stale.reason_code == "replacement_revision_stale"
 
-    incompatible_root = tmp_path / "incompatible"
-    incompatible_root.mkdir()
-    harness = control_plane(incompatible_root)
+
+def test_legacy_supersession_rejects_type_incompatible_replacement(tmp_path):
+    harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
-    harness.service.submit(
-        create_task_command(
-            CMD_B,
-            "create-incompatible",
-            TASK_B,
-            {
-                "title": "B",
-                "task_type": "review_task",
-                "continuing_consumers": ["audit"],
-            },
-        )
+    _create_revision(
+        harness,
+        CMD_B,
+        TASK_B,
+        "B",
+        task_type="review_task",
     )
     incompatible = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B))
     assert incompatible.reason_code == "replacement_revision_incompatible"
 
 
-def test_supersession_rejects_caller_lineage_and_consumer_or_scope_drift(tmp_path):
+def test_exact_supersession_rejects_caller_supplied_lineage(tmp_path):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
     _create_revision(harness, CMD_B, TASK_B, "B")
 
     caller_lineage = _supersede_command(CMD_AB, TASK_A, TASK_B)
     caller_lineage["payload"]["lineage"] = [{"task_id": TASK_A, "revision": 1}]
-    assert harness.service.submit(caller_lineage).reason_code == "invalid_supersession_payload"
+    with pytest.raises(SchemaError, match="lineage"):
+        harness.service.submit(caller_lineage)
+    assert len(tuple(harness.ledger.iter_events())) == 2
+
+
+def test_legacy_supersession_rejects_continuing_consumer_drift(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
 
     consumers = _supersede_command(CMD_BC, TASK_A, TASK_B)
-    consumers["payload"]["continuing_consumers"] = ["claim"]
+    consumers["payload"]["continuing_consumer_dispositions"] = ["claim"]
     assert harness.service.submit(consumers).reason_code == "continuing_consumers_mismatch"
-
-    scope = _supersede_command(CMD_CA, TASK_A, TASK_B)
-    scope["payload"]["supersession_scope"] = []
-    assert harness.service.submit(scope).reason_code == "invalid_supersession_payload"
 
 
 def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
@@ -703,6 +899,8 @@ def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
     creates = [command for command in calls if command["command_type"] == "CreateTask"]
     assert len(creates) == 3
     assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in creates)
+    supersedes = [command for command in calls if command["command_type"] == "SupersedeTask"]
+    assert all(command["schema_id"] == "ars://core/command/SupersedeTask" for command in supersedes)
 
 
 def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_path, monkeypatch):

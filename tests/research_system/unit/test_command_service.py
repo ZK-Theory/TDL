@@ -14,7 +14,7 @@ from research_system.schema_registry import (
     SchemaRegistry,
     runtime_schema_registry,
 )
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, LedgerSnapshot
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -124,6 +124,27 @@ def test_create_task_object_shape_follows_resolved_successor_binding(tmp_path):
 
     assert service.submit(command).status == "accepted"
     assert objects.read("task", TASK_ID, 1) == command["payload"]["definition"]
+
+
+@pytest.mark.parametrize("payload", [None, [], "not-a-mapping"])
+def test_revision_graph_rejects_non_mapping_legacy_task_payload(payload):
+    snapshot = LedgerSnapshot(
+        events=(
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+                "payload": payload,
+            },
+        ),
+        global_position=1,
+        event_hash="0" * 64,
+        stream_versions={TASK_ID: 1},
+        fingerprint=(),
+    )
+
+    with pytest.raises(IntegrityError, match="TaskCreated payload must be a mapping"):
+        CommandService._revision_graph(snapshot)
 
 
 def test_inactive_dispatch_schema_materialization_is_inert(tmp_path):
@@ -369,8 +390,10 @@ def test_competing_claims_create_only_one_active_attempt(tmp_path):
     second = claim_dispatch_command(CMD_CLAIM_B, "actor-b", DISPATCH_ID, expected_version=0)
     winner = harness.service.submit(first)
     loser = harness.service.submit(second)
+    state = harness.replay()
     assert {winner.status, loser.status} == {"accepted", "conflict"}
-    assert len(harness.replay().active_attempt_ids) == 1
+    assert len(state.active_attempt_ids) == 1
+    assert state.stream_states == {}
 
 
 def test_conflict_receipt_is_persisted_and_reused_after_stream_changes(tmp_path):

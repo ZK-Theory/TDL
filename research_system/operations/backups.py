@@ -11,7 +11,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
-from research_system.schema_registry import bundled_schema_registry
+from research_system.schema_registry import bundled_runtime_schema_registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,10 +167,12 @@ def verify_restore_before_writer_lease(
             failed.append("store_not_moved")
 
     try:
-        ledger_snapshot = EventLedger(
-            target, receipt.project_id, bundled_schema_registry()
-        ).snapshot()
-        replay_state = replay(ledger_snapshot.events)
+        schemas = bundled_runtime_schema_registry()
+        ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
+        replay_state = replay(
+            ledger_snapshot.events,
+            schema_registry=schemas,
+        )
         ledger_hash = sha256_hex(canonical_bytes(list(ledger_snapshot.events)))
         if (
             ledger_snapshot.global_position != receipt.canonical_tail_position
@@ -215,9 +217,7 @@ def verify_restore_before_writer_lease(
         endpoint.get("target_root") == str(target)
         and endpoint.get("endpoint_scheme") == receipt.source_endpoint_scheme
         and endpoint.get("owner_actor_id") == actor_id == receipt.verified_by_actor_id
-        and endpoint.get("authority_grant_id")
-        == authority_grant_id
-        == receipt.verification_authority_grant_id
+        and endpoint.get("authority_grant_id") == authority_grant_id == receipt.verification_authority_grant_id
         and endpoint.get("observed_at")
     ):
         failed.append("endpoint_authority_mismatch")
@@ -229,11 +229,7 @@ def verify_restore_before_writer_lease(
         failed.append("artefact_manifest_mismatch")
     for binding in receipt.artefact_bindings:
         row = next(
-            (
-                item
-                for item in rows
-                if isinstance(item, dict) and item.get("artefact_id") == binding.artefact_id
-            ),
+            (item for item in rows if isinstance(item, dict) and item.get("artefact_id") == binding.artefact_id),
             None,
         )
         path = _inside(target, str(row.get("relative_path", ""))) if row else None
@@ -259,10 +255,7 @@ def verify_restore_before_writer_lease(
             }
         )
     availability_hash = sha256_hex(canonical_bytes(observations))
-    if (
-        receipt.availability_status != "available"
-        or availability_hash != receipt.availability_observation_hash
-    ):
+    if receipt.availability_status != "available" or availability_hash != receipt.availability_observation_hash:
         failed.append("availability_observation_mismatch")
 
     registry_hash = str(getattr(registry, "registry_hash", ""))
@@ -303,6 +296,7 @@ def verify_restore_before_writer_lease(
         result_hash="",
     )
     return seal_restore_preflight_result(result)
+
 
 def seal_restore_preflight_result(
     result: RestorePreflightResult,

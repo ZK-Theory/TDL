@@ -15,8 +15,9 @@ from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import new_id, validate_id
 from research_system.schema_registry import (
     SchemaRegistry,
-    authority_schema_registry,
-    bundled_schema_registry,
+    bundled_runtime_schema_registry,
+    require_authority_schemas,
+    runtime_schema_registry,
 )
 from research_system.store.identity import SCHEMA_BINDING_VERSION
 
@@ -619,7 +620,7 @@ def _authority_schema_registry(
         if not canonical_schema_root.is_dir():
             raise ArsError("canonical schema root must be an existing directory")
         try:
-            registry = authority_schema_registry(canonical_schema_root)
+            registry = require_authority_schemas(runtime_schema_registry(canonical_schema_root))
         except ArsError as exc:
             raise ArsError("canonical schema root is not a usable SchemaRegistry") from exc
         return registry, canonical_schema_root
@@ -628,10 +629,10 @@ def _authority_schema_registry(
         raise ArsError("authority bootstrap requires one canonical schema root")
     if not schema_roots:
         if allow_bundled_fallback:
-            return bundled_schema_registry(), None
+            return require_authority_schemas(bundled_runtime_schema_registry()), None
         raise ArsError("new authority store requires a registered schema root")
     schema_root = schema_roots.pop()
-    return authority_schema_registry(schema_root), schema_root
+    return require_authority_schemas(runtime_schema_registry(schema_root)), schema_root
 
 
 def initialize_authority_control_store(

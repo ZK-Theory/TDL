@@ -21,6 +21,7 @@ from research_system.store.identity import (
 from tests.research_system.factories import (
     PROJECT_ID,
     REPO_ROOT,
+    claim_dispatch_command,
     control_plane,
     create_task_command,
     write_authority_bootstrap_input,
@@ -69,10 +70,18 @@ def test_s009_projection_rebuild_is_deterministic_and_disposable(tmp_path):
     events, harness = _events(tmp_path)
     output = tmp_path / "projection.json"
     canonical_before = tuple(path.read_bytes() for path in sorted(harness.ledger.events_root.rglob("*.jsonl")))
-    first = rebuild_projection(events, output)
+    first = rebuild_projection(
+        events,
+        output,
+        schema_registry=harness.service.schemas,
+    )
     first_bytes = output.read_bytes()
     output.unlink()
-    second = rebuild_projection(events, output)
+    second = rebuild_projection(
+        events,
+        output,
+        schema_registry=harness.service.schemas,
+    )
     assert first == second
     assert output.read_bytes() == first_bytes
     assert tuple(path.read_bytes() for path in sorted(harness.ledger.events_root.rglob("*.jsonl"))) == canonical_before
@@ -173,6 +182,23 @@ def test_future_activation_does_not_reinterpret_generic_event_history(tmp_path):
     projection = replay(events, schema_registry=harness.service.schemas)
 
     assert projection["streams"][TASK_ID]["status"] == "draft"
+
+
+def test_replay_rejects_unbound_full_only_event_with_runtime_registry(tmp_path):
+    harness = control_plane(tmp_path)
+    command = claim_dispatch_command(
+        "cmd_01978abc-4004-7000-8000-000000004004",
+        "actor-a",
+        "dsp_01978abc-4005-7000-8000-000000004005",
+        expected_version=0,
+    )
+    assert harness.service.submit(command).status == "accepted"
+    events = list(harness.ledger.iter_events())
+    events[0]["schema_id"] = "ars://core/event/DispatchClaimed"
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="event schema validation failed at 1"):
+        replay(events, schema_registry=harness.service.schemas)
 
 
 def test_s012_store_identity_mismatch_and_worktree_local_store_are_rejected(

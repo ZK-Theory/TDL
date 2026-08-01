@@ -1,6 +1,7 @@
 schema_version: '1.0.0'
 kinds:
   project: prj
+  scope_definition: obj
   task: tsk
   artefact: art
   command: cmd
