@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from typing import Any
 from pathlib import Path
 
-from research_system.authority import LedgerAuthorityGrantResolver
+from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError
+from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
-from research_system.store.identity import manifest_schema_root, rebind_restored_store
-from research_system.schema_registry import bundled_runtime_schema_registry
+from research_system.store.identity import (
+    load_restore_binding_evidence,
+    manifest_schema_root,
+    rebind_restored_store,
+)
+from research_system.schema_registry import SchemaRegistry, bundled_runtime_schema_registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +133,45 @@ def _inside(root: Path, relative: str) -> Path | None:
     return target
 
 
+def _resolve_restore_authority(
+    *,
+    authority_root: Path,
+    project_id: str,
+    store_identity: str,
+    actor_id: str,
+    authority_grant_id: str,
+    schemas: SchemaRegistry,
+    now: datetime,
+) -> None:
+    binding = schemas.command_binding("VerifyRestore")
+    command = schemas.resolve_identity(
+        binding.schema_id if binding is not None else "ars://core/command/VerifyRestore",
+        binding.schema_version if binding is not None else "1.0.0",
+    )
+    resolver = LedgerAuthorityGrantResolver(
+        authority_root,
+        project_id,
+        store_identity,
+        schemas,
+    )
+    resolver.resolve_command(
+        authority_grant_id,
+        actor_id,
+        "human",
+        GrantedCommandIdentity(
+            "VerifyRestore",
+            command.schema_id,
+            str(command.schema_version),
+            command.sha256,
+        ),
+        "R2",
+        project_id,
+        "project_store",
+        project_id,
+        now,
+    )
+
+
 def verify_restore_before_writer_lease(
     *,
     target_root: Path,
@@ -138,9 +182,13 @@ def verify_restore_before_writer_lease(
     registry: object,
     actor_id: str,
     authority_grant_id: str,
+    schema_registry: SchemaRegistry | None = None,
+    now: datetime | None = None,
 ) -> RestorePreflightResult:
     """Independently inspect a moved store and derive a pre-writer result."""
     target = target_root.resolve(strict=False)
+    schemas = schema_registry or bundled_runtime_schema_registry()
+    trusted_now = now or datetime.now(UTC)
     failed: list[str] = []
     if receipt.receipt_hash != _hash_without(receipt, "receipt_hash"):
         failed.append("receipt_hash_mismatch")
@@ -192,13 +240,25 @@ def verify_restore_before_writer_lease(
         except (OSError, ValueError, ArsError):
             failed.append("source_root_invalid")
         if source_root == target:
-            failed.append("store_not_moved")
+            evidence = load_restore_binding_evidence(target)
+            if evidence is None:
+                failed.append("store_not_moved")
+            else:
+                source_root = Path(evidence["source_root"]).resolve(strict=False)
+                source_root_value = str(source_root)
+                if (
+                    evidence["receipt_hash"] != receipt.receipt_hash
+                    or evidence["project_id"] != actual_project
+                    or evidence["store_identity"] != actual_store
+                    or evidence["manifest_hash"] != identity.get("manifest_hash")
+                ):
+                    failed.append("restore_binding_evidence_mismatch")
 
     try:
-        schemas = bundled_runtime_schema_registry()
         ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
-        resolver = LedgerAuthorityGrantResolver(
-            target,
+        authority_root = source_root if source_root is not None and source_root != target else target
+        authority_resolver = LedgerAuthorityGrantResolver(
+            authority_root,
             receipt.project_id,
             receipt.store_identity,
             schemas,
@@ -206,7 +266,7 @@ def verify_restore_before_writer_lease(
         replay_state = replay(
             ledger_snapshot.events,
             schema_registry=schemas,
-            authority_state_validator=resolver.validate_replayed_administration_state,
+            authority_state_validator=authority_resolver.validate_replayed_administration_state,
         )
         ledger_hash = sha256_hex(canonical_bytes(list(ledger_snapshot.events)))
         if (
@@ -308,6 +368,21 @@ def verify_restore_before_writer_lease(
         authority_grant_id,
     ) not in getattr(registry, "verifier_authority_bindings", ()):
         failed.append("verification_authority_mismatch")
+    if source_root is None:
+        failed.append("verification_authority_mismatch")
+    else:
+        try:
+            _resolve_restore_authority(
+                authority_root=(source_root if source_root != target else target),
+                project_id=actual_project,
+                store_identity=actual_store,
+                actor_id=actor_id,
+                authority_grant_id=authority_grant_id,
+                schemas=schemas,
+                now=trusted_now,
+            )
+        except (ArsError, IntegrityError, OSError, ValueError, SchemaError):
+            failed.append("verification_authority_mismatch")
 
     predicates = tuple(sorted(set(failed)))
     result = RestorePreflightResult(
@@ -375,6 +450,8 @@ def finalize_verified_restore_binding(
     project_id: str,
     actor_id: str,
     authority_grant_id: str,
+    schema_registry: SchemaRegistry | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Finalize a verified restore after the caller's current writer-lock recheck.
 
@@ -403,6 +480,17 @@ def finalize_verified_restore_binding(
     if not current.code_roots:
         raise ArsError("restore code-root binding missing")
     expected_schema_root = Path(current.schema_root) if current.schema_root else None
+    _resolve_restore_authority(
+        authority_root=(
+            source_root if source_root.resolve(strict=False) != target_root.resolve(strict=False) else target_root
+        ),
+        project_id=project_id,
+        store_identity=current.store_identity,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
+        schemas=schema_registry or bundled_runtime_schema_registry(),
+        now=now or datetime.now(UTC),
+    )
     return rebind_restored_store(
         target_root,
         source_root,
@@ -410,4 +498,5 @@ def finalize_verified_restore_binding(
         expected_store_identity=current.store_identity,
         expected_code_roots=[Path(root) for root in current.code_roots],
         expected_schema_root=expected_schema_root,
+        expected_restore_receipt_hash=current.receipt_hash,
     )

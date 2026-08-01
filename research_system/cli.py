@@ -5,6 +5,7 @@ import json
 import os
 import subprocess  # nosec B404 - fixed git discovery command
 import sys
+import tempfile
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from research_system.authority import (
     initialize_authority_control_store,
 )
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
-from research_system.canonical import canonical_bytes, jsonable
+from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
@@ -57,7 +58,13 @@ from research_system.schema_registry import (
     require_authority_schemas,
     runtime_schema_registry,
 )
-from research_system.store.identity import load_store_manifest, load_store_manifest_unbound, manifest_schema_root
+from research_system.store.identity import (
+    load_restore_binding_evidence,
+    load_store_manifest,
+    load_store_manifest_unbound,
+    manifest_schema_root,
+    rebind_restored_store,
+)
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
@@ -158,10 +165,84 @@ def _backup_receipt_from_json(value: dict[str, Any]) -> BackupReceipt:
         raise ConfigurationError("invalid backup receipt") from exc
 
 
+def _preflight_restore_binding_load(
+    *,
+    target_root: Path,
+    source_root: Path,
+    manifest: dict[str, Any],
+    config_value: dict[str, Any],
+) -> None:
+    """Exercise fresh binding validation on an isolated, already-rebound manifest."""
+    with tempfile.TemporaryDirectory(
+        dir=target_root.parent,
+        prefix=f".{target_root.name}.restore-binding-",
+    ) as raw:
+        shadow_root = Path(raw) / "control"
+        (shadow_root / "manifests").mkdir(parents=True)
+        shadow_manifest = dict(manifest)
+        shadow_manifest["control_root"] = str(source_root)
+        shadow_manifest["manifest_hash"] = sha256_hex(
+            canonical_bytes({key: value for key, value in shadow_manifest.items() if key != "manifest_hash"})
+        )
+        (shadow_root / "manifests" / "store-identity.json").write_bytes(canonical_bytes(shadow_manifest))
+        rebind_restored_store(
+            shadow_root,
+            source_root,
+            expected_project_id=str(manifest["project_id"]),
+            expected_store_identity=str(manifest["store_identity"]),
+            expected_code_roots=[Path(root) for root in manifest["code_roots"]],
+            expected_schema_root=manifest_schema_root(manifest),
+        )
+        shadow_config = Path(raw) / "binding.json"
+        shadow_value = dict(config_value)
+        shadow_value["control_root"] = str(shadow_root.resolve())
+        shadow_config.write_bytes(canonical_bytes(shadow_value))
+        ControlBinding.load(shadow_config)
+
+
 def _store_restore_bind(args: argparse.Namespace) -> int:
     target_root = args.control_root.resolve(strict=True)
     source_manifest = load_store_manifest_unbound(target_root)
     schemas = _schemas_for_store_manifest(source_manifest)
+    schema_root = args.schema_root.resolve(strict=True)
+    persisted_schema_root = manifest_schema_root(source_manifest)
+    if persisted_schema_root is not None and persisted_schema_root.resolve(strict=True) != schema_root:
+        raise ConfigurationError("config schema root differs from restored store manifest")
+    config_value = {
+        "code_roots": source_manifest["code_roots"],
+        "control_root": str(target_root),
+        "project_id": source_manifest["project_id"],
+        "schema_root": str(schema_root),
+        "store_identity": source_manifest["store_identity"],
+    }
+    recorded_root = Path(str(source_manifest["control_root"])).resolve(strict=False)
+    already_bound = recorded_root == target_root
+    if already_bound:
+        evidence = load_restore_binding_evidence(target_root)
+        if evidence is None:
+            raise ArsError("restore binding evidence is missing")
+        source_root = Path(evidence["source_root"]).resolve(strict=False)
+    else:
+        source_root = recorded_root
+    existing_binding: ControlBinding | None = None
+    if args.config_output.exists():
+        if not already_bound:
+            raise ArsError(f"output path exists: {args.config_output}")
+        existing_binding = ControlBinding.load(args.config_output)
+        if (
+            existing_binding.control_root != target_root
+            or existing_binding.project_id != source_manifest["project_id"]
+            or existing_binding.store_identity != source_manifest["store_identity"]
+            or existing_binding.schema_root != schema_root
+            or tuple(str(root) for root in existing_binding.code_roots) != tuple(source_manifest["code_roots"])
+        ):
+            raise ConfigurationError("existing binding config conflicts with restored store")
+    _preflight_restore_binding_load(
+        target_root=target_root,
+        source_root=source_root,
+        manifest=source_manifest,
+        config_value=config_value,
+    )
     receipt = _backup_receipt_from_json(_read_json(args.receipt))
     registry = load_evidence_store_registry(args.registry, schemas)
     preflight_kwargs = {
@@ -173,48 +254,50 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         "registry": registry,
         "actor_id": args.actor_id,
         "authority_grant_id": args.authority_grant_id,
+        "schema_registry": schemas,
+        "now": _authority_clock(),
     }
     supplied = verify_restore_before_writer_lease(**preflight_kwargs)
     if supplied.status != "verified":
         raise ArsError(f"restore preflight is not verified: {', '.join(supplied.failed_predicates)}")
-    with WriterLock(
-        target_root / "runtime" / "writer.lock",
-        {"operation": "restore-bind", "target_root": str(target_root)},
-    ):
-        current = verify_restore_before_writer_lease(**preflight_kwargs)
-        finalize_verified_restore_binding(
-            target_root=target_root,
-            source_root=Path(current.source_root),
-            supplied=supplied,
-            current=current,
-            project_id=receipt.project_id,
-            actor_id=args.actor_id,
-            authority_grant_id=args.authority_grant_id,
-        )
-
-    bound_manifest = load_store_manifest(target_root)
-    schema_root = args.schema_root.resolve(strict=True)
-    persisted_schema_root = manifest_schema_root(bound_manifest)
-    if persisted_schema_root is not None and persisted_schema_root.resolve(strict=True) != schema_root:
-        raise ConfigurationError("config schema root differs from restored store manifest")
-    config_value = {
-        "code_roots": bound_manifest["code_roots"],
-        "control_root": bound_manifest["control_root"],
-        "project_id": bound_manifest["project_id"],
-        "schema_root": str(schema_root),
-        "store_identity": bound_manifest["store_identity"],
-    }
-    temporary, descriptor = _reserve_output(args.config_output)
+    temporary: Path | None = None
+    descriptor: int | None = None
+    if existing_binding is None:
+        temporary, descriptor = _reserve_output(args.config_output)
+    current: Any = supplied
+    published = existing_binding is not None
     try:
-        _publish_reserved_output(
-            args.config_output,
-            temporary,
-            descriptor,
-            canonical_bytes(config_value),
-        )
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+        with WriterLock(
+            target_root / "runtime" / "writer.lock",
+            {"operation": "restore-bind", "target_root": str(target_root)},
+        ):
+            current = verify_restore_before_writer_lease(**preflight_kwargs)
+            finalize_verified_restore_binding(
+                target_root=target_root,
+                source_root=Path(current.source_root),
+                supplied=supplied,
+                current=current,
+                project_id=receipt.project_id,
+                actor_id=args.actor_id,
+                authority_grant_id=args.authority_grant_id,
+                schema_registry=schemas,
+                now=_authority_clock(),
+            )
+        if not published:
+            assert temporary is not None and descriptor is not None
+            _publish_reserved_output(
+                args.config_output,
+                temporary,
+                descriptor,
+                canonical_bytes(config_value),
+            )
+            descriptor = None
+            published = True
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     binding = ControlBinding.load(args.config_output)
     _print_json(
         {

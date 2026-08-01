@@ -250,6 +250,8 @@ class CommandService:
             project_id=self.ledger.project_id,
             actor_id=command.actor_id,
             authority_grant_id=command.envelope["authority_grant_id"],
+            schema_registry=self.schemas,
+            now=self.clock(),
         )
         self._restore_source_root = None
         self._restore_preflight_result = None

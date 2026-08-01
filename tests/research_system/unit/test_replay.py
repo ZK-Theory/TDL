@@ -15,6 +15,7 @@ from research_system.errors import ArsError, ConfigurationError, ConflictError, 
 from research_system.projection.replay import apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
+    _fsync_directory,
     initialize_control_store,
     load_store_manifest,
     rebind_restored_store,
@@ -280,6 +281,14 @@ def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path)
         )
         == after
     )
+    with pytest.raises(ConflictError, match="source binding"):
+        rebind_restored_store(
+            target_root,
+            tmp_path / "different-source",
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
     with pytest.raises(ConflictError, match="project identity"):
         rebind_restored_store(
             target_root,
@@ -377,6 +386,53 @@ def test_restored_store_rebind_rejects_noncanonical_and_replace_failure(tmp_path
         )
     assert manifest_path.read_bytes() == original
     assert not list(manifest_path.parent.glob(".*.tmp"))
+
+
+def test_restored_store_rebind_recovers_after_post_replace_durability_failure(tmp_path, monkeypatch):
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    source_root = tmp_path / "source"
+    identity = initialize_control_store([code_root], source_root, PROJECT_ID)
+    target_root = tmp_path / "target"
+    shutil.copytree(source_root, target_root)
+
+    calls = 0
+
+    def fail_after_manifest_replace(_path):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("directory durability interrupted")
+        return True
+
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", fail_after_manifest_replace)
+    with pytest.raises(OSError, match="directory durability interrupted"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
+    rebound = rebind_restored_store(
+        target_root,
+        source_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=identity,
+        expected_code_roots=[code_root],
+    )
+    assert rebound["control_root"] == str(target_root.resolve())
+    assert load_store_manifest(target_root)["control_root"] == str(target_root.resolve())
+
+
+def test_directory_fsync_unsupported_is_explicitly_non_durable(tmp_path, monkeypatch):
+    def unsupported(*_args, **_kwargs):
+        raise OSError(22, "directory handles are unsupported")
+
+    monkeypatch.setattr("research_system.store.identity.os.open", unsupported)
+    assert _fsync_directory(tmp_path) is False
 
 
 def test_cli_requires_explicit_control_and_code_paths():

@@ -16,6 +16,8 @@ from research_system.store.layout import (
 )
 
 _IDENTITY_NAME = "store-identity.json"
+_RESTORE_BINDING_EVIDENCE_NAME = "restore-binding-evidence.json"
+_RESTORE_BINDING_PENDING_NAME = ".restore-binding-evidence.pending"
 _SCHEMA_SUFFIX = Path(".research-system") / "schemas"
 SCHEMA_BINDING_VERSION = "1.0.0"
 
@@ -161,19 +163,121 @@ def load_store_manifest(control_root: Path) -> dict[str, Any]:
     return manifest
 
 
-def _fsync_directory(path: Path) -> None:
+def _fsync_directory(path: Path) -> bool:
+    """Attempt directory-entry durability and report unsupported platforms honestly."""
     try:
         descriptor = os.open(path, os.O_RDONLY)
     except OSError as exc:
         if os.name == "nt" and getattr(exc, "winerror", None) == 5:
-            return
+            return False
         if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
-            return
+            return False
         raise
     try:
-        os.fsync(descriptor)
+        try:
+            os.fsync(descriptor)
+        except OSError as exc:
+            if os.name == "nt" and getattr(exc, "winerror", None) in {1, 5, 87}:
+                return False
+            if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
+                return False
+            raise
     finally:
         os.close(descriptor)
+    return True
+
+
+def _restore_binding_evidence_path(control_root: Path) -> Path:
+    return control_root / "manifests" / _RESTORE_BINDING_EVIDENCE_NAME
+
+
+def _restore_binding_pending_path(control_root: Path) -> Path:
+    return control_root / "manifests" / _RESTORE_BINDING_PENDING_NAME
+
+
+def _read_restore_binding_evidence(
+    control_root: Path,
+    *,
+    include_pending: bool,
+) -> tuple[dict[str, Any] | None, Path | None]:
+    candidates = [_restore_binding_evidence_path(control_root)]
+    if include_pending:
+        candidates.append(_restore_binding_pending_path(control_root))
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            raw = path.read_bytes()
+            value = json.loads(raw.decode("utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("restore binding evidence is invalid") from exc
+        if not isinstance(value, dict) or raw != canonical_bytes(value):
+            raise IntegrityError("restore binding evidence is noncanonical")
+        if set(value) != {
+            "source_root",
+            "target_root",
+            "project_id",
+            "store_identity",
+            "manifest_hash",
+            "receipt_hash",
+        }:
+            raise IntegrityError("restore binding evidence fields are invalid")
+        if (
+            not isinstance(value["source_root"], str)
+            or not Path(value["source_root"]).is_absolute()
+            or not isinstance(value["target_root"], str)
+            or not Path(value["target_root"]).is_absolute()
+            or not isinstance(value["project_id"], str)
+            or not isinstance(value["store_identity"], str)
+            or not isinstance(value["manifest_hash"], str)
+            or len(value["manifest_hash"]) != 64
+            or not isinstance(value["receipt_hash"], str)
+            or value["receipt_hash"]
+            and len(value["receipt_hash"]) != 64
+        ):
+            raise IntegrityError("restore binding evidence values are invalid")
+        if Path(value["target_root"]).resolve(strict=False) != control_root.resolve(strict=False):
+            raise IntegrityError("restore binding evidence target mismatch")
+        if Path(value["source_root"]).resolve(strict=False) == control_root.resolve(strict=False):
+            raise IntegrityError("restore binding evidence source overlaps target")
+        return value, path
+    return None, None
+
+
+def load_restore_binding_evidence(control_root: Path) -> dict[str, Any] | None:
+    """Load durable original-source evidence, including an interrupted pending publication."""
+    control = control_root.resolve(strict=True)
+    value, _ = _read_restore_binding_evidence(control, include_pending=True)
+    return value
+
+
+def _write_restore_binding_pending(control_root: Path, value: dict[str, Any]) -> None:
+    pending = _restore_binding_pending_path(control_root)
+    data = canonical_bytes(value)
+    if pending.exists():
+        if pending.read_bytes() != data:
+            raise ConflictError("restore binding evidence conflicts with a pending retry")
+        return
+    descriptor = -1
+    try:
+        descriptor = os.open(pending, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _fsync_directory(pending.parent)
+    finally:
+        if descriptor != -1:
+            os.close(descriptor)
+
+
+def _publish_restore_binding_pending(control_root: Path) -> None:
+    pending = _restore_binding_pending_path(control_root)
+    if not pending.exists():
+        raise IntegrityError("restore binding evidence is missing")
+    os.replace(pending, _restore_binding_evidence_path(control_root))
+    _fsync_directory(pending.parent)
 
 
 def rebind_restored_store(
@@ -184,6 +288,7 @@ def rebind_restored_store(
     expected_store_identity: str | None = None,
     expected_code_roots: list[Path] | None = None,
     expected_schema_root: Path | None = None,
+    expected_restore_receipt_hash: str | None = None,
 ) -> dict[str, Any]:
     """Atomically bind one verified restored store to its target root.
 
@@ -231,7 +336,18 @@ def rebind_restored_store(
         ):
             raise ConflictError("schema root binding mismatch")
 
+    evidence, evidence_path = _read_restore_binding_evidence(target, include_pending=True)
     if current == target:
+        if evidence is None or evidence["source_root"] != str(source):
+            raise ConflictError("restore source binding evidence mismatch")
+        if evidence["project_id"] != manifest["project_id"] or evidence["store_identity"] != manifest["store_identity"]:
+            raise IntegrityError("restore binding evidence identity mismatch")
+        if evidence["manifest_hash"] != manifest["manifest_hash"]:
+            raise IntegrityError("restore binding evidence manifest mismatch")
+        if expected_restore_receipt_hash is not None and evidence["receipt_hash"] != expected_restore_receipt_hash:
+            raise ConflictError("restore receipt binding mismatch")
+        if evidence_path != _restore_binding_evidence_path(target):
+            _publish_restore_binding_pending(target)
         return manifest
 
     rebound = dict(manifest)
@@ -242,9 +358,19 @@ def rebind_restored_store(
     ):
         raise IntegrityError("restore rebind changed manifest fields")
     data = canonical_bytes(rebound)
+    evidence = {
+        "source_root": str(source),
+        "target_root": str(target),
+        "project_id": str(manifest["project_id"]),
+        "store_identity": str(manifest["store_identity"]),
+        "manifest_hash": rebound["manifest_hash"],
+        "receipt_hash": expected_restore_receipt_hash or "",
+    }
     temporary = manifest_path.with_name(f".{manifest_path.name}.{secrets.token_hex(16)}.tmp")
     descriptor = -1
+    published = False
     try:
+        _write_restore_binding_pending(target, evidence)
         descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         with os.fdopen(descriptor, "wb") as handle:
             descriptor = -1
@@ -252,11 +378,15 @@ def rebind_restored_store(
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, manifest_path)
+        published = True
         _fsync_directory(manifest_path.parent)
+        _publish_restore_binding_pending(target)
     finally:
         if descriptor != -1:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
+        if not published:
+            _restore_binding_pending_path(target).unlink(missing_ok=True)
     return rebound
 
 

@@ -1,16 +1,25 @@
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.authority import (
+    LedgerAuthorityGrantResolver,
+    authority_bootstrap_sha256,
+    initialize_authority_control_store,
+)
 from research_system.command import service as service_module
 from research_system.command.models import Command
+from research_system.command.service import CommandService
 from research_system.errors import ArsError, SchemaError
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry
 from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
+from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     ACTORS,
     AUTHORITY_GRANT_ID,
@@ -23,6 +32,11 @@ from tests.research_system.factories import (
 
 CMD_RESTORE = "cmd_01978abc-5101-7000-8000-000000005101"
 TASK_RESTORE = "tsk_01978abc-5102-7000-8000-000000005102"
+RESTORE_GRANT = "agr_01978abc-5103-7000-8000-000000005103"
+RESTORE_DECISION = "arec_01978abc-5104-7000-8000-000000005104"
+RESTORE_ACTIVATION = "cmd_01978abc-5105-7000-8000-000000005105"
+RESTORE_ACTOR = ACTORS["actor-a"]
+RESTORE_NOW = datetime(2026, 7, 12, 12, tzinfo=UTC)
 
 
 def test_restore_preflight_status_is_biconditional_with_failed_predicates():
@@ -154,17 +168,124 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
     )
     from research_system.projection.replay import replay
     from research_system.schema_registry import runtime_schema_registry
-    from research_system.store.identity import initialize_control_store
 
     code_root = tmp_path / "code"
     code_root.mkdir()
+    shutil.copytree(REPO_ROOT / ".research-system" / "schemas", code_root / ".research-system" / "schemas")
+    shutil.copytree(REPO_ROOT / ".research-system" / "contracts", code_root / ".research-system" / "contracts")
     source = tmp_path / "source"
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
-    store_identity = initialize_control_store([code_root], source, project_id)
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    from tests.research_system.factories import authority_bootstrap
+
+    bootstrap = authority_bootstrap(publication_expires_at="2099-07-13T00:00:00Z")
+    store_identity = initialize_authority_control_store(
+        [code_root],
+        source,
+        project_id,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        canonical_schema_root=code_root / ".research-system" / "schemas",
+    )
+    authority = LedgerAuthorityGrantResolver(source, project_id, store_identity, schemas)
+    command_identity = schemas.resolve_identity("ars://core/command/VerifyRestore", "1.0.0")
+    restore_grant = {
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": "2.0.0",
+        "authority_grant_id": RESTORE_GRANT,
+        "actor_id": RESTORE_ACTOR,
+        "allowed_actor_classes": ["human"],
+        "allowed_commands": [
+            {
+                "command_type": "VerifyRestore",
+                "schema_id": command_identity.schema_id,
+                "schema_version": command_identity.schema_version,
+                "schema_sha256": command_identity.sha256,
+            }
+        ],
+        "allowed_policy_actions": [],
+        "subject_scope": {
+            "project_id": project_id,
+            "subject": {"kind": "project_store", "id": project_id},
+        },
+        "risk_ceiling": "R2",
+        "effective_at": "2026-07-12T00:00:00Z",
+        "expires_at": "2099-07-13T00:00:00Z",
+        "delegable": False,
+        "revoked": False,
+    }
+    context = authority.administration_context()
+    grant_schema = schemas.resolve_identity("ars://core/scoped-authority-grant", "2.0.0")
+    decision = {
+        "schema_id": "ars://core/owner-authority-administration-decision",
+        "schema_version": "1.0.0",
+        "record_id": RESTORE_DECISION,
+        "revision": 1,
+        "project_id": project_id,
+        "store_identity": context.store_identity,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "owner_actor_id": context.owner_actor_id,
+        "action": "activate_authority_grant",
+        "target_grant_id": RESTORE_GRANT,
+        "target_grant_sha256": sha256_hex(canonical_bytes(restore_grant)),
+        "target_grant_schema_id": grant_schema.schema_id,
+        "target_grant_schema_version": grant_schema.schema_version,
+        "target_grant_schema_sha256": grant_schema.sha256,
+        "subject_scope": restore_grant["subject_scope"],
+        "effective_at": restore_grant["effective_at"],
+        "expires_at": restore_grant["expires_at"],
+        "one_time_use": True,
+        "state": "active",
+        "decided_at": "2026-07-12T11:00:00Z",
+    }
+    objects = ObjectStore(source)
+    objects.write("assurance_record", RESTORE_DECISION, 1, decision)
+    activation = {
+        "command_id": RESTORE_ACTIVATION,
+        "command_type": "ActivateAuthorityGrant",
+        "schema_id": "ars://core/command/ActivateAuthorityGrant",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-07-12T12:00:00Z",
+        "actor_id": RESTORE_ACTOR,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": context.root_grant_id,
+        "target_stream_id": RESTORE_GRANT,
+        "expected_stream_version": 0,
+        "idempotency_key": "activate-restore-grant",
+        "correlation_id": "synthetic-restore-authority",
+        "causation_id": None,
+        "reason": "activate exact restore verification authority",
+        "evidence_refs": [RESTORE_DECISION],
+        "project_id": project_id,
+        "payload": {
+            "project_id": project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": RESTORE_DECISION,
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "new_grant": restore_grant,
+            "new_grant_sha256": sha256_hex(canonical_bytes(restore_grant)),
+            "new_grant_schema_sha256": grant_schema.sha256,
+        },
+    }
+    service = CommandService(
+        source,
+        EventLedger(source, project_id, schemas),
+        objects,
+        ReceiptStore(source),
+        schemas,
+        authority_resolver=authority,
+        clock=lambda: RESTORE_NOW,
+    )
+    activation_result = service.submit(activation)
+    assert activation_result.status == "accepted", activation_result
+
     target = tmp_path / "target"
     shutil.copytree(source, target)
 
-    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     ledger = EventLedger(target, project_id, schemas)
     if with_exact_task:
         command = create_task_command(
@@ -205,7 +326,11 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
             ]
         )
     ledger_snapshot = ledger.snapshot()
-    state = replay(ledger_snapshot.events, schema_registry=schemas)
+    state = replay(
+        ledger_snapshot.events,
+        schema_registry=schemas,
+        authority_state_validator=authority.validate_replayed_administration_state,
+    )
     snapshot = {
         "snapshot_id": "snapshot-synthetic-r1",
         "source_position": ledger_snapshot.global_position,
@@ -219,8 +344,8 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
     snapshot_path = target / "snapshots" / "accepted.json"
     snapshot_path.write_bytes(canonical_bytes(snapshot))
 
-    actor_id = "act_01978abc-1002-7000-8000-000000001002"
-    authority_grant_id = "agr_01978abc-1001-7000-8000-000000001001"
+    actor_id = RESTORE_ACTOR
+    authority_grant_id = RESTORE_GRANT
     endpoint = {
         "target_root": str(target.resolve(strict=False)),
         "endpoint_scheme": "local-cli",
@@ -336,7 +461,7 @@ def _verify_restore(case, **changes):
 def test_restore_preflight_independently_verifies_moved_store_and_artifacts(tmp_path):
     case = _build_restore_case(tmp_path)
     result = _verify_restore(case)
-    assert result.status == "verified"
+    assert result.status == "verified", result.failed_predicates
     assert result.failed_predicates == ()
     assert result.target_root == str(case["target"].resolve(strict=False))
     assert result.receipt_hash == case["receipt"].receipt_hash
@@ -350,7 +475,29 @@ def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
 
     assert result.status == "verified"
     assert result.failed_predicates == ()
-    assert result.tail_position == 1
+    assert result.tail_position == 4
+
+
+@pytest.mark.parametrize("mutation", ["forged", "revoked", "wrong_scope"])
+def test_restore_preflight_requires_current_replayed_restore_grant(tmp_path, mutation):
+    case = _build_restore_case(tmp_path)
+    grant_directory = case["source"] / "objects" / "authority_grant" / case["authority_grant_id"]
+    grant_path = next(grant_directory.glob("*.json"))
+    grant = json.loads(grant_path.read_text(encoding="utf-8"))
+    if mutation == "forged":
+        grant["actor_id"] = "act_01978abc-1010-7000-8000-000000001010"
+    elif mutation == "revoked":
+        grant["revoked"] = True
+    else:
+        grant["subject_scope"]["project_id"] = "prj_01978abc-1000-7000-8000-000000001099"
+    grant_path.unlink()
+    digest = sha256_hex(canonical_bytes(grant))
+    (grant_directory / f"00000001-{digest}.json").write_bytes(canonical_bytes(grant))
+
+    result = _verify_restore(case)
+
+    assert result.status == "diagnostic_only"
+    assert "verification_authority_mismatch" in result.failed_predicates
 
 
 @pytest.mark.parametrize(
@@ -426,6 +573,7 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
 
 def _moved_service(case):
     from research_system.command.service import CommandService
+    from research_system.authority import LedgerAuthorityGrantResolver
     from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
@@ -439,6 +587,12 @@ def _moved_service(case):
         ObjectStore(root),
         ReceiptStore(root),
         schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            case["source"],
+            case["receipt"].project_id,
+            case["receipt"].store_identity,
+            schemas,
+        ),
     )
 
 
@@ -451,15 +605,17 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
     )
+    before_batches = tuple(service.ledger.iter_batches())
     command = create_task_command(
         CMD_RESTORE,
         "verified-move",
         TASK_RESTORE,
         {"title": "verified moved store"},
     )
+    command["authority_grant_id"] = case["authority_grant_id"]
     receipt = service.submit(command)
     assert receipt.status == "accepted"
-    assert len(tuple(service.ledger.iter_batches())) == 1
+    assert len(tuple(service.ledger.iter_batches())) == len(before_batches) + 1
 
     from research_system.config import ControlBinding
     from research_system.command.service import CommandService
@@ -476,7 +632,7 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
                 "code_roots": [str(case["code_root"].resolve())],
                 "control_root": str(case["target"].resolve()),
                 "project_id": case["receipt"].project_id,
-                "schema_root": str((REPO_ROOT / ".research-system" / "schemas").resolve()),
+                "schema_root": str((case["code_root"] / ".research-system" / "schemas").resolve()),
                 "store_identity": case["receipt"].store_identity,
             }
         )
@@ -488,6 +644,12 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
         service.schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            service.schemas,
+        ),
     )
     assert restarted.submit(command).status == "accepted"
 
@@ -510,12 +672,17 @@ def test_moved_restore_rejects_binding_changes_under_writer_lock(tmp_path, bindi
         manifest["code_roots"] = [str(foreign.resolve())]
     else:
         manifest["schema_binding_version"] = "1.0.0"
-        manifest["schema_root"] = str((case["code_root"] / ".research-system" / "schemas").resolve())
+        manifest["schema_root"] = str((tmp_path / "foreign-schema").resolve())
     manifest["manifest_hash"] = sha256_hex(
         canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
     )
     manifest_path.write_bytes(canonical_bytes(manifest))
     attempted_bytes = manifest_path.read_bytes()
+    before_batches = tuple(service.ledger.iter_batches())
+    before_objects = sorted(
+        (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+        for path in (case["target"] / "objects").rglob("*.json")
+    )
 
     command = create_task_command(
         CMD_RESTORE,
@@ -523,12 +690,19 @@ def test_moved_restore_rejects_binding_changes_under_writer_lock(tmp_path, bindi
         TASK_RESTORE,
         {"title": f"changed {binding_field}"},
     )
+    command["authority_grant_id"] = case["authority_grant_id"]
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
     assert manifest_path.read_bytes() == attempted_bytes
-    assert tuple(service.ledger.iter_batches()) == ()
+    assert tuple(service.ledger.iter_batches()) == before_batches
     assert service.receipts.load(CMD_RESTORE) is None
-    assert not list((case["target"] / "objects").rglob("*.json"))
+    assert (
+        sorted(
+            (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+            for path in (case["target"] / "objects").rglob("*.json")
+        )
+        == before_objects
+    )
 
 
 def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_path, monkeypatch):
@@ -539,6 +713,11 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+    )
+    before_batches = tuple(service.ledger.iter_batches())
+    before_objects = sorted(
+        (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+        for path in (case["target"] / "objects").rglob("*.json")
     )
     case["artefact_path"].unlink()
 
@@ -562,12 +741,19 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
         TASK_RESTORE,
         {"title": "changed artefact"},
     )
+    command["authority_grant_id"] = case["authority_grant_id"]
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
     assert entered == [True]
-    assert tuple(service.ledger.iter_batches()) == ()
+    assert tuple(service.ledger.iter_batches()) == before_batches
     assert service.receipts.load(CMD_RESTORE) is None
-    assert not list((case["target"] / "objects").rglob("*.json"))
+    assert (
+        sorted(
+            (path.relative_to(case["target"]).as_posix(), path.read_bytes())
+            for path in (case["target"] / "objects").rglob("*.json")
+        )
+        == before_objects
+    )
 
 
 def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
