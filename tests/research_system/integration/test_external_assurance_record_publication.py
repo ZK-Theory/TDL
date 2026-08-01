@@ -19,6 +19,7 @@ from research_system.authority import (
     LedgerAuthorityGrantResolver,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -271,15 +272,17 @@ def _durable_files(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
 
 
-def _schema_variant(tmp_path: Path):
+def _schema_variant(tmp_path: Path, *, event: bool = False):
     schema_root = tmp_path / "schemas-b"
     shutil.copytree(REPO_ROOT / ".research-system" / "schemas", schema_root)
-    command_schema_path = (
-        schema_root / "wp6-3-authority" / "activate-external-assurance-record-grant-command.schema.json"
+    schema_path = (
+        schema_root / "wp6-3-authority" / "external-assurance-record-grant-activated-event.schema.json"
+        if event
+        else schema_root / "wp6-3-authority" / "activate-external-assurance-record-grant-command.schema.json"
     )
-    schema = json.loads(command_schema_path.read_bytes())
+    schema = json.loads(schema_path.read_bytes())
     schema["$comment"] = "bytes-B"
-    command_schema_path.write_bytes(json.dumps(schema, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    schema_path.write_bytes(json.dumps(schema, sort_keys=True, separators=(",", ":")).encode("utf-8"))
     return runtime_schema_registry(schema_root)
 
 
@@ -598,6 +601,59 @@ def test_recovery_rejects_same_command_event_with_different_schema_bytes(
 
 
 @pytest.mark.integration
+def test_restart_rejects_marker_after_event_schema_bytes_change_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt("simulated termination before activation append")
+
+    monkeypatch.setattr(ledger, "_append_scoped_authority_from_validated_submit", interrupted)
+    with pytest.raises(KeyboardInterrupt, match="before activation append"):
+        service.submit(command)
+
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_path = next(marker_root.glob("*.json"))
+    before_files = _durable_files(control_root)
+    before_events = ledger.snapshot().events
+    assert objects.latest_revision("authority_grant", GRANT_ID) == 1
+
+    schemas_b = _schema_variant(tmp_path, event=True)
+    event_binding = schemas.event_binding("AuthorityGrantActivated", command["command_type"])
+    assert event_binding is not None
+    event_schema = schemas.resolve_identity(event_binding.schema_id, event_binding.schema_version)
+    event_schema_b = schemas_b.resolve_identity(event_binding.schema_id, event_binding.schema_version)
+    assert event_schema_b.schema_id == event_schema.schema_id
+    assert event_schema_b.schema_version == event_schema.schema_version
+    assert event_schema_b.sha256 != event_schema.sha256
+
+    with pytest.raises(ConflictError, match="recovery marker conflicts"):
+        _restart_system(control_root, schemas_b)
+
+    assert _durable_files(control_root) == before_files
+    assert marker_path.exists()
+    assert objects.latest_revision("authority_grant", GRANT_ID) == 1
+    assert ledger.snapshot().events == before_events
+
+    service.schemas = schemas_b
+    with pytest.raises(ConflictError, match="recovery marker conflicts"):
+        service.submit(command)
+    assert _durable_files(control_root) == before_files
+
+
+@pytest.mark.integration
 def test_truncated_marker_temp_is_quarantined_and_exact_retry_completes(
     tmp_path: Path,
 ) -> None:
@@ -657,6 +713,74 @@ def test_committed_marker_retry_reconstructs_receipt_and_cleans_residue(
     assert restarted_ledger.snapshot().events
     assert restarted_objects.read("authority_grant", GRANT_ID, 1) == grant
     assert not list(marker_root.glob("*.json"))
+    assert not list(marker_root.glob("*.tmp"))
+
+
+@pytest.mark.integration
+def test_foreign_marker_temp_conflict_preserves_committed_marker_and_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    monkeypatch.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+    receipt = service.submit(command)
+
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_path = next(marker_root.glob("*.json"))
+    foreign = _activation_command(
+        resolver,
+        schemas,
+        grant,
+        decision,
+        command_id="cmd_01978abc-6300-7000-8000-000000006302",
+        idempotency_key="activate-external-assurance-record-grant-foreign",
+        correlation_id="synthetic-external-record-authority-test-foreign",
+    )
+    foreign_envelope = {
+        key: value
+        for key, value in foreign.items()
+        if key not in {"command_schema_id", "command_schema_version", "command_schema_sha256"}
+    }
+    foreign_path = service._scoped_activation_marker_path(foreign["command_id"])
+    service._write_scoped_activation_marker(
+        Command(foreign_envelope),
+        command_schema=schemas.resolve_identity(foreign["schema_id"], foreign["schema_version"]),
+        existed_before=False,
+    )
+    foreign_bytes = foreign_path.read_bytes()
+    foreign_path.unlink()
+    foreign_temp = marker_path.with_name(f".{marker_path.name}.foreign.tmp")
+    foreign_temp.write_bytes(foreign_bytes)
+    for path in (control_root / "receipts").rglob("*.json"):
+        path.unlink()
+    before = _durable_files(control_root)
+
+    monkeypatch.undo()
+    with pytest.raises(ConflictError, match="temporary data conflicts"):
+        service.submit(command)
+
+    after_conflict = _durable_files(control_root)
+    assert {path: data for path, data in after_conflict.items() if not path.startswith("receipts/")} == {
+        path: data for path, data in before.items() if not path.startswith("receipts/")
+    }
+    assert marker_path.read_bytes() == before[marker_path.relative_to(control_root).as_posix()]
+    assert foreign_temp.read_bytes() == foreign_bytes
+
+    foreign_temp.unlink()
+    for path in (control_root / "receipts").rglob("*.json"):
+        path.unlink()
+    assert service.submit(command) == receipt
+    assert not marker_path.exists()
     assert not list(marker_root.glob("*.tmp"))
 
 

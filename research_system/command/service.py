@@ -291,6 +291,29 @@ class CommandService:
         if marker["command_identity"] != identity or marker["command_sha256"] != sha256_hex(canonical_bytes(identity)):
             raise ConflictError("scoped activation recovery marker conflicts")
 
+    def _validate_scoped_activation_marker_event_schema(self, marker: dict[str, Any]) -> None:
+        prepared = marker["prepared_identity"]
+        event_binding = self.schemas.event_binding(
+            prepared["event_type"],
+            prepared["command_type"],
+        )
+        event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
+        event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
+        try:
+            event_schema = self.schemas.resolve_identity(event_schema_id, event_schema_version)
+        except SchemaError as exc:
+            raise ConflictError("scoped activation recovery marker conflicts") from exc
+        if (
+            prepared["event_schema_id"],
+            prepared["event_schema_version"],
+            prepared["event_schema_sha256"],
+        ) != (
+            event_schema.schema_id,
+            str(event_schema.schema_version),
+            event_schema.sha256,
+        ):
+            raise ConflictError("scoped activation recovery marker conflicts")
+
     def _scoped_activation_marker_temporary_paths(self, path: Path) -> tuple[Path, ...]:
         candidates = [path.with_suffix(".json.tmp"), *sorted(path.parent.glob(f".{path.name}.*.tmp"))]
         return tuple(dict.fromkeys(candidates))
@@ -326,6 +349,7 @@ class CommandService:
         )
         event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
         event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
+        event_schema = self.schemas.resolve_identity(event_schema_id, event_schema_version)
         object_sha256 = sha256_hex(canonical_bytes(grant))
         marker = {
             "schema_id": "ars://core/runtime/scoped-authority-activation-recovery",
@@ -344,6 +368,7 @@ class CommandService:
                 "event_type": "AuthorityGrantActivated",
                 "event_schema_id": event_schema_id,
                 "event_schema_version": event_schema_version,
+                "event_schema_sha256": event_schema.sha256,
                 "stream_id": command.target_stream_id,
                 "stream_version": command.expected_stream_version + 1,
                 "command_id": command.command_id,
@@ -403,21 +428,27 @@ class CommandService:
     def _remove_scoped_activation_marker(self, command_id: str) -> None:
         path = self._scoped_activation_marker_path(command_id)
         final_marker = self._load_scoped_activation_marker(path) if path.exists() else None
-        changed = final_marker is not None
-        path.unlink(missing_ok=True)
+        residue: list[tuple[Path, dict[str, Any] | None]] = []
         for temporary in self._scoped_activation_marker_temporary_paths(path):
             if not temporary.exists():
                 continue
             try:
                 existing = self._load_scoped_activation_marker(temporary)
             except IntegrityError:
-                self._quarantine_scoped_activation_marker_temp(temporary)
-                changed = True
+                residue.append((temporary, None))
                 continue
             if final_marker is None or any(
                 existing[field] != final_marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS
             ):
                 raise ConflictError("scoped activation recovery marker temporary data conflicts")
+            residue.append((temporary, existing))
+        changed = final_marker is not None
+        path.unlink(missing_ok=True)
+        for temporary, existing in residue:
+            if existing is None:
+                self._quarantine_scoped_activation_marker_temp(temporary)
+                changed = True
+                continue
             temporary.unlink(missing_ok=True)
             changed = True
         if changed and path.parent.exists():
@@ -494,6 +525,7 @@ class CommandService:
                 "event_type",
                 "event_schema_id",
                 "event_schema_version",
+                "event_schema_sha256",
                 "stream_id",
                 "stream_version",
                 "command_id",
@@ -509,6 +541,7 @@ class CommandService:
             or prepared.get("event_type") != "AuthorityGrantActivated"
             or not isinstance(prepared.get("event_schema_id"), str)
             or not isinstance(prepared.get("event_schema_version"), str)
+            or not _is_sha256(prepared.get("event_schema_sha256"))
             or prepared.get("stream_id") != marker["target_grant_id"]
             or prepared.get("stream_version") != generation["resulting_stream_version"]
             or prepared.get("command_id") != marker["command_id"]
@@ -609,6 +642,7 @@ class CommandService:
 
     def _scoped_activation_event_status(self, marker: dict[str, Any]) -> str:
         """Classify the exact prepared generation without trusting target alone."""
+        self._validate_scoped_activation_marker_event_schema(marker)
         events = self.ledger.snapshot().events
         same_command = [event for event in events if event.get("command_id") == marker["command_id"]]
         if same_command:
@@ -635,6 +669,7 @@ class CommandService:
             return
         for path in sorted(root.glob("*.json")):
             marker = self._load_scoped_activation_marker(path)
+            self._validate_scoped_activation_marker_event_schema(marker)
             lock = self._take_scoped_activation_recovery_lock(marker)
             if lock is None:
                 continue
@@ -768,6 +803,7 @@ class CommandService:
                     command,
                     command_schema,
                 )
+                self._validate_scoped_activation_marker_event_schema(preloaded_activation_marker)
         with self._submission_lock(command):
             if (
                 command.envelope["command_type"] in _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
