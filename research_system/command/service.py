@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sys
 import time
 
@@ -96,13 +97,22 @@ _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
         "RevokeExternalAssuranceRecordGrant",
     }
 )
+_SCOPED_ACTIVATION_COMMAND_TYPES = frozenset(
+    {
+        "ActivateAuthorityGrant",
+        "ActivateExternalAssuranceRecordGrant",
+    }
+)
 _SCOPED_ACTIVATION_MARKER_FIELDS = frozenset(
     {
         "schema_id",
         "schema_version",
         "command_id",
         "command_sha256",
+        "command_identity",
         "target_grant_id",
+        "target_generation",
+        "prepared_identity",
         "object_kind",
         "object_revision",
         "object_existed_before",
@@ -116,6 +126,10 @@ _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS = _SCOPED_ACTIVATION_MARKER_FIELDS - {
     "owner_pid",
     "owner_process_instance_id",
 }
+
+
+def _is_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(character in "0123456789abcdef" for character in value)
 
 
 @dataclass
@@ -252,58 +266,161 @@ class CommandService:
     def _scoped_activation_marker_path(self, command_id: str) -> Path:
         return self.control_root / "runtime" / "scoped-authority-activation-recovery" / f"{command_id}.json"
 
+    @staticmethod
+    def _scoped_activation_command_identity(
+        command: Command,
+        command_schema: SchemaIdentity,
+    ) -> dict[str, Any]:
+        return {
+            "envelope": command.envelope,
+            "resolved_schema": {
+                "schema_id": command_schema.schema_id,
+                "schema_version": str(command_schema.schema_version),
+                "sha256": command_schema.sha256,
+            },
+        }
+
+    @classmethod
+    def _validate_scoped_activation_marker_command(
+        cls,
+        marker: dict[str, Any],
+        command: Command,
+        command_schema: SchemaIdentity,
+    ) -> None:
+        identity = cls._scoped_activation_command_identity(command, command_schema)
+        if marker["command_identity"] != identity or marker["command_sha256"] != sha256_hex(canonical_bytes(identity)):
+            raise ConflictError("scoped activation recovery marker conflicts")
+
+    def _scoped_activation_marker_temporary_paths(self, path: Path) -> tuple[Path, ...]:
+        candidates = [path.with_suffix(".json.tmp"), *sorted(path.parent.glob(f".{path.name}.*.tmp"))]
+        return tuple(dict.fromkeys(candidates))
+
+    @staticmethod
+    def _quarantine_scoped_activation_marker_temp(path: Path) -> None:
+        target = path.with_name(f"{path.name}.quarantine")
+        while target.exists():
+            target = path.with_name(f"{path.name}.{secrets.token_hex(8)}.quarantine")
+        try:
+            os.replace(path, target)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise IntegrityError("scoped activation recovery marker temporary data cannot be quarantined") from exc
+        _fsync_directory(target.parent)
+
     def _write_scoped_activation_marker(
         self,
         command: Command,
         *,
+        command_schema: SchemaIdentity,
         existed_before: bool,
     ) -> None:
         payload = command.envelope.get("payload")
         grant = payload.get("new_grant") if isinstance(payload, dict) else None
         if not isinstance(grant, dict):
             raise IntegrityError("scoped activation recovery marker requires a grant object")
+        command_identity = self._scoped_activation_command_identity(command, command_schema)
+        event_binding = self.schemas.event_binding(
+            "AuthorityGrantActivated",
+            command.envelope["command_type"],
+        )
+        event_schema_id = event_binding.schema_id if event_binding is not None else "ars://core/event"
+        event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
+        object_sha256 = sha256_hex(canonical_bytes(grant))
         marker = {
             "schema_id": "ars://core/runtime/scoped-authority-activation-recovery",
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "command_id": command.command_id,
-            "command_sha256": sha256_hex(canonical_bytes(command.envelope)),
+            "command_sha256": sha256_hex(canonical_bytes(command_identity)),
+            "command_identity": command_identity,
             "target_grant_id": command.target_stream_id,
+            "target_generation": {
+                "target_stream_id": command.target_stream_id,
+                "expected_stream_version": command.expected_stream_version,
+                "resulting_stream_version": command.expected_stream_version + 1,
+                "object_revision": 1,
+            },
+            "prepared_identity": {
+                "event_type": "AuthorityGrantActivated",
+                "event_schema_id": event_schema_id,
+                "event_schema_version": event_schema_version,
+                "stream_id": command.target_stream_id,
+                "stream_version": command.expected_stream_version + 1,
+                "command_id": command.command_id,
+                "command_type": command.envelope["command_type"],
+                "command_schema_id": command_schema.schema_id,
+                "command_schema_version": str(command_schema.schema_version),
+                "command_schema_sha256": command_schema.sha256,
+                "command_payload_hash": command.payload_hash,
+                "object_kind": "authority_grant",
+                "object_revision": 1,
+                "object_sha256": object_sha256,
+            },
             "object_kind": "authority_grant",
             "object_revision": 1,
             "object_existed_before": existed_before,
             "owner_pid": os.getpid(),
             "owner_process_instance_id": current_process_instance_id(),
-            "object_sha256": sha256_hex(canonical_bytes(grant)),
+            "object_sha256": object_sha256,
             "object_value": grant,
         }
         data = canonical_bytes(marker)
         path = self._scoped_activation_marker_path(command.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
+        for temporary in self._scoped_activation_marker_temporary_paths(path):
+            if not temporary.exists():
+                continue
+            try:
+                existing = self._load_scoped_activation_marker(temporary)
+            except IntegrityError:
+                self._quarantine_scoped_activation_marker_temp(temporary)
+                continue
+            if any(existing[field] != marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS):
+                raise ConflictError("scoped activation recovery marker temporary data conflicts")
+            if path.exists():
+                temporary.unlink(missing_ok=True)
+                _fsync_directory(path.parent)
+            else:
+                os.replace(temporary, path)
+                _fsync_directory(path.parent)
+                return
         if path.exists():
             existing = self._load_scoped_activation_marker(path)
             if any(existing[field] != marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS):
                 raise ConflictError("scoped activation recovery marker conflicts")
             return
-        temporary = path.with_suffix(".json.tmp")
-        if temporary.exists():
-            try:
-                existing = self._load_scoped_activation_marker(temporary)
-            except IntegrityError as exc:
-                raise ConflictError("scoped activation recovery marker temporary data conflicts") from exc
-            if any(existing[field] != marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS):
-                raise ConflictError("scoped activation recovery marker temporary data conflicts")
-        else:
+        temporary = path.with_name(f".{path.name}.{secrets.token_hex(16)}.tmp")
+        try:
             with temporary.open("xb") as handle:
                 handle.write(data)
                 handle.flush()
                 os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        _fsync_directory(path.parent)
+            os.replace(temporary, path)
+            _fsync_directory(path.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _remove_scoped_activation_marker(self, command_id: str) -> None:
         path = self._scoped_activation_marker_path(command_id)
+        final_marker = self._load_scoped_activation_marker(path) if path.exists() else None
+        changed = final_marker is not None
         path.unlink(missing_ok=True)
-        if path.parent.exists():
+        for temporary in self._scoped_activation_marker_temporary_paths(path):
+            if not temporary.exists():
+                continue
+            try:
+                existing = self._load_scoped_activation_marker(temporary)
+            except IntegrityError:
+                self._quarantine_scoped_activation_marker_temp(temporary)
+                changed = True
+                continue
+            if final_marker is None or any(
+                existing[field] != final_marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS
+            ):
+                raise ConflictError("scoped activation recovery marker temporary data conflicts")
+            temporary.unlink(missing_ok=True)
+            changed = True
+        if changed and path.parent.exists():
             _fsync_directory(path.parent)
 
     @staticmethod
@@ -319,11 +436,9 @@ class CommandService:
             or set(marker) != _SCOPED_ACTIVATION_MARKER_FIELDS
             or data != canonical
             or marker.get("schema_id") != "ars://core/runtime/scoped-authority-activation-recovery"
-            or marker.get("schema_version") != "1.0.0"
+            or marker.get("schema_version") != "2.0.0"
             or not isinstance(marker.get("command_id"), str)
-            or not isinstance(marker.get("command_sha256"), str)
-            or len(marker["command_sha256"]) != 64
-            or any(character not in "0123456789abcdef" for character in marker["command_sha256"])
+            or not _is_sha256(marker.get("command_sha256"))
             or not isinstance(marker.get("target_grant_id"), str)
             or marker.get("object_kind") != "authority_grant"
             or marker.get("object_revision") != 1
@@ -337,6 +452,76 @@ class CommandService:
             or marker.get("object_sha256") != sha256_hex(canonical_bytes(marker.get("object_value")))
         ):
             raise IntegrityError("scoped activation recovery marker is invalid")
+        identity = marker["command_identity"]
+        resolved_schema = identity.get("resolved_schema") if isinstance(identity, dict) else None
+        envelope = identity.get("envelope") if isinstance(identity, dict) else None
+        if (
+            not isinstance(identity, dict)
+            or set(identity) != {"envelope", "resolved_schema"}
+            or not isinstance(envelope, dict)
+            or not isinstance(resolved_schema, dict)
+            or set(resolved_schema) != {"schema_id", "schema_version", "sha256"}
+            or not isinstance(resolved_schema.get("schema_id"), str)
+            or not isinstance(resolved_schema.get("schema_version"), str)
+            or not _is_sha256(resolved_schema.get("sha256"))
+            or marker["command_sha256"] != sha256_hex(canonical_bytes(identity))
+            or envelope.get("command_id") != marker["command_id"]
+            or envelope.get("target_stream_id") != marker["target_grant_id"]
+        ):
+            raise IntegrityError("scoped activation recovery marker command identity is invalid")
+        generation = marker["target_generation"]
+        if (
+            not isinstance(generation, dict)
+            or set(generation)
+            != {"target_stream_id", "expected_stream_version", "resulting_stream_version", "object_revision"}
+            or generation.get("target_stream_id") != marker["target_grant_id"]
+            or not isinstance(generation.get("expected_stream_version"), int)
+            or isinstance(generation.get("expected_stream_version"), bool)
+            or generation.get("expected_stream_version") < 0
+            or generation.get("resulting_stream_version") != generation.get("expected_stream_version") + 1
+            or generation.get("object_revision") != marker["object_revision"]
+        ):
+            raise IntegrityError("scoped activation recovery marker target generation is invalid")
+        prepared = marker["prepared_identity"]
+        try:
+            expected_payload_hash = sha256_hex(canonical_bytes(envelope["payload"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError("scoped activation recovery marker command payload is invalid") from exc
+        if (
+            not isinstance(prepared, dict)
+            or set(prepared)
+            != {
+                "event_type",
+                "event_schema_id",
+                "event_schema_version",
+                "stream_id",
+                "stream_version",
+                "command_id",
+                "command_type",
+                "command_schema_id",
+                "command_schema_version",
+                "command_schema_sha256",
+                "command_payload_hash",
+                "object_kind",
+                "object_revision",
+                "object_sha256",
+            }
+            or prepared.get("event_type") != "AuthorityGrantActivated"
+            or not isinstance(prepared.get("event_schema_id"), str)
+            or not isinstance(prepared.get("event_schema_version"), str)
+            or prepared.get("stream_id") != marker["target_grant_id"]
+            or prepared.get("stream_version") != generation["resulting_stream_version"]
+            or prepared.get("command_id") != marker["command_id"]
+            or prepared.get("command_type") != envelope.get("command_type")
+            or prepared.get("command_schema_id") != resolved_schema["schema_id"]
+            or prepared.get("command_schema_version") != resolved_schema["schema_version"]
+            or prepared.get("command_schema_sha256") != resolved_schema["sha256"]
+            or prepared.get("command_payload_hash") != expected_payload_hash
+            or prepared.get("object_kind") != marker["object_kind"]
+            or prepared.get("object_revision") != marker["object_revision"]
+            or prepared.get("object_sha256") != marker["object_sha256"]
+        ):
+            raise IntegrityError("scoped activation recovery marker prepared identity is invalid")
         return marker
 
     def _take_scoped_activation_recovery_lock(
@@ -365,15 +550,84 @@ class CommandService:
                 continue
             return lock
 
+    @staticmethod
+    def _scoped_activation_event_payload(marker: dict[str, Any]) -> dict[str, Any]:
+        envelope = marker["command_identity"]["envelope"]
+        payload = envelope["payload"]
+        grant = payload["new_grant"]
+        return {
+            "authority_admission_version": SCOPED_AUTHORITY_ADMISSION_VERSION,
+            "project_id": envelope["project_id"],
+            "bootstrap_manifest_sha256": payload["bootstrap_manifest_sha256"],
+            "root_grant_id": payload["root_grant_id"],
+            "root_grant_sha256": payload["root_grant_sha256"],
+            "administration_decision_id": payload["administration_decision_id"],
+            "administration_decision_sha256": payload["administration_decision_sha256"],
+            "activated_grant_id": marker["target_grant_id"],
+            "activated_grant_sha256": marker["object_sha256"],
+            "activated_grant_schema_id": grant["schema_id"],
+            "activated_grant_schema_version": grant["schema_version"],
+            "activated_grant_schema_sha256": payload["new_grant_schema_sha256"],
+            "subject_scope": grant["subject_scope"],
+            "effective_at": grant["effective_at"],
+            "expires_at": grant["expires_at"],
+        }
+
+    @classmethod
+    def _scoped_activation_event_matches(
+        cls,
+        marker: dict[str, Any],
+        event: dict[str, Any],
+    ) -> bool:
+        identity = marker["command_identity"]
+        envelope = identity["envelope"]
+        resolved_schema = identity["resolved_schema"]
+        generation = marker["target_generation"]
+        prepared = marker["prepared_identity"]
+        expected = {
+            "event_type": "AuthorityGrantActivated",
+            "stream_id": marker["target_grant_id"],
+            "stream_version": generation["resulting_stream_version"],
+            "project_id": envelope["project_id"],
+            "command_id": marker["command_id"],
+            "command_type": envelope["command_type"],
+            "command_schema_id": resolved_schema["schema_id"],
+            "command_schema_version": resolved_schema["schema_version"],
+            "command_schema_sha256": resolved_schema["sha256"],
+            "actor_id": envelope["actor_id"],
+            "authority_grant_id": envelope["authority_grant_id"],
+            "idempotency_key": envelope["idempotency_key"],
+            "command_payload_hash": prepared["command_payload_hash"],
+            "correlation_id": envelope["correlation_id"],
+            "causation_id": envelope["causation_id"],
+            "schema_id": prepared["event_schema_id"],
+            "schema_version": prepared["event_schema_version"],
+        }
+        return all(event.get(key) == value for key, value in expected.items()) and event.get(
+            "payload"
+        ) == cls._scoped_activation_event_payload(marker)
+
+    def _scoped_activation_event_status(self, marker: dict[str, Any]) -> str:
+        """Classify the exact prepared generation without trusting target alone."""
+        events = self.ledger.snapshot().events
+        same_command = [event for event in events if event.get("command_id") == marker["command_id"]]
+        if same_command:
+            if len(same_command) != 1 or not self._scoped_activation_event_matches(marker, same_command[0]):
+                raise IntegrityError("scoped activation recovery event identity mismatch")
+            return "committed"
+        generation = marker["target_generation"]
+        target_events = [
+            event
+            for event in events
+            if event.get("stream_id") == marker["target_grant_id"]
+            and isinstance(event.get("stream_version"), int)
+            and not isinstance(event.get("stream_version"), bool)
+            and event["stream_version"] >= generation["resulting_stream_version"]
+        ]
+        return "competing" if target_events else "uncommitted"
+
     def _scoped_activation_marker_committed(self, marker: dict[str, Any]) -> bool:
-        return any(
-            event.get("command_id") == marker["command_id"]
-            and event.get("event_type") == "AuthorityGrantActivated"
-            and event.get("stream_id") == marker["target_grant_id"]
-            and isinstance(event.get("payload"), dict)
-            and event["payload"].get("activated_grant_sha256") == marker["object_sha256"]
-            for event in self.ledger.snapshot().events
-        )
+        return self._scoped_activation_event_status(marker) == "committed"
 
     def _recover_scoped_activation_markers(self) -> None:
         root = self.control_root / "runtime" / "scoped-authority-activation-recovery"
@@ -385,7 +639,8 @@ class CommandService:
             if lock is None:
                 continue
             try:
-                if self._scoped_activation_marker_committed(marker):
+                status = self._scoped_activation_event_status(marker)
+                if status == "committed":
                     try:
                         actual = self.objects.read(
                             marker["object_kind"],
@@ -396,6 +651,19 @@ class CommandService:
                         raise IntegrityError("committed scoped activation recovery object is invalid") from exc
                     if actual != marker["object_value"]:
                         raise IntegrityError("committed scoped activation recovery object mismatch")
+                    self._remove_scoped_activation_marker(marker["command_id"])
+                elif status == "competing":
+                    try:
+                        actual = self.objects.read(
+                            marker["object_kind"],
+                            marker["target_grant_id"],
+                            marker["object_revision"],
+                        )
+                    except (IntegrityError, ValueError) as exc:
+                        raise IntegrityError("competing scoped activation recovery object is invalid") from exc
+                    if actual != marker["object_value"]:
+                        raise IntegrityError("competing scoped activation recovery object mismatch")
+                    self._remove_scoped_activation_marker(marker["command_id"])
                 else:
                     self.objects.rollback_new_revision(
                         marker["object_kind"],
@@ -489,6 +757,17 @@ class CommandService:
             )
             ReleasePublicationRequest.from_dict(validated_envelope["payload"])
         command = Command(validated_envelope)
+        activation_command = command.envelope["command_type"] in _SCOPED_ACTIVATION_COMMAND_TYPES
+        preloaded_activation_marker: dict[str, Any] | None = None
+        if activation_command:
+            marker_path = self._scoped_activation_marker_path(command.command_id)
+            if marker_path.exists():
+                preloaded_activation_marker = self._load_scoped_activation_marker(marker_path)
+                self._validate_scoped_activation_marker_command(
+                    preloaded_activation_marker,
+                    command,
+                    command_schema,
+                )
         with self._submission_lock(command):
             if (
                 command.envelope["command_type"] in _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
@@ -520,20 +799,38 @@ class CommandService:
                 return stored_rejected
             snapshot = self.ledger.snapshot()
             view = self._view_for(snapshot)
+            activation_marker_preexisting = preloaded_activation_marker is not None
+            activation_marker_status: str | None = None
+            if preloaded_activation_marker is not None:
+                current_marker = self._load_scoped_activation_marker(
+                    self._scoped_activation_marker_path(command.command_id)
+                )
+                self._validate_scoped_activation_marker_command(
+                    current_marker,
+                    command,
+                    command_schema,
+                )
+                activation_marker_status = self._scoped_activation_event_status(current_marker)
+                if activation_marker_status == "competing":
+                    self._remove_scoped_activation_marker(command.command_id)
+                    preloaded_activation_marker = None
+                    activation_marker_preexisting = False
             existing = self._matching_committed(
                 command,
                 view,
                 command_schema=command_schema,
             )
             if existing is not None:
-                return self._write_receipt(
+                receipt = self._write_receipt(
                     command,
                     self._return_or_reconstruct(existing),
                 )
+                if activation_marker_status == "committed":
+                    self._remove_scoped_activation_marker(command.command_id)
+                return receipt
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
             activation_object_existed: bool | None = None
-            activation_marker_preexisting = False
             append_started = False
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
                 request = ReleasePublicationRequest.from_dict(command.envelope["payload"])
@@ -641,20 +938,23 @@ class CommandService:
                     }
                     if activation:
                         marker_path = self._scoped_activation_marker_path(command.command_id)
-                        activation_marker_preexisting = marker_path.exists()
                         if activation_marker_preexisting:
                             existing_marker = self._load_scoped_activation_marker(marker_path)
-                            if existing_marker["command_id"] != command.command_id or existing_marker[
-                                "command_sha256"
-                            ] != sha256_hex(canonical_bytes(command.envelope)):
-                                raise ConflictError("scoped activation recovery marker conflicts")
-                        activation_object_existed = self.objects.revision_exists(
-                            "authority_grant",
-                            command.target_stream_id,
-                            1,
-                        )
+                            self._validate_scoped_activation_marker_command(
+                                existing_marker,
+                                command,
+                                command_schema,
+                            )
+                            activation_object_existed = existing_marker["object_existed_before"]
+                        else:
+                            activation_object_existed = self.objects.revision_exists(
+                                "authority_grant",
+                                command.target_stream_id,
+                                1,
+                            )
                         self._write_scoped_activation_marker(
                             command,
+                            command_schema=command_schema,
                             existed_before=activation_object_existed,
                         )
                     if activation:
@@ -740,7 +1040,7 @@ class CommandService:
                 return receipt
             except Exception:
                 if activation_object_existed is not None:
-                    if self._scoped_activation_committed(command):
+                    if self._scoped_activation_committed(command, command_schema=command_schema):
                         self._remove_scoped_activation_marker(command.command_id)
                     else:
                         self._rollback_scoped_authority_activation(
@@ -751,19 +1051,18 @@ class CommandService:
                             self._remove_scoped_activation_marker(command.command_id)
                 raise
 
-    def _scoped_activation_committed(self, command: Command) -> bool:
-        payload = command.envelope.get("payload")
-        expected_hash = payload.get("new_grant_sha256") if isinstance(payload, dict) else None
-        if not isinstance(expected_hash, str):
+    def _scoped_activation_committed(
+        self,
+        command: Command,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> bool:
+        path = self._scoped_activation_marker_path(command.command_id)
+        if not path.exists():
             return False
-        return any(
-            event.get("command_id") == command.command_id
-            and event.get("event_type") == "AuthorityGrantActivated"
-            and event.get("stream_id") == command.target_stream_id
-            and isinstance(event.get("payload"), dict)
-            and event["payload"].get("activated_grant_sha256") == expected_hash
-            for event in self.ledger.snapshot().events
-        )
+        marker = self._load_scoped_activation_marker(path)
+        self._validate_scoped_activation_marker_command(marker, command, command_schema)
+        return self._scoped_activation_event_status(marker) == "committed"
 
     def _rollback_scoped_authority_activation(
         self,

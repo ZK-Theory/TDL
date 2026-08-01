@@ -178,6 +178,92 @@ def test_stale_dead_owner_is_reclaimed_after_process_revalidation(tmp_path, monk
     assert not path.exists()
 
 
+def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
+    path = tmp_path / "writer.lock"
+    stale_pid = 919191
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(stale_pid),
+                "process_instance_id": "dead-process-instance",
+            }
+        )
+    )
+    real_instance_id = lock_module.process_instance_id
+    real_kill = lock_module.os.kill
+
+    def instance_id(pid):
+        return None if pid == stale_pid else real_instance_id(pid)
+
+    def kill(pid, signal):
+        if pid == stale_pid:
+            raise ProcessLookupError
+        return real_kill(pid, signal)
+
+    monkeypatch.setattr(lock_module, "process_instance_id", instance_id)
+    monkeypatch.setattr(lock_module.os, "kill", kill)
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+
+    ready = threading.Event()
+    release = threading.Event()
+    gate_used = False
+    gate_guard = threading.Lock()
+    real_inspect = lock_module.inspect_lock
+    real_replace = lock_module.os.replace
+
+    def pause_once() -> None:
+        nonlocal gate_used
+        with gate_guard:
+            if gate_used:
+                return
+            gate_used = True
+        ready.set()
+        assert release.wait(2)
+
+    def inspect(candidate):
+        result = real_inspect(candidate)
+        if Path(candidate) == path:
+            pause_once()
+        return result
+
+    def replace(source, target):
+        result = real_replace(source, target)
+        if Path(source) == path and Path(target).parent == path.parent:
+            pause_once()
+        return result
+
+    monkeypatch.setattr(lock_module, "inspect_lock", inspect)
+    monkeypatch.setattr(lock_module.os, "replace", replace)
+    results = []
+    errors = []
+
+    def reclaim():
+        try:
+            results.append(remove_stale_lock(path, observed))
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(target=reclaim)
+    first.start()
+    assert ready.wait(2)
+
+    assert remove_stale_lock(path, observed)
+    fresh = WriterLock(path, {"writer_id": "fresh-winner"})
+    fresh.__enter__()
+    try:
+        assert path.exists()
+        release.set()
+        first.join(timeout=2)
+        assert not first.is_alive()
+        assert errors == []
+        assert results == [True]
+    finally:
+        fresh.__exit__(None, None, None)
+    assert not path.exists()
+
+
 def _recovery_service(root):
     service = object.__new__(CommandService)
     service.control_root = root

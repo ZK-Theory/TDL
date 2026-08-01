@@ -165,24 +165,49 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def remove_stale_lock(path: Path, observed: bytes) -> bool:
-    """Remove a lock only when its bytes are unchanged and its owner is stale."""
+def _restore_recovery_claim(path: Path, claim: Path) -> None:
+    """Restore a non-stale claim without replacing a newer lock generation."""
     try:
-        if path.read_bytes() != observed:
-            return False
+        os.link(claim, path)
+    except FileExistsError:
+        claim.unlink(missing_ok=True)
+        _fsync_directory(path.parent)
+        return
+    except OSError:
+        return
+    try:
+        claim.unlink()
+    except FileNotFoundError:
+        pass
+    _fsync_directory(path.parent)
+
+
+def remove_stale_lock(path: Path, observed: bytes) -> bool:
+    """Atomically claim and remove one observed stale lock generation."""
+    claim = path.with_name(f".{path.name}.{secrets.token_hex(16)}.reclaim")
+    try:
+        os.replace(path, claim)
     except FileNotFoundError:
         return True
     except OSError:
         return False
-    state, current, _ = inspect_lock(path)
-    if state != "stale" or current != observed:
-        return False
     try:
-        path.unlink()
-    except FileNotFoundError:
+        if claim.read_bytes() != observed:
+            _restore_recovery_claim(path, claim)
+            return False
+        state, current, _ = inspect_lock(claim)
+        if state != "stale" or current != observed:
+            _restore_recovery_claim(path, claim)
+            return False
+        try:
+            claim.unlink()
+        except FileNotFoundError:
+            return True
+        _fsync_directory(path.parent)
         return True
-    _fsync_directory(path.parent)
-    return True
+    except OSError:
+        _restore_recovery_claim(path, claim)
+        return False
 
 
 class WriterLock:

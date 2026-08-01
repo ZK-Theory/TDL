@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 
@@ -20,8 +21,9 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
+from research_system.schema_registry import runtime_schema_registry
 from research_system.store.identity import load_store_manifest
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -110,7 +112,16 @@ def _owner_decision(resolver, schemas, grant: dict[str, object], *, record_id: s
     }
 
 
-def _activation_command(resolver, schemas, grant: dict[str, object], decision: dict[str, object]) -> dict[str, object]:
+def _activation_command(
+    resolver,
+    schemas,
+    grant: dict[str, object],
+    decision: dict[str, object],
+    *,
+    command_id: str = ACTIVATE_COMMAND_ID,
+    idempotency_key: str = "activate-external-assurance-record-grant",
+    correlation_id: str = "synthetic-external-record-authority-test",
+) -> dict[str, object]:
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
         EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
@@ -121,7 +132,7 @@ def _activation_command(resolver, schemas, grant: dict[str, object], decision: d
         "1.0.0",
     )
     return {
-        "command_id": ACTIVATE_COMMAND_ID,
+        "command_id": command_id,
         "command_type": "ActivateExternalAssuranceRecordGrant",
         "schema_id": command_schema.schema_id,
         "schema_version": command_schema.schema_version,
@@ -131,8 +142,8 @@ def _activation_command(resolver, schemas, grant: dict[str, object], decision: d
         "authority_grant_id": ROOT_ID,
         "target_stream_id": GRANT_ID,
         "expected_stream_version": 0,
-        "idempotency_key": "activate-external-assurance-record-grant",
-        "correlation_id": "synthetic-external-record-authority-test",
+        "idempotency_key": idempotency_key,
+        "correlation_id": correlation_id,
         "causation_id": None,
         "reason": "activate one synthetic external-record scoped authority grant",
         "evidence_refs": [decision["record_id"]],
@@ -258,6 +269,18 @@ def _fixture(tmp_path: Path):
 
 def _durable_files(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def _schema_variant(tmp_path: Path):
+    schema_root = tmp_path / "schemas-b"
+    shutil.copytree(REPO_ROOT / ".research-system" / "schemas", schema_root)
+    command_schema_path = (
+        schema_root / "wp6-3-authority" / "activate-external-assurance-record-grant-command.schema.json"
+    )
+    schema = json.loads(command_schema_path.read_bytes())
+    schema["$comment"] = "bytes-B"
+    command_schema_path.write_bytes(json.dumps(schema, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    return runtime_schema_registry(schema_root)
 
 
 def _restart_system(control_root: Path, schemas: object):
@@ -408,6 +431,233 @@ def test_restart_recovers_uncommitted_external_grant_activation_marker(
     )
     assert GRANT_ID not in projection["authority_grants"]
     assert restarted_service.submit(command).status == "accepted"
+
+
+@pytest.mark.integration
+def test_recovery_preserves_distinct_later_activation_of_same_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    first = _activation_command(resolver, schemas, grant, decision)
+    second = _activation_command(
+        resolver,
+        schemas,
+        grant,
+        decision,
+        command_id="cmd_01978abc-6260-7000-8000-000000006260",
+        idempotency_key="activate-external-assurance-record-grant-2",
+        correlation_id="synthetic-external-record-authority-test-2",
+    )
+    real_append = ledger._append_scoped_authority_from_validated_submit
+
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt("simulated termination before activation append")
+
+    monkeypatch.setattr(ledger, "_append_scoped_authority_from_validated_submit", interrupted)
+    with pytest.raises(KeyboardInterrupt, match="before activation append"):
+        service.submit(first)
+    monkeypatch.setattr(ledger, "_append_scoped_authority_from_validated_submit", real_append)
+
+    second_receipt = service.submit(second)
+    assert second_receipt.status == "accepted"
+    before_events = ledger.snapshot().events
+    before_object_path = next((control_root / "objects" / "authority_grant" / GRANT_ID).glob("00000001-*.json"))
+    before_object = before_object_path.read_bytes()
+    before_projection = canonical_bytes(
+        replay(
+            before_events,
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+    )
+
+    restarted_resolver, restarted_ledger, restarted_objects, restarted_service = _restart_system(
+        control_root,
+        schemas,
+    )
+    assert restarted_ledger.snapshot().events == before_events
+    assert restarted_objects.read("authority_grant", GRANT_ID, 1) == grant
+    restarted_object_path = next((control_root / "objects" / "authority_grant" / GRANT_ID).glob("00000001-*.json"))
+    assert restarted_object_path.read_bytes() == before_object
+    assert (
+        canonical_bytes(
+            replay(
+                restarted_ledger.snapshot().events,
+                schema_registry=schemas,
+                authority_state_validator=restarted_resolver.validate_replayed_administration_state,
+            )
+        )
+        == before_projection
+    )
+    assert restarted_service.submit(second) == second_receipt
+
+
+@pytest.mark.integration
+def test_exact_retry_rejects_same_envelope_against_changed_schema_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    before_events = ledger.snapshot().events
+
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt("simulated termination before activation append")
+
+    monkeypatch.setattr(ledger, "_append_scoped_authority_from_validated_submit", interrupted)
+    with pytest.raises(KeyboardInterrupt, match="before activation append"):
+        service.submit(command)
+
+    schemas_b = _schema_variant(tmp_path)
+    manifest = load_store_manifest(control_root)
+    resolver_b = LedgerAuthorityGrantResolver(
+        control_root,
+        PROJECT_ID,
+        manifest["store_identity"],
+        schemas_b,
+    )
+    ledger_b = EventLedger(control_root, PROJECT_ID, schemas_b)
+    objects_b = ObjectStore(control_root)
+    service_b = CommandService(
+        control_root,
+        ledger_b,
+        objects_b,
+        ReceiptStore(control_root),
+        schemas_b,
+        authority_resolver=resolver_b,
+        clock=lambda: NOW,
+    )
+    before = _durable_files(control_root)
+    with pytest.raises(ConflictError, match="recovery marker conflicts"):
+        service_b.submit(command)
+    assert _durable_files(control_root) == before
+    assert ledger_b.snapshot().events == before_events
+    assert objects_b.latest_revision("authority_grant", GRANT_ID) is None
+
+
+@pytest.mark.integration
+def test_recovery_rejects_same_command_event_with_different_schema_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    monkeypatch.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+    assert service.submit(command).status == "accepted"
+
+    schemas_b = _schema_variant(tmp_path)
+    schema_b = schemas_b.resolve_identity(
+        command["schema_id"],
+        command["schema_version"],
+    )
+    event_path = next(
+        path
+        for path in (control_root / "events").rglob("*.jsonl")
+        if command["command_id"] in path.read_text(encoding="utf-8")
+    )
+    lines = event_path.read_text(encoding="utf-8").splitlines()
+    event_index = next(index for index, line in enumerate(lines) if command["command_id"] in line)
+    assert event_index == len(lines) - 1
+    event = json.loads(lines[event_index])
+    event["command_schema_sha256"] = schema_b.sha256
+    event.pop("event_hash", None)
+    event["event_hash"] = sha256_hex(canonical_bytes(event))
+    lines[event_index] = canonical_bytes(event).decode("utf-8")
+    event_path.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+
+    with pytest.raises(IntegrityError, match="schema|identity"):
+        _restart_system(control_root, schemas)
+
+
+@pytest.mark.integration
+def test_truncated_marker_temp_is_quarantined_and_exact_retry_completes(
+    tmp_path: Path,
+) -> None:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_root.mkdir(parents=True, exist_ok=True)
+    (marker_root / f".{command['command_id']}.json.crashed.tmp").write_bytes(b'{"partial":')
+
+    receipt = service.submit(command)
+    assert receipt.status == "accepted"
+    assert service.submit(command) == receipt
+    assert not list(marker_root.glob("*.tmp"))
+    assert any(path.name.endswith(".quarantine") for path in marker_root.iterdir())
+
+
+@pytest.mark.integration
+def test_committed_marker_retry_reconstructs_receipt_and_cleans_residue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    monkeypatch.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+    receipt = service.submit(command)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_path = next(marker_root.glob("*.json"))
+    marker_bytes = marker_path.read_bytes()
+    marker_path.with_suffix(".json.tmp").write_bytes(marker_bytes)
+    for path in (control_root / "receipts").rglob("*.json"):
+        path.unlink()
+
+    restarted_resolver, restarted_ledger, restarted_objects, restarted_service = _restart_system(
+        control_root,
+        schemas,
+    )
+    retry = restarted_service.submit(command)
+    assert retry == receipt
+    assert restarted_ledger.snapshot().events
+    assert restarted_objects.read("authority_grant", GRANT_ID, 1) == grant
+    assert not list(marker_root.glob("*.json"))
+    assert not list(marker_root.glob("*.tmp"))
 
 
 @pytest.mark.integration
