@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from research_system.authority import (
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
     SCOPED_AUTHORITY_ADMISSION_VERSION,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
     ScopedAuthorityGrant,
     validate_scoped_grant_activation,
 )
@@ -80,6 +84,8 @@ _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
         "ActivateAuthorityGrant",
         "RevokeIssuedAuthorityGrant",
+        "ActivateExternalAssuranceRecordGrant",
+        "RevokeExternalAssuranceRecordGrant",
     }
 )
 
@@ -433,7 +439,10 @@ class CommandService:
                     return self._write_receipt(command, rejected)
             elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
                 try:
-                    if command.envelope["command_type"] == "ActivateAuthorityGrant":
+                    if command.envelope["command_type"] in {
+                        "ActivateAuthorityGrant",
+                        "ActivateExternalAssuranceRecordGrant",
+                    }:
                         prepared_payload = self._prepare_scoped_authority_activation(
                             command,
                             observed_version,
@@ -653,7 +662,8 @@ class CommandService:
                 if command.envelope["command_type"] == "PublishReleaseGateDecision"
                 else (
                     "AuthorityGrantActivated"
-                    if command.envelope["command_type"] == "ActivateAuthorityGrant"
+                    if command.envelope["command_type"]
+                    in {"ActivateAuthorityGrant", "ActivateExternalAssuranceRecordGrant"}
                     else "AuthorityGrantRevoked"
                 )
             )
@@ -1805,14 +1815,20 @@ class CommandService:
                 raise IntegrityError("RevokeAuthorityGrant requires prepared payload")
             event_type = "AuthorityGrantRevoked"
             payload = prepared_payload
-        elif command_type == "ActivateAuthorityGrant":
+        elif command_type in {
+            "ActivateAuthorityGrant",
+            "ActivateExternalAssuranceRecordGrant",
+        }:
             if prepared_payload is None:
-                raise IntegrityError("ActivateAuthorityGrant requires prepared payload")
+                raise IntegrityError(f"{command_type} requires prepared payload")
             event_type = "AuthorityGrantActivated"
             payload = prepared_payload
-        elif command_type == "RevokeIssuedAuthorityGrant":
+        elif command_type in {
+            "RevokeIssuedAuthorityGrant",
+            "RevokeExternalAssuranceRecordGrant",
+        }:
             if prepared_payload is None:
-                raise IntegrityError("RevokeIssuedAuthorityGrant requires prepared payload")
+                raise IntegrityError(f"{command_type} requires prepared payload")
             event_type = "AuthorityGrantRevoked"
             payload = prepared_payload
         elif command_type == "PublishReleaseGateDecision":
@@ -1940,9 +1956,14 @@ class CommandService:
             or command.envelope.get("on_behalf_of_actor_id") is not None
         ):
             raise ArsError("scoped authority activation anchor mismatch")
+        grant_schema_id, grant_schema_version = self._scoped_grant_schema_for_command(command.envelope["command_type"])
         grant_value = payload.get("new_grant")
         try:
-            grant = ScopedAuthorityGrant.from_dict(grant_value)
+            grant = ScopedAuthorityGrant.from_dict(
+                grant_value,
+                expected_schema_id=grant_schema_id,
+                expected_schema_version=grant_schema_version,
+            )
         except ValueError as exc:
             raise ArsError("scoped authority grant invalid") from exc
         if grant.authority_grant_id != command.target_stream_id or grant.canonical_sha256 != payload.get(
@@ -1950,8 +1971,8 @@ class CommandService:
         ):
             raise ArsError("scoped authority activation target mismatch")
         schema_identity = self.schemas.resolve_identity(
-            "ars://core/scoped-authority-grant",
-            "2.0.0",
+            grant_schema_id,
+            grant_schema_version,
             expected_sha256=str(payload.get("new_grant_schema_sha256", "")),
         )
         if not self.schemas.is_active(
@@ -1962,7 +1983,7 @@ class CommandService:
         self.schemas.validate_active(
             schema_identity.schema_id,
             grant_value,
-            schema_version="2.0.0",
+            schema_version=grant_schema_version,
             expected_sha256=schema_identity.sha256,
         )
         validate_scoped_grant_activation(
@@ -1977,6 +1998,8 @@ class CommandService:
             target_grant_id=grant.authority_grant_id,
             target_grant_sha256=grant.canonical_sha256,
             target_grant_schema_sha256=schema_identity.sha256,
+            target_grant_schema_id=schema_identity.schema_id,
+            target_grant_schema_version=str(schema_identity.schema_version),
             subject_scope=grant.subject_scope,
             effective_at=grant.effective_at,
             expires_at=grant.expires_at,
@@ -2008,6 +2031,12 @@ class CommandService:
             "effective_at": payload["new_grant"]["effective_at"],
             "expires_at": payload["new_grant"]["expires_at"],
         }
+
+    @staticmethod
+    def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str]:
+        if command_type == "ActivateExternalAssuranceRecordGrant":
+            return EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID, EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION
+        return SCOPED_AUTHORITY_GRANT_SCHEMA_ID, SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
 
     def _prepare_issued_authority_revocation(
         self,
@@ -2047,6 +2076,8 @@ class CommandService:
             target_grant_id=target.authority_grant_id,
             target_grant_sha256=target.authority_grant_sha256,
             target_grant_schema_sha256=target.schema_sha256,
+            target_grant_schema_id=target.schema_id,
+            target_grant_schema_version=target.schema_version,
             subject_scope=target.subject_scope,
             effective_at=target.effective_at,
             expires_at=target.expires_at,

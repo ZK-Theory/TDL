@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from research_system.assurance.resolver import ControlStoreAuthorityResolver
 from research_system.cli import main
-from research_system.config import ControlBinding
-from research_system.errors import ConfigurationError
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.errors import ArsError, ConfigurationError
 from research_system.store.identity import initialize_control_store
 
 
@@ -18,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_ROOT = REPO_ROOT / ".research-system" / "schemas"
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
 RECORD_ID = "act_01978abc-2000-7000-8000-000000002000"
+ROOT_GRANT_ID = "agr_01978abc-2000-7000-8000-000000002033"
 
 
 def _record() -> dict[str, str]:
@@ -51,12 +51,43 @@ def _config(tmp_path: Path) -> tuple[Path, Path, str]:
     return config, control_root, identity
 
 
-def test_assurance_record_write_cli_persists_and_resolves(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def _publication_args(store_identity: str, record_path: Path) -> list[str]:
+    return [
+        "--caller-actor-id",
+        RECORD_ID,
+        "--caller-actor-class",
+        "agent",
+        "--authority-grant-id",
+        "agr_01978abc-2000-7000-8000-000000002030",
+        "--record-action",
+        "create",
+        "--project-id",
+        PROJECT_ID,
+        "--store-identity",
+        store_identity,
+        "--authority-root",
+        ROOT_GRANT_ID,
+        "--canonical-sha256",
+        sha256_hex(canonical_bytes(_record())),
+        "--task-id",
+        "tsk_01978abc-2000-7000-8000-000000002031",
+        "--session-id",
+        "ctx_01978abc-2000-7000-8000-000000002032",
+        "--required-risk",
+        "R1",
+        "--occurred-at",
+        "2026-07-18T08:20:00Z",
+        "--record",
+        str(record_path),
+    ]
+
+
+def test_assurance_record_write_cli_requires_current_publication_authority(tmp_path: Path) -> None:
     config, control_root, authority_root = _config(tmp_path)
     record_path = tmp_path / "record.json"
     record_path.write_text(json.dumps(_record()), encoding="utf-8")
 
-    assert (
+    with pytest.raises(ArsError, match="authority_bootstrap_required"):
         main(
             [
                 "assurance-record",
@@ -71,28 +102,14 @@ def test_assurance_record_write_cli_persists_and_resolves(tmp_path: Path, capsys
                 "1",
                 "--expected-previous-revision",
                 "0",
-                "--record",
-                str(record_path),
+                *_publication_args(authority_root, record_path),
             ]
         )
-        == 0
-    )
-    receipt = json.loads(capsys.readouterr().out)
-    assert receipt["record_class"] == "canonical_actor"
-    assert receipt["record_id"] == RECORD_ID
-    assert receipt["revision"] == 1
-
-    resolved = ControlStoreAuthorityResolver(ControlBinding.load(config)).resolve(
-        record_id=RECORD_ID,
-        record_class="canonical_actor",
-        authority_root=authority_root,
-        phase="load",
-    )
-    assert resolved == _record()
+    assert not (control_root / "objects" / "canonical_actor" / RECORD_ID).exists()
 
 
 def test_assurance_record_write_cli_requires_json_object(tmp_path: Path) -> None:
-    config, _, _ = _config(tmp_path)
+    config, _, authority_root = _config(tmp_path)
     record_path = tmp_path / "record.json"
     record_path.write_text("[]", encoding="utf-8")
     with pytest.raises(ConfigurationError, match="must contain an object"):
@@ -110,7 +127,6 @@ def test_assurance_record_write_cli_requires_json_object(tmp_path: Path) -> None
                 "1",
                 "--expected-previous-revision",
                 "0",
-                "--record",
-                str(record_path),
+                *_publication_args(authority_root, record_path),
             ]
         )

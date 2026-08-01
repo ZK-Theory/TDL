@@ -376,6 +376,8 @@ class EventLedger:
                 ("AuthorityGrantActivated", "ActivateAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeIssuedAuthorityGrant"),
+                ("AuthorityGrantActivated", "ActivateExternalAssuranceRecordGrant"),
+                ("AuthorityGrantRevoked", "RevokeExternalAssuranceRecordGrant"),
             }
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(

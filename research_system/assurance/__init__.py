@@ -12,6 +12,10 @@ from research_system.assurance.resolver import (
     EXTERNAL_RECORD_KIND,
     ControlStoreAuthorityResolver,
 )
+from research_system.assurance.external_records import (
+    ExternalRecordPublicationContext,
+    ExternalRecordResolution,
+)
 
 
 __all__ = [
@@ -19,6 +23,8 @@ __all__ = [
     "EXTERNAL_RECORD_KIND",
     "ContentAddressedAuthorityResolver",
     "ControlStoreAuthorityResolver",
+    "ExternalRecordPublicationContext",
+    "ExternalRecordResolution",
     "PackAcceptanceSubject",
     "PackUnconsumable",
     "git_blob_id",

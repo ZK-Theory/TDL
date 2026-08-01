@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/external-assurance-record-owner-authority-administration-decision",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "record_id", "revision", "project_id", "store_identity", "bootstrap_manifest_sha256", "root_grant_id", "root_grant_sha256", "owner_actor_id", "action", "target_grant_id", "target_grant_sha256", "target_grant_schema_id", "target_grant_schema_version", "target_grant_schema_sha256", "subject_scope", "effective_at", "expires_at", "one_time_use", "state", "decided_at"],
+  "properties": {
+    "schema_id": {"const": "ars://core/external-assurance-record-owner-authority-administration-decision"},
+    "schema_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "pattern": "^arec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "revision": {"const": 1},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "root_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "action": {"enum": ["activate_authority_grant", "revoke_issued_authority_grant"]},
+    "target_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target_grant_schema_id": {"const": "ars://core/external-assurance-record-scoped-authority-grant"},
+    "target_grant_schema_version": {"const": "1.0.0"},
+    "target_grant_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["project_id", "subject"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_"},
+        "subject": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {"const": "external_assurance_record"},
+            "id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "one_time_use": {"const": true},
+    "state": {"const": "active"},
+    "decided_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  },
+  "additionalProperties": false
+}

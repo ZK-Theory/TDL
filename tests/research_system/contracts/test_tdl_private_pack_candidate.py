@@ -31,7 +31,9 @@ from research_system.assurance import (
     git_blob_id,
     validate_tdl_private_pack_for_acceptance,
 )
+from research_system.assurance.external_records import ExternalRecordResolution
 from research_system.assurance.pack_loader import _RECORD_ENVELOPE, _require_key
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 from tests.research_system.contracts.test_wp6_3_tdl_private_assurance_pack_contract import (
@@ -344,7 +346,6 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
     store["accepted_assurance_requirement"] |= {
         "assurance_requirement_id": requirement_reference["assurance_requirement_id"],
         "revision": requirement_reference["revision"],
-        "content_sha256": requirement_reference["acceptance_record_sha256"],
         "prospective_producer_actor_id": pack["producer_actor_id"],
         "scope_relationship_record_id": ids["producer_relationship_evidence"],
         "minimum_independence_grade": "I2",
@@ -361,9 +362,22 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
 class _Resolver:
     """Trusted resolver stub. Records every (record_class, phase) it was asked for."""
 
-    def __init__(self, store: dict[str, dict], *, per_phase_override: dict | None = None) -> None:
+    def __init__(
+        self,
+        store: dict[str, dict],
+        *,
+        per_phase_override: dict | None = None,
+        per_phase_resolution_override: dict | None = None,
+        trusted_digests: dict[str, str] | None = None,
+        trusted_revisions: dict[str, int] | None = None,
+    ) -> None:
         self.store = store
         self.per_phase_override = per_phase_override or {}
+        self.per_phase_resolution_override = per_phase_resolution_override or {}
+        self.trusted_digests = trusted_digests or {
+            "accepted_assurance_requirement": PLACEHOLDER_REQUIREMENT_SHA256,
+        }
+        self.trusted_revisions = trusted_revisions or {}
         self.calls: list[tuple[str, str]] = []
 
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> dict:
@@ -373,6 +387,34 @@ class _Resolver:
         if record_class not in self.store:
             raise KeyError(record_class)
         return self.store[record_class]
+
+    def resolve_with_receipt(
+        self,
+        *,
+        record_id: str,
+        record_class: str,
+        authority_root: str,
+        phase: str,
+    ) -> ExternalRecordResolution:
+        if (record_class, phase) in self.per_phase_resolution_override:
+            self.calls.append((record_class, phase))
+            resolution = self.per_phase_resolution_override[(record_class, phase)]
+            if not isinstance(resolution, ExternalRecordResolution):
+                raise TypeError("resolution override must carry trusted metadata")
+            return resolution
+        body = self.resolve(
+            record_id=record_id,
+            record_class=record_class,
+            authority_root=authority_root,
+            phase=phase,
+        )
+        return ExternalRecordResolution(
+            record_class=record_class,
+            record_id=record_id,
+            revision=self.trusted_revisions.get(record_class, 1),
+            canonical_sha256=self.trusted_digests.get(record_class, sha256_hex(canonical_bytes(body))),
+            record=body,
+        )
 
 
 def _loader_kwargs(pack: dict, raw: bytes, contract: dict, **overrides) -> dict:
@@ -585,10 +627,9 @@ def test_every_required_record_identity_is_allocated_or_declared_pending():
     pending = {row["field"]: row["id_prefix"] for row in allocations["pending_allocations"]}
 
     unaccounted = set(required_identity_fields) - allocated_fields - set(pending)
-    assert not unaccounted, (
-        f"record schemas require identity fields that are neither allocated nor declared pending: "
-        f"{sorted(unaccounted)}"
-    )
+    assert (
+        not unaccounted
+    ), f"record schemas require identity fields that are neither allocated nor declared pending: {sorted(unaccounted)}"
 
     stale = set(pending) - set(required_identity_fields)
     assert not stale, f"pending_allocations lists fields no record schema requires: {sorted(stale)}"
@@ -794,6 +835,42 @@ def test_loader_rejects_a_record_that_changes_between_phases(contract, candidate
         )
 
 
+def test_loader_rejects_a_trusted_digest_that_does_not_match_the_linked_hash(contract, candidate):
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    resolver = _Resolver(
+        store,
+        trusted_digests={"accepted_assurance_requirement": "4" * 64},
+    )
+    with pytest.raises(PackUnconsumable, match="accepted assurance requirement"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=resolver)
+        )
+
+
+def test_loader_rejects_a_trusted_revision_that_changes_between_phases(contract, candidate):
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    record_id = _record_ids(contract, pack)["accepted_assurance_requirement"]
+    body = store["accepted_assurance_requirement"]
+    resolver = _Resolver(
+        store,
+        per_phase_resolution_override={
+            ("accepted_assurance_requirement", "consumption"): ExternalRecordResolution(
+                record_class="accepted_assurance_requirement",
+                record_id=record_id,
+                revision=2,
+                canonical_sha256=PLACEHOLDER_REQUIREMENT_SHA256,
+                record=body,
+            )
+        },
+    )
+    with pytest.raises(PackUnconsumable, match="unstable across authority phases"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=resolver)
+        )
+
+
 def test_loader_rejects_inactive_foreign_or_mislabelled_records(contract, candidate):
     """Mutations are expressed in the fields the record's own schema defines.
 
@@ -825,7 +902,7 @@ def test_loader_fails_closed_when_the_resolver_fails(contract, candidate):
         def resolve(self, **_kwargs):
             raise RuntimeError("resolver offline")
 
-    with pytest.raises(PackUnconsumable, match="did not resolve"):
+    with pytest.raises(PackUnconsumable, match="trusted storage receipts"):
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Broken())
         )
@@ -844,7 +921,7 @@ def test_loader_binds_the_registered_object_and_accepted_requirement(contract, c
 
     store = _record_store(pack, raw, contract)
     store["accepted_assurance_requirement"] = store["accepted_assurance_requirement"] | {"content_sha256": "4" * 64}
-    with pytest.raises(PackUnconsumable, match="accepted assurance requirement"):
+    with pytest.raises(PackUnconsumable, match="schema-forbidden content_sha256"):
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
         )

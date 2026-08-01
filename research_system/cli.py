@@ -15,7 +15,10 @@ from research_system.authority import (
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
-from research_system.assurance.external_records import ExternalAssuranceRecordStore
+from research_system.assurance.external_records import (
+    ExternalAssuranceRecordStore,
+    ExternalRecordPublicationContext,
+)
 from research_system.canonical import canonical_bytes, jsonable
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
@@ -179,6 +182,25 @@ def _assurance_record_write(args: argparse.Namespace) -> int:
         revision=args.revision,
         expected_previous_revision=args.expected_previous_revision,
         record=record,
+        publication_context=ExternalRecordPublicationContext(
+            caller_actor_id=args.caller_actor_id,
+            caller_actor_class=args.caller_actor_class,
+            authority_grant_id=args.authority_grant_id,
+            record_action=args.record_action,
+            record_class=args.record_class,
+            record_id=args.record_id,
+            revision=args.revision,
+            expected_previous_revision=args.expected_previous_revision,
+            project_id=args.project_id,
+            store_identity=args.store_identity,
+            authority_root=args.authority_root,
+            canonical_sha256=args.canonical_sha256,
+            task_id=args.task_id,
+            session_id=args.session_id,
+            relationship_record_id=args.relationship_record_id,
+            required_risk=args.required_risk,
+            occurred_at=args.occurred_at,
+        ),
     )
     _print_json(asdict(receipt))
     return 0
@@ -662,6 +684,19 @@ def _parser() -> argparse.ArgumentParser:
     write_record.add_argument("--revision", type=int, required=True)
     write_record.add_argument("--expected-previous-revision", type=int, required=True)
     write_record.add_argument("--record", type=Path, required=True)
+    write_record.add_argument("--caller-actor-id", required=True)
+    write_record.add_argument("--caller-actor-class", required=True)
+    write_record.add_argument("--authority-grant-id", required=True)
+    write_record.add_argument("--record-action", choices=("create", "revise"), required=True)
+    write_record.add_argument("--project-id", required=True)
+    write_record.add_argument("--store-identity", required=True)
+    write_record.add_argument("--authority-root", required=True)
+    write_record.add_argument("--canonical-sha256", required=True)
+    write_record.add_argument("--task-id", required=True)
+    write_record.add_argument("--session-id", required=True)
+    write_record.add_argument("--relationship-record-id", default=None)
+    write_record.add_argument("--required-risk", choices=("R0", "R1", "R2", "R3"), required=True)
+    write_record.add_argument("--occurred-at", required=True)
     write_record.set_defaults(handler=_assurance_record_write)
 
     replay_parser = groups.add_parser("replay")

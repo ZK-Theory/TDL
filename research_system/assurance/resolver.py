@@ -28,15 +28,20 @@ from collections.abc import Mapping
 from typing import Any
 
 from research_system.assurance.pack_loader import AUTHORITY_RESOLUTION_PHASES
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.assurance.external_records import (
     EXTERNAL_RECORD_KIND,
     ExternalAssuranceRecordStore,
+    ExternalRecordResolution,
     ExternalRecordSchemaCatalogue,
     load_complete_revision_history,
-    storage_object_id,
+    storage_object_key,
 )
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, IntegrityError
+
+
+__all__ = ["EXTERNAL_RECORD_KIND", "ControlStoreAuthorityResolver"]
 
 
 class ControlStoreAuthorityResolver:
@@ -81,8 +86,21 @@ class ControlStoreAuthorityResolver:
         self._catalogue: ExternalRecordSchemaCatalogue = writer.catalogue
         self._objects = writer.objects
 
-    def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
-        """Return the current external record body for an opaque record id.
+    def _validate_phase_and_root(self, *, authority_root: str, phase: str) -> None:
+        if phase not in AUTHORITY_RESOLUTION_PHASES:
+            raise ArsError(f"unknown authority resolution phase: {phase}")
+        if authority_root != self.authority_root:
+            raise ArsError("authority root is not the root this control store is bound to")
+
+    def resolve_with_receipt(
+        self,
+        *,
+        record_id: str,
+        record_class: str,
+        authority_root: str,
+        phase: str,
+    ) -> ExternalRecordResolution:
+        """Return the body with trusted revision/digest metadata from storage history.
 
         Args:
             record_id: Opaque content-addressed record identifier.
@@ -91,7 +109,9 @@ class ControlStoreAuthorityResolver:
             phase: One of :data:`~research_system.assurance.pack_loader.AUTHORITY_RESOLUTION_PHASES`.
 
         Returns:
-            The resolved record body at its latest persisted revision.
+            The resolved record body and the canonical digest/revision of the
+            persisted ObjectStore receipt.  Metadata is outside the schema-valid
+            body and cannot be injected through a forbidden body property.
 
         Raises:
             ArsError: If the phase is unknown, the authority root does not match the store's own, or the
@@ -100,14 +120,11 @@ class ControlStoreAuthorityResolver:
                 body.
             ValueError: If the record identity is invalid for the external record kind.
         """
-        if phase not in AUTHORITY_RESOLUTION_PHASES:
-            raise ArsError(f"unknown authority resolution phase: {phase}")
+        self._validate_phase_and_root(authority_root=authority_root, phase=phase)
         if not isinstance(record_class, str) or not record_class:
             raise ArsError("record class must be a non-empty string")
-        if authority_root != self.authority_root:
-            raise ArsError("authority root is not the root this control store is bound to")
-        object_id = storage_object_id(record_id)
-        history = load_complete_revision_history(self._objects, EXTERNAL_RECORD_KIND, object_id)
+        kind, object_id = storage_object_key(record_class, record_id)
+        history = load_complete_revision_history(self._objects, kind, object_id)
         if not history:
             raise ArsError(f"external record has no persisted revision: {record_id}")
         row = self._catalogue.row(record_class)
@@ -117,5 +134,22 @@ class ControlStoreAuthorityResolver:
             if record.get("record_type") != row.record_type:
                 raise IntegrityError("external record revision history contains a foreign or mismatched identity")
             self._catalogue.validate(record_class, record_id, record)
-        record: Any = history[max(history)]
-        return record
+        revision = max(history)
+        record: Any = history[revision]
+        return ExternalRecordResolution(
+            record_class=record_class,
+            record_id=record_id,
+            revision=revision,
+            canonical_sha256=sha256_hex(canonical_bytes(record)),
+            record=dict(record),
+        )
+
+    def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
+        """Return only the current body for legacy read-side callers."""
+
+        return self.resolve_with_receipt(
+            record_id=record_id,
+            record_class=record_class,
+            authority_root=authority_root,
+            phase=phase,
+        ).record

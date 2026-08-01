@@ -24,6 +24,14 @@ from research_system.store.identity import SCHEMA_BINDING_VERSION
 
 
 SCOPED_AUTHORITY_ADMISSION_VERSION = "owner-bound-v1"
+SCOPED_AUTHORITY_GRANT_SCHEMA_ID = "ars://core/scoped-authority-grant"
+SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION = "2.0.0"
+EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID = "ars://core/external-assurance-record-scoped-authority-grant"
+EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION = "1.0.0"
+OWNER_AUTHORITY_DECISION_SCHEMA_ID = "ars://core/owner-authority-administration-decision"
+EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID = (
+    "ars://core/external-assurance-record-owner-authority-administration-decision"
+)
 
 
 _GRANT_FIELDS = frozenset(
@@ -80,6 +88,7 @@ _SCOPED_SUBJECT_KINDS = {
     "corrected_record": None,
     "resource": None,
     "project_store": "project",
+    "external_assurance_record": None,
 }
 _SCOPED_SUBJECT_PREFIXES = {
     "assurance_requirement": ("asr",),
@@ -122,6 +131,20 @@ _SCOPED_SUBJECT_PREFIXES = {
     ),
     "resource": ("rsq", "rgr", "rcf"),
     "project_store": ("prj",),
+    "external_assurance_record": (
+        "act",
+        "rel",
+        "cau",
+        "crv",
+        "srv",
+        "csa",
+        "ard",
+        "apc",
+        "arv",
+        "apr",
+        "agr",
+        "asp",
+    ),
 }
 _SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
 _SCOPED_COMMAND_SUBJECT_KINDS = {
@@ -134,8 +157,16 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",
+    "publish_external_assurance_record": "external_assurance_record",
 }
 _R3_ASSURANCE_POLICY_ACTION = "accept_r3_assurance_requirement"
+_EXTERNAL_RECORD_POLICY_ACTION = "publish_external_assurance_record"
+_SCOPED_GRANT_SCHEMA_IDENTITIES = frozenset(
+    {
+        (SCOPED_AUTHORITY_GRANT_SCHEMA_ID, SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION),
+        (EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID, EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION),
+    }
+)
 _SEMANTIC_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UUID7_ID = re.compile(
@@ -333,6 +364,12 @@ def _scoped_authority_scope(value: object) -> AuthorityScope:
     return AuthorityScope(project_id, str(subject_kind), subject_id)
 
 
+def is_scoped_authority_grant_schema(schema_id: object, schema_version: object) -> bool:
+    """Return whether an exact owner-bound scoped-grant schema is supported."""
+
+    return (schema_id, schema_version) in _SCOPED_GRANT_SCHEMA_IDENTITIES
+
+
 @dataclass(frozen=True)
 class GrantedCommandIdentity:
     """Exact command schema identity admitted by a scoped grant."""
@@ -407,14 +444,18 @@ class ScopedAuthorityGrant:
     canonical_sha256: str
 
     @classmethod
-    def from_dict(cls, value: object) -> ScopedAuthorityGrant:
+    def from_dict(
+        cls,
+        value: object,
+        *,
+        expected_schema_id: str = SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+        expected_schema_version: str = SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    ) -> ScopedAuthorityGrant:
         canonical_bytes(value)
         if not isinstance(value, dict) or set(value) != _SCOPED_GRANT_FIELDS:
             raise ValueError("ScopedAuthorityGrant fields must be exact")
-        if value["schema_id"] != "ars://core/scoped-authority-grant":
+        if value["schema_id"] != expected_schema_id or value["schema_version"] != expected_schema_version:
             raise ValueError("invalid ScopedAuthorityGrant schema")
-        if value["schema_version"] != "2.0.0":
-            raise ValueError("ScopedAuthorityGrant 2.0.0 is required")
         if value["delegable"] is not False or value["revoked"] is not False:
             raise ValueError("ScopedAuthorityGrant must be non-delegable and immutable-active")
         grant_id = validate_id(str(value["authority_grant_id"]), "authority_grant")
@@ -513,6 +554,15 @@ def validate_scoped_grant_activation(
             raise ArsError("scoped authority policy-action identity mismatch") from exc
         if resolved.sha256 != identity.schema_sha256:
             raise ArsError("scoped authority policy-action identity mismatch")
+    if (
+        _EXTERNAL_RECORD_POLICY_ACTION in action_types
+        and grant.subject_scope.subject_kind != "external_assurance_record"
+    ):
+        raise ArsError("external-record publication requires its exact external-record subject scope")
+    if grant.subject_scope.subject_kind == "external_assurance_record" and (
+        action_types != (_EXTERNAL_RECORD_POLICY_ACTION,) or grant.allowed_commands
+    ):
+        raise ArsError("external-record scoped grants admit only publication")
     if _R3_ASSURANCE_POLICY_ACTION in action_types and (
         grant.actor_id != owner
         or grant.allowed_actor_classes != ("human",)
@@ -573,9 +623,13 @@ class OwnerAuthorityAdministrationDecision:
         canonical_bytes(value)
         if not isinstance(value, dict) or set(value) != fields:
             raise ValueError("owner authority administration decision fields must be exact")
+        decision_schema = (value.get("schema_id"), value.get("schema_version"))
         if (
-            value["schema_id"] != "ars://core/owner-authority-administration-decision"
-            or value["schema_version"] != "1.0.0"
+            decision_schema
+            not in {
+                (OWNER_AUTHORITY_DECISION_SCHEMA_ID, "1.0.0"),
+                (EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID, "1.0.0"),
+            }
             or value["revision"] != 1
             or value["one_time_use"] is not True
             or value["state"] != "active"
@@ -604,11 +658,26 @@ class OwnerAuthorityAdministrationDecision:
             "revoke_issued_authority_grant",
         }:
             raise ValueError("unsupported owner authority administration action")
-        if (
-            value["target_grant_schema_id"] != "ars://core/scoped-authority-grant"
-            or value["target_grant_schema_version"] != "2.0.0"
-        ):
-            raise ValueError("owner decision requires scoped grant v2")
+        expected_decision_schema = (
+            OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+            "1.0.0",
+            SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+            SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        )
+        external_decision_schema = (
+            EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+            "1.0.0",
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+        )
+        if decision_schema == expected_decision_schema[:2]:
+            expected = expected_decision_schema
+        elif decision_schema == external_decision_schema[:2]:
+            expected = external_decision_schema
+        else:
+            raise ValueError("unsupported owner authority decision schema")
+        if (value["target_grant_schema_id"], value["target_grant_schema_version"]) != expected[2:]:
+            raise ValueError("owner decision grant schema binding mismatch")
         scope = _scoped_authority_scope(value["subject_scope"])
         effective_at = _utc(value["effective_at"], "effective_at")
         expires_at = _utc(value["expires_at"], "expires_at")
@@ -847,8 +916,10 @@ def _verify_bootstrap_bindings(
         or projection.get("authority_owner_actor_id") != value["owner_actor_id"]
         or not genesis_grants.issubset(grants)
         or any(
-            grants[grant_id].get("schema_id") != "ars://core/scoped-authority-grant"
-            or grants[grant_id].get("schema_version") != "2.0.0"
+            not is_scoped_authority_grant_schema(
+                grants[grant_id].get("schema_id"),
+                grants[grant_id].get("schema_version"),
+            )
             or grants[grant_id].get("activation_position", 0) <= 2
             for grant_id in additional_grants
         )
@@ -1493,10 +1564,16 @@ class LedgerAuthorityGrantResolver:
                 decision_id,
                 1,
             )
+            decision_schema_id = value.get("schema_id")
+            if decision_schema_id not in {
+                OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+                EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+            }:
+                raise SchemaError("owner authority administration decision schema is not supported")
             self.schema_registry.validate_active(
-                "ars://core/owner-authority-administration-decision",
+                str(decision_schema_id),
                 value,
-                schema_version="1.0.0",
+                schema_version=str(value.get("schema_version")),
             )
             return OwnerAuthorityAdministrationDecision.from_dict(value)
         except (IntegrityError, SchemaError, ValueError) as exc:
@@ -1565,8 +1642,8 @@ class LedgerAuthorityGrantResolver:
                 and decision.action == action
                 and decision.target_grant_id == target_grant_id
                 and decision.target_grant_sha256 == grant.get("authority_grant_sha256")
-                and decision.target_grant_schema_id == "ars://core/scoped-authority-grant"
-                and decision.target_grant_schema_version == "2.0.0"
+                and decision.target_grant_schema_id == grant.get("schema_id")
+                and decision.target_grant_schema_version == grant.get("schema_version")
                 and decision.target_grant_schema_sha256 == grant.get("schema_sha256")
                 and decision.subject_scope == subject_scope
                 and decision.effective_at == effective_at
@@ -1723,6 +1800,8 @@ class LedgerAuthorityGrantResolver:
         target_grant_id: str,
         target_grant_sha256: str,
         target_grant_schema_sha256: str,
+        target_grant_schema_id: str = SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+        target_grant_schema_version: str = SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         subject_scope: AuthorityScope,
         effective_at: datetime,
         expires_at: datetime,
@@ -1749,8 +1828,8 @@ class LedgerAuthorityGrantResolver:
             and decision.action == action
             and decision.target_grant_id == target_grant_id
             and decision.target_grant_sha256 == target_grant_sha256
-            and decision.target_grant_schema_id == "ars://core/scoped-authority-grant"
-            and decision.target_grant_schema_version == "2.0.0"
+            and decision.target_grant_schema_id == target_grant_schema_id
+            and decision.target_grant_schema_version == target_grant_schema_version
             and decision.target_grant_schema_sha256 == target_grant_schema_sha256
             and decision.subject_scope == subject_scope
             and decision.effective_at == effective_at
@@ -1770,12 +1849,12 @@ class LedgerAuthorityGrantResolver:
         from research_system.store.objects import ObjectStore
 
         record = projection.get("authority_grants", {}).get(grant_id)
-        if (
-            not isinstance(record, dict)
-            or record.get("schema_id") != "ars://core/scoped-authority-grant"
-            or record.get("schema_version") != "2.0.0"
+        if not isinstance(record, dict) or not is_scoped_authority_grant_schema(
+            record.get("schema_id"), record.get("schema_version")
         ):
             raise ArsError("scoped authority grant is not activated")
+        grant_schema_id = str(record["schema_id"])
+        grant_schema_version = str(record["schema_version"])
         try:
             value = ObjectStore(self.control_root).read(
                 "authority_grant",
@@ -1783,12 +1862,16 @@ class LedgerAuthorityGrantResolver:
                 1,
             )
             self.schema_registry.validate_active(
-                "ars://core/scoped-authority-grant",
+                grant_schema_id,
                 value,
-                schema_version="2.0.0",
+                schema_version=grant_schema_version,
                 expected_sha256=str(record.get("schema_sha256", "")),
             )
-            grant = ScopedAuthorityGrant.from_dict(value)
+            grant = ScopedAuthorityGrant.from_dict(
+                value,
+                expected_schema_id=grant_schema_id,
+                expected_schema_version=grant_schema_version,
+            )
         except (SchemaError, ValueError) as exc:
             raise IntegrityError("scoped authority grant object invalid") from exc
         if (

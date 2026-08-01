@@ -36,7 +36,7 @@ from typing import Protocol
 import yaml
 
 from research_system.errors import ArsError
-from research_system.assurance.external_records import _RECORD_ENVELOPE
+from research_system.assurance.external_records import ExternalRecordResolution, _RECORD_ENVELOPE
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -89,6 +89,16 @@ class ContentAddressedAuthorityResolver(Protocol):
         Returns:
             The resolved record body.
         """
+
+    def resolve_with_receipt(
+        self,
+        *,
+        record_id: str,
+        record_class: str,
+        authority_root: str,
+        phase: str,
+    ) -> ExternalRecordResolution:
+        """Return the body with trusted storage revision and canonical digest."""
 
 
 @dataclass(frozen=True)
@@ -294,7 +304,7 @@ def _resolve_records(
     opaque_external_record_ids: Mapping[str, str],
     resolver: ContentAddressedAuthorityResolver,
     authority_root: str,
-) -> dict[str, Mapping[str, object]]:
+) -> dict[str, ExternalRecordResolution]:
     """Resolve every required external record, at every declared phase.
 
     Args:
@@ -315,13 +325,18 @@ def _resolve_records(
     if missing:
         raise PackUnconsumable(f"no external record id supplied for required classes: {sorted(missing)}")
 
-    resolved: dict[str, Mapping[str, object]] = {}
+    resolved: dict[str, ExternalRecordResolution] = {}
     for record_class in required_classes:
         record_id = opaque_external_record_ids[record_class]
-        per_phase: list[Mapping[str, object]] = []
+        per_phase: list[ExternalRecordResolution] = []
+        resolver_with_receipt = getattr(resolver, "resolve_with_receipt", None)
+        if not callable(resolver_with_receipt):
+            raise PackUnconsumable(
+                f"external record resolver does not provide trusted storage receipts: {record_class}"
+            )
         for phase in AUTHORITY_RESOLUTION_PHASES:
             try:
-                record = resolver.resolve(
+                resolution = resolver_with_receipt(
                     record_id=record_id,
                     record_class=record_class,
                     authority_root=authority_root,
@@ -329,13 +344,30 @@ def _resolve_records(
                 )
             except Exception as exc:  # noqa: BLE001 - any resolver failure is fail-closed
                 raise PackUnconsumable(f"external record did not resolve at phase {phase}: {record_class}") from exc
-            if not isinstance(record, Mapping):
-                raise PackUnconsumable(f"external record is not a record body: {record_class}")
-            per_phase.append(record)
-        if any(record != per_phase[0] for record in per_phase[1:]):
+            if not isinstance(resolution, ExternalRecordResolution) or not isinstance(resolution.record, Mapping):
+                raise PackUnconsumable(f"external record lacks trusted storage metadata: {record_class}")
+            if (
+                resolution.record_class != record_class
+                or resolution.record_id != record_id
+                or not isinstance(resolution.revision, int)
+                or not isinstance(resolution.canonical_sha256, str)
+            ):
+                raise PackUnconsumable(f"external record trusted identity is not exact: {record_class}")
+            if "content_sha256" in resolution.record:
+                raise PackUnconsumable(f"schema-forbidden content_sha256 in external record: {record_class}")
+            per_phase.append(resolution)
+        if any(
+            (
+                resolution.record != per_phase[0].record
+                or resolution.revision != per_phase[0].revision
+                or resolution.canonical_sha256 != per_phase[0].canonical_sha256
+            )
+            for resolution in per_phase[1:]
+        ):
             raise PackUnconsumable(f"external record is unstable across authority phases: {record_class}")
 
-        record = per_phase[0]
+        resolution = per_phase[0]
+        record = resolution.record
         envelope = _RECORD_ENVELOPE.get(record_class)
         if envelope is None:
             raise PackUnconsumable(f"no accepted record envelope for record class: {record_class}")
@@ -344,7 +376,7 @@ def _resolve_records(
             raise PackUnconsumable(f"resolved record does not identify as the requested record: {record_class}")
         if record.get(state_field) != active_state:
             raise PackUnconsumable(f"resolved record is not active: {record_class}")
-        resolved[record_class] = record
+        resolved[record_class] = resolution
     return resolved
 
 
@@ -358,7 +390,7 @@ def _require_registered_object(record: Mapping[str, object], pack: Mapping[str, 
 
 
 def _require_accepted_requirement(
-    resolved: Mapping[str, Mapping[str, object]],
+    resolved: Mapping[str, ExternalRecordResolution],
     pack: Mapping[str, object],
     evaluation_time: datetime,
 ) -> None:
@@ -373,12 +405,14 @@ def _require_accepted_requirement(
         PackUnconsumable: If the reference is not the accepted requirement, or the producer relationship
             names a different producer, has lapsed, or no longer meets the accepted independence floor.
     """
-    record = _require_key(resolved, "accepted_assurance_requirement", "resolved external records")
+    resolution = _require_key(resolved, "accepted_assurance_requirement", "resolved external records")
+    record = resolution
     reference = pack["assurance_requirement_reference"]
     if (
         record.get("assurance_requirement_id") != reference["assurance_requirement_id"]  # type: ignore[index]
+        or resolution.revision != reference["revision"]  # type: ignore[index]
         or record.get("revision") != reference["revision"]  # type: ignore[index]
-        or record.get("content_sha256") != reference["acceptance_record_sha256"]  # type: ignore[index]
+        or resolution.canonical_sha256 != reference["acceptance_record_sha256"]  # type: ignore[index]
     ):
         raise PackUnconsumable("candidate requirement reference is not the accepted assurance requirement")
     if record.get("prospective_producer_actor_id") != pack["producer_actor_id"]:

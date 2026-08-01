@@ -14,7 +14,8 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,11 +25,15 @@ from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
+from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ConflictError, IntegrityError, SchemaError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
+from research_system.ids import validate_id
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.identity import load_store_manifest, manifest_schema_root, verify_store_identity
 from research_system.store.layout import require_control_root_disjoint_from_code_roots
+from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 
 
@@ -144,6 +149,37 @@ _RECORD_ENVELOPE: Mapping[str, tuple[str, str, str]] = {
     "registered_pack_object": ("assurance_pack_id", "registration_state", "active"),
 }
 
+# The public semantic identity remains the exact class-specific typed id.  These
+# are field-scoped ObjectStore kinds, not alternate public ids: two classes may
+# share a prefix only because their storage fields are distinct.
+_RECORD_STORAGE_KINDS: Mapping[str, str] = {record_class: record_class for record_class in _RECORD_CLASSES}
+
+# The accepted contract makes supersession immutable and every lifecycle field
+# in the twelve schemas is fixed to its active/completed value.  The only
+# identities that have an initially revisable representation are the actor and
+# producer-relationship records.  Their mutable fields are intentionally a
+# closed allow-list; semantic identity, endpoints, lifecycle, and all evidence
+# fields remain immutable.  Every other class requires a new semantic id.
+_REVISABLE_RECORD_FIELDS: Mapping[str, frozenset[str]] = {
+    "canonical_actor": frozenset({"canonical_name"}),
+    "producer_relationship_evidence": frozenset({"relationship_context", "grade", "effective_at", "expires_at"}),
+}
+
+_CALLER_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
+_RFC3339_UTC = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$")
+_RELATIONSHIP_FIELD_BY_CLASS: Mapping[str, str] = {
+    "producer_relationship_evidence": "relationship_record_id",
+    "independent_contract_review": "relationship_record_id",
+    "independent_schema_review": "relationship_record_id",
+    "obligation_applicability_confirmation": "relationship_record_id",
+    "accepted_assurance_requirement": "scope_relationship_record_id",
+    "independent_pack_review": "relationship_record_id",
+}
+_PUBLICATION_POLICY_ACTION = "publish_external_assurance_record"
+_PUBLICATION_POLICY_ACTION_SCHEMA_ID = "ars://core/policy-action/PublishExternalAssuranceRecord"
+_PUBLICATION_POLICY_ACTION_SCHEMA_VERSION = "1.0.0"
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
 _TYPED_ID = re.compile(r"^[a-z]{3,4}_(?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$")
 
 
@@ -153,13 +189,21 @@ def git_blob_id(data: bytes) -> str:
     return hashlib.sha1(b"blob %d\0" % len(data) + data, usedforsecurity=False).hexdigest()
 
 
-def storage_object_id(record_id: str) -> str:
-    """Map a typed record identity to the registered ``assurance_record`` kind.
+def storage_object_kind(record_class: str) -> str:
+    """Return the field-scoped ObjectStore kind for one exact record class."""
 
-    The accepted record schemas intentionally retain their own identity prefixes
-    (``act_``, ``rel_``, ``agr_``, and so on), while the object-store registry has
-    one envelope kind with the ``arec_`` prefix.  The UUID suffix is preserved,
-    making this a deterministic storage address rather than a generated alias.
+    try:
+        return _RECORD_STORAGE_KINDS[record_class]
+    except KeyError as exc:
+        raise SchemaError(f"unknown external record class: {record_class}") from exc
+
+
+def storage_object_id(record_id: str, record_class: str | None = None) -> str:
+    """Validate and return the full semantic id without a lossy alias rewrite.
+
+    ``record_class`` is required at production seams so the id prefix is checked
+    against the class-specific kind.  The optional form is retained only for
+    low-level callers that need generic typed-id validation.
     """
 
     if not isinstance(record_id, str):
@@ -167,7 +211,19 @@ def storage_object_id(record_id: str) -> str:
     match = _TYPED_ID.fullmatch(record_id)
     if match is None:
         raise SchemaError("record identity must be a version-7 typed id")
-    return f"arec_{match.group('uuid')}"
+    if record_class is not None:
+        storage_object_kind(record_class)
+        try:
+            validate_id(record_id, record_class)
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise SchemaError(f"record identity prefix does not match class: {record_class}") from exc
+    return record_id
+
+
+def storage_object_key(record_class: str, record_id: str) -> tuple[str, str]:
+    """Return the exact class-kind and full semantic-id storage key."""
+
+    return storage_object_kind(record_class), storage_object_id(record_id, record_class)
 
 
 def load_complete_revision_history(
@@ -414,10 +470,66 @@ class ExternalAssuranceRecordReceipt:
     schema_version: str
     schema_git_blob: str
     schema_canonical_sha256: str
+    caller_actor_id: str | None = None
+    authority_grant_id: str | None = None
+    record_action: str | None = None
+    publication_context_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class ExternalRecordPublicationContext:
+    """Attributed caller/session context required at the governed write seam.
+
+    This is an attribution and authority-binding value, not provider or OAuth
+    authentication.  Its exact fields are carried into the writer lock and are
+    compared with the record request before any authority resolution or CAS.
+    """
+
+    caller_actor_id: str
+    caller_actor_class: str
+    authority_grant_id: str
+    record_action: str
+    record_class: str
+    record_id: str
+    revision: int
+    expected_previous_revision: int
+    project_id: str
+    store_identity: str
+    authority_root: str
+    canonical_sha256: str
+    task_id: str
+    session_id: str
+    relationship_record_id: str | None
+    required_risk: str
+    occurred_at: str
+
+
+@dataclass(frozen=True)
+class ExternalRecordResolution(Mapping[str, object]):
+    """A persisted record body plus trusted storage revision and digest."""
+
+    record_class: str
+    record_id: str
+    revision: int
+    canonical_sha256: str
+    record: Mapping[str, object]
+
+    @property
+    def body(self) -> Mapping[str, object]:
+        return self.record
+
+    def __getitem__(self, key: str) -> object:
+        return self.record[key]
+
+    def __iter__(self):
+        return iter(self.record)
+
+    def __len__(self) -> int:
+        return len(self.record)
 
 
 class ExternalAssuranceRecordStore:
-    """Write schema-valid, externally bound assurance records with CAS."""
+    """Write schema-valid external records through an authority-bound CAS seam."""
 
     def __init__(self, binding: ControlBinding) -> None:
         if not isinstance(binding, ControlBinding):
@@ -437,9 +549,16 @@ class ExternalAssuranceRecordStore:
         self.binding = binding
         self.catalogue = ExternalRecordSchemaCatalogue(binding.schema_root)
         self.objects = ObjectStore(control_root)
+        self._authority_schemas: SchemaRegistry | None = None
+        self._authority_resolver: LedgerAuthorityGrantResolver | None = None
 
     def _receipt(
-        self, row: ExternalRecordSchemaRow, record_id: str, revision: int, record: Mapping[str, Any]
+        self,
+        row: ExternalRecordSchemaRow,
+        record_id: str,
+        revision: int,
+        record: Mapping[str, Any],
+        publication_context: ExternalRecordPublicationContext | None = None,
     ) -> ExternalAssuranceRecordReceipt:
         return ExternalAssuranceRecordReceipt(
             record_class=row.record_class,
@@ -450,36 +569,16 @@ class ExternalAssuranceRecordStore:
             schema_version=row.schema_version,
             schema_git_blob=row.schema_git_blob,
             schema_canonical_sha256=row.schema_canonical_sha256,
+            caller_actor_id=None if publication_context is None else publication_context.caller_actor_id,
+            authority_grant_id=None if publication_context is None else publication_context.authority_grant_id,
+            record_action=None if publication_context is None else publication_context.record_action,
+            publication_context_sha256=(
+                None if publication_context is None else sha256_hex(canonical_bytes(asdict(publication_context)))
+            ),
         )
 
-    def _validated_history(
-        self,
-        *,
-        record_class: str,
-        record_id: str,
-        object_id: str,
-    ) -> dict[int, Any]:
-        row = self.catalogue.row(record_class)
-        history = load_complete_revision_history(self.objects, EXTERNAL_RECORD_KIND, object_id)
-        for existing in history.values():
-            if (
-                not isinstance(existing, Mapping)
-                or existing.get("record_type") != row.record_type
-                or existing.get(row.identity_field) != record_id
-            ):
-                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
-            self.catalogue.validate(record_class, record_id, existing)
-        return history
-
-    def write(
-        self,
-        *,
-        record_class: str,
-        record_id: str,
-        revision: int,
-        expected_previous_revision: int,
-        record: Mapping[str, Any],
-    ) -> ExternalAssuranceRecordReceipt:
+    @staticmethod
+    def _validate_revision_numbers(revision: int, expected_previous_revision: int) -> None:
         if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
             raise ConflictError("record revision must be positive")
         if (
@@ -490,17 +589,337 @@ class ExternalAssuranceRecordStore:
             raise ConflictError("expected previous revision must be non-negative")
         if revision != expected_previous_revision + 1:
             raise ConflictError("record revision must be the expected previous revision plus one")
+
+    @staticmethod
+    def _validate_context_id(value: object, kind: str, label: str) -> str:
+        try:
+            return validate_id(str(value), kind)
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise SchemaError(f"publication context {label} is not a valid {kind} id") from exc
+
+    def _validate_publication_context(
+        self,
+        *,
+        context: ExternalRecordPublicationContext,
+        record_class: str,
+        record_id: str,
+        revision: int,
+        expected_previous_revision: int,
+        record: Mapping[str, Any],
+    ) -> None:
+        if not isinstance(context, ExternalRecordPublicationContext):
+            raise SchemaError("external record publication context is required")
+        if (
+            context.record_class != record_class
+            or context.record_id != record_id
+            or context.revision != revision
+            or context.expected_previous_revision != expected_previous_revision
+        ):
+            raise SchemaError("publication context does not bind class, full semantic id, or revision")
+        expected_action = "create" if revision == 1 and expected_previous_revision == 0 else "revise"
+        if context.record_action != expected_action:
+            raise SchemaError("publication context record action does not match revision")
+        if context.project_id != self.binding.project_id:
+            raise SchemaError("publication context project does not match the bound project")
+        if context.store_identity != self.binding.store_identity:
+            raise SchemaError("publication context store identity does not match the bound store")
+        if not _SHA256.fullmatch(context.canonical_sha256):
+            raise SchemaError("publication context canonical body hash is not a lowercase SHA-256")
+        if context.canonical_sha256 != sha256_hex(canonical_bytes(record)):
+            raise SchemaError("publication context canonical body hash does not match the record")
+        self._validate_context_id(context.caller_actor_id, "actor", "caller actor")
+        if context.caller_actor_class not in _CALLER_ACTOR_CLASSES:
+            raise SchemaError("publication context caller actor class is not accepted")
+        self._validate_context_id(context.authority_grant_id, "authority_grant", "authority grant")
+        self._validate_context_id(context.authority_root, "authority_grant", "authority root")
+        self._validate_context_id(context.task_id, "task", "task")
+        self._validate_context_id(context.session_id, "context", "session")
+        if context.relationship_record_id is not None:
+            self._validate_context_id(
+                context.relationship_record_id,
+                "producer_relationship_evidence",
+                "relationship",
+            )
+        if context.required_risk not in {"R0", "R1", "R2", "R3"}:
+            raise SchemaError("publication context risk must be R0 through R3")
+        if _RFC3339_UTC.fullmatch(context.occurred_at) is None:
+            raise SchemaError("publication context occurred_at must be strict RFC3339 UTC")
+        try:
+            occurred_at = datetime.fromisoformat(context.occurred_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise SchemaError("publication context occurred_at is not a valid timestamp") from exc
+        if occurred_at.tzinfo != timezone.utc:
+            raise SchemaError("publication context occurred_at must be UTC")
+        storage_object_key(record_class, record_id)
+
+        relationship_field = _RELATIONSHIP_FIELD_BY_CLASS.get(record_class)
+        if relationship_field is None:
+            if context.relationship_record_id is not None:
+                raise SchemaError("publication context relationship is not valid for this record class")
+        elif context.relationship_record_id != record.get(relationship_field):
+            raise SchemaError("publication context relationship does not match the record")
+
+        caller_id = context.caller_actor_id
+        if record_class == "canonical_actor":
+            if record.get("actor_id") != caller_id:
+                raise SchemaError("caller/body actor identity mismatch")
+        elif record_class == "producer_relationship_evidence":
+            subject = record.get("subject_actor_id")
+            object_actor = record.get("object_actor_id")
+            if subject == object_actor == caller_id:
+                raise SchemaError("relationship self-attestation is prohibited")
+            if caller_id not in {subject, object_actor}:
+                raise SchemaError("caller/body relationship actor mismatch")
+        elif record_class == "contract_schema_authorship":
+            if record.get("author_actor_id") != caller_id:
+                raise SchemaError("caller/body author identity mismatch")
+        elif record_class in {"independent_contract_review", "independent_schema_review"}:
+            if record.get("reviewer_actor_id") != caller_id:
+                raise SchemaError("caller/body reviewer identity mismatch")
+            if record.get("reviewer_actor_id") == record.get("author_actor_id"):
+                raise SchemaError("review self-attestation is prohibited")
+        elif record_class == "stephen_contract_schema_acceptance":
+            if record.get("acceptor_actor_id") != caller_id:
+                raise SchemaError("caller/body owner identity mismatch")
+        elif record_class == "obligation_applicability_confirmation":
+            if record.get("confirming_actor_id") != caller_id:
+                raise SchemaError("caller/body confirmer identity mismatch")
+            if caller_id in {
+                record.get("decision_author_actor_id"),
+                record.get("prospective_producer_actor_id"),
+            }:
+                raise SchemaError("applicability self-attestation is prohibited")
+        elif record_class == "accepted_assurance_requirement":
+            if record.get("acceptor_actor_id") != caller_id:
+                raise SchemaError("caller/body acceptor identity mismatch")
+            if caller_id in {
+                record.get("requirement_author_actor_id"),
+                record.get("scope_reviewer_actor_id"),
+                record.get("prospective_producer_actor_id"),
+            }:
+                raise SchemaError("requirement self-attestation is prohibited")
+        elif record_class == "independent_pack_review":
+            if record.get("reviewer_actor_id") != caller_id:
+                raise SchemaError("caller/body reviewer identity mismatch")
+            if caller_id == record.get("producer_actor_id"):
+                raise SchemaError("pack review self-attestation is prohibited")
+        elif record_class == "stephen_owner_acceptance":
+            if record.get("acceptor_actor_id") != caller_id:
+                raise SchemaError("caller/body owner identity mismatch")
+            if record.get("authority_grant_id") != context.authority_grant_id:
+                raise SchemaError("publication context authority grant does not match owner evidence")
+        elif record_class == "active_authority_grant":
+            if record.get("actor_id") != caller_id or record.get("authority_grant_id") != context.authority_grant_id:
+                raise SchemaError("caller/body authority-grant identity mismatch")
+
+    @staticmethod
+    def _publication_action_payload(context: ExternalRecordPublicationContext) -> dict[str, Any]:
+        return {
+            "schema_id": _PUBLICATION_POLICY_ACTION_SCHEMA_ID,
+            "schema_version": _PUBLICATION_POLICY_ACTION_SCHEMA_VERSION,
+            "policy_action_type": _PUBLICATION_POLICY_ACTION,
+            "project_id": context.project_id,
+            "actor_id": context.caller_actor_id,
+            "actor_class": context.caller_actor_class,
+            "authority_grant_id": context.authority_grant_id,
+            "subject_scope": {
+                "kind": "external_assurance_record",
+                "id": context.record_id,
+            },
+            "record_class": context.record_class,
+            "record_id": context.record_id,
+            "record_action": context.record_action,
+            "revision": context.revision,
+            "expected_previous_revision": context.expected_previous_revision,
+            "store_identity": context.store_identity,
+            "authority_root": context.authority_root,
+            "task_id": context.task_id,
+            "session_id": context.session_id,
+            "relationship_record_id": context.relationship_record_id,
+            "required_risk": context.required_risk,
+            "canonical_sha256": context.canonical_sha256,
+            "occurred_at": context.occurred_at,
+        }
+
+    def _validated_history(
+        self,
+        *,
+        record_class: str,
+        record_id: str,
+        object_id: str,
+    ) -> dict[int, Any]:
+        row = self.catalogue.row(record_class)
+        kind = storage_object_kind(record_class)
+        history = load_complete_revision_history(self.objects, kind, object_id)
+        for existing in history.values():
+            if (
+                not isinstance(existing, Mapping)
+                or existing.get("record_type") != row.record_type
+                or existing.get(row.identity_field) != record_id
+            ):
+                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
+            self.catalogue.validate(record_class, record_id, existing)
+        return history
+
+    def _check_revision_policy(
+        self,
+        *,
+        record_class: str,
+        record: Mapping[str, Any],
+        history: Mapping[int, Any],
+        revision: int,
+        expected_previous_revision: int,
+    ) -> None:
+        if revision <= 1:
+            return
+        allowed = _REVISABLE_RECORD_FIELDS.get(record_class)
+        if allowed is None:
+            raise ConflictError(
+                f"record class {record_class} is immutable after revision 1; create a new semantic identity"
+            )
+        previous = history.get(expected_previous_revision)
+        if not isinstance(previous, Mapping):
+            return
+        immutable_fields = set(previous) | set(record)
+        immutable_fields.difference_update(allowed)
+        changed = sorted(field for field in immutable_fields if previous.get(field) != record.get(field))
+        if changed:
+            raise ConflictError(
+                f"record revision changes closed immutable fields for {record_class}: {', '.join(changed)}"
+            )
+
+    def _write_storage(
+        self,
+        *,
+        record_class: str,
+        record_id: str,
+        revision: int,
+        expected_previous_revision: int,
+        record: Mapping[str, Any],
+        publication_context: ExternalRecordPublicationContext | None = None,
+    ) -> ExternalAssuranceRecordReceipt:
+        """Apply the schema/CAS substrate after governance has been resolved.
+
+        This deliberately private seam is used by resolver/storage contract tests
+        and by the future accepted authority resolver.  The public ``write``
+        method never reaches it until current publication authority is resolved.
+        """
+
+        self._validate_revision_numbers(revision, expected_previous_revision)
         row = self.catalogue.validate(record_class, record_id, record)
-        object_id = storage_object_id(record_id)
+        kind, object_id = storage_object_key(record_class, record_id)
         history = self._validated_history(record_class=record_class, record_id=record_id, object_id=object_id)
         latest = max(history) if history else None
         observed = 0 if latest is None else latest
+        self._check_revision_policy(
+            record_class=record_class,
+            record=record,
+            history=history,
+            revision=revision,
+            expected_previous_revision=expected_previous_revision,
+        )
         if latest == revision:
             existing = history[revision]
             if existing == dict(record):
-                return self._receipt(row, record_id, revision, record)
+                return self._receipt(row, record_id, revision, record, publication_context)
             raise ConflictError("object revision already exists with different content")
         if observed != expected_previous_revision:
             raise ConflictError(f"expected previous revision {expected_previous_revision}, observed {observed}")
-        self.objects.write(EXTERNAL_RECORD_KIND, object_id, revision, dict(record))
-        return self._receipt(row, record_id, revision, record)
+        self.objects.write(kind, object_id, revision, dict(record))
+        return self._receipt(row, record_id, revision, record, publication_context)
+
+    def _resolve_current_publication_authority(
+        self,
+        context: ExternalRecordPublicationContext,
+    ) -> None:
+        """Resolve the exact publication action from replayed authority in-lock."""
+
+        if self._authority_schemas is None or self._authority_resolver is None:
+            self._authority_schemas = runtime_schema_registry(self.binding.schema_root)
+            self._authority_resolver = LedgerAuthorityGrantResolver(
+                self.binding.control_root,
+                self.binding.project_id,
+                self.binding.store_identity,
+                self._authority_schemas,
+            )
+        action = self._publication_action_payload(context)
+        self._authority_schemas.validate_active(
+            _PUBLICATION_POLICY_ACTION_SCHEMA_ID,
+            action,
+            schema_version=_PUBLICATION_POLICY_ACTION_SCHEMA_VERSION,
+        )
+        administration = self._authority_resolver.administration_context()
+        if (
+            administration.project_id != self.binding.project_id
+            or administration.store_identity != self.binding.store_identity
+            or context.authority_root != administration.root_grant_id
+        ):
+            raise ArsError("publication authority root or store binding mismatch")
+        policy = self._authority_schemas.resolve_identity(
+            _PUBLICATION_POLICY_ACTION_SCHEMA_ID,
+            _PUBLICATION_POLICY_ACTION_SCHEMA_VERSION,
+        )
+        occurred_at = datetime.fromisoformat(context.occurred_at.replace("Z", "+00:00"))
+        self._authority_resolver.resolve_policy_action(
+            context.authority_grant_id,
+            context.caller_actor_id,
+            context.caller_actor_class,
+            GrantedPolicyActionIdentity(
+                _PUBLICATION_POLICY_ACTION,
+                policy.schema_id,
+                policy.schema_version,
+                policy.sha256,
+            ),
+            context.required_risk,
+            context.project_id,
+            "external_assurance_record",
+            context.record_id,
+            occurred_at,
+        )
+
+    def write(
+        self,
+        *,
+        record_class: str,
+        record_id: str,
+        revision: int,
+        expected_previous_revision: int,
+        record: Mapping[str, Any],
+        publication_context: ExternalRecordPublicationContext | None = None,
+    ) -> ExternalAssuranceRecordReceipt:
+        """Validate attribution, lock, re-resolve authority, then publish by CAS."""
+
+        if publication_context is None:
+            raise SchemaError("external record publication context is required")
+        self._validate_revision_numbers(revision, expected_previous_revision)
+        self.catalogue.validate(record_class, record_id, record)
+        self._validate_publication_context(
+            context=publication_context,
+            record_class=record_class,
+            record_id=record_id,
+            revision=revision,
+            expected_previous_revision=expected_previous_revision,
+            record=record,
+        )
+        with WriterLock(
+            self.binding.control_root / "runtime" / "writer.lock",
+            {
+                "operation": "external_record_publication",
+                "record_class": record_class,
+                "record_id": record_id,
+                "revision": str(revision),
+                "session_id": publication_context.session_id,
+                "record_action": publication_context.record_action,
+                "authority_grant_id": publication_context.authority_grant_id,
+                "canonical_sha256": publication_context.canonical_sha256,
+            },
+        ):
+            self._resolve_current_publication_authority(publication_context)
+            return self._write_storage(
+                record_class=record_class,
+                record_id=record_id,
+                revision=revision,
+                expected_previous_revision=expected_previous_revision,
+                record=record,
+                publication_context=publication_context,
+            )
