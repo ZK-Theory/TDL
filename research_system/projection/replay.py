@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import SCOPED_AUTHORITY_ADMISSION_VERSION
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_scope,
@@ -30,6 +31,22 @@ _ALLOWED_DISPOSITIONS = frozenset(
     }
 )
 
+_SCOPED_AUTHORITY_GRANT_SCHEMA = "ars://core/scoped-authority-grant"
+_SCOPED_AUTHORITY_GRANT_VERSION = "2.0.0"
+
+
+def _reject_legacy_revocation_of_typed_grant(
+    current: dict[str, Any],
+) -> None:
+    if "schema_id" not in current and "schema_version" not in current:
+        return
+    if (
+        current.get("schema_id") == _SCOPED_AUTHORITY_GRANT_SCHEMA
+        and current.get("schema_version") == _SCOPED_AUTHORITY_GRANT_VERSION
+    ):
+        raise IntegrityError("legacy authority revocation cannot target scoped grant")
+    raise IntegrityError("legacy authority revocation cannot target typed grant with unknown schema marker")
+
 
 def _validate_active_lifecycle_binding(
     event: dict[str, Any],
@@ -44,7 +61,10 @@ def _validate_active_lifecycle_binding(
     if schema_registry is None:
         raise IntegrityError("exact lifecycle schema registry unavailable")
     command_binding = schema_registry.command_binding(command_type)
-    event_binding = schema_registry.event_binding(event["event_type"])
+    event_binding = schema_registry.event_binding(
+        event["event_type"],
+        command_type,
+    )
     if (
         command_binding is None
         or event_binding is None
@@ -85,7 +105,10 @@ def _validate_recorded_event_schema(
     recorded_version = str(event.get("schema_version", ""))
     if recorded_schema == "ars://core/event":
         return
-    event_binding = schema_registry.event_binding(str(event.get("event_type", "")))
+    event_binding = schema_registry.event_binding(
+        str(event.get("event_type", "")),
+        str(event.get("command_type", "")),
+    )
     if event_binding is not None:
         if (recorded_schema, recorded_version) != (
             event_binding.schema_id,
@@ -196,6 +219,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "revocation_position": None,
         }
         updated["authority_root_id"] = stream_id
+        updated["authority_owner_actor_id"] = event["actor_id"]
         updated["bootstrap_manifest_sha256"] = payload["bootstrap_manifest_sha256"]
         updated["_authority_genesis_envelope"] = {
             field: event.get(field)
@@ -212,75 +236,210 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         }
     elif event_type == "AuthorityGrantActivated":
         payload = event["payload"]
-        if set(payload) != {
-            "authorizing_grant_id",
-            "authorizing_grant_sha256",
-            "activated_grant_id",
-            "activated_grant_sha256",
-        }:
-            raise IntegrityError("authority activation payload fields must be exact")
         grants = updated.setdefault("authority_grants", {})
         root_id = updated.get("authority_root_id")
-        if (
-            event.get("global_position") != 2
-            or event.get("transaction_index") != 2
-            or event.get("transaction_count") != 2
-        ):
-            raise IntegrityError("publication grant must be genesis index 2/2")
-        genesis_envelope = updated.pop("_authority_genesis_envelope", None)
-        if (
-            event.get("schema_id") != "ars://core/event/AuthorityGrantActivated"
-            or not isinstance(genesis_envelope, dict)
-            or any(event.get(field) != expected for field, expected in genesis_envelope.items())
-        ):
-            raise IntegrityError("authority genesis envelope binding mismatch")
-        if payload.get("authorizing_grant_id") != root_id or payload.get("authorizing_grant_sha256") != grants.get(
-            root_id, {}
-        ).get("authority_grant_sha256"):
-            raise IntegrityError("publication activation authority mismatch")
-        if payload.get("activated_grant_id") != stream_id or stream_id in grants:
-            raise IntegrityError("publication activation stream mismatch or duplicate")
-        grants[stream_id] = {
-            "authority_grant_id": stream_id,
-            "authority_grant_sha256": payload["activated_grant_sha256"],
-            "status": "active",
-            "activation_event_id": event["event_id"],
-            "activation_position": event["global_position"],
-            "revocation_event_id": None,
-            "revocation_position": None,
-        }
+        if event.get("command_type") == "InitializeAuthorityRoot":
+            if set(payload) != {
+                "authorizing_grant_id",
+                "authorizing_grant_sha256",
+                "activated_grant_id",
+                "activated_grant_sha256",
+            }:
+                raise IntegrityError("authority activation payload fields must be exact")
+            if (
+                event.get("global_position") != 2
+                or event.get("transaction_index") != 2
+                or event.get("transaction_count") != 2
+            ):
+                raise IntegrityError("publication grant must be genesis index 2/2")
+            genesis_envelope = updated.pop("_authority_genesis_envelope", None)
+            if (
+                event.get("schema_id") != "ars://core/event/AuthorityGrantActivated"
+                or not isinstance(genesis_envelope, dict)
+                or any(event.get(field) != expected for field, expected in genesis_envelope.items())
+            ):
+                raise IntegrityError("authority genesis envelope binding mismatch")
+            if payload.get("authorizing_grant_id") != root_id or payload.get("authorizing_grant_sha256") != grants.get(
+                root_id, {}
+            ).get("authority_grant_sha256"):
+                raise IntegrityError("publication activation authority mismatch")
+            if payload.get("activated_grant_id") != stream_id or stream_id in grants:
+                raise IntegrityError("publication activation stream mismatch or duplicate")
+            grants[stream_id] = {
+                "authority_grant_id": stream_id,
+                "authority_grant_sha256": payload["activated_grant_sha256"],
+                "status": "active",
+                "activation_event_id": event["event_id"],
+                "activation_position": event["global_position"],
+                "revocation_event_id": None,
+                "revocation_position": None,
+            }
+        elif event.get("command_type") == "ActivateAuthorityGrant":
+            expected_fields = {
+                "authority_admission_version",
+                "project_id",
+                "bootstrap_manifest_sha256",
+                "root_grant_id",
+                "root_grant_sha256",
+                "administration_decision_id",
+                "administration_decision_sha256",
+                "activated_grant_id",
+                "activated_grant_sha256",
+                "activated_grant_schema_id",
+                "activated_grant_schema_version",
+                "activated_grant_schema_sha256",
+                "subject_scope",
+                "effective_at",
+                "expires_at",
+            }
+            if set(payload) != expected_fields:
+                raise IntegrityError("scoped authority activation fields must be exact")
+            root_record = grants.get(root_id, {})
+            decisions = updated.setdefault("authority_administration_decisions", {})
+            decision_id = payload.get("administration_decision_id")
+            if (
+                event.get("schema_id") != "ars://core/event/ScopedAuthorityGrantActivated"
+                or event.get("transaction_index") != 1
+                or event.get("transaction_count") != 1
+                or event.get("authority_grant_id") != root_id
+                or event.get("actor_id") != updated.get("authority_owner_actor_id")
+                or payload.get("authority_admission_version") != SCOPED_AUTHORITY_ADMISSION_VERSION
+                or payload.get("project_id") != updated.get("project_id")
+                or payload.get("bootstrap_manifest_sha256") != updated.get("bootstrap_manifest_sha256")
+                or payload.get("root_grant_id") != root_id
+                or payload.get("root_grant_sha256") != root_record.get("authority_grant_sha256")
+                or root_record.get("status") != "active"
+                or payload.get("activated_grant_id") != stream_id
+                or stream_id in grants
+                or payload.get("activated_grant_schema_id") != "ars://core/scoped-authority-grant"
+                or payload.get("activated_grant_schema_version") != "2.0.0"
+                or not isinstance(decision_id, str)
+                or decision_id in decisions
+            ):
+                raise IntegrityError("scoped authority activation binding mismatch")
+            grants[stream_id] = {
+                "authority_grant_id": stream_id,
+                "authority_grant_sha256": payload["activated_grant_sha256"],
+                "schema_id": payload["activated_grant_schema_id"],
+                "schema_version": payload["activated_grant_schema_version"],
+                "schema_sha256": payload["activated_grant_schema_sha256"],
+                "subject_scope": payload["subject_scope"],
+                "effective_at": payload["effective_at"],
+                "expires_at": payload["expires_at"],
+                "administration_decision_id": decision_id,
+                "administration_decision_sha256": payload["administration_decision_sha256"],
+                "status": "active",
+                "activation_event_id": event["event_id"],
+                "activation_position": event["global_position"],
+                "revocation_event_id": None,
+                "revocation_position": None,
+            }
+            decisions[decision_id] = {
+                "action": "activate_authority_grant",
+                "target_grant_id": stream_id,
+                "administration_decision_sha256": payload["administration_decision_sha256"],
+                "event_id": event["event_id"],
+                "position": event["global_position"],
+                "recorded_at": event["recorded_at"],
+            }
+        else:
+            raise IntegrityError("unbound authority activation producer")
     elif event_type == "AuthorityGrantRevoked":
         payload = event["payload"]
-        if set(payload) != {
-            "project_id",
-            "target_grant_id",
-            "target_grant_sha256",
-            "authorizing_grant_id",
-            "authorizing_grant_sha256",
-            "reason",
-        }:
-            raise IntegrityError("authority revocation payload fields must be exact")
         grants = updated.setdefault("authority_grants", {})
         current = grants.get(stream_id)
         root_id = updated.get("authority_root_id")
-        if payload.get("project_id") != updated.get("project_id"):
-            raise IntegrityError("authority revocation project mismatch")
-        if current is None or current["status"] != "active":
-            raise IntegrityError("authority revocation requires active grant")
-        if (
-            payload.get("target_grant_id") != stream_id
-            or payload.get("target_grant_sha256") != current["authority_grant_sha256"]
-        ):
-            raise IntegrityError("authority revocation target mismatch")
-        if payload.get("authorizing_grant_id") != root_id or payload.get("authorizing_grant_sha256") != grants.get(
-            root_id, {}
-        ).get("authority_grant_sha256"):
-            raise IntegrityError("authority revocation root mismatch")
+        if event.get("command_type") == "RevokeAuthorityGrant":
+            if set(payload) != {
+                "project_id",
+                "target_grant_id",
+                "target_grant_sha256",
+                "authorizing_grant_id",
+                "authorizing_grant_sha256",
+                "reason",
+            }:
+                raise IntegrityError("authority revocation payload fields must be exact")
+            if event.get("schema_id") != "ars://core/event":
+                raise IntegrityError("legacy authority revocation schema mismatch")
+            if payload.get("project_id") != updated.get("project_id"):
+                raise IntegrityError("authority revocation project mismatch")
+            if current is None or current["status"] != "active":
+                raise IntegrityError("authority revocation requires active grant")
+            _reject_legacy_revocation_of_typed_grant(current)
+            if (
+                payload.get("target_grant_id") != stream_id
+                or payload.get("target_grant_sha256") != current["authority_grant_sha256"]
+            ):
+                raise IntegrityError("authority revocation target mismatch")
+            if payload.get("authorizing_grant_id") != root_id or payload.get("authorizing_grant_sha256") != grants.get(
+                root_id, {}
+            ).get("authority_grant_sha256"):
+                raise IntegrityError("authority revocation root mismatch")
+        elif event.get("command_type") == "RevokeIssuedAuthorityGrant":
+            expected_fields = {
+                "authority_admission_version",
+                "project_id",
+                "bootstrap_manifest_sha256",
+                "root_grant_id",
+                "root_grant_sha256",
+                "administration_decision_id",
+                "administration_decision_sha256",
+                "target_grant_id",
+                "target_grant_sha256",
+                "target_grant_schema_id",
+                "target_grant_schema_version",
+                "target_grant_schema_sha256",
+                "reason",
+            }
+            decisions = updated.setdefault("authority_administration_decisions", {})
+            decision_id = payload.get("administration_decision_id")
+            if (
+                set(payload) != expected_fields
+                or event.get("schema_id") != "ars://core/event/IssuedAuthorityGrantRevoked"
+                or event.get("transaction_index") != 1
+                or event.get("transaction_count") != 1
+                or event.get("authority_grant_id") != root_id
+                or event.get("actor_id") != updated.get("authority_owner_actor_id")
+                or payload.get("authority_admission_version") != SCOPED_AUTHORITY_ADMISSION_VERSION
+                or payload.get("project_id") != updated.get("project_id")
+                or payload.get("bootstrap_manifest_sha256") != updated.get("bootstrap_manifest_sha256")
+                or payload.get("root_grant_id") != root_id
+                or payload.get("root_grant_sha256") != grants.get(root_id, {}).get("authority_grant_sha256")
+                or current is None
+                or current.get("status") != "active"
+                or current.get("schema_id") != "ars://core/scoped-authority-grant"
+                or payload.get("target_grant_id") != stream_id
+                or payload.get("target_grant_sha256") != current.get("authority_grant_sha256")
+                or payload.get("target_grant_schema_id") != current.get("schema_id")
+                or payload.get("target_grant_schema_version") != current.get("schema_version")
+                or payload.get("target_grant_schema_sha256") != current.get("schema_sha256")
+                or not isinstance(decision_id, str)
+                or decision_id in decisions
+            ):
+                raise IntegrityError("issued authority revocation binding mismatch")
+            decisions[decision_id] = {
+                "action": "revoke_issued_authority_grant",
+                "target_grant_id": stream_id,
+                "administration_decision_sha256": payload["administration_decision_sha256"],
+                "event_id": event["event_id"],
+                "position": event["global_position"],
+                "recorded_at": event["recorded_at"],
+            }
+        else:
+            raise IntegrityError("unbound authority revocation producer")
         grants[stream_id] = {
             **current,
             "status": "revoked",
             "revocation_event_id": event["event_id"],
             "revocation_position": event["global_position"],
+            **(
+                {
+                    "revocation_administration_decision_id": decision_id,
+                    "revocation_administration_decision_sha256": payload["administration_decision_sha256"],
+                }
+                if event.get("command_type") == "RevokeIssuedAuthorityGrant"
+                else {}
+            ),
         }
     elif event_type in {"TaskCreated", "TaskAmended", "TaskSuperseded"}:
         validate_task_lifecycle_event(streams, event)
@@ -435,6 +594,7 @@ def replay(
     supported_major: int = 1,
     schema_registry: SchemaRegistry | None = None,
     legacy_command_provenance_through_position: int = 0,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     if legacy_command_provenance_through_position < 0:
         raise ValueError("legacy command provenance position must be non-negative")
@@ -545,6 +705,10 @@ def replay(
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:
         raise IntegrityError("incomplete event transaction")
+    if state.get("authority_administration_decisions"):
+        if authority_state_validator is None:
+            raise IntegrityError("authority administration decision validator unavailable")
+        authority_state_validator(state)
     return state
 
 
@@ -552,8 +716,13 @@ def rebuild_projection(
     events: Iterable[dict[str, Any]],
     output: Path,
     schema_registry: SchemaRegistry | None = None,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    state = replay(events, schema_registry=schema_registry)
+    state = replay(
+        events,
+        schema_registry=schema_registry,
+        authority_state_validator=authority_state_validator,
+    )
     data = canonical_bytes(state) + b"\n"
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.tmp")

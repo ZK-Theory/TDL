@@ -1058,7 +1058,11 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
         snapshot = service.ledger.snapshot()
         from research_system.projection.replay import replay
 
-        replay(snapshot.events, schema_registry=service.schemas)
+        replay(
+            snapshot.events,
+            schema_registry=service.schemas,
+            authority_state_validator=service._authority_state_validator(),
+        )
         batches: dict[str, list[dict[str, Any]]] = {}
         for event in snapshot.events:
             if str(event.get("schema_id", "")).startswith("ars://wp6-2/t2/event/"):

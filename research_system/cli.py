@@ -169,18 +169,37 @@ def _command_submit(args: argparse.Namespace) -> int:
     return 0
 
 
-def _verified_ledger(control_root: Path) -> tuple[EventLedger, SchemaRegistry]:
+def _verified_ledger(
+    control_root: Path,
+) -> tuple[
+    EventLedger,
+    SchemaRegistry,
+    LedgerAuthorityGrantResolver,
+]:
     manifest = load_store_manifest(control_root)
     schemas = _schemas_for_store_manifest(manifest)
+    resolved_root = control_root.resolve(strict=True)
     return (
-        EventLedger(control_root.resolve(strict=True), manifest["project_id"], schemas),
+        EventLedger(resolved_root, manifest["project_id"], schemas),
         schemas,
+        LedgerAuthorityGrantResolver(
+            resolved_root,
+            manifest["project_id"],
+            manifest["store_identity"],
+            schemas,
+        ),
     )
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
-    ledger, schemas = _verified_ledger(args.control_root)
-    _print_json(replay(ledger.iter_events(), schema_registry=schemas))
+    ledger, schemas, resolver = _verified_ledger(args.control_root)
+    _print_json(
+        replay(
+            ledger.iter_events(),
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+    )
     return 0
 
 
@@ -195,10 +214,17 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
         raise ArsError("projection output must use an ARS namespaced projection root")
     schemas = _schemas_for_store_manifest(manifest)
     ledger = EventLedger(control_root, manifest["project_id"], schemas)
+    resolver = LedgerAuthorityGrantResolver(
+        control_root,
+        manifest["project_id"],
+        manifest["store_identity"],
+        schemas,
+    )
     state = rebuild_projection(
         ledger.iter_events(),
         output,
         schemas,
+        resolver.validate_replayed_administration_state,
     )
     _print_json(state)
     return 0
@@ -343,9 +369,16 @@ def _publication_evidence(
     source: dict[str, Any],
 ) -> tuple[StoredReleasePublicationEvidence, str, str]:
     schemas = runtime_schema_registry(binding.schema_root)
+    resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+    )
     existing_projection = replay(
         EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
         schema_registry=schemas,
+        authority_state_validator=resolver.validate_replayed_administration_state,
     )
     existing = existing_projection.get("release_decisions", {}).get(source["release_gate_decision_id"])
     if isinstance(existing, dict):
@@ -535,9 +568,16 @@ def _eval_release(args: argparse.Namespace) -> int:
     if supplied_document.get("canonical_event_ref") == "unpublished:p0":
         raise ArsError("eval release requires a canonical published event reference")
     ledger = EventLedger(binding.control_root, binding.project_id, schema_registry)
+    authority_resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schema_registry,
+    )
     projection = replay(
         ledger.iter_events(),
         schema_registry=schema_registry,
+        authority_state_validator=authority_resolver.validate_replayed_administration_state,
     )
     decision_id = supplied_document["release_gate_decision_id"]
     projected = projection.get("release_decisions", {}).get(decision_id)

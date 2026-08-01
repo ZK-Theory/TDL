@@ -303,6 +303,14 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "CreateTask": ("ars://core/command/CreateTask", "1.0.0"),
         "AmendTask": ("ars://core/command/AmendTask", "1.0.0"),
         "SupersedeTask": ("ars://core/command/SupersedeTask", "1.0.0"),
+        "ActivateAuthorityGrant": (
+            "ars://core/command/ActivateAuthorityGrant",
+            "1.0.0",
+        ),
+        "RevokeIssuedAuthorityGrant": (
+            "ars://core/command/RevokeIssuedAuthorityGrant",
+            "1.0.0",
+        ),
         "IssueCostGrant": ("ars://wp6-2/t2/command/IssueCostGrant", "1.0.0"),
         "AuthorizeProviderIssue": ("ars://wp6-2/t2/command/AuthorizeProviderIssue", "1.0.0"),
         "RecordProviderReceipt": ("ars://wp6-2/t2/command/RecordProviderReceipt", "1.0.0"),
@@ -355,6 +363,40 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
     assert observed_events == expected_events
     assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
     assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
+    assert registry.event_binding(
+        "AuthorityGrantActivated",
+        "ActivateAuthorityGrant",
+    ) == SchemaBinding(
+        "ars://core/event/ScopedAuthorityGrantActivated",
+        "1.0.0",
+        event_type="AuthorityGrantActivated",
+        producer_command_type="ActivateAuthorityGrant",
+    )
+    assert registry.event_binding(
+        "AuthorityGrantRevoked",
+        "RevokeIssuedAuthorityGrant",
+    ) == SchemaBinding(
+        "ars://core/event/IssuedAuthorityGrantRevoked",
+        "1.0.0",
+        event_type="AuthorityGrantRevoked",
+        producer_command_type="RevokeIssuedAuthorityGrant",
+    )
+    assert registry.event_binding("AuthorityGrantActivated", "WrongProducer") is None
+    assert registry.event_binding("AuthorityGrantActivated", None) is None
+    assert registry.has_producer_bindings("AuthorityGrantActivated")
+    assert registry.is_active("ars://core/scoped-authority-grant", "2.0.0")
+    assert registry.is_active(
+        "ars://core/policy-action/AcceptR3AssuranceRequirement",
+        "1.0.0",
+    )
+    assert registry.policy_action_binding(
+        "accept_r3_assurance_requirement",
+    ) == SchemaBinding(
+        "ars://core/policy-action/AcceptR3AssuranceRequirement",
+        "1.0.0",
+        policy_action_type="accept_r3_assurance_requirement",
+    )
+    assert registry.policy_action_binding("wrong_policy_action") is None
 
 
 def test_runtime_registry_reuses_one_instance_for_resolved_root_aliases():

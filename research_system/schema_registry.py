@@ -72,6 +72,8 @@ class SchemaBinding:
     schema_version: str
     command_type: str | None = None
     event_type: str | None = None
+    producer_command_type: str | None = None
+    policy_action_type: str | None = None
 
 
 _RUNTIME_BINDINGS = (
@@ -139,6 +141,41 @@ _RUNTIME_BINDINGS = (
         "ars://core/event/ReleaseGateDecisionPublished",
         "1.1.0",
         event_type="ReleaseGateDecisionPublished",
+    ),
+    SchemaBinding(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    ),
+    SchemaBinding(
+        "ars://core/owner-authority-administration-decision",
+        "1.0.0",
+    ),
+    SchemaBinding(
+        "ars://core/policy-action/AcceptR3AssuranceRequirement",
+        "1.0.0",
+        policy_action_type="accept_r3_assurance_requirement",
+    ),
+    SchemaBinding(
+        "ars://core/command/ActivateAuthorityGrant",
+        "1.0.0",
+        command_type="ActivateAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/command/RevokeIssuedAuthorityGrant",
+        "1.0.0",
+        command_type="RevokeIssuedAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScopedAuthorityGrantActivated",
+        "1.0.0",
+        event_type="AuthorityGrantActivated",
+        producer_command_type="ActivateAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/event/IssuedAuthorityGrantRevoked",
+        "1.0.0",
+        event_type="AuthorityGrantRevoked",
+        producer_command_type="RevokeIssuedAuthorityGrant",
     ),
     SchemaBinding(
         "ars://wp6-2/t2/command/IssueCostGrant",
@@ -243,17 +280,29 @@ class SchemaRegistry:
             self._schemas_by_id.setdefault(schema_id, {})[schema_version] = entry
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
-        self._event_bindings: dict[str, SchemaBinding] = {}
+        self._policy_action_bindings: dict[str, SchemaBinding] = {}
+        self._event_bindings: dict[tuple[str, str | None], SchemaBinding] = {}
+        self._producer_bound_event_types: set[str] = set()
         for binding in self._active_bindings:
             self._resolve(binding.schema_id, binding.schema_version)
+            if binding.producer_command_type is not None and binding.event_type is None:
+                raise SchemaError("producer command binding requires an event discriminator")
             if binding.command_type is not None:
                 if binding.command_type in self._command_bindings:
                     raise SchemaError(f"duplicate command binding: {binding.command_type}")
                 self._command_bindings[binding.command_type] = binding
+            if binding.policy_action_type is not None:
+                if binding.policy_action_type in self._policy_action_bindings:
+                    raise SchemaError(f"duplicate policy-action binding: {binding.policy_action_type}")
+                self._policy_action_bindings[binding.policy_action_type] = binding
             if binding.event_type is not None:
-                if binding.event_type in self._event_bindings:
-                    raise SchemaError(f"duplicate event binding: {binding.event_type}")
-                self._event_bindings[binding.event_type] = binding
+                event_key = (binding.event_type, binding.producer_command_type)
+                if event_key in self._event_bindings:
+                    producer = binding.producer_command_type or "<any>"
+                    raise SchemaError(f"duplicate event binding: {binding.event_type} from {producer}")
+                self._event_bindings[event_key] = binding
+                if binding.producer_command_type is not None:
+                    self._producer_bound_event_types.add(binding.event_type)
 
     def _resolve(
         self,
@@ -341,9 +390,29 @@ class SchemaRegistry:
         """Return the active schema selected by a trusted command discriminator."""
         return self._command_bindings.get(command_type)
 
-    def event_binding(self, event_type: str) -> SchemaBinding | None:
-        """Return the active schema selected by a trusted event discriminator."""
-        return self._event_bindings.get(event_type)
+    def policy_action_binding(
+        self,
+        policy_action_type: str,
+    ) -> SchemaBinding | None:
+        """Return the active schema selected by a trusted policy-action name."""
+        return self._policy_action_bindings.get(policy_action_type)
+
+    def event_binding(
+        self,
+        event_type: str,
+        producer_command_type: str | None = None,
+    ) -> SchemaBinding | None:
+        """Return the schema selected by event and optional producer identities."""
+        exact = self._event_bindings.get((event_type, producer_command_type))
+        if exact is not None:
+            return exact
+        if producer_command_type is not None and event_type in self._producer_bound_event_types:
+            return None
+        return self._event_bindings.get((event_type, None))
+
+    def has_producer_bindings(self, event_type: str) -> bool:
+        """Return whether an event family requires an exact producer selection."""
+        return event_type in self._producer_bound_event_types
 
     def validate_active(
         self,

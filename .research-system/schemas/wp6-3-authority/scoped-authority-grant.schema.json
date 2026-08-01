@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/scoped-authority-grant",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "authority_grant_id",
+    "actor_id",
+    "allowed_actor_classes",
+    "allowed_commands",
+    "allowed_policy_actions",
+    "subject_scope",
+    "risk_ceiling",
+    "effective_at",
+    "expires_at",
+    "delegable",
+    "revoked"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/scoped-authority-grant"},
+    "schema_version": {"const": "2.0.0"},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "allowed_actor_classes": {
+      "type": "array",
+      "items": {"enum": ["human", "agent", "service"]},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "allowed_commands": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/command_identity"},
+      "uniqueItems": true
+    },
+    "allowed_policy_actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/policy_action_identity"},
+      "uniqueItems": true
+    },
+    "subject_scope": {"$ref": "#/$defs/subject_scope"},
+    "risk_ceiling": {"enum": ["R0", "R1", "R2", "R3"]},
+    "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "delegable": {"const": false},
+    "revoked": {"const": false}
+  },
+  "anyOf": [
+    {"properties": {"allowed_commands": {"minItems": 1}}},
+    {"properties": {"allowed_policy_actions": {"minItems": 1}}}
+  ],
+  "$defs": {
+    "schema_identity": {
+      "type": "object",
+      "properties": {
+        "schema_id": {"type": "string", "pattern": "^ars://[^*\\\\]+$"},
+        "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["schema_id", "schema_version", "schema_sha256"]
+    },
+    "command_identity": {
+      "allOf": [
+        {"$ref": "#/$defs/schema_identity"},
+        {
+          "type": "object",
+          "properties": {
+            "command_type": {"type": "string", "pattern": "^(?!.*[*/\\\\])[\\x00-\\x7F]+$"}
+          },
+          "required": ["command_type"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "policy_action_identity": {
+      "allOf": [
+        {"$ref": "#/$defs/schema_identity"},
+        {
+          "type": "object",
+          "properties": {
+            "policy_action_type": {"type": "string", "pattern": "^(?!.*[*/\\\\])[\\x00-\\x7F]+$"}
+          },
+          "required": ["policy_action_type"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "subject_scope": {
+      "type": "object",
+      "required": ["project_id", "subject"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "subject": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {
+              "enum": [
+                "scope_definition",
+                "task",
+                "dispatch",
+                "lease",
+                "attempt",
+                "message",
+                "blocker",
+                "artefact",
+                "review",
+                "decision",
+                "rule_evaluation",
+                "corrected_record",
+                "resource",
+                "project_store",
+                "assurance_requirement",
+                "assurance_pack"
+              ]
+            },
+            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"kind": {"const": "assurance_requirement"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^asr_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "task"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^tsk_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "scope_definition"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^obj_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "dispatch"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^dsp_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "lease"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^els_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "attempt"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^att_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "message"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^msg_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "blocker"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^blk_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "artefact"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^art_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "review"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^rev_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "decision"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^dec_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "rule_evaluation"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^val_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "corrected_record"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr)_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "resource"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^(?:rsq|rgr|rcf)_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "project_store"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^prj_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "assurance_pack"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^asp_"}}}
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

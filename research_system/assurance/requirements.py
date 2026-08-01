@@ -6,7 +6,10 @@ from datetime import datetime
 from typing import Protocol
 
 from research_system.assurance.models import CORE_LANES, AssuranceRequirement
-from research_system.authority import LedgerAuthorityGrantResolver
+from research_system.authority import (
+    GrantedPolicyActionIdentity,
+    LedgerAuthorityGrantResolver,
+)
 from research_system.errors import ArsError, IntegrityError
 
 
@@ -43,13 +46,15 @@ class DeclaredActionsAuthorityPolicy:
 class LedgerBackedAuthorityPolicy:
     """Authority policy backed by replay-resolved authority grants.
 
-    Every answer comes from :meth:`~research_system.authority.LedgerAuthorityGrantResolver.resolve`, so an
-    expired, revoked, wrongly-scoped, or wrongly-attributed grant denies the action rather than being
-    absorbed by a mapping the caller assembled.
+    Every answer comes from
+    :meth:`~research_system.authority.LedgerAuthorityGrantResolver.resolve_policy_action`,
+    so an expired, revoked, wrongly-scoped, or wrongly-attributed grant denies
+    the action rather than being absorbed by a mapping the caller assembled.
 
     Attributes:
         resolver: Replay-backed authority grant resolver.
         grant_ids_by_actor: Grant identity each actor claims authority under.
+        policy_action: Exact active policy-action schema identity.
         project_id: Project identity of the governed subject.
         subject_kind: Registered governed subject kind.
         subject_id: Exact governed subject identity.
@@ -58,6 +63,7 @@ class LedgerBackedAuthorityPolicy:
 
     resolver: LedgerAuthorityGrantResolver
     grant_ids_by_actor: Mapping[str, str]
+    policy_action: GrantedPolicyActionIdentity
     project_id: str
     subject_kind: str
     subject_id: str
@@ -82,7 +88,7 @@ class LedgerBackedAuthorityPolicy:
 
         Args:
             actor_id: Actor whose authority is in question.
-            action: Assurance action, resolved as the grant's allowed command type.
+            action: Assurance action, resolved as the grant's allowed policy-action type.
 
         Returns:
             ``True`` only when a grant resolves for that exact actor, action, and subject scope.
@@ -92,13 +98,15 @@ class LedgerBackedAuthorityPolicy:
             IntegrityError: If canonical store evidence fails verification.
         """
         grant_id = self.grant_ids_by_actor.get(actor_id)
-        if grant_id is None:
+        if grant_id is None or action != _R3_ACCEPTANCE_ACTION or action != self.policy_action.policy_action_type:
             return False
         try:
-            self.resolver.resolve(
+            self.resolver.resolve_policy_action(
                 grant_id,
                 actor_id,
-                action,
+                "human",
+                self.policy_action,
+                "R3",
                 self.project_id,
                 self.subject_kind,
                 self.subject_id,
