@@ -45,14 +45,21 @@ from research_system.evals.retention_authorizer import (
     build_deletion_manifest_authorizer,
     load_evidence_store_registry,
 )
+from research_system.operations.backups import (
+    ArtefactBinding,
+    BackupReceipt,
+    finalize_verified_restore_binding,
+    verify_restore_before_writer_lease,
+)
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import (
     SchemaRegistry,
     require_authority_schemas,
     runtime_schema_registry,
 )
-from research_system.store.identity import load_store_manifest, manifest_schema_root
+from research_system.store.identity import load_store_manifest, load_store_manifest_unbound, manifest_schema_root
 from research_system.store.ledger import EventLedger
+from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -135,6 +142,88 @@ def _store_init(args: argparse.Namespace) -> int:
             "project_id": args.project_id,
             "store_identity": identity,
             "bootstrap_manifest_sha256": authority_bootstrap_sha256(manifest),
+        }
+    )
+    return 0
+
+
+def _backup_receipt_from_json(value: dict[str, Any]) -> BackupReceipt:
+    try:
+        payload = dict(value)
+        payload["schema_versions"] = tuple(payload["schema_versions"])
+        payload["tool_versions"] = tuple(payload["tool_versions"])
+        payload["artefact_bindings"] = tuple(ArtefactBinding(**item) for item in payload["artefact_bindings"])
+        return BackupReceipt(**payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ConfigurationError("invalid backup receipt") from exc
+
+
+def _store_restore_bind(args: argparse.Namespace) -> int:
+    target_root = args.control_root.resolve(strict=True)
+    source_manifest = load_store_manifest_unbound(target_root)
+    schemas = _schemas_for_store_manifest(source_manifest)
+    receipt = _backup_receipt_from_json(_read_json(args.receipt))
+    registry = load_evidence_store_registry(args.registry, schemas)
+    preflight_kwargs = {
+        "target_root": target_root,
+        "receipt": receipt,
+        "snapshot_path": args.snapshot,
+        "endpoint_ownership_path": args.endpoint_ownership,
+        "artefact_manifest_path": args.artefact_manifest,
+        "registry": registry,
+        "actor_id": args.actor_id,
+        "authority_grant_id": args.authority_grant_id,
+    }
+    supplied = verify_restore_before_writer_lease(**preflight_kwargs)
+    if supplied.status != "verified":
+        raise ArsError(f"restore preflight is not verified: {', '.join(supplied.failed_predicates)}")
+    with WriterLock(
+        target_root / "runtime" / "writer.lock",
+        {"operation": "restore-bind", "target_root": str(target_root)},
+    ):
+        current = verify_restore_before_writer_lease(**preflight_kwargs)
+        finalize_verified_restore_binding(
+            target_root=target_root,
+            source_root=Path(current.source_root),
+            supplied=supplied,
+            current=current,
+            project_id=receipt.project_id,
+            actor_id=args.actor_id,
+            authority_grant_id=args.authority_grant_id,
+        )
+
+    bound_manifest = load_store_manifest(target_root)
+    schema_root = args.schema_root.resolve(strict=True)
+    persisted_schema_root = manifest_schema_root(bound_manifest)
+    if persisted_schema_root is not None and persisted_schema_root.resolve(strict=True) != schema_root:
+        raise ConfigurationError("config schema root differs from restored store manifest")
+    config_value = {
+        "code_roots": bound_manifest["code_roots"],
+        "control_root": bound_manifest["control_root"],
+        "project_id": bound_manifest["project_id"],
+        "schema_root": str(schema_root),
+        "store_identity": bound_manifest["store_identity"],
+    }
+    temporary, descriptor = _reserve_output(args.config_output)
+    try:
+        _publish_reserved_output(
+            args.config_output,
+            temporary,
+            descriptor,
+            canonical_bytes(config_value),
+        )
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    binding = ControlBinding.load(args.config_output)
+    _print_json(
+        {
+            "status": "bound",
+            "config": str(args.config_output.resolve()),
+            "control_root": str(binding.control_root),
+            "project_id": binding.project_id,
+            "store_identity": binding.store_identity,
+            "preflight_result_hash": current.result_hash,
         }
     )
     return 0
@@ -644,6 +733,19 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--project-id", required=True)
     init.add_argument("--authority-bootstrap", type=Path, required=True)
     init.set_defaults(handler=_store_init)
+
+    restore_bind = store_commands.add_parser("restore-bind")
+    restore_bind.add_argument("--control-root", type=Path, required=True)
+    restore_bind.add_argument("--receipt", type=Path, required=True)
+    restore_bind.add_argument("--snapshot", type=Path, required=True)
+    restore_bind.add_argument("--endpoint-ownership", type=Path, required=True)
+    restore_bind.add_argument("--artefact-manifest", type=Path, required=True)
+    restore_bind.add_argument("--registry", type=Path, required=True)
+    restore_bind.add_argument("--actor-id", required=True)
+    restore_bind.add_argument("--authority-grant-id", required=True)
+    restore_bind.add_argument("--schema-root", type=Path, required=True)
+    restore_bind.add_argument("--config-output", type=Path, required=True)
+    restore_bind.set_defaults(handler=_store_restore_bind)
 
     command = groups.add_parser("command")
     command_actions = command.add_subparsers(dest="command_action", required=True)

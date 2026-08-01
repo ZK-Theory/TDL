@@ -302,6 +302,7 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
         evidence_registry_hash=registry.registry_hash,
     )
     return {
+        "code_root": code_root,
         "source": source,
         "target": target,
         "snapshot_path": snapshot_path,
@@ -361,6 +362,8 @@ def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
         ("wrong_snapshot", "snapshot_binding_mismatch"),
         ("wrong_schema", "schema_version_unsupported"),
         ("wrong_endpoint", "endpoint_authority_mismatch"),
+        ("wrong_actor", "verification_authority_mismatch"),
+        ("wrong_grant", "verification_authority_mismatch"),
         ("artefact_absent", "artefact_unavailable"),
         ("artefact_changed", "artefact_unavailable"),
         ("stale_availability", "availability_observation_mismatch"),
@@ -373,6 +376,8 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     case = _build_restore_case(tmp_path)
     receipt = case["receipt"]
     registry = case["registry"]
+    actor_id = case["actor_id"]
+    authority_grant_id = case["authority_grant_id"]
     if mutation == "wrong_store":
         receipt = seal_backup_receipt(replace(receipt, store_identity="8" * 64, receipt_hash=""))
     elif mutation == "wrong_project":
@@ -391,6 +396,10 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
         receipt = seal_backup_receipt(replace(receipt, schema_versions=("core-v2",), receipt_hash=""))
     elif mutation == "wrong_endpoint":
         case["endpoint_path"].write_text("{}", encoding="utf-8")
+    elif mutation == "wrong_actor":
+        actor_id = "act_01978abc-1002-7000-8000-000000001003"
+    elif mutation == "wrong_grant":
+        authority_grant_id = "agr_01978abc-1001-7000-8000-000000001003"
     elif mutation == "artefact_absent":
         case["artefact_path"].unlink()
     elif mutation == "artefact_changed":
@@ -404,7 +413,13 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     elif mutation == "wrong_registry":
         registry = replace(registry, registry_hash="6" * 64)
 
-    result = _verify_restore(case, receipt=receipt, registry=registry)
+    result = _verify_restore(
+        case,
+        receipt=receipt,
+        registry=registry,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
+    )
     assert result.status == "diagnostic_only"
     assert predicate in result.failed_predicates
 
@@ -445,6 +460,75 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     receipt = service.submit(command)
     assert receipt.status == "accepted"
     assert len(tuple(service.ledger.iter_batches())) == 1
+
+    from research_system.config import ControlBinding
+    from research_system.command.service import CommandService
+    from research_system.store.objects import ObjectStore
+    from research_system.store.receipts import ReceiptStore
+    from research_system.store.identity import load_store_manifest
+
+    manifest = load_store_manifest(case["target"])
+    assert manifest["control_root"] == str(case["target"].resolve())
+    config = tmp_path / "binding.json"
+    config.write_bytes(
+        canonical_bytes(
+            {
+                "code_roots": [str(case["code_root"].resolve())],
+                "control_root": str(case["target"].resolve()),
+                "project_id": case["receipt"].project_id,
+                "schema_root": str((REPO_ROOT / ".research-system" / "schemas").resolve()),
+                "store_identity": case["receipt"].store_identity,
+            }
+        )
+    )
+    binding = ControlBinding.load(config)
+    restarted = CommandService(
+        binding.control_root,
+        EventLedger(binding.control_root, binding.project_id, service.schemas),
+        ObjectStore(binding.control_root),
+        ReceiptStore(binding.control_root),
+        service.schemas,
+    )
+    assert restarted.submit(command).status == "accepted"
+
+
+@pytest.mark.parametrize("binding_field", ["code_roots", "schema_root"])
+def test_moved_restore_rejects_binding_changes_under_writer_lock(tmp_path, binding_field):
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+    )
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if binding_field == "code_roots":
+        foreign = tmp_path / "foreign-code"
+        foreign.mkdir()
+        manifest["code_roots"] = [str(foreign.resolve())]
+    else:
+        manifest["schema_binding_version"] = "1.0.0"
+        manifest["schema_root"] = str((case["code_root"] / ".research-system" / "schemas").resolve())
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    attempted_bytes = manifest_path.read_bytes()
+
+    command = create_task_command(
+        CMD_RESTORE,
+        f"changed-{binding_field}",
+        TASK_RESTORE,
+        {"title": f"changed {binding_field}"},
+    )
+    with pytest.raises(ArsError, match="restore preflight"):
+        service.submit(command)
+    assert manifest_path.read_bytes() == attempted_bytes
+    assert tuple(service.ledger.iter_batches()) == ()
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert not list((case["target"] / "objects").rglob("*.json"))
 
 
 def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_path, monkeypatch):

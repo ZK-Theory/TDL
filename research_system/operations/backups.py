@@ -12,6 +12,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
+from research_system.store.identity import manifest_schema_root, rebind_restored_store
 from research_system.schema_registry import bundled_runtime_schema_registry
 
 
@@ -75,6 +76,9 @@ class RestorePreflightResult:
     actor_id: str
     authority_grant_id: str
     result_hash: str
+    source_root: str = ""
+    code_roots: tuple[str, ...] = ()
+    schema_root: str | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"verified", "diagnostic_only"}:
@@ -145,9 +149,18 @@ def verify_restore_before_writer_lease(
     actual_project = receipt.project_id
     actual_store = receipt.store_identity
     source_root: Path | None = None
+    source_root_value = ""
+    code_roots: tuple[str, ...] = ()
+    schema_root: str | None = None
     if identity is None:
         failed.append("store_identity_manifest_invalid")
     else:
+        try:
+            raw_identity = (target / "manifests" / "store-identity.json").read_bytes()
+            if raw_identity != canonical_bytes(identity):
+                failed.append("store_identity_manifest_invalid")
+        except OSError:
+            failed.append("store_identity_manifest_invalid")
         recorded_hash = identity.get("manifest_hash")
         unsigned = {key: value for key, value in identity.items() if key != "manifest_hash"}
         if recorded_hash != sha256_hex(canonical_bytes(unsigned)):
@@ -161,8 +174,22 @@ def verify_restore_before_writer_lease(
         if identity.get("endpoint_scheme") != receipt.source_endpoint_scheme:
             failed.append("endpoint_scheme_mismatch")
         try:
-            source_root = Path(str(identity.get("control_root"))).resolve(strict=False)
-        except OSError:
+            recorded_root = identity.get("control_root")
+            if not isinstance(recorded_root, str) or not Path(recorded_root).is_absolute():
+                raise ValueError("invalid source root")
+            source_root = Path(recorded_root).resolve(strict=False)
+            source_root_value = str(source_root)
+            recorded_codes = identity.get("code_roots")
+            if (
+                not isinstance(recorded_codes, list)
+                or not recorded_codes
+                or any(not isinstance(root, str) or not Path(root).is_absolute() for root in recorded_codes)
+            ):
+                raise ValueError("invalid code roots")
+            code_roots = tuple(recorded_codes)
+            persisted_schema_root = manifest_schema_root(identity)
+            schema_root = str(persisted_schema_root) if persisted_schema_root is not None else None
+        except (OSError, ValueError, ArsError):
             failed.append("source_root_invalid")
         if source_root == target:
             failed.append("store_not_moved")
@@ -302,6 +329,9 @@ def verify_restore_before_writer_lease(
         actor_id=actor_id,
         authority_grant_id=authority_grant_id,
         result_hash="",
+        source_root=source_root_value,
+        code_roots=code_roots,
+        schema_root=schema_root,
     )
     return seal_restore_preflight_result(result)
 
@@ -334,3 +364,50 @@ def validate_restore_preflight_result(
         raise ArsError("restore preflight project mismatch")
     if result.actor_id != actor_id or result.authority_grant_id != authority_grant_id:
         raise ArsError("restore preflight authority mismatch")
+
+
+def finalize_verified_restore_binding(
+    *,
+    target_root: Path,
+    source_root: Path,
+    supplied: RestorePreflightResult,
+    current: RestorePreflightResult,
+    project_id: str,
+    actor_id: str,
+    authority_grant_id: str,
+) -> dict[str, Any]:
+    """Finalize a verified restore after the caller's current writer-lock recheck.
+
+    The caller must invoke this while holding the store ``WriterLock`` and only
+    after independently deriving ``current`` from the live target.  No domain
+    mutation belongs before this call succeeds.
+    """
+    validate_restore_preflight_result(
+        supplied,
+        current_root=target_root,
+        project_id=project_id,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
+    )
+    validate_restore_preflight_result(
+        current,
+        current_root=target_root,
+        project_id=project_id,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
+    )
+    if current != supplied:
+        raise ArsError("restore preflight changed before binding finalization")
+    if not current.source_root or Path(current.source_root).resolve(strict=False) != source_root.resolve(strict=False):
+        raise ArsError("restore source binding mismatch")
+    if not current.code_roots:
+        raise ArsError("restore code-root binding missing")
+    expected_schema_root = Path(current.schema_root) if current.schema_root else None
+    return rebind_restored_store(
+        target_root,
+        source_root,
+        expected_project_id=project_id,
+        expected_store_identity=current.store_identity,
+        expected_code_roots=[Path(root) for root in current.code_roots],
+        expected_schema_root=expected_schema_root,
+    )

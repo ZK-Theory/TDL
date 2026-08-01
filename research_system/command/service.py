@@ -40,6 +40,7 @@ from research_system.evals.release_publication import (
 from research_system.ids import new_id
 from research_system.operations.backups import (
     RestorePreflightResult,
+    finalize_verified_restore_binding,
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
@@ -241,6 +242,18 @@ class CommandService:
         )
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")
+        finalize_verified_restore_binding(
+            target_root=self.control_root,
+            source_root=self._restore_source_root,
+            supplied=supplied,
+            current=current,
+            project_id=self.ledger.project_id,
+            actor_id=command.actor_id,
+            authority_grant_id=command.envelope["authority_grant_id"],
+        )
+        self._restore_source_root = None
+        self._restore_preflight_result = None
+        self._restore_preflight_rechecker = None
 
     @_release_submit_guard
     def submit(

@@ -11,11 +11,13 @@ import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
-from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.projection.replay import apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
     initialize_control_store,
+    load_store_manifest,
+    rebind_restored_store,
     verify_store_identity,
 )
 from tests.research_system.factories import (
@@ -234,6 +236,147 @@ def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tm
 
     with pytest.raises(ArsError, match="code root binding mismatch"):
         verify_store_identity(control_root, PROJECT_ID, identity, [code_root])
+
+
+def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path):
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    source_root = tmp_path / "source"
+    identity = initialize_control_store([code_root], source_root, PROJECT_ID)
+    target_root = tmp_path / "target"
+    shutil.copytree(source_root, target_root)
+    manifest_path = target_root / "manifests" / "store-identity.json"
+    before = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    rebound = rebind_restored_store(
+        target_root,
+        source_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=identity,
+        expected_code_roots=[code_root],
+    )
+
+    after_bytes = manifest_path.read_bytes()
+    after = json.loads(after_bytes)
+    assert after_bytes == canonical_bytes(after)
+    assert after["control_root"] == str(target_root.resolve())
+    assert after["manifest_hash"] == sha256_hex(
+        canonical_bytes({k: v for k, v in after.items() if k != "manifest_hash"})
+    )
+    assert after["store_identity"] == identity
+    assert {key: value for key, value in after.items() if key not in {"control_root", "manifest_hash"}} == {
+        key: value for key, value in before.items() if key not in {"control_root", "manifest_hash"}
+    }
+    assert rebound == after
+    assert load_store_manifest(target_root)["control_root"] == str(target_root.resolve())
+
+    assert (
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+        == after
+    )
+    with pytest.raises(ConflictError, match="project identity"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id="prj_01978abc-1000-7000-8000-000000001099",
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+    with pytest.raises(ConflictError, match="store identity"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity="0" * 64,
+            expected_code_roots=[code_root],
+        )
+    with pytest.raises(ConflictError, match="source must differ"):
+        rebind_restored_store(
+            target_root,
+            target_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+    conflicting_target = tmp_path / "conflicting-target"
+    shutil.copytree(source_root, conflicting_target)
+    with pytest.raises(ConflictError, match="source binding"):
+        rebind_restored_store(
+            conflicting_target,
+            tmp_path / "other-source",
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+
+
+def test_restored_store_rebind_rejects_noncanonical_and_replace_failure(tmp_path, monkeypatch):
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    source_root = tmp_path / "source"
+    identity = initialize_control_store([code_root], source_root, PROJECT_ID)
+    target_root = tmp_path / "target"
+    shutil.copytree(source_root, target_root)
+    manifest_path = target_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    with pytest.raises(IntegrityError, match="noncanonical"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    manifest["manifest_hash"] = "0" * 64
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    with pytest.raises(IntegrityError, match="hash mismatch"):
+        rebind_restored_store(target_root, source_root)
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest["code_roots"] = [str(target_root.resolve())]
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    with pytest.raises(ArsError, match="disjoint"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[target_root],
+        )
+    manifest["code_roots"] = [str(code_root.resolve())]
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    original = manifest_path.read_bytes()
+
+    def interrupted_replace(*_args, **_kwargs):
+        raise OSError("replace interrupted")
+
+    monkeypatch.setattr("research_system.store.identity.os.replace", interrupted_replace)
+    with pytest.raises(OSError, match="replace interrupted"):
+        rebind_restored_store(
+            target_root,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=identity,
+            expected_code_roots=[code_root],
+        )
+    assert manifest_path.read_bytes() == original
+    assert not list(manifest_path.parent.glob(".*.tmp"))
 
 
 def test_cli_requires_explicit_control_and_code_paths():

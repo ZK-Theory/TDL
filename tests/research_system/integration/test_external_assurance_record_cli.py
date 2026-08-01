@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
+import shutil
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
+from research_system.canonical import canonical_bytes, jsonable
 from research_system.cli import main
 from research_system.config import ControlBinding
 from research_system.errors import ConfigurationError
-from research_system.store.identity import initialize_control_store
+from research_system.store.identity import initialize_control_store, rebind_restored_store
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -114,3 +117,135 @@ def test_assurance_record_write_cli_requires_json_object(tmp_path: Path) -> None
                 str(record_path),
             ]
         )
+
+
+def test_assurance_record_survives_copy_rebind_and_fresh_binding_restart(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config, source_root, store_identity = _config(tmp_path)
+    record_path = tmp_path / "record.json"
+    record_path.write_text(json.dumps(_record()), encoding="utf-8")
+    assert (
+        main(
+            [
+                "assurance-record",
+                "write",
+                "--config",
+                str(config),
+                "--record-class",
+                "canonical_actor",
+                "--record-id",
+                RECORD_ID,
+                "--revision",
+                "1",
+                "--expected-previous-revision",
+                "0",
+                "--record",
+                str(record_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    target_root = tmp_path / "restored"
+    shutil.copytree(source_root, target_root)
+    rebind_restored_store(
+        target_root,
+        source_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=store_identity,
+        expected_code_roots=[tmp_path / "code"],
+    )
+    fresh_config = tmp_path / "fresh-binding.json"
+    fresh_config.write_text(
+        json.dumps(
+            {
+                "code_roots": [str((tmp_path / "code").resolve())],
+                "control_root": str(target_root.resolve()),
+                "project_id": PROJECT_ID,
+                "schema_root": str(SCHEMA_ROOT.resolve()),
+                "store_identity": store_identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+    fresh = ControlBinding.load(fresh_config)
+    resolved = ControlStoreAuthorityResolver(fresh).resolve(
+        record_id=RECORD_ID,
+        record_class="canonical_actor",
+        authority_root=store_identity,
+        phase="load",
+    )
+    assert resolved == _record()
+
+
+def test_restore_bind_cli_rebinds_only_after_verified_preflight(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.research_system.integration.test_gate5_release_tranche import _build_restore_case
+
+    case = _build_restore_case(tmp_path)
+    shutil.copytree(SCHEMA_ROOT, case["code_root"] / ".research-system" / "schemas")
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_bytes(canonical_bytes(jsonable(asdict(case["receipt"]))))
+    registry = case["registry"]
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://evals/evidence-store-registry",
+                "schema_version": "1.0.0",
+                "store_id": registry.store_id,
+                "registry_hash": registry.registry_hash,
+                "policy_revision": registry.policy_revision,
+                "primary_root": str(registry.primary_root),
+                "runtime_root": str(registry.runtime_root),
+                "staging_root": str(registry.staging_root),
+                "temp_root": str(registry.temp_root),
+                "replicas": [str(path) for path in registry.replicas],
+                "backup_roots": [str(path) for path in registry.backup_roots],
+                "restore_roots": [str(path) for path in registry.restore_roots],
+                "permitted_consumers": list(registry.permitted_consumers),
+                "retention_policy_ids": list(registry.retention_policy_ids),
+                "verifier_authority_bindings": [list(pair) for pair in registry.verifier_authority_bindings],
+                "unregistered_replicas_prohibited": registry.unregistered_replicas_prohibited,
+            }
+        )
+    )
+    config_output = tmp_path / "restored-binding.json"
+    assert (
+        main(
+            [
+                "store",
+                "restore-bind",
+                "--control-root",
+                str(case["target"]),
+                "--receipt",
+                str(receipt_path),
+                "--snapshot",
+                str(case["snapshot_path"]),
+                "--endpoint-ownership",
+                str(case["endpoint_path"]),
+                "--artefact-manifest",
+                str(case["artefact_manifest_path"]),
+                "--registry",
+                str(registry_path),
+                "--actor-id",
+                case["actor_id"],
+                "--authority-grant-id",
+                case["authority_grant_id"],
+                "--schema-root",
+                str(SCHEMA_ROOT),
+                "--config-output",
+                str(config_output),
+            ]
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "bound"
+    fresh = ControlBinding.load(config_output)
+    assert fresh.control_root == case["target"].resolve()
+    assert not list((case["target"] / "events").rglob("*.jsonl"))
