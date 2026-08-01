@@ -111,6 +111,8 @@ def verify_subject_envelope(repo_root: Path, envelope: Mapping[str, Any]) -> Non
         _envelope_error("subject_commit does not resolve to the named commit")
     if actual_tree != subject_tree:
         _envelope_error("subject_tree does not match subject_commit")
+    if not _is_ancestor(repo_root, base_commit, subject_commit):
+        _envelope_error("base_commit must be an ancestor of subject_commit")
 
     changed_output = _git(repo_root, "diff", "--name-only", "--no-renames", base_commit, subject_commit)
     actual_paths = {line for line in changed_output.splitlines() if line}
@@ -345,6 +347,26 @@ def _require_sha1(value: Any, field: str) -> str:
     if not isinstance(value, str) or _SHA1_RE.fullmatch(value) is None:
         _envelope_error(f"{field} must be a lowercase 40-hex SHA")
     return value
+
+
+def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", base_commit, subject_commit],
+            cwd=repo_root,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        _envelope_error(f"Git ancestry lookup failed for {base_commit}..{subject_commit}: {exc}")
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    detail = result.stderr.strip() or f"exit status {result.returncode}"
+    _envelope_error(f"Git ancestry lookup failed for {base_commit}..{subject_commit}: {detail}")
 
 
 def _git(repo_root: Path, *args: str) -> str:

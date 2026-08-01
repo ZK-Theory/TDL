@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from jsonschema import Draft202012Validator
 
 from research_system.errors import SchemaError
 from research_system.schema_registry import _RUNTIME_BINDINGS, bundled_runtime_schema_registry
+import tools.verify_w11_materialization as w11_verifier
 from tools.verify_w11_materialization import (
     MaterializationVerificationError,
     verify_materialization_document,
@@ -38,10 +40,6 @@ W11_COMMIT = "892d1d1650cdcf71d2a886318e174a18e11d5de0"
 W11_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
 W11_SHA256 = "65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70"
 W11_BYTES = 185214
-W11_PARENT = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
-W11_SUBJECT = "9d2b0246649c4c61657d15500fa1bc5c4f3fb236"
-W11_TREE = "5a0d1f36aacd2ebf16e5d5a96c9b4daf3068c654"
-W11_MATERIALIZATION_PATH_COUNT = 66
 
 CONTENT_KINDS = (
     "programme",
@@ -480,17 +478,26 @@ def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
     assert not validator.is_valid(offset_timestamp)
 
 
-def test_w11_exact_subject_range_keeps_runtime_activation_bounded() -> None:
-    envelope = _subject_envelope()
-    assert len(envelope["changed_paths"]) == W11_MATERIALIZATION_PATH_COUNT
-    verify_subject_envelope(REPO_ROOT, envelope)
+def test_production_w11_materialization_base_is_stable() -> None:
+    assert w11_verifier.W11_MATERIALIZATION_BASE == "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
+
+
+def test_w11_exact_subject_range_keeps_runtime_activation_bounded(
+    monkeypatch: pytest.MonkeyPatch, synthetic_w11_dag: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(w11_verifier, "W11_MATERIALIZATION_BASE", synthetic_w11_dag["base"])
+    envelope = _subject_envelope(synthetic_w11_dag["repo"], synthetic_w11_dag["base"], synthetic_w11_dag["subject"])
+    verify_subject_envelope(synthetic_w11_dag["repo"], envelope)
 
 
 @pytest.mark.parametrize(
     "mutation", ["missing", "extra", "swapped", "wrong_commit", "wrong_tree", "wrong_path", "wrong_blob"]
 )
-def test_w11_subject_envelope_rejects_incomplete_or_substituted_identity(mutation: str) -> None:
-    envelope = _subject_envelope()
+def test_w11_subject_envelope_rejects_incomplete_or_substituted_identity(
+    mutation: str, monkeypatch: pytest.MonkeyPatch, synthetic_w11_dag: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(w11_verifier, "W11_MATERIALIZATION_BASE", synthetic_w11_dag["base"])
+    envelope = _subject_envelope(synthetic_w11_dag["repo"], synthetic_w11_dag["base"], synthetic_w11_dag["subject"])
     if mutation == "missing":
         envelope["changed_paths"] = envelope["changed_paths"][1:]
     elif mutation == "extra":
@@ -499,7 +506,7 @@ def test_w11_subject_envelope_rejects_incomplete_or_substituted_identity(mutatio
         first, second = envelope["changed_paths"][:2]
         first["blob"], second["blob"] = second["blob"], first["blob"]
     elif mutation == "wrong_commit":
-        envelope["subject_commit"] = W11_PARENT
+        envelope["subject_commit"] = synthetic_w11_dag["base"]
     elif mutation == "wrong_tree":
         envelope["subject_tree"] = "0" * 40
     elif mutation == "wrong_path":
@@ -507,7 +514,16 @@ def test_w11_subject_envelope_rejects_incomplete_or_substituted_identity(mutatio
     elif mutation == "wrong_blob":
         envelope["changed_paths"][0]["blob"] = "0" * 40
     with pytest.raises(MaterializationVerificationError):
-        verify_subject_envelope(REPO_ROOT, envelope)
+        verify_subject_envelope(synthetic_w11_dag["repo"], envelope)
+
+
+def test_w11_subject_envelope_rejects_complete_non_ancestor_before_range_comparison(
+    monkeypatch: pytest.MonkeyPatch, synthetic_w11_dag: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(w11_verifier, "W11_MATERIALIZATION_BASE", synthetic_w11_dag["base"])
+    envelope = _subject_envelope(synthetic_w11_dag["repo"], synthetic_w11_dag["base"], synthetic_w11_dag["unrelated"])
+    with pytest.raises(MaterializationVerificationError, match="base_commit must be an ancestor of subject_commit"):
+        verify_subject_envelope(synthetic_w11_dag["repo"], envelope)
 
 
 def test_w11_content_semantics_are_enforced_at_inert_verifier_admission() -> None:
@@ -656,29 +672,83 @@ def _git_bytes(revision: str, path: str) -> bytes:
     ).stdout
 
 
-def _git_blob(revision: str, path: str) -> str:
+def _git_blob(repo_root: Path, revision: str, path: str) -> str:
     return subprocess.run(
         ["git", "rev-parse", f"{revision}:{path}"],
-        cwd=REPO_ROOT,
+        cwd=repo_root,
         check=True,
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
 
 
-def _subject_envelope() -> dict[str, Any]:
+def _git_tree(repo_root: Path, revision: str) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", f"{revision}^{{tree}}"],
+        cwd=repo_root,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+
+
+@pytest.fixture
+def synthetic_w11_dag(tmp_path: Path) -> dict[str, Any]:
+    repo_root = tmp_path / "synthetic-w11-repo"
+    repo_root.mkdir()
+    _git_test(repo_root, "init", "--quiet")
+    _git_test(repo_root, "config", "user.email", "w11-tests@example.invalid")
+    _git_test(repo_root, "config", "user.name", "W11 tests")
+
+    (repo_root / "base.txt").write_text("base\n", encoding="utf-8")
+    _git_test(repo_root, "add", "base.txt")
+    _git_test(repo_root, "commit", "--quiet", "-m", "synthetic base")
+    base = _git_test(repo_root, "rev-parse", "HEAD")
+
+    (repo_root / "subject.txt").write_text("descendant\n", encoding="utf-8")
+    (repo_root / "subject-meta.txt").write_text("descendant metadata\n", encoding="utf-8")
+    _git_test(repo_root, "add", "subject.txt", "subject-meta.txt")
+    _git_test(repo_root, "commit", "--quiet", "-m", "synthetic descendant")
+    subject = _git_test(repo_root, "rev-parse", "HEAD")
+
+    unrelated_blob = _git_test(repo_root, "hash-object", "-w", "--stdin", input_text="unrelated\n")
+    index_env = os.environ.copy()
+    index_env["GIT_INDEX_FILE"] = str(tmp_path / "synthetic-unrelated-index")
+    _git_test(repo_root, "read-tree", f"{base}^{{tree}}", env=index_env)
+    _git_test(
+        repo_root, "update-index", "--add", "--cacheinfo", f"100644,{unrelated_blob},unrelated.txt", env=index_env
+    )
+    unrelated_tree = _git_test(repo_root, "write-tree", env=index_env)
+    unrelated = _git_test(repo_root, "commit-tree", unrelated_tree, "-m", "synthetic unrelated root", env=index_env)
+    return {"repo": repo_root, "base": base, "subject": subject, "unrelated": unrelated}
+
+
+def _git_test(repo_root: Path, *args: str, input_text: str | None = None, env: dict[str, str] | None = None) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=True,
+        env=env,
+        input=input_text,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout.strip()
+
+
+def _subject_envelope(repo_root: Path, base_commit: str, subject_commit: str) -> dict[str, Any]:
     paths = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", W11_PARENT, W11_SUBJECT],
-        cwd=REPO_ROOT,
+        ["git", "diff", "--name-only", "--no-renames", base_commit, subject_commit],
+        cwd=repo_root,
         check=True,
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.splitlines()
     return {
-        "base_commit": W11_PARENT,
-        "subject_commit": W11_SUBJECT,
-        "subject_tree": W11_TREE,
-        "changed_paths": [{"path": path, "blob": _git_blob(W11_SUBJECT, path)} for path in paths],
+        "base_commit": base_commit,
+        "subject_commit": subject_commit,
+        "subject_tree": _git_tree(repo_root, subject_commit),
+        "changed_paths": [{"path": path, "blob": _git_blob(repo_root, subject_commit, path)} for path in paths],
     }
 
 
