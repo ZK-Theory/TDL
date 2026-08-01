@@ -20,7 +20,12 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from research_system.errors import SchemaError
-from research_system.schema_registry import SchemaRegistry, _RUNTIME_BINDINGS
+from research_system.schema_registry import _RUNTIME_BINDINGS, bundled_runtime_schema_registry
+from tools.verify_w11_materialization import (
+    MaterializationVerificationError,
+    verify_materialization_document,
+    verify_subject_envelope,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -34,10 +39,9 @@ W11_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
 W11_SHA256 = "65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70"
 W11_BYTES = 185214
 W11_PARENT = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
-W11_SUBJECT = "HEAD"
-INERT_RUNTIME_VALIDATOR_PATHS = frozenset(
-    {"research_system/schema_registry.py", "research_system/w11_contract_validation.py"}
-)
+W11_SUBJECT = "9d2b0246649c4c61657d15500fa1bc5c4f3fb236"
+W11_TREE = "5a0d1f36aacd2ebf16e5d5a96c9b4daf3068c654"
+W11_MATERIALIZATION_PATH_COUNT = 66
 
 CONTENT_KINDS = (
     "programme",
@@ -399,13 +403,24 @@ def test_owner_row_ids_are_exactly_the_two_w11_ranges() -> None:
 def test_content_source_refs_use_only_their_ref_kind_identity() -> None:
     valid_refs = (
         {"ref_kind": "record", **_record_ref()},
-        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "content_hash": _HASH},
+        {
+            "ref_kind": "artefact",
+            "id": "art_00000000-0000-7000-8000-000000000001",
+            "record_revision": 2,
+            "content_hash": _HASH,
+        },
         {"ref_kind": "external", "locator": "https://example.invalid/source", "content_hash": _HASH},
     )
     invalid_refs = (
         {"ref_kind": "external", "locator": "https://example.invalid/source", "id": "obj_1", "content_hash": _HASH},
         {"ref_kind": "record", "locator": "https://example.invalid/source", "content_hash": _HASH},
-        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "locator": "foreign", "content_hash": _HASH},
+        {
+            "ref_kind": "artefact",
+            "id": "art_00000000-0000-7000-8000-000000000001",
+            "record_revision": 2,
+            "locator": "foreign",
+            "content_hash": _HASH,
+        },
     )
     for schema_id in sorted(CONTENT_SCHEMA_IDS):
         schema = _schema_by_id(schema_id)
@@ -466,59 +481,88 @@ def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
 
 
 def test_w11_exact_subject_range_keeps_runtime_activation_bounded() -> None:
-    changed_paths = subprocess.run(
-        ["git", "diff", "--name-only", f"{W11_PARENT}..{W11_SUBJECT}", "--", "research_system"],
-        cwd=REPO_ROOT,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.splitlines()
-    assert not [path for path in changed_paths if path not in INERT_RUNTIME_VALIDATOR_PATHS]
+    envelope = _subject_envelope()
+    assert len(envelope["changed_paths"]) == W11_MATERIALIZATION_PATH_COUNT
+    verify_subject_envelope(REPO_ROOT, envelope)
 
 
-def test_w11_content_semantics_are_enforced_at_registry_admission() -> None:
-    registry = SchemaRegistry(SCHEMA_ROOT)
-    registry.validate("ars://portfolio/programme", VALID_PROGRAMME)
+@pytest.mark.parametrize(
+    "mutation", ["missing", "extra", "swapped", "wrong_commit", "wrong_tree", "wrong_path", "wrong_blob"]
+)
+def test_w11_subject_envelope_rejects_incomplete_or_substituted_identity(mutation: str) -> None:
+    envelope = _subject_envelope()
+    if mutation == "missing":
+        envelope["changed_paths"] = envelope["changed_paths"][1:]
+    elif mutation == "extra":
+        envelope["changed_paths"].append({"path": "tools/not-a-change.py", "blob": "0" * 40})
+    elif mutation == "swapped":
+        first, second = envelope["changed_paths"][:2]
+        first["blob"], second["blob"] = second["blob"], first["blob"]
+    elif mutation == "wrong_commit":
+        envelope["subject_commit"] = W11_PARENT
+    elif mutation == "wrong_tree":
+        envelope["subject_tree"] = "0" * 40
+    elif mutation == "wrong_path":
+        envelope["changed_paths"][0]["path"] = "tools/not-a-change.py"
+    elif mutation == "wrong_blob":
+        envelope["changed_paths"][0]["blob"] = "0" * 40
+    with pytest.raises(MaterializationVerificationError):
+        verify_subject_envelope(REPO_ROOT, envelope)
+
+
+def test_w11_content_semantics_are_enforced_at_inert_verifier_admission() -> None:
+    verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", VALID_PROGRAMME)
 
     wrong_predecessor = deepcopy(VALID_PROGRAMME)
     wrong_predecessor["record_revision"] = 3
     wrong_predecessor["supersedes_revision"] = 1
     with pytest.raises(SchemaError, match="exact predecessor"):
-        registry.validate("ars://portfolio/programme", wrong_predecessor)
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", wrong_predecessor)
 
     wrong_first_revision = deepcopy(VALID_PROGRAMME)
     wrong_first_revision["supersedes_revision"] = 1
     with pytest.raises(SchemaError, match="revision 1 must have null"):
-        registry.validate("ars://portfolio/programme", wrong_first_revision)
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", wrong_first_revision)
 
     valid_artefact_source = deepcopy(VALID_PROGRAMME)
     valid_artefact_source["source_refs"] = [
-        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "content_hash": _HASH}
+        {
+            "ref_kind": "artefact",
+            "id": "art_00000000-0000-7000-8000-000000000001",
+            "record_revision": 2,
+            "content_hash": _HASH,
+        }
     ]
-    registry.validate("ars://portfolio/programme", valid_artefact_source)
+    verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", valid_artefact_source)
 
     cross_kind_source = deepcopy(VALID_PROGRAMME)
     cross_kind_source["source_refs"] = [
         {"ref_kind": "artefact", "id": VALID_PROGRAMME["record_id"], "record_revision": 1, "content_hash": _HASH}
     ]
-    with pytest.raises(SchemaError, match="artefact identity must start with art_"):
-        registry.validate("ars://portfolio/programme", cross_kind_source)
+    with pytest.raises(SchemaError, match="canonical art_ UUID"):
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", cross_kind_source)
+
+    malformed_identity = deepcopy(VALID_PROGRAMME)
+    malformed_identity["source_refs"] = [
+        {"ref_kind": "record", "id": "obj_not-a-uuid", "record_revision": 1, "content_hash": _HASH}
+    ]
+    with pytest.raises(SchemaError, match="canonical obj_ UUID"):
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/programme", malformed_identity)
 
 
 def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
-    registry = SchemaRegistry(SCHEMA_ROOT)
     catalogue = _valid_catalogue()
-    registry.validate("ars://portfolio/w11-schema-catalogue-content", catalogue)
+    verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/w11-schema-catalogue-content", catalogue)
 
     swapped = deepcopy(catalogue)
     swapped["owner_contract_rows"][-1] = _owner_contract_row("OR-140", test_owner_row_id="OR-001")
     with pytest.raises(SchemaError, match="owner row OR-140 positive_test_identity"):
-        registry.validate("ars://portfolio/w11-schema-catalogue-content", swapped)
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/w11-schema-catalogue-content", swapped)
 
 
-def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> None:
-    registry = SchemaRegistry(SCHEMA_ROOT)
-    registry.validate(
+def test_w11_scorecard_resolves_the_frozen_rubric_at_inert_verifier_admission() -> None:
+    verify_materialization_document(
+        SCHEMA_ROOT,
         "ars://portfolio/assay-scorecard",
         VALID_SCORECARD,
         reference_documents=[VALID_RUBRIC],
@@ -526,12 +570,13 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> Non
 
     unresolved = deepcopy(VALID_SCORECARD)
     with pytest.raises(SchemaError, match="rubric_ref could not be resolved"):
-        registry.validate("ars://portfolio/assay-scorecard", unresolved)
+        verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/assay-scorecard", unresolved)
 
     unknown_axis = deepcopy(VALID_SCORECARD)
     unknown_axis["axis_results"][0]["axis_id"] = "unknown"
     with pytest.raises(SchemaError, match="unknown rubric axis"):
-        registry.validate(
+        verify_materialization_document(
+            SCHEMA_ROOT,
             "ars://portfolio/assay-scorecard",
             unknown_axis,
             reference_documents=[VALID_RUBRIC],
@@ -541,7 +586,8 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> Non
     kind_mismatch["axis_results"][0]["axis_kind"] = "integer_score"
     kind_mismatch["axis_results"][0]["value"] = 1
     with pytest.raises(SchemaError, match="axis kind mismatch"):
-        registry.validate(
+        verify_materialization_document(
+            SCHEMA_ROOT,
             "ars://portfolio/assay-scorecard",
             kind_mismatch,
             reference_documents=[VALID_RUBRIC],
@@ -557,7 +603,8 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> Non
     integer_scorecard = deepcopy(VALID_SCORECARD)
     integer_scorecard["axis_results"][0]["axis_kind"] = "integer_score"
     integer_scorecard["axis_results"][0]["value"] = 2
-    registry.validate(
+    verify_materialization_document(
+        SCHEMA_ROOT,
         "ars://portfolio/assay-scorecard",
         integer_scorecard,
         reference_documents=[integer_rubric],
@@ -566,10 +613,22 @@ def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> Non
     out_of_domain = deepcopy(integer_scorecard)
     out_of_domain["axis_results"][0]["value"] = 99
     with pytest.raises(SchemaError, match="outside the frozen rubric domain"):
-        registry.validate(
+        verify_materialization_document(
+            SCHEMA_ROOT,
             "ars://portfolio/assay-scorecard",
             out_of_domain,
             reference_documents=[integer_rubric],
+        )
+
+    optional_rubric = deepcopy(VALID_RUBRIC)
+    optional_rubric["axis_definitions"].append(_axis_definition("integer_score", "integer", "bounds"))
+    optional_rubric["axis_definitions"][-1]["axis_id"] = "sensitivity"
+    with pytest.raises(SchemaError, match="axis set mismatch"):
+        verify_materialization_document(
+            SCHEMA_ROOT,
+            "ars://portfolio/assay-scorecard",
+            VALID_SCORECARD,
+            reference_documents=[optional_rubric],
         )
 
 
@@ -583,9 +642,8 @@ def test_w11_representative_mutations_are_rejected() -> None:
     for schema_id, original, field, value in mutations:
         mutated = deepcopy(original)
         mutated[field] = value
-        schema = _schema_by_id(schema_id)
-        validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-        assert not validator.is_valid(mutated), f"mutation unexpectedly accepted: {schema_id}.{field}"
+        with pytest.raises(SchemaError):
+            verify_materialization_document(SCHEMA_ROOT, schema_id, mutated)
 
 
 def _git_bytes(revision: str, path: str) -> bytes:
@@ -596,6 +654,32 @@ def _git_bytes(revision: str, path: str) -> bytes:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     ).stdout
+
+
+def _git_blob(revision: str, path: str) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", f"{revision}:{path}"],
+        cwd=REPO_ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+
+
+def _subject_envelope() -> dict[str, Any]:
+    paths = subprocess.run(
+        ["git", "diff", "--name-only", "--no-renames", W11_PARENT, W11_SUBJECT],
+        cwd=REPO_ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.splitlines()
+    return {
+        "base_commit": W11_PARENT,
+        "subject_commit": W11_SUBJECT,
+        "subject_tree": W11_TREE,
+        "changed_paths": [{"path": path, "blob": _git_blob(W11_SUBJECT, path)} for path in paths],
+    }
 
 
 def test_w11_foundation_has_the_independent_closed_family_set() -> None:
@@ -685,10 +769,42 @@ def test_w11_ids_are_not_runtime_activated() -> None:
     assert not (EXPECTED_IDS & active_ids)
     assert not any(schema_id.startswith("ars://portfolio/") for schema_id in active_ids)
 
+    runtime = bundled_runtime_schema_registry()
+    assert not runtime.is_active("ars://portfolio/programme", "1.0.0")
+    with pytest.raises(SchemaError, match="inactive schema"):
+        runtime.validate_active(
+            "ars://portfolio/programme",
+            VALID_PROGRAMME,
+            schema_version="1.0.0",
+        )
+
+    core_command = {
+        "command_id": "cmd_01978abc-0001-7000-8000-000000000001",
+        "command_type": "CreateTask",
+        "schema_id": "ars://core/command",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-07-01T12:00:00Z",
+        "actor_id": "act_01978abc-0002-7000-8000-000000000002",
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": "agr_01978abc-0003-7000-8000-000000000003",
+        "target_stream_id": "tsk_01978abc-0004-7000-8000-000000000004",
+        "expected_stream_version": 0,
+        "idempotency_key": "create-task-1",
+        "correlation_id": "synthetic-workflow-1",
+        "causation_id": None,
+        "reason": "synthetic P0 test",
+        "evidence_refs": [],
+        "payload": {},
+    }
+    runtime.validate("ars://core/command", core_command)
+    core_command["command_id"] = "cmd_not-a-uuid"
+    with pytest.raises(SchemaError, match="command_id"):
+        runtime.validate("ars://core/command", core_command)
+
 
 def test_w11_schemas_load_through_the_registry_without_activation() -> None:
-    registry = SchemaRegistry(SCHEMA_ROOT)
-    assert registry.resolve_identity("ars://portfolio/programme", "1.0.0").schema_id == "ars://portfolio/programme"
+    runtime = bundled_runtime_schema_registry()
+    assert runtime.resolve_identity("ars://portfolio/programme", "1.0.0").schema_id == "ars://portfolio/programme"
 
 
 def test_bootstrap_contract_is_inert_and_binds_the_accepted_w11_tuple() -> None:
@@ -706,6 +822,14 @@ def test_bootstrap_contract_is_inert_and_binds_the_accepted_w11_tuple() -> None:
     assert contract["materialization_status"] == "inert_foundation_only"
     assert contract["runtime_activation"] == "forbidden"
     assert contract["expected_catalogue"] == "forbidden_in_pr1"
+    assert contract["bootstrap_verifier"]["interface"] == "tools.verify_w11_materialization:verify_subject_envelope"
+    assert contract["bootstrap_verifier"]["subject_envelope"] == {
+        "authority": "caller_supplied_external",
+        "required_fields": ["base_commit", "subject_commit", "subject_tree", "changed_paths"],
+        "path_entry_fields": ["path", "blob"],
+        "exact_path_set": "git_diff_base_to_subject",
+        "no_implicit_working_copy_or_symbolic_ref": True,
+    }
     assert contract["acceptance_instance"] == "forbidden_in_pr1"
     assert set(contract["families"]["content"]) == set(CONTENT_KINDS)
     assert set(contract["families"]["relation"]) == set(RELATION_KINDS)

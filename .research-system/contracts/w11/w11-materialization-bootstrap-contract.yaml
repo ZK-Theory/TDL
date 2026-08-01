@@ -13,6 +13,19 @@ acceptance_instance: forbidden_in_pr1
 bootstrap_verifier:
   schema_id: ars://portfolio/w11-bootstrap-verifier
   schema_version: 1.0.0
+  interface: tools.verify_w11_materialization:verify_subject_envelope
+  subject_envelope:
+    authority: caller_supplied_external
+    required_fields:
+      - base_commit
+      - subject_commit
+      - subject_tree
+      - changed_paths
+    path_entry_fields:
+      - path
+      - blob
+    exact_path_set: git_diff_base_to_subject
+    no_implicit_working_copy_or_symbolic_ref: true
   external_envelope_schema_id: ars://portfolio/w11-catalogue-acceptance-envelope
   genesis_input_schema_id: ars://portfolio/import-accepted-w11-catalogue-genesis
   execution_status: schema_only_no_execution
@@ -22,6 +35,8 @@ verification_rules:
   - W11 IDs remain absent from runtime bindings
   - no expected catalogue or acceptance instance is materialized
   - no runtime production Python is changed
+  - the non-runtime verifier requires the caller-supplied external subject envelope
+  - the envelope names the exact base, subject commit, subject tree, changed paths, and per-path blobs
 families:
   content:
     - programme
