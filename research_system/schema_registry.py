@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaError
 
 from research_system.errors import SchemaError
+from research_system.w11_contract_validation import validate_w11_document
 
 _AUTHORITY_SCHEMA_IDS = frozenset(
     {
@@ -279,6 +280,7 @@ class SchemaRegistry:
         *,
         schema_version: str | None = None,
         expected_sha256: str | None = None,
+        reference_documents: Iterable[Mapping[str, Any]] = (),
     ) -> SchemaIdentity:
         """Validate a value against an exact registered schema identifier.
 
@@ -288,6 +290,8 @@ class SchemaRegistry:
             schema_version: Exact semantic version, required when more than one
                 catalogue entry shares ``schema_id``.
             expected_sha256: Recorded exact-source digest that must match.
+            reference_documents: Explicit immutable documents available to
+                cross-document W11 admission checks.
 
         Raises:
             SchemaError: If the schema is unknown or the value is invalid.
@@ -310,7 +314,22 @@ class SchemaRegistry:
                 f"{'.'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}" for error in errors
             )
             raise SchemaError(f"{schema_id}: {message}")
+        validate_w11_document(
+            schema_id,
+            value,
+            reference_documents=reference_documents,
+            validate_reference=self._validate_reference,
+        )
         return entry.identity
+
+    def _validate_reference(self, schema_id: str, value: Mapping[str, Any]) -> None:
+        """Validate one explicitly supplied W11 reference document."""
+        schema_version = value.get("schema_version")
+        self.validate(
+            schema_id,
+            value,
+            schema_version=schema_version if isinstance(schema_version, str) else None,
+        )
 
     def resolve_identity(
         self,

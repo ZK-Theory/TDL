@@ -19,6 +19,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
+from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry, _RUNTIME_BINDINGS
 
 
@@ -33,7 +34,10 @@ W11_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
 W11_SHA256 = "65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70"
 W11_BYTES = 185214
 W11_PARENT = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
-W11_SUBJECT = "04223674acdb82ee00d1410e960414d624c326b1"
+W11_SUBJECT = "HEAD"
+INERT_RUNTIME_VALIDATOR_PATHS = frozenset(
+    {"research_system/schema_registry.py", "research_system/w11_contract_validation.py"}
+)
 
 CONTENT_KINDS = (
     "programme",
@@ -218,40 +222,10 @@ def _validate(schema: dict[str, Any], value: dict[str, Any]) -> None:
     )
     if errors:
         pytest.fail("; ".join(error.message for error in errors))
-    if schema["$id"] in CONTENT_SCHEMA_IDS:
-        _validate_w11_content_semantics(schema["$id"], value)
 
 
 def _schema_by_id(schema_id: str) -> dict[str, Any]:
     return next(schema for _, schema in _schemas() if schema["$id"] == schema_id)
-
-
-def _validate_w11_content_semantics(schema_id: str, value: dict[str, Any]) -> None:
-    """Inert Stage-B semantic seam; no W11 runtime path imports this helper."""
-    if schema_id not in CONTENT_SCHEMA_IDS:
-        raise ValueError(f"not a W11 content schema: {schema_id}")
-
-    revision = value.get("record_revision")
-    predecessor = value.get("supersedes_revision")
-    if revision == 1 and predecessor is not None:
-        raise ValueError("revision 1 must have a null predecessor")
-    if isinstance(revision, int) and not isinstance(revision, bool) and revision > 1:
-        if predecessor != revision - 1:
-            raise ValueError("later revisions must name the exact predecessor")
-
-    for source_ref in value.get("source_refs", []):
-        ref_kind = source_ref.get("ref_kind")
-        fields = set(source_ref)
-        if ref_kind in {"record", "artefact"}:
-            expected = {"ref_kind", "id", "record_revision", "content_hash"}
-            if fields != expected:
-                raise ValueError("record and artefact references require id, record_revision, and content_hash only")
-        elif ref_kind == "external":
-            expected = {"ref_kind", "locator", "content_hash"}
-            if fields != expected:
-                raise ValueError("external references require locator and content_hash only")
-        else:
-            raise ValueError(f"unknown source reference kind: {ref_kind}")
 
 
 def _fragment_is_valid(schema: dict[str, Any], definition: str, value: dict[str, Any]) -> bool:
@@ -266,7 +240,8 @@ def _fragment_is_valid(schema: dict[str, Any], definition: str, value: dict[str,
     ).is_valid(value)
 
 
-def _owner_contract_row(owner_row_id: str) -> dict[str, Any]:
+def _owner_contract_row(owner_row_id: str, *, test_owner_row_id: str | None = None) -> dict[str, Any]:
+    bound_test_owner_row_id = test_owner_row_id or owner_row_id
     return {
         "owner_row_id": owner_row_id,
         "logical_key": "owner-row",
@@ -284,9 +259,53 @@ def _owner_contract_row(owner_row_id: str) -> dict[str, Any]:
         "reducer": "U:test",
         "projection_targets": ["P:test"],
         "receipt_identity": "R:test",
-        "positive_test_identity": "W11-T01-OR-001",
-        "negative_mutation_test_identity": "W11-T03-OR-001-owner-row-mutation",
-        "retry_test_identity": "W11-T11-OR-001",
+        "positive_test_identity": f"W11-T01-{bound_test_owner_row_id}",
+        "negative_mutation_test_identity": f"W11-T03-{bound_test_owner_row_id}-owner-row-mutation",
+        "retry_test_identity": f"W11-T11-{bound_test_owner_row_id}",
+    }
+
+
+def _valid_catalogue() -> dict[str, Any]:
+    owner_row_ids = [
+        *(f"OR-{number:03d}" for number in range(1, 42)),
+        *(f"OR-{number:03d}" for number in range(101, 141)),
+    ]
+    return {
+        "schema_id": "ars://portfolio/w11-schema-catalogue-content",
+        "schema_version": "1.0.0",
+        "record_id": "obj_00000000-0000-7000-8000-000000000003",
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": "prj_00000000-0000-7000-8000-000000000001",
+        "portfolio_kind": "w11_schema_catalogue_content",
+        "aliases": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by_actor_id": "act_00000000-0000-7000-8000-000000000001",
+        "source_refs": [_source_ref()],
+        "content_hash": _HASH,
+        "owner_spec_identity": {
+            "repository_path": W11_PATH,
+            "reviewed_commit": W11_COMMIT,
+            "git_blob": W11_BLOB,
+            "raw_sha256": W11_SHA256,
+            "raw_bytes": W11_BYTES,
+        },
+        "owner_row_count": 81,
+        "owner_row_range_hash": _HASH,
+        "schema_source_rows": [
+            {
+                "logical_key": "programme",
+                "schema_id": "ars://portfolio/programme",
+                "schema_version": "1.0.0",
+                "repository_path": ".research-system/schemas/contracts/w11/programme.schema.json",
+                "git_commit": "0" * 40,
+                "git_blob": "0" * 40,
+                "file_length": 1,
+                "file_sha256": _HASH,
+                "independent_observation_ref": _record_ref(),
+            }
+        ],
+        "owner_contract_rows": [_owner_contract_row(owner_row_id) for owner_row_id in owner_row_ids],
     }
 
 
@@ -307,6 +326,60 @@ def _axis_definition(axis_kind: str, value_type: str, domain: str) -> dict[str, 
     else:
         axis["bounds"] = {"minimum": 0, "maximum": 1 if axis_kind == "registered_measure" else 3}
     return axis
+
+
+def _valid_rubric() -> dict[str, Any]:
+    return {
+        "schema_id": "ars://portfolio/assay-rubric-content",
+        "schema_version": "1.0.0",
+        "record_id": "obj_00000000-0000-7000-8000-000000000001",
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": "prj_00000000-0000-7000-8000-000000000001",
+        "portfolio_kind": "assay_rubric_content",
+        "aliases": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by_actor_id": "act_00000000-0000-7000-8000-000000000001",
+        "source_refs": [_source_ref()],
+        "content_hash": _HASH,
+        "rubric_id": "rubric.initial",
+        "accepted_owner_requirement_refs": [_record_ref()],
+        "domain_pack_refs": [_record_ref("obj_00000000-0000-7000-8000-000000000002")],
+        "axis_definitions": [
+            {
+                "axis_id": "design",
+                "axis_kind": "gate",
+                "value_schema": "boolean",
+                "value_type": "boolean",
+                "allowed_set": [False, True],
+                "required": True,
+                "evidence_type_allowlist": ["ars://portfolio/review-evidence"],
+                "validator_schema_id": "ars://portfolio/validator/design",
+                "validator_schema_version": "1.0.0",
+                "failure_codes": ["not_met"],
+            }
+        ],
+        "required_axis_ids": ["design"],
+        "forbidden_axis_ids": [],
+        "required_axis_set_hash": _HASH,
+        "evaluation_order": ["design"],
+        "recommendation_predicates": ["all required axes pass"],
+        "hard_gate_predicates": ["design"],
+        "partial_predicates": ["incomplete"],
+        "park_predicates": ["uncertain"],
+        "kill_predicates": ["unsafe"],
+        "rule_evaluation_algorithm_id": "test-rule-evaluator",
+        "rule_evaluation_algorithm_version": "1.0.0",
+        "rule_evaluation_algorithm_hash": _HASH,
+        "source_authority_refs": [_record_ref()],
+        "limitations": ["Fixture only."],
+        "prohibited_inferences": ["This rubric is not a result."],
+        "effective_candidate_kinds": ["method"],
+        "effective_project_scope_ref": _record_ref(),
+    }
+
+
+VALID_RUBRIC = _valid_rubric()
 
 
 def test_representative_valid_examples_cover_content_relation_and_artifact() -> None:
@@ -392,7 +465,7 @@ def test_w11_timestamps_require_utc_rfc3339_z_with_format_checking() -> None:
     assert not validator.is_valid(offset_timestamp)
 
 
-def test_w11_exact_subject_range_keeps_runtime_python_inert() -> None:
+def test_w11_exact_subject_range_keeps_runtime_activation_bounded() -> None:
     changed_paths = subprocess.run(
         ["git", "diff", "--name-only", f"{W11_PARENT}..{W11_SUBJECT}", "--", "research_system"],
         cwd=REPO_ROOT,
@@ -400,33 +473,104 @@ def test_w11_exact_subject_range_keeps_runtime_python_inert() -> None:
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.splitlines()
-    assert not [path for path in changed_paths if path.endswith(".py")]
+    assert not [path for path in changed_paths if path not in INERT_RUNTIME_VALIDATOR_PATHS]
 
 
-def test_w11_content_semantics_cover_every_content_schema() -> None:
-    valid = {
-        "record_revision": 1,
-        "supersedes_revision": None,
-        "source_refs": [_source_ref()],
-    }
-    for schema_id in sorted(CONTENT_SCHEMA_IDS):
-        _validate_w11_content_semantics(schema_id, valid)
+def test_w11_content_semantics_are_enforced_at_registry_admission() -> None:
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    registry.validate("ars://portfolio/programme", VALID_PROGRAMME)
 
-    wrong_predecessor = {**valid, "record_revision": 3, "supersedes_revision": 1}
-    wrong_first_revision = {**valid, "supersedes_revision": 1}
-    foreign_record_fields = {
-        **valid,
-        "source_refs": [
-            {"ref_kind": "external", "locator": "https://example.invalid/source", "id": "obj_1", "content_hash": _HASH}
-        ],
-    }
-    for schema_id in sorted(CONTENT_SCHEMA_IDS):
-        with pytest.raises(ValueError, match="predecessor"):
-            _validate_w11_content_semantics(schema_id, wrong_predecessor)
-        with pytest.raises(ValueError, match="revision 1"):
-            _validate_w11_content_semantics(schema_id, wrong_first_revision)
-        with pytest.raises(ValueError, match="external"):
-            _validate_w11_content_semantics(schema_id, foreign_record_fields)
+    wrong_predecessor = deepcopy(VALID_PROGRAMME)
+    wrong_predecessor["record_revision"] = 3
+    wrong_predecessor["supersedes_revision"] = 1
+    with pytest.raises(SchemaError, match="exact predecessor"):
+        registry.validate("ars://portfolio/programme", wrong_predecessor)
+
+    wrong_first_revision = deepcopy(VALID_PROGRAMME)
+    wrong_first_revision["supersedes_revision"] = 1
+    with pytest.raises(SchemaError, match="revision 1 must have null"):
+        registry.validate("ars://portfolio/programme", wrong_first_revision)
+
+    valid_artefact_source = deepcopy(VALID_PROGRAMME)
+    valid_artefact_source["source_refs"] = [
+        {"ref_kind": "artefact", "id": "art_1", "record_revision": 2, "content_hash": _HASH}
+    ]
+    registry.validate("ars://portfolio/programme", valid_artefact_source)
+
+    cross_kind_source = deepcopy(VALID_PROGRAMME)
+    cross_kind_source["source_refs"] = [
+        {"ref_kind": "artefact", "id": VALID_PROGRAMME["record_id"], "record_revision": 1, "content_hash": _HASH}
+    ]
+    with pytest.raises(SchemaError, match="artefact identity must start with art_"):
+        registry.validate("ars://portfolio/programme", cross_kind_source)
+
+
+def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    catalogue = _valid_catalogue()
+    registry.validate("ars://portfolio/w11-schema-catalogue-content", catalogue)
+
+    swapped = deepcopy(catalogue)
+    swapped["owner_contract_rows"][-1] = _owner_contract_row("OR-140", test_owner_row_id="OR-001")
+    with pytest.raises(SchemaError, match="owner row OR-140 positive_test_identity"):
+        registry.validate("ars://portfolio/w11-schema-catalogue-content", swapped)
+
+
+def test_w11_scorecard_resolves_the_frozen_rubric_at_registry_admission() -> None:
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    registry.validate(
+        "ars://portfolio/assay-scorecard",
+        VALID_SCORECARD,
+        reference_documents=[VALID_RUBRIC],
+    )
+
+    unresolved = deepcopy(VALID_SCORECARD)
+    with pytest.raises(SchemaError, match="rubric_ref could not be resolved"):
+        registry.validate("ars://portfolio/assay-scorecard", unresolved)
+
+    unknown_axis = deepcopy(VALID_SCORECARD)
+    unknown_axis["axis_results"][0]["axis_id"] = "unknown"
+    with pytest.raises(SchemaError, match="unknown rubric axis"):
+        registry.validate(
+            "ars://portfolio/assay-scorecard",
+            unknown_axis,
+            reference_documents=[VALID_RUBRIC],
+        )
+
+    kind_mismatch = deepcopy(VALID_SCORECARD)
+    kind_mismatch["axis_results"][0]["axis_kind"] = "integer_score"
+    kind_mismatch["axis_results"][0]["value"] = 1
+    with pytest.raises(SchemaError, match="axis kind mismatch"):
+        registry.validate(
+            "ars://portfolio/assay-scorecard",
+            kind_mismatch,
+            reference_documents=[VALID_RUBRIC],
+        )
+
+    integer_rubric = deepcopy(VALID_RUBRIC)
+    integer_axis = integer_rubric["axis_definitions"][0]
+    integer_axis["axis_kind"] = "integer_score"
+    integer_axis["value_schema"] = "integer"
+    integer_axis["value_type"] = "integer"
+    integer_axis.pop("allowed_set")
+    integer_axis["bounds"] = {"minimum": 0, "maximum": 3}
+    integer_scorecard = deepcopy(VALID_SCORECARD)
+    integer_scorecard["axis_results"][0]["axis_kind"] = "integer_score"
+    integer_scorecard["axis_results"][0]["value"] = 2
+    registry.validate(
+        "ars://portfolio/assay-scorecard",
+        integer_scorecard,
+        reference_documents=[integer_rubric],
+    )
+
+    out_of_domain = deepcopy(integer_scorecard)
+    out_of_domain["axis_results"][0]["value"] = 99
+    with pytest.raises(SchemaError, match="outside the frozen rubric domain"):
+        registry.validate(
+            "ars://portfolio/assay-scorecard",
+            out_of_domain,
+            reference_documents=[integer_rubric],
+        )
 
 
 def test_w11_representative_mutations_are_rejected() -> None:
