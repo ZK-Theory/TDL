@@ -958,10 +958,13 @@ general legacy-root grant expansion; delegated administration; latent active
 grants that wake after registry changes; and caller-supplied actor-class maps
 for R3 acceptance.<br>
 **Boundary:** This decision does not create or accept a live grant or owner
-decision, activate the remaining WP6.1 catalogue, change legacy genesis or
-legacy `RevokeAuthorityGrant`, accept the remediation implementation or its
-tests, complete the control-store writer/acceptance runner, or imply merge,
-Gate 6, or owner acceptance after review.<br>
+decision, activate the remaining WP6.1 catalogue, or change valid legacy
+genesis history. Preserving legacy `RevokeAuthorityGrant` means preserving
+valid legacy history and CommandService-issued legacy revocation; it grants no
+direct append authority and cannot target typed v2 grants. This decision does
+not accept the remediation implementation or its tests, complete the
+control-store writer/acceptance runner, or imply merge, Gate 6, or owner
+acceptance after review.<br>
 **Evidence:** Current owner instruction dated 2026-07-31;
 `handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md`;
 `reviews/wp6-3-control-store-acceptance-mechanics-2026-07-30.md`;

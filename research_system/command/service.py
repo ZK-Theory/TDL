@@ -467,7 +467,10 @@ class CommandService:
                     lambda allocated: prepared_payload.payload_for(allocated.event_id),
                     snapshot=snapshot,
                 )
-            elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
+            elif (
+                command.envelope["command_type"] == "RevokeAuthorityGrant"
+                or command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES
+            ):
                 ledger_receipt = scoped_authority_append(
                     self.ledger,
                     event,

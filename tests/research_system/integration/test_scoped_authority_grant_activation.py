@@ -29,10 +29,13 @@ from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import REPO_ROOT
 from tests.research_system.integration.test_authority_grant_source import (
     ACTOR_ID,
+    CMD_RETRY,
+    CMD_REVOKE,
     PROJECT_ID,
     PUBLICATION_ID,
     ROOT_ID,
     _initialized,
+    _revoke_command,
 )
 
 
@@ -246,6 +249,42 @@ def _raw_scoped_administration_event(
         "idempotency_key": f"raw-scoped-administration-{suffix}",
         "command_payload_hash": sha256_hex(canonical_bytes(payload)),
         "correlation_id": "synthetic-raw-scoped-administration",
+        "causation_id": None,
+        "actor_id": ACTOR_ID,
+        "authority_grant_id": ROOT_ID,
+        "occurred_at": None,
+        "payload": payload,
+    }
+
+
+def _raw_legacy_revocation_event(
+    schemas,
+    resolver: LedgerAuthorityGrantResolver,
+    grant: dict[str, object],
+) -> dict[str, object]:
+    command_schema = schemas.resolve_identity("ars://core/command", "1.0.0")
+    context = resolver.administration_context()
+    payload = {
+        "project_id": PROJECT_ID,
+        "target_grant_id": grant["authority_grant_id"],
+        "target_grant_sha256": sha256_hex(canonical_bytes(grant)),
+        "authorizing_grant_id": context.root_grant_id,
+        "authorizing_grant_sha256": context.root_grant_sha256,
+        "reason": "attempt generic revocation of a typed scoped grant",
+    }
+    return {
+        "event_type": "AuthorityGrantRevoked",
+        "stream_id": grant["authority_grant_id"],
+        "schema_id": "ars://core/event",
+        "schema_version": "1.0.0",
+        "command_id": "cmd_01978abc-6295-7000-8000-000000006295",
+        "command_type": "RevokeAuthorityGrant",
+        "command_schema_id": command_schema.schema_id,
+        "command_schema_version": command_schema.schema_version,
+        "command_schema_sha256": command_schema.sha256,
+        "idempotency_key": "raw-legacy-revocation-of-scoped-grant",
+        "command_payload_hash": sha256_hex(canonical_bytes(payload)),
+        "correlation_id": "synthetic-cross-family-revocation",
         "causation_id": None,
         "actor_id": ACTOR_ID,
         "authority_grant_id": ROOT_ID,
@@ -818,6 +857,141 @@ def test_direct_issued_revocation_append_requires_sealed_verified_decision(
         assert ledger.snapshot() == before
         assert ReceiptStore(control_root).load(event["command_id"]) is None
     assert resolver.scoped_grant_identity(GRANT_ID).status == "active"
+
+
+def test_direct_legacy_revocation_append_cannot_target_scoped_v2_grant(
+    tmp_path,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, activation_decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    event = _raw_legacy_revocation_event(schemas, resolver, grant)
+    before = ledger.snapshot()
+    files_before = {
+        path.relative_to(control_root).as_posix(): path.read_bytes()
+        for root in (control_root / "events", control_root / "runtime")
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+    with pytest.raises(
+        ArsError,
+        match="validated CommandService scoped-authority continuation",
+    ):
+        ledger.append([event], snapshot=before)
+
+    assert ledger.snapshot() == before
+    assert {
+        path.relative_to(control_root).as_posix(): path.read_bytes()
+        for root in (control_root / "events", control_root / "runtime")
+        for path in root.rglob("*")
+        if path.is_file()
+    } == files_before
+    assert ReceiptStore(control_root).load(event["command_id"]) is None
+    assert resolver.scoped_grant_identity(GRANT_ID).status == "active"
+
+
+def test_replay_rejects_legacy_revocation_of_scoped_v2_grant(
+    tmp_path,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, activation_decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    events = list(ledger.snapshot().events)
+    legacy_revocation = _raw_legacy_revocation_event(schemas, resolver, grant)
+    legacy_revocation.update(
+        {
+            "event_id": "evt_01978abc-6296-7000-8000-000000006296",
+            "project_id": PROJECT_ID,
+            "stream_version": 2,
+            "global_position": events[-1]["global_position"] + 1,
+            "transaction_id": "txb_01978abc-6297-7000-8000-000000006297",
+            "transaction_index": 1,
+            "transaction_count": 1,
+            "recorded_at": "2026-07-12T12:00:00Z",
+            "previous_event_hash": events[-1]["event_hash"],
+        }
+    )
+    legacy_revocation["event_hash"] = sha256_hex(canonical_bytes(legacy_revocation))
+
+    with pytest.raises(
+        IntegrityError,
+        match="legacy authority revocation cannot target scoped grant",
+    ):
+        replay(
+            (*events, legacy_revocation),
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+
+
+def test_legacy_v1_command_service_revocation_and_retry_remain_accepted(
+    tmp_path,
+) -> None:
+    control_root, schemas, resolver, _, _, service = _system(tmp_path)
+
+    accepted = service.submit(_revoke_command(CMD_REVOKE))
+    assert accepted.status == "accepted"
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID, schemas),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=resolver,
+        clock=lambda: NOW,
+    )
+    assert restarted.submit(_revoke_command(CMD_RETRY)) == accepted
+    assert (
+        replay(
+            EventLedger(control_root, PROJECT_ID, schemas).iter_events(),
+            schema_registry=schemas,
+        )["authority_grants"][PUBLICATION_ID]["status"]
+        == "revoked"
+    )
+
+
+def test_typed_v2_owner_decision_revocation_remains_accepted(tmp_path) -> None:
+    _, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, activation_decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    revocation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=REVOKE_DECISION_ID,
+        action="revoke_issued_authority_grant",
+    )
+    objects.write("assurance_record", REVOKE_DECISION_ID, 1, revocation_decision)
+
+    accepted = service.submit(_revocation_command(resolver, grant, revocation_decision))
+
+    assert accepted.status == "accepted"
+    assert resolver.scoped_grant_identity(GRANT_ID).status == "revoked"
 
 
 @pytest.mark.parametrize(

@@ -374,6 +374,7 @@ class EventLedger:
             producer = str(candidate.get("command_type", ""))
             scoped_authority_event = (event_type, producer) in {
                 ("AuthorityGrantActivated", "ActivateAuthorityGrant"),
+                ("AuthorityGrantRevoked", "RevokeAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeIssuedAuthorityGrant"),
             }
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
