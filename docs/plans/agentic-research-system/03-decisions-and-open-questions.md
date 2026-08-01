@@ -939,10 +939,12 @@ grants no authority capability.<br>
 **Affected specifications:** W2 schema versioning and replay; P-043; Handoff 32
 §5A0; A0 runtime schema binding.
 
-## W11 specification status (non-decision)
+## W11 specification status and D-G6-4 disposition
 
-The WP6.5 specification-only draft exists at
-`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`.
+The WP6.5 specification exists at
+`design/11-portfolio-and-discovery-lifecycle.md`. Its embedded
+`review_pending` field is an immutable historical snapshot; the effective
+external status is now `accepted_exact_revision` for D-G6-4 limb 1.
 Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
 returned `rework_required` (2 Critical, 6 Major, 2 Minor). R2 review of exact revision
 `d24df9d26f0d906d177eafa1eaeabb65a5515004` also returned `rework_required`
@@ -964,14 +966,30 @@ separate cancellation review and overlay cleanup, and closes the annotation cuto
 race with the accepted epoch/fence protocol. It also separates W2 verdict recording
 from W11 gate satisfaction through a closed six-subject verdict/effect and review-
 supersession policy. The dated addendum remains in the tracked
-root evidence register. A fresh independent R5 review of the new exact commit is
-mandatory and author reconciliation is not acceptance. This status entry does not
-amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
-schema/projection, ingest/admit any item, transition ownership, cut over a path, or
-perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
-exact-revision acceptance after the fresh review and reconciliation and (2) a
-separately content-addressed first ownership-transition batch using the accepted W11
-relation.
+root evidence register. The W11-specific R5 review approved exact content subject
+`892d1d1650cdcf71d2a886318e174a18e11d5de0`; W11 R6 approved follow-up
+subject `c21b366caa751265e455435f23d1232f0bb6220c`; and W11 R7 approved
+erratum subject `4e7ec91a7815b808ae0ee8af3421eab20840094e`. Each resolved W11 to
+blob `f90729d0c42a0de98d064fac0824d1969c871c82`. Their copied raw SHA-256
+assertion was later shown to be unreproducible, so PR #202 added a factual erratum
+without rewriting W11 or those immutable review epochs. Fresh R8 review independently
+recomputed the raw object and returned `accept_exact_subject` with zero findings.
+
+On 2026-08-01 Stephen stated, "I accept the corrected exact W11 revision for
+D-G6-4 limb 1 as PR 202." The external owner record at
+`reviews/wp6-5-w11-d-g6-4-limb-1-owner-acceptance-2026-08-01.md` binds that
+acceptance to content commit `892d1d1650cdcf71d2a886318e174a18e11d5de0`,
+blob `f90729d0c42a0de98d064fac0824d1969c871c82`, 185,214 raw bytes, raw
+SHA-256 `65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70`,
+R8 head `14975af6590282a8018ca8fcce05f08ef08fac2d`, and PR #202 merge
+`c84eb2aaf0890d36d3735d08a14169f4c50935cd`.
+
+D-G6-4 limb 1 is therefore closed and inert W11 schema/catalogue materialization may
+proceed. This does not accept future catalogue bytes or activate WP6.6 runtime.
+D-G6-4 limb 2 remains open for a separately content-addressed first
+ownership-transition batch. No dossier admission, ownership transition, migration,
+cutover, writer revocation, legacy retirement, provider action, research dispatch,
+result, eligibility, claim, publication, Gate 6, or Gate 7 authority is inferred.
 
 ## Assumptions requiring confirmation
 

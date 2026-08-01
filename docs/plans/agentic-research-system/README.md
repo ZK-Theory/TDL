@@ -79,6 +79,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md) | P-041 exact-byte owner acceptance of the six-path rate-mode boundary candidate; no runtime authority |
 | [reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md](reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md) | P-042 blast-radius review: high planning impact, low code impact, and a fail-closed runtime disposition |
 | [reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md](reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md) | Exact-tree post-merge acceptance of the 06g governing planning amendment; permits KAN-56 readiness assessment but grants no runtime authority |
+| [reviews/wp6-5-w11-d-g6-4-limb-1-owner-acceptance-2026-08-01.md](reviews/wp6-5-w11-d-g6-4-limb-1-owner-acceptance-2026-08-01.md) | D-G6-4 limb-1 exact-revision owner acceptance binding corrected PR #202/W11 raw-object identity; permits inert catalogue materialization only, with limb 2 and all runtime/migration authority still open |
 | [reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md](reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md) | KAN-56 fail-closed readiness verdict: the upstream contract remains unaccepted, all six skill pins are stale, two required contracts remain pending, and A7 stays open |
 
 ## Handover prompts
