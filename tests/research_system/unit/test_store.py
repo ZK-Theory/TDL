@@ -72,6 +72,89 @@ def test_second_writer_lock_is_rejected(tmp_path):
                 raise AssertionError("second writer entered lock")
 
 
+def test_composite_writer_lock_rejects_absent_root_without_state(tmp_path):
+    missing = tmp_path / "missing"
+
+    with pytest.raises(ConflictError, match="existing directory"):
+        CompositeWriterLock(
+            (missing,),
+            {"command_id": "cmd_composite-missing-root"},
+        )
+
+    assert not missing.exists()
+    assert not (missing / "runtime").exists()
+    assert not (missing / "runtime" / "writer.lock").exists()
+
+
+def test_composite_writer_lock_exposes_only_a_live_lease(tmp_path):
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-live-lease"},
+    )
+
+    with pytest.raises(ConflictError, match="lease is not live"):
+        candidate.locked_root(root)
+
+    with candidate as entered:
+        locked = entered.locked_root(root)
+        assert locked.identity.scheme in {"windows-file-id-v1", "posix-dev-inode-v1"}
+        assert locked.aliases == (root,)
+        assert entered.paths == (locked.runtime_final_path / "writer.lock",)
+
+    assert candidate.paths == ()
+    with pytest.raises(ConflictError, match="lease is not live"):
+        candidate.locked_root(root)
+
+
+@pytest.mark.parametrize("runtime_kind", ["missing", "file", "reparse"])
+def test_composite_writer_lock_rejects_invalid_runtime_without_state(tmp_path, runtime_kind):
+    root = tmp_path / f"control-{runtime_kind}"
+    root.mkdir()
+    runtime = root / "runtime"
+    if runtime_kind == "file":
+        runtime.write_text("not a directory", encoding="utf-8")
+    elif runtime_kind == "reparse":
+        target = tmp_path / f"runtime-target-{runtime_kind}"
+        target.mkdir()
+        try:
+            runtime.symlink_to(target, target_is_directory=True)
+        except OSError:
+            pytest.skip("directory reparse creation unavailable on this host")
+
+    with pytest.raises(ConflictError, match="directory|reparse"):
+        CompositeWriterLock(
+            (root,),
+            {"command_id": f"cmd_composite-runtime-{runtime_kind}"},
+        )
+
+    assert not (root / "runtime" / "writer.lock").exists()
+
+
+def test_composite_writer_lock_fails_closed_when_windows_identity_is_unavailable(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows identity backend control")
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "control-identity"
+    (root / "runtime").mkdir(parents=True)
+
+    def unavailable(_handle):
+        raise OSError("identity unavailable")
+
+    monkeypatch.setattr(lock_module, "_windows_file_id", unavailable)
+    with pytest.raises(ConflictError):
+        CompositeWriterLock(
+            (root,),
+            {"command_id": "cmd_composite-identity-unavailable"},
+        )
+    assert not (root / "runtime" / "writer.lock").exists()
+
+
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):
     path = tmp_path / "writer.lock"
 
@@ -113,11 +196,12 @@ def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failur
         {"command_id": "cmd_composite-cleanup"},
         lock_factory=FakeLock,
     )
-    with pytest.raises(ValueError, match="second lock release failed"):
+    with pytest.raises(ValueError, match="second lock release failed") as raised:
         candidate.__enter__()
 
     assert entered == ["a", "b", "c"]
     assert exited == ["b", "a"]
+    assert isinstance(raised.value.__cause__, RuntimeError)
     assert candidate._acquired == []
     candidate.__exit__(None, None, None)
     assert exited == ["b", "a"]

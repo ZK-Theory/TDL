@@ -1020,9 +1020,9 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
         (same_root, same_root),
         {"command_id": "cmd_01978abc-7262-7000-8000-000000007262"},
     )
-    assert len(same.paths) == 1
     with same:
-        assert same.paths == (same_root.resolve() / "runtime" / "writer.lock",)
+        assert len(same.paths) == 1
+        assert same.locked_root(same_root).runtime_final_path == same.paths[0].parent
 
     blocker = WriterLock(
         second_root / "runtime" / "writer.lock",
@@ -1047,7 +1047,11 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
         tuple(reversed(roots)),
         {"command_id": "cmd_01978abc-7266-7000-8000-000000007266"},
     )
-    assert second.paths == first.paths
+    with first:
+        first_order = tuple(locked.identity for locked in first._locked_roots)
+    with second:
+        second_order = tuple(locked.identity for locked in second._locked_roots)
+    assert second_order == first_order
     entered = threading.Event()
     release = threading.Event()
     outcomes: list[str] = []
@@ -1104,8 +1108,13 @@ def test_composite_writer_lock_deduplicates_physical_windows_aliases(tmp_path):
         {"command_id": "cmd_01978abc-7268-7000-8000-000000007268"},
     )
 
-    assert len(first.paths) == 1
-    assert second.paths == first.paths
+    with first:
+        first_paths = first.paths
+        first_order = tuple(locked.identity for locked in first._locked_roots)
+    with second:
+        assert len(second.paths) == 1
+        assert second.paths == first_paths
+        assert tuple(locked.identity for locked in second._locked_roots) == first_order
 
 
 def test_composite_writer_lock_deduplicates_reparse_alias_when_available(tmp_path):
@@ -1122,7 +1131,133 @@ def test_composite_writer_lock_deduplicates_reparse_alias_when_available(tmp_pat
         {"command_id": "cmd_01978abc-7269-7000-8000-000000007269"},
     )
 
-    assert len(lock.paths) == 1
+    with lock:
+        assert len(lock.paths) == 1
+
+
+@pytest.mark.parametrize("replace_position", [0, 1])
+def test_composite_writer_lock_rejects_each_member_replacement_before_acquisition(
+    tmp_path,
+    replace_position,
+):
+    roots = (tmp_path / "member-a", tmp_path / "member-b")
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+
+    candidate = CompositeWriterLock(
+        roots,
+        {"command_id": f"cmd_01978abc-7270-7000-8000-00000000727{replace_position}"},
+    )
+    saved = tmp_path / f"member-{replace_position}-saved"
+    roots[replace_position].rename(saved)
+    (roots[replace_position] / "runtime").mkdir(parents=True)
+
+    with pytest.raises(ConflictError, match="identity|existing directory"):
+        with candidate:
+            raise AssertionError("protected callback ran after root replacement")
+
+    for location in (*roots, saved):
+        assert not (location / "runtime" / "writer.lock").exists()
+
+
+@pytest.mark.parametrize("replace_position", [0, 1])
+def test_composite_writer_lock_final_fence_rejects_reparse_replacement_and_cleans_siblings(
+    tmp_path,
+    replace_position,
+    monkeypatch,
+):
+    targets = (tmp_path / "target-a", tmp_path / "target-b")
+    aliases = (tmp_path / "alias-a", tmp_path / "alias-b")
+    for target, alias in zip(targets, aliases):
+        (target / "runtime").mkdir(parents=True)
+        try:
+            alias.symlink_to(target, target_is_directory=True)
+        except OSError:
+            pytest.skip("directory reparse creation unavailable on this host")
+    replacement = tmp_path / f"replacement-{replace_position}"
+    (replacement / "runtime").mkdir(parents=True)
+
+    supplied = (aliases[replace_position], targets[1 - replace_position])
+    candidate = CompositeWriterLock(
+        supplied,
+        {"command_id": f"cmd_01978abc-7271-7000-8000-00000000727{replace_position}"},
+    )
+    original_fence = candidate._final_fence
+    protected_calls: list[str] = []
+
+    def replace_alias_before_fence(acquired):
+        aliases[replace_position].unlink()
+        aliases[replace_position].symlink_to(replacement, target_is_directory=True)
+        return original_fence(acquired)
+
+    monkeypatch.setattr(candidate, "_final_fence", replace_alias_before_fence)
+    with pytest.raises(ConflictError, match="alias changed"):
+        with candidate:
+            protected_calls.append("ran")
+
+    assert protected_calls == []
+    for location in (*targets, *aliases, replacement):
+        assert not (location / "runtime" / "writer.lock").exists()
+
+
+@pytest.mark.parametrize("replace_position", [0, 1])
+def test_composite_writer_lock_rejects_reparse_replacement_after_anchor_before_lock(
+    tmp_path,
+    replace_position,
+):
+    targets = (tmp_path / "anchor-target-a", tmp_path / "anchor-target-b")
+    aliases = (tmp_path / "anchor-alias-a", tmp_path / "anchor-alias-b")
+    for target, alias in zip(targets, aliases):
+        (target / "runtime").mkdir(parents=True)
+        try:
+            alias.symlink_to(target, target_is_directory=True)
+        except OSError:
+            pytest.skip("directory reparse creation unavailable on this host")
+    replacement = tmp_path / f"anchor-replacement-{replace_position}"
+    (replacement / "runtime").mkdir(parents=True)
+    supplied = (aliases[replace_position], targets[1 - replace_position])
+    replacement_seen = False
+
+    def lock_factory(path, identity):
+        nonlocal replacement_seen
+        if not replacement_seen and path.parent.parent.name == targets[replace_position].name:
+            aliases[replace_position].unlink()
+            aliases[replace_position].symlink_to(replacement, target_is_directory=True)
+            replacement_seen = True
+        return WriterLock(path, identity)
+
+    candidate = CompositeWriterLock(
+        supplied,
+        {"command_id": f"cmd_01978abc-7273-7000-8000-00000000727{replace_position}"},
+        lock_factory=lock_factory,
+    )
+    with pytest.raises(ConflictError, match="alias changed"):
+        with candidate:
+            raise AssertionError("protected callback ran after anchor replacement")
+
+    assert replacement_seen
+    for location in (*targets, *aliases, replacement):
+        assert not (location / "runtime" / "writer.lock").exists()
+
+
+def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
+    from types import SimpleNamespace
+
+    root = tmp_path / "submission-root"
+    (root / "runtime").mkdir(parents=True)
+    service = object.__new__(CommandService)
+    service.control_root = root
+    service.release_lock_timeout_seconds = 1.0
+    service._monotonic = lambda: 0.0
+    service._lock_wait = lambda _seconds: None
+    command = SimpleNamespace(
+        command_id="cmd_01978abc-7272-7000-8000-000000007272",
+        envelope={"command_type": "UncoordinatedProbe"},
+    )
+
+    with service._submission_lock(command) as lease:
+        assert isinstance(lease, CompositeWriterLock)
+        assert lease.locked_root(root).identity == lease._locked_roots[0].identity
 
 
 def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):

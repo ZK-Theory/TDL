@@ -617,7 +617,7 @@ class CommandService:
                 continue
             break
         try:
-            yield
+            yield lock
         finally:
             lock.__exit__(*sys.exc_info())
 
