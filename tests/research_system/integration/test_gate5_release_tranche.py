@@ -16,6 +16,7 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
+    _SyntheticLifecycleAuthorityResolver,
     control_plane,
     create_task_command,
 )
@@ -424,6 +425,7 @@ def _moved_service(case):
         ObjectStore(root),
         ReceiptStore(root),
         schemas,
+        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
     )
 
 

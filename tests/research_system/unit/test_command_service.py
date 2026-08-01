@@ -22,6 +22,7 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
+    _SyntheticLifecycleAuthorityResolver,
     claim_dispatch_command,
     control_plane,
     create_task_command,
@@ -113,6 +114,7 @@ def test_create_task_object_shape_follows_resolved_successor_binding(tmp_path):
         objects,
         ReceiptStore(root),
         schemas,
+        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
     )
     command = create_task_command(
         CMD_CREATE,
@@ -292,6 +294,7 @@ def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_pa
         ObjectStore(root),
         ReceiptStore(root),
         runtime,
+        authority_resolver=_SyntheticLifecycleAuthorityResolver(),
     )
 
     with pytest.raises(ConflictError, match="idempotency"):

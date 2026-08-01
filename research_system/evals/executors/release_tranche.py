@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import (
+    AuthorityAdministrationContext,
+    AuthorityScope,
+    ScopedAuthorityGrantResolution,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.errors import ArsError
 from research_system.schema_registry import runtime_schema_registry
 
 
@@ -77,6 +84,64 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         },
     ),
 }
+
+
+class _FixtureLifecycleAuthorityResolver:
+    """Synthetic owner-bound resolver for offline Gate 5 lifecycle fixtures."""
+
+    def __init__(self, project_id: str, owner_actor_id: str) -> None:
+        self.project_id = project_id
+        self.owner_actor_id = owner_actor_id
+        self._resolutions: dict[str, ScopedAuthorityGrantResolution] = {}
+
+    def administration_context(self) -> AuthorityAdministrationContext:
+        return AuthorityAdministrationContext(
+            project_id=self.project_id,
+            store_identity="a" * 64,
+            bootstrap_manifest_sha256="b" * 64,
+            root_grant_id="agr_01978abc-5001-7000-8000-000000005001",
+            root_grant_sha256="c" * 64,
+            owner_actor_id=self.owner_actor_id,
+        )
+
+    def resolve_command(
+        self,
+        *,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        command: Any,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> ScopedAuthorityGrantResolution:
+        del command, required_risk, now
+        if actor_class != "human" or actor_id != self.owner_actor_id:
+            raise ArsError("synthetic fixture actor class mismatch")
+        resolution = ScopedAuthorityGrantResolution(
+            authority_grant_id=grant_id,
+            authority_grant_sha256=sha256_hex(grant_id.encode("utf-8")),
+            schema_id="ars://core/scoped-authority-grant",
+            schema_version="2.0.0",
+            schema_sha256="d" * 64,
+            actor_id=actor_id,
+            subject_scope=AuthorityScope(project_id, subject_kind, subject_id),
+            effective_at=datetime(2026, 1, 1, tzinfo=UTC),
+            expires_at=datetime(2030, 1, 1, tzinfo=UTC),
+            activation_event_id="evt_01978abc-5002-7000-8000-000000005002",
+            activation_position=1,
+            administration_decision_id="arec_01978abc-5003-7000-8000-000000005003",
+            administration_decision_sha256="e" * 64,
+            status="active",
+            revocation_event_id=None,
+        )
+        self._resolutions[grant_id] = resolution
+        return resolution
+
+    def scoped_grant_identity(self, grant_id: str) -> ScopedAuthorityGrantResolution | None:
+        return self._resolutions.get(grant_id)
 
 
 def _create_task_payload(
@@ -167,6 +232,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             ObjectStore(root),
             ReceiptStore(root),
             schemas,
+            authority_resolver=_FixtureLifecycleAuthorityResolver(project_id, actor_id),
         )
         failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
         preflight = seal_restore_preflight_result(
@@ -320,6 +386,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             ObjectStore(root),
             ReceiptStore(root),
             schemas,
+            authority_resolver=_FixtureLifecycleAuthorityResolver(project_id, actor_id),
         )
         for index, task_id in enumerate(task_ids):
             service.submit(
