@@ -96,12 +96,15 @@ Stephen accepted D-G6-4 limb 1 at PR #202. Preserve exactly:
   lifecycle policy, trusted resolver digest, exact CAS/idempotency, and
   attributed fail-closed publication metadata. It must preserve protected
   contract/schema bytes and create no genuine record.
-- One owner decision remains because P-046 contains no record-publication
-  action. Recommended: authorize a new least-privilege local ledger scope
+- P-046 contains no record-publication action, but the campaign's standing
+  authority already approves the recommended least-privilege authority design
+  as a routine technical choice. The producer has therefore been directed to
+  implement a versioned local ledger scope
   `publish_external_assurance_record`, bound to actor, project/store/root,
-  class/full ID/revision/body hash/risk/time, with revocation. Without that
-  authority, KAN-67 can deliver only a fail-closed storage primitive and cannot
-  meet the governed production-writer acceptance criterion.
+  class/full ID/revision/body hash/risk/time, with replay and revocation under
+  the writer lock. This authorizes implementation and tests only; it does not
+  prospectively accept the future exact subject or authorize a live grant or
+  record. A protected-byte conflict must still be reported rather than bypassed.
 
 ## WP6.4 restore and project binding
 
