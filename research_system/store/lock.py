@@ -20,14 +20,51 @@ class DirectoryIdentity:
     file_id: bytes
 
 
-@dataclass(frozen=True)
+class _LeaseState:
+    __slots__ = ("_live",)
+
+    def __init__(self) -> None:
+        self._live = True
+
+    @property
+    def live(self) -> bool:
+        return self._live
+
+    def invalidate(self) -> None:
+        self._live = False
+
+
+@dataclass(frozen=True, init=False)
 class LockedRoot:
     identity: DirectoryIdentity
     final_path: Path
     runtime_identity: DirectoryIdentity
     runtime_final_path: Path
     aliases: tuple[Path, ...]
-    _lease_token: object
+    _lease_token: _LeaseState
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        raise TypeError("LockedRoot is a lock-created capability")
+
+    @classmethod
+    def _create(
+        cls,
+        *,
+        identity: DirectoryIdentity,
+        final_path: Path,
+        runtime_identity: DirectoryIdentity,
+        runtime_final_path: Path,
+        aliases: tuple[Path, ...],
+        lease_token: _LeaseState,
+    ) -> Self:
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "identity", identity)
+        object.__setattr__(instance, "final_path", final_path)
+        object.__setattr__(instance, "runtime_identity", runtime_identity)
+        object.__setattr__(instance, "runtime_final_path", runtime_final_path)
+        object.__setattr__(instance, "aliases", aliases)
+        object.__setattr__(instance, "_lease_token", lease_token)
+        return instance
 
 
 class _DirectoryAnchor:
@@ -123,6 +160,7 @@ if os.name == "nt":
     _FILE_ATTRIBUTE_DIRECTORY = 0x00000010
     _FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
     _FILE_READ_ATTRIBUTES = 0x00000080
+    _DELETE = 0x00010000
     _SYNCHRONIZE = 0x00100000
     _FILE_SHARE_READ = 0x00000001
     _FILE_SHARE_WRITE = 0x00000002
@@ -138,13 +176,21 @@ def _windows_api_error(operation: str) -> OSError:
     return OSError(error_code, f"{operation} failed: {ctypes.FormatError(error_code)}")
 
 
-def _windows_open_handle(path: Path, *, open_reparse_point: bool) -> object:
+def _windows_open_handle(
+    path: Path,
+    *,
+    open_reparse_point: bool,
+    delete_protect: bool = False,
+) -> object:
     flags = _FILE_FLAG_BACKUP_SEMANTICS
     if open_reparse_point:
         flags |= _FILE_FLAG_OPEN_REPARSE_POINT
+    access = _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
+    if delete_protect:
+        access |= _DELETE
     handle = _KERNEL32.CreateFileW(
         str(path),
-        _FILE_READ_ATTRIBUTES | _SYNCHRONIZE,
+        access,
         _FILE_SHARE_READ | _FILE_SHARE_WRITE,
         None,
         _OPEN_EXISTING,
@@ -221,9 +267,15 @@ def _windows_anchor_refresh(handle: object) -> tuple[DirectoryIdentity, Path]:
     return _windows_file_id(handle), _windows_final_path(handle)
 
 
-def _open_windows_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAnchor:
+def _open_windows_anchor(
+    path: Path,
+    *,
+    reject_reparse: bool,
+    delete_protect: bool = False,
+) -> _DirectoryAnchor:
     probe: object | None = None
     handle: object | None = None
+    first_close_error: BaseException | None = None
     try:
         if reject_reparse:
             probe = _windows_open_handle(path, open_reparse_point=True)
@@ -232,27 +284,51 @@ def _open_windows_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAncho
                 raise ConflictError(f"{path} is not an existing directory")
             if attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
                 raise ConflictError(f"{path} must not be a reparse directory")
-            _windows_close_handle(probe)
-            probe = None
 
-        handle = _windows_open_handle(path, open_reparse_point=False)
+        handle = _windows_open_handle(
+            path,
+            open_reparse_point=False,
+            delete_protect=delete_protect and not reject_reparse,
+        )
         attributes, _ = _windows_file_attribute_tag(handle)
         if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
             raise ConflictError(f"{path} is not an existing directory")
         identity, final_path = _windows_anchor_refresh(handle)
 
         if reject_reparse:
-            # Check the spelling again after opening the followed target. The
-            # second non-followed probe closes the check/open race for a
-            # reparse child without weakening the held target anchor.
-            probe = _windows_open_handle(path, open_reparse_point=True)
-            attributes, _ = _windows_file_attribute_tag(probe)
-            if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
-                raise ConflictError(f"{path} is not an existing directory")
-            if attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
-                raise ConflictError(f"{path} must not be a reparse directory")
-            _windows_close_handle(probe)
-            probe = None
+            probe_identity = _windows_file_id(probe)
+            if probe_identity != identity:
+                raise ConflictError(f"{path} physical identity changed between no-follow probe and followed open")
+            try:
+                _windows_close_handle(probe)
+            except BaseException as close_error:
+                first_close_error = close_error
+            else:
+                probe = None
+            if first_close_error is not None:
+                raise first_close_error
+            if delete_protect:
+                # The live no-follow probe deliberately does not share delete,
+                # so the followed comparison handle cannot request DELETE
+                # until the probe has closed. Reopen the same final path with
+                # DELETE access and compare its FileIdInfo before publishing.
+                try:
+                    _windows_close_handle(handle)
+                except BaseException as close_error:
+                    first_close_error = close_error
+                else:
+                    handle = None
+                if first_close_error is not None:
+                    raise first_close_error
+                handle = _windows_open_handle(
+                    final_path,
+                    open_reparse_point=False,
+                    delete_protect=True,
+                )
+                guarded_identity, guarded_final_path = _windows_anchor_refresh(handle)
+                if guarded_identity != identity:
+                    raise ConflictError(f"{path} physical identity changed before delete-protected anchor")
+                identity, final_path = guarded_identity, guarded_final_path
 
         anchor = _DirectoryAnchor(
             identity,
@@ -268,10 +344,16 @@ def _open_windows_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAncho
     except OSError as exc:
         raise ConflictError(f"{path} is not an existing directory") from exc
     finally:
-        if probe is not None:
-            _windows_close_handle(probe)
-        if handle is not None:
-            _windows_close_handle(handle)
+        for candidate in (probe, handle):
+            if candidate is None:
+                continue
+            try:
+                _windows_close_handle(candidate)
+            except BaseException as close_error:
+                if first_close_error is None:
+                    first_close_error = close_error
+        if first_close_error is not None:
+            raise first_close_error
 
 
 def _posix_identity(observed: os.stat_result) -> DirectoryIdentity:
@@ -337,11 +419,20 @@ def _open_posix_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAnchor:
         raise
 
 
-def _open_directory_anchor(path: Path, *, reject_reparse: bool = False) -> _DirectoryAnchor:
+def _open_directory_anchor(
+    path: Path,
+    *,
+    reject_reparse: bool = False,
+    delete_protect: bool = False,
+) -> _DirectoryAnchor:
     if os.name == "nt":
         # Windows deliberately has no lexical/stat-only fallback. The held
         # CreateFileW handle is the physical identity and replacement fence.
-        return _open_windows_anchor(path, reject_reparse=reject_reparse)
+        return _open_windows_anchor(
+            path,
+            reject_reparse=reject_reparse,
+            delete_protect=delete_protect,
+        )
     return _open_posix_anchor(path, reject_reparse=reject_reparse)
 
 
@@ -528,13 +619,13 @@ class CompositeWriterLock:
         self._active_members: list[_AcquiredMember] = []
         self._locks: tuple[Any, ...] = ()
         self._acquired: list[Any] = []
-        self._lease_token: object | None = None
+        self._lease_token: _LeaseState | None = None
         self._locked_roots: tuple[LockedRoot, ...] = ()
         self.paths: tuple[Path, ...] = ()
 
     def _prepare_member(self, acquired: _AcquiredMember) -> None:
         member = acquired.member
-        root_anchor = _open_directory_anchor(member.representative.alias)
+        root_anchor = _open_directory_anchor(member.representative.alias, delete_protect=True)
         acquired.root_anchor = root_anchor
         if root_anchor.identity != member.identity:
             raise ConflictError("composite root identity changed before acquisition")
@@ -542,6 +633,7 @@ class CompositeWriterLock:
         runtime_anchor = _open_directory_anchor(
             root_anchor.final_path / "runtime",
             reject_reparse=True,
+            delete_protect=True,
         )
         acquired.runtime_anchor = runtime_anchor
         if runtime_anchor.identity != member.runtime_identity:
@@ -617,6 +709,8 @@ class CompositeWriterLock:
         if self._lease_token is not None or self._active_members:
             raise RuntimeError("composite writer lock cannot be entered twice")
 
+        lease_token = _LeaseState()
+        self._lease_token = lease_token
         acquired_members: list[_AcquiredMember] = []
         try:
             for member in self._members:
@@ -625,26 +719,25 @@ class CompositeWriterLock:
                 self._prepare_member(acquired)
             self._final_fence(acquired_members)
 
-            token = object()
             locked_roots = tuple(
-                LockedRoot(
+                LockedRoot._create(
                     identity=acquired.member.identity,
                     final_path=acquired.root_anchor.final_path,  # type: ignore[union-attr]
                     runtime_identity=acquired.member.runtime_identity,
                     runtime_final_path=acquired.runtime_anchor.final_path,  # type: ignore[union-attr]
                     aliases=acquired.member.aliases,
-                    _lease_token=token,
+                    lease_token=lease_token,
                 )
                 for acquired in acquired_members
             )
             self._active_members = acquired_members
             self._locks = tuple(acquired.lock for acquired in acquired_members)
             self._acquired = [acquired.lock for acquired in acquired_members]
-            self._lease_token = token
             self._locked_roots = locked_roots
             self.paths = tuple(Path(acquired.lock.path) for acquired in acquired_members)
             return self
         except BaseException as acquisition_error:
+            lease_token.invalidate()
             cleanup_error = self._cleanup_members(
                 acquired_members,
                 exc_type=None,
@@ -674,9 +767,17 @@ class CompositeWriterLock:
             _close_anchor(observer)
         if len(matches) != 1:
             raise ConflictError("path does not resolve to exactly one locked root")
-        if matches[0]._lease_token is not self._lease_token:
+        return self._validate_locked_root(matches[0])
+
+    def _validate_locked_root(self, locked_root: LockedRoot) -> LockedRoot:
+        lease_token = self._lease_token
+        if lease_token is None or not lease_token.live or not self._active_members:
+            raise ConflictError("composite lock lease is not live")
+        if type(locked_root) is not LockedRoot or locked_root._lease_token is not lease_token:
             raise ConflictError("composite lock lease token is not live")
-        return matches[0]
+        if sum(candidate == locked_root for candidate in self._locked_roots) != 1:
+            raise ConflictError("locked root is not a member of this composite lease")
+        return locked_root
 
     def __exit__(
         self,
@@ -685,7 +786,9 @@ class CompositeWriterLock:
         traceback: TracebackType | None,
     ) -> bool:
         active_members, self._active_members = self._active_members, []
-        self._lease_token = None
+        lease_token, self._lease_token = self._lease_token, None
+        if lease_token is not None:
+            lease_token.invalidate()
         self._locked_roots = ()
         self.paths = ()
         self._locks = ()

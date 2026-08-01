@@ -1024,19 +1024,21 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
         assert len(same.paths) == 1
         assert same.locked_root(same_root).runtime_final_path == same.paths[0].parent
 
+    candidate = CompositeWriterLock(
+        (first_root, second_root),
+        {"command_id": "cmd_01978abc-7264-7000-8000-000000007264"},
+    )
+    ordered_members = tuple(candidate._members)
+    ordered_lock_paths = tuple(member.representative.runtime_final_path / "writer.lock" for member in ordered_members)
     blocker = WriterLock(
-        second_root / "runtime" / "writer.lock",
+        ordered_lock_paths[-1],
         {"command_id": "cmd_01978abc-7263-7000-8000-000000007263"},
     )
     with blocker:
-        candidate = CompositeWriterLock(
-            (first_root, second_root),
-            {"command_id": "cmd_01978abc-7264-7000-8000-000000007264"},
-        )
         with pytest.raises(ConflictError, match="writer lock exists"):
             with candidate:
                 pass
-        assert not (first_root / "runtime" / "writer.lock").exists()
+        assert all(not path.exists() for path in ordered_lock_paths[:-1])
 
     roots = (second_root, first_root)
     first = CompositeWriterLock(
@@ -1049,6 +1051,7 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
     )
     with first:
         first_order = tuple(locked.identity for locked in first._locked_roots)
+        first_paths = first.paths
     with second:
         second_order = tuple(locked.identity for locked in second._locked_roots)
     assert second_order == first_order
@@ -1088,7 +1091,7 @@ def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_clean
     holder.join(2)
     assert not holder.is_alive()
     assert errors == []
-    assert all(not path.exists() for path in first.paths)
+    assert all(not path.exists() for path in first_paths)
 
 
 def test_composite_writer_lock_deduplicates_physical_windows_aliases(tmp_path):
@@ -1238,6 +1241,43 @@ def test_composite_writer_lock_rejects_reparse_replacement_after_anchor_before_l
     assert replacement_seen
     for location in (*targets, *aliases, replacement):
         assert not (location / "runtime" / "writer.lock").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows directory-handle replacement control")
+@pytest.mark.parametrize("held_name", ["root", "runtime"])
+def test_composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback(
+    tmp_path,
+    held_name,
+    monkeypatch,
+):
+    root = tmp_path / "held-root"
+    runtime = root / "runtime"
+    runtime.mkdir(parents=True)
+    candidate = CompositeWriterLock(
+        (root,),
+        {"command_id": f"cmd_01978abc-7270-7000-8000-00000000727{held_name[0]}"},
+    )
+    held = root if held_name == "root" else runtime
+    replacement = tmp_path / f"{held_name}-replacement"
+    protected_calls: list[str] = []
+
+    def fence(_acquired):
+        try:
+            os.replace(held, replacement)
+        except OSError:
+            pass
+        else:  # pragma: no cover - a passing replacement is the defect
+            replacement.rename(held)
+            raise AssertionError(f"held {held_name} directory was replaceable")
+        raise ConflictError("test final fence stopped before protected work")
+
+    monkeypatch.setattr(candidate, "_final_fence", fence)
+    with pytest.raises(ConflictError, match="test final fence"):
+        with candidate:
+            protected_calls.append("ran")
+
+    assert protected_calls == []
+    assert not replacement.exists()
 
 
 def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
