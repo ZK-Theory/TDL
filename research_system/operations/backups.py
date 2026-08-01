@@ -7,7 +7,7 @@ import os
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Sequence
 from pathlib import Path
 
 from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthorityGrantResolver
@@ -198,6 +198,8 @@ def capture_restore_binding_snapshot(
     store_identity: str,
     authority_grant_id: str,
     schema_registry: SchemaRegistry,
+    expected_code_roots: Sequence[Path],
+    expected_schema_root: Path,
 ) -> tuple[dict[str, Any], str]:
     """Capture the immutable source and normalized target facts for one restore."""
     source = source_root.resolve(strict=True)
@@ -213,14 +215,22 @@ def capture_restore_binding_snapshot(
         raise IntegrityError("restore binding store identity changed")
     source_codes = source_manifest.get("code_roots")
     target_codes = target_manifest.get("code_roots")
-    if source_codes != target_codes or not isinstance(source_codes, list) or not source_codes:
+    expected_code_values = sorted(str(root.resolve(strict=True)) for root in expected_code_roots)
+    if (
+        source_codes != target_codes
+        or source_codes != expected_code_values
+        or not isinstance(source_codes, list)
+        or not source_codes
+    ):
         raise IntegrityError("restore binding code-root snapshot changed")
     source_schema = manifest_schema_root(source_manifest)
     target_schema = manifest_schema_root(target_manifest)
+    expected_schema = expected_schema_root.resolve(strict=True)
     if (
         source_schema is None
         or target_schema is None
         or source_schema.resolve(strict=True) != target_schema.resolve(strict=True)
+        or source_schema.resolve(strict=True) != expected_schema
     ):
         raise IntegrityError("restore binding schema-root snapshot changed")
     source_bootstrap, source_bootstrap_bytes_sha256 = _json_file_snapshot(
@@ -481,6 +491,9 @@ def verify_restore_before_writer_lease(
     schema_registry: SchemaRegistry | None = None,
     now: datetime | None = None,
     expected_output: bytes | None = None,
+    expected_project_id: str | None = None,
+    expected_code_roots: Sequence[Path] | None = None,
+    expected_schema_root: Path | None = None,
 ) -> RestorePreflightResult:
     """Independently inspect a moved store and derive a pre-writer result."""
     target = target_root.resolve(strict=False)
@@ -488,6 +501,18 @@ def verify_restore_before_writer_lease(
     trusted_now = now or datetime.now(UTC)
     requested_source = source_root.resolve(strict=False) if source_root is not None else None
     failed: list[str] = []
+    approved_code_values: tuple[str, ...] = ()
+    approved_schema_value: str | None = None
+    if expected_project_id is None or expected_code_roots is None or expected_schema_root is None:
+        failed.append("restore_binding_authority_unavailable")
+    else:
+        try:
+            approved_code_values = tuple(sorted(str(root.resolve(strict=True)) for root in expected_code_roots))
+            approved_schema_value = str(expected_schema_root.resolve(strict=True))
+            if not approved_code_values or not Path(approved_schema_value).is_dir():
+                raise ValueError("approved restore binding is unavailable")
+        except (OSError, ValueError):
+            failed.append("restore_binding_authority_unavailable")
     if receipt.receipt_hash != _hash_without(receipt, "receipt_hash"):
         failed.append("receipt_hash_mismatch")
 
@@ -516,6 +541,8 @@ def verify_restore_before_writer_lease(
         actual_store = str(identity.get("store_identity", ""))
         if actual_project != receipt.project_id:
             failed.append("project_identity_mismatch")
+        if expected_project_id is not None and actual_project != expected_project_id:
+            failed.append("project_binding_mismatch")
         if actual_store != receipt.store_identity:
             failed.append("store_identity_mismatch")
         if identity.get("endpoint_scheme") != receipt.source_endpoint_scheme:
@@ -534,9 +561,18 @@ def verify_restore_before_writer_lease(
                 or any(not isinstance(root, str) or not Path(root).is_absolute() for root in recorded_codes)
             ):
                 raise ValueError("invalid code roots")
-            code_roots = tuple(recorded_codes)
+            if approved_code_values and tuple(recorded_codes) != approved_code_values:
+                failed.append("code_root_binding_mismatch")
+            code_roots = approved_code_values or tuple(recorded_codes)
             persisted_schema_root = manifest_schema_root(identity)
-            schema_root = str(persisted_schema_root) if persisted_schema_root is not None else None
+            if approved_schema_value is not None and (
+                persisted_schema_root is None
+                or persisted_schema_root.resolve(strict=False) != Path(approved_schema_value)
+            ):
+                failed.append("schema_root_binding_mismatch")
+            schema_root = approved_schema_value or (
+                str(persisted_schema_root) if persisted_schema_root is not None else None
+            )
         except (OSError, ValueError, ArsError):
             failed.append("source_root_invalid")
         if (
@@ -605,10 +641,12 @@ def verify_restore_before_writer_lease(
             source_snapshot, source_snapshot_hash = capture_restore_binding_snapshot(
                 source_root=source_root,
                 target_root=target,
-                project_id=actual_project,
+                project_id=expected_project_id or actual_project,
                 store_identity=actual_store,
                 authority_grant_id=authority_grant_id,
                 schema_registry=schemas,
+                expected_code_roots=expected_code_roots or (),
+                expected_schema_root=expected_schema_root or Path("."),
             )
             if binding_evidence is not None and (
                 binding_evidence["source_snapshot_hash"] != source_snapshot_hash
@@ -811,6 +849,12 @@ def finalize_verified_restore_binding(
     schema_registry: SchemaRegistry | None = None,
     now: datetime | None = None,
     expected_output: bytes | None = None,
+    expected_project_id: str | None = None,
+    expected_code_roots: Sequence[Path] | None = None,
+    expected_schema_root: Path | None = None,
+    output_commit: Callable[[], Any] | None = None,
+    output_rollback: Callable[[], None] | None = None,
+    post_commit: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     """Finalize a verified restore after the caller's current writer-lock recheck.
 
@@ -836,15 +880,22 @@ def finalize_verified_restore_binding(
         raise ArsError("restore preflight changed before binding finalization")
     if not current.source_root or Path(current.source_root).resolve(strict=False) != source_root.resolve(strict=False):
         raise ArsError("restore source binding mismatch")
-    if not current.code_roots:
+    if expected_project_id is None or expected_code_roots is None or expected_schema_root is None:
+        raise ArsError("approved restore binding is required")
+    approved_code_values = tuple(sorted(str(root.resolve(strict=True)) for root in expected_code_roots))
+    approved_schema_root = expected_schema_root.resolve(strict=True)
+    if not approved_code_values:
         raise ArsError("restore code-root binding missing")
+    if project_id != expected_project_id or current.project_id != expected_project_id:
+        raise ArsError("restore project binding mismatch")
+    if current.code_roots != approved_code_values:
+        raise ArsError("restore code-root binding mismatch")
+    if current.schema_root != str(approved_schema_root):
+        raise ArsError("restore schema-root binding mismatch")
     expected_output_hash = sha256_hex(expected_output) if expected_output is not None else ""
     if current.expected_output_sha256 != expected_output_hash:
         raise ArsError("restore output binding changed before finalization")
     schemas = schema_registry or bundled_runtime_schema_registry()
-    expected_schema_root = Path(current.schema_root) if current.schema_root else None
-    if expected_schema_root is None:
-        raise ArsError("restore schema-root binding missing")
     trusted_now = now or datetime.now(UTC)
     source_snapshot, source_snapshot_hash = capture_restore_binding_snapshot(
         source_root=source_root,
@@ -853,6 +904,8 @@ def finalize_verified_restore_binding(
         store_identity=current.store_identity,
         authority_grant_id=authority_grant_id,
         schema_registry=schemas,
+        expected_code_roots=[Path(root) for root in approved_code_values],
+        expected_schema_root=approved_schema_root,
     )
     if source_snapshot_hash != current.source_snapshot_hash:
         raise ArsError("restore source snapshot changed before binding finalization")
@@ -866,6 +919,8 @@ def finalize_verified_restore_binding(
                 store_identity=current.store_identity,
                 authority_grant_id=authority_grant_id,
                 schema_registry=schemas,
+                expected_code_roots=[Path(root) for root in approved_code_values],
+                expected_schema_root=approved_schema_root,
             )
             live_target_manifest_bytes_sha256 = sha256_hex(
                 (target_root.resolve(strict=True) / "manifests" / "store-identity.json").read_bytes()
@@ -891,8 +946,8 @@ def finalize_verified_restore_binding(
             target_root=target_root,
             source_snapshot=live_snapshot,
             source_snapshot_hash=live_hash,
-            code_roots=current.code_roots,
-            schema_root=str(expected_schema_root),
+            code_roots=approved_code_values,
+            schema_root=str(approved_schema_root),
             target_manifest_bytes_sha256=live_target_manifest_bytes_sha256,
             expected_output=expected_output,
         )
@@ -902,12 +957,15 @@ def finalize_verified_restore_binding(
         source_root,
         expected_project_id=project_id,
         expected_store_identity=current.store_identity,
-        expected_code_roots=[Path(root) for root in current.code_roots],
-        expected_schema_root=expected_schema_root,
+        expected_code_roots=[Path(root) for root in approved_code_values],
+        expected_schema_root=approved_schema_root,
         expected_restore_receipt_hash=current.receipt_hash,
         source_snapshot=source_snapshot,
         expected_source_snapshot_hash=current.source_snapshot_hash,
         expected_target_manifest_bytes_sha256=current.target_manifest_bytes_sha256,
         expected_output=expected_output,
         source_snapshot_validator=revalidate_source_snapshot,
+        output_commit=output_commit,
+        output_rollback=output_rollback,
+        post_commit=post_commit,
     )

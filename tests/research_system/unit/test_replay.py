@@ -239,7 +239,8 @@ def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tm
         verify_store_identity(control_root, PROJECT_ID, identity, [code_root])
 
 
-def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path):
+def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path, monkeypatch):
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
     code_root = tmp_path / "repo"
     code_root.mkdir()
     source_root = tmp_path / "source"
@@ -326,6 +327,7 @@ def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path)
 
 
 def test_restored_store_rebind_rejects_noncanonical_and_replace_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
     code_root = tmp_path / "repo"
     code_root.mkdir()
     source_root = tmp_path / "source"

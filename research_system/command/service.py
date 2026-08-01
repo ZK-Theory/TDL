@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import time
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -211,6 +211,9 @@ class CommandService:
         self._restore_source_root: Path | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
+        self._restore_expected_project_id: str | None = None
+        self._restore_expected_code_roots: tuple[Path, ...] | None = None
+        self._restore_expected_schema_root: Path | None = None
 
     def configure_moved_restore(
         self,
@@ -218,6 +221,9 @@ class CommandService:
         source_root: Path,
         preflight_result: RestorePreflightResult,
         rechecker: Callable[[], RestorePreflightResult],
+        expected_project_id: str | None = None,
+        expected_code_roots: Sequence[Path] | None = None,
+        expected_schema_root: Path | None = None,
     ) -> None:
         """Bind a moved store to evidence that is rerun before each writer lock."""
         if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
@@ -225,10 +231,18 @@ class CommandService:
         self._restore_source_root = source_root
         self._restore_preflight_result = preflight_result
         self._restore_preflight_rechecker = rechecker
+        self._restore_expected_project_id = expected_project_id
+        self._restore_expected_code_roots = tuple(expected_code_roots) if expected_code_roots is not None else None
+        self._restore_expected_schema_root = expected_schema_root
 
-    def _recheck_moved_restore(self, command: Command) -> None:
+    def _recheck_moved_restore(
+        self,
+        command: Command,
+        *,
+        post_commit: Callable[[], Any] | None = None,
+    ) -> Receipt | None:
         if self._restore_source_root is None:
-            return
+            return None
         supplied = self._restore_preflight_result
         rechecker = self._restore_preflight_rechecker
         if supplied is None or rechecker is None:
@@ -243,6 +257,15 @@ class CommandService:
         )
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")
+        post_commit_result: list[Any] = []
+
+        def commit() -> Any:
+            if post_commit is None:
+                return None
+            result = post_commit()
+            post_commit_result.append(result)
+            return result
+
         finalize_verified_restore_binding(
             target_root=self.control_root,
             source_root=self._restore_source_root,
@@ -253,10 +276,18 @@ class CommandService:
             authority_grant_id=command.envelope["authority_grant_id"],
             schema_registry=self.schemas,
             now=self.clock(),
+            expected_project_id=self._restore_expected_project_id,
+            expected_code_roots=self._restore_expected_code_roots,
+            expected_schema_root=self._restore_expected_schema_root,
+            post_commit=commit if post_commit is not None else None,
         )
         self._restore_source_root = None
         self._restore_preflight_result = None
         self._restore_preflight_rechecker = None
+        self._restore_expected_project_id = None
+        self._restore_expected_code_roots = None
+        self._restore_expected_schema_root = None
+        return post_commit_result[0] if post_commit_result else None
 
     @_release_submit_guard
     def submit(
@@ -325,7 +356,6 @@ class CommandService:
                         "Lifecycle command project must match the control-store project.",
                     ),
                 )
-            self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
             if scoped is not None:
                 return scoped
@@ -471,39 +501,89 @@ class CommandService:
                         str(exc),
                     )
                     return self._write_receipt(command, rejected)
-            event = self._build_event(
-                command,
-                prepared_payload,
-                command_schema=command_schema,
-            )
-            if isinstance(prepared_payload, VerifiedReleasePublication):
-                ledger_receipt = release_append(
-                    self.ledger,
-                    event,
-                    lambda allocated: prepared_payload.payload_for(allocated.event_id),
-                    snapshot=snapshot,
+            moved_restore = self._restore_source_root is not None
+
+            def snapshot_files(root: Path) -> dict[Path, bytes]:
+                if not root.exists():
+                    return {}
+                return {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+
+            before_objects = snapshot_files(self.control_root / "objects") if moved_restore else None
+            before_events = snapshot_files(self.control_root / "events") if moved_restore else None
+            before_receipts = snapshot_files(self.control_root / "receipts") if moved_restore else None
+
+            def restore_files(root: Path, before: dict[Path, bytes]) -> None:
+                if root.exists():
+                    for path in root.rglob("*"):
+                        if path.is_file() and path not in before:
+                            path.unlink()
+                for path, data in before.items():
+                    if not path.exists() or path.read_bytes() != data:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(data)
+
+            def rollback_command_state() -> None:
+                if before_objects is not None:
+                    restore_files(self.control_root / "objects", before_objects)
+                    restore_files(self.control_root / "events", before_events or {})
+                    restore_files(self.control_root / "receipts", before_receipts or {})
+                    self.ledger._snapshot = None
+
+            try:
+                event = self._build_event(
+                    command,
+                    prepared_payload,
+                    command_schema=command_schema,
                 )
-            elif (
-                command.envelope["command_type"] == "RevokeAuthorityGrant"
-                or command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES
-            ):
-                ledger_receipt = scoped_authority_append(
-                    self.ledger,
-                    event,
-                    snapshot=snapshot,
-                )
-            else:
-                ledger_receipt = self.ledger.append([event], snapshot=snapshot)
-            updated = self.ledger.snapshot()
-            view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
-            accepted = Receipt(
-                status="accepted",
-                command_id=command.command_id,
-                payload_hash=command.payload_hash,
-                event_batch_id=ledger_receipt["event_batch_id"],
-                observed_stream_version=ledger_receipt["resulting_stream_versions"][command.target_stream_id],
-            )
-            return self._write_receipt(command, accepted)
+            except BaseException:
+                rollback_command_state()
+                raise
+
+            def append_accepted() -> Receipt:
+                try:
+                    if isinstance(prepared_payload, VerifiedReleasePublication):
+                        ledger_receipt = release_append(
+                            self.ledger,
+                            event,
+                            lambda allocated: prepared_payload.payload_for(allocated.event_id),
+                            snapshot=snapshot,
+                        )
+                    elif (
+                        command.envelope["command_type"] == "RevokeAuthorityGrant"
+                        or command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES
+                    ):
+                        ledger_receipt = scoped_authority_append(
+                            self.ledger,
+                            event,
+                            snapshot=snapshot,
+                        )
+                    else:
+                        ledger_receipt = self.ledger.append([event], snapshot=snapshot)
+                    updated = self.ledger.snapshot()
+                    accepted = Receipt(
+                        status="accepted",
+                        command_id=command.command_id,
+                        payload_hash=command.payload_hash,
+                        event_batch_id=ledger_receipt["event_batch_id"],
+                        observed_stream_version=ledger_receipt["resulting_stream_versions"][command.target_stream_id],
+                    )
+                    result = self._write_receipt(command, accepted)
+                    view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
+                    return result
+                except BaseException:
+                    rollback_command_state()
+                    raise
+
+            if moved_restore:
+                try:
+                    committed = self._recheck_moved_restore(command, post_commit=append_accepted)
+                except BaseException:
+                    rollback_command_state()
+                    raise
+                if committed is None:
+                    raise ArsError("moved restore did not commit the command")
+                return committed
+            return append_accepted()
 
     @contextmanager
     def _submission_lock(self, command: Command):

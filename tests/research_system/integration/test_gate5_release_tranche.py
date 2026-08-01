@@ -41,6 +41,13 @@ RESTORE_ACTOR = ACTORS["actor-a"]
 RESTORE_NOW = datetime(2026, 7, 12, 12, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def _restore_tests_have_durable_directories(monkeypatch: pytest.MonkeyPatch) -> None:
+    import research_system.store.identity as identity_module
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: True)
+
+
 def test_restore_preflight_status_is_biconditional_with_failed_predicates():
     from research_system.operations.backups import RestorePreflightResult
 
@@ -542,6 +549,9 @@ def _verify_restore(case, **changes):
         "actor_id": case["actor_id"],
         "authority_grant_id": case["authority_grant_id"],
         "source_root": case["source"],
+        "expected_project_id": case["receipt"].project_id,
+        "expected_code_roots": [case["code_root"]],
+        "expected_schema_root": case["code_root"] / ".research-system" / "schemas",
     }
     values.update(changes)
     return verify_restore_before_writer_lease(**values)
@@ -639,6 +649,9 @@ def test_restore_finalization_rechecks_source_snapshot_before_manifest_replace(t
             authority_grant_id=case["authority_grant_id"],
             schema_registry=runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas"),
             now=RESTORE_NOW,
+            expected_project_id=case["receipt"].project_id,
+            expected_code_roots=[case["code_root"]],
+            expected_schema_root=case["code_root"] / ".research-system" / "schemas",
         )
     assert json.loads((case["target"] / "manifests" / "store-identity.json").read_text(encoding="utf-8"))[
         "control_root"
@@ -828,6 +841,9 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
     )
     before_batches = tuple(service.ledger.iter_batches())
     command = create_task_command(
@@ -878,6 +894,65 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     assert restarted.submit(command).status == "accepted"
 
 
+def test_moved_restore_command_conflict_does_not_bind_store(tmp_path):
+    from research_system.store.identity import load_restore_binding_evidence
+
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
+    )
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+    before_batches = tuple(service.ledger.iter_batches())
+    command = create_task_command(CMD_RESTORE, "conflict-before-restore-bind", TASK_RESTORE, {"title": "conflict"})
+    command["authority_grant_id"] = case["authority_grant_id"]
+    command["expected_stream_version"] = 1
+
+    receipt = service.submit(command)
+
+    assert receipt.status == "conflict"
+    assert manifest_path.read_bytes() == before_manifest
+    assert tuple(service.ledger.iter_batches()) == before_batches
+    assert load_restore_binding_evidence(case["target"]) is None
+
+
+def test_moved_restore_command_specific_rejection_does_not_bind_store(tmp_path):
+    from research_system.store.identity import load_restore_binding_evidence
+
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
+    )
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+    before_batches = tuple(service.ledger.iter_batches())
+    command = create_task_command(CMD_RESTORE, "rejected-before-restore-bind", TASK_RESTORE, {"title": "rejected"})
+    command["authority_grant_id"] = case["authority_grant_id"]
+    command["payload"]["definition"]["revision"] = 2
+
+    receipt = service.submit(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "invalid_task_revision"
+    assert manifest_path.read_bytes() == before_manifest
+    assert tuple(service.ledger.iter_batches()) == before_batches
+    assert load_restore_binding_evidence(case["target"]) is None
+
+
 @pytest.mark.parametrize("binding_field", ["code_roots", "schema_root"])
 def test_moved_restore_rejects_binding_changes_under_writer_lock(tmp_path, binding_field):
     case = _build_restore_case(tmp_path)
@@ -887,6 +962,9 @@ def test_moved_restore_rejects_binding_changes_under_writer_lock(tmp_path, bindi
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
     )
     manifest_path = case["target"] / "manifests" / "store-identity.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -937,6 +1015,9 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
     )
     before_batches = tuple(service.ledger.iter_batches())
     before_objects = sorted(

@@ -354,6 +354,9 @@ def rebind_restored_store(
     expected_target_manifest_bytes_sha256: str | None = None,
     expected_output: bytes | None = None,
     source_snapshot_validator: Callable[[], None] | None = None,
+    output_commit: Callable[[], Any] | None = None,
+    output_rollback: Callable[[], None] | None = None,
+    post_commit: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     """Atomically bind one verified restored store to its target root.
 
@@ -369,6 +372,8 @@ def rebind_restored_store(
     manifest_path = _manifest_path(target)
     original_manifest_bytes = manifest_path.read_bytes()
     original_manifest_bytes_sha256 = sha256_hex(original_manifest_bytes)
+    if not _fsync_directory(manifest_path.parent):
+        raise ArsError("restore binding requires durable manifest directory")
     manifest = load_store_manifest_unbound(target)
     current_value = manifest.get("control_root")
     if not isinstance(current_value, str):
@@ -381,6 +386,8 @@ def rebind_restored_store(
         raise ConflictError("project identity mismatch")
     if expected_store_identity is not None and manifest.get("store_identity") != expected_store_identity:
         raise ConflictError("store identity mismatch")
+    if expected_code_roots is None:
+        raise ArsError("approved code-root binding is required")
 
     code_values = manifest.get("code_roots")
     if (
@@ -397,6 +404,8 @@ def rebind_restored_store(
     require_control_root_disjoint_from_code_roots(code_roots, target)
 
     persisted_schema_root = manifest_schema_root(manifest)
+    if persisted_schema_root is not None and expected_schema_root is None:
+        raise ArsError("approved schema-root binding is required")
     if expected_schema_root is not None:
         if persisted_schema_root is None or persisted_schema_root.resolve(strict=False) != expected_schema_root.resolve(
             strict=False
@@ -432,31 +441,13 @@ def rebind_restored_store(
                 raise ConflictError("restore output binding mismatch")
         if source_snapshot_validator is not None:
             source_snapshot_validator()
-        if evidence["operation_status"] == "unbound":
-            evidence["operation_status"] = (
-                "bound-and-config-published"
-                if not evidence["expected_output_sha256"]
-                else "bound-but-config-unpublished"
-            )
-        if evidence["durability_status"] == "pending":
-            manifest_durable = _fsync_directory(manifest_path.parent)
-            evidence["durability_status"] = "durable" if manifest_durable else "pending"
-            evidence_durable = _write_restore_binding_pending(
-                target,
-                evidence,
-                replace=evidence_path == _restore_binding_pending_path(target),
-            )
-            if not evidence_durable:
-                evidence["durability_status"] = "pending"
-                _write_restore_binding_pending(target, evidence, replace=True)
-            evidence_path = _restore_binding_pending_path(target)
-        if evidence_path != _restore_binding_evidence_path(target):
-            publication_durable = _publish_restore_binding_pending(target)
-            if not publication_durable:
-                evidence["durability_status"] = "pending"
-                _write_restore_binding_pending(target, evidence, replace=True)
-                _publish_restore_binding_pending(target)
+        if evidence["operation_status"] != "bound-and-config-published":
+            raise ArsError("restore binding output publication is incomplete")
+        if evidence["durability_status"] != "durable":
+            raise ArsError("restore binding durability is incomplete")
         return manifest
+    if evidence is not None:
+        raise ConflictError("restore binding evidence conflicts with an unbound manifest")
 
     rebound = dict(manifest)
     rebound["control_root"] = str(target)
@@ -483,23 +474,52 @@ def rebind_restored_store(
         "receipt_hash": expected_restore_receipt_hash or "",
         "source_snapshot": source_snapshot_value,
         "source_snapshot_hash": source_snapshot_hash,
-        "operation_status": "bound-and-config-published" if expected_output is None else "bound-but-config-unpublished",
-        "durability_status": "pending",
+        "operation_status": "bound-and-config-published",
+        "durability_status": "durable",
         "expected_output_bytes": expected_output_text,
         "expected_output_sha256": sha256_hex(expected_output) if expected_output is not None else "",
         "target_manifest_bytes_sha256": sha256_hex(data),
     }
+    if expected_output is not None and output_commit is None:
+        raise ArsError("restore output publisher is required before binding")
+    evidence_path = _restore_binding_evidence_path(target)
+    evidence_temporary = evidence_path.with_name(f".{evidence_path.name}.{secrets.token_hex(16)}.tmp")
     temporary = manifest_path.with_name(f".{manifest_path.name}.{secrets.token_hex(16)}.tmp")
     descriptor = -1
-    published = False
-    try:
-        _write_restore_binding_pending(target, evidence)
-        descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    manifest_published = False
+    evidence_published = False
+    output_attempted = False
+
+    def write_temporary(path: Path, value: bytes) -> None:
+        nonlocal descriptor
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         with os.fdopen(descriptor, "wb") as handle:
             descriptor = -1
-            handle.write(data)
+            handle.write(value)
             handle.flush()
             os.fsync(handle.fileno())
+
+    def restore_original_manifest() -> None:
+        rollback = manifest_path.with_name(f".{manifest_path.name}.{secrets.token_hex(16)}.rollback")
+        rollback_descriptor = -1
+        try:
+            rollback_descriptor = os.open(rollback, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(rollback_descriptor, "wb") as handle:
+                rollback_descriptor = -1
+                handle.write(original_manifest_bytes)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(rollback, manifest_path)
+            if not _fsync_directory(manifest_path.parent):
+                raise ArsError("restore binding rollback durability is unavailable")
+        finally:
+            if rollback_descriptor != -1:
+                os.close(rollback_descriptor)
+            rollback.unlink(missing_ok=True)
+
+    try:
+        write_temporary(temporary, data)
+        write_temporary(evidence_temporary, canonical_bytes(evidence))
         _before_restore_manifest_replace()
         if source_snapshot_validator is not None:
             source_snapshot_validator()
@@ -508,25 +528,34 @@ def rebind_restored_store(
             and original_manifest_bytes_sha256 != expected_target_manifest_bytes_sha256
         ):
             raise ConflictError("target manifest changed before restore binding")
+        if output_commit is not None:
+            output_attempted = True
+            published_output = output_commit()
+            if published_output is False:
+                raise ArsError("restore binding requires durable output publication")
         os.replace(temporary, manifest_path)
-        published = True
-        manifest_durable = _fsync_directory(manifest_path.parent)
-        evidence["durability_status"] = "durable" if manifest_durable else "pending"
-        evidence_durable = _write_restore_binding_pending(target, evidence, replace=True)
-        if not evidence_durable:
-            evidence["durability_status"] = "pending"
-            _write_restore_binding_pending(target, evidence, replace=True)
-        publication_durable = _publish_restore_binding_pending(target)
-        if not publication_durable:
-            evidence["durability_status"] = "pending"
-            _write_restore_binding_pending(target, evidence, replace=True)
-            _publish_restore_binding_pending(target)
+        manifest_published = True
+        if not _fsync_directory(manifest_path.parent):
+            raise ArsError("restore binding requires durable manifest publication")
+        os.replace(evidence_temporary, evidence_path)
+        evidence_published = True
+        if not _fsync_directory(evidence_path.parent):
+            raise ArsError("restore binding requires durable evidence publication")
+        if post_commit is not None:
+            post_commit()
+    except BaseException:
+        if evidence_published:
+            evidence_path.unlink(missing_ok=True)
+        if manifest_published:
+            restore_original_manifest()
+        if output_attempted and output_rollback is not None:
+            output_rollback()
+        raise
     finally:
         if descriptor != -1:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
-        if not published:
-            _restore_binding_pending_path(target).unlink(missing_ok=True)
+        evidence_temporary.unlink(missing_ok=True)
     return rebound
 
 
@@ -542,6 +571,8 @@ def complete_restore_binding_output(
     evidence, evidence_path = _read_restore_binding_evidence(target, include_pending=True)
     if evidence is None:
         raise IntegrityError("restore binding evidence is missing")
+    if not directory_durable or not _fsync_directory(target / "manifests"):
+        raise ArsError("restore binding requires durable evidence directory")
     expected_text = expected_output.decode("utf-8")
     expected_hash = sha256_hex(expected_output)
     if evidence["expected_output_sha256"] != expected_hash or evidence["expected_output_bytes"] != expected_text:
@@ -559,19 +590,24 @@ def complete_restore_binding_output(
         raise ConflictError(
             f"restore binding status=bound-but-config-unpublished; expected output sha256={expected_hash}"
         )
-    output_directory_durable = _fsync_directory(output.parent)
-    output_durable = directory_durable and output_directory_durable
+    if not _fsync_directory(output.parent):
+        raise ArsError("restore binding requires durable output directory")
     evidence["operation_status"] = "bound-and-config-published"
-    evidence["durability_status"] = "durable" if output_durable else "pending"
-    if evidence_path != _restore_binding_pending_path(target):
-        _write_restore_binding_pending(target, evidence)
-    else:
-        _write_restore_binding_pending(target, evidence, replace=True)
-    publication_durable = _publish_restore_binding_pending(target)
-    if not publication_durable:
-        evidence["durability_status"] = "pending"
-        _write_restore_binding_pending(target, evidence, replace=True)
-        _publish_restore_binding_pending(target)
+    evidence["durability_status"] = "durable"
+    try:
+        evidence_durable = _write_restore_binding_pending(
+            target,
+            evidence,
+            replace=evidence_path == _restore_binding_pending_path(target),
+        )
+        if not evidence_durable:
+            raise ArsError("restore binding requires durable evidence publication")
+        publication_durable = _publish_restore_binding_pending(target)
+        if not publication_durable:
+            raise ArsError("restore binding requires durable evidence publication")
+    except BaseException:
+        _restore_binding_pending_path(target).unlink(missing_ok=True)
+        raise
     return evidence
 
 

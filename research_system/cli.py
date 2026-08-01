@@ -19,7 +19,7 @@ from research_system.authority import (
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
 from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.command.service import CommandService
-from research_system.config import ControlBinding
+from research_system.config import ApprovedProjectBinding, ControlBinding
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
@@ -61,7 +61,6 @@ from research_system.schema_registry import (
 )
 from research_system.store.identity import (
     _fsync_directory,
-    complete_restore_binding_output,
     load_restore_binding_evidence,
     load_store_manifest,
     load_store_manifest_unbound,
@@ -174,6 +173,10 @@ def _preflight_restore_binding_load(
     source_root: Path,
     manifest: dict[str, Any],
     config_value: dict[str, Any],
+    expected_project_id: str,
+    expected_store_identity: str,
+    expected_code_roots: Sequence[Path],
+    expected_schema_root: Path,
 ) -> None:
     """Exercise fresh binding validation on an isolated, already-rebound manifest."""
     with tempfile.TemporaryDirectory(
@@ -191,10 +194,10 @@ def _preflight_restore_binding_load(
         rebind_restored_store(
             shadow_root,
             source_root,
-            expected_project_id=str(manifest["project_id"]),
-            expected_store_identity=str(manifest["store_identity"]),
-            expected_code_roots=[Path(root) for root in manifest["code_roots"]],
-            expected_schema_root=manifest_schema_root(manifest),
+            expected_project_id=expected_project_id,
+            expected_store_identity=expected_store_identity,
+            expected_code_roots=list(expected_code_roots),
+            expected_schema_root=expected_schema_root,
         )
         shadow_config = Path(raw) / "binding.json"
         shadow_value = dict(config_value)
@@ -206,18 +209,23 @@ def _preflight_restore_binding_load(
 def _store_restore_bind(args: argparse.Namespace) -> int:
     target_root = args.control_root.resolve(strict=True)
     requested_source = args.source_root.resolve(strict=True)
-    source_manifest = load_store_manifest_unbound(target_root)
-    schemas = _schemas_for_store_manifest(source_manifest)
+    approved = ApprovedProjectBinding.load(args.foundation_config)
     schema_root = args.schema_root.resolve(strict=True)
-    persisted_schema_root = manifest_schema_root(source_manifest)
-    if persisted_schema_root is not None and persisted_schema_root.resolve(strict=True) != schema_root:
-        raise ConfigurationError("config schema root differs from restored store manifest")
+    if schema_root != approved.schema_root:
+        raise ConfigurationError("caller schema root differs from approved project binding")
+    schemas = require_authority_schemas(runtime_schema_registry(approved.schema_root))
+    receipt = _backup_receipt_from_json(_read_json(args.receipt))
+    source_manifest = load_store_manifest_unbound(target_root)
+    if source_manifest.get("project_id") != approved.project_id:
+        raise ConfigurationError("restored store project differs from approved project binding")
+    if source_manifest.get("store_identity") != receipt.store_identity:
+        raise ArsError("restored store identity differs from backup receipt")
     config_value = {
-        "code_roots": source_manifest["code_roots"],
+        "code_roots": [str(root) for root in approved.code_roots],
         "control_root": str(target_root),
-        "project_id": source_manifest["project_id"],
-        "schema_root": str(schema_root),
-        "store_identity": source_manifest["store_identity"],
+        "project_id": approved.project_id,
+        "schema_root": str(approved.schema_root),
+        "store_identity": receipt.store_identity,
     }
     recorded_root = Path(str(source_manifest["control_root"])).resolve(strict=False)
     already_bound = recorded_root == target_root
@@ -255,10 +263,11 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
             ) from exc
         if (
             existing_binding.control_root != target_root
-            or existing_binding.project_id != source_manifest["project_id"]
-            or existing_binding.store_identity != source_manifest["store_identity"]
-            or existing_binding.schema_root != schema_root
-            or tuple(str(root) for root in existing_binding.code_roots) != tuple(source_manifest["code_roots"])
+            or existing_binding.project_id != approved.project_id
+            or existing_binding.store_identity != receipt.store_identity
+            or existing_binding.schema_root != approved.schema_root
+            or tuple(str(root) for root in existing_binding.code_roots)
+            != tuple(str(root) for root in approved.code_roots)
         ):
             raise ConfigurationError("existing binding config conflicts with restored store")
     _preflight_restore_binding_load(
@@ -266,8 +275,11 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         source_root=source_root,
         manifest=source_manifest,
         config_value=config_value,
+        expected_project_id=approved.project_id,
+        expected_store_identity=receipt.store_identity,
+        expected_code_roots=approved.code_roots,
+        expected_schema_root=approved.schema_root,
     )
-    receipt = _backup_receipt_from_json(_read_json(args.receipt))
     registry = load_evidence_store_registry(args.registry, schemas)
     preflight_kwargs = {
         "target_root": target_root,
@@ -282,15 +294,51 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         "schema_registry": schemas,
         "now": _authority_clock(),
         "expected_output": expected_output,
+        "expected_project_id": approved.project_id,
+        "expected_code_roots": approved.code_roots,
+        "expected_schema_root": approved.schema_root,
     }
     supplied = verify_restore_before_writer_lease(**preflight_kwargs)
     if supplied.status != "verified":
         raise ArsError(f"restore preflight is not verified: {', '.join(supplied.failed_predicates)}")
     temporary: Path | None = None
-    output_preparation_durable = True
     if existing_binding is None:
         temporary, output_preparation_durable = _prepare_restore_output(args.config_output, expected_output)
+        if not output_preparation_durable:
+            raise ArsError("restore binding requires durable output directory")
     current: Any = supplied
+    output_published = False
+
+    def commit_output() -> bool:
+        nonlocal temporary, output_published
+        if temporary is None:
+            raise ArsError("restore output reservation is missing")
+        reserved = temporary
+        temporary = None
+        try:
+            durable = _publish_reserved_output(
+                args.config_output,
+                reserved,
+                None,
+                expected_output,
+            )
+        finally:
+            try:
+                output_published = args.config_output.is_file() and args.config_output.read_bytes() == expected_output
+            except OSError:
+                output_published = False
+        if not durable:
+            raise ArsError("restore binding requires durable output publication")
+        return durable
+
+    def rollback_output() -> None:
+        if output_published and args.config_output.is_file():
+            try:
+                if args.config_output.read_bytes() == expected_output:
+                    args.config_output.unlink()
+            except OSError:
+                return
+
     try:
         with restore_binding_writer_locks(source_root, target_root, lock_factory=WriterLock):
             current = verify_restore_before_writer_lease(**preflight_kwargs)
@@ -305,22 +353,11 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 schema_registry=schemas,
                 now=_authority_clock(),
                 expected_output=expected_output,
-            )
-            output_publication_durable = True
-            if temporary is not None:
-                reserved = temporary
-                temporary = None
-                output_publication_durable = _publish_reserved_output(
-                    args.config_output,
-                    reserved,
-                    None,
-                    expected_output,
-                )
-            complete_restore_binding_output(
-                target_root,
-                args.config_output,
-                expected_output,
-                directory_durable=output_preparation_durable and output_publication_durable,
+                expected_project_id=approved.project_id,
+                expected_code_roots=approved.code_roots,
+                expected_schema_root=approved.schema_root,
+                output_commit=commit_output if temporary is not None else None,
+                output_rollback=rollback_output if temporary is not None else None,
             )
     except (ArsError, OSError) as exc:
         committed = load_restore_binding_evidence(target_root)
@@ -701,7 +738,9 @@ def _prepare_restore_output(output: Path, data: bytes) -> tuple[Path, bool]:
             handle.flush()
             os.fsync(handle.fileno())
         _after_receipt_output_fsync(temporary)
-        return temporary, _fsync_directory(output.parent)
+        if not _fsync_directory(output.parent):
+            raise ArsError("restore binding requires durable output directory")
+        return temporary, True
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
@@ -907,6 +946,7 @@ def _parser() -> argparse.ArgumentParser:
     restore_bind.add_argument("--registry", type=Path, required=True)
     restore_bind.add_argument("--actor-id", required=True)
     restore_bind.add_argument("--authority-grant-id", required=True)
+    restore_bind.add_argument("--foundation-config", type=Path, required=True)
     restore_bind.add_argument("--schema-root", type=Path, required=True)
     restore_bind.add_argument("--config-output", type=Path, required=True)
     restore_bind.set_defaults(handler=_store_restore_bind)

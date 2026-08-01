@@ -30,6 +30,15 @@ PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
 RECORD_ID = "act_01978abc-2000-7000-8000-000000002000"
 
 
+@pytest.fixture(autouse=True)
+def _restore_tests_have_durable_directories(monkeypatch: pytest.MonkeyPatch) -> None:
+    import research_system.cli as cli_module
+    import research_system.store.identity as identity_module
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: True)
+    monkeypatch.setattr(cli_module, "_fsync_directory", lambda _path: True)
+
+
 def _record() -> dict[str, str]:
     return {
         "record_type": "canonical_actor",
@@ -103,6 +112,16 @@ def _restore_cli_case(tmp_path: Path) -> tuple[dict[str, object], list[str]]:
         )
     )
     config_output = tmp_path / "restored-binding.json"
+    foundation_config = tmp_path / "foundation.yaml"
+    foundation_config.write_bytes(
+        canonical_bytes(
+            {
+                "project_id": case["receipt"].project_id,
+                "code_roots": [str(case["code_root"].resolve())],
+                "schema_root": str((case["code_root"] / ".research-system" / "schemas").resolve()),
+            }
+        )
+    )
     args = [
         "store",
         "restore-bind",
@@ -124,6 +143,8 @@ def _restore_cli_case(tmp_path: Path) -> tuple[dict[str, object], list[str]]:
         case["actor_id"],
         "--authority-grant-id",
         case["authority_grant_id"],
+        "--foundation-config",
+        str(foundation_config),
         "--schema-root",
         str(case["code_root"] / ".research-system" / "schemas"),
         "--config-output",
@@ -320,6 +341,16 @@ def test_restore_bind_cli_rebinds_only_after_verified_preflight(
         )
     )
     config_output = tmp_path / "restored-binding.json"
+    foundation_config = tmp_path / "foundation.yaml"
+    foundation_config.write_bytes(
+        canonical_bytes(
+            {
+                "project_id": case["receipt"].project_id,
+                "code_roots": [str(case["code_root"].resolve())],
+                "schema_root": str((case["code_root"] / ".research-system" / "schemas").resolve()),
+            }
+        )
+    )
     assert (
         main(
             [
@@ -343,6 +374,8 @@ def test_restore_bind_cli_rebinds_only_after_verified_preflight(
                 case["actor_id"],
                 "--authority-grant-id",
                 case["authority_grant_id"],
+                "--foundation-config",
+                str(foundation_config),
                 "--schema-root",
                 str(case["code_root"] / ".research-system" / "schemas"),
                 "--config-output",
@@ -418,30 +451,49 @@ def test_restore_bind_cli_rejects_preexisting_output_collision_before_bind(tmp_p
     assert output_path.read_bytes() == foreign_output
 
 
-def test_restore_bind_cli_retry_recovers_after_output_publication_failure(tmp_path: Path, monkeypatch) -> None:
+def test_restore_bind_cli_rejects_joint_manifest_substitution_against_approved_binding(tmp_path: Path) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    foreign_code_root = tmp_path / "foreign-code"
+    shutil.copytree(case["code_root"], foreign_code_root)
+    foreign_schema_root = foreign_code_root / ".research-system" / "schemas"
+    for root in (case["source"], case["target"]):
+        manifest_path = root / "manifests" / "store-identity.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["code_roots"] = [str(foreign_code_root.resolve())]
+        manifest["schema_root"] = str(foreign_schema_root.resolve())
+        manifest["manifest_hash"] = sha256_hex(
+            canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+        )
+        manifest_path.write_bytes(canonical_bytes(manifest))
+    schema_arg = args.index("--schema-root") + 1
+    args[schema_arg] = str(foreign_schema_root)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+
+    with pytest.raises(ArsError, match="binding|approved"):
+        main(args)
+
+    assert manifest_path.read_bytes() == before_manifest
+    assert load_restore_binding_evidence(case["target"]) is None
+    assert not (tmp_path / "restored-binding.json").exists()
+
+
+def test_restore_bind_cli_rolls_back_after_output_publication_failure(tmp_path: Path, monkeypatch) -> None:
     import research_system.cli as cli_module
-    from research_system.store.identity import load_restore_binding_evidence, load_store_manifest
 
     case, args = _restore_cli_case(tmp_path)
-    original_publish = cli_module._publish_reserved_output
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
 
     def fail_publication(*_args, **_kwargs):
         raise OSError("simulated output publication failure")
 
     monkeypatch.setattr(cli_module, "_publish_reserved_output", fail_publication)
-    with pytest.raises(OSError, match="simulated output publication failure") as failure:
+    with pytest.raises(OSError, match="simulated output publication failure"):
         main(args)
-    assert "bound-but-config-unpublished" in str(failure.value)
-    assert load_store_manifest(case["target"])["control_root"] == str(case["target"].resolve())
-    evidence = load_restore_binding_evidence(case["target"])
-    assert evidence is not None
-    assert evidence["operation_status"] == "bound-but-config-unpublished"
-    assert evidence["expected_output_sha256"]
+    assert manifest_path.read_bytes() == before_manifest
+    assert load_restore_binding_evidence(case["target"]) is None
     assert not (tmp_path / "restored-binding.json").exists()
-
-    monkeypatch.setattr(cli_module, "_publish_reserved_output", original_publish)
-    assert main(args) == 0
-    assert ControlBinding.load(tmp_path / "restored-binding.json").control_root == case["target"].resolve()
 
 
 def test_restore_bind_cli_rejects_retry_after_governed_grant_revocation(
@@ -503,27 +555,20 @@ def test_restore_bind_retries_require_independent_original_source(
     assert load_store_manifest_unbound(case["target"])["control_root"] == str(case["target"].resolve())
 
 
-def test_restore_bind_reports_pending_when_directory_fsync_is_unsupported(
+def test_restore_bind_rejects_unsupported_directory_durability(
     tmp_path: Path,
     monkeypatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     import research_system.store.identity as identity_module
 
     case, args = _restore_cli_case(tmp_path)
-    before = load_store_manifest_unbound(case["target"])
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
     monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: False)
 
-    assert main(args) == 0
-    output = json.loads(capsys.readouterr().out)
-    assert output["status"] == "pending"
+    with pytest.raises(ArsError, match="durab"):
+        main(args)
 
-    after = load_store_manifest_unbound(case["target"])
-    assert after["control_root"] == str(case["target"].resolve())
-    assert {key: value for key, value in after.items() if key not in {"control_root", "manifest_hash"}} == {
-        key: value for key, value in before.items() if key not in {"control_root", "manifest_hash"}
-    }
-    evidence = load_restore_binding_evidence(case["target"])
-    assert evidence is not None
-    assert evidence["operation_status"] == "bound-and-config-published"
-    assert evidence["durability_status"] == "pending"
+    assert manifest_path.read_bytes() == before_manifest
+    assert load_restore_binding_evidence(case["target"]) is None
+    assert not (tmp_path / "restored-binding.json").exists()
