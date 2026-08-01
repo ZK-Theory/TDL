@@ -277,7 +277,76 @@ def test_windows_runtime_anchor_rejects_inside_open_identity_swap_without_public
     assert all(handle.closed for handle in handles)
 
 
-def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_first_error(
+def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primary_error(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows directory-anchor cleanup control")
+    import research_system.store.lock as lock_module
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"ordinary-runtime".ljust(16, b"\0"),
+    )
+    followed_identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"changed-runtime".ljust(16, b"\0"),
+    )
+    handles = []
+    close_attempts = []
+
+    class FakeHandle:
+        def __init__(self, name):
+            self.name = name
+            self.closed = False
+
+    def fake_open(path, *, open_reparse_point, delete_protect=False):
+        assert path == runtime
+        if open_reparse_point:
+            assert not delete_protect
+            handle = FakeHandle("probe")
+        else:
+            assert not delete_protect
+            handle = FakeHandle("followed")
+        handles.append(handle)
+        return handle
+
+    def fake_attributes(handle):
+        assert not handle.closed
+        return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
+
+    def fake_close(handle):
+        close_attempts.append(handle.name)
+        if handle.name == "followed":
+            raise RuntimeError("close failure")
+        handle.closed = True
+
+    monkeypatch.setattr(lock_module, "_windows_open_handle", fake_open)
+    monkeypatch.setattr(lock_module, "_windows_file_attribute_tag", fake_attributes)
+    monkeypatch.setattr(
+        lock_module,
+        "_windows_file_id",
+        lambda handle: identity if handle.name == "probe" else followed_identity,
+    )
+    monkeypatch.setattr(lock_module, "_windows_final_path", lambda _handle: runtime)
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fake_close)
+
+    with pytest.raises(ConflictError, match="identity") as raised:
+        lock_module._open_windows_anchor(runtime, reject_reparse=True)
+
+    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert str(raised.value.__cause__) == "close failure"
+    assert close_attempts == ["probe", "followed"]
+    assert handles[0].closed is True
+    assert handles[1].closed is False
+
+
+def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     tmp_path,
     monkeypatch,
 ):
@@ -317,12 +386,11 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_first_
 
     def fake_close(handle):
         close_attempts.append(handle.name)
-        if handle.name == "probe":
-            if close_attempts.count("probe") == 1:
-                raise RuntimeError("probe close failed")
-            handle.closed = True
-            return
-        raise ValueError("followed close failed")
+        if handle.name == "probe" and close_attempts.count("probe") == 1:
+            raise RuntimeError("first close failure")
+        if handle.name == "followed":
+            raise ValueError("second close failure")
+        handle.closed = True
 
     monkeypatch.setattr(lock_module, "_windows_open_handle", fake_open)
     monkeypatch.setattr(lock_module, "_windows_file_attribute_tag", fake_attributes)
@@ -330,12 +398,47 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_first_
     monkeypatch.setattr(lock_module, "_windows_final_path", lambda _handle: runtime)
     monkeypatch.setattr(lock_module, "_windows_close_handle", fake_close)
 
-    with pytest.raises(RuntimeError, match="probe close failed"):
+    with pytest.raises(RuntimeError, match="first close failure"):
         lock_module._open_windows_anchor(runtime, reject_reparse=True)
 
     assert close_attempts == ["probe", "probe", "followed"]
     assert handles[0].closed is True
     assert handles[1].closed is False
+
+
+def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows directory-handle cleanup control")
+    import research_system.store.lock as lock_module
+
+    identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"retryable-runtime".ljust(16, b"\0"),
+    )
+    handle = object()
+    close_attempts = []
+
+    def close(_handle):
+        close_attempts.append(True)
+        if len(close_attempts) == 1:
+            raise RuntimeError("close failure")
+
+    anchor = lock_module._DirectoryAnchor(
+        identity,
+        tmp_path,
+        handle,
+        lambda _handle: (identity, tmp_path),
+        close,
+    )
+
+    with pytest.raises(RuntimeError, match="close failure"):
+        anchor.close()
+
+    assert anchor._closed is False
+    anchor.close()
+    assert anchor._closed is True
+    assert len(close_attempts) == 2
 
 
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):
@@ -400,12 +503,12 @@ def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failur
         lock_factory=FakeLock,
     )
     closed_anchors.clear()
-    with pytest.raises(ValueError, match="second lock release failed") as raised:
+    with pytest.raises(RuntimeError, match="third lock acquisition failed") as raised:
         candidate.__enter__()
 
     assert entered == list(ordered_labels)
     assert exited == list(reversed(ordered_labels[:-1]))
-    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert isinstance(raised.value.__cause__, ValueError)
     assert candidate._acquired == []
     expected_anchor_cleanup = []
     for member in reversed(ordered_members):

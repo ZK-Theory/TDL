@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Literal, Self
+from typing import Any, Literal, NoReturn, Self
 
 from research_system.errors import ConflictError
 
@@ -105,8 +105,17 @@ class _DirectoryAnchor:
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
         self._close_impl(self._handle)
+        self._closed = True
+
+
+def _raise_primary_with_cleanup(
+    primary_error: BaseException,
+    cleanup_error: BaseException | None,
+) -> NoReturn:
+    if cleanup_error is None:
+        raise primary_error
+    raise primary_error from cleanup_error
 
 
 if os.name == "nt":
@@ -276,6 +285,8 @@ def _open_windows_anchor(
     probe: object | None = None
     handle: object | None = None
     first_close_error: BaseException | None = None
+    primary_error: BaseException | None = None
+    anchor: _DirectoryAnchor | None = None
     try:
         if reject_reparse:
             probe = _windows_open_handle(path, open_reparse_point=True)
@@ -305,9 +316,7 @@ def _open_windows_anchor(
                 first_close_error = close_error
             else:
                 probe = None
-            if first_close_error is not None:
-                raise first_close_error
-            if delete_protect:
+            if first_close_error is None and delete_protect:
                 # The live no-follow probe deliberately does not share delete,
                 # so the followed comparison handle cannot request DELETE
                 # until the probe has closed. Reopen the same final path with
@@ -318,31 +327,34 @@ def _open_windows_anchor(
                     first_close_error = close_error
                 else:
                     handle = None
-                if first_close_error is not None:
-                    raise first_close_error
-                handle = _windows_open_handle(
-                    final_path,
-                    open_reparse_point=False,
-                    delete_protect=True,
-                )
-                guarded_identity, guarded_final_path = _windows_anchor_refresh(handle)
-                if guarded_identity != identity:
-                    raise ConflictError(f"{path} physical identity changed before delete-protected anchor")
-                identity, final_path = guarded_identity, guarded_final_path
+                if first_close_error is None:
+                    handle = _windows_open_handle(
+                        final_path,
+                        open_reparse_point=False,
+                        delete_protect=True,
+                    )
+                    guarded_identity, guarded_final_path = _windows_anchor_refresh(handle)
+                    if guarded_identity != identity:
+                        raise ConflictError(f"{path} physical identity changed before delete-protected anchor")
+                    identity, final_path = guarded_identity, guarded_final_path
 
-        anchor = _DirectoryAnchor(
-            identity,
-            final_path,
-            handle,
-            _windows_anchor_refresh,
-            _windows_close_handle,
-        )
-        handle = None
-        return anchor
-    except ConflictError:
-        raise
+        if first_close_error is None:
+            anchor = _DirectoryAnchor(
+                identity,
+                final_path,
+                handle,
+                _windows_anchor_refresh,
+                _windows_close_handle,
+            )
+            handle = None
+    except ConflictError as exc:
+        primary_error = exc
     except OSError as exc:
-        raise ConflictError(f"{path} is not an existing directory") from exc
+        primary_error = ConflictError(f"{path} is not an existing directory")
+        primary_error.__cause__ = exc
+        primary_error.__suppress_context__ = True
+    except BaseException as exc:
+        primary_error = exc
     finally:
         for candidate in (probe, handle):
             if candidate is None:
@@ -352,8 +364,12 @@ def _open_windows_anchor(
             except BaseException as close_error:
                 if first_close_error is None:
                     first_close_error = close_error
-        if first_close_error is not None:
-            raise first_close_error
+    if primary_error is not None:
+        _raise_primary_with_cleanup(primary_error, first_close_error)
+    if first_close_error is not None:
+        raise first_close_error
+    assert anchor is not None
+    return anchor
 
 
 def _posix_identity(observed: os.stat_result) -> DirectoryIdentity:
@@ -414,8 +430,11 @@ def _open_posix_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAnchor:
             _posix_anchor_refresh_factory(final_path),
             lambda descriptor: os.close(int(descriptor)),
         )
-    except BaseException:
-        os.close(file_descriptor)
+    except BaseException as primary_error:
+        try:
+            os.close(file_descriptor)
+        except BaseException as cleanup_error:
+            raise primary_error from cleanup_error
         raise
 
 
@@ -508,7 +527,7 @@ def _capture_claim(alias: Path) -> _RootClaim:
                 if first_cleanup_error is None:
                     first_cleanup_error = cleanup_error
         if first_cleanup_error is not None:
-            raise first_cleanup_error from capture_error
+            _raise_primary_with_cleanup(capture_error, first_cleanup_error)
         raise
     first_cleanup_error: BaseException | None = None
     for anchor in (runtime_anchor, root_anchor):
@@ -652,12 +671,22 @@ class CompositeWriterLock:
         for member in self._members:
             for alias in member.aliases:
                 observer: _DirectoryAnchor | None = None
+                fence_error: BaseException | None = None
                 try:
                     observer = _open_directory_anchor(alias)
                     if observer.identity != member.identity:
                         raise ConflictError("composite root alias changed before protected work")
-                finally:
+                except BaseException as exc:
+                    fence_error = exc
+                close_error: BaseException | None = None
+                try:
                     _close_anchor(observer)
+                except BaseException as exc:
+                    close_error = exc
+                if fence_error is not None:
+                    _raise_primary_with_cleanup(fence_error, close_error)
+                if close_error is not None:
+                    raise close_error
 
         for acquired in acquired_members:
             member = acquired.member
@@ -751,7 +780,7 @@ class CompositeWriterLock:
             self._locked_roots = ()
             self.paths = ()
             if cleanup_error is not None:
-                raise cleanup_error from acquisition_error
+                _raise_primary_with_cleanup(acquisition_error, cleanup_error)
             raise
 
     def locked_root(self, path: Path) -> LockedRoot:
@@ -800,5 +829,7 @@ class CompositeWriterLock:
             traceback=traceback,
         )
         if first_error is not None:
+            if exc is not None:
+                raise exc.with_traceback(traceback) from first_error
             raise first_error
         return False
