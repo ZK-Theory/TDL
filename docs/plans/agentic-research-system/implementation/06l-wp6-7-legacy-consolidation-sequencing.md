@@ -1,7 +1,7 @@
 # 06l — WP6.7 Legacy Consolidation Sequencing
 
 **Date:** 2026-08-01
-**Status:** sequencing document; no transition, migration, cutover, retirement, or dispatch is authorised
+**Status:** sequencing document; no transition, migration, cutover, deprecation, retirement, or dispatch is authorised
 **Authority:** P-026/P-034, the accepted WP6 plan, P-042, and the exact current Git/Jira evidence recorded below
 **Jira homes:** KAN-60 (aggregate WP6.7 closure), KAN-22–26 (Gate-6-to-7 consistency), KAN-21 (later-gate planning sweep), KAN-61 (hard-stop control), KAN-12 (completion campaign)
 
@@ -9,8 +9,8 @@
 
 WP6.7 is a gated sequencing lane, not a migration ticket. It defines the
 evidence and owner decisions required before a later actor may perform a
-per-item transition, path cutover, or retirement. It does not perform any of
-those actions.
+per-item transition, path cutover, deprecation, or retirement. It does not
+perform any of those actions.
 
 Gate 6 completion means a **dispatchable, governed preflight**: the current
 Gate-6 package has passed its exact review and owner gates and a controlled
@@ -33,7 +33,7 @@ The authoring subject was verified before writing:
 
 | Item | Exact value |
 |---|---|
-| Worktree | `C:\Users\steph\.codex\worktrees\5b14\TDL` |
+| Worktree | Developer-local absolute path intentionally omitted |
 | Branch | `codex/wp67-legacy-consolidation-sequencing` |
 | HEAD/base | `a464eb5aefed2645da48e4495efa61a27f0e3954` |
 | Parent | `12054be9186710048ea1ea9ec7f0e950850a0613` and merge parent `f0f372550c877505e7a202e45a08279e9670477c` |
@@ -183,7 +183,7 @@ parallel no-live-governance control.
 **Inputs:** accepted W9/Gate-7 documents; exact Gate-6 pilot-promotion evidence;
 the accepted WP6 plan and P-042; current Jira state; and Stephen's separate
 opening decision.
-**Output:** a recorded Gate-7 opening decision. It authorizes only the bounded
+**Output:** a recorded Gate-7 opening decision. It authorises only the bounded
 Gate-7 intake/dispatch stated in that decision; it does not migrate, cut over,
 or retire a legacy surface.
 **Review/decision:** distinct exact-subject review and reconciliation of the
@@ -341,7 +341,7 @@ opening, not an authoring or opening prerequisite.
 
 The next actor must not execute a pilot, open Gate 7, treat a W0 draft as
 accepted, write a transition event, migrate a paper or Discovery item, cut over
-a path, revoke a writer, or retire an APM surface.
+a path, revoke a writer, deprecate an APM surface, or retire an APM surface.
 
 The next actor must re-verify the exact subject and all Jira dependencies before
 any write. A passing test, a Jira status, a merged plan, or this sequencing
