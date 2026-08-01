@@ -939,6 +939,71 @@ grants no authority capability.<br>
 **Affected specifications:** W2 schema versioning and replay; P-043; Handoff 32
 §5A0; A0 runtime schema binding.
 
+### P-046 - Owner-bound scoped-authority admission
+
+**Date:** 2026-07-31<br>
+**Status:** Accepted by Stephen as a design direction under the current owner
+instruction; implementation acceptance, independent re-review, and every live
+grant or decision remain outstanding.<br>
+**Owner provenance:** Stephen's 2026-07-31 instruction authorises Handoff 32's
+recommended least-privilege post-genesis issuer and scope direction and permits
+the bounded technical choice recorded here. The runtime owner is not a caller
+claim: it is the actor in the exact bootstrap root grant, cross-bound to the
+current project, store identity, bootstrap-manifest hash, root-grant identity,
+and root-grant hash.<br>
+**Decision:** Post-genesis `ActivateAuthorityGrant` and
+`RevokeIssuedAuthorityGrant` are owner-reserved operations. Each operation
+requires one immutable, typed, one-time
+`OwnerAuthorityAdministrationDecision` for one exact v2 grant target, schema
+hash, subject scope, and finite `[effective_at, expires_at)` interval. After the
+command service verifies that decision against the bound bootstrap owner and
+store, publication uses a one-shot continuation bound to that exact ledger
+instance. A raw event append carrying the expected producer, owner, decision
+ID, or hash strings is not authority and must fail before publication. Replay
+requires the exact `owner-bound-v1` admission marker on both scoped
+administration event families, so any earlier record without the cutover marker
+remains permanently inadmissible rather than becoming authoritative after a
+later registry change. Replay and resolution re-load the immutable decision and
+re-check its canonical hash, project/store/bootstrap/root/owner/action/target/
+schema/scope/time cross-bindings. Missing, foreign, tampered, reused, or
+mismatched decision evidence makes history invalid; copied event fields cannot
+repair it.<br>
+**Exact scope:** Activation resolves authority identities immediately against
+the active exact-version/raw-hash registry. The closed command mapping is
+`CreateScopeDefinition`, `AmendScopeDefinition`, and
+`SupersedeScopeDefinition` to `scope_definition`, and `CreateTask`,
+`AmendTask`, and `SupersedeTask` to `task`. The only admitted policy action is
+`accept_r3_assurance_requirement` to one exact `assurance_requirement`. Every
+unresolved, inactive, wrong-hash, wrong-version, or wrong-subject identity is
+rejected at activation; no other materialised schema is activated, and a later
+binding cannot wake a rejected proposal. Grants remain finite,
+non-delegable, non-wildcard, and one-subject only.<br>
+**Human-owner rule:** `accept_r3_assurance_requirement` is available only to
+the exact bootstrap owner acting as `human`. Actor class is derived by this
+bound policy rather than accepted from a caller mapping. An `agent`, a
+`service`, or any actor other than the bound owner cannot satisfy the R3/P-005
+acceptance check.<br>
+**Rejected alternatives:** The decision rejects wildcard identities or
+subjects; direct event self-attestation by producer/owner/decision strings; a
+general legacy-root grant expansion; delegated administration; latent active
+grants that wake after registry changes; and caller-supplied actor-class maps
+for R3 acceptance.<br>
+**Boundary:** This decision does not create or accept a live grant or owner
+decision, activate the remaining WP6.1 catalogue, or change valid legacy
+genesis history. Preserving legacy `RevokeAuthorityGrant` means preserving
+valid legacy history and CommandService-issued legacy revocation; it grants no
+direct append authority and cannot target typed v2 grants. This decision does
+not accept the remediation implementation or its tests, complete the
+control-store writer/acceptance runner, or imply merge, Gate 6, or owner
+acceptance after review.<br>
+**Evidence:** Current owner instruction dated 2026-07-31;
+`handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md`;
+`reviews/wp6-3-control-store-acceptance-mechanics-2026-07-30.md`;
+`reviews/adversarial-wp6-3-scoped-authority-255f607-exact-subject-review-2026-07-31.md`.<br>
+**Affected specifications:** P-005; W2 authority event admission and replay;
+W5 R3 assurance acceptance; Handoff 32 scoped-grant and control-store
+sequencing.
+
 ## W11 specification status and D-G6-4 disposition
 
 The WP6.5 specification exists at

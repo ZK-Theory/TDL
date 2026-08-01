@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/policy-action/AcceptR3AssuranceRequirement",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_action_type",
+    "project_id",
+    "actor_id",
+    "actor_class",
+    "authority_grant_id",
+    "subject_scope",
+    "required_risk"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/policy-action/AcceptR3AssuranceRequirement"},
+    "schema_version": {"const": "1.0.0"},
+    "policy_action_type": {"const": "accept_r3_assurance_requirement"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "actor_id": {"type": "string", "pattern": "^act_"},
+    "actor_class": {"enum": ["human", "agent", "service"]},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"const": "assurance_requirement"},
+        "id": {"type": "string", "pattern": "^asr_"}
+      },
+      "additionalProperties": false
+    },
+    "required_risk": {"const": "R3"}
+  },
+  "additionalProperties": false
+}
