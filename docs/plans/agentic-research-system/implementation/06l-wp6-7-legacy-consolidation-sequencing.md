@@ -63,19 +63,27 @@ Stage-2 scope, Gate 6, Gate 7, or any legacy transition.
 
 The dated W0 manifest and 2026-06-29 addendum are historical/current-state
 records, not a post-terminal seal. The following remain open and require fresh
-evidence:
+evidence or a later owner decision:
 
 1. a dated post-terminal W0 currency addendum and bounded independent delta
-   review;
+   review, which is Gate 7's first intake deliverable rather than a prerequisite
+   to authoring, reviewing, accepting, or opening Gate 7;
 2. A-001: the current Manager's explicit confirmation that no other Phase-1
    computational or assurance requirement remains;
 3. A-002/full Stage-2 disposition: every Plan-defined Stage-2 item, including
    the T2.22 completion gate, must be completed, deferred, removed, or
    superseded by an attributed scope decision; eight merged Wave-1 prose tasks
-   do not establish full Stage-2 completion;
-4. Gate-6 completion and the separate Stephen decision opening Gate 7;
-5. accepted W9/W11 evidence and the first content-addressed ownership-
-   transition batch.
+   do not establish full Stage-2 completion. A-001/A-002 and the full Stage-2
+   decision are conditions for an affected ownership transition, cutover,
+   deprecation, or retirement, not for W9/Gate-7 document authoring or Gate-7
+   opening;
+4. the commissioned W9/Gate-7 authoring, independent review, reconciliation,
+   and exact-revision acceptance, which may proceed now under the owner-approved
+   authoring brief;
+5. Gate-6 pilot-promotion evidence and Stephen's separate decision opening
+   Gate 7; and
+6. accepted W11 evidence and the first content-addressed ownership-transition
+   batch.
 
 ### 2.3 Live Jira state used
 
@@ -103,8 +111,9 @@ transitions below.
 | Class | Included work | Current rule |
 |---|---|---|
 | Completed | T1.28 terminal result and its exact merge/blob evidence | Record as completed research evidence only; do not use it as W0, Gate-6, Gate-7, migration, or retirement evidence |
-| Gate-6 prerequisite | Current WP6.1/WP6.3/WP6.4 evidence, operator-mediated preflight, Gate-6 owner acceptance, and the open KAN-22–26 consistency set | No Gate-7 opening or legacy transition until the exact current prerequisites close |
-| Post-Gate-6 gated | W0 post-terminal addendum/delta, A-001/A-002 disposition, W9 acceptance, Gate-7 opening, W11/runtime acceptance, and an attributed first transition batch | Preparation may be read-only; live per-item transition remains blocked |
+| W9/Gate-7 document lane | Authoring, independent review, reconciliation, and Stephen's exact-revision acceptance of the W9 specification and Gate-7 definition | The owner-approved authoring brief commissions this work now; it does not open Gate 7, dispatch work, or alter legacy authority |
+| Gate-7 opening/dispatch bar | Accepted W9/Gate-7 documents, Gate-6 pilot-promotion evidence, and Stephen's separate Gate-7 opening decision | No Gate-7 dispatch or legacy transition until this distinct bar closes; W0 is the first intake deliverable after opening, not an opening prerequisite |
+| Gate-7 intake and affected-transition conditions | W0 post-terminal addendum/delta, A-001/A-002/full Stage-2 disposition, W11/runtime acceptance, and an attributed first transition batch | A-001/A-002/full Stage-2 scope bind the affected ownership transition, cutover, deprecation, or retirement; preparation may remain read-only |
 | Out of scope | Provider invocation/credential automation, current-paper migration, silent import, dual-running, research execution, eligibility changes, claim promotion, and retirement of active APM surfaces | No WP6.7 document or Jira status permits these actions |
 
 The deferred WP6.2 provider automation, including direct Claude/Codex transport,
@@ -146,25 +155,49 @@ Each row names the responsible Jira home, required inputs, output, review and
 owner decision, rollback/stop rule, and proof required before the next class of
 action.
 
-### Step 0 — Close the Gate-6 preparation boundary
+### Step 0 — Author, review, and accept the W9/Gate-7 documents
 
-**Jira home:** KAN-22–26, aggregated by KAN-60; KAN-61 is the parallel
-no-live-governance control.
-**Inputs:** exact current WP6.1/WP6.3/WP6.4 artifacts; operator-mediated
-preflight evidence; the accepted WP6 plan and P-042; current Jira state.
-**Output:** an independently reviewed, exact-subject Gate-6 readiness package
-and an explicit Stephen Gate-6 decision. The package says `dispatchable
-preflight`, not `executed`, `promoted`, `migrated`, or `retired`.
-**Review/decision:** distinct exact-subject review, reconciliation, then
-Stephen's acceptance; no author self-acceptance.
-**Stop/rollback:** stop on any stale subject, missing owner decision, unresolved
-KAN-22–26 contradiction, provider/credential path, or claim that a plan or Jira
-status is runtime evidence. A preflight package may be discarded or returned
-for correction without touching legacy evidence.
-**Proof before Step 1:** current accepted Gate-6 evidence, KAN-61 hard-stop
-control, and a recorded owner decision opening the post-Gate-6 lane.
+**Jira home:** KAN-25 and KAN-60; KAN-21 remains the later planning-validation
+blocker.
+**Inputs:** the owner-approved W9/Gate-7 authoring brief; the W9 specification
+and Gate-7 definition to be drafted; P-026/P-034 boundary text; the W11 entry
+conditions; and the current legacy-authority boundaries.
+**Output:** an accepted W9/Gate-7 contract that defines read-only,
+content-addressed legacy projections; status mapping; path/writer registry;
+per-item transition events; rollback and stop criteria; review points; and a
+deprecation path that cannot retire a writer before durable cutover.
+**Review/decision:** distinct adversarial review and reconciliation, followed
+by Stephen's exact-revision acceptance. This acceptance concerns the documents;
+it is not the separate decision opening Gate 7.
+**Stop/rollback:** stop if W9 imports legacy records into successor authority,
+permits a shared mutable path, treats Gate-6 eligibility as execution, or
+omits rollback/collision/writer-revocation evidence. A rejected W9 revision is
+discarded; no legacy path changes.
+**Proof before Step 1:** accepted W9/Gate-7 documents only. Their authoring,
+review, and acceptance neither require a W0 addendum nor open or dispatch Gate 7.
 
-### Step 1 — Produce the post-terminal W0 addendum and delta review
+### Step 1 — Open Gate 7 only after the separate opening bar
+
+**Jira home:** KAN-22–26 and KAN-25, aggregated by KAN-60; KAN-61 is the
+parallel no-live-governance control.
+**Inputs:** accepted W9/Gate-7 documents; exact Gate-6 pilot-promotion evidence;
+the accepted WP6 plan and P-042; current Jira state; and Stephen's separate
+opening decision.
+**Output:** a recorded Gate-7 opening decision. It authorizes only the bounded
+Gate-7 intake/dispatch stated in that decision; it does not migrate, cut over,
+or retire a legacy surface.
+**Review/decision:** distinct exact-subject review and reconciliation of the
+pilot-promotion evidence, followed by Stephen's separate Gate-7 opening
+decision; no author self-acceptance.
+**Stop/rollback:** stop on stale or missing pilot-promotion evidence, missing
+separate owner decision, unresolved KAN-22–26 contradiction, provider/credential
+path, or a claim that a plan or Jira status is runtime evidence. A proposed
+opening may be returned for correction without touching legacy evidence.
+**Proof before Step 2:** accepted W9/Gate-7 documents, exact Gate-6
+pilot-promotion evidence, and the separate recorded Stephen decision opening
+Gate 7. W0 is not a prerequisite to this proof.
+
+### Step 2 — Produce the post-terminal W0 addendum and delta review
 
 **Jira home:** KAN-24, with KAN-23 for source/hold reconciliation and KAN-25
 for the Gate-7 entry condition.
@@ -179,16 +212,18 @@ delta set; Stephen accepts or rejects the addendum revision.
 **Stop/rollback:** stop if the result blobs, ancestry, current task log, or
 source precedence disagree; do not rewrite the W0 snapshots or repair the
 legacy record from the successor lane.
-**Proof before Step 2:** accepted dated addendum, exact T1.28 evidence, and a
-closed bounded delta review. This is a closeout record, not a migration event.
+**Proof before Step 3:** accepted dated addendum, exact T1.28 evidence, and a
+closed bounded delta review. This is Gate 7's first intake deliverable and a
+closeout record, not a migration event or an opening prerequisite.
 
-### Step 2 — Resolve A-001 and the full Stage-2 scope
+### Step 3 — Resolve A-001 and the full Stage-2 scope for affected ownership work
 
 **Jira home:** KAN-24 for A-001/A-002 state; KAN-60 for aggregate closure.
 **Inputs:** accepted W0 addendum; the full APM Plan; all Stage-2 task logs and
 commits; the eight merged Wave-1 outputs; the fourteen currently unlogged or
 unresolved Plan items, including T2.22; paper dashboards and supersession
-records.
+records; and the affected proposed ownership-transition, cutover, deprecation,
+or retirement scope.
 **Output:** an attributed Phase-1/Stage-2 disposition manifest. Each item is
 `authoritative`, `merged_draft`, `blocked`, `deferred`, `superseded`, or
 `unverified`, with source pointer, exact identity, owner, and next decision.
@@ -201,40 +236,20 @@ then explicit owner acceptance. Wave-1 prose success, Tracker labels, or Jira
 quietly upgraded from draft to final, or a paper claim is changed. Retain
 unresolved records in legacy authority and amend only through an attributed
 decision.
-**Proof before Step 3:** accepted manifest, explicit A-001 confirmation, and
-full Stage-2 scope decision; no claim that T1.28 alone sealed Phase 1.
-
-### Step 3 — Accept W9 and explicitly open Gate 7
-
-**Jira home:** KAN-25 and KAN-60; KAN-21 remains the later planning-validation
-blocker.
-**Inputs:** Steps 0–2 proofs; the owner-approved W9 authoring brief; the W9
-specification; the Gate-7 definition; P-026/P-034 boundary text; the W11
-entry conditions.
-**Output:** an accepted W9/Gate-7 contract that defines read-only,
-content-addressed legacy projections; status mapping; path/writer registry;
-per-item transition events; rollback and stop criteria; review points; and a
-deprecation path that cannot retire a writer before durable cutover.
-**Review/decision:** distinct adversarial review and reconciliation, followed
-by Stephen's exact-revision acceptance and a separate explicit Gate-7 opening
-decision.
-**Stop/rollback:** stop if W9 imports legacy records into successor authority,
-permits a shared mutable path, treats Gate-6 eligibility as execution, or
-omits rollback/collision/writer-revocation evidence. A rejected W9 revision is
-discarded; no legacy path changes.
-**Proof before Step 4:** accepted W9/Gate-7 documents, Gate-6 pilot-promotion
-evidence where required by the accepted Gate-7 rule, and the separate owner
-decision opening Gate 7.
+**Proof before Step 4:** for each affected ownership transition, cutover,
+deprecation, or retirement, an accepted manifest, explicit A-001 confirmation,
+and full Stage-2 scope decision; no claim that T1.28 alone sealed Phase 1.
 
 ### Step 4 — Prepare, but do not execute, the first transition inventory
 
 **Jira home:** KAN-60 aggregate; KAN-21 must complete the later Gate-7/8/9
 planning validation sweep; per-item work remains under the named KAN-12
 child/home selected by the owner.
-**Inputs:** accepted W9; accepted W11 specification/runtime chain; current
+**Inputs:** accepted W9; the separate Gate-7 opening decision and its
+pilot-promotion evidence; accepted W11 specification/runtime chain; current
 Discovery inventory; current P01-A/P01-B and APM surface inventory; path/writer
 registry; the exact D-G6-4 first-batch relation; content-addressed source
-observations.
+observations; and the Step-3 proof for every affected item.
 **Output:** a proposed, bounded first batch with one row per item: source
 authority, successor object, source and target path, current writer, proposed
 writer, transition owner, evidence handles, and status. It must distinguish
@@ -248,7 +263,8 @@ missing writer identity, path collision, unresolved annotation epoch, or a
 paper/APM item without its own closed prerequisite. Delete no source and do
 not claim a batch was transitioned.
 **Proof before Step 5:** accepted inventory, disjoint path/writer registry,
-complete first-batch relation, exact source hashes, and owner decision.
+complete first-batch relation, exact source hashes, owner decision, and the
+Step-3 disposition proof for every affected item.
 
 ### Step 5 — Per-item ownership transition
 
@@ -256,7 +272,8 @@ complete first-batch relation, exact source hashes, and owner decision.
 by KAN-60; KAN-61 remains a hard-stop prerequisite.
 **Inputs:** Step-4 accepted row; W9 transition event contract; source and target
 content hashes; item-level review/acceptance requirements; the current legacy
-writer's final checkpoint.
+writer's final checkpoint; and, for an affected item, the accepted A-001/A-002/
+full Stage-2 disposition required by Step 3.
 **Output:** one attributed ownership-transition event and one successor-owned
 object or projection, with the old source retained and linked. The event must
 state the old authority, new authority, writer change, reviewer, owner
@@ -278,7 +295,8 @@ rollback handle for that item.
 KAN-21 validation result.
 **Inputs:** all item-level transitions for one registered path; final source
 observation; path/writer registry; collision and deletion/rebuild checks;
-annotation-epoch fence; writer-revocation procedure.
+annotation-epoch fence; writer-revocation procedure; and the accepted
+A-001/A-002/full Stage-2 disposition for any affected path.
 **Output:** a durable cutover decision for one whole path. The successor writer
 becomes authoritative only after the legacy writer is revoked and the final
 observation matches the accepted item bijection.
@@ -297,7 +315,8 @@ durable cutover decision.
 **Jira home:** KAN-60, only after the relevant KAN-12 item/path record and
 KAN-21 validation are closed.
 **Inputs:** durable whole-path cutover; all dependent paths/items; rollback
-window and recovery record; final owner decision.
+window and recovery record; final owner decision; and the accepted
+A-001/A-002/full Stage-2 disposition for the affected surface.
 **Output:** a retirement record that names the exact surface, replacement
 projection, last writer, cutover decision, retained read-only provenance, and
 recovery location.
@@ -312,12 +331,18 @@ retirement proof exists at the current state.
 
 ## 6. Current next transition
 
-The only bounded next transition is **Step 0 preparation and exact independent
-review of the Gate-6/WP6.7 consistency boundary**. It must consume the current
-Git/Jira state and produce a reviewable readiness package. It must not execute a
-pilot, open Gate 7, author a W0 post-terminal addendum as if accepted, write a
-transition event, migrate a paper or Discovery item, cut over a path, revoke a
-writer, or retire an APM surface.
+The only bounded next transition is **Step 0 W9/Gate-7 document authoring and
+independent review under the owner-approved authoring brief**. This work may
+produce a reviewable W9 specification and Gate-7 definition, followed by their
+reconciliation and exact-revision acceptance. It is distinct from the later
+Gate-7 opening/dispatch decision: that decision remains blocked on exact Gate-6
+pilot-promotion evidence and Stephen's separate recorded approval. The W0
+addendum and bounded delta review are the first Gate-7 intake deliverable after
+opening, not an authoring or opening prerequisite.
+
+The next actor must not execute a pilot, open Gate 7, treat a W0 draft as
+accepted, write a transition event, migrate a paper or Discovery item, cut over
+a path, revoke a writer, or retire an APM surface.
 
 The next actor must re-verify the exact subject and all Jira dependencies before
 any write. A passing test, a Jira status, a merged plan, or this sequencing
@@ -331,7 +356,7 @@ read-only Jira observations:
 - [WP6 Gate-6 readiness and integration plan](06-wp6-gate6-readiness-and-integration-plan.md), especially WP6.7 and the exit checklist;
 - [WP6 owner-operated session amendment](06g-wp6-owner-operated-session-amendment.md), P-042 boundary and first-release evidence contract;
 - [WP6.3 management handoff 32](../handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md), current WP6 completion hard stops;
-- [W9/Gate-7 authoring brief](../handoffs/07-w9-gate7-legacy-integration-authoring-brief.md), positive Gate-7 entry condition;
+- [W9/Gate-7 authoring brief](../handoffs/07-w9-gate7-legacy-integration-authoring-brief.md), present authority for W9/Gate-7 document authoring and review, and the separate later Gate-7 opening condition;
 - [W0 legacy manifest](../transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) and [W0 current-state addendum](../transition/W0-legacy-closeout-transition-addendum-2026-06-29.md), including the unresolved A-001/A-002 state;
 - [master transition plan](../00-master-transition-plan.md), separate authorities, migration lineage, and no-current-paper-migration boundary;
 - [current system evidence](../01-current-system-evidence.md), Stage-2 and T1.28 evidence limitations;
