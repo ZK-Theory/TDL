@@ -1230,6 +1230,112 @@ def test_w11_scorecard_malformed_rubric_axis_shapes_are_controlled_with_noop_cal
         )
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("allowed_set_null", "allowed_set"),
+        ("allowed_set_integer", "allowed_set"),
+        ("allowed_set_tuple", "allowed_set"),
+        ("allowed_set_set", "allowed_set"),
+        ("allowed_set_empty", "allowed_set"),
+        ("mixed_allowed_set_and_bounds", "domain"),
+        ("missing_domain", "domain"),
+        ("required_axis_ids_empty", "required_axis_ids"),
+        ("required_axis_ids_duplicate", "required_axis_ids"),
+        ("required_axis_ids_malformed", "required_axis_ids"),
+    ),
+)
+def test_w11_scorecard_noop_callback_rejects_malformed_rubric_domain_shapes(
+    mutation: str,
+    message: str,
+) -> None:
+    malformed_rubric = deepcopy(VALID_RUBRIC)
+    axis = malformed_rubric["axis_definitions"][0]
+    if mutation == "allowed_set_null":
+        axis["allowed_set"] = None
+    elif mutation == "allowed_set_integer":
+        axis["allowed_set"] = 1
+    elif mutation == "allowed_set_tuple":
+        axis["allowed_set"] = (False, True)
+    elif mutation == "allowed_set_set":
+        axis["allowed_set"] = {False, True}
+    elif mutation == "allowed_set_empty":
+        axis["allowed_set"] = []
+    elif mutation == "mixed_allowed_set_and_bounds":
+        axis["bounds"] = {"minimum": 0, "maximum": 1}
+    elif mutation == "missing_domain":
+        axis.pop("allowed_set")
+    elif mutation == "required_axis_ids_empty":
+        malformed_rubric["required_axis_ids"] = []
+    elif mutation == "required_axis_ids_duplicate":
+        malformed_rubric["required_axis_ids"] = ["design", "design"]
+    elif mutation == "required_axis_ids_malformed":
+        malformed_rubric["required_axis_ids"] = [""]
+    else:
+        raise AssertionError(f"unhandled test mutation: {mutation}")
+
+    with pytest.raises(SchemaError, match=message):
+        w11_verifier.verify_w11_document(
+            "ars://portfolio/assay-scorecard",
+            VALID_SCORECARD,
+            reference_documents=[malformed_rubric],
+            validate_reference=lambda _schema_id, _reference: None,
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "bounds_string",
+        "bounds_bool",
+        "bounds_non_finite",
+        "bounds_inverted",
+        "bounds_missing_minimum",
+        "bounds_missing_maximum",
+    ),
+)
+def test_w11_scorecard_custom_callback_rejects_malformed_numeric_domains(mutation: str) -> None:
+    malformed_rubric = deepcopy(VALID_RUBRIC)
+    axis = malformed_rubric["axis_definitions"][0]
+    axis["axis_kind"] = "integer_score"
+    axis["value_schema"] = "integer"
+    axis["value_type"] = "integer"
+    axis.pop("allowed_set")
+    axis["bounds"] = {"minimum": 0, "maximum": 3}
+    scorecard = deepcopy(VALID_SCORECARD)
+    scorecard["axis_results"][0]["axis_kind"] = "integer_score"
+    scorecard["axis_results"][0]["value"] = 2
+
+    if mutation == "bounds_string":
+        axis["bounds"]["minimum"] = "0"
+    elif mutation == "bounds_bool":
+        axis["bounds"]["minimum"] = False
+    elif mutation == "bounds_non_finite":
+        axis["bounds"]["maximum"] = float("inf")
+    elif mutation == "bounds_inverted":
+        axis["bounds"] = {"minimum": 4, "maximum": 3}
+    elif mutation == "bounds_missing_minimum":
+        axis["bounds"].pop("minimum")
+    elif mutation == "bounds_missing_maximum":
+        axis["bounds"].pop("maximum")
+    else:
+        raise AssertionError(f"unhandled test mutation: {mutation}")
+
+    callback_calls: list[str] = []
+
+    def custom_callback(schema_id: str, _reference: dict[str, Any]) -> None:
+        callback_calls.append(schema_id)
+
+    with pytest.raises(SchemaError, match="domain"):
+        w11_verifier.verify_w11_document(
+            "ars://portfolio/assay-scorecard",
+            scorecard,
+            reference_documents=[malformed_rubric],
+            validate_reference=custom_callback,
+        )
+    assert callback_calls == ["ars://portfolio/assay-rubric-content"]
+
+
 def test_w11_dossier_expected_set_recomputes_all_cross_field_identity() -> None:
     dossier = deepcopy(VALID_DOSSIER_EXPECTED_SET)
     verify_materialization_document(SCHEMA_ROOT, "ars://portfolio/dossier-expected-set-content", dossier)

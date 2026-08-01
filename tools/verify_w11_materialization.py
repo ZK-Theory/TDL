@@ -478,22 +478,16 @@ def _validate_scorecard_against_rubric(
             _invalid(schema_id, f"frozen rubric axis {axis_id} is missing value_type")
         if value_type != expected_value_type:
             _invalid(schema_id, f"frozen rubric axis {axis_id} has an inconsistent value type")
-        if "bounds" in axis:
-            bounds = axis["bounds"]
-            if not isinstance(bounds, Mapping) or "minimum" not in bounds or "maximum" not in bounds:
-                _invalid(schema_id, f"frozen rubric axis {axis_id} has malformed bounds")
-            try:
-                descending_bounds = bounds["minimum"] > bounds["maximum"]
-            except TypeError:
-                _invalid(schema_id, f"frozen rubric axis {axis_id} has malformed bounds")
-            if descending_bounds:
-                _invalid(schema_id, f"frozen rubric axis {axis_id} has descending bounds")
+        _validate_frozen_axis_domain(schema_id, axis_id, axis_kind, axis)
 
     required_axis_ids_value = rubric.get("required_axis_ids")
-    if not isinstance(required_axis_ids_value, list) or not all(
-        isinstance(axis_id, str) for axis_id in required_axis_ids_value
+    if (
+        type(required_axis_ids_value) is not list
+        or not required_axis_ids_value
+        or not all(isinstance(axis_id, str) and axis_id for axis_id in required_axis_ids_value)
+        or len(set(required_axis_ids_value)) != len(required_axis_ids_value)
     ):
-        _invalid(schema_id, "frozen rubric required_axis_ids must be a list of strings")
+        _invalid(schema_id, "frozen rubric required_axis_ids must be a non-empty list of unique strings")
     required_axis_ids = set(required_axis_ids_value)
     missing_rubric_axes = sorted(required_axis_ids - axes.keys())
     if missing_rubric_axes:
@@ -523,6 +517,52 @@ def _validate_scorecard_against_rubric(
             schema_id,
             f"axis_results axis set mismatch; missing={missing_axis_ids}, unexpected={unexpected_axis_ids}",
         )
+
+
+def _validate_frozen_axis_domain(
+    schema_id: str,
+    axis_id: str,
+    axis_kind: str,
+    axis: Mapping[str, Any],
+) -> None:
+    has_allowed_set = "allowed_set" in axis
+    has_bounds = "bounds" in axis
+    if has_allowed_set == has_bounds:
+        _invalid(schema_id, f"frozen rubric axis {axis_id} has an invalid domain shape")
+
+    if has_allowed_set:
+        allowed_set = axis["allowed_set"]
+        if type(allowed_set) is not list or not allowed_set:
+            _invalid(schema_id, f"frozen rubric axis {axis_id} allowed_set must be a non-empty JSON list")
+        if axis_kind == "gate":
+            if not all(type(value) is bool for value in allowed_set) or set(allowed_set) != {False, True}:
+                _invalid(schema_id, f"frozen rubric axis {axis_id} allowed_set has invalid gate values")
+        elif axis_kind == "integer_score":
+            if not all(type(value) is int for value in allowed_set):
+                _invalid(schema_id, f"frozen rubric axis {axis_id} allowed_set has invalid integer values")
+        elif axis_kind == "registered_measure":
+            if not all(
+                type(value) in (int, float) and not isinstance(value, bool) and isfinite(value) for value in allowed_set
+            ):
+                _invalid(schema_id, f"frozen rubric axis {axis_id} allowed_set has invalid numeric values")
+        return
+
+    bounds = axis["bounds"]
+    if not isinstance(bounds, Mapping) or set(bounds) != {"minimum", "maximum"}:
+        _invalid(schema_id, f"frozen rubric axis {axis_id} has an invalid numeric domain")
+    minimum = bounds["minimum"]
+    maximum = bounds["maximum"]
+    if axis_kind == "integer_score":
+        valid_numbers = type(minimum) is int and type(maximum) is int
+    elif axis_kind == "registered_measure":
+        valid_numbers = all(
+            type(bound) in (int, float) and not isinstance(bound, bool) and isfinite(bound)
+            for bound in (minimum, maximum)
+        )
+    else:
+        valid_numbers = False
+    if not valid_numbers or minimum > maximum:
+        _invalid(schema_id, f"frozen rubric axis {axis_id} has an invalid numeric domain")
 
 
 def _value_is_in_frozen_domain(axis: Mapping[str, Any], value: Any) -> bool:
