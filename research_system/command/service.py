@@ -56,7 +56,12 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
-from research_system.store.lock import WriterLock
+from research_system.store.lock import (
+    WriterLock,
+    current_process_instance_id,
+    inspect_lock,
+    remove_stale_lock,
+)
 from research_system.store.objects import ObjectStore, _fsync_directory
 from research_system.store.receipts import ReceiptStore
 
@@ -96,15 +101,21 @@ _SCOPED_ACTIVATION_MARKER_FIELDS = frozenset(
         "schema_id",
         "schema_version",
         "command_id",
+        "command_sha256",
         "target_grant_id",
         "object_kind",
         "object_revision",
         "object_existed_before",
         "owner_pid",
+        "owner_process_instance_id",
         "object_sha256",
         "object_value",
     }
 )
+_SCOPED_ACTIVATION_MARKER_BINDING_FIELDS = _SCOPED_ACTIVATION_MARKER_FIELDS - {
+    "owner_pid",
+    "owner_process_instance_id",
+}
 
 
 @dataclass
@@ -203,6 +214,7 @@ class CommandService:
         release_publication_evidence: ReleasePublicationEvidenceResolver | None = None,
         clock: Callable[[], datetime] | None = None,
         release_lock_timeout_seconds: float = 300.0,
+        recovery_lock_timeout_seconds: float = 1.0,
         monotonic: Callable[[], float] | None = None,
         lock_wait: Callable[[float], None] | None = None,
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
@@ -217,7 +229,10 @@ class CommandService:
         self.clock = clock or (lambda: datetime.now(UTC))
         if release_lock_timeout_seconds <= 0:
             raise ValueError("release lock timeout must be positive")
+        if recovery_lock_timeout_seconds <= 0:
+            raise ValueError("recovery lock timeout must be positive")
         self.release_lock_timeout_seconds = release_lock_timeout_seconds
+        self.recovery_lock_timeout_seconds = recovery_lock_timeout_seconds
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
         self.t2_authority_resolver = t2_authority_resolver
@@ -251,11 +266,13 @@ class CommandService:
             "schema_id": "ars://core/runtime/scoped-authority-activation-recovery",
             "schema_version": "1.0.0",
             "command_id": command.command_id,
+            "command_sha256": sha256_hex(canonical_bytes(command.envelope)),
             "target_grant_id": command.target_stream_id,
             "object_kind": "authority_grant",
             "object_revision": 1,
             "object_existed_before": existed_before,
             "owner_pid": os.getpid(),
+            "owner_process_instance_id": current_process_instance_id(),
             "object_sha256": sha256_hex(canonical_bytes(grant)),
             "object_value": grant,
         }
@@ -263,12 +280,17 @@ class CommandService:
         path = self._scoped_activation_marker_path(command.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
-            if path.read_bytes() != data:
+            existing = self._load_scoped_activation_marker(path)
+            if any(existing[field] != marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS):
                 raise ConflictError("scoped activation recovery marker conflicts")
             return
         temporary = path.with_suffix(".json.tmp")
         if temporary.exists():
-            if temporary.read_bytes() != data:
+            try:
+                existing = self._load_scoped_activation_marker(temporary)
+            except IntegrityError as exc:
+                raise ConflictError("scoped activation recovery marker temporary data conflicts") from exc
+            if any(existing[field] != marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS):
                 raise ConflictError("scoped activation recovery marker temporary data conflicts")
         else:
             with temporary.open("xb") as handle:
@@ -299,6 +321,9 @@ class CommandService:
             or marker.get("schema_id") != "ars://core/runtime/scoped-authority-activation-recovery"
             or marker.get("schema_version") != "1.0.0"
             or not isinstance(marker.get("command_id"), str)
+            or not isinstance(marker.get("command_sha256"), str)
+            or len(marker["command_sha256"]) != 64
+            or any(character not in "0123456789abcdef" for character in marker["command_sha256"])
             or not isinstance(marker.get("target_grant_id"), str)
             or marker.get("object_kind") != "authority_grant"
             or marker.get("object_revision") != 1
@@ -306,57 +331,39 @@ class CommandService:
             or not isinstance(marker.get("owner_pid"), int)
             or isinstance(marker.get("owner_pid"), bool)
             or marker.get("owner_pid") < 1
+            or not isinstance(marker.get("owner_process_instance_id"), str)
+            or not marker.get("owner_process_instance_id")
             or not isinstance(marker.get("object_value"), dict)
             or marker.get("object_sha256") != sha256_hex(canonical_bytes(marker.get("object_value")))
         ):
             raise IntegrityError("scoped activation recovery marker is invalid")
         return marker
 
-    @staticmethod
-    def _process_is_alive(pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        except OSError:
-            return True
-        return True
-
     def _take_scoped_activation_recovery_lock(
         self,
         marker: dict[str, Any],
     ) -> WriterLock | None:
         path = self.control_root / "runtime" / "writer.lock"
-        identity = {
-            "command_id": marker["command_id"],
-            "process_id": str(marker["owner_pid"]),
-        }
-        if path.exists():
+        deadline = self._monotonic() + self.recovery_lock_timeout_seconds
+        while True:
+            lock = WriterLock(
+                path,
+                {
+                    "operation": "scoped_activation_recovery",
+                    "command_id": marker["command_id"],
+                },
+            )
             try:
-                recorded = json.loads(path.read_bytes())
-            except (OSError, UnicodeError, json.JSONDecodeError):
-                return None
-            if (
-                not isinstance(recorded, dict)
-                or recorded.get("command_id") != identity["command_id"]
-                or recorded.get("process_id") != identity["process_id"]
-            ):
-                return None
-            if self._process_is_alive(marker["owner_pid"]):
-                return None
-            try:
-                path.unlink()
-                _fsync_directory(path.parent)
-            except FileNotFoundError:
-                pass
-        lock = WriterLock(path, identity)
-        try:
-            lock.__enter__()
-        except ConflictError:
-            return None
-        return lock
+                lock.__enter__()
+            except ConflictError:
+                state, observed, _ = inspect_lock(path)
+                if state == "stale" and observed is not None and remove_stale_lock(path, observed):
+                    continue
+                if self._monotonic() >= deadline:
+                    return None
+                self._lock_wait(min(0.01, max(0.0, deadline - self._monotonic())))
+                continue
+            return lock
 
     def _scoped_activation_marker_committed(self, marker: dict[str, Any]) -> bool:
         return any(
@@ -397,7 +404,8 @@ class CommandService:
                         marker["object_value"],
                         existed_before=marker["object_existed_before"],
                     )
-                self._remove_scoped_activation_marker(marker["command_id"])
+                    # Keep the canonical command identity until an exact retry
+                    # commits or the command ID is otherwise collision-checked.
             finally:
                 lock.__exit__(*sys.exc_info())
 
@@ -525,6 +533,8 @@ class CommandService:
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
             activation_object_existed: bool | None = None
+            activation_marker_preexisting = False
+            append_started = False
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
                 request = ReleasePublicationRequest.from_dict(command.envelope["payload"])
                 if (
@@ -630,6 +640,14 @@ class CommandService:
                         "ActivateExternalAssuranceRecordGrant",
                     }
                     if activation:
+                        marker_path = self._scoped_activation_marker_path(command.command_id)
+                        activation_marker_preexisting = marker_path.exists()
+                        if activation_marker_preexisting:
+                            existing_marker = self._load_scoped_activation_marker(marker_path)
+                            if existing_marker["command_id"] != command.command_id or existing_marker[
+                                "command_sha256"
+                            ] != sha256_hex(canonical_bytes(command.envelope)):
+                                raise ConflictError("scoped activation recovery marker conflicts")
                         activation_object_existed = self.objects.revision_exists(
                             "authority_grant",
                             command.target_stream_id,
@@ -655,7 +673,8 @@ class CommandService:
                             command,
                             existed_before=activation_object_existed,
                         )
-                        self._remove_scoped_activation_marker(command.command_id)
+                        if not activation_marker_preexisting:
+                            self._remove_scoped_activation_marker(command.command_id)
                     raise
                 except ConflictError:
                     if activation_object_existed is not None:
@@ -663,7 +682,8 @@ class CommandService:
                             command,
                             existed_before=activation_object_existed,
                         )
-                        self._remove_scoped_activation_marker(command.command_id)
+                        if not activation_marker_preexisting:
+                            self._remove_scoped_activation_marker(command.command_id)
                     raise
                 except ArsError as exc:
                     if activation_object_existed is not None:
@@ -671,7 +691,8 @@ class CommandService:
                             command,
                             existed_before=activation_object_existed,
                         )
-                        self._remove_scoped_activation_marker(command.command_id)
+                        if not activation_marker_preexisting:
+                            self._remove_scoped_activation_marker(command.command_id)
                     rejected = self._rejected(
                         command,
                         observed_version,
@@ -685,6 +706,7 @@ class CommandService:
                     prepared_payload,
                     command_schema=command_schema,
                 )
+                append_started = True
                 if isinstance(prepared_payload, VerifiedReleasePublication):
                     ledger_receipt = release_append(
                         self.ledger,
@@ -725,7 +747,8 @@ class CommandService:
                             command,
                             existed_before=activation_object_existed,
                         )
-                        self._remove_scoped_activation_marker(command.command_id)
+                        if not append_started:
+                            self._remove_scoped_activation_marker(command.command_id)
                 raise
 
     def _scoped_activation_committed(self, command: Command) -> bool:

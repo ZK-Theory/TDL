@@ -317,7 +317,10 @@ def test_external_grant_activation_append_failure_rolls_back_and_retry_is_single
     with pytest.raises(RuntimeError, match="injected scoped-authority append failure"):
         service.submit(command)
 
-    assert _durable_files(control_root) == before_files
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_path = next(marker_root.glob("*.json"))
+    marker_files = {marker_path.relative_to(control_root).as_posix(): marker_path.read_bytes()}
+    assert _durable_files(control_root) == before_files | marker_files
     assert ledger.snapshot() == before_snapshot
     assert canonical_bytes(
         replay(
@@ -337,6 +340,8 @@ def test_external_grant_activation_append_failure_rolls_back_and_retry_is_single
         schema_registry=schemas,
         authority_state_validator=restarted_resolver.validate_replayed_administration_state,
     )
+    assert _durable_files(control_root) == before_files | marker_files
+    assert len(list(marker_root.glob("*.json"))) == 1
     assert GRANT_ID not in restarted_projection["authority_grants"]
     assert restarted_objects.latest_revision("authority_grant", GRANT_ID) is None
 
@@ -386,13 +391,15 @@ def test_restart_recovers_uncommitted_external_grant_activation_marker(
     assert len(list(marker_root.glob("*.json"))) == 1
     assert objects.latest_revision("authority_grant", GRANT_ID) == 1
     assert not any(event.get("command_id") == ACTIVATE_COMMAND_ID for event in ledger.snapshot().events)
+    marker_path = next(marker_root.glob("*.json"))
+    marker_files = {marker_path.relative_to(control_root).as_posix(): marker_path.read_bytes()}
 
     restarted_resolver, restarted_ledger, restarted_objects, restarted_service = _restart_system(
         control_root,
         schemas,
     )
-    assert _durable_files(control_root) == before_files
-    assert not list(marker_root.glob("*.json"))
+    assert _durable_files(control_root) == before_files | marker_files
+    assert len(list(marker_root.glob("*.json"))) == 1
     assert restarted_objects.latest_revision("authority_grant", GRANT_ID) is None
     projection = replay(
         restarted_ledger.snapshot().events,
@@ -435,7 +442,10 @@ def test_failed_external_grant_activation_never_removes_preexisting_matching_obj
     with pytest.raises(RuntimeError, match="injected scoped-authority append failure"):
         service.submit(command)
 
-    assert _durable_files(control_root) == before_files
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker_path = next(marker_root.glob("*.json"))
+    marker_files = {marker_path.relative_to(control_root).as_posix(): marker_path.read_bytes()}
+    assert _durable_files(control_root) == before_files | marker_files
     assert ledger.snapshot() == before_snapshot
     assert preexisting_path.read_bytes() == preexisting_bytes
     assert objects.read("authority_grant", GRANT_ID, 1) == grant

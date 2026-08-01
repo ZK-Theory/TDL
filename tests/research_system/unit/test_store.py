@@ -6,12 +6,14 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.service import CommandService
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
-from research_system.store.lock import WriterLock
+from research_system.store import lock as lock_module
+from research_system.store.lock import WriterLock, inspect_lock, process_instance_id, remove_stale_lock
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
 
@@ -75,13 +77,189 @@ def test_second_writer_lock_is_rejected(tmp_path):
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):
     path = tmp_path / "writer.lock"
 
-    def fail_dump(*args, **kwargs):
-        raise OSError("disk full")
+    def fail_link(*args, **kwargs):
+        raise OSError("link failed")
 
-    monkeypatch.setattr(json, "dump", fail_dump)
-    with pytest.raises(OSError, match="disk full"):
+    monkeypatch.setattr(os, "link", fail_link)
+    with pytest.raises(OSError, match="link failed"):
         with WriterLock(path, {"writer_id": "w1"}):
             raise AssertionError("lock should not be entered")
+    assert not path.exists()
+    assert not list(path.parent.glob(".writer.lock.*.tmp"))
+
+
+def test_writer_lock_publishes_complete_process_instance_metadata(tmp_path):
+    path = tmp_path / "writer.lock"
+    with WriterLock(path, {"writer_id": "w1"}):
+        raw = path.read_bytes()
+        record = json.loads(raw)
+        assert record["process_id"] == str(os.getpid())
+        assert isinstance(record["process_instance_id"], str)
+        assert canonical_bytes(record) == raw
+        assert inspect_lock(path)[0] == "live"
+    assert not path.exists()
+
+
+def test_malformed_lock_is_bounded_and_never_reclaimed_without_identity(tmp_path):
+    path = tmp_path / "writer.lock"
+    path.write_bytes(b'{"process_id":"1"')
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "malformed"
+    assert observed is not None
+    assert not remove_stale_lock(path, observed)
+    assert path.exists()
+
+
+def test_recycled_pid_is_stale_only_when_process_instance_differs(tmp_path):
+    path = tmp_path / "writer.lock"
+    current = process_instance_id(os.getpid())
+    assert current is not None
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(os.getpid()),
+                "process_instance_id": "different-process-instance",
+            }
+        )
+    )
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
+def test_genuine_live_process_instance_is_not_reclaimed(tmp_path):
+    path = tmp_path / "writer.lock"
+    current = process_instance_id(os.getpid())
+    assert current is not None
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(os.getpid()),
+                "process_instance_id": current,
+                "operation": "other-owner",
+            }
+        )
+    )
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "live"
+    assert observed is not None
+    assert not remove_stale_lock(path, observed)
+    assert path.exists()
+
+
+def test_stale_dead_owner_is_reclaimed_after_process_revalidation(tmp_path, monkeypatch):
+    path = tmp_path / "writer.lock"
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": "919191",
+                "process_instance_id": "dead-process-instance",
+            }
+        )
+    )
+
+    def no_process(_pid):
+        return None
+
+    def dead_process(_pid, _signal):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(lock_module, "process_instance_id", no_process)
+    monkeypatch.setattr(lock_module.os, "kill", dead_process)
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
+def _recovery_service(root):
+    service = object.__new__(CommandService)
+    service.control_root = root
+    service.recovery_lock_timeout_seconds = 0.05
+    now = [0.0]
+    service._monotonic = lambda: now[0]
+    service._lock_wait = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    return service, now
+
+
+def test_recovery_lock_revalidation_is_bounded_for_malformed_metadata(tmp_path):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'{"truncated"')
+    service, now = _recovery_service(tmp_path)
+
+    assert service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"}) is None
+    assert 0.05 <= now[0] < 0.06
+    assert path.read_bytes() == b'{"truncated"'
+
+
+def test_recovery_lock_does_not_steal_a_live_mismatched_owner(tmp_path):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    held = WriterLock(path, {"operation": "other-owner", "command_id": "cmd_other"})
+    held.__enter__()
+    try:
+        service, now = _recovery_service(tmp_path)
+        assert service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"}) is None
+        assert 0.05 <= now[0] < 0.06
+        assert path.exists()
+    finally:
+        held.__exit__(None, None, None)
+
+
+def test_recovery_lock_reclaims_a_recycled_pid_and_a_revalidated_dead_owner(tmp_path, monkeypatch):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "operation": "other-owner",
+                "command_id": "cmd_other",
+                "process_id": str(os.getpid()),
+                "process_instance_id": "recycled-instance",
+            }
+        )
+    )
+    service, _ = _recovery_service(tmp_path)
+    recovered = service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"})
+    assert recovered is not None
+    recovered.__exit__(None, None, None)
+    assert not path.exists()
+
+    dead_pid = 919191
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "operation": "dead-owner",
+                "command_id": "cmd_dead",
+                "process_id": str(dead_pid),
+                "process_instance_id": "dead-instance",
+            }
+        )
+    )
+    real_instance_id = lock_module.process_instance_id
+
+    def instance_id(pid):
+        return None if pid == dead_pid else real_instance_id(pid)
+
+    real_kill = lock_module.os.kill
+
+    def kill(pid, signal):
+        if pid == dead_pid:
+            raise ProcessLookupError
+        return real_kill(pid, signal)
+
+    monkeypatch.setattr(lock_module, "process_instance_id", instance_id)
+    monkeypatch.setattr(lock_module.os, "kill", kill)
+    recovered = service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"})
+    assert recovered is not None
+    recovered.__exit__(None, None, None)
     assert not path.exists()
 
 
