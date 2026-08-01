@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 from contextlib import ExitStack, contextmanager
@@ -105,6 +106,37 @@ class RestorePreflightResult:
             value = getattr(self, field_name)
             if value and (not isinstance(value, str) or len(value) != 64):
                 raise ValueError(f"{field_name} must be a SHA-256 digest")
+
+
+def _restore_lock_owner_alive(pid: int) -> bool:
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+        kernel32.GetExitCodeProcess.restype = ctypes.c_int
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.restype = ctypes.c_int
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if handle:
+            exit_code = ctypes.c_uint32()
+            try:
+                if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    raise ArsError("restore binding writer lock owner cannot be checked")
+                return exit_code.value == 259
+            finally:
+                kernel32.CloseHandle(handle)
+        error = ctypes.get_last_error()
+        if error in {5}:
+            raise ArsError("restore binding writer lock owner cannot be checked")
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError as exc:
+        raise ArsError("restore binding writer lock owner cannot be checked") from exc
+    return True
 
 
 def _jsonable(value: object) -> object:
@@ -323,27 +355,87 @@ def restore_binding_writer_locks(
     *,
     lock_factory: Callable[..., Any] = WriterLock,
     held_roots: set[Path] | None = None,
+    config_output: Path | None = None,
 ) -> Iterator[None]:
-    """Hold source and target restore locks in one deterministic order."""
+    """Hold source, target, and optional output locks in one deterministic order."""
     source = source_root.resolve(strict=False)
     target = target_root.resolve(strict=False)
     held = {root.resolve(strict=False) for root in (held_roots or set())}
     lock_roots = sorted({source, target}, key=str)
+    lock_specs = [
+        (
+            root / "runtime" / "writer.lock",
+            {
+                "operation": "restore-bind",
+                "source_root": str(source),
+                "target_root": str(target),
+            },
+            root in held,
+        )
+        for root in lock_roots
+    ]
+    if config_output is not None:
+        output = config_output.resolve(strict=False)
+        if not output.parent.is_dir():
+            raise ArsError("restore binding output directory is unavailable")
+        lock_specs.append(
+            (
+                output.parent / f".{output.name}.restore-bind.lock",
+                {
+                    "operation": "restore-bind-output",
+                    "source_root": str(source),
+                    "target_root": str(target),
+                    "output_path": str(output),
+                },
+                False,
+            )
+        )
+    lock_specs.sort(key=lambda item: str(item[0]))
+
+    def clear_dead_restore_lock(path: Path, identity: dict[str, str]) -> None:
+        if not path.exists():
+            return
+        try:
+            raw = path.read_bytes()
+            recorded = json.loads(raw.decode("utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ArsError("restore binding writer lock is invalid") from exc
+        expected_base = {key: value for key, value in identity.items() if key != "owner_pid"}
+        recorded_base = (
+            {key: value for key, value in recorded.items() if key != "owner_pid"}
+            if isinstance(recorded, dict)
+            else None
+        )
+        if recorded_base != expected_base:
+            raise ArsError(f"restore binding writer lock exists: {path}")
+        owner_pid = recorded.get("owner_pid")
+        if not isinstance(owner_pid, str) or not owner_pid.isdigit():
+            raise ArsError(f"restore binding writer lock has no recoverable owner: {path}")
+        if not _restore_lock_owner_alive(int(owner_pid)):
+            try:
+                if path.read_bytes() != raw:
+                    raise ArsError(f"restore binding writer lock changed: {path}")
+                path.unlink()
+            except OSError as exc:
+                raise ArsError("restore binding stale writer lock removal failed") from exc
+        else:
+            raise ArsError(f"restore binding writer lock exists: {path}")
+
+    lock_specs = [
+        (
+            path,
+            {**identity, "owner_pid": str(os.getpid())},
+            skip,
+        )
+        for path, identity, skip in lock_specs
+    ]
     with ExitStack() as stack:
         try:
-            for root in lock_roots:
-                if root in held:
+            for path, identity, skip in lock_specs:
+                if skip:
                     continue
-                stack.enter_context(
-                    lock_factory(
-                        root / "runtime" / "writer.lock",
-                        {
-                            "operation": "restore-bind",
-                            "source_root": str(source),
-                            "target_root": str(target),
-                        },
-                    )
-                )
+                clear_dead_restore_lock(path, identity)
+                stack.enter_context(lock_factory(path, identity))
         except OSError as exc:
             raise ArsError("restore binding writer lock unavailable") from exc
         yield
@@ -855,6 +947,7 @@ def finalize_verified_restore_binding(
     output_commit: Callable[[], Any] | None = None,
     output_rollback: Callable[[], None] | None = None,
     post_commit: Callable[[], Any] | None = None,
+    journal_path: Path | None = None,
 ) -> dict[str, Any]:
     """Finalize a verified restore after the caller's current writer-lock recheck.
 
@@ -968,4 +1061,5 @@ def finalize_verified_restore_binding(
         output_commit=output_commit,
         output_rollback=output_rollback,
         post_commit=post_commit,
+        journal_path=journal_path,
     )
