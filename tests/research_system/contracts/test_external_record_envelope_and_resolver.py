@@ -12,15 +12,23 @@ schemas, and the resolver must actually deliver the properties the loader relies
 
 from __future__ import annotations
 
+import copy
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator, FormatChecker
 
 from research_system.assurance.pack_loader import _RECORD_ENVELOPE
-from research_system.assurance.external_records import ExternalAssuranceRecordStore
+from research_system.assurance.external_records import (
+    ExternalAssuranceRecordStore,
+    ExternalRecordSchemaCatalogue,
+    storage_object_id,
+)
 from research_system.assurance.resolver import EXTERNAL_RECORD_KIND, ControlStoreAuthorityResolver
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.store.identity import _manifest_hash, initialize_control_store
@@ -32,6 +40,143 @@ SCHEMA_PATH = REPO_ROOT / ".research-system" / "schemas" / "contracts" / "wp6-3-
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
 RECORD_ID = "act_01978abc-2000-7000-8000-000000002000"
 STORE_RECORD_ID = "arec_01978abc-2000-7000-8000-000000002000"
+_ALL_RECORD_IDS = {
+    "canonical_actor": "act_01978abc-2000-7000-8000-000000002010",
+    "producer_relationship_evidence": "rel_01978abc-2000-7000-8000-000000002011",
+    "contract_schema_authorship": "cau_01978abc-2000-7000-8000-000000002012",
+    "independent_contract_review": "crv_01978abc-2000-7000-8000-000000002013",
+    "independent_schema_review": "srv_01978abc-2000-7000-8000-000000002014",
+    "stephen_contract_schema_acceptance": "csa_01978abc-2000-7000-8000-000000002015",
+    "accepted_assurance_requirement": "ard_01978abc-2000-7000-8000-000000002016",
+    "obligation_applicability_confirmation": "apc_01978abc-2000-7000-8000-000000002017",
+    "independent_pack_review": "arv_01978abc-2000-7000-8000-000000002018",
+    "stephen_owner_acceptance": "apr_01978abc-2000-7000-8000-000000002019",
+    "active_authority_grant": "agr_01978abc-2000-7000-8000-000000002020",
+    "registered_pack_object": "asp_01978abc-2000-7000-8000-000000002021",
+}
+
+
+def _parent_pointer(parent: dict[str, Any], pointer: str) -> Any:
+    current: Any = parent
+    for token in pointer.split("#", 1)[1].lstrip("/").split("/"):
+        current = current[token.replace("~1", "/").replace("~0", "~")]
+    return current
+
+
+def _sample_schema(
+    schema: dict[str, Any],
+    parent: dict[str, Any],
+    counter: list[int],
+    *,
+    ordinal: int = 0,
+) -> Any:
+    if "$ref" in schema:
+        return _sample_schema(_parent_pointer(parent, schema["$ref"]), parent, counter, ordinal=ordinal)
+    if "const" in schema:
+        return copy.deepcopy(schema["const"])
+    if "enum" in schema:
+        return copy.deepcopy(schema["enum"][ordinal % len(schema["enum"])])
+    if "oneOf" in schema or "anyOf" in schema:
+        options = schema.get("oneOf", schema.get("anyOf"))
+        return _sample_schema(options[0], parent, counter, ordinal=ordinal)
+    if "allOf" in schema:
+        result: dict[str, Any] = {}
+        own = {key: value for key, value in schema.items() if key not in {"allOf", "if", "then", "else"}}
+        if own:
+            result.update(_sample_schema(own, parent, counter, ordinal=ordinal))
+        for branch in schema["allOf"]:
+            if "if" in branch:
+                condition = branch["if"]
+                matches = all(
+                    key in result and (result[key] == value.get("const") or result[key] in value.get("enum", ()))
+                    for key, value in condition.get("properties", {}).items()
+                ) and all(key in result for key in condition.get("required", ()))
+                selected = branch.get("then" if matches else "else", {})
+                selected_value = _sample_schema(selected, parent, counter, ordinal=ordinal)
+                if isinstance(selected_value, dict):
+                    result.update(selected_value)
+            else:
+                result.update(_sample_schema(branch, parent, counter, ordinal=ordinal))
+        return result
+    if schema.get("type") == "object" or "properties" in schema or "required" in schema:
+        return {
+            name: _sample_schema(schema.get("properties", {}).get(name, {}), parent, counter, ordinal=ordinal)
+            for name in schema.get("required", ())
+        }
+    if schema.get("type") == "array":
+        prefix_items = schema.get("prefixItems", ())
+        count = max(schema.get("minItems", 1), len(prefix_items))
+        items_schema = schema.get("items", {})
+        values = [
+            _sample_schema(
+                prefix_items[index] if index < len(prefix_items) else items_schema,
+                parent,
+                counter,
+                ordinal=index,
+            )
+            for index in range(count)
+        ]
+        for index, value in enumerate(values):
+            if isinstance(value, dict):
+                if "applicability" in value:
+                    value["applicability"] = "required"
+                    value.pop("confirmation_record_id", None)
+                    value.pop("confirmation_record_sha256", None)
+                if "obligation_id" in value:
+                    value["obligation_id"] = f"lane.obligation_{index}"
+        return values
+    if schema.get("type") == "string":
+        if schema.get("format") == "date-time":
+            return "2026-07-18T08:20:00Z"
+        pattern = schema.get("pattern", "")
+        typed = re.match(r"^\^([a-z]{3,4})_", pattern)
+        if typed:
+            counter[0] += 1
+            return f"{typed.group(1)}_01978abc-2000-7000-8000-{counter[0]:012x}"
+        if "[0-9a-f]{64}" in pattern:
+            return "0" * 64
+        if "[0-9a-f]{40}" in pattern:
+            return "0" * 40
+        if "\\." in pattern:
+            counter[0] += 1
+            return f"lane.obligation_{counter[0]}"
+        counter[0] += 1
+        return f"value_{counter[0]}"
+    if schema.get("type") == "integer":
+        return schema.get("minimum", 1)
+    if schema.get("type") == "boolean":
+        return False
+    return None
+
+
+def _all_external_record_bodies() -> dict[str, tuple[str, dict[str, Any]]]:
+    parent = json.loads(SCHEMA_PATH.read_bytes())
+    counter = [0]
+    bodies: dict[str, tuple[str, dict[str, Any]]] = {}
+    for record_class, record_id in _ALL_RECORD_IDS.items():
+        row = next(
+            row
+            for row in parent["$defs"].values()
+            if row.get("properties", {}).get("record_type", {}).get("const") == record_class
+        )
+        body = _sample_schema(row, parent, counter)
+        body[_RECORD_ENVELOPE[record_class][0]] = record_id
+        bodies[record_class] = record_id, body
+    return bodies
+
+
+def _valid_relationship_body(record_id: str, *, effective_at: str = "2026-07-18T08:20:00Z") -> dict[str, str]:
+    return {
+        "record_type": "producer_relationship_evidence",
+        "relationship_record_id": record_id,
+        "relationship_context": "contract_review",
+        "subject_actor_id": RECORD_ID,
+        "object_actor_id": "act_01978abc-2000-7000-8000-000000002022",
+        "grade": "I2",
+        "status": "active",
+        "effective_at": effective_at,
+        "expires_at": "2027-07-18T08:20:00Z",
+    }
 
 
 def _valid_actor_body(*, name: str = "Ada") -> dict[str, str]:
@@ -112,6 +257,155 @@ def _binding(tmp_path: Path) -> ControlBinding:
         schema_root=SCHEMA_PATH.parents[1],
         store_identity=identity,
     )
+
+
+def test_all_twelve_accepted_record_classes_resolve_in_isolation_and_composition(tmp_path: Path) -> None:
+    binding = _binding(tmp_path)
+    catalogue = ExternalRecordSchemaCatalogue(SCHEMA_PATH.parents[1])
+    store = ExternalAssuranceRecordStore(binding)
+    resolver = ControlStoreAuthorityResolver(binding)
+    parent = json.loads(SCHEMA_PATH.read_bytes())
+
+    for record_class, (record_id, body) in _all_external_record_bodies().items():
+        row = catalogue.validate(record_class, record_id, body)
+        assert not list(
+            Draft202012Validator(
+                {"$schema": parent["$schema"], "$ref": row.schema_id},
+                registry=catalogue.registry,
+                format_checker=FormatChecker(),
+            ).iter_errors(body)
+        ), record_class
+        receipt = store.write(
+            record_class=record_class,
+            record_id=record_id,
+            revision=1,
+            expected_previous_revision=0,
+            record=body,
+        )
+        assert receipt.record_class == record_class
+        assert (
+            resolver.resolve(
+                record_id=record_id,
+                record_class=record_class,
+                authority_root=resolver.authority_root,
+                phase="load",
+            )
+            == body
+        )
+
+
+def test_date_time_format_is_checked_on_write_and_resolution(tmp_path: Path) -> None:
+    binding = _binding(tmp_path)
+    store = ExternalAssuranceRecordStore(binding)
+    record_id = _ALL_RECORD_IDS["producer_relationship_evidence"]
+    invalid = _valid_relationship_body(record_id, effective_at="not-a-date-time")
+    with pytest.raises(SchemaError, match="date-time"):
+        store.write(
+            record_class="producer_relationship_evidence",
+            record_id=record_id,
+            revision=1,
+            expected_previous_revision=0,
+            record=invalid,
+        )
+
+    resolver = ControlStoreAuthorityResolver(binding)
+    objects = ObjectStore(binding.control_root)
+    objects.write(EXTERNAL_RECORD_KIND, storage_object_id(record_id), 1, invalid)
+    with pytest.raises(SchemaError, match="date-time"):
+        resolver.resolve(
+            record_id=record_id,
+            record_class="producer_relationship_evidence",
+            authority_root=resolver.authority_root,
+            phase="load",
+        )
+
+
+def test_write_and_resolution_require_complete_contiguous_revision_history(tmp_path: Path) -> None:
+    binding = _binding(tmp_path)
+    store = ExternalAssuranceRecordStore(binding)
+    record_id = RECORD_ID
+    object_id = storage_object_id(record_id)
+    store.objects.write(EXTERNAL_RECORD_KIND, object_id, 2, _valid_actor_body())
+    with pytest.raises(IntegrityError, match="contiguous"):
+        store.write(
+            record_class="canonical_actor",
+            record_id=record_id,
+            revision=3,
+            expected_previous_revision=2,
+            record=_valid_actor_body(name="third"),
+        )
+    resolver = ControlStoreAuthorityResolver(binding)
+    with pytest.raises(IntegrityError, match="contiguous"):
+        resolver.resolve(
+            record_id=record_id,
+            record_class="canonical_actor",
+            authority_root=resolver.authority_root,
+            phase="load",
+        )
+
+    intermediate_root = tmp_path / "intermediate"
+    intermediate_root.mkdir()
+    binding = _binding(intermediate_root)
+    store = ExternalAssuranceRecordStore(binding)
+    store.objects.write(EXTERNAL_RECORD_KIND, object_id, 1, _valid_actor_body())
+    store.objects.write(EXTERNAL_RECORD_KIND, object_id, 3, _valid_actor_body(name="third"))
+    with pytest.raises(IntegrityError, match="contiguous"):
+        store.write(
+            record_class="canonical_actor",
+            record_id=record_id,
+            revision=4,
+            expected_previous_revision=3,
+            record=_valid_actor_body(name="fourth"),
+        )
+
+
+def test_duplicate_revision_and_foreign_identity_fail_closed(tmp_path: Path) -> None:
+    binding = _binding(tmp_path)
+    store = ExternalAssuranceRecordStore(binding)
+    store.objects.write(EXTERNAL_RECORD_KIND, STORE_RECORD_ID, 1, _valid_actor_body())
+    alternate = _valid_actor_body(name="alternate")
+    alternate_bytes = canonical_bytes(alternate)
+    revision_dir = binding.control_root / "objects" / EXTERNAL_RECORD_KIND / STORE_RECORD_ID
+    (revision_dir / f"00000001-{sha256_hex(alternate_bytes)}.json").write_bytes(alternate_bytes)
+    with pytest.raises(IntegrityError, match="duplicate"):
+        store.write(
+            record_class="canonical_actor",
+            record_id=RECORD_ID,
+            revision=2,
+            expected_previous_revision=1,
+            record=_valid_actor_body(name="second"),
+        )
+    resolver = ControlStoreAuthorityResolver(binding)
+    with pytest.raises(IntegrityError, match="duplicate"):
+        resolver.resolve(
+            record_id=RECORD_ID,
+            record_class="canonical_actor",
+            authority_root=resolver.authority_root,
+            phase="load",
+        )
+
+    foreign_root = tmp_path / "foreign"
+    foreign_root.mkdir()
+    binding = _binding(foreign_root)
+    store = ExternalAssuranceRecordStore(binding)
+    store.objects.write(EXTERNAL_RECORD_KIND, storage_object_id(RECORD_ID), 1, _valid_actor_body())
+    foreign_id = RECORD_ID.replace("act_", "rel_")
+    with pytest.raises(IntegrityError, match="identity"):
+        store.write(
+            record_class="producer_relationship_evidence",
+            record_id=foreign_id,
+            revision=2,
+            expected_previous_revision=1,
+            record=_valid_relationship_body(foreign_id),
+        )
+    resolver = ControlStoreAuthorityResolver(binding)
+    with pytest.raises(IntegrityError, match="identity"):
+        resolver.resolve(
+            record_id=foreign_id,
+            record_class="producer_relationship_evidence",
+            authority_root=resolver.authority_root,
+            phase="load",
+        )
 
 
 def test_resolver_returns_the_persisted_record_body(tmp_path: Path) -> None:

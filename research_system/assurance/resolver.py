@@ -32,6 +32,7 @@ from research_system.assurance.external_records import (
     EXTERNAL_RECORD_KIND,
     ExternalAssuranceRecordStore,
     ExternalRecordSchemaCatalogue,
+    load_complete_revision_history,
     storage_object_id,
 )
 from research_system.config import ControlBinding
@@ -105,11 +106,16 @@ class ControlStoreAuthorityResolver:
             raise ArsError("record class must be a non-empty string")
         if authority_root != self.authority_root:
             raise ArsError("authority root is not the root this control store is bound to")
-        revision = self._objects.latest_revision(EXTERNAL_RECORD_KIND, storage_object_id(record_id))
-        if revision is None:
+        object_id = storage_object_id(record_id)
+        history = load_complete_revision_history(self._objects, EXTERNAL_RECORD_KIND, object_id)
+        if not history:
             raise ArsError(f"external record has no persisted revision: {record_id}")
-        record: Any = self._objects.read(EXTERNAL_RECORD_KIND, storage_object_id(record_id), revision)
-        if not isinstance(record, dict):
-            raise IntegrityError(f"external record is not a record body: {record_id}")
-        self._catalogue.validate(record_class, record_id, record)
+        row = self._catalogue.row(record_class)
+        for record in history.values():
+            if not isinstance(record, dict):
+                raise IntegrityError(f"external record is not a record body: {record_id}")
+            if record.get("record_type") != row.record_type:
+                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
+            self._catalogue.validate(record_class, record_id, record)
+        record: Any = history[max(history)]
         return record

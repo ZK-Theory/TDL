@@ -19,8 +19,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jsonschema import Draft202012Validator, RefResolver
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
@@ -168,6 +170,37 @@ def storage_object_id(record_id: str) -> str:
     return f"arec_{match.group('uuid')}"
 
 
+def load_complete_revision_history(
+    objects: ObjectStore,
+    kind: str,
+    object_id: str,
+) -> dict[int, Any]:
+    """Load every immutable revision and require a single contiguous history."""
+
+    directory = objects.control_root / "objects" / kind / object_id
+    try:
+        paths = sorted(directory.glob("*.json"))
+    except OSError as exc:
+        raise IntegrityError("external record revision history is unreadable") from exc
+    history: dict[int, Any] = {}
+    paths_by_revision: dict[int, Path] = {}
+    for path in paths:
+        match = re.fullmatch(r"(?P<revision>[0-9]{8})-[0-9a-f]{64}\.json", path.name)
+        if match is None:
+            raise IntegrityError(f"external record revision filename is malformed: {path.name}")
+        revision = int(match.group("revision"))
+        if revision in paths_by_revision:
+            raise IntegrityError("external record revision history contains a duplicate or alternate revision")
+        paths_by_revision[revision] = path
+    for revision in sorted(paths_by_revision):
+        history[revision] = objects.read(kind, object_id, revision)
+    if history:
+        latest = max(history)
+        if set(history) != set(range(1, latest + 1)):
+            raise IntegrityError("external record revision history must be complete and contiguous")
+    return history
+
+
 @dataclass(frozen=True)
 class ExternalRecordSchemaRow:
     record_class: str
@@ -213,7 +246,8 @@ class ExternalRecordSchemaCatalogue:
             raise SchemaError("external record catalogue must contain exactly twelve rows")
 
         self._parent_schema = parent_schema
-        self._resolver = RefResolver.from_schema(parent_schema)
+        self._format_checker = FormatChecker()
+        registry = Registry().with_resource(parent_schema["$id"], Resource.from_contents(parent_schema))
         parsed: dict[str, ExternalRecordSchemaRow] = {}
         for row in rows:
             parsed_row = self._parse_row(row, parent_schema, schema_path)
@@ -223,6 +257,20 @@ class ExternalRecordSchemaCatalogue:
         if set(parsed) != set(_RECORD_CLASSES):
             raise SchemaError("external record catalogue class set is not exact")
         self._rows = parsed
+        validation_schemas: dict[str, Mapping[str, Any]] = {}
+        for row in parsed.values():
+            # The accepted row is a fragment whose local references intentionally point
+            # at the parent contract's definitions.  Add those definitions only to the
+            # in-memory validation resource; the accepted schema bytes remain untouched.
+            validation_schema = dict(row.schema)
+            validation_schema["$defs"] = parent_schema["$defs"]
+            registry = registry.with_resource(
+                row.schema_id,
+                Resource.from_contents(validation_schema, default_specification=DRAFT202012),
+            )
+            validation_schemas[row.record_class] = validation_schema
+        self._registry = registry
+        self._validation_schemas = validation_schemas
 
     @staticmethod
     def _verify_parent_schema(schema_path: Path, raw_schema: bytes, parent_schema: Mapping[str, Any]) -> None:
@@ -324,6 +372,10 @@ class ExternalRecordSchemaCatalogue:
     def rows(self) -> Mapping[str, ExternalRecordSchemaRow]:
         return self._rows
 
+    @property
+    def registry(self) -> Registry:
+        return self._registry
+
     def row(self, record_class: str) -> ExternalRecordSchemaRow:
         try:
             return self._rows[record_class]
@@ -338,7 +390,11 @@ class ExternalRecordSchemaCatalogue:
             raise SchemaError(f"external record class/type mismatch: {record_class}")
         if record.get(row.identity_field) != record_id:
             raise SchemaError(f"external record identity field does not match record identity: {record_class}")
-        validator = Draft202012Validator(row.schema, resolver=self._resolver)
+        validator = Draft202012Validator(
+            self._validation_schemas[record_class],
+            registry=self._registry,
+            format_checker=self._format_checker,
+        )
         errors = sorted(validator.iter_errors(record), key=lambda error: list(error.absolute_path))
         if errors:
             message = "; ".join(
@@ -396,6 +452,25 @@ class ExternalAssuranceRecordStore:
             schema_canonical_sha256=row.schema_canonical_sha256,
         )
 
+    def _validated_history(
+        self,
+        *,
+        record_class: str,
+        record_id: str,
+        object_id: str,
+    ) -> dict[int, Any]:
+        row = self.catalogue.row(record_class)
+        history = load_complete_revision_history(self.objects, EXTERNAL_RECORD_KIND, object_id)
+        for existing in history.values():
+            if (
+                not isinstance(existing, Mapping)
+                or existing.get("record_type") != row.record_type
+                or existing.get(row.identity_field) != record_id
+            ):
+                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
+            self.catalogue.validate(record_class, record_id, existing)
+        return history
+
     def write(
         self,
         *,
@@ -417,10 +492,11 @@ class ExternalAssuranceRecordStore:
             raise ConflictError("record revision must be the expected previous revision plus one")
         row = self.catalogue.validate(record_class, record_id, record)
         object_id = storage_object_id(record_id)
-        latest = self.objects.latest_revision(EXTERNAL_RECORD_KIND, object_id)
+        history = self._validated_history(record_class=record_class, record_id=record_id, object_id=object_id)
+        latest = max(history) if history else None
         observed = 0 if latest is None else latest
         if latest == revision:
-            existing = self.objects.read(EXTERNAL_RECORD_KIND, object_id, revision)
+            existing = history[revision]
             if existing == dict(record):
                 return self._receipt(row, record_id, revision, record)
             raise ConflictError("object revision already exists with different content")
