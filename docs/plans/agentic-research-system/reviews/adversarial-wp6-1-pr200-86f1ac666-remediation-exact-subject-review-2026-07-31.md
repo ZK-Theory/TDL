@@ -186,7 +186,7 @@ The test environment used:
 - the pre-existing interpreter
   `C:\Users\steph\TDL\.venv\Scripts\python.exe`;
 - `-o addopts=` to suppress repository coverage addopts; and
-- `-p no:cacheprovider`.
+  `-p no:cacheprovider`.
 
 Command:
 
