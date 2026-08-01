@@ -1,0 +1,113 @@
+schema_id: ars://portfolio/w11-materialization-bootstrap-contract
+schema_version: 1.0.0
+source_spec:
+  repository_path: docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md
+  reviewed_commit: 892d1d1650cdcf71d2a886318e174a18e11d5de0
+  git_blob: f90729d0c42a0de98d064fac0824d1969c871c82
+  raw_sha256: 65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70
+  raw_bytes: 185214
+materialization_status: inert_foundation_only
+runtime_activation: forbidden
+expected_catalogue: forbidden_in_pr1
+acceptance_instance: forbidden_in_pr1
+bootstrap_verifier:
+  schema_id: ars://portfolio/w11-bootstrap-verifier
+  schema_version: 1.0.0
+  interface: tools.verify_w11_materialization:verify_subject_envelope
+  subject_envelope:
+    authority: caller_supplied_external
+    required_fields:
+      - base_commit
+      - subject_commit
+      - subject_tree
+      - changed_paths
+    path_entry_fields:
+      - path
+      - blob
+    exact_path_set: git_diff_base_to_subject
+    no_implicit_working_copy_or_symbolic_ref: true
+  external_envelope_schema_id: ars://portfolio/w11-catalogue-acceptance-envelope
+  genesis_input_schema_id: ars://portfolio/import-accepted-w11-catalogue-genesis
+  execution_status: schema_only_no_execution
+verification_rules:
+  - accepted W11 raw-byte tuple is independently observed
+  - every materialized schema is Draft 2020-12 valid and closed
+  - W11 IDs remain absent from runtime bindings
+  - no expected catalogue or acceptance instance is materialized
+  - no runtime production Python is changed
+  - the non-runtime verifier requires the caller-supplied external subject envelope
+  - the envelope names the exact base, subject commit, subject tree, changed paths, and per-path blobs
+families:
+  content:
+    - programme
+    - paper
+    - hypothesis
+    - candidate
+    - method
+    - dataset
+    - claim
+    - dependency-edge
+    - assay-rubric-content
+    - assay-evidence-scope-content
+    - path-registration-content
+    - dossier-expected-set-content
+    - legacy-source-inventory-content
+    - legacy-transition-mapping-content
+    - legacy-cutover-closure-content
+    - w11-schema-catalogue-content
+  relation:
+    - candidate
+    - assay
+    - spike
+    - assay-request
+    - assay-producer
+    - assay-bar-acceptance
+    - assay-outcome-review
+    - assay-cancellation-review
+    - spike-plan
+    - spike-attempt
+    - spike-outcome-review
+    - spike-cancellation-review
+    - discovery-promotion
+    - discovery-revisit
+    - authority-content-file-review-acceptance
+    - spike-execution-authority
+    - dossier-expected-set-acceptance
+    - path-registration-acceptance
+    - legacy-source-inventory-acceptance
+    - migration-authority
+    - legacy-path-cutover
+    - dossier-six-family-closure
+    - legacy-source-row-observation
+    - legacy-source-row-target
+    - inventory-mapping-transition-bijection
+    - path-physical-identity
+    - writer-revocation
+    - cutover-closure
+  artefact:
+    - assay-scorecard
+    - assay-partial
+    - spike-plan
+    - spike-verdict
+    - scout-observation-batch
+    - discovery-annotation
+    - research-dossier-manifest
+    - legacy-record-observed
+    - legacy-portfolio-path-observation
+    - authority-file-observation
+    - review-evidence
+    - collision-scan
+    - writer-revocation-snapshot
+    - projection-rebuild-proof
+  bootstrap:
+    - w11-catalogue-acceptance-envelope
+    - w11-materialization-bootstrap-contract
+    - import-accepted-w11-catalogue-genesis
+forbidden:
+  - runtime_schema_registry binding
+  - runtime handlers, ledger append, reducers, or projectors
+  - expected catalogue instance
+  - catalogue acceptance envelope instance
+  - OR-140 genesis import
+  - dossier admission, path write, transition, migration, or cutover
+  - provider, credential, Jira, PR, or merge action

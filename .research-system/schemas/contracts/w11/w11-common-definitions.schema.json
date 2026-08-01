@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/w11-common-definitions",
+  "type": "object",
+  "required": ["schema_id", "schema_version"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/w11-common-definitions"},
+    "schema_version": {"const": "1.0.0"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "uuidv7": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "objId": {"type": "string", "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "projectId": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actorId": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "recordRef": {
+      "type": "object", "required": ["id", "record_revision", "content_hash"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}},
+      "additionalProperties": false
+    },
+    "sourceRef": {
+      "type": "object", "required": ["ref_kind", "content_hash"],
+      "properties": {"ref_kind": {"enum": ["record", "artefact", "external"]}, "id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "locator": {"type": "string", "minLength": 1}, "content_hash": {"$ref": "#/$defs/sha256"}},
+      "oneOf": [{"properties": {"ref_kind": {"enum": ["record", "artefact"]}}, "required": ["id", "record_revision"], "not": {"required": ["locator"]}}, {"properties": {"ref_kind": {"const": "external"}}, "required": ["locator"], "not": {"anyOf": [{"required": ["id"]}, {"required": ["record_revision"]}]}}],
+      "additionalProperties": false
+    },
+    "alias": {
+      "type": "object", "required": ["namespace", "value", "scope_id"],
+      "properties": {"namespace": {"type": "string", "minLength": 1}, "value": {"type": "string", "minLength": 1}, "scope_id": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    },
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "nonEmptyRefs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/recordRef"}},
+    "objectEnvelope": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "record_id", "record_revision", "supersedes_revision", "project_id", "portfolio_kind", "aliases", "created_at", "created_by_actor_id", "source_refs", "content_hash"],
+      "properties": {
+        "schema_id": {"type": "string", "pattern": "^ars://portfolio/[a-z0-9-]+$"}, "schema_version": {"const": "1.0.0"}, "record_id": {"$ref": "#/$defs/objId"}, "record_revision": {"type": "integer", "minimum": 1}, "supersedes_revision": {"type": ["integer", "null"], "minimum": 1}, "project_id": {"$ref": "#/$defs/projectId"}, "portfolio_kind": {"type": "string", "minLength": 1}, "aliases": {"type": "array", "items": {"$ref": "#/$defs/alias"}}, "created_at": {"type": "string", "format": "date-time", "pattern": "Z$"}, "created_by_actor_id": {"$ref": "#/$defs/actorId"}, "source_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceRef"}}, "content_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "relationRef": {"type": "object", "required": ["id", "record_revision", "content_hash"], "properties": {"id": {"type": "string", "minLength": 1}, "record_revision": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
+    "asyId": {"type": "string", "pattern": "^asy_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "spkId": {"type": "string", "pattern": "^spk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "artId": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "decId": {"type": "string", "pattern": "^dec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+  }
+}
