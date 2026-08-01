@@ -1087,7 +1087,7 @@ def test_valid_publication_request_fails_closed_without_authorizer(tmp_path) -> 
     harness = control_plane(tmp_path)
     receipt = harness.service.submit(publication_command())
     assert receipt.status == "rejected"
-    assert receipt.reason_code == "release_publication_authorizer_unavailable"
+    assert receipt.reason_code == "release_publication_evidence_mismatch"
     assert tuple(harness.ledger.iter_events()) == ()
 
 

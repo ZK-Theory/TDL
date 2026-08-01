@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime
+import json
 
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -741,6 +743,124 @@ def test_authority_evidence_is_durable_for_retry_and_conflicts_on_change(tmp_pat
     assert revoked_retry.status == "rejected"
     assert revoked_retry.reason_code == "lifecycle_authority_unauthorized"
     assert tuple(harness.ledger.iter_events()) == before_retry_events
+
+
+def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    command = create_task_command(
+        "cmd_01978abc-7244-7000-8000-000000007244",
+        "authority-index-rebuild",
+        TASK_A,
+        {"title": "Canonical history rebuild"},
+    )
+    first = _submit(harness, command)
+    assert first.status == "accepted"
+
+    grant_id = command["authority_grant_id"]
+    resolver = harness.authority_resolver
+    canonical_calls: list[str] = []
+    original_identity = resolver.scoped_grant_identity
+
+    def record_canonical_identity(requested_grant_id: str):
+        canonical_calls.append(requested_grant_id)
+        return original_identity(requested_grant_id)
+
+    monkeypatch.setattr(resolver, "scoped_grant_identity", record_canonical_identity)
+    index_paths = tuple(harness.receipts.index_root.glob("*.json"))
+    assert len(index_paths) == 1
+    index_path = index_paths[0]
+    index_path.unlink()
+    before_events = tuple(harness.ledger.iter_events())
+
+    restarted = _restarted_service(harness)
+    retry = restarted.submit(command)
+
+    assert retry == first
+    assert canonical_calls == [grant_id]
+    assert index_path.exists()
+    assert tuple(harness.ledger.iter_events()) == before_events
+
+
+@pytest.mark.parametrize("failure", ["missing", "tampered", "ambiguous", "hash-mismatched"])
+def test_missing_lifecycle_index_fails_closed_without_canonical_authority_evidence(
+    tmp_path,
+    failure,
+):
+    harness = control_plane(tmp_path)
+    command = create_task_command(
+        "cmd_01978abc-7245-7000-8000-000000007245",
+        f"authority-index-{failure}",
+        TASK_A,
+        {"title": "Canonical history failure"},
+    )
+    first = _submit(harness, command)
+    assert first.status == "accepted"
+    index_path = next(harness.receipts.index_root.glob("*.json"))
+    index_path.unlink()
+    grant_path = next(
+        (harness.authority_root / "objects" / "authority_grant" / command["authority_grant_id"]).glob("*.json")
+    )
+    if failure == "missing":
+        grant_path.unlink()
+    elif failure == "tampered":
+        tampered = json.loads(grant_path.read_text(encoding="utf-8"))
+        tampered["actor_id"] = ACTORS["actor-b"]
+        grant_path.write_bytes(canonical_bytes(tampered))
+    elif failure == "ambiguous":
+        duplicate = grant_path.with_name(f"00000001-{'f' * 64}.json")
+        duplicate.write_bytes(grant_path.read_bytes())
+    else:
+        activation_path = next(
+            path
+            for path in (harness.authority_root / "events" / PROJECT_ID).rglob("*.jsonl")
+            if '"ActivateAuthorityGrant"' in path.read_text(encoding="utf-8")
+        )
+        activation = json.loads(activation_path.read_text(encoding="utf-8"))
+        activation["payload"]["new_grant_sha256"] = "f" * 64
+        activation.pop("event_hash")
+        activation["event_hash"] = sha256_hex(canonical_bytes(activation))
+        activation_path.write_bytes(canonical_bytes(activation) + b"\n")
+    before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+    restarted = _restarted_service(harness)
+
+    with pytest.raises(IntegrityError):
+        restarted.submit(command)
+
+    assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
+    assert not index_path.exists()
+
+
+def test_lifecycle_resolution_hash_must_match_canonical_history_before_append(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7246-7000-8000-000000007246",
+        "authority-hash-mismatch",
+        TASK_A,
+        {"title": "Hash mismatch"},
+    )
+    command["authority_grant_id"] = grant_id
+    resolver = harness.authority_resolver
+    original_resolve_command = resolver.resolve_command
+
+    def forged_resolution(**kwargs):
+        resolved = original_resolve_command(**kwargs)
+        return replace(resolved, authority_grant_sha256="f" * 64)
+
+    monkeypatch.setattr(resolver, "resolve_command", forged_resolution)
+    before = _domain_snapshot(harness)
+
+    with pytest.raises(IntegrityError, match="disagrees with canonical history"):
+        harness.service.submit(command)
+
+    assert _domain_snapshot(harness) == before
+    assert not tuple(harness.receipts.index_root.glob("*.json"))
 
 
 def test_restart_rejects_currently_expired_lifecycle_grant(tmp_path):

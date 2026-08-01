@@ -700,7 +700,7 @@ class CommandService:
     ) -> None:
         scope = self._authority_scope(command)
         snapshot = self.ledger.snapshot()
-        projection = replay(
+        replay(
             snapshot.events,
             schema_registry=self.schemas,
             authority_state_validator=self._authority_state_validator(),
@@ -762,7 +762,6 @@ class CommandService:
                     command_schema=command_schema,
                     receipt=receipt,
                     resolution=lifecycle_resolution,
-                    projection=projection,
                     event=matching[0],
                 )
         elif scoped_events:
@@ -780,7 +779,6 @@ class CommandService:
         command_schema: SchemaIdentity,
         receipt: Receipt,
         resolution: dict[str, Any],
-        projection: dict[str, Any],
         event: dict[str, Any],
     ) -> None:
         if receipt.status != "accepted":
@@ -788,27 +786,12 @@ class CommandService:
         if not isinstance(resolution, dict):
             raise IntegrityError("lifecycle authority resolution evidence is invalid")
         grant_id = resolution.get("authority_grant_id")
-        grants = projection.get("authority_grants")
-        grant_record = grants.get(grant_id) if isinstance(grants, dict) else None
-        if isinstance(grant_record, dict):
-            for field in (
-                "authority_grant_id",
-                "authority_grant_sha256",
-                "schema_id",
-                "schema_version",
-                "schema_sha256",
-                "subject_scope",
-                "effective_at",
-                "expires_at",
-                "activation_event_id",
-                "activation_position",
-                "administration_decision_id",
-                "administration_decision_sha256",
-                "status",
-                "revocation_event_id",
-            ):
-                if resolution.get(field) != grant_record.get(field):
-                    raise IntegrityError("lifecycle authority resolution disagrees with replay")
+        if (
+            not isinstance(grant_id, str)
+            or not grant_id
+            or self._authority_key({}, resolution) != resolution.get("authority_grant_sha256")
+        ):
+            raise IntegrityError("lifecycle authority evidence is not canonical")
         if (
             event.get("authority_grant_id") != grant_id
             or event.get("actor_id") != resolution.get("actor_id")
@@ -839,7 +822,7 @@ class CommandService:
                 raise IntegrityError("lifecycle command schema evidence is missing")
             if receipt.status == "accepted":
                 snapshot = self.ledger.snapshot()
-                projection = replay(
+                replay(
                     snapshot.events,
                     schema_registry=self.schemas,
                     authority_state_validator=self._authority_state_validator(),
@@ -860,7 +843,6 @@ class CommandService:
                     command_schema=command_schema,
                     receipt=receipt,
                     resolution=lifecycle_authority.resolution,
-                    projection=projection,
                     event=event,
                 )
             result = self.receipts.write_scoped(
@@ -995,7 +977,7 @@ class CommandService:
     def _authority_resolution_record(cls, resolution: Any | None) -> dict[str, Any] | None:
         if resolution is None:
             return None
-        if not isinstance(resolution, ScopedAuthorityGrantResolution):
+        if type(resolution) is not ScopedAuthorityGrantResolution:
             raise IntegrityError("lifecycle authority resolver returned non-canonical evidence")
         subject_scope = getattr(resolution, "subject_scope", None)
         if hasattr(subject_scope, "to_dict"):
@@ -1062,6 +1044,16 @@ class CommandService:
             return grant_hash
         raise IntegrityError("lifecycle authority resolution has no canonical grant hash")
 
+    def _canonical_lifecycle_resolution(self, grant_id: str) -> dict[str, Any]:
+        resolver = self._canonical_authority_resolver()
+        if resolver is None:
+            raise IntegrityError("lifecycle authority evidence resolver is unavailable")
+        canonical = resolver.scoped_grant_identity(grant_id)
+        record = self._authority_resolution_record(canonical)
+        if record is None:
+            raise IntegrityError("lifecycle authority evidence is not canonical")
+        return record
+
     def _resolve_lifecycle_authority(
         self,
         command: Command,
@@ -1103,9 +1095,12 @@ class CommandService:
                 )
                 if actor_class != "human":
                     raise ArsError("authority actor class is not proven by the bootstrap owner")
-                if not isinstance(resolved, ScopedAuthorityGrantResolution):
+                if type(resolved) is not ScopedAuthorityGrantResolution:
                     raise ArsError("authority resolver returned non-canonical scoped grant evidence")
                 resolution = self._authority_resolution_record(resolved)
+                canonical_resolution = self._canonical_lifecycle_resolution(command.envelope["authority_grant_id"])
+                if canonical_resolution != resolution:
+                    raise IntegrityError("lifecycle authority resolution disagrees with canonical history")
             except IntegrityError:
                 raise
             except ArsError as exc:
