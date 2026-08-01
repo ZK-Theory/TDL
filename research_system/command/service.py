@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import sys
 import time
 
@@ -19,6 +21,7 @@ from research_system.authority import (
     ScopedAuthorityGrant,
     validate_scoped_grant_activation,
 )
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -54,7 +57,7 @@ from research_system.store.ledger import (
     _take_release_submit_guard,
 )
 from research_system.store.lock import WriterLock
-from research_system.store.objects import ObjectStore
+from research_system.store.objects import ObjectStore, _fsync_directory
 from research_system.store.receipts import ReceiptStore
 
 
@@ -86,6 +89,20 @@ _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
         "RevokeIssuedAuthorityGrant",
         "ActivateExternalAssuranceRecordGrant",
         "RevokeExternalAssuranceRecordGrant",
+    }
+)
+_SCOPED_ACTIVATION_MARKER_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "command_id",
+        "target_grant_id",
+        "object_kind",
+        "object_revision",
+        "object_existed_before",
+        "owner_pid",
+        "object_sha256",
+        "object_value",
     }
 )
 
@@ -215,6 +232,174 @@ class CommandService:
         self._restore_source_root: Path | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
+        self._recover_scoped_activation_markers()
+
+    def _scoped_activation_marker_path(self, command_id: str) -> Path:
+        return self.control_root / "runtime" / "scoped-authority-activation-recovery" / f"{command_id}.json"
+
+    def _write_scoped_activation_marker(
+        self,
+        command: Command,
+        *,
+        existed_before: bool,
+    ) -> None:
+        payload = command.envelope.get("payload")
+        grant = payload.get("new_grant") if isinstance(payload, dict) else None
+        if not isinstance(grant, dict):
+            raise IntegrityError("scoped activation recovery marker requires a grant object")
+        marker = {
+            "schema_id": "ars://core/runtime/scoped-authority-activation-recovery",
+            "schema_version": "1.0.0",
+            "command_id": command.command_id,
+            "target_grant_id": command.target_stream_id,
+            "object_kind": "authority_grant",
+            "object_revision": 1,
+            "object_existed_before": existed_before,
+            "owner_pid": os.getpid(),
+            "object_sha256": sha256_hex(canonical_bytes(grant)),
+            "object_value": grant,
+        }
+        data = canonical_bytes(marker)
+        path = self._scoped_activation_marker_path(command.command_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            if path.read_bytes() != data:
+                raise ConflictError("scoped activation recovery marker conflicts")
+            return
+        temporary = path.with_suffix(".json.tmp")
+        if temporary.exists():
+            if temporary.read_bytes() != data:
+                raise ConflictError("scoped activation recovery marker temporary data conflicts")
+        else:
+            with temporary.open("xb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        _fsync_directory(path.parent)
+
+    def _remove_scoped_activation_marker(self, command_id: str) -> None:
+        path = self._scoped_activation_marker_path(command_id)
+        path.unlink(missing_ok=True)
+        if path.parent.exists():
+            _fsync_directory(path.parent)
+
+    @staticmethod
+    def _load_scoped_activation_marker(path: Path) -> dict[str, Any]:
+        try:
+            data = path.read_bytes()
+            marker = json.loads(data)
+            canonical = canonical_bytes(marker)
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise IntegrityError("scoped activation recovery marker is invalid") from exc
+        if (
+            not isinstance(marker, dict)
+            or set(marker) != _SCOPED_ACTIVATION_MARKER_FIELDS
+            or data != canonical
+            or marker.get("schema_id") != "ars://core/runtime/scoped-authority-activation-recovery"
+            or marker.get("schema_version") != "1.0.0"
+            or not isinstance(marker.get("command_id"), str)
+            or not isinstance(marker.get("target_grant_id"), str)
+            or marker.get("object_kind") != "authority_grant"
+            or marker.get("object_revision") != 1
+            or not isinstance(marker.get("object_existed_before"), bool)
+            or not isinstance(marker.get("owner_pid"), int)
+            or isinstance(marker.get("owner_pid"), bool)
+            or marker.get("owner_pid") < 1
+            or not isinstance(marker.get("object_value"), dict)
+            or marker.get("object_sha256") != sha256_hex(canonical_bytes(marker.get("object_value")))
+        ):
+            raise IntegrityError("scoped activation recovery marker is invalid")
+        return marker
+
+    @staticmethod
+    def _process_is_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return True
+        return True
+
+    def _take_scoped_activation_recovery_lock(
+        self,
+        marker: dict[str, Any],
+    ) -> WriterLock | None:
+        path = self.control_root / "runtime" / "writer.lock"
+        identity = {
+            "command_id": marker["command_id"],
+            "process_id": str(marker["owner_pid"]),
+        }
+        if path.exists():
+            try:
+                recorded = json.loads(path.read_bytes())
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                return None
+            if (
+                not isinstance(recorded, dict)
+                or recorded.get("command_id") != identity["command_id"]
+                or recorded.get("process_id") != identity["process_id"]
+            ):
+                return None
+            if self._process_is_alive(marker["owner_pid"]):
+                return None
+            try:
+                path.unlink()
+                _fsync_directory(path.parent)
+            except FileNotFoundError:
+                pass
+        lock = WriterLock(path, identity)
+        try:
+            lock.__enter__()
+        except ConflictError:
+            return None
+        return lock
+
+    def _scoped_activation_marker_committed(self, marker: dict[str, Any]) -> bool:
+        return any(
+            event.get("command_id") == marker["command_id"]
+            and event.get("event_type") == "AuthorityGrantActivated"
+            and event.get("stream_id") == marker["target_grant_id"]
+            and isinstance(event.get("payload"), dict)
+            and event["payload"].get("activated_grant_sha256") == marker["object_sha256"]
+            for event in self.ledger.snapshot().events
+        )
+
+    def _recover_scoped_activation_markers(self) -> None:
+        root = self.control_root / "runtime" / "scoped-authority-activation-recovery"
+        if not root.exists():
+            return
+        for path in sorted(root.glob("*.json")):
+            marker = self._load_scoped_activation_marker(path)
+            lock = self._take_scoped_activation_recovery_lock(marker)
+            if lock is None:
+                continue
+            try:
+                if self._scoped_activation_marker_committed(marker):
+                    try:
+                        actual = self.objects.read(
+                            marker["object_kind"],
+                            marker["target_grant_id"],
+                            marker["object_revision"],
+                        )
+                    except (IntegrityError, ValueError) as exc:
+                        raise IntegrityError("committed scoped activation recovery object is invalid") from exc
+                    if actual != marker["object_value"]:
+                        raise IntegrityError("committed scoped activation recovery object mismatch")
+                else:
+                    self.objects.rollback_new_revision(
+                        marker["object_kind"],
+                        marker["target_grant_id"],
+                        marker["object_revision"],
+                        marker["object_value"],
+                        existed_before=marker["object_existed_before"],
+                    )
+                self._remove_scoped_activation_marker(marker["command_id"])
+            finally:
+                lock.__exit__(*sys.exc_info())
 
     def configure_moved_restore(
         self,
@@ -339,6 +524,7 @@ class CommandService:
                 )
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
+            activation_object_existed: bool | None = None
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
                 request = ReleasePublicationRequest.from_dict(command.envelope["payload"])
                 if (
@@ -439,10 +625,21 @@ class CommandService:
                     return self._write_receipt(command, rejected)
             elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
                 try:
-                    if command.envelope["command_type"] in {
+                    activation = command.envelope["command_type"] in {
                         "ActivateAuthorityGrant",
                         "ActivateExternalAssuranceRecordGrant",
-                    }:
+                    }
+                    if activation:
+                        activation_object_existed = self.objects.revision_exists(
+                            "authority_grant",
+                            command.target_stream_id,
+                            1,
+                        )
+                        self._write_scoped_activation_marker(
+                            command,
+                            existed_before=activation_object_existed,
+                        )
+                    if activation:
                         prepared_payload = self._prepare_scoped_authority_activation(
                             command,
                             observed_version,
@@ -453,10 +650,28 @@ class CommandService:
                             observed_version,
                         )
                 except IntegrityError:
+                    if activation_object_existed is not None:
+                        self._rollback_scoped_authority_activation(
+                            command,
+                            existed_before=activation_object_existed,
+                        )
+                        self._remove_scoped_activation_marker(command.command_id)
                     raise
                 except ConflictError:
+                    if activation_object_existed is not None:
+                        self._rollback_scoped_authority_activation(
+                            command,
+                            existed_before=activation_object_existed,
+                        )
+                        self._remove_scoped_activation_marker(command.command_id)
                     raise
                 except ArsError as exc:
+                    if activation_object_existed is not None:
+                        self._rollback_scoped_authority_activation(
+                            command,
+                            existed_before=activation_object_existed,
+                        )
+                        self._remove_scoped_activation_marker(command.command_id)
                     rejected = self._rejected(
                         command,
                         observed_version,
@@ -464,44 +679,96 @@ class CommandService:
                         str(exc),
                     )
                     return self._write_receipt(command, rejected)
-            event = self._build_event(
-                command,
-                prepared_payload,
-                command_schema=command_schema,
-            )
-            if isinstance(prepared_payload, VerifiedReleasePublication):
-                ledger_receipt = release_append(
-                    self.ledger,
-                    event,
-                    lambda allocated: prepared_payload.payload_for(allocated.event_id),
-                    snapshot=snapshot,
+            try:
+                event = self._build_event(
+                    command,
+                    prepared_payload,
+                    command_schema=command_schema,
                 )
-            elif (
-                command.envelope["command_type"] == "RevokeAuthorityGrant"
-                or command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES
-            ):
-                ledger_receipt = scoped_authority_append(
-                    self.ledger,
-                    event,
-                    snapshot=snapshot,
+                if isinstance(prepared_payload, VerifiedReleasePublication):
+                    ledger_receipt = release_append(
+                        self.ledger,
+                        event,
+                        lambda allocated: prepared_payload.payload_for(allocated.event_id),
+                        snapshot=snapshot,
+                    )
+                elif (
+                    command.envelope["command_type"] == "RevokeAuthorityGrant"
+                    or command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES
+                ):
+                    ledger_receipt = scoped_authority_append(
+                        self.ledger,
+                        event,
+                        snapshot=snapshot,
+                    )
+                else:
+                    ledger_receipt = self.ledger.append([event], snapshot=snapshot)
+                updated = self.ledger.snapshot()
+                view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
+                accepted = Receipt(
+                    status="accepted",
+                    command_id=command.command_id,
+                    payload_hash=command.payload_hash,
+                    event_batch_id=ledger_receipt["event_batch_id"],
+                    observed_stream_version=ledger_receipt["resulting_stream_versions"][command.target_stream_id],
                 )
-            else:
-                ledger_receipt = self.ledger.append([event], snapshot=snapshot)
-            updated = self.ledger.snapshot()
-            view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
-            accepted = Receipt(
-                status="accepted",
-                command_id=command.command_id,
-                payload_hash=command.payload_hash,
-                event_batch_id=ledger_receipt["event_batch_id"],
-                observed_stream_version=ledger_receipt["resulting_stream_versions"][command.target_stream_id],
-            )
-            return self._write_receipt(command, accepted)
+                receipt = self._write_receipt(command, accepted)
+                if activation_object_existed is not None:
+                    self._remove_scoped_activation_marker(command.command_id)
+                return receipt
+            except Exception:
+                if activation_object_existed is not None:
+                    if self._scoped_activation_committed(command):
+                        self._remove_scoped_activation_marker(command.command_id)
+                    else:
+                        self._rollback_scoped_authority_activation(
+                            command,
+                            existed_before=activation_object_existed,
+                        )
+                        self._remove_scoped_activation_marker(command.command_id)
+                raise
+
+    def _scoped_activation_committed(self, command: Command) -> bool:
+        payload = command.envelope.get("payload")
+        expected_hash = payload.get("new_grant_sha256") if isinstance(payload, dict) else None
+        if not isinstance(expected_hash, str):
+            return False
+        return any(
+            event.get("command_id") == command.command_id
+            and event.get("event_type") == "AuthorityGrantActivated"
+            and event.get("stream_id") == command.target_stream_id
+            and isinstance(event.get("payload"), dict)
+            and event["payload"].get("activated_grant_sha256") == expected_hash
+            for event in self.ledger.snapshot().events
+        )
+
+    def _rollback_scoped_authority_activation(
+        self,
+        command: Command,
+        *,
+        existed_before: bool,
+    ) -> None:
+        payload = command.envelope.get("payload")
+        if not isinstance(payload, dict):
+            return
+        grant = payload.get("new_grant")
+        if not isinstance(grant, dict):
+            return
+        self.objects.rollback_new_revision(
+            "authority_grant",
+            command.target_stream_id,
+            1,
+            grant,
+            existed_before=existed_before,
+        )
 
     @contextmanager
     def _submission_lock(self, command: Command):
         """Serialize release retries while preserving fail-fast legacy locks."""
-        identity = {"command_id": command.command_id}
+        identity = {
+            "command_id": command.command_id,
+            "process_id": str(os.getpid()),
+        }
         path = self.control_root / "runtime" / "writer.lock"
         deadline = self._monotonic() + self.release_lock_timeout_seconds
         while True:
@@ -554,7 +821,7 @@ class CommandService:
             raise ArsError("governed operation requires authority resolver")
         with WriterLock(
             self.control_root / "runtime" / "writer.lock",
-            {"command_id": new_id("command")},
+            {"command_id": new_id("command"), "process_id": str(os.getpid())},
         ):
             snapshot = self.ledger.snapshot()
             replay(

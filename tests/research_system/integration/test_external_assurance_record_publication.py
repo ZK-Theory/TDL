@@ -15,11 +15,17 @@ from research_system.assurance.resolver import ControlStoreAuthorityResolver
 from research_system.authority import (
     EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
     EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+    LedgerAuthorityGrantResolver,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError
+from research_system.projection.replay import replay
 from research_system.store.identity import load_store_manifest
+from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
+from research_system.store.receipts import ReceiptStore
 from tests.research_system.integration.test_scoped_authority_grant_activation import (
     ACTIVATE_COMMAND_ID,
     ACTIVATE_DECISION_ID,
@@ -29,6 +35,7 @@ from tests.research_system.integration.test_scoped_authority_grant_activation im
     REVOKE_COMMAND_ID,
     REVOKE_DECISION_ID,
     ROOT_ID,
+    NOW,
     _system,
 )
 from tests.research_system.factories import REPO_ROOT
@@ -247,6 +254,197 @@ def _fixture(tmp_path: Path):
         store_identity=manifest["store_identity"],
     )
     return binding, schemas, resolver, objects, service, grant
+
+
+def _durable_files(root: Path) -> dict[str, bytes]:
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def _restart_system(control_root: Path, schemas: object):
+    manifest = load_store_manifest(control_root)
+    resolver = LedgerAuthorityGrantResolver(
+        control_root,
+        PROJECT_ID,
+        manifest["store_identity"],
+        schemas,
+    )
+    ledger = EventLedger(control_root, PROJECT_ID, schemas)
+    objects = ObjectStore(control_root)
+    service = CommandService(
+        control_root,
+        ledger,
+        objects,
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=resolver,
+        clock=lambda: NOW,
+    )
+    return resolver, ledger, objects, service
+
+
+@pytest.mark.integration
+def test_external_grant_activation_append_failure_rolls_back_and_retry_is_single(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    before_files = _durable_files(control_root)
+    before_snapshot = ledger.snapshot()
+    before_projection = replay(
+        before_snapshot.events,
+        schema_registry=schemas,
+        authority_state_validator=resolver.validate_replayed_administration_state,
+    )
+
+    def fail_scoped_append(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("injected scoped-authority append failure")
+
+    monkeypatch.setattr(
+        ledger,
+        "_append_scoped_authority_from_validated_submit",
+        fail_scoped_append,
+    )
+    with pytest.raises(RuntimeError, match="injected scoped-authority append failure"):
+        service.submit(command)
+
+    assert _durable_files(control_root) == before_files
+    assert ledger.snapshot() == before_snapshot
+    assert canonical_bytes(
+        replay(
+            ledger.snapshot().events,
+            schema_registry=schemas,
+            authority_state_validator=resolver.validate_replayed_administration_state,
+        )
+    ) == canonical_bytes(before_projection)
+    assert objects.latest_revision("authority_grant", GRANT_ID) is None
+
+    restarted_resolver, restarted_ledger, restarted_objects, restarted_service = _restart_system(
+        control_root,
+        schemas,
+    )
+    restarted_projection = replay(
+        restarted_ledger.snapshot().events,
+        schema_registry=schemas,
+        authority_state_validator=restarted_resolver.validate_replayed_administration_state,
+    )
+    assert GRANT_ID not in restarted_projection["authority_grants"]
+    assert restarted_objects.latest_revision("authority_grant", GRANT_ID) is None
+
+    retry = restarted_service.submit(command)
+    assert retry.status == "accepted"
+    accepted_snapshot = restarted_ledger.snapshot()
+    assert len(accepted_snapshot.events) == len(before_snapshot.events) + 1
+    assert sum(event.get("command_id") == ACTIVATE_COMMAND_ID for event in accepted_snapshot.events) == 1
+    assert restarted_objects.latest_revision("authority_grant", GRANT_ID) == 1
+    assert restarted_service.submit(command) == retry
+    assert len(restarted_ledger.snapshot().events) == len(accepted_snapshot.events)
+    assert restarted_resolver.scoped_grant_identity(GRANT_ID).status == "active"
+
+
+@pytest.mark.integration
+def test_restart_recovers_uncommitted_external_grant_activation_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    command = _activation_command(resolver, schemas, grant, decision)
+    before_files = _durable_files(control_root)
+    real_prepare = service._prepare_scoped_authority_activation
+
+    def terminate_after_object_publication(command, observed_version):
+        real_prepare(command, observed_version)
+        raise RuntimeError("simulated termination after object publication")
+
+    monkeypatch.setattr(
+        service,
+        "_prepare_scoped_authority_activation",
+        terminate_after_object_publication,
+    )
+    with pytest.raises(RuntimeError, match="simulated termination after object publication"):
+        service.submit(command)
+
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    assert len(list(marker_root.glob("*.json"))) == 1
+    assert objects.latest_revision("authority_grant", GRANT_ID) == 1
+    assert not any(event.get("command_id") == ACTIVATE_COMMAND_ID for event in ledger.snapshot().events)
+
+    restarted_resolver, restarted_ledger, restarted_objects, restarted_service = _restart_system(
+        control_root,
+        schemas,
+    )
+    assert _durable_files(control_root) == before_files
+    assert not list(marker_root.glob("*.json"))
+    assert restarted_objects.latest_revision("authority_grant", GRANT_ID) is None
+    projection = replay(
+        restarted_ledger.snapshot().events,
+        schema_registry=schemas,
+        authority_state_validator=restarted_resolver.validate_replayed_administration_state,
+    )
+    assert GRANT_ID not in projection["authority_grants"]
+    assert restarted_service.submit(command).status == "accepted"
+
+
+@pytest.mark.integration
+def test_failed_external_grant_activation_never_removes_preexisting_matching_object(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    preexisting_path = objects.write("authority_grant", GRANT_ID, 1, grant)
+    preexisting_bytes = preexisting_path.read_bytes()
+    command = _activation_command(resolver, schemas, grant, decision)
+    before_files = _durable_files(control_root)
+    before_snapshot = ledger.snapshot()
+
+    def fail_scoped_append(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("injected scoped-authority append failure")
+
+    monkeypatch.setattr(
+        ledger,
+        "_append_scoped_authority_from_validated_submit",
+        fail_scoped_append,
+    )
+    with pytest.raises(RuntimeError, match="injected scoped-authority append failure"):
+        service.submit(command)
+
+    assert _durable_files(control_root) == before_files
+    assert ledger.snapshot() == before_snapshot
+    assert preexisting_path.read_bytes() == preexisting_bytes
+    assert objects.read("authority_grant", GRANT_ID, 1) == grant
+    projection = replay(
+        ledger.snapshot().events,
+        schema_registry=schemas,
+        authority_state_validator=resolver.validate_replayed_administration_state,
+    )
+    assert GRANT_ID not in projection["authority_grants"]
 
 
 @pytest.mark.integration

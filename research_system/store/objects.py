@@ -229,6 +229,66 @@ class ObjectStore:
         """
         return write_object(self.control_root, kind, object_id, revision, value)
 
+    def revision_exists(self, kind: str, object_id: str, revision: int) -> bool:
+        """Return whether one immutable revision was present before a transaction.
+
+        This is intentionally a presence check rather than a content read. A
+        caller preparing a rollback must treat every pre-existing revision as
+        owned by the store, including a malformed or conflicting one.
+        """
+        validate_id(object_id, kind)
+        if revision < 1:
+            raise ValueError("object revision must be positive")
+        directory = self.control_root / "objects" / kind / object_id
+        try:
+            return any(directory.glob(f"{revision:08d}-*.json"))
+        except OSError as exc:
+            raise IntegrityError("object revision is unreadable") from exc
+
+    def rollback_new_revision(
+        self,
+        kind: str,
+        object_id: str,
+        revision: int,
+        value: Any,
+        *,
+        existed_before: bool,
+    ) -> None:
+        """Remove only an exact revision created by the current locked write.
+
+        The caller must hold the store writer lock. A pre-existing revision is
+        never touched. When the revision was absent at capture time, removal
+        still requires exactly one canonical filename and byte-identical
+        content, so a changed or ambiguous object is preserved and reported.
+        """
+        if existed_before:
+            return
+        validate_id(object_id, kind)
+        if revision < 1:
+            raise ValueError("object revision must be positive")
+        data = canonical_bytes(value)
+        directory = self.control_root / "objects" / kind / object_id
+        try:
+            matches = sorted(directory.glob(f"{revision:08d}-*.json"))
+        except OSError as exc:
+            raise IntegrityError("object revision is unreadable") from exc
+        if not matches:
+            return
+        expected = directory / f"{revision:08d}-{sha256_hex(data)}.json"
+        if matches != [expected]:
+            raise IntegrityError("cannot roll back an ambiguous object revision")
+        try:
+            current = expected.read_bytes()
+        except OSError as exc:
+            raise IntegrityError("object revision is unreadable") from exc
+        if current != data:
+            raise IntegrityError("cannot roll back a changed object revision")
+        try:
+            expected.unlink()
+        except OSError as exc:
+            raise IntegrityError("object revision rollback failed") from exc
+        _fsync_directory(directory)
+
     def latest_revision(self, kind: str, object_id: str) -> int | None:
         """Return the highest persisted revision for an object identity.
 
