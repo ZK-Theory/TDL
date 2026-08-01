@@ -364,18 +364,39 @@ class _GovernedTestCommandService(CommandService):
 
     def __init__(self, *args, authority_harness: ControlPlaneHarness, **kwargs) -> None:
         self._authority_harness = authority_harness
+        self._prepared_authority_grants: dict[str, str] = {}
         super().__init__(*args, **kwargs)
 
-    def _resolve_lifecycle_authority(self, command, command_schema, snapshot):
-        resolver = self._canonical_authority_resolver()
-        if resolver is not None and command.actor_id == ACTORS["actor-a"]:
-            _, subject_kind, subject_id, _ = self._lifecycle_authority_inputs(command, snapshot)
-            command.envelope["authority_grant_id"] = activate_lifecycle_grant(
-                self._authority_harness,
-                subject_kind=subject_kind,
-                subject_id=subject_id,
+    def _before_submission_lock(self, command):
+        if (
+            command.envelope.get("command_type")
+            in {
+                "CreateScopeDefinition",
+                "AmendScopeDefinition",
+                "SupersedeScopeDefinition",
+                "CreateTask",
+                "AmendTask",
+                "SupersedeTask",
+            }
+            and command.actor_id == ACTORS["actor-a"]
+        ):
+            _, subject_kind, subject_id, _ = self._lifecycle_authority_inputs(
+                command,
+                self.ledger.snapshot(),
             )
-        return super()._resolve_lifecycle_authority(command, command_schema, snapshot)
+            grant_id = scoped_lifecycle_grant_id(subject_id)
+            if getattr(self, "_restore_preflight_result", None) is None:
+                grant_id = activate_lifecycle_grant(
+                    self._authority_harness,
+                    subject_kind=subject_kind,
+                    subject_id=subject_id,
+                )
+            self._prepared_authority_grants[command.command_id] = grant_id
+
+    def _before_authority_resolution(self, command):
+        grant_id = self._prepared_authority_grants.pop(command.command_id, None)
+        if grant_id is not None:
+            command.envelope["authority_grant_id"] = grant_id
 
 
 def control_plane(

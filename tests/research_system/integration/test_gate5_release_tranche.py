@@ -163,7 +163,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
     with pytest.raises(ArsError, match="restore preflight"):
         harness.service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
@@ -446,6 +446,11 @@ def _moved_service(case):
     authority_root = root.parent / f".{root.name}-authority"
     authority_root.mkdir()
     authority_harness = control_plane(authority_root)
+    activate_lifecycle_grant(
+        authority_harness,
+        subject_kind="task",
+        subject_id=TASK_RESTORE,
+    )
     return _GovernedTestCommandService(
         root,
         EventLedger(root, case["receipt"].project_id, schemas),
@@ -510,7 +515,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
     )
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(service.ledger.iter_batches()) == ()
     assert service.receipts.load(CMD_RESTORE) is None
     assert not list((case["target"] / "objects").rglob("*.json"))

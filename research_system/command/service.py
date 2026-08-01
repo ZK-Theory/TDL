@@ -52,7 +52,7 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
-from research_system.store.lock import WriterLock
+from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -96,6 +96,13 @@ _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
         "ActivateAuthorityGrant",
         "RevokeIssuedAuthorityGrant",
+    }
+)
+_AUTHORITY_COORDINATED_COMMAND_TYPES = _LIFECYCLE_COMMAND_TYPES | frozenset(
+    {
+        "PublishReleaseGateDecision",
+        "RevokeAuthorityGrant",
+        *_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES,
     }
 )
 
@@ -318,6 +325,7 @@ class CommandService:
             )
             ReleasePublicationRequest.from_dict(validated_envelope["payload"])
         command = Command(validated_envelope)
+        self._before_submission_lock(command)
         with self._submission_lock(command):
             lifecycle_authority: _LifecycleAuthorityEvidence | None = None
 
@@ -330,6 +338,7 @@ class CommandService:
                 )
 
             self._recheck_moved_restore(command)
+            self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
             snapshot = self.ledger.snapshot()
             if lifecycle:
@@ -553,18 +562,35 @@ class CommandService:
             )
             return write_receipt(accepted)
 
+    def _before_submission_lock(self, command: Command) -> None:
+        """Provide a post-validation setup seam before writer-lock acquisition."""
+
+    def _before_authority_resolution(self, command: Command) -> None:
+        """Provide a locked setup seam immediately before authority evaluation."""
+
     @contextmanager
     def _submission_lock(self, command: Command):
-        """Serialize release retries while preserving fail-fast legacy locks."""
+        """Serialize authority-governed submits across all participating roots."""
         identity = {"command_id": command.command_id}
-        path = self.control_root / "runtime" / "writer.lock"
+        roots: tuple[Path, ...] = (self.control_root,)
+        resolver = self._canonical_authority_resolver()
+        if command.envelope["command_type"] in _AUTHORITY_COORDINATED_COMMAND_TYPES and resolver is not None:
+            roots = (self.control_root, resolver.control_root)
+        retry_on_conflict = command.envelope["command_type"] in {
+            "PublishReleaseGateDecision",
+            *_LIFECYCLE_COMMAND_TYPES,
+        }
         deadline = self._monotonic() + self.release_lock_timeout_seconds
         while True:
-            lock = WriterLock(path, identity)
+            lock = CompositeWriterLock(
+                roots,
+                identity,
+                lock_factory=WriterLock,
+            )
             try:
                 lock.__enter__()
             except ConflictError:
-                if command.envelope["command_type"] != "PublishReleaseGateDecision" or self._monotonic() >= deadline:
+                if not retry_on_conflict or self._monotonic() >= deadline:
                     raise
                 self._lock_wait(0.01)
                 continue
@@ -607,9 +633,10 @@ class CommandService:
         resolver = self._canonical_authority_resolver()
         if resolver is None:
             raise ArsError("governed operation requires authority resolver")
-        with WriterLock(
-            self.control_root / "runtime" / "writer.lock",
+        with CompositeWriterLock(
+            (self.control_root, resolver.control_root),
             {"command_id": new_id("command")},
+            lock_factory=WriterLock,
         ):
             snapshot = self.ledger.snapshot()
             replay(

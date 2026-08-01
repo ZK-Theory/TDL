@@ -4,15 +4,18 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 import json
+import threading
 
 import pytest
 
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
+from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -82,6 +85,15 @@ def _restarted_service(harness, *, clock=None):
         harness.schemas,
         authority_resolver=harness.authority_resolver,
         clock=clock,
+    )
+
+
+def _separate_authority_resolver(harness) -> LedgerAuthorityGrantResolver:
+    return LedgerAuthorityGrantResolver(
+        harness.authority_root,
+        PROJECT_ID,
+        harness.authority_resolver.expected_store_identity,
+        harness.schemas,
     )
 
 
@@ -811,6 +823,266 @@ def test_lifecycle_submit_reuses_one_authority_projection(tmp_path, monkeypatch)
     assert receipt.status == "accepted"
     assert calls == 1
     assert tuple(harness.ledger.iter_events())
+
+
+def test_cross_store_revocation_cannot_commit_between_projection_and_domain_append(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7260-7000-8000-000000007260",
+        "cross-store-linearization",
+        TASK_A,
+        {"title": "Cross-store linearization"},
+    )
+    command["authority_grant_id"] = grant_id
+    domain_resolver = _separate_authority_resolver(harness)
+    harness.service.authority_resolver = domain_resolver
+    original_projection = domain_resolver._projection
+    projection_ready = threading.Event()
+    release_projection = threading.Event()
+    revocation_attempted = threading.Event()
+    revocation_prepare_entered = threading.Event()
+    revocation_committed = threading.Event()
+    results: dict[str, object] = {}
+    errors: list[BaseException] = []
+    order: list[str] = []
+
+    def paused_projection():
+        projection = original_projection()
+        projection_ready.set()
+        if not release_projection.wait(2):
+            raise AssertionError("projection barrier was not released")
+        return projection
+
+    monkeypatch.setattr(domain_resolver, "_projection", paused_projection)
+    original_prepare = harness.authority_service._prepare_issued_authority_revocation
+
+    def observed_revocation_prepare(command_value, observed_version):
+        revocation_prepare_entered.set()
+        return original_prepare(command_value, observed_version)
+
+    monkeypatch.setattr(
+        harness.authority_service,
+        "_prepare_issued_authority_revocation",
+        observed_revocation_prepare,
+    )
+
+    def submit_domain() -> None:
+        try:
+            results["domain"] = harness.service.submit(command)
+            order.append("domain")
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def revoke() -> None:
+        revocation_attempted.set()
+        while not revocation_committed.is_set():
+            try:
+                results["revocation"] = revoke_lifecycle_grant(
+                    harness,
+                    subject_id=TASK_A,
+                )
+            except ConflictError:
+                threading.Event().wait(0.001)
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+                return
+            else:
+                order.append("revocation")
+                revocation_committed.set()
+
+    domain_thread = threading.Thread(target=submit_domain)
+    revocation_thread = threading.Thread(target=revoke)
+    domain_thread.start()
+    assert projection_ready.wait(2)
+    revocation_thread.start()
+    try:
+        assert revocation_attempted.wait(2)
+        assert not revocation_prepare_entered.wait(0.2)
+        assert not any(
+            event["command_type"] == "RevokeIssuedAuthorityGrant" for event in harness.authority_ledger.iter_events()
+        )
+    finally:
+        release_projection.set()
+        domain_thread.join(4)
+        revocation_thread.join(4)
+
+    assert not domain_thread.is_alive()
+    assert not revocation_thread.is_alive()
+    assert errors == []
+    assert results["domain"].status == "accepted"
+    assert results["revocation"] == grant_id
+    assert order == ["domain", "revocation"]
+
+
+def test_cross_store_revocation_wins_first_rejects_without_domain_mutation_and_retries(
+    tmp_path,
+    monkeypatch,
+):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_B,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7261-7000-8000-000000007261",
+        "cross-store-revocation-first",
+        TASK_B,
+        {"title": "Cross-store revocation first"},
+    )
+    command["authority_grant_id"] = grant_id
+    domain_resolver = _separate_authority_resolver(harness)
+    harness.service.authority_resolver = domain_resolver
+    original_projection = domain_resolver._projection
+    projection_entered = threading.Event()
+    authority_locked = threading.Event()
+    release_authority = threading.Event()
+    results: dict[str, object] = {}
+    errors: list[BaseException] = []
+    before_domain = _domain_snapshot(harness)
+
+    def observed_projection():
+        projection_entered.set()
+        return original_projection()
+
+    monkeypatch.setattr(domain_resolver, "_projection", observed_projection)
+    original_prepare = harness.authority_service._prepare_issued_authority_revocation
+
+    def paused_revocation(command_value, observed_version):
+        authority_locked.set()
+        if not release_authority.wait(2):
+            raise AssertionError("authority barrier was not released")
+        return original_prepare(command_value, observed_version)
+
+    monkeypatch.setattr(
+        harness.authority_service,
+        "_prepare_issued_authority_revocation",
+        paused_revocation,
+    )
+
+    def revoke() -> None:
+        try:
+            results["revocation"] = revoke_lifecycle_grant(
+                harness,
+                subject_id=TASK_B,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def submit_domain() -> None:
+        try:
+            results["domain"] = harness.service.submit(command)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    revocation_thread = threading.Thread(target=revoke)
+    domain_thread = threading.Thread(target=submit_domain)
+    revocation_thread.start()
+    assert authority_locked.wait(2)
+    domain_thread.start()
+    try:
+        assert not projection_entered.wait(0.2)
+    finally:
+        release_authority.set()
+        revocation_thread.join(4)
+        domain_thread.join(4)
+
+    assert not revocation_thread.is_alive()
+    assert not domain_thread.is_alive()
+    assert errors == []
+    assert results["revocation"] == grant_id
+    rejected = results["domain"]
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "lifecycle_authority_unauthorized"
+    assert _domain_snapshot(harness) == before_domain
+    assert harness.receipts.load(command["command_id"]) is None
+
+    retry = harness.service.submit(command)
+    assert retry == rejected
+    assert _domain_snapshot(harness) == before_domain
+
+
+def test_composite_writer_lock_deduplicates_roots_and_has_bounded_conflict_cleanup(tmp_path):
+    same_root = tmp_path / "same"
+    first_root = tmp_path / "a"
+    second_root = tmp_path / "b"
+    for root in (same_root, first_root, second_root):
+        (root / "runtime").mkdir(parents=True)
+
+    same = CompositeWriterLock(
+        (same_root, same_root),
+        {"command_id": "cmd_01978abc-7262-7000-8000-000000007262"},
+    )
+    assert len(same.paths) == 1
+    with same:
+        assert same.paths == (same_root.resolve() / "runtime" / "writer.lock",)
+
+    blocker = WriterLock(
+        second_root / "runtime" / "writer.lock",
+        {"command_id": "cmd_01978abc-7263-7000-8000-000000007263"},
+    )
+    with blocker:
+        candidate = CompositeWriterLock(
+            (first_root, second_root),
+            {"command_id": "cmd_01978abc-7264-7000-8000-000000007264"},
+        )
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            with candidate:
+                pass
+        assert not (first_root / "runtime" / "writer.lock").exists()
+
+    roots = (second_root, first_root)
+    first = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd_01978abc-7265-7000-8000-000000007265"},
+    )
+    second = CompositeWriterLock(
+        tuple(reversed(roots)),
+        {"command_id": "cmd_01978abc-7266-7000-8000-000000007266"},
+    )
+    assert second.paths == first.paths
+    entered = threading.Event()
+    release = threading.Event()
+    outcomes: list[str] = []
+    errors: list[BaseException] = []
+
+    def hold() -> None:
+        try:
+            with first:
+                entered.set()
+                if not release.wait(2):
+                    raise AssertionError("lock holder barrier was not released")
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def contend() -> None:
+        if not entered.wait(2):
+            errors.append(AssertionError("lock contender did not observe holder"))
+            return
+        try:
+            with second:
+                outcomes.append("acquired")
+        except ConflictError:
+            outcomes.append("conflict")
+
+    holder = threading.Thread(target=hold)
+    contender = threading.Thread(target=contend)
+    holder.start()
+    contender.start()
+    contender.join(2)
+    assert not contender.is_alive()
+    assert outcomes == ["conflict"]
+    assert holder.is_alive()
+    release.set()
+    holder.join(2)
+    assert not holder.is_alive()
+    assert errors == []
+    assert all(not path.exists() for path in first.paths)
 
 
 def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):
