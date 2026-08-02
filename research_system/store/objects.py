@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import errno
 import json
 import os
 from pathlib import Path
@@ -11,29 +10,11 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
 from research_system.ids import validate_id
+from research_system.store.durability import fsync_directory
 
 
 def _after_object_temp_fsync(_temporary: Path) -> None:
     """Test seam after a complete durable temporary and before publication."""
-
-
-def _fsync_directory(path: Path) -> None:
-    """Durably publish directory-entry changes where the platform permits."""
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError as exc:
-        if os.name == "nt" and getattr(exc, "winerror", None) == 5:
-            return
-        if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
-            return
-        raise
-    try:
-        os.fsync(descriptor)
-    except OSError as exc:
-        if os.name != "nt" or getattr(exc, "winerror", None) not in {1, 5, 87}:
-            raise
-    finally:
-        os.close(descriptor)
 
 
 def _existing_revision(
@@ -86,7 +67,7 @@ def _remove_claim(claim: Path, directory: Path) -> None:
                 raise
             time.sleep(0.001)
         else:
-            _fsync_directory(directory)
+            fsync_directory(directory)
             return
 
 
@@ -127,7 +108,7 @@ def _complete_claim(
             if _canonical_existing_revision(directory, prefix, description) is None:
                 raise
         else:
-            _fsync_directory(directory)
+            fsync_directory(directory)
         committed = _canonical_existing_revision(directory, prefix, description)
     if committed is not None:
         _remove_claim(claim, directory)
@@ -191,7 +172,7 @@ def write_object(
             except FileExistsError:
                 pass
             else:
-                _fsync_directory(directory)
+                fsync_directory(directory)
             if _complete_claim(directory, prefix, claim, description) is None:
                 continue
             existing = _existing_revision(directory, prefix, target, data, description)
@@ -287,7 +268,7 @@ class ObjectStore:
             expected.unlink()
         except OSError as exc:
             raise IntegrityError("object revision rollback failed") from exc
-        _fsync_directory(directory)
+        fsync_directory(directory)
 
     def latest_revision(self, kind: str, object_id: str) -> int | None:
         """Return the highest persisted revision for an object identity.

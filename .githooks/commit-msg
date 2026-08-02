@@ -4,6 +4,37 @@
 # See CLAUDE.md § Commit Message Conventions.
 
 COMMIT_MSG_FILE="$1"
+
+# A UTF-8 BOM anywhere in the message means either a broken write path (a
+# tool that BOM-prefixed the file) or — the failure this guards against (obs
+# 154) — this repo's own prepare-commit-msg silently re-injecting a template
+# above BOM-prefixed original content it failed to recognise as already
+# prefixed. Reject outright rather than let `^` prefix matching below paper
+# over it: a BOM in a committed message is never intentional here.
+if head -c 3 "$COMMIT_MSG_FILE" | grep -qU $'\xEF\xBB\xBF' 2>/dev/null || \
+   grep -qU $'\xEF\xBB\xBF' "$COMMIT_MSG_FILE" 2>/dev/null; then
+  echo ""
+  echo "ERROR: commit message contains a UTF-8 BOM."
+  echo "  Write commit messages BOM-free (see reference_bom_free_commit_files.md);"
+  echo "  a BOM defeats prepare-commit-msg's already-prefixed check and can result"
+  echo "  in a corrupted, template-prefixed commit even when your original message"
+  echo "  was correct."
+  exit 1
+fi
+
+# A hook-template marker line surviving into the committed buffer means
+# prepare-commit-msg's suggestion was never meant to be part of the final
+# message — reject it rather than commit the template verbatim (obs 154).
+if grep -qE '^# Suggested prefix:|^# Vault action:|^# Staged files' "$COMMIT_MSG_FILE"; then
+  echo ""
+  echo "ERROR: commit message contains prepare-commit-msg's suggestion template."
+  echo "  This is the hook's own comment scaffolding, not part of the message."
+  echo "  If you supplied the message via -m/-F, this indicates the template was"
+  echo "  injected instead of skipped — check for a BOM or an unexpected commit"
+  echo "  source, then re-author the message and retry."
+  exit 1
+fi
+
 FIRST_LINE=$(head -1 "$COMMIT_MSG_FILE")
 
 # Skip automated commits: merges, reverts, fixups, squashes
@@ -27,6 +58,17 @@ if ! echo "$FIRST_LINE" | grep -qE '^\[(RESULT|DECISION|NEGATIVE|PIPELINE|DATA|E
   echo ""
   echo "Example: [RESULT] P01-B: Markov-2 null W2 p=0.003 (H1, n=500, L=5000)"
   echo "See: CLAUDE.md § Commit Message Conventions"
+  exit 1
+fi
+
+# Reject a placeholder task/paper identifier — the exact defect obs 154
+# describes: a valid-looking "[EXPLORE] PXX:" subject where PXX was never
+# filled in with a real paper/task id.
+if echo "$FIRST_LINE" | grep -qE '^\[[A-Z]+\][[:space:]]+PXX:'; then
+  echo ""
+  echo "ERROR: commit subject uses the placeholder identifier \"PXX\"."
+  echo "  Your message: $FIRST_LINE"
+  echo "  Replace PXX with the real paper/task identifier (e.g. P01-B, P00)."
   exit 1
 fi
 

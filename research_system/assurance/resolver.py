@@ -102,6 +102,10 @@ class ControlStoreAuthorityResolver:
     ) -> ExternalRecordResolution:
         """Return the body with trusted revision/digest metadata from storage history.
 
+        The returned receipt is bound to the requested record class and identity,
+        the resolver's verified control store, and the supplied authority root and
+        resolution phase. It is not caller-supplied record metadata.
+
         Args:
             record_id: Opaque content-addressed record identifier.
             record_class: Required record class the caller expects.
@@ -119,6 +123,10 @@ class ControlStoreAuthorityResolver:
             IntegrityError: If the persisted revision is missing, ambiguous, tampered, or is not a record
                 body.
             ValueError: If the record identity is invalid for the external record kind.
+            TypeError: If a record identity or body cannot be interpreted as the
+                required storage or mapping type.
+            SchemaError: If a persisted record body fails validation for the
+                requested record class.
         """
         self._validate_phase_and_root(authority_root=authority_root, phase=phase)
         if not isinstance(record_class, str) or not record_class:
@@ -135,13 +143,13 @@ class ControlStoreAuthorityResolver:
                 raise IntegrityError("external record revision history contains a foreign or mismatched identity")
             self._catalogue.validate(record_class, record_id, record)
         revision = max(history)
-        record: Any = history[revision]
+        selected_record: Any = history[revision]
         return ExternalRecordResolution(
             record_class=record_class,
             record_id=record_id,
             revision=revision,
-            canonical_sha256=sha256_hex(canonical_bytes(record)),
-            record=dict(record),
+            canonical_sha256=sha256_hex(canonical_bytes(selected_record)),
+            record=dict(selected_record),
         )
 
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:

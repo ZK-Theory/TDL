@@ -31,6 +31,9 @@ class IdRegistry:
 
         Args:
             kind_prefixes: Canonical identity kinds and their short prefixes.
+            allow_duplicate_prefixes: Permit duplicate prefixes only for
+                explicitly field-scoped aliases that cannot be disambiguated by
+                prefix alone.
 
         Raises:
             ConfigurationError: If the registry is empty, malformed, or contains

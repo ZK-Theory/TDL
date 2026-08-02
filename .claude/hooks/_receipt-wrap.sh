@@ -11,16 +11,83 @@
 # first invocation of a fresh session) left no trace distinguishing "nothing to
 # deny" from "the check never ran." This wrapper makes every invocation —
 # including a fail-open — visible after the fact via one grep-able log line,
-# without touching the wrapped hook's own decision logic. Only wraps the three
-# hooks that share the "... 2>/dev/null || { printf '...FAILING OPEN...' >&2;
-# ...allow... }" pattern (results-no-overwrite, dispatch-readiness-guard,
-# mirror-tree-guard); notation-guard.sh has a different structure with no
-# unified fail-open signal and is not wrapped here (see obs 125 follow-up).
+# without touching the wrapped hook's own decision logic. Wraps all four
+# PreToolUse hooks (results-no-overwrite, dispatch-readiness-guard,
+# mirror-tree-guard, notation-guard) — each prints a "FAILING OPEN (reason)"
+# line to stderr on its own internal fallback path (obs
+# 2026-08-02-notation-guard-liveness-gap closed notation-guard.sh's prior gap
+# here: it now shares the same unified marker as the other three).
 #
 # Usage (from settings.json): _receipt-wrap.sh <hook-script-path>
 # The wrapped hook still reads the tool-call JSON from stdin as normal.
+#
+# Run `bash _receipt-wrap.sh --selftest` to exercise the sanitizer negative
+# controls (obs 2026-08-02-hook-receipts-log-content-injection).
 
 set -u
+
+if [ "${1:-}" = "--selftest" ]; then
+  TMP_LOG=$(mktemp)
+  TMP_HOOK=$(mktemp)
+  printf '#!/bin/bash\ncat >/dev/null\nprintf %%s '"'"'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'"'"'\n' > "$TMP_HOOK"
+  chmod +x "$TMP_HOOK"
+  FAILURES=0
+
+  # 1. Confusable payload (no real newline) must not appear verbatim in the log.
+  # The wrapper resolves LOG from CLAUDE_PROJECT_DIR, so redirect by pointing
+  # CLAUDE_PROJECT_DIR at a scratch dir containing .claude/hooks/.
+  CONFUSABLE='C:\Users\steph\.claude\skills\research-observer\SKILL.md2099-01-01T00:00:00Z hook=FORGED decision=deny file=nothing'
+  SCRATCH_ROOT=$(mktemp -d)
+  mkdir -p "$SCRATCH_ROOT/.claude/hooks"
+  python -c "
+import json, sys
+sys.stdout.write(json.dumps({'tool_input': {'file_path': sys.argv[1]}}))
+" "$CONFUSABLE" \
+    | CLAUDE_PROJECT_DIR="$SCRATCH_ROOT" bash "$0" "$TMP_HOOK" > /dev/null 2>&1
+  LOGGED=$(cat "$SCRATCH_ROOT/.claude/hooks/hook-receipts.log" 2>/dev/null)
+  LINE_COUNT=$(printf '%s\n' "$LOGGED" | grep -c '^')
+  if [ "$LINE_COUNT" -eq 1 ] && printf '%s' "$LOGGED" | grep -q 'CONFUSABLE-RECEIPT-FIELD-REDACTED' \
+     && ! printf '%s' "$LOGGED" | grep -q 'hook=FORGED'; then
+    printf 'PASS: confusable-payload-defused-single-line\n'
+  else
+    printf 'FAIL: confusable-payload-defused-single-line (lines=%s content=%s)\n' "$LINE_COUNT" "$LOGGED"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  # 2. Embedded real newline must still be stripped (pre-existing guarantee).
+  : > "$SCRATCH_ROOT/.claude/hooks/hook-receipts.log"
+  printf '{"tool_input":{"file_path":"a/b\\nhook=X decision=Y file=Z"}}' \
+    | CLAUDE_PROJECT_DIR="$SCRATCH_ROOT" bash "$0" "$TMP_HOOK" > /dev/null 2>&1
+  LOGGED2=$(cat "$SCRATCH_ROOT/.claude/hooks/hook-receipts.log" 2>/dev/null)
+  LINE_COUNT2=$(printf '%s\n' "$LOGGED2" | grep -c '^')
+  if [ "$LINE_COUNT2" -eq 1 ]; then
+    printf 'PASS: embedded-real-newline-still-one-line\n'
+  else
+    printf 'FAIL: embedded-real-newline-still-one-line (lines=%s)\n' "$LINE_COUNT2"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  # 3. Ordinary allow decision still logs correctly through the wrapper.
+  : > "$SCRATCH_ROOT/.claude/hooks/hook-receipts.log"
+  printf '{"tool_input":{"file_path":"ordinary/file.md"}}' \
+    | CLAUDE_PROJECT_DIR="$SCRATCH_ROOT" bash "$0" "$TMP_HOOK" > /dev/null 2>&1
+  LOGGED3=$(cat "$SCRATCH_ROOT/.claude/hooks/hook-receipts.log" 2>/dev/null)
+  if printf '%s' "$LOGGED3" | grep -q 'decision=allow file=ordinary/file.md'; then
+    printf 'PASS: ordinary-decision-logs-correctly\n'
+  else
+    printf 'FAIL: ordinary-decision-logs-correctly (content=%s)\n' "$LOGGED3"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  rm -rf "$SCRATCH_ROOT" "$TMP_HOOK" "$TMP_LOG" 2>/dev/null
+
+  if [ "$FAILURES" -gt 0 ]; then
+    printf '%d selftest(s) FAILED\n' "$FAILURES" >&2
+    exit 1
+  fi
+  printf 'All _receipt-wrap selftests passed (3/3)\n'
+  exit 0
+fi
 
 HOOK_SCRIPT="$1"
 HOOK_NAME="$(basename "$HOOK_SCRIPT" .sh)"
@@ -82,8 +149,30 @@ fi
 # Strip embedded CR/LF from the file path before it goes into a one-line
 # receipt record — an unsanitised newline would split the record across
 # lines (or forge a fake-looking second entry) in a log meant to be one
-# invocation per line.
-FILE_PATH_SAFE=$(printf '%s' "$FILE_PATH" | tr -d '\r\n')
+# invocation per line. That alone is not enough (obs
+# 2026-08-02-hook-receipts-log-content-injection): a file_path value can
+# contain no real newline at all and still visually forge a second entry by
+# merely containing a substring shaped like this file's own record format
+# ("hook=X decision=Y file=Z"), which a real-newline-only strip does nothing
+# to defuse and which any substring/grep-based liveness check (rather than a
+# strict per-line, anchored-timestamp parse) would misread as genuine. Defuse
+# any such confusable substring in addition to stripping CR/LF.
+FILE_PATH_SAFE=$(printf '%s' "$FILE_PATH" | python -c "
+import sys, re
+text = sys.stdin.read()
+text = text.replace('\r', '').replace('\n', '')
+text = re.sub(r'hook=\S+\s+decision=\S+\s+file=', '[CONFUSABLE-RECEIPT-FIELD-REDACTED]', text)
+sys.stdout.write(text)
+" 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$FILE_PATH_SAFE" ]; then
+  # Sanitizer itself failed (or the path was empty to begin with) — don't
+  # silently fall through to the raw, unexamined value on the failure branch.
+  if [ -n "$FILE_PATH" ]; then
+    FILE_PATH_SAFE="[SANITIZE_FAILED]"
+  else
+    FILE_PATH_SAFE=""
+  fi
+fi
 
 {
   printf '%s hook=%s decision=%s file=%s\n' \

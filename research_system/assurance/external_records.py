@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -534,7 +534,7 @@ class ExternalRecordResolution(Mapping[str, object]):
 class ExternalAssuranceRecordStore:
     """Write schema-valid external records through an authority-bound CAS seam."""
 
-    def __init__(self, binding: ControlBinding) -> None:
+    def __init__(self, binding: ControlBinding, *, clock: Callable[[], datetime] | None = None) -> None:
         if not isinstance(binding, ControlBinding):
             raise TypeError("external assurance records require a validated ControlBinding")
         try:
@@ -567,6 +567,7 @@ class ExternalAssuranceRecordStore:
         self.binding = binding
         self.catalogue = ExternalRecordSchemaCatalogue(binding.schema_root)
         self.objects = ObjectStore(control_root)
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._authority_schemas: SchemaRegistry | None = None
         self._authority_resolver: LedgerAuthorityGrantResolver | None = None
 
@@ -627,13 +628,14 @@ class ExternalAssuranceRecordStore:
     ) -> None:
         if not isinstance(context, ExternalRecordPublicationContext):
             raise SchemaError("external record publication context is required")
-        if (
-            context.record_class != record_class
-            or context.record_id != record_id
-            or context.revision != revision
-            or context.expected_previous_revision != expected_previous_revision
-        ):
-            raise SchemaError("publication context does not bind class, full semantic id, or revision")
+        if context.record_class != record_class:
+            raise SchemaError("publication context record class does not match the request")
+        if context.record_id != record_id:
+            raise SchemaError("publication context record id does not match the request")
+        if context.revision != revision:
+            raise SchemaError("publication context revision does not match the request")
+        if context.expected_previous_revision != expected_previous_revision:
+            raise SchemaError("publication context expected previous revision does not match the request")
         expected_action = "create" if revision == 1 and expected_previous_revision == 0 else "revise"
         if context.record_action != expected_action:
             raise SchemaError("publication context record action does not match revision")
@@ -879,7 +881,16 @@ class ExternalAssuranceRecordStore:
             _PUBLICATION_POLICY_ACTION_SCHEMA_ID,
             _PUBLICATION_POLICY_ACTION_SCHEMA_VERSION,
         )
-        occurred_at = datetime.fromisoformat(context.occurred_at.replace("Z", "+00:00"))
+        try:
+            authority_time = self._clock()
+        except Exception as exc:  # noqa: BLE001 - a failed trusted clock must fail closed
+            raise IntegrityError("trusted publication clock failed") from exc
+        if (
+            not isinstance(authority_time, datetime)
+            or authority_time.tzinfo is None
+            or authority_time.utcoffset() is None
+        ):
+            raise IntegrityError("trusted publication clock must return a timezone-aware datetime")
         self._authority_resolver.resolve_policy_action(
             context.authority_grant_id,
             context.caller_actor_id,
@@ -894,7 +905,7 @@ class ExternalAssuranceRecordStore:
             context.project_id,
             "external_assurance_record",
             context.record_id,
-            occurred_at,
+            authority_time.astimezone(timezone.utc),
         )
 
     def write(

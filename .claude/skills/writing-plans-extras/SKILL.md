@@ -51,3 +51,41 @@ Keep the obligation register in the master plan or its governing checklist. Task
 - For parity or policy plans, give every required semantic field a typed accepted source. Adjacent metadata and self-attested manifests are not substitutes; missing authority requires an owner-gated decision and fail-closed Partial.
 - Bind evidence IDs and hashes to the execution that produced them, with negatives for plain or self-attested manifests.
 - Scope re-baselines by lifecycle and evidence epoch. Never let a later baseline silently redefine the identity of evidence accepted under an earlier gate.
+
+## Interface Verification (before writing tasks)
+
+For every seam a plan names — a function, schema, runtime call, or event
+family the tasks will build against — open the file and record the actual
+signature/behaviour with a `path:line` citation in the plan itself, or mark
+the plan `interface-unverified` and make that an explicit dispatch blocker.
+A plan that writes a File Map naming a production module, or calls a seam
+"expected", has recorded a doubt without paying to resolve it — the cost of
+reading the file at authoring time is minutes against a Worker-session
+rediscovering the same mismatch at full price, after a branch and worktree
+already exist. A Stop-Partial rule present in the plan is not a substitute
+for this: it only fires after dispatch, once context has already been spent.
+
+## Authority Boundary Check
+
+A plan cannot mint authority by naming a gate or a dispatchable stage. Every
+gate ID and dispatchable stage a plan introduces, or repurposes from an
+existing one, must resolve to an accepted decision-register entry — not a
+proposed-only or reviewer-only record. Extract every gate ID and
+dispatchable stage from the master and child plans and fail the plan on any
+that has no such resolution. A reviewer verdict (including an adversarial
+review's "accept") can make a subject *eligible* for a separately recorded
+owner decision; it is evidence for that decision, never a substitute for it,
+and it cannot close an owner gate by itself.
+
+## Caller-Inventory Closure
+
+A "no other caller" or firewall claim needs a registry-aware transitive
+closure, not a direct-caller grep or a module-category label ("adapter-only").
+Seed the traversal from every CLI and rederivation root, follow first-party
+calls through routing, coordination, executor-registry lookup, and
+variant-matrix rows, and emit a literal symbol-and-fixture disposition table;
+fail when a root, registry entry, wrapper, or fixture row has no recorded
+disposition. For any entry classified "protected", require a runtime
+negative that enters through the real root and proves capability rejection
+before route/grant/lease/provider effects — a unit test at the final wrapper
+alone does not establish the claim.

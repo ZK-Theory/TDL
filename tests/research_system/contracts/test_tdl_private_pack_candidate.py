@@ -336,9 +336,9 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
         "canonical_repository_path": pack["canonical_repository_path"],
     }
     store["producer_relationship_evidence"] |= {
-        "relationship_context": "requirement_scope_review",
-        "subject_actor_id": pack["producer_actor_id"],
-        "object_actor_id": PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID,
+        "relationship_context": "pack_scientific_review",
+        "subject_actor_id": PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID,
+        "object_actor_id": pack["producer_actor_id"],
         "grade": "I2",
         "effective_at": "2026-07-01T00:00:00Z",
         "expires_at": "2026-12-31T00:00:00Z",
@@ -350,7 +350,14 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
         "scope_relationship_record_id": ids["producer_relationship_evidence"],
         "minimum_independence_grade": "I2",
     }
-    store["independent_pack_review"] |= {"subject": subject, "decided_at": "2026-07-28T10:00:00Z"}
+    store["independent_pack_review"] |= {
+        "subject": subject,
+        "reviewer_actor_id": PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID,
+        "producer_actor_id": pack["producer_actor_id"],
+        "relationship_record_id": ids["producer_relationship_evidence"],
+        "minimum_independence_grade": "I2",
+        "decided_at": "2026-07-28T10:00:00Z",
+    }
     store["stephen_owner_acceptance"] |= {
         "subject": subject,
         "decided_at": "2026-07-28T11:00:00Z",
@@ -383,10 +390,10 @@ class _Resolver:
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> dict:
         self.calls.append((record_class, phase))
         if (record_class, phase) in self.per_phase_override:
-            return self.per_phase_override[(record_class, phase)]
+            return dict(self.per_phase_override[(record_class, phase)])
         if record_class not in self.store:
             raise KeyError(record_class)
-        return self.store[record_class]
+        return dict(self.store[record_class])
 
     def resolve_with_receipt(
         self,
@@ -871,6 +878,18 @@ def test_loader_rejects_a_trusted_revision_that_changes_between_phases(contract,
         )
 
 
+@pytest.mark.parametrize("invalid_revision", (True, False, 0, -1))
+def test_loader_rejects_a_non_positive_or_boolean_trusted_revision(contract, candidate, invalid_revision):
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    resolver = _Resolver(store, trusted_revisions={"canonical_actor": invalid_revision})
+
+    with pytest.raises(PackUnconsumable, match="trusted identity is not exact: canonical_actor"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=resolver)
+        )
+
+
 def test_loader_rejects_inactive_foreign_or_mislabelled_records(contract, candidate):
     """Mutations are expressed in the fields the record's own schema defines.
 
@@ -905,6 +924,15 @@ def test_loader_fails_closed_when_the_resolver_fails(contract, candidate):
     with pytest.raises(PackUnconsumable, match="trusted storage receipts"):
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Broken())
+        )
+
+    class _Raising:
+        def resolve_with_receipt(self, **_kwargs):
+            raise RuntimeError("resolver offline")
+
+    with pytest.raises(PackUnconsumable, match="external record did not resolve at phase load"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Raising())
         )
 
 
@@ -957,7 +985,7 @@ def test_producer_relationship_must_still_hold_at_the_evaluation_time(contract, 
         )
 
     mutations = (
-        ({"subject_actor_id": "act_00000000-0000-7000-8000-0000000000fd"}, "does not describe the candidate"),
+        ({"object_actor_id": "act_00000000-0000-7000-8000-0000000000fd"}, "does not describe the candidate"),
         ({"expires_at": "2026-07-01T00:00:01Z"}, "not current at the evaluation time"),
         ({"effective_at": "2026-12-01T00:00:00Z"}, "not current at the evaluation time"),
         ({"grade": "I1"}, "no longer meets the accepted independence floor"),
@@ -982,6 +1010,55 @@ def test_a_stronger_producer_relationship_than_the_floor_is_accepted(contract, c
     validate_tdl_private_pack_for_acceptance(
         **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
     )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("missing", "independent pack review relationship_record_id is required"),
+        ("foreign", "independent pack review does not bind the resolved producer relationship"),
+        ("insufficient_grade", "does not meet the independent pack review floor"),
+    ),
+)
+def test_independent_pack_review_requires_bound_sufficient_relationship_evidence(
+    contract, candidate, mutation, message
+):
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    if mutation == "missing":
+        store["independent_pack_review"].pop("relationship_record_id")
+    elif mutation == "foreign":
+        store["independent_pack_review"]["relationship_record_id"] = "rel_00000000-0000-7000-8000-0000000000ff"
+    else:
+        store["independent_pack_review"]["minimum_independence_grade"] = "I3"
+
+    with pytest.raises(PackUnconsumable, match=message):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
+        )
+
+
+@pytest.mark.parametrize(
+    "relationship_mutation",
+    (
+        {"subject_actor_id": "act_00000000-0000-7000-8000-0000000000fd"},
+        {
+            "subject_actor_id": lambda pack: pack["producer_actor_id"],
+            "object_actor_id": PLACEHOLDER_SCOPE_REVIEWER_ACTOR_ID,
+        },
+        {"relationship_context": "requirement_scope_review"},
+    ),
+)
+def test_independent_pack_review_requires_the_declared_actor_roles(contract, candidate, relationship_mutation):
+    pack, raw = candidate
+    store = _record_store(pack, raw, contract)
+    mutation = {key: value(pack) if callable(value) else value for key, value in relationship_mutation.items()}
+    store["producer_relationship_evidence"] |= mutation
+
+    with pytest.raises(PackUnconsumable, match="does not bind the declared reviewer and producer roles"):
+        validate_tdl_private_pack_for_acceptance(
+            **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))
+        )
 
 
 def test_loader_requires_review_and_owner_acceptance_to_bind_the_computed_subject(contract, candidate):

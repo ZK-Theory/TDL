@@ -29,8 +29,20 @@ A scoped pass never converts the full baseline to green; report both results.
 
 ## Declared-Root Routing
 
-Before attempting an edit on Windows or in a sandboxed runtime, read the
-runtime's declared workspace/writable roots. Treat every linked Git worktree as
+Before attempting an edit on Windows or in a sandboxed runtime, first inspect
+the active permission profile. Workspace-root metadata is informational, not
+itself an enforcement result: it only becomes a write denial when filesystem
+sandboxing or a split writable-root policy is actually enforced. If the
+runtime reports its permission profile as disabled/unrestricted, do not infer
+a write denial from a missing exact-root entry — verify cwd, branch,
+ancestry, and status instead, then proceed within the user-authorized
+worktree. This distinction matters because the same missing-exact-root signal
+is present in both cases; collapsing it into an unconditional "no exact root
+= denied" rule produces a false blocker on a runtime where nothing is actually
+enforcing a split root.
+
+Once the profile confirms enforcement is active, read the runtime's declared
+workspace/writable roots. Treat every linked Git worktree as
 a separate root even if its path is lexically nested beneath an authorized
 checkout.
 

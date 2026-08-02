@@ -314,7 +314,7 @@ def _resolve_records(
         authority_root: Independently supplied authority root.
 
     Returns:
-        The resolved record body per record class.
+        The trusted storage resolution receipt per record class.
 
     Raises:
         PackUnconsumable: If any record is missing, foreign, inactive, or unstable across phases.
@@ -346,14 +346,17 @@ def _resolve_records(
                 raise PackUnconsumable(f"external record did not resolve at phase {phase}: {record_class}") from exc
             if not isinstance(resolution, ExternalRecordResolution) or not isinstance(resolution.record, Mapping):
                 raise PackUnconsumable(f"external record lacks trusted storage metadata: {record_class}")
+            record = resolution.record
             if (
                 resolution.record_class != record_class
                 or resolution.record_id != record_id
+                or isinstance(resolution.revision, bool)
                 or not isinstance(resolution.revision, int)
+                or resolution.revision < 1
                 or not isinstance(resolution.canonical_sha256, str)
             ):
                 raise PackUnconsumable(f"external record trusted identity is not exact: {record_class}")
-            if "content_sha256" in resolution.record:
+            if "content_sha256" in record:
                 raise PackUnconsumable(f"schema-forbidden content_sha256 in external record: {record_class}")
             per_phase.append(resolution)
         if any(
@@ -425,6 +428,31 @@ def _require_accepted_requirement(
     )
 
 
+def _require_relationship_grade(
+    relationship: Mapping[str, object],
+    minimum_grade: object,
+    *,
+    relationship_label: str,
+    insufficient_message: str,
+) -> None:
+    """Require a recognised relationship grade at or above a declared floor.
+
+    Args:
+        relationship: Resolved producer relationship evidence record.
+        minimum_grade: Minimum independence grade declared by the caller's record.
+        relationship_label: Label used for an unrecognised-grade failure.
+        insufficient_message: Caller-specific failure when the grade is below its floor.
+
+    Raises:
+        PackUnconsumable: If either grade is unknown or the relationship is below the floor.
+    """
+    observed = relationship.get("grade")
+    if observed not in _INDEPENDENCE_ORDER or minimum_grade not in _INDEPENDENCE_ORDER:
+        raise PackUnconsumable(f"{relationship_label} grade is not a recognised independence grade")
+    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(minimum_grade)]:
+        raise PackUnconsumable(insufficient_message)
+
+
 def _require_current_producer_relationship(
     requirement: Mapping[str, object],
     relationship: Mapping[str, object],
@@ -459,18 +487,69 @@ def _require_current_producer_relationship(
     if not effective_at <= evaluation_time < expires_at:
         raise PackUnconsumable("producer relationship is not current at the evaluation time")
 
-    observed = relationship.get("grade")
-    accepted = requirement.get("minimum_independence_grade")
-    if observed not in _INDEPENDENCE_ORDER or accepted not in _INDEPENDENCE_ORDER:
-        raise PackUnconsumable("producer relationship grade is not a recognised independence grade")
-    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(accepted)]:
-        raise PackUnconsumable("producer relationship no longer meets the accepted independence floor")
+    _require_relationship_grade(
+        relationship,
+        requirement.get("minimum_independence_grade"),
+        relationship_label="producer relationship",
+        insufficient_message="producer relationship no longer meets the accepted independence floor",
+    )
+
+
+def _require_review_relationship(
+    review: Mapping[str, object],
+    relationship: Mapping[str, object],
+    pack: Mapping[str, object],
+) -> None:
+    """Require the review to bind the already-current relationship at its declared grade.
+
+    The accepted-requirement check runs first and establishes the shared
+    relationship record's current validity window. Rechecking that same window
+    here would create an unreachable duplicate failure branch.
+
+    Args:
+        review: Resolved independent pack review record.
+        relationship: Current producer relationship evidence established by the
+            accepted-requirement check.
+        pack: Parsed candidate pack.
+
+    Raises:
+        PackUnconsumable: If the review omits or names another relationship, the
+            actor roles or context do not match, or the relationship grade is
+            below the review's declared floor.
+    """
+
+    review_relationship_id = review.get("relationship_record_id")
+    if not isinstance(review_relationship_id, str) or not review_relationship_id:
+        raise PackUnconsumable("independent pack review relationship_record_id is required")
+    if review_relationship_id != relationship.get("relationship_record_id"):
+        raise PackUnconsumable("independent pack review does not bind the resolved producer relationship")
+
+    producer = pack["producer_actor_id"]
+    reviewer = review.get("reviewer_actor_id")
+    if (
+        review.get("producer_actor_id") != producer
+        or not isinstance(reviewer, str)
+        or not reviewer
+        or reviewer == producer
+        or relationship.get("relationship_context") != "pack_scientific_review"
+        or relationship.get("subject_actor_id") != reviewer
+        or relationship.get("object_actor_id") != producer
+    ):
+        raise PackUnconsumable("producer relationship evidence does not bind the declared reviewer and producer roles")
+
+    _require_relationship_grade(
+        relationship,
+        review.get("minimum_independence_grade"),
+        relationship_label="independent review relationship",
+        insufficient_message="producer relationship does not meet the independent pack review floor",
+    )
 
 
 def _require_subject_bound_lifecycle(
     resolved: Mapping[str, Mapping[str, object]],
     subject: PackAcceptanceSubject,
     opaque_external_record_ids: Mapping[str, str],
+    pack: Mapping[str, object],
     evaluation_time: datetime,
 ) -> None:
     """Bind review and owner acceptance to the loader-computed subject, in order.
@@ -479,6 +558,7 @@ def _require_subject_bound_lifecycle(
         resolved: Resolved external records by class.
         subject: The loader-computed candidate subject.
         opaque_external_record_ids: Opaque id per record class.
+        pack: Parsed candidate pack.
         evaluation_time: Caller-supplied evaluation time.
 
     Raises:
@@ -486,6 +566,11 @@ def _require_subject_bound_lifecycle(
     """
     review = _require_key(resolved, "independent_pack_review", "resolved external records")
     owner = _require_key(resolved, "stephen_owner_acceptance", "resolved external records")
+    _require_review_relationship(
+        review,
+        _require_key(resolved, "producer_relationship_evidence", "resolved external records"),
+        pack,
+    )
     review_record_id = _require_key(opaque_external_record_ids, "independent_pack_review", "opaque external record ids")
     expected = {
         "pack_git_blob": subject.pack_git_blob,
@@ -594,5 +679,5 @@ def validate_tdl_private_pack_for_acceptance(
         schema_git_blob=pack["schema_reference"]["git_blob"],
         schema_canonical_sha256=pack["schema_reference"]["canonical_sha256"],
     )
-    _require_subject_bound_lifecycle(resolved, subject, opaque_external_record_ids, evaluation_time)
+    _require_subject_bound_lifecycle(resolved, subject, opaque_external_record_ids, pack, evaluation_time)
     return subject

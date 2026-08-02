@@ -21,6 +21,7 @@ from research_system.schema_registry import (
     require_authority_schemas,
     runtime_schema_registry,
 )
+from research_system.store.durability import fsync_directory
 from research_system.store.identity import (
     SCHEMA_BINDING_VERSION,
     InitializedStore,
@@ -40,9 +41,11 @@ SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION = "2.0.0"
 EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID = "ars://core/external-assurance-record-scoped-authority-grant"
 EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION = "1.0.0"
 OWNER_AUTHORITY_DECISION_SCHEMA_ID = "ars://core/owner-authority-administration-decision"
+OWNER_AUTHORITY_DECISION_SCHEMA_VERSION = "1.0.0"
 EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID = (
     "ars://core/external-assurance-record-owner-authority-administration-decision"
 )
+EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION = "1.0.0"
 
 
 _GRANT_FIELDS = frozenset(
@@ -638,8 +641,11 @@ class OwnerAuthorityAdministrationDecision:
         if (
             decision_schema
             not in {
-                (OWNER_AUTHORITY_DECISION_SCHEMA_ID, "1.0.0"),
-                (EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID, "1.0.0"),
+                (OWNER_AUTHORITY_DECISION_SCHEMA_ID, OWNER_AUTHORITY_DECISION_SCHEMA_VERSION),
+                (
+                    EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+                    EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+                ),
             }
             or value["revision"] != 1
             or value["one_time_use"] is not True
@@ -671,13 +677,13 @@ class OwnerAuthorityAdministrationDecision:
             raise ValueError("unsupported owner authority administration action")
         expected_decision_schema = (
             OWNER_AUTHORITY_DECISION_SCHEMA_ID,
-            "1.0.0",
+            OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
             SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
             SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         )
         external_decision_schema = (
             EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
-            "1.0.0",
+            EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
         )
@@ -1028,31 +1034,13 @@ def _write_durable(path: Path, data: bytes, *, exclusive: bool = False) -> None:
         os.fsync(handle.fileno())
 
 
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError as exc:
-        if os.name == "nt" and getattr(exc, "winerror", None) == 5:
-            return
-        if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
-            return
-        raise
-    try:
-        os.fsync(descriptor)
-    except OSError as exc:
-        if os.name != "nt" or getattr(exc, "winerror", None) not in {1, 5, 87}:
-            raise
-    finally:
-        os.close(descriptor)
-
-
 def _flush_tree(root: Path) -> None:
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         with path.open("r+b") as handle:
             os.fsync(handle.fileno())
     directories = [root, *(item for item in root.rglob("*") if item.is_dir())]
     for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
-        _fsync_directory(directory)
+        fsync_directory(directory)
 
 
 def _stage_marker(bootstrap_hash: str, status: str) -> dict[str, str]:
@@ -1069,13 +1057,13 @@ def _write_stage_marker(stage: Path, bootstrap_hash: str, status: str) -> None:
     temporary = path.with_suffix(".json.tmp")
     _write_durable(temporary, canonical_bytes(_stage_marker(bootstrap_hash, status)))
     os.replace(temporary, path)
-    _fsync_directory(path.parent)
+    fsync_directory(path.parent)
 
 
 def _remove_stage_marker(store_root: Path) -> None:
     path = store_root / "runtime" / "authority-bootstrap-stage.json"
     path.unlink(missing_ok=True)
-    _fsync_directory(path.parent)
+    fsync_directory(path.parent)
 
 
 def _load_bound_manifest(store_root: Path, expected_control_root: Path) -> dict[str, Any]:
@@ -1252,7 +1240,7 @@ def _reset_reserved_stage(stage: Path) -> None:
         "runtime",
     ):
         (stage / name).mkdir()
-    _fsync_directory(stage)
+    fsync_directory(stage)
 
 
 def _matching_complete_stage(
@@ -1633,7 +1621,7 @@ def initialize_authority_control_store(
         except (ArsError, OSError) as verify_error:
             raise ConflictError("competing authority initializer published a foreign store") from verify_error
         _remove_stage_marker(final_root)
-        _fsync_directory(final_root.parent)
+        fsync_directory(final_root.parent)
         winner_manifest = _load_bound_manifest(final_root, final_root)
         return InitializedStore(winner_identity, winner_manifest, witness, witness_path)
     finally:
@@ -1641,7 +1629,7 @@ def initialize_authority_control_store(
             shutil.rmtree(stage)
     _remove_stage_marker(final_root)
     _bootstrap_failpoint("after-rename")
-    _fsync_directory(final_root.parent)
+    fsync_directory(final_root.parent)
     final_manifest = _load_bound_manifest(final_root, final_root)
     return InitializedStore(identity, final_manifest, witness, witness_path)
 

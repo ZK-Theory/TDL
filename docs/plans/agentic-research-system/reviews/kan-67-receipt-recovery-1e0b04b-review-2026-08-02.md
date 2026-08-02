@@ -97,9 +97,14 @@ boundary must hold for both activation siblings and both final-marker states.
 **Decisive result:** the new index-only matrix passed `8 passed in 59.31s`.
 Every invalid-residue case raised `IntegrityError` before receipt repair, and
 every foreign-project case raised `ConflictError` before receipt repair. The
-same ordering is visible in the executable call graph above, including
-marker-present paths through `_remove_scoped_activation_marker` and
-marker-absent paths through temporary-residue classification.
+same ordering is visible in
+`CommandService._scoped_authority_receipt`
+(`research_system/command/service.py:1288-1315`),
+`CommandService._reconcile_scoped_activation_receipt`
+(`research_system/command/service.py:1113-1155`), and
+`CommandService._remove_scoped_activation_marker`
+(`research_system/command/service.py:428-454`), including marker-present
+cleanup and marker-absent temporary-residue classification.
 
 **Disposition:** closed. No Critical, Major, or Minor finding remains within
 the exact subject.

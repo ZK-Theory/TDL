@@ -4,6 +4,7 @@ import ctypes
 import json
 import os
 import stat
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,13 +14,18 @@ from typing import Any, Literal, NoReturn, Self
 
 from research_system.canonical import canonical_bytes
 from research_system.errors import ConflictError
+from research_system.store.durability import fsync_directory
 
 
 LockOwnerState = Literal["missing", "live", "stale", "unknown", "malformed"]
 
 
 def _windows_process_instance_id(pid: int) -> str | None:
-    """Return a Windows process creation-time identity, if it is queryable."""
+    """Return a Windows process creation-time identity, if it is queryable.
+
+    ``process_instance_id`` supports Windows and Linux only; it never falls
+    back to a PID-only identity.
+    """
     if os.name != "nt":
         return None
 
@@ -62,8 +68,12 @@ def _windows_process_instance_id(pid: int) -> str | None:
 
 
 def _proc_process_instance_id(pid: int) -> str | None:
-    """Return a Linux process identity including the boot and start-time tuple."""
-    if os.name == "nt":
+    """Return a Linux process identity including the boot and start-time tuple.
+
+    Unsupported non-Linux POSIX platforms fail closed with ``None`` rather
+    than inventing a PID-reuse-unsafe identity.
+    """
+    if os.name != "posix" or sys.platform != "linux":
         return None
     stat_path = Path("/proc") / str(pid) / "stat"
     try:
@@ -89,15 +99,21 @@ def _proc_process_instance_id(pid: int) -> str | None:
 
 
 def process_instance_id(pid: int) -> str | None:
-    """Return an OS-backed process-instance identity, never PID alone."""
+    """Return a Windows or Linux process-instance identity, never PID alone.
+
+    Unsupported platforms return ``None`` so callers can fail closed.
+    """
     if pid < 1:
         return None
     if os.name == "nt":
         return _windows_process_instance_id(pid)
-    return _proc_process_instance_id(pid)
+    if os.name == "posix" and sys.platform == "linux":
+        return _proc_process_instance_id(pid)
+    return None
 
 
 def current_process_instance_id() -> str:
+    """Return this Windows/Linux process identity or fail closed."""
     value = process_instance_id(os.getpid())
     if value is None:
         raise ConflictError("writer lock process instance cannot be established")
@@ -155,26 +171,13 @@ def inspect_lock(path: Path) -> tuple[LockOwnerState, bytes | None, dict[str, An
     return _owner_state(record), data, record
 
 
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        return
-    finally:
-        os.close(descriptor)
-
-
 def _restore_recovery_claim(path: Path, claim: Path) -> None:
     """Restore a non-stale claim without replacing a newer lock generation."""
     try:
         os.link(claim, path)
     except FileExistsError:
         claim.unlink(missing_ok=True)
-        _fsync_directory(path.parent)
+        fsync_directory(path.parent)
         return
     except OSError:
         return
@@ -182,7 +185,7 @@ def _restore_recovery_claim(path: Path, claim: Path) -> None:
         claim.unlink()
     except FileNotFoundError:
         pass
-    _fsync_directory(path.parent)
+    fsync_directory(path.parent)
 
 
 def remove_stale_lock(path: Path, observed: bytes) -> bool:
@@ -206,7 +209,7 @@ def remove_stale_lock(path: Path, observed: bytes) -> bool:
             claim.unlink()
         except FileNotFoundError:
             return True
-        _fsync_directory(path.parent)
+        fsync_directory(path.parent)
         return True
     except OSError:
         _restore_recovery_claim(path, claim)
@@ -810,7 +813,7 @@ class WriterLock:
                 os.link(temporary, self.path)
             except FileExistsError as exc:
                 raise ConflictError(f"writer lock exists: {self.path}") from exc
-            _fsync_directory(self.path.parent)
+            fsync_directory(self.path.parent)
         finally:
             temporary.unlink(missing_ok=True)
         return self
@@ -831,7 +834,7 @@ class WriterLock:
             self.path.unlink()
         except FileNotFoundError as exc:
             raise ConflictError("writer lock disappeared while held") from exc
-        _fsync_directory(self.path.parent)
+        fsync_directory(self.path.parent)
         return False
 
 
@@ -888,8 +891,15 @@ class CompositeWriterLock:
         try:
             root_anchor = _open_directory_anchor(member.representative.alias, delete_protect=True)
         except ConflictError as exc:
+            cause = exc.__cause__
             lock_path = member.representative.runtime_final_path / "writer.lock"
-            if lock_path.is_file():
+            lock_state, _, _ = inspect_lock(lock_path)
+            if (
+                os.name == "nt"
+                and isinstance(cause, OSError)
+                and (getattr(cause, "winerror", None) == 32 or cause.errno == 32)
+                and lock_state == "live"
+            ):
                 raise ConflictError(f"writer lock exists: {lock_path}") from exc
             raise
         acquired.root_anchor = root_anchor

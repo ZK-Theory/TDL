@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042/06g accepted for governing planning; WP6.3 readiness is blocked and Gate A A7 remains open; runtime remains gated<br>
+**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042/06g accepted for governing planning; WP6.3 readiness is blocked and Gate A A7 remains open; runtime remains gated. This line decays between updates — for the current blocker set and delivery sequence, treat [handoffs/32](handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md) (or the newest `handoffs/*` file) as authoritative over this summary.<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -79,7 +79,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md](reviews/wp6-2-t2-rate-mode-boundary-owner-acceptance-2026-07-23.md) | P-041 exact-byte owner acceptance of the six-path rate-mode boundary candidate; no runtime authority |
 | [reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md](reviews/wp6-direct-provider-routing-blast-radius-2026-07-26.md) | P-042 blast-radius review: high planning impact, low code impact, and a fail-closed runtime disposition |
 | [reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md](reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md) | Exact-tree post-merge acceptance of the 06g governing planning amendment; permits KAN-56 readiness assessment but grants no runtime authority |
-| [reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md](reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md) | KAN-56 fail-closed readiness verdict: the upstream contract remains unaccepted, all six skill pins are stale, two required contracts remain pending, and A7 stays open |
+| [reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md](reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md) | KAN-56 fail-closed readiness verdict at 2026-07-26: the upstream contract remains unaccepted, all six skill pins are stale, two required contracts remain pending, and A7 stays open. Historical snapshot — most of these blockers have since moved (see [handoffs/32](handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md)); re-resolve each blocker against current HEAD before planning from this row. |
 
 ## Handover prompts
 

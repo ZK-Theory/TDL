@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import asdict, replace
+from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 
@@ -199,11 +201,20 @@ def _activation_case(tmp_path: Path, activation_kind: str):
     return control_root, schemas, resolver, objects, service, command
 
 
-def _foreign_activation_marker_bytes(service: CommandService, schemas: object, command: dict[str, object]) -> bytes:
+def _foreign_activation_marker_bytes(
+    service: CommandService,
+    schemas: object,
+    command: dict[str, object],
+    *,
+    identity_suffix: str = "6302",
+    command_id: str | None = None,
+    idempotency_key: str | None = None,
+    correlation_id: str | None = None,
+) -> bytes:
     foreign = deepcopy(command)
-    foreign["command_id"] = "cmd_01978abc-6300-7000-8000-000000006302"
-    foreign["idempotency_key"] = f"{command['idempotency_key']}-foreign"
-    foreign["correlation_id"] = f"{command['correlation_id']}-foreign"
+    foreign["command_id"] = command_id or f"cmd_01978abc-6300-7000-8000-00000000{identity_suffix}"
+    foreign["idempotency_key"] = idempotency_key or f"{command['idempotency_key']}-foreign-{identity_suffix}"
+    foreign["correlation_id"] = correlation_id or f"{command['correlation_id']}-foreign-{identity_suffix}"
     foreign_envelope = {
         key: value
         for key, value in foreign.items()
@@ -807,28 +818,14 @@ def test_foreign_marker_temp_conflict_preserves_committed_marker_and_retry(
 
     marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
     marker_path = next(marker_root.glob("*.json"))
-    foreign = _activation_command(
-        resolver,
+    foreign_bytes = _foreign_activation_marker_bytes(
+        service,
         schemas,
-        grant,
-        decision,
+        command,
         command_id="cmd_01978abc-6300-7000-8000-000000006302",
         idempotency_key="activate-external-assurance-record-grant-foreign",
         correlation_id="synthetic-external-record-authority-test-foreign",
     )
-    foreign_envelope = {
-        key: value
-        for key, value in foreign.items()
-        if key not in {"command_schema_id", "command_schema_version", "command_schema_sha256"}
-    }
-    foreign_path = service._scoped_activation_marker_path(foreign["command_id"])
-    service._write_scoped_activation_marker(
-        Command(foreign_envelope),
-        command_schema=schemas.resolve_identity(foreign["schema_id"], foreign["schema_version"]),
-        existed_before=False,
-    )
-    foreign_bytes = foreign_path.read_bytes()
-    foreign_path.unlink()
     foreign_temp = marker_path.with_name(f".{marker_path.name}.foreign.tmp")
     foreign_temp.write_bytes(foreign_bytes)
     for path in (control_root / "receipts").rglob("*.json"):
@@ -854,6 +851,7 @@ def test_foreign_marker_temp_conflict_preserves_committed_marker_and_retry(
     assert not list(marker_root.glob("*.tmp"))
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_cleans_committed_marker_without_residue(
     tmp_path: Path,
@@ -872,6 +870,7 @@ def test_receipt_present_retry_cleans_committed_marker_without_residue(
     assert not list(marker_root.glob("*.tmp"))
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_reconciles_matching_marker_temp(
     tmp_path: Path,
@@ -891,6 +890,34 @@ def test_receipt_present_retry_reconciles_matching_marker_temp(
     assert not list(marker_root.glob("*.tmp"))
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+def test_recovery_activation_payload_equals_the_prepared_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+) -> None:
+    control_root, _, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    prepared_payloads: list[dict[str, object]] = []
+    real_prepare = service._prepare_scoped_authority_activation
+
+    def capture_prepared_payload(command_value: Command, observed_version: int) -> dict[str, object]:
+        prepared = real_prepare(command_value, observed_version)
+        prepared_payloads.append(prepared)
+        return prepared
+
+    monkeypatch.setattr(service, "_prepare_scoped_authority_activation", capture_prepared_payload)
+    monkeypatch.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+    service.submit(command)
+
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    marker = service._load_scoped_activation_marker(next(marker_root.glob("*.json")))
+    event = next(event for event in service.ledger.snapshot().events if event["command_id"] == command["command_id"])
+    assert prepared_payloads == [service._scoped_activation_event_payload(marker)]
+    assert event["payload"] == prepared_payloads[0]
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_classifies_foreign_marker_temp_before_returning(
     tmp_path: Path,
@@ -905,24 +932,7 @@ def test_receipt_present_retry_classifies_foreign_marker_temp_before_returning(
 
     marker_path = next(marker_root.glob("*.json"))
     marker_bytes = marker_path.read_bytes()
-    foreign = deepcopy(command)
-    foreign["command_id"] = "cmd_01978abc-6300-7000-8000-000000006302"
-    foreign["idempotency_key"] = f"{command['idempotency_key']}-foreign"
-    foreign["correlation_id"] = f"{command['correlation_id']}-foreign"
-    foreign_envelope = {
-        key: value
-        for key, value in foreign.items()
-        if key not in {"command_schema_id", "command_schema_version", "command_schema_sha256"}
-    }
-    foreign_path = service._scoped_activation_marker_path(foreign["command_id"])
-    command_schema = schemas.resolve_identity(foreign["schema_id"], foreign["schema_version"])
-    service._write_scoped_activation_marker(
-        Command(foreign_envelope),
-        command_schema=command_schema,
-        existed_before=False,
-    )
-    foreign_bytes = foreign_path.read_bytes()
-    foreign_path.unlink()
+    foreign_bytes = _foreign_activation_marker_bytes(service, schemas, command)
     foreign_temp = marker_path.with_name(f".{marker_path.name}.foreign.tmp")
     foreign_temp.write_bytes(foreign_bytes)
 
@@ -937,6 +947,7 @@ def test_receipt_present_retry_classifies_foreign_marker_temp_before_returning(
     assert not list(marker_root.glob("*.tmp"))
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_with_absent_marker_and_no_residue_is_idempotent(
     tmp_path: Path,
@@ -956,6 +967,7 @@ def test_receipt_present_retry_with_absent_marker_and_no_residue_is_idempotent(
     assert not list(marker_root.glob("*.tmp"))
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_with_absent_marker_reconciles_matching_temp(
     tmp_path: Path,
@@ -978,6 +990,7 @@ def test_receipt_present_retry_with_absent_marker_reconciles_matching_temp(
     assert not matching_temp.exists()
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_with_absent_marker_preserves_foreign_temp_and_conflicts(
     tmp_path: Path,
@@ -1002,6 +1015,7 @@ def test_receipt_present_retry_with_absent_marker_preserves_foreign_temp_and_con
     assert foreign_temp.read_bytes() == foreign_bytes
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 def test_receipt_present_retry_with_absent_marker_classifies_mixed_residue_atomically(
     tmp_path: Path,
@@ -1030,6 +1044,7 @@ def test_receipt_present_retry_with_absent_marker_classifies_mixed_residue_atomi
     assert foreign_temp.read_bytes() == foreign_bytes
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 @pytest.mark.parametrize("marker_state", ["present", "absent"])
 def test_receipt_present_retry_rejects_invalid_marker_temp_without_mutation(
@@ -1061,6 +1076,7 @@ def test_receipt_present_retry_rejects_invalid_marker_temp_without_mutation(
     assert service.receipts.load(command["command_id"]) == receipt
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 @pytest.mark.parametrize("marker_state", ["present", "absent"])
 def test_receipt_present_retry_revalidates_envelope_project_with_or_without_marker(
@@ -1090,6 +1106,7 @@ def test_receipt_present_retry_revalidates_envelope_project_with_or_without_mark
     assert service.receipts.load(command["command_id"]) == receipt
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 @pytest.mark.parametrize("marker_state", ["present", "absent"])
 def test_index_only_retry_rejects_invalid_marker_temp_without_mutation(
@@ -1124,6 +1141,7 @@ def test_index_only_retry_rejects_invalid_marker_temp_without_mutation(
     assert receipt.status == "accepted"
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("activation_kind", ["authority", "external"])
 @pytest.mark.parametrize("marker_state", ["present", "absent"])
 def test_index_only_retry_revalidates_envelope_project_without_mutation(
@@ -1205,7 +1223,7 @@ def test_failed_external_grant_activation_never_removes_preexisting_matching_obj
 @pytest.mark.integration
 def test_governed_external_grant_activates_writer_and_exact_retry(tmp_path: Path) -> None:
     binding, _, resolver, _, _, _ = _fixture(tmp_path)
-    store = ExternalAssuranceRecordStore(binding)
+    store = ExternalAssuranceRecordStore(binding, clock=lambda: NOW)
     body = _body()
 
     receipt = store.write(
@@ -1216,7 +1234,7 @@ def test_governed_external_grant_activates_writer_and_exact_retry(tmp_path: Path
         record=body,
         publication_context=_context(binding, body),
     )
-    restarted_store = ExternalAssuranceRecordStore(binding)
+    restarted_store = ExternalAssuranceRecordStore(binding, clock=lambda: NOW)
     retry = restarted_store.write(
         record_class="canonical_actor",
         record_id=RECORD_ID,
@@ -1241,7 +1259,7 @@ def test_governed_external_grant_activates_writer_and_exact_retry(tmp_path: Path
 @pytest.mark.integration
 def test_governed_external_grant_revocation_blocks_revision_retry(tmp_path: Path) -> None:
     binding, schemas, resolver, objects, service, grant = _fixture(tmp_path)
-    store = ExternalAssuranceRecordStore(binding)
+    store = ExternalAssuranceRecordStore(binding, clock=lambda: NOW)
     body = _body()
     store.write(
         record_class="canonical_actor",
@@ -1278,7 +1296,7 @@ def test_governed_external_grant_revocation_blocks_revision_retry(tmp_path: Path
 @pytest.mark.integration
 def test_governed_external_grant_rejects_changed_retry_without_replacing_revision(tmp_path: Path) -> None:
     binding, _, _, _, _, _ = _fixture(tmp_path)
-    store = ExternalAssuranceRecordStore(binding)
+    store = ExternalAssuranceRecordStore(binding, clock=lambda: NOW)
     body = _body()
     store.write(
         record_class="canonical_actor",
@@ -1298,3 +1316,44 @@ def test_governed_external_grant_rejects_changed_retry_without_replacing_revisio
             record=changed,
             publication_context=_context(binding, changed),
         )
+
+
+@pytest.mark.integration
+def test_backdated_publication_metadata_cannot_revive_an_expired_grant(tmp_path: Path) -> None:
+    binding, _, _, _, _, _ = _fixture(tmp_path)
+    store = ExternalAssuranceRecordStore(
+        binding,
+        clock=lambda: datetime(2026, 7, 13, tzinfo=timezone.utc),
+    )
+    body = _body()
+
+    with pytest.raises(ArsError, match="expired"):
+        store.write(
+            record_class="canonical_actor",
+            record_id=RECORD_ID,
+            revision=1,
+            expected_previous_revision=0,
+            record=body,
+            publication_context=_context(binding, body),
+        )
+
+    assert not (binding.control_root / "objects" / "canonical_actor" / RECORD_ID).exists()
+
+
+@pytest.mark.integration
+def test_future_publication_metadata_cannot_move_authority_evaluation_time(tmp_path: Path) -> None:
+    binding, _, _, _, _, _ = _fixture(tmp_path)
+    store = ExternalAssuranceRecordStore(binding, clock=lambda: NOW)
+    body = _body()
+    context = replace(_context(binding, body), occurred_at="2027-07-12T12:00:00Z")
+
+    receipt = store.write(
+        record_class="canonical_actor",
+        record_id=RECORD_ID,
+        revision=1,
+        expected_previous_revision=0,
+        record=body,
+        publication_context=context,
+    )
+
+    assert receipt.publication_context_sha256 == sha256_hex(canonical_bytes(asdict(context)))

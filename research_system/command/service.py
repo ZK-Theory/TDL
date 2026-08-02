@@ -70,7 +70,8 @@ from research_system.store.lock import (
     inspect_lock,
     remove_stale_lock,
 )
-from research_system.store.objects import ObjectStore, _fsync_directory
+from research_system.store.durability import fsync_directory
+from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
 
@@ -386,7 +387,7 @@ class CommandService:
             return
         except OSError as exc:
             raise IntegrityError("scoped activation recovery marker temporary data cannot be quarantined") from exc
-        _fsync_directory(target.parent)
+        fsync_directory(target.parent)
 
     def _write_scoped_activation_marker(
         self,
@@ -461,10 +462,10 @@ class CommandService:
                 raise ConflictError("scoped activation recovery marker temporary data conflicts")
             if path.exists():
                 temporary.unlink(missing_ok=True)
-                _fsync_directory(path.parent)
+                fsync_directory(path.parent)
             else:
                 os.replace(temporary, path)
-                _fsync_directory(path.parent)
+                fsync_directory(path.parent)
                 return
         if path.exists():
             existing = self._load_scoped_activation_marker(path)
@@ -478,7 +479,7 @@ class CommandService:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, path)
-            _fsync_directory(path.parent)
+            fsync_directory(path.parent)
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -513,7 +514,7 @@ class CommandService:
         if self._cleanup_scoped_activation_marker_residue(residue):
             changed = True
         if changed and path.parent.exists():
-            _fsync_directory(path.parent)
+            fsync_directory(path.parent)
 
     @staticmethod
     def _load_scoped_activation_marker(path: Path) -> dict[str, Any]:
@@ -1092,31 +1093,25 @@ class CommandService:
                             observed_version,
                         )
                 except IntegrityError:
-                    if activation_object_existed is not None:
-                        self._rollback_scoped_authority_activation(
-                            command,
-                            existed_before=activation_object_existed,
-                        )
-                        if not activation_marker_preexisting:
-                            self._remove_scoped_activation_marker(command.command_id)
+                    self._cleanup_failed_scoped_activation(
+                        command,
+                        existed_before=activation_object_existed,
+                        marker_preexisting=activation_marker_preexisting,
+                    )
                     raise
                 except ConflictError:
-                    if activation_object_existed is not None:
-                        self._rollback_scoped_authority_activation(
-                            command,
-                            existed_before=activation_object_existed,
-                        )
-                        if not activation_marker_preexisting:
-                            self._remove_scoped_activation_marker(command.command_id)
+                    self._cleanup_failed_scoped_activation(
+                        command,
+                        existed_before=activation_object_existed,
+                        marker_preexisting=activation_marker_preexisting,
+                    )
                     raise
                 except ArsError as exc:
-                    if activation_object_existed is not None:
-                        self._rollback_scoped_authority_activation(
-                            command,
-                            existed_before=activation_object_existed,
-                        )
-                        if not activation_marker_preexisting:
-                            self._remove_scoped_activation_marker(command.command_id)
+                    self._cleanup_failed_scoped_activation(
+                        command,
+                        existed_before=activation_object_existed,
+                        marker_preexisting=activation_marker_preexisting,
+                    )
                     rejected = self._rejected(
                         command,
                         observed_version,
@@ -1228,7 +1223,7 @@ class CommandService:
             if foreign_residue:
                 raise ConflictError("scoped activation recovery marker temporary data conflicts")
             if self._cleanup_scoped_activation_marker_residue(residue) and marker_path.parent.exists():
-                _fsync_directory(marker_path.parent)
+                fsync_directory(marker_path.parent)
             return
         marker = self._load_scoped_activation_marker(marker_path)
         self._validate_scoped_activation_marker_command(marker, command, command_schema)
@@ -1256,6 +1251,20 @@ class CommandService:
             grant,
             existed_before=existed_before,
         )
+
+    def _cleanup_failed_scoped_activation(
+        self,
+        command: Command,
+        *,
+        existed_before: bool | None,
+        marker_preexisting: bool,
+    ) -> None:
+        """Undo a newly prepared activation while retaining pre-existing evidence."""
+        if existed_before is None:
+            return
+        self._rollback_scoped_authority_activation(command, existed_before=existed_before)
+        if not marker_preexisting:
+            self._remove_scoped_activation_marker(command.command_id)
 
     def _before_submission_lock(self, command: Command) -> None:
         """Provide a post-validation setup seam before writer-lock acquisition."""
