@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import time
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,6 +20,7 @@ from research_system.authority import (
     ScopedAuthorityGrantResolution,
     validate_scoped_grant_activation,
 )
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -42,7 +43,7 @@ from research_system.evals.release_publication import (
     VerifiedReleasePublication,
     verify_release_publication,
 )
-from research_system.ids import new_id
+from research_system.ids import new_id, validate_id
 from research_system.operations.backups import (
     RestorePreflightResult,
     validate_restore_preflight_result,
@@ -81,7 +82,16 @@ _TASK_REVISION_COMMAND_TYPES = frozenset(
         "SupersedeTask",
     }
 )
-_LIFECYCLE_COMMAND_TYPES = _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
+_MESSAGE_COMMAND_TYPES = frozenset(
+    {
+        "PublishMessage",
+        "RecordMessageDelivery",
+        "AcknowledgeMessage",
+        "RecordMessageDeliveryFailure",
+    }
+)
+_MESSAGE_ADAPTER_COMMAND_TYPES = frozenset({"RecordMessageDelivery", "RecordMessageDeliveryFailure"})
+_LIFECYCLE_COMMAND_TYPES = _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES | _MESSAGE_COMMAND_TYPES
 _COMMAND_EVENT_TYPES = {
     "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
     "ActivateAuthorityGrant": "AuthorityGrantActivated",
@@ -93,6 +103,10 @@ _COMMAND_EVENT_TYPES = {
     "CreateTask": "TaskCreated",
     "AmendTask": "TaskAmended",
     "SupersedeTask": "TaskSuperseded",
+    "PublishMessage": "MessagePublished",
+    "RecordMessageDelivery": "MessageDelivered",
+    "AcknowledgeMessage": "MessageAcknowledged",
+    "RecordMessageDeliveryFailure": "MessageDeliveryFailed",
 }
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
@@ -208,6 +222,76 @@ class _LifecycleAuthorityEvidence:
     denial: str | None = None
 
 
+@dataclass(frozen=True)
+class MessageAdapterRegistration:
+    """An immutable, service-local snapshot entry for one Message adapter."""
+
+    delivery_adapter_id: str
+    project_id: str
+    registry_revision: str
+    registry_content_sha256: str
+    status: str
+    effective_at: datetime
+    expires_at: datetime | None
+    applicable_command_types: tuple[str, ...]
+    allowed_actor_ids: tuple[str, ...]
+
+    def canonical_content(self) -> dict[str, Any]:
+        """Return the immutable content bound by ``registry_content_sha256``."""
+        return {
+            "delivery_adapter_id": self.delivery_adapter_id,
+            "project_id": self.project_id,
+            "registry_revision": self.registry_revision,
+            "status": self.status,
+            "effective_at": self.effective_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "expires_at": (
+                None if self.expires_at is None else self.expires_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
+            ),
+            "applicable_command_types": list(self.applicable_command_types),
+            "allowed_actor_ids": list(self.allowed_actor_ids),
+        }
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.delivery_adapter_id, str) or not self.delivery_adapter_id:
+            raise ValueError("message adapter ID must be non-empty")
+        validate_id(self.project_id, "project")
+        if not isinstance(self.registry_revision, str) or not self.registry_revision:
+            raise ValueError("message adapter registry revision must be non-empty")
+        if (
+            not isinstance(self.registry_content_sha256, str)
+            or len(self.registry_content_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in self.registry_content_sha256)
+        ):
+            raise ValueError("message adapter registry content hash must be a lowercase SHA-256")
+        if self.status not in {"eligible", "suspended", "retired"}:
+            raise ValueError("message adapter status is unsupported")
+        if type(self.effective_at) is not datetime or self.effective_at.tzinfo is None:
+            raise ValueError("message adapter effective_at must be timezone-aware")
+        if self.expires_at is not None and (
+            type(self.expires_at) is not datetime
+            or self.expires_at.tzinfo is None
+            or self.expires_at <= self.effective_at
+        ):
+            raise ValueError("message adapter expiry must follow effective_at")
+        if (
+            not isinstance(self.applicable_command_types, tuple)
+            or not self.applicable_command_types
+            or not set(self.applicable_command_types).issubset(_MESSAGE_ADAPTER_COMMAND_TYPES)
+            or len(set(self.applicable_command_types)) != len(self.applicable_command_types)
+        ):
+            raise ValueError("message adapter capabilities must be exact and non-empty")
+        if (
+            not isinstance(self.allowed_actor_ids, tuple)
+            or not self.allowed_actor_ids
+            or len(set(self.allowed_actor_ids)) != len(self.allowed_actor_ids)
+        ):
+            raise ValueError("message adapter allowed actors must be exact and non-empty")
+        for actor_id in self.allowed_actor_ids:
+            validate_id(actor_id, "actor")
+        if self.registry_content_sha256 != sha256_hex(canonical_bytes(self.canonical_content())):
+            raise ValueError("message adapter registry content hash does not bind its immutable entry")
+
+
 class CommandService:
     def __init__(
         self,
@@ -224,6 +308,7 @@ class CommandService:
         monotonic: Callable[[], float] | None = None,
         lock_wait: Callable[[float], None] | None = None,
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
+        message_adapter_registry: Iterable[MessageAdapterRegistration] | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
             raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
@@ -241,6 +326,13 @@ class CommandService:
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
         self.t2_authority_resolver = t2_authority_resolver
+        if message_adapter_registry is None:
+            self._message_adapter_registry: tuple[MessageAdapterRegistration, ...] = ()
+        else:
+            snapshot = tuple(message_adapter_registry)
+            if any(type(entry) is not MessageAdapterRegistration for entry in snapshot):
+                raise TypeError("message adapter registry entries must be MessageAdapterRegistration")
+            self._message_adapter_registry = snapshot
         self._t2_authority_root: Path | None = None
         self._t2_authority_identity: tuple[int, int] | None = None
         if t2_authority_resolver is not None:
@@ -356,6 +448,9 @@ class CommandService:
             self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
             snapshot = self.ledger.snapshot()
+            accepted_adapter_retry = self._accepted_message_adapter_retry(command, snapshot)
+            if accepted_adapter_retry is not None:
+                return accepted_adapter_retry
             if lifecycle:
                 lifecycle_authority, denial = self._resolve_lifecycle_authority(
                     command,
@@ -488,6 +583,15 @@ class CommandService:
                     snapshot,
                     observed_version,
                     command_schema=command_schema,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
+            elif command.envelope["command_type"] in _MESSAGE_COMMAND_TYPES:
+                prepared = self._prepare_message_command(
+                    command,
+                    snapshot,
+                    observed_version,
                 )
                 if isinstance(prepared, Receipt):
                     return write_receipt(prepared)
@@ -844,6 +948,8 @@ class CommandService:
         command_schema: SchemaIdentity | None = None,
     ) -> Receipt:
         command_type = command.envelope["command_type"]
+        if command_type in _MESSAGE_COMMAND_TYPES and receipt.status != "accepted":
+            return receipt
         if command_type in _LIFECYCLE_COMMAND_TYPES:
             if lifecycle_authority is None:
                 raise IntegrityError("lifecycle command missing resolved authority evidence")
@@ -950,6 +1056,15 @@ class CommandService:
             )
             return project_id, "scope_definition", subject_id, "R3"
 
+        if command_type in _MESSAGE_COMMAND_TYPES:
+            subject_id = str(
+                payload.get(
+                    "new_message_id" if command_type == "PublishMessage" else "message_id",
+                    "",
+                )
+            )
+            return project_id, "message", subject_id, "R3"
+
         subject_id = str(
             payload.get(
                 "new_task_id" if command_type == "CreateTask" else "task_id",
@@ -978,6 +1093,207 @@ class CommandService:
                 replacement = self._task_revision_object(replacement_id, replacement_revision)
             replacement_risk = replacement.get("risk_tier_request") if isinstance(replacement, dict) else None
         return project_id, "task", subject_id, self._max_risk(current_risk, replacement_risk)
+
+    @staticmethod
+    def _message_content_sha256(state: dict[str, Any]) -> str:
+        payload = state.get("published_payload")
+        if not isinstance(payload, dict):
+            raise IntegrityError("Message history has no immutable publication payload")
+        return sha256_hex(canonical_bytes(payload))
+
+    def _message_state(
+        self,
+        snapshot: LedgerSnapshot,
+        message_id: str,
+    ) -> dict[str, Any] | None:
+        projection = replay(
+            snapshot.events,
+            schema_registry=self.schemas,
+            authority_state_validator=self._authority_state_validator(),
+        )
+        value = projection.get("streams", {}).get(message_id)
+        return dict(value) if isinstance(value, dict) else None
+
+    def _message_adapter_denial(self, command: Command) -> str | None:
+        if command.envelope["command_type"] not in _MESSAGE_ADAPTER_COMMAND_TYPES:
+            return None
+        adapter_id = command.envelope["payload"].get("delivery_adapter_id")
+        matches = [entry for entry in self._message_adapter_registry if entry.delivery_adapter_id == adapter_id]
+        if len(matches) != 1:
+            return "Message adapter registration is missing or ambiguous."
+        entry = matches[0]
+        now = self.clock()
+        if entry.project_id != self.ledger.project_id:
+            return "Message adapter registration project does not match the control store."
+        if entry.status != "eligible":
+            return "Message adapter registration is not eligible."
+        if now < entry.effective_at or (entry.expires_at is not None and now >= entry.expires_at):
+            return "Message adapter registration is not currently effective."
+        if command.envelope["command_type"] not in entry.applicable_command_types:
+            return "Message adapter registration lacks the required capability."
+        if command.actor_id not in entry.allowed_actor_ids:
+            return "Message adapter registration does not bind the command actor."
+        return None
+
+    def _accepted_message_adapter_retry(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+    ) -> Receipt | None:
+        if command.envelope["command_type"] not in _MESSAGE_ADAPTER_COMMAND_TYPES:
+            return None
+        events = [event for event in snapshot.events if event.get("command_id") == command.command_id]
+        if not events:
+            return None
+        first = events[0]
+        same_submission = (
+            len(events) == 1
+            and first.get("command_type") == command.envelope["command_type"]
+            and first.get("stream_id") == command.target_stream_id
+            and first.get("command_payload_hash") == command.payload_hash
+            and first.get("idempotency_key") == command.idempotency_key
+            and first.get("actor_id") == command.actor_id
+            and first.get("authority_grant_id") == command.envelope["authority_grant_id"]
+            and first.get("stream_version") == command.expected_stream_version + 1
+        )
+        if not same_submission:
+            raise ConflictError("command ID conflicts with committed command")
+        return self._return_or_reconstruct(events)
+
+    def _prepare_message_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_project",
+                "Message command project must match the control-store project.",
+            )
+        message_id = payload.get("new_message_id") if command_type == "PublishMessage" else payload.get("message_id")
+        if message_id != command.target_stream_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_message_subject_identity",
+                "Message payload identity must equal the target stream.",
+            )
+        state = self._message_state(snapshot, command.target_stream_id)
+        if command_type == "PublishMessage":
+            if state is not None or observed_version != 0:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_already_published",
+                    "Message publication requires an absent stream.",
+                )
+            if payload.get("sender_actor_id") != command.actor_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_sender_mismatch",
+                    "Message sender must equal the authority-attributed actor.",
+                )
+            if payload.get("reply_to_message_id") == message_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_self_reference",
+                    "Message reply linkage cannot reference the new Message itself.",
+                )
+            if payload.get("message_type") == "acknowledgement" and (
+                payload.get("correlation_message_id") != payload.get("reply_to_message_id")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_correlation_mismatch",
+                    "Acknowledgement publication correlation must equal its reply link.",
+                )
+            return payload
+        if state is None:
+            return self._rejected(
+                command,
+                observed_version,
+                "message_not_published",
+                "Message transition requires a committed MessagePublished event.",
+            )
+        if command_type in _MESSAGE_ADAPTER_COMMAND_TYPES:
+            denial = self._message_adapter_denial(command)
+            if denial is not None:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_adapter_unauthorized",
+                    denial,
+                )
+        content_sha256 = self._message_content_sha256(state)
+        recipients = state.get("published_payload", {}).get("recipient_actor_ids")
+        if command_type == "RecordMessageDelivery":
+            if state.get("status") != "published":
+                return self._rejected(
+                    command, observed_version, "invalid_message_transition", "Message is not publishable for delivery."
+                )
+            if not payload.get("delivery_evidence_refs"):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_evidence_required",
+                    "Message delivery requires immutable delivery evidence.",
+                )
+            if payload.get("content_sha256") != content_sha256 or payload.get("recipient_actor_ids") != recipients:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_content_mismatch",
+                    "Delivery must bind the published Message payload and recipients.",
+                )
+        elif command_type == "AcknowledgeMessage":
+            if state.get("status") != "delivered":
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_message_transition",
+                    "Message acknowledgement requires delivery.",
+                )
+            if command.actor_id not in recipients:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_recipient_mismatch",
+                    "Only a published recipient may acknowledge a Message.",
+                )
+            if (
+                payload.get("content_sha256") != content_sha256
+                or payload.get("recipient_actor_ids") != recipients
+                or payload.get("source_position") != state.get("published_position")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_content_mismatch",
+                    "Acknowledgement must bind the publication payload, recipients, and source position.",
+                )
+        elif command_type == "RecordMessageDeliveryFailure":
+            if state.get("status") != "published":
+                return self._rejected(
+                    command, observed_version, "invalid_message_transition", "Message failure requires published state."
+                )
+            if not payload.get("failure_evidence_refs"):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "message_evidence_required",
+                    "Message delivery failure requires immutable failure evidence.",
+                )
+        else:
+            raise IntegrityError("unknown Message command")
+        return payload
 
     def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
         resolver = self.authority_resolver
@@ -1196,11 +1512,7 @@ class CommandService:
     ) -> Receipt:
         if command.command_id == receipt.command_id:
             return receipt
-        if self.receipts.load(command.command_id) is not None:
-            raise ConflictError("command ID conflicts with stored receipt")
-        if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
-            raise ConflictError("command ID conflicts with committed command")
-        return receipt
+        raise ConflictError("idempotency key conflicts with committed command")
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""
@@ -2283,6 +2595,18 @@ class CommandService:
                 raise IntegrityError("SupersedeTask requires prepared graph payload")
             event_type = "TaskSuperseded"
             payload = prepared_payload
+        elif command_type == "PublishMessage":
+            event_type = "MessagePublished"
+            payload = command.envelope["payload"]
+        elif command_type == "RecordMessageDelivery":
+            event_type = "MessageDelivered"
+            payload = command.envelope["payload"]
+        elif command_type == "AcknowledgeMessage":
+            event_type = "MessageAcknowledged"
+            payload = command.envelope["payload"]
+        elif command_type == "RecordMessageDeliveryFailure":
+            event_type = "MessageDeliveryFailed"
+            payload = command.envelope["payload"]
         elif command_type == "VerifyEvidenceDeletion":
             authorizer = self.deletion_manifest_authorizer
             if authorizer is None:

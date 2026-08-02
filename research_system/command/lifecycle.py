@@ -37,6 +37,26 @@ EXACT_LIFECYCLE_BINDINGS = {
         "SupersedeTask",
         "ars://core/command/SupersedeTask",
     ),
+    "ars://core/event/MessagePublished": (
+        "MessagePublished",
+        "PublishMessage",
+        "ars://core/command/PublishMessage",
+    ),
+    "ars://core/event/MessageDelivered": (
+        "MessageDelivered",
+        "RecordMessageDelivery",
+        "ars://core/command/RecordMessageDelivery",
+    ),
+    "ars://core/event/MessageAcknowledged": (
+        "MessageAcknowledged",
+        "AcknowledgeMessage",
+        "ars://core/command/AcknowledgeMessage",
+    ),
+    "ars://core/event/MessageDeliveryFailed": (
+        "MessageDeliveryFailed",
+        "RecordMessageDeliveryFailure",
+        "ars://core/command/RecordMessageDeliveryFailure",
+    ),
 }
 
 

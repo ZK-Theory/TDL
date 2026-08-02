@@ -16,7 +16,7 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
-from research_system.command.service import CommandService
+from research_system.command.service import CommandService, MessageAdapterRegistration
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
 from research_system.evals.harness import (
     build_release_decision,
@@ -181,6 +181,9 @@ def activate_lifecycle_grant(
     subject_kind: str,
     subject_id: str,
     actor_id: str = ACTORS["actor-a"],
+    command_types: tuple[str, ...] | None = None,
+    effective_at: str = "2026-01-01T00:00:00Z",
+    expires_at: str = "2030-01-01T00:00:00Z",
 ) -> str:
     """Activate a real scoped command grant through the authority ledger.
 
@@ -204,13 +207,21 @@ def activate_lifecycle_grant(
         existing = None
     if existing is not None:
         return grant_id
-    command_types = (
-        ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition")
-        if subject_kind == "scope_definition"
-        else ("CreateTask", "AmendTask", "SupersedeTask")
-    )
+    command_types_by_subject = {
+        "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
+        "task": ("CreateTask", "AmendTask", "SupersedeTask"),
+        "message": (
+            "PublishMessage",
+            "RecordMessageDelivery",
+            "AcknowledgeMessage",
+            "RecordMessageDeliveryFailure",
+        ),
+    }
+    resolved_command_types = command_types or command_types_by_subject.get(subject_kind)
+    if resolved_command_types is None:
+        raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
     command_identities = []
-    for command_type in command_types:
+    for command_type in resolved_command_types:
         binding = harness.schemas.command_binding(command_type)
         if binding is None:
             raise AssertionError(f"missing active binding for {command_type}")
@@ -242,8 +253,8 @@ def activate_lifecycle_grant(
         "allowed_policy_actions": [],
         "subject_scope": subject_scope,
         "risk_ceiling": "R3",
-        "effective_at": "2026-01-01T00:00:00Z",
-        "expires_at": "2030-01-01T00:00:00Z",
+        "effective_at": effective_at,
+        "expires_at": expires_at,
         "delegable": False,
         "revoked": False,
     }
@@ -420,6 +431,10 @@ class GovernedTestCommandService(CommandService):
                 "CreateTask",
                 "AmendTask",
                 "SupersedeTask",
+                "PublishMessage",
+                "RecordMessageDelivery",
+                "AcknowledgeMessage",
+                "RecordMessageDeliveryFailure",
             }
             and command.actor_id == ACTORS["actor-a"]
         ):
@@ -449,6 +464,7 @@ def control_plane(
     *,
     auto_authority: bool = True,
     clock: Callable[[], datetime] | None = None,
+    message_adapter_registry: tuple[MessageAdapterRegistration, ...] | None = None,
 ) -> ControlPlaneHarness:
     root = tmp_path / "control"
     root.mkdir()
@@ -480,6 +496,7 @@ def control_plane(
         schemas,
         authority_resolver=authority_resolver,
         clock=clock,
+        message_adapter_registry=message_adapter_registry,
     )
     ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas)
     objects = ObjectStore(root)
@@ -518,6 +535,7 @@ def control_plane(
                 authority_resolver=authority_resolver,
                 clock=clock,
                 authority_harness=harness,
+                message_adapter_registry=message_adapter_registry,
             ),
         )
     return harness
