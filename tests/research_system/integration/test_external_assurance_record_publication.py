@@ -34,6 +34,7 @@ from tests.research_system.integration.test_scoped_authority_grant_activation im
     ACTIVATE_COMMAND_ID,
     ACTIVATE_DECISION_ID,
     ACTOR_ID,
+    FOREIGN_PROJECT_ID,
     GRANT_ID,
     PROJECT_ID,
     REVOKE_COMMAND_ID,
@@ -1009,6 +1010,66 @@ def test_receipt_present_retry_with_absent_marker_classifies_mixed_residue_atomi
     assert not marker_path.exists()
     assert matching_temp.read_bytes() == marker_bytes
     assert foreign_temp.read_bytes() == foreign_bytes
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+@pytest.mark.parametrize("marker_state", ["present", "absent"])
+def test_receipt_present_retry_rejects_invalid_marker_temp_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+    marker_state: str,
+) -> None:
+    control_root, _, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        receipt = service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    if marker_state == "absent":
+        marker_path.unlink()
+    invalid_temp = marker_path.with_name(f".{marker_path.name}.invalid.tmp")
+    invalid_bytes = b'{"partial":'
+    invalid_temp.write_bytes(invalid_bytes)
+    before = _durable_files(control_root)
+
+    with pytest.raises(IntegrityError, match="temporary data is invalid"):
+        service.submit(command)
+
+    assert _durable_files(control_root) == before
+    assert invalid_temp.read_bytes() == invalid_bytes
+    assert marker_path.exists() is (marker_state == "present")
+    assert service.receipts.load(command["command_id"]) == receipt
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+@pytest.mark.parametrize("marker_state", ["present", "absent"])
+def test_receipt_present_retry_revalidates_envelope_project_with_or_without_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+    marker_state: str,
+) -> None:
+    control_root, _, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        receipt = service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    if marker_state == "absent":
+        marker_path.unlink()
+    foreign_project = deepcopy(command)
+    foreign_project["project_id"] = FOREIGN_PROJECT_ID
+    before = _durable_files(control_root)
+
+    with pytest.raises(ConflictError, match="recovery marker conflicts"):
+        service.submit(foreign_project)
+
+    assert _durable_files(control_root) == before
+    assert marker_path.exists() is (marker_state == "present")
+    assert service.receipts.load(command["command_id"]) == receipt
 
 
 @pytest.mark.integration

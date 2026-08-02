@@ -427,29 +427,25 @@ class CommandService:
 
     def _cleanup_scoped_activation_marker_residue(
         self,
-        residue: list[tuple[Path, dict[str, Any] | None]],
+        residue: list[tuple[Path, dict[str, Any]]],
     ) -> bool:
         changed = False
-        for temporary, existing in residue:
-            if existing is None:
-                self._quarantine_scoped_activation_marker_temp(temporary)
-            else:
-                temporary.unlink(missing_ok=True)
+        for temporary, _existing in residue:
+            temporary.unlink(missing_ok=True)
             changed = True
         return changed
 
     def _remove_scoped_activation_marker(self, command_id: str) -> None:
         path = self._scoped_activation_marker_path(command_id)
         final_marker = self._load_scoped_activation_marker(path) if path.exists() else None
-        residue: list[tuple[Path, dict[str, Any] | None]] = []
+        residue: list[tuple[Path, dict[str, Any]]] = []
         for temporary in self._scoped_activation_marker_temporary_paths(path):
             if not temporary.exists():
                 continue
             try:
                 existing = self._load_scoped_activation_marker(temporary)
-            except IntegrityError:
-                residue.append((temporary, None))
-                continue
+            except IntegrityError as exc:
+                raise IntegrityError("scoped activation recovery marker temporary data is invalid") from exc
             if final_marker is None or any(
                 existing[field] != final_marker[field] for field in _SCOPED_ACTIVATION_MARKER_BINDING_FIELDS
             ):
@@ -1113,18 +1109,19 @@ class CommandService:
         command: Command,
         command_schema: SchemaIdentity,
     ) -> None:
+        if command.envelope["project_id"] != self.ledger.project_id:
+            raise ConflictError("scoped activation recovery marker conflicts")
         marker_path = self._scoped_activation_marker_path(command.command_id)
         if not marker_path.exists():
-            residue: list[tuple[Path, dict[str, Any] | None]] = []
+            residue: list[tuple[Path, dict[str, Any]]] = []
             foreign_residue = False
             for temporary in self._scoped_activation_marker_temporary_paths(marker_path):
                 if not temporary.exists():
                     continue
                 try:
                     existing = self._load_scoped_activation_marker(temporary)
-                except IntegrityError:
-                    residue.append((temporary, None))
-                    continue
+                except IntegrityError as exc:
+                    raise IntegrityError("scoped activation recovery marker temporary data is invalid") from exc
                 try:
                     self._validate_scoped_activation_marker_command(existing, command, command_schema)
                 except ConflictError:
