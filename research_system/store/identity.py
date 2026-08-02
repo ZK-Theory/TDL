@@ -208,6 +208,76 @@ def origin_witness_path(
     return origin_authority_root.resolve(strict=False) / _ORIGIN_WITNESS_DIRECTORY / f"sha256-{slot}.json"
 
 
+def _require_physical_path(path: Path, *, require_exists: bool) -> Path:
+    """Resolve a path only after rejecting symlink/reparse components."""
+    candidate = Path(os.path.abspath(os.fspath(path)))
+    if not candidate.is_absolute() or not candidate.anchor:
+        raise IntegrityError("physical path must be absolute")
+    anchor = Path(candidate.anchor)
+    current = anchor
+    parts = candidate.relative_to(anchor).parts
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for index, part in enumerate(parts):
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError as exc:
+            if require_exists:
+                raise IntegrityError(f"physical path is unavailable: {current}") from exc
+            break
+        except OSError as exc:
+            raise IntegrityError(f"physical path identity is unavailable: {current}") from exc
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
+            raise IntegrityError(f"physical path has a reparse component: {current}")
+        if index < len(parts) - 1 and not stat.S_ISDIR(metadata.st_mode):
+            raise IntegrityError(f"physical path ancestor is not a directory: {current}")
+    try:
+        return candidate.resolve(strict=require_exists)
+    except (FileNotFoundError, OSError) as exc:
+        raise IntegrityError(f"physical path is unavailable: {candidate}") from exc
+
+
+def _validate_origin_witness_locator(
+    path: Path,
+    *,
+    expected_witness: StoreOriginWitness | None = None,
+    require_exists: bool,
+) -> Path:
+    """Validate the complete external witness locator without following escapes."""
+    resolved = _require_physical_path(path, require_exists=require_exists)
+    if resolved.parent.name != _ORIGIN_WITNESS_DIRECTORY:
+        raise IntegrityError("approved origin witness locator is not canonical")
+    if require_exists and not resolved.is_file():
+        raise IntegrityError("approved origin witness locator is not a regular file")
+    origin_root = _require_physical_path(resolved.parent.parent, require_exists=True)
+    if expected_witness is not None:
+        expected = origin_witness_path(
+            origin_root,
+            project_id=expected_witness.project_id,
+            initial_control_root=Path(expected_witness.initial_control_root),
+        ).resolve(strict=False)
+        if resolved != expected or resolved.name != expected_witness.path_name:
+            raise IntegrityError("approved origin witness locator differs from its canonical slot")
+    return resolved
+
+
+def _require_physical_disjoint(left: Path, right: Path, *, message: str) -> None:
+    """Reject equal, nested, or physically aliased directory roots."""
+    left_resolved = _require_physical_path(left, require_exists=True)
+    right_resolved = _require_physical_path(right, require_exists=True)
+    if (
+        left_resolved == right_resolved
+        or left_resolved in right_resolved.parents
+        or right_resolved in left_resolved.parents
+    ):
+        raise ConflictError(message)
+    try:
+        if os.path.samefile(left_resolved, right_resolved):
+            raise ConflictError(message)
+    except FileNotFoundError as exc:
+        raise ConflictError(message) from exc
+
+
 def _validate_origin_authority_root(
     origin_authority_root: Path,
     *,
@@ -215,11 +285,11 @@ def _validate_origin_authority_root(
     control_roots: list[Path],
 ) -> Path:
     try:
-        root = origin_authority_root.resolve(strict=True)
-    except (FileNotFoundError, OSError) as exc:
-        raise ArsError("origin authority root must be an existing directory") from exc
+        root = _require_physical_path(origin_authority_root, require_exists=True)
+    except (IntegrityError, OSError) as exc:
+        raise ArsError("origin authority root must be an existing directory and physical") from exc
     if not root.is_dir():
-        raise ArsError("origin authority root must be an existing directory")
+        raise ArsError("origin authority root must be an existing directory and physical")
     try:
         metadata = root.lstat()
     except OSError as exc:
@@ -273,10 +343,12 @@ def persist_store_origin_witness(
         project_id=witness.project_id,
         initial_control_root=Path(witness.initial_control_root),
     )
+    _validate_origin_witness_locator(path, expected_witness=witness, require_exists=False)
     data = witness.raw_bytes
     if expected_sha256 is not None and sha256_hex(data) != expected_sha256:
         raise IntegrityError("origin witness raw bytes differ from foundation pin")
     path.parent.mkdir(parents=True, exist_ok=True)
+    _validate_origin_witness_locator(path, expected_witness=witness, require_exists=False)
     try:
         descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
@@ -296,6 +368,7 @@ def persist_store_origin_witness(
 
 def load_store_origin_witness(path: Path, *, expected_sha256: str) -> StoreOriginWitness:
     """Load the foundation-pinned witness bytes; local store state is ignored."""
+    path = _validate_origin_witness_locator(path, require_exists=True)
     try:
         raw = path.read_bytes()
     except OSError as exc:
@@ -305,6 +378,20 @@ def load_store_origin_witness(path: Path, *, expected_sha256: str) -> StoreOrigi
     if path.name != expected_name or path.parent.name != _ORIGIN_WITNESS_DIRECTORY:
         raise IntegrityError("approved origin witness locator is not canonical")
     return witness
+
+
+def _validate_approved_origin_witness_path(
+    path: Path | None,
+    witness: StoreOriginWitness,
+) -> tuple[Path, Path]:
+    """Validate the owner/foundation-supplied witness path and its raw bytes."""
+    if path is None or not isinstance(path, Path) or not path.is_absolute():
+        raise IntegrityError("foundation-approved origin witness path is required")
+    resolved = _validate_origin_witness_locator(path, expected_witness=witness, require_exists=True)
+    loaded = load_store_origin_witness(resolved, expected_sha256=witness.raw_sha256)
+    if loaded.raw_bytes != witness.raw_bytes:
+        raise IntegrityError("foundation-approved origin witness bytes changed")
+    return resolved, resolved.parent.parent
 
 
 def _is_sha256(value: Any) -> bool:
@@ -664,6 +751,7 @@ def load_store_manifest(
     control_root: Path,
     *,
     approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> dict[str, Any]:
     if approved_witness is None:
         raise IntegrityError("approved origin witness is required")
@@ -672,7 +760,11 @@ def load_store_manifest(
     if manifest.get("control_root") != str(control):
         raise IntegrityError("store control-root binding mismatch")
     _validate_external_witness_for_store(control, manifest, approved_witness)
-    verify_restore_binding_admission(control, approved_witness=approved_witness)
+    verify_restore_binding_admission(
+        control,
+        approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
+    )
     return manifest
 
 
@@ -2008,9 +2100,23 @@ def _validate_record_inputs(
     _require_root_identity(target, record["target_root_identity"])
 
 
-def _validate_restore_join(target: Path, record: dict[str, Any]) -> dict[str, Any]:
+def _validate_restore_join(
+    target: Path,
+    record: dict[str, Any],
+    *,
+    approved_witness_path: Path | None = None,
+) -> dict[str, Any]:
     approval, _ = _read_restore_approval(target, str(record["approval_sha256"]))
     preflight = approval["restore_preflight"]
+    if approved_witness_path is not None:
+        expected_witness_path = str(approved_witness_path)
+        for field, value in {
+            "record": record.get("origin_witness_path"),
+            "preflight": preflight.get("origin_witness_path"),
+            "approval": approval.get("origin_witness_path"),
+        }.items():
+            if value != expected_witness_path:
+                raise IntegrityError(f"restore {field} origin witness path differs from foundation")
     approval_path = restore_binding_approval_object_path(target, str(record["approval_sha256"]))
     approval_relative = _relative_path(target, approval_path)
     source = Path(str(preflight["source_root"])).resolve(strict=False)
@@ -2146,6 +2252,8 @@ def _validate_restore_join(target: Path, record: dict[str, Any]) -> dict[str, An
         or evidence["source_root_identity"] != record["origin_initial_physical_root_identity"]
     ):
         raise IntegrityError("restore binding transaction/evidence/manifest/output join is invalid")
+    if approved_witness_path is not None and evidence["origin_witness_path"] != str(approved_witness_path):
+        raise IntegrityError("restore evidence origin witness path differs from foundation")
     return manifest
 
 
@@ -2180,7 +2288,6 @@ def rebind_restored_store(
     expected_restore_preflight: dict[str, Any] | None = None,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
-    origin_witness_path: str | None = None,
     source_snapshot_validator: Callable[[], None] | None = None,
     finalization_validator: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
@@ -2201,14 +2308,11 @@ def rebind_restored_store(
         raise ArsError("complete approved restore transaction inputs are required")
     if not isinstance(approved_witness, StoreOriginWitness):
         raise ArsError("approved origin witness is required")
-    witness_path_value = origin_witness_path
-    if approved_witness_path is not None:
-        resolved_witness_path = str(approved_witness_path.resolve(strict=False))
-        if witness_path_value is not None and witness_path_value != resolved_witness_path:
-            raise ConflictError("restore origin witness path differs from approved foundation")
-        witness_path_value = resolved_witness_path
-    if witness_path_value is None or not Path(witness_path_value).is_absolute():
-        raise ArsError("approved origin witness path is required")
+    resolved_witness_path, origin_root = _validate_approved_origin_witness_path(
+        approved_witness_path,
+        approved_witness,
+    )
+    witness_path_value = str(resolved_witness_path)
     if sha256_hex(approved_witness.raw_bytes) != approved_witness.raw_sha256:
         raise IntegrityError("approved origin witness bytes are invalid")
     code_paths = [root.resolve(strict=True) for root in expected_code_roots]
@@ -2216,9 +2320,23 @@ def rebind_restored_store(
     source = require_existing_control_root(code_paths, source_root)
     if source == target:
         raise ConflictError("restored store source must differ from target")
+    _require_physical_disjoint(
+        origin_root,
+        source,
+        message="origin authority root must be physically disjoint from the restore source",
+    )
+    _require_physical_disjoint(
+        origin_root,
+        target,
+        message="origin authority root must be physically disjoint from the restored target",
+    )
     schema = expected_schema_root.resolve(strict=True)
     code_values = sorted(str(root) for root in code_paths)
-    source_manifest = load_store_manifest(source, approved_witness=approved_witness)
+    source_manifest = load_store_manifest(
+        source,
+        approved_witness=approved_witness,
+        approved_witness_path=resolved_witness_path,
+    )
     if sha256_hex(canonical_bytes(source_manifest)) != approved_witness.initial_manifest_sha256:
         raise IntegrityError("restore source manifest differs from approved origin witness")
     output_bytes = expected_output or canonical_restore_binding_output(
@@ -2426,11 +2544,11 @@ def rebind_restored_store(
             source_snapshot_validator()
         if record["state"] == "cleared":
             _require_cleared_without_temporaries(target, record)
-            _validate_restore_join(target, record)
+            _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
             if finalization_validator is not None:
                 finalization_validator()
             validate_physical_roots(record)
-            return _validate_restore_join(target, record)
+            return _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
         _cleanup_current_transaction_temporary(target, record, record_raw)
 
     if record_raw is None:
@@ -2496,7 +2614,7 @@ def rebind_restored_store(
                 state="prepared",
                 durability_step="evidence-durable",
             )
-        _validate_restore_join(target, record)
+        _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
         record, record_raw = _transition_transaction(
             target,
             record,
@@ -2509,7 +2627,7 @@ def rebind_restored_store(
         validate_physical_roots(record)
         if source_snapshot_validator is not None:
             source_snapshot_validator()
-        _validate_restore_join(target, record)
+        _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
         if finalization_validator is not None:
             finalization_validator()
         record, record_raw = _transition_transaction(
@@ -2522,7 +2640,7 @@ def rebind_restored_store(
 
     if record["state"] == "final_validated":
         validate_physical_roots(record)
-        _validate_restore_join(target, record)
+        _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
         record, record_raw = _transition_transaction(
             target,
             record,
@@ -2533,7 +2651,7 @@ def rebind_restored_store(
 
     if record["state"] == "committed":
         validate_physical_roots(record)
-        _validate_restore_join(target, record)
+        _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
         record, record_raw = _transition_transaction(
             target,
             record,
@@ -2543,7 +2661,7 @@ def rebind_restored_store(
         )
         validate_physical_roots(record)
         _require_cleared_without_temporaries(target, record)
-        return _validate_restore_join(target, record)
+        return _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
     raise IntegrityError(f"unsupported restore binding transaction state: {record['state']}")
 
 
@@ -2551,6 +2669,7 @@ def verify_restore_binding_admission(
     control_root: Path,
     *,
     approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> dict[str, Any] | None:
     """Read-only admission for never-restored or durably cleared stores."""
     if not isinstance(approved_witness, StoreOriginWitness):
@@ -2558,6 +2677,18 @@ def verify_restore_binding_admission(
     target = control_root.resolve(strict=True)
     _assert_no_second_restore_authority(target)
     record, _ = _read_restore_binding_transaction(target)
+    resolved_witness_path: Path | None = None
+    origin_root: Path | None = None
+    if record is not None or approved_witness_path is not None:
+        resolved_witness_path, origin_root = _validate_approved_origin_witness_path(
+            approved_witness_path,
+            approved_witness,
+        )
+        _require_physical_disjoint(
+            origin_root,
+            target,
+            message="origin authority root must be physically disjoint from the restored target",
+        )
     evidence_raw = _file_bytes(_restore_binding_evidence_path(target))
     output_directory = target / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY
     restore_directory_exists = output_directory.exists()
@@ -2592,9 +2723,17 @@ def verify_restore_binding_admission(
         raise IntegrityError("cleared restore binding source lineage differs from approved witness")
     if record.get("source_root_identity") != approved_witness.initial_physical_root_identity:
         raise IntegrityError("cleared restore binding source identity differs from approved witness")
+    source = Path(str(record["source_root"]))
+    if origin_root is None or resolved_witness_path is None:
+        raise IntegrityError("foundation-approved origin witness path is required")
+    _require_physical_disjoint(
+        origin_root,
+        source,
+        message="origin authority root must be physically disjoint from the restore source",
+    )
     _require_cleared_without_temporaries(target, record)
     _require_root_identity(target, record["target_root_identity"])
-    _validate_restore_join(target, record)
+    _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
     return record
 
 
@@ -2605,8 +2744,13 @@ def verify_store_identity(
     expected_code_roots: list[Path] | None = None,
     *,
     approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> str:
-    manifest = load_store_manifest(control_root, approved_witness=approved_witness)
+    manifest = load_store_manifest(
+        control_root,
+        approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
+    )
     if manifest["project_id"] != expected_project_id:
         raise ArsError("store project identity mismatch")
     if manifest["store_identity"] != expected_store_identity:

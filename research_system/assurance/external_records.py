@@ -548,10 +548,15 @@ class ExternalAssuranceRecordStore:
                 binding.store_identity,
                 code_roots,
                 approved_witness=binding.origin_witness,
+                approved_witness_path=binding.origin_witness_path,
             )
             require_control_root_disjoint_from_code_roots(code_roots, control_root)
             manifest_schema = manifest_schema_root(
-                load_store_manifest(control_root, approved_witness=binding.origin_witness)
+                load_store_manifest(
+                    control_root,
+                    approved_witness=binding.origin_witness,
+                    approved_witness_path=binding.origin_witness_path,
+                )
             )
             if manifest_schema is not None and manifest_schema.resolve(strict=True) != binding.schema_root.resolve(
                 strict=True
@@ -855,6 +860,7 @@ class ExternalAssuranceRecordStore:
                 self.binding.store_identity,
                 self._authority_schemas,
                 approved_witness=self.binding.origin_witness,
+                approved_witness_path=self.binding.origin_witness_path,
             )
         action = self._publication_action_payload(context)
         self._authority_schemas.validate_active(

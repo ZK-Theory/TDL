@@ -13,6 +13,8 @@ from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.store.identity import (
     StoreOriginWitness,
+    _require_physical_disjoint,
+    _validate_approved_origin_witness_path,
     canonical_restore_binding_output,
     load_store_manifest_unbound,
     manifest_schema_root,
@@ -157,10 +159,25 @@ def verify_restore_before_writer_lease(
     """Independently inspect a moved store and derive a pre-writer result."""
     target = target_root.resolve(strict=False)
     failed: list[str] = []
+    validated_witness_path: Path | None = None
+    origin_root: Path | None = None
     if approved_witness is None:
         failed.append("origin_witness_required")
     if approved_witness_path is None or not approved_witness_path.is_absolute():
         failed.append("origin_witness_path_required")
+    elif approved_witness is not None:
+        try:
+            validated_witness_path, origin_root = _validate_approved_origin_witness_path(
+                approved_witness_path,
+                approved_witness,
+            )
+            _require_physical_disjoint(
+                origin_root,
+                target,
+                message="origin authority root must be physically disjoint from the restored target",
+            )
+        except (ArsError, OSError):
+            failed.append("origin_witness_path_invalid")
     if receipt.receipt_hash != _hash_without(receipt, "receipt_hash"):
         failed.append("receipt_hash_mismatch")
 
@@ -217,11 +234,18 @@ def verify_restore_before_writer_lease(
         except Exception:
             failed.append("store_identity_manifest_invalid")
 
-    if approved_witness is not None and approved_witness_path is not None:
-        if str(approved_witness_path.resolve(strict=False)) == "":
-            failed.append("origin_witness_path_required")
+    if approved_witness is not None and validated_witness_path is not None:
         if source_root is not None and source_root != Path(approved_witness.initial_control_root):
             failed.append("origin_witness_source_mismatch")
+        if origin_root is not None:
+            try:
+                _require_physical_disjoint(
+                    origin_root,
+                    source_root or target,
+                    message="origin authority root must be physically disjoint from the restore source",
+                )
+            except (ArsError, OSError):
+                failed.append("origin_witness_source_overlap")
 
     if code_roots and schema_root:
         try:
@@ -248,6 +272,7 @@ def verify_restore_before_writer_lease(
             receipt.store_identity,
             schemas,
             approved_witness=approved_witness,
+            approved_witness_path=validated_witness_path,
             restore_source_alias=True,
         )
         replay_state = replay(
@@ -383,9 +408,7 @@ def verify_restore_before_writer_lease(
         source_snapshot_hash=source_snapshot_hash,
         target_manifest_bytes_sha256=target_manifest_bytes_sha256,
         expected_output_sha256=expected_output_sha256,
-        origin_witness_path=(
-            str(approved_witness_path.resolve(strict=False)) if approved_witness_path is not None else ""
-        ),
+        origin_witness_path=(str(validated_witness_path) if validated_witness_path is not None else ""),
         origin_witness_sha256=approved_witness.raw_sha256 if approved_witness is not None else "",
         origin_initial_control_root=(approved_witness.initial_control_root if approved_witness is not None else ""),
         origin_initial_physical_root_identity=(

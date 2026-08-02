@@ -266,7 +266,6 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         expected_restore_preflight=preflight_value,
         approved_witness=approved.origin_witness,
         approved_witness_path=approved.origin_witness_path,
-        origin_witness_path=str(approved.origin_witness_path),
     )
     _publish_exact_file(args.config_output, expected_output)
     _print_json(
@@ -303,6 +302,7 @@ def _command_submit(args: argparse.Namespace) -> int:
             binding.store_identity,
             schemas,
             approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
         ),
         clock=_authority_clock,
     )
@@ -358,7 +358,11 @@ def _verified_ledger(
     LedgerAuthorityGrantResolver,
 ]:
     approved = ApprovedProjectBinding.load(canonical_foundation_path())
-    manifest = load_store_manifest(control_root, approved_witness=approved.origin_witness)
+    manifest = load_store_manifest(
+        control_root,
+        approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
+    )
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
     return (
@@ -370,6 +374,7 @@ def _verified_ledger(
             manifest["store_identity"],
             schemas,
             approved_witness=approved.origin_witness,
+            approved_witness_path=approved.origin_witness_path,
         ),
     )
 
@@ -392,7 +397,11 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     if output == control_root or control_root in output.parents:
         raise ArsError("projection output must be external to canonical control root")
     approved = ApprovedProjectBinding.load(canonical_foundation_path())
-    manifest = load_store_manifest(control_root, approved_witness=approved.origin_witness)
+    manifest = load_store_manifest(
+        control_root,
+        approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
+    )
     projection_roots = [Path(root) / ".research-system" / "projections" for root in manifest["code_roots"]]
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError("projection output must use an ARS namespaced projection root")
@@ -404,6 +413,7 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
         manifest["store_identity"],
         schemas,
         approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
     )
     state = rebuild_projection(
         ledger.iter_events(),
@@ -560,6 +570,7 @@ def _publication_evidence(
         binding.store_identity,
         schemas,
         approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
     )
     existing_projection = replay(
         EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
@@ -682,6 +693,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             binding.store_identity,
             schemas,
             approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
         )
         resolution = authority.grant_identity(args.authority_grant_id)
         idempotency_key = f"release-publication:{source['release_gate_decision_id']}"
@@ -761,6 +773,7 @@ def _eval_release(args: argparse.Namespace) -> int:
         binding.store_identity,
         schema_registry,
         approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
     )
     projection = replay(
         ledger.iter_events(),

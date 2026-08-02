@@ -184,6 +184,7 @@ def _real_lifecycle_service(
         identity,
         schemas,
         approved_witness=identity.witness,
+        approved_witness_path=identity.witness_path,
     )
     authority_service = CommandService(
         authority_root,

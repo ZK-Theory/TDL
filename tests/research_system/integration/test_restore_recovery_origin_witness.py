@@ -8,7 +8,7 @@ import pytest
 
 from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import IntegrityError
+from research_system.errors import ConflictError, IntegrityError
 from research_system.operations.backups import RestorePreflightResult, seal_restore_preflight_result
 from research_system.store.identity import (
     canonical_restore_binding_output,
@@ -105,7 +105,6 @@ def _restored_fixture(tmp_path: Path):
         expected_restore_preflight=asdict(preflight),
         approved_witness=witness,
         approved_witness_path=initialized.witness_path,
-        origin_witness_path=str(initialized.witness_path.resolve()),
     )
     return initialized, witness, target_root, rebound
 
@@ -114,11 +113,19 @@ def test_cleared_restore_requires_witness_join_and_transaction_presence(tmp_path
     initialized, witness, target_root, rebound = _restored_fixture(tmp_path)
 
     assert rebound["origin_witness_sha256"] == witness.raw_sha256
-    assert load_store_manifest(target_root, approved_witness=witness)["control_root"] == str(target_root.resolve())
+    assert load_store_manifest(
+        target_root,
+        approved_witness=witness,
+        approved_witness_path=initialized.witness_path,
+    )["control_root"] == str(target_root.resolve())
 
     restore_binding_transaction_path(target_root).unlink()
     with pytest.raises(IntegrityError):
-        load_store_manifest(target_root, approved_witness=witness)
+        load_store_manifest(
+            target_root,
+            approved_witness=witness,
+            approved_witness_path=initialized.witness_path,
+        )
     assert initialized.witness_path.is_file()
 
 
@@ -127,11 +134,75 @@ def test_third_root_copy_and_changed_external_witness_fail_closed(tmp_path: Path
     third_root = tmp_path / "third-root"
     shutil.copytree(target_root, third_root)
     with pytest.raises(IntegrityError):
-        load_store_manifest(third_root, approved_witness=witness)
+        load_store_manifest(
+            third_root,
+            approved_witness=witness,
+            approved_witness_path=initialized.witness_path,
+        )
 
     initialized.witness_path.write_bytes(b"changed witness")
     with pytest.raises(IntegrityError):
         load_store_origin_witness(
             initialized.witness_path,
             expected_sha256=witness.raw_sha256,
+        )
+
+
+def test_rebind_requires_the_foundation_pinned_witness_path(tmp_path: Path):
+    initialized, witness, target_root, _ = _restored_fixture(tmp_path)
+
+    with pytest.raises(IntegrityError, match="foundation-approved origin witness path"):
+        rebind_restored_store(
+            target_root,
+            tmp_path / "source",
+            expected_project_id=PROJECT_ID,
+            expected_store_identity="wrong",
+            expected_code_roots=[tmp_path / "repo"],
+            expected_schema_root=tmp_path / "repo" / ".research-system" / "schemas",
+            expected_restore_receipt_hash="a" * 64,
+            actor_id=ACTOR_ID,
+            authority_grant_id=AUTHORITY_GRANT_ID,
+            source_snapshot={},
+            expected_source_snapshot_hash="b" * 64,
+            expected_restore_preflight={},
+            approved_witness=witness,
+        )
+
+
+@pytest.mark.parametrize("relation", ["equal", "inside", "containing"])
+def test_restore_target_must_be_physically_disjoint_from_origin_root(tmp_path: Path, relation: str):
+    initialized, witness, target_root, _ = _restored_fixture(tmp_path)
+    source_root = tmp_path / "source"
+    origin_root = initialized.witness_path.parent.parent
+    if relation == "equal":
+        overlap = origin_root
+        shutil.copytree(source_root, overlap, dirs_exist_ok=True)
+        code_roots = [tmp_path / "repo"]
+    elif relation == "inside":
+        overlap = origin_root / "restored-target"
+        shutil.copytree(source_root, overlap)
+        code_roots = [tmp_path / "repo"]
+    else:
+        overlap = tmp_path
+        shutil.copytree(source_root, overlap, dirs_exist_ok=True)
+        external_code_root = tmp_path.parent / f"external-code-{relation}"
+        external_code_root.mkdir()
+        code_roots = [external_code_root]
+
+    with pytest.raises(ConflictError, match="physically disjoint"):
+        rebind_restored_store(
+            overlap,
+            source_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(initialized),
+            expected_code_roots=code_roots,
+            expected_schema_root=tmp_path / "repo" / ".research-system" / "schemas",
+            expected_restore_receipt_hash="a" * 64,
+            actor_id=ACTOR_ID,
+            authority_grant_id=AUTHORITY_GRANT_ID,
+            source_snapshot={},
+            expected_source_snapshot_hash=sha256_hex(canonical_bytes({})),
+            expected_restore_preflight={},
+            approved_witness=witness,
+            approved_witness_path=initialized.witness_path,
         )

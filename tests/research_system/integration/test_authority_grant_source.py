@@ -31,7 +31,6 @@ from research_system.errors import (
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
-from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -95,6 +94,7 @@ def _resolver(
         expected_store_identity,
         SCHEMAS,
         approved_witness=getattr(expected_store_identity, "witness", None),
+        approved_witness_path=getattr(expected_store_identity, "witness_path", None),
     )
 
 
@@ -1304,7 +1304,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
         restarted.submit(changed_version)
 
 
-def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_path, monkeypatch, capsys) -> None:
+def test_cli_store_init_requires_materialized_canonical_origin_pins(tmp_path, monkeypatch) -> None:
     code_root = tmp_path / "repo"
     shutil.copytree(
         REPO_ROOT / ".research-system" / "schemas",
@@ -1329,7 +1329,7 @@ def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_
         )(),
     )
     control_root = tmp_path / "control"
-    assert (
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
                 "store",
@@ -1344,14 +1344,10 @@ def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_
                 str(bootstrap_path),
             ]
         )
-        == 0
-    )
-    output = __import__("json").loads(capsys.readouterr().out)
-    assert output["bootstrap_manifest_sha256"] == authority_bootstrap_sha256(bootstrap)
-    assert output["store_identity"]
+    assert not control_root.exists()
 
 
-def test_cli_store_init_binds_explicit_schema_authority_across_worktrees(tmp_path, monkeypatch, capsys) -> None:
+def test_cli_store_init_schema_authority_stops_before_unmaterialized_origin_pins(tmp_path, monkeypatch) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
     for root in (explicit_root, linked_root):
@@ -1399,39 +1395,9 @@ def test_cli_store_init_binds_explicit_schema_authority_across_worktrees(tmp_pat
         str(bootstrap_path),
     ]
 
-    assert main(init_args) == 0
-    first_identity = json.loads(capsys.readouterr().out)["store_identity"]
-    manifest = load_store_manifest(control_root)
-    assert manifest["schema_root"] == str((explicit_root / ".research-system" / "schemas").resolve())
-    assert manifest["code_roots"] == sorted([str(explicit_root.resolve()), str(linked_root.resolve())])
-    stable = {
-        "schema_id": manifest["schema_id"],
-        "schema_version": manifest["schema_version"],
-        "store_nonce": manifest["store_nonce"],
-        "project_id": manifest["project_id"],
-        "bootstrap_manifest_sha256": manifest["bootstrap_manifest_sha256"],
-    }
-    assert first_identity == sha256_hex(canonical_bytes(stable))
-
-    assert main(init_args) == 0
-    assert json.loads(capsys.readouterr().out)["store_identity"] == first_identity
-    assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
-    capsys.readouterr()
-    projection = explicit_root / ".research-system" / "projections" / "state.json"
-    assert (
-        main(
-            [
-                "projection",
-                "rebuild",
-                "--control-root",
-                str(control_root),
-                "--output",
-                str(projection),
-            ]
-        )
-        == 0
-    )
-    assert json.loads(projection.read_text(encoding="utf-8"))["last_position"] == 2
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
+        main(init_args)
+    assert not control_root.exists()
 
 
 @pytest.mark.parametrize(
@@ -1840,6 +1806,11 @@ def test_hard_exit_boundaries_recover_only_one_complete_store(tmp_path, failpoin
         datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert resolved.authority_grant_sha256 == bootstrap["publication_grant_sha256"]
+    root_stat = control_root.stat()
+    assert identity.witness.initial_physical_root_identity == {
+        "device": str(root_stat.st_dev),
+        "inode": str(root_stat.st_ino),
+    }
 
 
 def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:

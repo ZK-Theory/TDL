@@ -7,11 +7,12 @@ from typing import Any
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConfigurationError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.ids import validate_id
 from research_system.store.identity import (
     StoreOriginWitness,
     _validate_origin_authority_root,
+    _validate_origin_witness_locator,
     load_store_manifest,
     load_store_origin_witness,
     manifest_schema_root,
@@ -147,9 +148,16 @@ class ApprovedProjectBinding:
         if not origin_authority_root.is_absolute() or not origin_witness_path_value.is_absolute():
             raise ConfigurationError("approved origin authority paths must be absolute")
         try:
-            resolved_origin_authority_root = origin_authority_root.resolve(strict=True)
-            resolved_witness_path = origin_witness_path_value.resolve(strict=True)
-        except (FileNotFoundError, OSError) as exc:
+            resolved_origin_authority_root = _validate_origin_authority_root(
+                origin_authority_root,
+                code_roots=list(resolved_code_roots),
+                control_roots=[resolved_control_root],
+            )
+            resolved_witness_path = _validate_origin_witness_locator(
+                origin_witness_path_value,
+                require_exists=True,
+            )
+        except (ArsError, IntegrityError, FileNotFoundError, OSError) as exc:
             raise ConfigurationError("approved origin authority path is unavailable") from exc
         if not resolved_origin_authority_root.is_dir():
             raise ConfigurationError("approved origin_authority_root must be an existing directory")
@@ -183,8 +191,16 @@ class ApprovedProjectBinding:
             raise ConfigurationError("approved origin witness differs from foundation identity")
         try:
             require_existing_control_root(list(resolved_code_roots), resolved_control_root)
-            manifest = load_store_manifest(resolved_control_root, approved_witness=origin_witness)
-            verify_restore_binding_admission(resolved_control_root, approved_witness=origin_witness)
+            manifest = load_store_manifest(
+                resolved_control_root,
+                approved_witness=origin_witness,
+                approved_witness_path=resolved_witness_path,
+            )
+            verify_restore_binding_admission(
+                resolved_control_root,
+                approved_witness=origin_witness,
+                approved_witness_path=resolved_witness_path,
+            )
         except (ArsError, OSError, ValueError) as exc:
             raise ConfigurationError("approved control_root has no matching materialized store") from exc
         if manifest.get("project_id") != project_id or manifest.get("store_identity") != store_identity:
@@ -284,8 +300,13 @@ class ControlBinding:
             str(value["store_identity"]),
             list(resolved_code_roots),
             approved_witness=approved.origin_witness,
+            approved_witness_path=approved.origin_witness_path,
         )
-        verify_restore_binding_admission(control_root, approved_witness=approved.origin_witness)
+        verify_restore_binding_admission(
+            control_root,
+            approved_witness=approved.origin_witness,
+            approved_witness_path=approved.origin_witness_path,
+        )
         try:
             resolved_schema_root = schema_root.resolve(strict=True)
         except FileNotFoundError as exc:
@@ -293,7 +314,11 @@ class ControlBinding:
         if not resolved_schema_root.is_dir():
             raise ConfigurationError("schema_root must be an existing directory")
         persisted_schema_root = manifest_schema_root(
-            load_store_manifest(control_root, approved_witness=approved.origin_witness)
+            load_store_manifest(
+                control_root,
+                approved_witness=approved.origin_witness,
+                approved_witness_path=approved.origin_witness_path,
+            )
         )
         if persisted_schema_root is not None:
             try:

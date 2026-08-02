@@ -475,6 +475,7 @@ def control_plane(
         authority_identity,
         schemas,
         approved_witness=authority_identity.witness,
+        approved_witness_path=authority_identity.witness_path,
     )
     authority_service = CommandService(
         authority_root,

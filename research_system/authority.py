@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ from research_system.store.identity import (
     SCHEMA_BINDING_VERSION,
     InitializedStore,
     StoreOriginWitness,
+    _physical_root_identity,
     _validate_origin_authority_root,
     build_store_origin_witness,
     load_store_origin_witness,
@@ -1138,6 +1140,7 @@ def _verify_complete_store(
     require_schema_binding: bool = False,
     require_genesis_only: bool = False,
     approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> str:
     from research_system.projection.replay import replay
 
@@ -1186,6 +1189,7 @@ def _verify_complete_store(
         str(manifest["store_identity"]),
         schemas,
         approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
     )
     state = replay(
         events,
@@ -1194,6 +1198,61 @@ def _verify_complete_store(
     )
     _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
+
+
+def _matching_reserved_stage(
+    final_root: Path,
+    witness: StoreOriginWitness | None,
+) -> Path | None:
+    """Find the incomplete stage whose physical root is already witness-pinned."""
+    if witness is None:
+        return None
+    prefix = f".{final_root.name}.authority-stage-"
+    matches: list[Path] = []
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for stage in sorted(final_root.parent.glob(f"{prefix}*")):
+        try:
+            metadata = stage.lstat()
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & reparse_attribute
+            ):
+                continue
+            if _physical_root_identity(stage) != witness.initial_physical_root_identity:
+                continue
+            manifest = _load_bound_manifest(stage, final_root)
+        except (ArsError, OSError, ValueError):
+            continue
+        if manifest != witness.initial_manifest:
+            raise ConflictError("reserved origin witness stage manifest differs from its authority")
+        matches.append(stage)
+    if len(matches) > 1:
+        raise ConflictError("multiple authority stages match the reserved origin witness")
+    return matches[0] if matches else None
+
+
+def _reset_reserved_stage(stage: Path) -> None:
+    """Clear only a witness-proven stage while preserving its physical root."""
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for child in stage.iterdir():
+        metadata = child.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
+            raise ConflictError("reserved authority stage contains a reparse child")
+        if stat.S_ISDIR(metadata.st_mode):
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    for name in (
+        "objects",
+        "events",
+        "manifests",
+        "receipts",
+        "snapshots",
+        "runtime",
+    ):
+        (stage / name).mkdir()
+    _fsync_directory(stage)
 
 
 def _matching_complete_stage(
@@ -1206,6 +1265,8 @@ def _matching_complete_stage(
     schema_root: Path | None,
     *,
     require_schema_binding: bool,
+    approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> tuple[Path, str] | None:
     prefix = f".{final_root.name}.authority-stage-"
     for stage in sorted(final_root.parent.glob(f"{prefix}*")):
@@ -1227,6 +1288,8 @@ def _matching_complete_stage(
                 schema_root,
                 require_schema_binding=require_schema_binding,
                 require_genesis_only=True,
+                approved_witness=approved_witness,
+                approved_witness_path=approved_witness_path,
             )
         except (ArsError, OSError, ValueError):
             continue
@@ -1367,6 +1430,7 @@ def initialize_authority_control_store(
             selected_schema_root,
             require_schema_binding=require_schema_binding,
             approved_witness=witness,
+            approved_witness_path=witness_path,
         )
         manifest = _load_bound_manifest(final_root, final_root)
         return InitializedStore(identity, manifest, witness, witness_path)
@@ -1379,21 +1443,30 @@ def initialize_authority_control_store(
         bootstrap_schemas,
         selected_schema_root,
         require_schema_binding=require_schema_binding,
+        approved_witness=reserved_witness,
+        approved_witness_path=witness_path,
     )
+    reserved_stage = _matching_reserved_stage(final_root, reserved_witness)
     if resumed is None:
         if selected_schema_root is None:
             raise ArsError("new authority store requires a registered schema root")
-        stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
-        stage.mkdir()
-        for name in (
-            "objects",
-            "events",
-            "manifests",
-            "receipts",
-            "snapshots",
-            "runtime",
-        ):
-            (stage / name).mkdir()
+        if reserved_stage is None:
+            stage = final_root.with_name(
+                f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}"
+            )
+            stage.mkdir()
+            for name in (
+                "objects",
+                "events",
+                "manifests",
+                "receipts",
+                "snapshots",
+                "runtime",
+            ):
+                (stage / name).mkdir()
+        else:
+            stage = reserved_stage
+            _reset_reserved_stage(stage)
         _write_stage_marker(stage, bootstrap_hash, "building")
         _bootstrap_failpoint("after-stage-marker")
         identity = _write_identity(
@@ -1521,11 +1594,12 @@ def initialize_authority_control_store(
             require_schema_binding=require_schema_binding,
             require_genesis_only=True,
             approved_witness=witness,
+            approved_witness_path=witness_path,
         )
     else:
         stage, identity = resumed
         staged_manifest = _load_bound_manifest(stage, final_root)
-        witness = build_store_origin_witness(
+        witness = reserved_witness or build_store_origin_witness(
             staged_manifest,
             initial_control_root=final_root,
             physical_root=stage,
@@ -1554,6 +1628,7 @@ def initialize_authority_control_store(
                 selected_schema_root,
                 require_schema_binding=require_schema_binding,
                 approved_witness=witness,
+                approved_witness_path=witness_path,
             )
         except (ArsError, OSError) as verify_error:
             raise ConflictError("competing authority initializer published a foreign store") from verify_error
@@ -1592,12 +1667,14 @@ class LedgerAuthorityGrantResolver:
         schema_registry: SchemaRegistry,
         *,
         approved_witness: StoreOriginWitness | None = None,
+        approved_witness_path: Path | None = None,
         restore_source_alias: bool = False,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
         self.expected_store_identity = expected_store_identity
         self.approved_witness = approved_witness
+        self.approved_witness_path = approved_witness_path
         self.restore_source_alias = restore_source_alias
         if not isinstance(schema_registry, SchemaRegistry):
             raise TypeError("authority resolver requires a trusted SchemaRegistry")
@@ -1623,8 +1700,13 @@ class LedgerAuthorityGrantResolver:
                     self.project_id,
                     self.expected_store_identity,
                     approved_witness=self.approved_witness,
+                    approved_witness_path=self.approved_witness_path,
                 )
-                manifest = load_store_manifest(self.control_root, approved_witness=self.approved_witness)
+                manifest = load_store_manifest(
+                    self.control_root,
+                    approved_witness=self.approved_witness,
+                    approved_witness_path=self.approved_witness_path,
+                )
         except (OSError, IntegrityError) as exc:
             raise ArsError("authority_bootstrap_required") from exc
         if manifest.get("schema_version") != "1.1.0":
@@ -1674,7 +1756,11 @@ class LedgerAuthorityGrantResolver:
 
             manifest = load_store_manifest_unbound(self.control_root)
         else:
-            manifest = load_store_manifest(self.control_root, approved_witness=self.approved_witness)
+            manifest = load_store_manifest(
+                self.control_root,
+                approved_witness=self.approved_witness,
+                approved_witness_path=self.approved_witness_path,
+            )
         bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
         try:
             bootstrap_bytes = bootstrap_path.read_bytes()
