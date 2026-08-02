@@ -1,4 +1,5 @@
 schema_version: '1.0.0'
+allow_field_scoped_prefix_aliases: true
 kinds:
   project: prj
   scope_definition: obj
@@ -29,3 +30,15 @@ kinds:
   assurance_pack: asp
   assurance_record: arec
   relationship_record: rel
+  canonical_actor: act
+  producer_relationship_evidence: rel
+  contract_schema_authorship: cau
+  independent_contract_review: crv
+  independent_schema_review: srv
+  stephen_contract_schema_acceptance: csa
+  accepted_assurance_requirement: ard
+  obligation_applicability_confirmation: apc
+  independent_pack_review: arv
+  stephen_owner_acceptance: apr
+  active_authority_grant: agr
+  registered_pack_object: asp

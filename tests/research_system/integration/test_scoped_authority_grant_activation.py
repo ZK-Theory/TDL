@@ -900,7 +900,7 @@ def test_create_before_failed_append_remains_inert_and_exact_retry_recovers(
     tmp_path,
     monkeypatch,
 ) -> None:
-    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
     grant = _scoped_grant(schemas)
     decision = _decision(
         resolver,
@@ -910,7 +910,16 @@ def test_create_before_failed_append_remains_inert_and_exact_retry_recovers(
         action="activate_authority_grant",
     )
     objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    changed_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id="arec_01978abc-6260-7000-8000-000000006260",
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", changed_decision["record_id"], 1, changed_decision)
     command = _activation_command(resolver, schemas, grant, decision)
+    before_events = ledger.snapshot().events
     real_append = ledger.append
 
     monkeypatch.setattr(
@@ -920,12 +929,33 @@ def test_create_before_failed_append_remains_inert_and_exact_retry_recovers(
     )
     with pytest.raises(RuntimeError, match="synthetic append stop"):
         service.submit(command)
-    assert objects.read("authority_grant", GRANT_ID, 1) == grant
+    assert objects.latest_revision("authority_grant", GRANT_ID) is None
+    assert not list((control_root / "objects" / "authority_grant" / GRANT_ID).glob("00000001-*.json"))
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    assert len(list(marker_root.glob("*.json"))) == 1
     with pytest.raises(ArsError, match="not activated"):
         resolver.scoped_grant_identity(GRANT_ID)
 
+    restarted_ledger = EventLedger(control_root, PROJECT_ID, schemas)
+    restarted_service = CommandService(
+        control_root,
+        restarted_ledger,
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=resolver,
+        clock=lambda: NOW,
+    )
+    changed_command = _activation_command(resolver, schemas, grant, changed_decision)
+    with pytest.raises(ConflictError, match="recovery marker conflicts"):
+        restarted_service.submit(changed_command)
+    assert restarted_ledger.snapshot().events == before_events
+    assert objects.latest_revision("authority_grant", GRANT_ID) is None
+    assert len(list(marker_root.glob("*.json"))) == 1
+
     monkeypatch.setattr(ledger, "append", real_append)
-    assert service.submit(command).status == "accepted"
+    assert restarted_service.submit(command).status == "accepted"
+    assert not list(marker_root.glob("*.json"))
 
 
 def test_authority_event_producer_cannot_downgrade_to_legacy_schema(

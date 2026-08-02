@@ -11,59 +11,48 @@ import yaml
 
 from research_system.errors import ConfigurationError
 
-_PREFIX = re.compile(r'^[a-z][a-z0-9]{2,3}$')
-_REGISTRY_PATH = (
-    Path(__file__).resolve().parent.parent
-    / '.research-system'
-    / 'config'
-    / 'id-kind-registry.yaml'
-)
+_PREFIX = re.compile(r"^[a-z][a-z0-9]{2,3}$")
+_REGISTRY_PATH = Path(__file__).resolve().parent.parent / ".research-system" / "config" / "id-kind-registry.yaml"
 
 
 def _uuid7(now_ms: int | None = None) -> uuid.UUID:
     timestamp_ms = time.time_ns() // 1_000_000 if now_ms is None else now_ms
     if not 0 <= timestamp_ms < 1 << 48:
-        raise ValueError('UUIDv7 timestamp is outside 48-bit range')
-    value = (
-        (timestamp_ms << 80)
-        | (0x7 << 76)
-        | (secrets.randbits(12) << 64)
-        | (0b10 << 62)
-        | secrets.randbits(62)
-    )
+        raise ValueError("UUIDv7 timestamp is outside 48-bit range")
+    value = (timestamp_ms << 80) | (0x7 << 76) | (secrets.randbits(12) << 64) | (0b10 << 62) | secrets.randbits(62)
     return uuid.UUID(int=value)
 
 
 class IdRegistry:
     """Generate and validate UUIDv7 identities from an owner prefix catalogue."""
 
-    def __init__(self, kind_prefixes: Mapping[str, str]):
+    def __init__(self, kind_prefixes: Mapping[str, str], *, allow_duplicate_prefixes: bool = False):
         """Create a registry from unique kind-to-prefix mappings.
 
         Args:
             kind_prefixes: Canonical identity kinds and their short prefixes.
+            allow_duplicate_prefixes: Permit duplicate prefixes only for
+                explicitly field-scoped aliases that cannot be disambiguated by
+                prefix alone.
 
         Raises:
             ConfigurationError: If the registry is empty, malformed, or contains
-                a prefix assigned to more than one kind.
+                a prefix assigned to more than one kind unless the caller has
+                explicitly selected field-scoped aliases.
         """
         if not kind_prefixes:
-            raise ConfigurationError('ID kind registry is empty')
+            raise ConfigurationError("ID kind registry is empty")
         malformed = {
             kind: prefix
             for kind, prefix in kind_prefixes.items()
-            if not isinstance(kind, str)
-            or not isinstance(prefix, str)
-            or not _PREFIX.fullmatch(prefix)
+            if not isinstance(kind, str) or not isinstance(prefix, str) or not _PREFIX.fullmatch(prefix)
         }
         if malformed:
-            raise ConfigurationError(f'malformed ID kind registry entries: {malformed}')
+            raise ConfigurationError(f"malformed ID kind registry entries: {malformed}")
         prefixes = tuple(kind_prefixes.values())
-        duplicates = sorted(
-            prefix for prefix in set(prefixes) if prefixes.count(prefix) > 1
-        )
-        if duplicates:
-            raise ConfigurationError(f'duplicate ID kind prefixes: {duplicates}')
+        duplicates = sorted(prefix for prefix in set(prefixes) if prefixes.count(prefix) > 1)
+        if duplicates and not allow_duplicate_prefixes:
+            raise ConfigurationError(f"duplicate ID kind prefixes: {duplicates}")
         self._kind_prefixes = dict(kind_prefixes)
 
     def new(self, kind: str) -> str:
@@ -81,8 +70,8 @@ class IdRegistry:
         try:
             prefix = self._kind_prefixes[kind]
         except KeyError as exc:
-            raise ValueError(f'unknown ID kind: {kind}') from exc
-        return f'{prefix}_{_uuid7()}'
+            raise ValueError(f"unknown ID kind: {kind}") from exc
+        return f"{prefix}_{_uuid7()}"
 
     def validate(self, value: str, kind: str) -> str:
         """Validate a prefix-qualified UUIDv7 identity.
@@ -100,30 +89,33 @@ class IdRegistry:
         try:
             prefix = self._kind_prefixes[kind]
         except KeyError as exc:
-            raise ValueError(f'unknown ID kind: {kind}') from exc
-        marker = f'{prefix}_'
+            raise ValueError(f"unknown ID kind: {kind}") from exc
+        marker = f"{prefix}_"
         if not value.startswith(marker):
-            raise ValueError(f'expected {kind} ID with {marker} prefix')
+            raise ValueError(f"expected {kind} ID with {marker} prefix")
         try:
             body = uuid.UUID(value.removeprefix(marker))
         except ValueError as exc:
-            raise ValueError(f'expected {kind} ID with UUID body') from exc
+            raise ValueError(f"expected {kind} ID with UUID body") from exc
         if body.version != 7 or body.variant != uuid.RFC_4122:
-            raise ValueError(f'expected {kind} ID with UUIDv7 body')
+            raise ValueError(f"expected {kind} ID with UUIDv7 body")
         return value
 
 
 def _load_registry(path: Path = _REGISTRY_PATH) -> IdRegistry:
     try:
-        payload = yaml.safe_load(path.read_text(encoding='utf-8'))
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
-        raise ConfigurationError(f'cannot load ID kind registry: {path}') from exc
-    if not isinstance(payload, dict) or payload.get('schema_version') != '1.0.0':
-        raise ConfigurationError('invalid ID kind registry schema version')
-    kinds = payload.get('kinds')
+        raise ConfigurationError(f"cannot load ID kind registry: {path}") from exc
+    if not isinstance(payload, dict) or payload.get("schema_version") != "1.0.0":
+        raise ConfigurationError("invalid ID kind registry schema version")
+    kinds = payload.get("kinds")
     if not isinstance(kinds, dict):
-        raise ConfigurationError('ID kind registry kinds must be a mapping')
-    return IdRegistry(kinds)
+        raise ConfigurationError("ID kind registry kinds must be a mapping")
+    allow_duplicate_prefixes = payload.get("allow_field_scoped_prefix_aliases", False)
+    if not isinstance(allow_duplicate_prefixes, bool):
+        raise ConfigurationError("allow_field_scoped_prefix_aliases must be a boolean")
+    return IdRegistry(kinds, allow_duplicate_prefixes=allow_duplicate_prefixes)
 
 
 _REGISTRY = _load_registry()

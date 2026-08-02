@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/event/ExternalAssuranceRecordGrantActivated",
+  "type": "object",
+  "required": ["event_id", "event_type", "schema_id", "schema_version", "project_id", "stream_id", "stream_version", "global_position", "transaction_id", "transaction_index", "transaction_count", "command_id", "command_type", "command_schema_id", "command_schema_version", "command_schema_sha256", "idempotency_key", "command_payload_hash", "correlation_id", "causation_id", "actor_id", "authority_grant_id", "occurred_at", "recorded_at", "payload", "previous_event_hash", "event_hash"],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^evt_"},
+    "event_type": {"const": "AuthorityGrantActivated"},
+    "schema_id": {"const": "ars://core/event/ExternalAssuranceRecordGrantActivated"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "stream_id": {"type": "string", "pattern": "^agr_"},
+    "stream_version": {"const": 1},
+    "global_position": {"type": "integer", "minimum": 1},
+    "transaction_id": {"type": "string", "pattern": "^txb_"},
+    "transaction_index": {"const": 1},
+    "transaction_count": {"const": 1},
+    "command_id": {"type": "string", "pattern": "^cmd_"},
+    "command_type": {"const": "ActivateExternalAssuranceRecordGrant"},
+    "command_schema_id": {"const": "ars://core/command/ActivateExternalAssuranceRecordGrant"},
+    "command_schema_version": {"const": "1.0.0"},
+    "command_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "command_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "actor_id": {"type": "string", "pattern": "^act_"},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_"},
+    "occurred_at": {"type": ["string", "null"], "format": "date-time"},
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "payload": {
+      "type": "object",
+      "required": ["authority_admission_version", "project_id", "bootstrap_manifest_sha256", "root_grant_id", "root_grant_sha256", "administration_decision_id", "administration_decision_sha256", "activated_grant_id", "activated_grant_sha256", "activated_grant_schema_id", "activated_grant_schema_version", "activated_grant_schema_sha256", "subject_scope", "effective_at", "expires_at"],
+      "properties": {
+        "authority_admission_version": {"const": "owner-bound-v1"},
+        "project_id": {"type": "string", "pattern": "^prj_"},
+        "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "root_grant_id": {"type": "string", "pattern": "^agr_"},
+        "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "administration_decision_id": {"type": "string", "pattern": "^arec_"},
+        "administration_decision_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "activated_grant_id": {"type": "string", "pattern": "^agr_"},
+        "activated_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "activated_grant_schema_id": {"const": "ars://core/external-assurance-record-scoped-authority-grant"},
+        "activated_grant_schema_version": {"const": "1.0.0"},
+        "activated_grant_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "subject_scope": {
+          "type": "object",
+          "required": ["project_id", "subject"],
+          "properties": {
+            "project_id": {"type": "string", "pattern": "^prj_"},
+            "subject": {
+              "type": "object",
+              "required": ["kind", "id"],
+              "properties": {
+                "kind": {"const": "external_assurance_record"},
+                "id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+      },
+      "additionalProperties": false
+    },
+    "previous_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}
