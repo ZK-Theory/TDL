@@ -193,6 +193,27 @@ def _activation_case(tmp_path: Path, activation_kind: str):
     return control_root, schemas, resolver, objects, service, command
 
 
+def _foreign_activation_marker_bytes(service: CommandService, schemas: object, command: dict[str, object]) -> bytes:
+    foreign = deepcopy(command)
+    foreign["command_id"] = "cmd_01978abc-6300-7000-8000-000000006302"
+    foreign["idempotency_key"] = f"{command['idempotency_key']}-foreign"
+    foreign["correlation_id"] = f"{command['correlation_id']}-foreign"
+    foreign_envelope = {
+        key: value
+        for key, value in foreign.items()
+        if key not in {"command_schema_id", "command_schema_version", "command_schema_sha256"}
+    }
+    foreign_path = service._scoped_activation_marker_path(foreign["command_id"])
+    service._write_scoped_activation_marker(
+        Command(foreign_envelope),
+        command_schema=schemas.resolve_identity(foreign["schema_id"], foreign["schema_version"]),
+        existed_before=False,
+    )
+    foreign_bytes = foreign_path.read_bytes()
+    foreign_path.unlink()
+    return foreign_bytes
+
+
 def _revocation_command(resolver, schemas, grant: dict[str, object], decision: dict[str, object]) -> dict[str, object]:
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
@@ -895,6 +916,99 @@ def test_receipt_present_retry_classifies_foreign_marker_temp_before_returning(
     assert service.submit(command) == receipt
     assert not marker_path.exists()
     assert not list(marker_root.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+def test_receipt_present_retry_with_absent_marker_and_no_residue_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+) -> None:
+    control_root, _, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        receipt = service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    marker_path.unlink()
+    assert service.submit(command) == receipt
+    assert not marker_path.exists()
+    assert not list(marker_root.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+def test_receipt_present_retry_with_absent_marker_reconciles_matching_temp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+) -> None:
+    control_root, _, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        receipt = service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    marker_bytes = marker_path.read_bytes()
+    marker_path.unlink()
+    matching_temp = marker_path.with_suffix(".json.tmp")
+    matching_temp.write_bytes(marker_bytes)
+    assert service.submit(command) == receipt
+    assert not marker_path.exists()
+    assert not matching_temp.exists()
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+def test_receipt_present_retry_with_absent_marker_preserves_foreign_temp_and_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+) -> None:
+    control_root, schemas, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    marker_path.unlink()
+    foreign_temp = marker_path.with_name(f".{marker_path.name}.foreign.tmp")
+    foreign_bytes = _foreign_activation_marker_bytes(service, schemas, command)
+    foreign_temp.write_bytes(foreign_bytes)
+
+    with pytest.raises(ConflictError, match="temporary data conflicts"):
+        service.submit(command)
+    assert not marker_path.exists()
+    assert foreign_temp.read_bytes() == foreign_bytes
+
+
+@pytest.mark.parametrize("activation_kind", ["authority", "external"])
+def test_receipt_present_retry_with_absent_marker_classifies_mixed_residue_atomically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    activation_kind: str,
+) -> None:
+    control_root, schemas, _, _, service, command = _activation_case(tmp_path, activation_kind)
+    marker_root = control_root / "runtime" / "scoped-authority-activation-recovery"
+    with monkeypatch.context() as crash:
+        crash.setattr(service, "_remove_scoped_activation_marker", lambda _command_id: None)
+        service.submit(command)
+
+    marker_path = next(marker_root.glob("*.json"))
+    marker_bytes = marker_path.read_bytes()
+    marker_path.unlink()
+    matching_temp = marker_path.with_suffix(".json.tmp")
+    matching_temp.write_bytes(marker_bytes)
+    foreign_temp = marker_path.with_name(f".{marker_path.name}.foreign.tmp")
+    foreign_bytes = _foreign_activation_marker_bytes(service, schemas, command)
+    foreign_temp.write_bytes(foreign_bytes)
+
+    with pytest.raises(ConflictError, match="temporary data conflicts"):
+        service.submit(command)
+    assert not marker_path.exists()
+    assert matching_temp.read_bytes() == marker_bytes
+    assert foreign_temp.read_bytes() == foreign_bytes
 
 
 @pytest.mark.integration

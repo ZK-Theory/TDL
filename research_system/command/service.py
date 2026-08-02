@@ -425,6 +425,19 @@ class CommandService:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def _cleanup_scoped_activation_marker_residue(
+        self,
+        residue: list[tuple[Path, dict[str, Any] | None]],
+    ) -> bool:
+        changed = False
+        for temporary, existing in residue:
+            if existing is None:
+                self._quarantine_scoped_activation_marker_temp(temporary)
+            else:
+                temporary.unlink(missing_ok=True)
+            changed = True
+        return changed
+
     def _remove_scoped_activation_marker(self, command_id: str) -> None:
         path = self._scoped_activation_marker_path(command_id)
         final_marker = self._load_scoped_activation_marker(path) if path.exists() else None
@@ -444,12 +457,7 @@ class CommandService:
             residue.append((temporary, existing))
         changed = final_marker is not None
         path.unlink(missing_ok=True)
-        for temporary, existing in residue:
-            if existing is None:
-                self._quarantine_scoped_activation_marker_temp(temporary)
-                changed = True
-                continue
-            temporary.unlink(missing_ok=True)
+        if self._cleanup_scoped_activation_marker_residue(residue):
             changed = True
         if changed and path.parent.exists():
             _fsync_directory(path.parent)
@@ -1107,6 +1115,39 @@ class CommandService:
     ) -> None:
         marker_path = self._scoped_activation_marker_path(command.command_id)
         if not marker_path.exists():
+            residue: list[tuple[Path, dict[str, Any] | None]] = []
+            foreign_residue = False
+            for temporary in self._scoped_activation_marker_temporary_paths(marker_path):
+                if not temporary.exists():
+                    continue
+                try:
+                    existing = self._load_scoped_activation_marker(temporary)
+                except IntegrityError:
+                    residue.append((temporary, None))
+                    continue
+                try:
+                    self._validate_scoped_activation_marker_command(existing, command, command_schema)
+                except ConflictError:
+                    foreign_residue = True
+                    continue
+                status = self._scoped_activation_event_status(existing)
+                if status != "committed":
+                    raise IntegrityError("scoped accepted receipt does not match recovery marker")
+                try:
+                    actual = self.objects.read(
+                        existing["object_kind"],
+                        existing["target_grant_id"],
+                        existing["object_revision"],
+                    )
+                except (IntegrityError, ValueError) as exc:
+                    raise IntegrityError("committed scoped activation recovery object is invalid") from exc
+                if actual != existing["object_value"]:
+                    raise IntegrityError("committed scoped activation recovery object mismatch")
+                residue.append((temporary, existing))
+            if foreign_residue:
+                raise ConflictError("scoped activation recovery marker temporary data conflicts")
+            if self._cleanup_scoped_activation_marker_residue(residue) and marker_path.parent.exists():
+                _fsync_directory(marker_path.parent)
             return
         marker = self._load_scoped_activation_marker(marker_path)
         self._validate_scoped_activation_marker_command(marker, command, command_schema)
