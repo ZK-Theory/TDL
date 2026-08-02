@@ -15,6 +15,7 @@ from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
+from research_system.store.identity import initialize_control_store, load_store_manifest
 
 
 PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
@@ -51,6 +52,22 @@ def test_sibling_external_control_root_is_accepted(tmp_path):
     control_root = tmp_path / "control"
     code_root.mkdir()
     assert require_external_control_root([code_root], control_root) == control_root.resolve()
+
+
+def test_initialized_store_requires_immutable_origin_provenance(tmp_path):
+    code_root = tmp_path / "repo"
+    control_root = tmp_path / "control"
+    code_root.mkdir()
+    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
+    origin_path = control_root / "manifests" / "store-origin.json"
+    origin = json.loads(origin_path.read_text(encoding="utf-8"))
+    assert origin["initial_control_root"] == str(control_root.resolve())
+    assert origin["store_identity"] == identity
+    assert load_store_manifest(control_root)["store_identity"] == identity
+
+    origin_path.unlink()
+    with pytest.raises(IntegrityError, match="origin provenance is missing"):
+        load_store_manifest(control_root)
 
 
 def test_resolved_reparse_parent_overlapping_code_root_is_rejected(tmp_path):

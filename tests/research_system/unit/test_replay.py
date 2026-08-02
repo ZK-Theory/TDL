@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -270,6 +271,33 @@ def _unit_restore_transaction_case(tmp_path: Path) -> dict[str, object]:
         [code_root],
         schema_root,
     )
+    preflight = {
+        "status": "verified",
+        "failed_predicates": [],
+        "receipt_hash": "a" * 64,
+        "ledger_hash": "b" * 64,
+        "snapshot_hash": "c" * 64,
+        "target_endpoint_ownership_hash": "d" * 64,
+        "artefact_manifest_hash": "e" * 64,
+        "availability_observations_hash": "f" * 64,
+        "registry_hash": "1" * 64,
+        "target_root": str(target_root.resolve()),
+        "project_id": PROJECT_ID,
+        "store_identity": identity,
+        "tail_position": 0,
+        "tail_hash": "2" * 64,
+        "snapshot_id": "snp_01978abc-1000-7000-8000-000000001003",
+        "actor_id": "act_01978abc-1000-7000-8000-000000001001",
+        "authority_grant_id": "agr_01978abc-1000-7000-8000-000000001002",
+        "result_hash": "",
+        "source_root": str(source_root.resolve()),
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "source_snapshot_hash": snapshot_hash,
+        "target_manifest_bytes_sha256": sha256_hex(manifest_path.read_bytes()),
+        "expected_output_sha256": sha256_hex(output),
+    }
+    preflight["result_hash"] = sha256_hex(canonical_bytes(preflight))
     return {
         "code_root": code_root,
         "schema_root": schema_root,
@@ -290,6 +318,7 @@ def _unit_restore_transaction_case(tmp_path: Path) -> dict[str, object]:
             "source_snapshot": snapshot,
             "expected_source_snapshot_hash": snapshot_hash,
             "expected_output": output,
+            "expected_restore_preflight": preflight,
         },
     }
 
@@ -376,6 +405,100 @@ def test_cleared_loader_rejects_coordinated_manifest_evidence_rewrite(tmp_path, 
         verify_restore_binding_admission(case["target"])
 
 
+def test_cleared_loader_rejects_coordinated_record_evidence_and_output_rewrite(tmp_path, monkeypatch):
+    """Cleared admission needs an expected side outside the mutable current tuple."""
+    from research_system.store.identity import verify_restore_binding_admission
+
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
+    case = _unit_restore_transaction_case(tmp_path)
+    rebind_restored_store(case["target"], case["source"], **case["kwargs"])
+    transaction_path = case["target"] / "manifests" / ".restore-binding-transaction.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    record = json.loads(transaction_path.read_text(encoding="utf-8"))
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    foreign_snapshot = {"coordinated": "foreign-approved-source"}
+    foreign_snapshot_hash = sha256_hex(canonical_bytes(foreign_snapshot))
+    foreign_output = canonical_bytes({"coordinated": "foreign-output"})
+    foreign_output_hash = sha256_hex(foreign_output)
+    foreign_output_relative = f"manifests/restore-bindings/sha256-{foreign_output_hash}.json"
+    foreign_output_path = case["target"] / Path(foreign_output_relative)
+    foreign_output_path.write_bytes(foreign_output)
+
+    record.update(
+        {
+            "actor_id": "act_01978abc-1000-7000-8000-000000009991",
+            "authority_grant_id": "agr_01978abc-1000-7000-8000-000000009992",
+            "receipt_hash": "b" * 64,
+            "source_snapshot": foreign_snapshot,
+            "source_snapshot_hash": foreign_snapshot_hash,
+            "output_object_path": foreign_output_relative,
+            "output_object_sha256": foreign_output_hash,
+            "output_object_bytes": foreign_output.hex(),
+        }
+    )
+    record["temporaries"]["output"] = {
+        "relative_path": f"manifests/restore-bindings/.sha256-{foreign_output_hash}.json.{record['transaction_id']}.tmp",
+        "sha256": foreign_output_hash,
+    }
+    evidence.update(
+        {
+            "actor_id": record["actor_id"],
+            "authority_grant_id": record["authority_grant_id"],
+            "receipt_hash": record["receipt_hash"],
+            "source_snapshot": foreign_snapshot,
+            "source_snapshot_hash": foreign_snapshot_hash,
+            "expected_output_bytes": foreign_output.decode("utf-8"),
+            "expected_output_sha256": foreign_output_hash,
+            "output_object_path": foreign_output_relative,
+            "output_object_sha256": foreign_output_hash,
+        }
+    )
+    intended_evidence = canonical_bytes(evidence)
+    record["intended_evidence_bytes"] = intended_evidence.hex()
+    record["intended_evidence_sha256"] = sha256_hex(intended_evidence)
+    record["temporaries"]["evidence"]["sha256"] = sha256_hex(intended_evidence)
+    evidence_path.write_bytes(intended_evidence)
+    transaction_path.write_bytes(canonical_bytes(record))
+
+    with pytest.raises(IntegrityError, match="approval|expected|transaction"):
+        verify_restore_binding_admission(case["target"])
+
+
+def test_recordless_rebound_manifest_cannot_downgrade_to_initialized_store(tmp_path):
+    from research_system.config import ControlBinding
+
+    case = _unit_restore_transaction_case(tmp_path)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["control_root"] = str(case["target"].resolve())
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    binding_path = tmp_path / "recordless-rebound-binding.json"
+    binding_path.write_bytes(case["output"])
+
+    with pytest.raises((ConfigurationError, IntegrityError), match="origin|restore|materialized"):
+        ControlBinding.load(binding_path)
+
+
+def test_repeated_directory_durability_failure_never_advances_observed_generation(tmp_path, monkeypatch):
+    import research_system.store.identity as identity_module
+
+    case = _unit_restore_transaction_case(tmp_path)
+    transaction_path = case["target"] / "manifests" / ".restore-binding-transaction.json"
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: False)
+
+    for _attempt in range(24):
+        with pytest.raises(ArsError, match="durab"):
+            rebind_restored_store(case["target"], case["source"], **case["kwargs"])
+        if transaction_path.exists():
+            record = json.loads(transaction_path.read_text(encoding="utf-8"))
+            assert record["generation"] == 0
+            assert record["last_completed_durability_step"] == "prepared-record-durable"
+
+
 def test_restored_store_recovers_one_record_after_transition_directory_fsync_failure(tmp_path, monkeypatch):
     import research_system.store.identity as identity_module
 
@@ -452,11 +575,19 @@ def test_restored_store_rejects_physical_root_identity_drift_after_prepared(
 
 
 def test_directory_fsync_unsupported_is_explicitly_non_durable(tmp_path, monkeypatch):
+    import research_system.store.identity as identity_module
+
     def unsupported(*_args, **_kwargs):
         raise OSError(22, "directory handles are unsupported")
 
+    monkeypatch.setattr(identity_module.os, "name", "posix")
     monkeypatch.setattr("research_system.store.identity.os.open", unsupported)
     assert _fsync_directory(tmp_path) is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native Win32 directory durability contract")
+def test_directory_fsync_uses_native_windows_directory_handle(tmp_path):
+    assert _fsync_directory(tmp_path) is True
 
 
 def test_cli_requires_explicit_control_and_code_paths():

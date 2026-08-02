@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ctypes
 import errno
 import json
 import os
 import secrets
+import stat
 from pathlib import Path
 from typing import Any, Callable
 
@@ -16,9 +18,11 @@ from research_system.store.layout import (
 )
 
 _IDENTITY_NAME = "store-identity.json"
+_STORE_ORIGIN_NAME = "store-origin.json"
 _RESTORE_BINDING_EVIDENCE_NAME = "restore-binding-evidence.json"
 _RESTORE_BINDING_TRANSACTION_NAME = ".restore-binding-transaction.json"
 _RESTORE_BINDING_OUTPUT_DIRECTORY = "restore-bindings"
+_RESTORE_APPROVAL_PREFIX = "approval-sha256-"
 _LEGACY_RESTORE_AUTHORITY_NAMES = frozenset(
     {
         ".restore-binding-evidence.pending",
@@ -60,7 +64,26 @@ def _manifest_hash(manifest: dict[str, Any]) -> str:
     return sha256_hex(canonical_bytes(unsigned))
 
 
-def _read_manifest(path: Path, *, require_canonical: bool) -> dict[str, Any]:
+def _restored_manifest_hash(manifest: dict[str, Any], approval_sha256: str) -> str:
+    unsigned = {key: value for key, value in manifest.items() if key != "manifest_hash"}
+    return sha256_hex(
+        canonical_bytes(
+            {
+                "schema_id": "ars://internal/restored-store-manifest",
+                "schema_version": "1.0.0",
+                "approval_sha256": approval_sha256,
+                "manifest": unsigned,
+            }
+        )
+    )
+
+
+def _read_manifest(
+    path: Path,
+    *,
+    require_canonical: bool,
+    restore_approval_sha256: str | None = None,
+) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
         value = json.loads(raw.decode("utf-8"))
@@ -70,9 +93,122 @@ def _read_manifest(path: Path, *, require_canonical: bool) -> dict[str, Any]:
         raise IntegrityError(f"invalid store identity manifest: {path}")
     if require_canonical and raw != canonical_bytes(value):
         raise IntegrityError("store identity manifest is noncanonical")
-    if value.get("manifest_hash") != _manifest_hash(value):
+    expected_hash = (
+        _manifest_hash(value)
+        if restore_approval_sha256 is None
+        else _restored_manifest_hash(value, restore_approval_sha256)
+    )
+    if value.get("manifest_hash") != expected_hash:
         raise IntegrityError("store identity manifest hash mismatch")
     return value
+
+
+_STORE_ORIGIN_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "initial_control_root",
+        "project_id",
+        "store_identity",
+        "initial_identity_sha256",
+        "origin_sha256",
+    }
+)
+
+
+def _store_origin_value(manifest: dict[str, Any], initial_control_root: Path) -> dict[str, str]:
+    stable = {
+        "schema_id": manifest.get("schema_id"),
+        "schema_version": manifest.get("schema_version"),
+        "initial_control_root": str(initial_control_root.resolve(strict=False)),
+        "project_id": manifest.get("project_id"),
+        "store_identity": manifest.get("store_identity"),
+    }
+    value = {
+        "schema_id": "ars://internal/store-origin",
+        "schema_version": "1.0.0",
+        "initial_control_root": stable["initial_control_root"],
+        "project_id": str(stable["project_id"]),
+        "store_identity": str(stable["store_identity"]),
+        "initial_identity_sha256": sha256_hex(canonical_bytes(stable)),
+    }
+    value["origin_sha256"] = sha256_hex(canonical_bytes(value))
+    return value
+
+
+def write_store_origin(
+    store_root: Path,
+    manifest: dict[str, Any],
+    *,
+    initial_control_root: Path | None = None,
+) -> None:
+    """Create the immutable initialized-store origin discriminator."""
+    root = store_root.resolve(strict=False)
+    origin_root = initial_control_root or Path(str(manifest.get("control_root", "")))
+    value = _store_origin_value(manifest, origin_root)
+    data = canonical_bytes(value)
+    path = root / "manifests" / _STORE_ORIGIN_NAME
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        if _file_bytes(path) != data:
+            raise ConflictError("store origin provenance conflicts")
+        return
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    if not _fsync_directory(path.parent):
+        raise ArsError("store origin provenance requires directory durability")
+
+
+def _read_store_origin(control_root: Path) -> dict[str, str]:
+    path = control_root / "manifests" / _STORE_ORIGIN_NAME
+    raw = _file_bytes(path)
+    if raw is None:
+        raise IntegrityError("store origin provenance is missing")
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("store origin provenance is invalid") from exc
+    if not isinstance(value, dict) or set(value) != _STORE_ORIGIN_FIELDS or raw != canonical_bytes(value):
+        raise IntegrityError("store origin provenance fields are invalid")
+    unsigned = {key: item for key, item in value.items() if key != "origin_sha256"}
+    if (
+        value.get("schema_id") != "ars://internal/store-origin"
+        or value.get("schema_version") != "1.0.0"
+        or value.get("origin_sha256") != sha256_hex(canonical_bytes(unsigned))
+        or not isinstance(value.get("initial_control_root"), str)
+        or not Path(str(value["initial_control_root"])).is_absolute()
+        or not _is_sha256(value.get("store_identity"))
+        or not _is_sha256(value.get("initial_identity_sha256"))
+    ):
+        raise IntegrityError("store origin provenance values are invalid")
+    return {key: str(item) for key, item in value.items()}
+
+
+def _validate_store_origin(
+    control_root: Path,
+    manifest: dict[str, Any],
+    *,
+    expected_initial_root: Path,
+) -> dict[str, str]:
+    origin = _read_store_origin(control_root)
+    stable = {
+        "schema_id": manifest.get("schema_id"),
+        "schema_version": manifest.get("schema_version"),
+        "initial_control_root": origin["initial_control_root"],
+        "project_id": manifest.get("project_id"),
+        "store_identity": manifest.get("store_identity"),
+    }
+    if (
+        Path(origin["initial_control_root"]).resolve(strict=False) != expected_initial_root.resolve(strict=False)
+        or origin["project_id"] != manifest.get("project_id")
+        or origin["store_identity"] != manifest.get("store_identity")
+        or origin["initial_identity_sha256"] != sha256_hex(canonical_bytes(stable))
+    ):
+        raise IntegrityError("store origin provenance binding mismatch")
+    return origin
 
 
 def _validate_manifest_identity(manifest: dict[str, Any]) -> None:
@@ -106,8 +242,21 @@ def _validate_manifest_identity(manifest: dict[str, Any]) -> None:
 def load_store_manifest_unbound(control_root: Path) -> dict[str, Any]:
     """Load a source-bound manifest for the explicit restore finalization path."""
     control = control_root.resolve(strict=True)
-    manifest = _read_manifest(_manifest_path(control), require_canonical=True)
+    try:
+        manifest = _read_manifest(_manifest_path(control), require_canonical=True)
+        expected_initial_root = Path(str(manifest.get("control_root", "")))
+    except IntegrityError as ordinary_error:
+        record, _ = _read_restore_binding_transaction(control)
+        if record is None:
+            raise ordinary_error
+        manifest = _read_manifest(
+            _manifest_path(control),
+            require_canonical=True,
+            restore_approval_sha256=str(record["approval_sha256"]),
+        )
+        expected_initial_root = Path(str(record["source_root"]))
     _validate_manifest_identity(manifest)
+    _validate_store_origin(control, manifest, expected_initial_root=expected_initial_root)
     return manifest
 
 
@@ -165,20 +314,64 @@ def initialize_control_store(
         handle.write(canonical_bytes(manifest))
         handle.flush()
         os.fsync(handle.fileno())
+    write_store_origin(control, manifest)
     return str(manifest["store_identity"])
 
 
 def load_store_manifest(control_root: Path) -> dict[str, Any]:
     control = control_root.resolve(strict=True)
-    manifest = _read_manifest(_manifest_path(control), require_canonical=False)
+    manifest = load_store_manifest_unbound(control)
     if manifest.get("control_root") != str(control):
         raise IntegrityError("store control-root binding mismatch")
-    _validate_manifest_identity(manifest)
+    verify_restore_binding_admission(control)
     return manifest
 
 
 def _fsync_directory(path: Path) -> bool:
     """Attempt directory-entry durability and report unsupported platforms honestly."""
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+        ]
+        create_file.restype = ctypes.c_void_p
+        flush_file_buffers = kernel32.FlushFileBuffers
+        flush_file_buffers.argtypes = [ctypes.c_void_p]
+        flush_file_buffers.restype = ctypes.c_int
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [ctypes.c_void_p]
+        close_handle.restype = ctypes.c_int
+        handle = create_file(
+            str(path.resolve(strict=True)),
+            0x40000000,
+            0x00000001 | 0x00000002 | 0x00000004,
+            None,
+            3,
+            0x02000000 | 0x00200000,
+            None,
+        )
+        invalid_handle = ctypes.c_void_p(-1).value
+        if handle in {None, invalid_handle}:
+            error = ctypes.get_last_error()
+            if error in {1, 5, 50, 87}:
+                return False
+            raise ctypes.WinError(error)
+        try:
+            if not flush_file_buffers(handle):
+                error = ctypes.get_last_error()
+                if error in {1, 5, 50, 87}:
+                    return False
+                raise ctypes.WinError(error)
+        finally:
+            close_handle(handle)
+        return True
     try:
         descriptor = os.open(path, os.O_RDONLY)
     except OSError as exc:
@@ -237,6 +430,12 @@ def restore_binding_output_object_path(control_root: Path, digest: str) -> Path:
     return control_root / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY / f"sha256-{digest}.json"
 
 
+def restore_binding_approval_object_path(control_root: Path, digest: str) -> Path:
+    if not _is_sha256(digest):
+        raise IntegrityError("restore approval digest is invalid")
+    return control_root / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY / f"{_RESTORE_APPROVAL_PREFIX}{digest}.json"
+
+
 def _relative_path(target: Path, path: Path) -> str:
     try:
         return path.relative_to(target).as_posix()
@@ -245,14 +444,55 @@ def _relative_path(target: Path, path: Path) -> str:
 
 
 def _record_path(target: Path, relative: str) -> Path:
-    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or "\\" in relative
+        or any(part in {"", ".", ".."} for part in relative.split("/"))
+    ):
         raise IntegrityError("restore binding relative path is invalid")
     path = target.joinpath(*relative.split("/"))
     try:
-        path.resolve(strict=False).relative_to(target.resolve(strict=True))
-    except (OSError, ValueError) as exc:
+        path.relative_to(target)
+    except ValueError as exc:
         raise IntegrityError("restore binding path escapes the target store") from exc
+    _require_physical_restore_path(target, path)
     return path
+
+
+def _require_physical_restore_path(target: Path, path: Path) -> None:
+    """Reject every symlink, junction, or reparse component below the physical root."""
+    root = target.resolve(strict=True)
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise IntegrityError("restore binding path escapes the target store") from exc
+    current = root
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for part in relative.parts:
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise IntegrityError(f"restore binding physical path is unavailable: {current}") from exc
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
+            raise IntegrityError(f"restore binding path has a reparse ancestor: {current}")
+        if current != path and not stat.S_ISDIR(metadata.st_mode):
+            raise IntegrityError(f"restore binding path ancestor is not a directory: {current}")
+        try:
+            resolved = current.resolve(strict=True)
+            if resolved.parent != current.parent.resolve(strict=True) or not os.path.samefile(
+                current.parent,
+                resolved.parent,
+            ):
+                raise IntegrityError(f"restore binding path ancestor is not physically bound: {current}")
+        except IntegrityError:
+            raise
+        except OSError as exc:
+            raise IntegrityError(f"restore binding physical identity is unavailable: {current}") from exc
 
 
 def _file_bytes(path: Path) -> bytes | None:
@@ -296,6 +536,170 @@ def _require_root_identity(path: Path, expected: dict[str, Any]) -> None:
         raise ConflictError(f"restore binding physical root identity changed: {path}")
 
 
+_RESTORE_PREFLIGHT_FIELDS = frozenset(
+    {
+        "status",
+        "failed_predicates",
+        "receipt_hash",
+        "ledger_hash",
+        "snapshot_hash",
+        "target_endpoint_ownership_hash",
+        "artefact_manifest_hash",
+        "availability_observations_hash",
+        "registry_hash",
+        "target_root",
+        "project_id",
+        "store_identity",
+        "tail_position",
+        "tail_hash",
+        "snapshot_id",
+        "actor_id",
+        "authority_grant_id",
+        "result_hash",
+        "source_root",
+        "code_roots",
+        "schema_root",
+        "source_snapshot_hash",
+        "target_manifest_bytes_sha256",
+        "expected_output_sha256",
+    }
+)
+_RESTORE_APPROVAL_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "restore_preflight",
+        "source_root_identity",
+        "target_root_identity",
+        "source_snapshot",
+        "original_manifest_sha256",
+        "rebound_manifest",
+    }
+)
+
+
+def _validate_preflight_approval(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _RESTORE_PREFLIGHT_FIELDS:
+        raise IntegrityError("restore approval preflight fields are invalid")
+    expected = dict(value)
+    expected["result_hash"] = ""
+    digest_fields = (
+        "receipt_hash",
+        "ledger_hash",
+        "snapshot_hash",
+        "target_endpoint_ownership_hash",
+        "artefact_manifest_hash",
+        "availability_observations_hash",
+        "registry_hash",
+        "store_identity",
+        "tail_hash",
+        "result_hash",
+        "source_snapshot_hash",
+        "target_manifest_bytes_sha256",
+        "expected_output_sha256",
+    )
+    if (
+        value.get("status") != "verified"
+        or value.get("failed_predicates") != []
+        or any(not _is_sha256(value.get(field)) for field in digest_fields)
+        or value.get("result_hash") != sha256_hex(canonical_bytes(expected))
+        or not isinstance(value.get("code_roots"), list)
+        or not value["code_roots"]
+        or any(not isinstance(root, str) or not Path(root).is_absolute() for root in value["code_roots"])
+        or not isinstance(value.get("schema_root"), str)
+        or not Path(value["schema_root"]).is_absolute()
+    ):
+        raise IntegrityError("restore approval preflight values are invalid")
+    return value
+
+
+def _build_restore_approval(
+    *,
+    restore_preflight: dict[str, Any],
+    source: Path,
+    target: Path,
+    source_snapshot: dict[str, Any],
+    original_manifest: bytes,
+    rebound_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    unsigned_rebound = {key: item for key, item in rebound_manifest.items() if key != "manifest_hash"}
+    return {
+        "schema_id": "ars://internal/restore-binding-approval",
+        "schema_version": "1.0.0",
+        "restore_preflight": restore_preflight,
+        "source_root_identity": _physical_root_identity(source),
+        "target_root_identity": _physical_root_identity(target),
+        "source_snapshot": source_snapshot,
+        "original_manifest_sha256": sha256_hex(original_manifest),
+        "rebound_manifest": unsigned_rebound,
+    }
+
+
+def _validate_restore_approval(target: Path, value: dict[str, Any], raw: bytes) -> None:
+    if raw != canonical_bytes(value) or set(value) != _RESTORE_APPROVAL_FIELDS:
+        raise IntegrityError("restore approval fields are invalid")
+    if (
+        value.get("schema_id") != "ars://internal/restore-binding-approval"
+        or value.get("schema_version") != "1.0.0"
+        or not isinstance(value.get("source_snapshot"), dict)
+        or not _is_sha256(value.get("original_manifest_sha256"))
+        or not isinstance(value.get("rebound_manifest"), dict)
+        or "manifest_hash" in value["rebound_manifest"]
+    ):
+        raise IntegrityError("restore approval values are invalid")
+    preflight = _validate_preflight_approval(value["restore_preflight"])
+    if Path(str(preflight["target_root"])).resolve(strict=False) != target:
+        raise IntegrityError("restore approval target binding is invalid")
+    if sha256_hex(canonical_bytes(value["source_snapshot"])) != preflight["source_snapshot_hash"]:
+        raise IntegrityError("restore approval source snapshot is invalid")
+    for identity_field in ("source_root_identity", "target_root_identity"):
+        identity = value[identity_field]
+        if (
+            not isinstance(identity, dict)
+            or set(identity) != {"device", "inode"}
+            or any(not isinstance(item, str) or not item.isdecimal() for item in identity.values())
+        ):
+            raise IntegrityError(f"restore approval root identity is invalid: {identity_field}")
+    rebound = value["rebound_manifest"]
+    if (
+        rebound.get("control_root") != str(target)
+        or rebound.get("project_id") != preflight["project_id"]
+        or rebound.get("store_identity") != preflight["store_identity"]
+        or rebound.get("code_roots") != preflight["code_roots"]
+        or rebound.get("schema_root") != preflight["schema_root"]
+    ):
+        raise IntegrityError("restore approval rebound manifest is invalid")
+    output = canonical_restore_binding_output(
+        target,
+        str(preflight["project_id"]),
+        str(preflight["store_identity"]),
+        [Path(root) for root in preflight["code_roots"]],
+        Path(str(preflight["schema_root"])),
+    )
+    if sha256_hex(output) != preflight["expected_output_sha256"]:
+        raise IntegrityError("restore approval canonical output is invalid")
+
+
+def _read_restore_approval(target: Path, digest: str) -> tuple[dict[str, Any], bytes]:
+    output_directory = target / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY
+    _require_physical_restore_path(target, output_directory)
+    candidates = set(output_directory.glob(f"{_RESTORE_APPROVAL_PREFIX}*.json")) if output_directory.exists() else set()
+    expected_path = restore_binding_approval_object_path(target, digest)
+    if candidates != {expected_path}:
+        raise IntegrityError("restore approval exact-set closure is invalid")
+    raw = _file_bytes(expected_path)
+    if raw is None or sha256_hex(raw) != digest:
+        raise IntegrityError("restore approval object is missing or invalid")
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("restore approval object is invalid") from exc
+    if not isinstance(value, dict):
+        raise IntegrityError("restore approval object is invalid")
+    _validate_restore_approval(target, value, raw)
+    return value, raw
+
+
 def _assert_no_second_restore_authority(target: Path) -> None:
     manifests = target / "manifests"
     for name in _LEGACY_RESTORE_AUTHORITY_NAMES:
@@ -323,6 +727,9 @@ _EVIDENCE_FIELDS = frozenset(
         "expected_output_sha256",
         "target_manifest_bytes_sha256",
         "transaction_id",
+        "approval_object_path",
+        "approval_sha256",
+        "restore_preflight_result_hash",
         "output_object_path",
         "output_object_sha256",
         "actor_id",
@@ -362,6 +769,8 @@ def _validate_restore_binding_evidence(target: Path, value: dict[str, Any], raw:
         "expected_output_sha256",
         "target_manifest_bytes_sha256",
         "output_object_sha256",
+        "approval_sha256",
+        "restore_preflight_result_hash",
     ):
         item = value[field]
         if not _is_sha256(item):
@@ -375,6 +784,9 @@ def _validate_restore_binding_evidence(target: Path, value: dict[str, Any], raw:
     output = _record_path(target, str(value["output_object_path"]))
     if output != restore_binding_output_object_path(target, output_digest):
         raise IntegrityError("restore binding evidence output path is invalid")
+    approval = _record_path(target, str(value["approval_object_path"]))
+    if approval != restore_binding_approval_object_path(target, str(value["approval_sha256"])):
+        raise IntegrityError("restore binding evidence approval path is invalid")
 
 
 def _read_restore_binding_evidence(control_root: Path) -> tuple[dict[str, Any] | None, bytes | None]:
@@ -407,6 +819,9 @@ _TRANSACTION_FIELDS = frozenset(
         "schema_id",
         "schema_version",
         "transaction_id",
+        "approval_object_path",
+        "approval_sha256",
+        "restore_preflight_result_hash",
         "state",
         "generation",
         "prior_record_sha256",
@@ -453,6 +868,8 @@ def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], r
         or not isinstance(value["generation"], int)
         or value["generation"] < 0
         or not _is_sha256(value["transaction_id"])
+        or value["transaction_id"] != value["approval_sha256"]
+        or not _is_sha256(value["restore_preflight_result_hash"])
     ):
         raise IntegrityError("restore binding transaction identity is invalid")
     state_steps = {
@@ -522,6 +939,9 @@ def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], r
     output = _record_path(target, str(value["output_object_path"]))
     if output != restore_binding_output_object_path(target, str(value["output_object_sha256"])):
         raise IntegrityError("restore binding transaction output path is invalid")
+    approval = _record_path(target, str(value["approval_object_path"]))
+    if approval != restore_binding_approval_object_path(target, str(value["approval_sha256"])):
+        raise IntegrityError("restore binding transaction approval path is invalid")
     temporaries = value["temporaries"]
     if not isinstance(temporaries, dict) or set(temporaries) != {"output", "manifest", "evidence"}:
         raise IntegrityError("restore binding transaction temporary identities are invalid")
@@ -543,9 +963,22 @@ def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], r
 def _read_restore_binding_transaction(control_root: Path) -> tuple[dict[str, Any] | None, bytes | None]:
     target = control_root.resolve(strict=True)
     _assert_no_second_restore_authority(target)
-    raw = _file_bytes(restore_binding_transaction_path(target))
+    transaction_path = restore_binding_transaction_path(target)
+    raw = _file_bytes(transaction_path)
     if raw is None:
         return None, None
+    manifests = transaction_path.parent
+    if not _fsync_directory(manifests):
+        raise ArsError("restore binding cannot trust an unconfirmed transaction generation")
+    output_directory = manifests / _RESTORE_BINDING_OUTPUT_DIRECTORY
+    if output_directory.exists():
+        _require_physical_restore_path(target, output_directory)
+        if not _fsync_directory(output_directory):
+            raise ArsError("restore binding cannot trust unconfirmed restore objects")
+    confirmed = _file_bytes(transaction_path)
+    if confirmed != raw:
+        raise ConflictError("restore binding transaction changed during durability confirmation")
+    raw = confirmed
     try:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as exc:
@@ -587,18 +1020,155 @@ def _before_restore_owned_temporary_cleanup(path: Path) -> None:
     """Test seam immediately before cleanup rechecks a transaction-owned temporary."""
 
 
+def _after_restore_owned_temporary_compared(path: Path) -> None:
+    """Test seam while the compared temporary identity is handle-sealed."""
+
+
+def _after_restore_initial_transaction_temporary_durable(path: Path) -> None:
+    """Test seam after generation zero is durable but before canonical publication."""
+
+
 def _transaction_transition_path(target: Path, transaction_id: str, generation: int) -> Path:
     return target / "manifests" / f".restore-binding-transaction.{transaction_id}.{generation}.tmp"
 
 
-def _cleanup_owned_temporary(path: Path, expected: bytes) -> None:
+def _windows_file_identity(handle: int) -> tuple[int, bytes]:
+    class FileId128(ctypes.Structure):
+        _fields_ = [("identifier", ctypes.c_ubyte * 16)]
+
+    class FileIdInfo(ctypes.Structure):
+        _fields_ = [("volume_serial_number", ctypes.c_ulonglong), ("file_id", FileId128)]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_information = kernel32.GetFileInformationByHandleEx
+    get_information.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    get_information.restype = ctypes.c_int
+    information = FileIdInfo()
+    if not get_information(handle, 18, ctypes.byref(information), ctypes.sizeof(information)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return information.volume_serial_number, bytes(information.file_id.identifier)
+
+
+def _windows_read_handle(handle: int) -> bytes:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_size = kernel32.GetFileSizeEx
+    get_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_longlong)]
+    get_size.restype = ctypes.c_int
+    read_file = kernel32.ReadFile
+    read_file.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.c_void_p,
+    ]
+    read_file.restype = ctypes.c_int
+    size = ctypes.c_longlong()
+    if not get_size(handle, ctypes.byref(size)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    remaining = size.value
+    chunks: list[bytes] = []
+    while remaining:
+        length = min(remaining, 1024 * 1024)
+        buffer = ctypes.create_string_buffer(length)
+        read = ctypes.c_uint32()
+        if not read_file(handle, buffer, length, ctypes.byref(read), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if read.value == 0:
+            raise OSError("restore binding temporary ended before its recorded size")
+        chunks.append(buffer.raw[: read.value])
+        remaining -= read.value
+    return b"".join(chunks)
+
+
+def _windows_open_file(path: Path, access: int, share: int) -> int:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+    ]
+    create_file.restype = ctypes.c_void_p
+    handle = create_file(str(path), access, share, None, 3, 0x00200000, None)
+    invalid_handle = ctypes.c_void_p(-1).value
+    if handle in {None, invalid_handle}:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return int(handle)
+
+
+def _windows_close_handle(handle: int) -> None:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [ctypes.c_void_p]
+    close_handle.restype = ctypes.c_int
+    if not close_handle(handle):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _windows_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> None:
+    if os.name != "nt":
+        raise ArsError("restore binding cannot seal temporary cleanup on this platform")
+    temporary_handle = -1
+    anchor_handle = -1
+    try:
+        # The narrow share mode prevents name replacement throughout compare/delete.
+        temporary_handle = _windows_open_file(path, 0x80000000 | 0x00010000, 0x00000001)
+        anchor_handle = _windows_open_file(
+            anchor,
+            0x80000000,
+            0x00000001 | 0x00000002 | 0x00000004,
+        )
+        if _windows_file_identity(temporary_handle) != _windows_file_identity(anchor_handle):
+            raise ConflictError(f"restore binding temporary physical identity changed: {path}")
+        if _windows_read_handle(temporary_handle) != expected:
+            raise ConflictError(f"restore binding temporary ownership changed: {path}")
+        _after_restore_owned_temporary_compared(path)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        set_information = kernel32.SetFileInformationByHandle
+        set_information.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        set_information.restype = ctypes.c_int
+
+        class FileDispositionInfo(ctypes.Structure):
+            _fields_ = [("delete_file", ctypes.c_ubyte)]
+
+        disposition = FileDispositionInfo(1)
+        if not set_information(
+            temporary_handle,
+            4,
+            ctypes.byref(disposition),
+            ctypes.sizeof(disposition),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+    except ConflictError:
+        raise
+    except OSError as exc:
+        raise ArsError(f"restore binding could not seal temporary cleanup: {path}") from exc
+    finally:
+        close_error: OSError | None = None
+        for handle in (anchor_handle, temporary_handle):
+            if handle != -1:
+                try:
+                    _windows_close_handle(handle)
+                except OSError as exc:
+                    close_error = exc
+        if close_error is not None:
+            raise ArsError(f"restore binding could not close sealed cleanup handle: {path}") from close_error
+
+
+def _cleanup_owned_temporary(path: Path, expected: bytes, *, anchor: Path) -> None:
     if not path.exists():
+        if not _fsync_directory(path.parent):
+            raise ArsError("restore binding requires durable temporary cleanup")
         return
     _before_restore_owned_temporary_cleanup(path)
-    actual = _file_bytes(path)
-    if actual != expected:
-        raise ConflictError(f"restore binding temporary ownership changed: {path}")
-    path.unlink()
+    _windows_delete_owned_temporary(path, anchor, expected)
+    if path.exists():
+        raise ConflictError(f"restore binding temporary name was replaced during cleanup: {path}")
     if not _fsync_directory(path.parent):
         raise ArsError("restore binding requires durable temporary cleanup")
 
@@ -609,7 +1179,11 @@ def _cleanup_current_transaction_temporary(target: Path, record: dict[str, Any],
         str(record["transaction_id"]),
         int(record["generation"]),
     )
-    _cleanup_owned_temporary(temporary, record_raw)
+    _cleanup_owned_temporary(
+        temporary,
+        record_raw,
+        anchor=restore_binding_transaction_path(target),
+    )
 
 
 def _write_initial_transaction(target: Path, value: dict[str, Any]) -> tuple[dict[str, Any], bytes]:
@@ -621,13 +1195,16 @@ def _write_initial_transaction(target: Path, value: dict[str, Any]) -> tuple[dic
         _write_exclusive(temporary, data)
     elif existing != data:
         raise ConflictError("restore binding prepared-record temporary conflicts")
+    if not _fsync_directory(temporary.parent):
+        raise ArsError("restore binding requires durable prepared-record temporary")
+    _after_restore_initial_transaction_temporary_durable(temporary)
     try:
         os.link(temporary, path)
     except FileExistsError as exc:
         raise ConflictError("restore binding transaction already exists") from exc
     if not _fsync_directory(path.parent):
         raise ArsError("restore binding requires durable prepared transaction")
-    _cleanup_owned_temporary(temporary, data)
+    _cleanup_owned_temporary(temporary, data, anchor=path)
     _after_restore_transaction_state_written(path, "prepared", 0)
     return value, data
 
@@ -690,13 +1267,67 @@ def _prepare_owned_temporary(target: Path, record: dict[str, Any], name: str) ->
     path, data = _owned_temporary(target, record, name)
     existing = _file_bytes(path)
     if existing is None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.parent.exists():
+            _require_physical_restore_path(target, path.parent.parent)
+            path.parent.mkdir()
+            _require_physical_restore_path(target, path.parent)
+            if not _fsync_directory(path.parent) or not _fsync_directory(path.parent.parent):
+                raise ArsError("restore binding requires durable physical output directory")
         _write_exclusive(path, data)
         if not _fsync_directory(path.parent):
             raise ArsError("restore binding requires durable temporary preparation")
     elif existing != data:
         raise ConflictError(f"restore binding temporary ownership conflict: {path}")
     return path, data
+
+
+def _publish_restore_approval(target: Path, approval: dict[str, Any]) -> tuple[str, str]:
+    data = canonical_bytes(approval)
+    digest = sha256_hex(data)
+    path = restore_binding_approval_object_path(target, digest)
+    directory = path.parent
+    if not directory.exists():
+        _require_physical_restore_path(target, directory.parent)
+        directory.mkdir()
+        _require_physical_restore_path(target, directory)
+        if not _fsync_directory(directory) or not _fsync_directory(directory.parent):
+            raise ArsError("restore binding requires durable physical approval directory")
+    _require_physical_restore_path(target, path)
+    if not _fsync_directory(directory) or not _fsync_directory(directory.parent):
+        raise ArsError("restore binding approval directory lacks durability confirmation")
+    candidates = set(directory.glob(f"{_RESTORE_APPROVAL_PREFIX}*.json"))
+    if candidates and candidates != {path}:
+        raise ConflictError("restore approval exact-set closure conflicts")
+    temporary = directory / f".{path.name}.{digest}.tmp"
+    temporary_candidates = set(directory.glob(f".{_RESTORE_APPROVAL_PREFIX}*.tmp"))
+    if temporary_candidates and temporary_candidates != {temporary}:
+        raise ConflictError("restore approval temporary exact-set closure conflicts")
+    existing = _file_bytes(path)
+    if existing is not None:
+        if existing != data:
+            raise ConflictError("restore approval content-addressed object conflicts")
+        if not _fsync_directory(directory):
+            raise ArsError("restore binding requires durable approval confirmation")
+        _cleanup_owned_temporary(temporary, data, anchor=path)
+        return digest, _relative_path(target, path)
+    temporary_bytes = _file_bytes(temporary)
+    if temporary_bytes is None:
+        _write_exclusive(temporary, data)
+        if not _fsync_directory(directory):
+            raise ArsError("restore binding requires durable approval preparation")
+    elif temporary_bytes != data:
+        raise ConflictError("restore approval temporary ownership conflicts")
+    elif not _fsync_directory(directory):
+        raise ArsError("restore binding approval temporary lacks durability confirmation")
+    try:
+        os.link(temporary, path)
+    except FileExistsError:
+        if _file_bytes(path) != data:
+            raise ConflictError("restore approval content-addressed object conflicts")
+    if _file_bytes(path) != data or not _fsync_directory(directory):
+        raise ArsError("restore binding requires durable approval publication")
+    _cleanup_owned_temporary(temporary, data, anchor=path)
+    return digest, _relative_path(target, path)
 
 
 def _publish_output_object(target: Path, record: dict[str, Any]) -> None:
@@ -709,10 +1340,12 @@ def _publish_output_object(target: Path, record: dict[str, Any]) -> None:
         if existing != expected or sha256_hex(existing) != record["output_object_sha256"]:
             raise ConflictError(f"restore binding content-addressed output conflicts: {output}")
         temporary, temporary_bytes = _owned_temporary(target, record, "output")
-        _cleanup_owned_temporary(temporary, temporary_bytes)
+        if not _fsync_directory(output.parent):
+            raise ArsError("restore binding requires durable output confirmation")
+        _cleanup_owned_temporary(temporary, temporary_bytes, anchor=output)
         return
     temporary, temporary_bytes = _prepare_owned_temporary(target, record, "output")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    _require_physical_restore_path(target, output.parent)
     try:
         os.link(temporary, output)
     except FileExistsError:
@@ -723,7 +1356,7 @@ def _publish_output_object(target: Path, record: dict[str, Any]) -> None:
         raise ConflictError(f"restore binding content-addressed output conflicts: {output}")
     if not _fsync_directory(output.parent):
         raise ArsError("restore binding requires durable output publication")
-    _cleanup_owned_temporary(temporary, temporary_bytes)
+    _cleanup_owned_temporary(temporary, temporary_bytes, anchor=output)
 
 
 def _publish_mutable_object(
@@ -739,7 +1372,9 @@ def _publish_mutable_object(
     live = _file_bytes(path)
     if live == intended:
         temporary, temporary_bytes = _owned_temporary(target, record, name)
-        _cleanup_owned_temporary(temporary, temporary_bytes)
+        if not _fsync_directory(path.parent):
+            raise ArsError("restore binding requires durable canonical confirmation")
+        _cleanup_owned_temporary(temporary, temporary_bytes, anchor=path)
         return
     if live != original:
         raise ConflictError(f"restore binding canonical path changed: {path}")
@@ -761,12 +1396,15 @@ def _publish_mutable_object(
         raise ConflictError(f"restore binding canonical publication conflicts: {path}")
     if not _fsync_directory(path.parent):
         raise ArsError("restore binding requires durable canonical publication")
-    _cleanup_owned_temporary(temporary, temporary_bytes)
+    _cleanup_owned_temporary(temporary, temporary_bytes, anchor=path)
 
 
 def _build_restore_evidence(
     *,
     transaction_id: str,
+    approval_relative: str,
+    approval_sha256: str,
+    restore_preflight_result_hash: str,
     source: Path,
     target: Path,
     project_id: str,
@@ -799,6 +1437,9 @@ def _build_restore_evidence(
         "expected_output_sha256": output_digest,
         "target_manifest_bytes_sha256": sha256_hex(manifest_bytes),
         "transaction_id": transaction_id,
+        "approval_object_path": approval_relative,
+        "approval_sha256": approval_sha256,
+        "restore_preflight_result_hash": restore_preflight_result_hash,
         "output_object_path": output_relative,
         "output_object_sha256": output_digest,
         "actor_id": actor_id,
@@ -811,6 +1452,9 @@ def _build_restore_evidence(
 def _build_restore_transaction(
     *,
     transaction_id: str,
+    approval_relative: str,
+    approval_sha256: str,
+    restore_preflight_result_hash: str,
     source: Path,
     target: Path,
     project_id: str,
@@ -835,6 +1479,9 @@ def _build_restore_transaction(
         "schema_id": "ars://internal/restore-binding-transaction",
         "schema_version": "1.0.0",
         "transaction_id": transaction_id,
+        "approval_object_path": approval_relative,
+        "approval_sha256": approval_sha256,
+        "restore_preflight_result_hash": restore_preflight_result_hash,
         "state": "prepared",
         "generation": 0,
         "prior_record_sha256": "",
@@ -895,6 +1542,8 @@ def _validate_record_inputs(
     code_roots: list[str],
     schema_root: str,
     output_bytes: bytes,
+    approval_sha256: str,
+    restore_preflight_result_hash: str,
 ) -> None:
     expected = {
         "source_root": str(source),
@@ -909,6 +1558,8 @@ def _validate_record_inputs(
         "schema_root": schema_root,
         "output_object_sha256": sha256_hex(output_bytes),
         "output_object_bytes": _hex_bytes(output_bytes),
+        "approval_sha256": approval_sha256,
+        "restore_preflight_result_hash": restore_preflight_result_hash,
     }
     for field, value in expected.items():
         if record[field] != value:
@@ -918,6 +1569,85 @@ def _validate_record_inputs(
 
 
 def _validate_restore_join(target: Path, record: dict[str, Any]) -> dict[str, Any]:
+    approval, _ = _read_restore_approval(target, str(record["approval_sha256"]))
+    preflight = approval["restore_preflight"]
+    approval_path = restore_binding_approval_object_path(target, str(record["approval_sha256"]))
+    approval_relative = _relative_path(target, approval_path)
+    source = Path(str(preflight["source_root"])).resolve(strict=False)
+    intended_unsigned = approval["rebound_manifest"]
+    intended_manifest_value = dict(intended_unsigned)
+    intended_manifest_value["manifest_hash"] = _restored_manifest_hash(
+        intended_manifest_value,
+        str(record["approval_sha256"]),
+    )
+    independently_intended_manifest = canonical_bytes(intended_manifest_value)
+    independently_expected_output = canonical_restore_binding_output(
+        target,
+        str(preflight["project_id"]),
+        str(preflight["store_identity"]),
+        [Path(root) for root in preflight["code_roots"]],
+        Path(str(preflight["schema_root"])),
+    )
+    output_digest = sha256_hex(independently_expected_output)
+    output_relative = _relative_path(target, restore_binding_output_object_path(target, output_digest))
+    independently_expected_evidence = canonical_bytes(
+        _build_restore_evidence(
+            transaction_id=str(record["approval_sha256"]),
+            approval_relative=approval_relative,
+            approval_sha256=str(record["approval_sha256"]),
+            restore_preflight_result_hash=str(preflight["result_hash"]),
+            source=source,
+            target=target,
+            project_id=str(preflight["project_id"]),
+            store_identity=str(preflight["store_identity"]),
+            manifest=intended_manifest_value,
+            manifest_bytes=independently_intended_manifest,
+            receipt_hash=str(preflight["receipt_hash"]),
+            source_snapshot=approval["source_snapshot"],
+            source_snapshot_hash=str(preflight["source_snapshot_hash"]),
+            output_bytes=independently_expected_output,
+            output_relative=output_relative,
+            actor_id=str(preflight["actor_id"]),
+            authority_grant_id=str(preflight["authority_grant_id"]),
+            code_roots=list(preflight["code_roots"]),
+            schema_root=str(preflight["schema_root"]),
+        )
+    )
+    anchored_fields = {
+        "transaction_id": record["approval_sha256"],
+        "approval_object_path": approval_relative,
+        "restore_preflight_result_hash": preflight["result_hash"],
+        "source_root": preflight["source_root"],
+        "target_root": preflight["target_root"],
+        "source_root_identity": approval["source_root_identity"],
+        "target_root_identity": approval["target_root_identity"],
+        "project_id": preflight["project_id"],
+        "store_identity": preflight["store_identity"],
+        "receipt_hash": preflight["receipt_hash"],
+        "actor_id": preflight["actor_id"],
+        "authority_grant_id": preflight["authority_grant_id"],
+        "source_snapshot": approval["source_snapshot"],
+        "source_snapshot_hash": preflight["source_snapshot_hash"],
+        "code_roots": preflight["code_roots"],
+        "schema_root": preflight["schema_root"],
+        "target_pre_state_sha256": approval["original_manifest_sha256"],
+        "original_manifest_sha256": approval["original_manifest_sha256"],
+        "intended_manifest_bytes": independently_intended_manifest.hex(),
+        "intended_manifest_sha256": sha256_hex(independently_intended_manifest),
+        "intended_evidence_bytes": independently_expected_evidence.hex(),
+        "intended_evidence_sha256": sha256_hex(independently_expected_evidence),
+        "output_object_path": output_relative,
+        "output_object_sha256": output_digest,
+        "output_object_bytes": independently_expected_output.hex(),
+    }
+    for field, expected in anchored_fields.items():
+        if record[field] != expected:
+            raise IntegrityError(f"restore binding transaction differs from immutable approval: {field}")
+    if (
+        sha256_hex(_from_hex(record["original_manifest_bytes"], "original_manifest_bytes") or b"")
+        != approval["original_manifest_sha256"]
+    ):
+        raise IntegrityError("restore binding original manifest differs from immutable approval")
     manifest_path = _manifest_path(target)
     evidence_path = _restore_binding_evidence_path(target)
     output_path = _record_path(target, str(record["output_object_path"]))
@@ -933,12 +1663,20 @@ def _validate_restore_join(target: Path, record: dict[str, Any]) -> dict[str, An
     actual_output = _file_bytes(output_path)
     if actual_output != output_bytes or sha256_hex(actual_output or b"") != record["output_object_sha256"]:
         raise IntegrityError("restore binding output does not match the transaction")
-    manifest = _read_manifest(manifest_path, require_canonical=True)
+    manifest = _read_manifest(
+        manifest_path,
+        require_canonical=True,
+        restore_approval_sha256=str(record["approval_sha256"]),
+    )
+    _validate_store_origin(target, manifest, expected_initial_root=source)
     evidence, evidence_raw = _read_restore_binding_evidence(target)
     if evidence is None or evidence_raw != intended_evidence:
         raise IntegrityError("restore binding evidence join is missing")
     if (
         evidence["transaction_id"] != record["transaction_id"]
+        or evidence["approval_object_path"] != approval_relative
+        or evidence["approval_sha256"] != record["approval_sha256"]
+        or evidence["restore_preflight_result_hash"] != preflight["result_hash"]
         or evidence["output_object_path"] != record["output_object_path"]
         or evidence["output_object_sha256"] != record["output_object_sha256"]
         or evidence["target_manifest_bytes_sha256"] != record["intended_manifest_sha256"]
@@ -956,8 +1694,13 @@ def _validate_restore_join(target: Path, record: dict[str, Any]) -> dict[str, An
 
 def _require_cleared_without_temporaries(target: Path, record: dict[str, Any]) -> None:
     transition_temporaries = any((target / "manifests").glob(".restore-binding-transaction.*.tmp"))
-    if transition_temporaries or any(
-        _record_path(target, str(item["relative_path"])).exists() for item in record["temporaries"].values()
+    approval_temporaries = any(
+        (target / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY).glob(f".{_RESTORE_APPROVAL_PREFIX}*.tmp")
+    )
+    if (
+        transition_temporaries
+        or approval_temporaries
+        or any(_record_path(target, str(item["relative_path"])).exists() for item in record["temporaries"].values())
     ):
         raise IntegrityError("cleared restore binding retains a transaction temporary")
 
@@ -977,6 +1720,7 @@ def rebind_restored_store(
     expected_source_snapshot_hash: str | None = None,
     expected_target_manifest_bytes_sha256: str | None = None,
     expected_output: bytes | None = None,
+    expected_restore_preflight: dict[str, Any] | None = None,
     source_snapshot_validator: Callable[[], None] | None = None,
     finalization_validator: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
@@ -991,6 +1735,7 @@ def rebind_restored_store(
         or authority_grant_id is None
         or source_snapshot is None
         or expected_source_snapshot_hash is None
+        or expected_restore_preflight is None
     ):
         raise ArsError("complete approved restore transaction inputs are required")
     code_paths = [root.resolve(strict=True) for root in expected_code_roots]
@@ -1018,6 +1763,23 @@ def rebind_restored_store(
         raise ConflictError("restore binding output differs from approved canonical bytes")
     if sha256_hex(canonical_bytes(source_snapshot)) != expected_source_snapshot_hash:
         raise ConflictError("restore source snapshot hash mismatch")
+    preflight = _validate_preflight_approval(expected_restore_preflight)
+    preflight_expected = {
+        "target_root": str(target),
+        "source_root": str(source),
+        "project_id": expected_project_id,
+        "store_identity": expected_store_identity,
+        "receipt_hash": expected_restore_receipt_hash,
+        "actor_id": actor_id,
+        "authority_grant_id": authority_grant_id,
+        "source_snapshot_hash": expected_source_snapshot_hash,
+        "code_roots": code_values,
+        "schema_root": str(schema),
+        "expected_output_sha256": sha256_hex(output_bytes),
+    }
+    for field, expected in preflight_expected.items():
+        if preflight[field] != expected:
+            raise ConflictError(f"restore preflight approval changed: {field}")
 
     def validate_physical_roots(record_value: dict[str, Any]) -> None:
         require_existing_control_root(code_paths, source)
@@ -1046,6 +1808,8 @@ def rebind_restored_store(
             expected_target_manifest_bytes_sha256
         ):
             raise ConflictError("target manifest changed before restore binding")
+        if preflight["target_manifest_bytes_sha256"] != sha256_hex(original_manifest):
+            raise ConflictError("restore preflight target manifest changed before restore binding")
         if manifest.get("project_id") != expected_project_id:
             raise ConflictError("project identity mismatch")
         if manifest.get("store_identity") != expected_store_identity:
@@ -1057,13 +1821,35 @@ def rebind_restored_store(
             raise ConflictError("schema root binding mismatch")
         rebound = dict(manifest)
         rebound["control_root"] = str(target)
-        rebound["manifest_hash"] = _manifest_hash(rebound)
+        rebound.pop("manifest_hash", None)
+        approval = _build_restore_approval(
+            restore_preflight=preflight,
+            source=source,
+            target=target,
+            source_snapshot=source_snapshot,
+            original_manifest=original_manifest,
+            rebound_manifest=rebound,
+        )
+        approval_raw = canonical_bytes(approval)
+        approval_sha256 = sha256_hex(approval_raw)
+        _validate_restore_approval(target, approval, approval_raw)
+        initial_temporary = _transaction_transition_path(target, approval_sha256, 0)
+        initial_candidates = set((target / "manifests").glob(".restore-binding-transaction.*.tmp"))
+        if initial_candidates and initial_candidates != {initial_temporary}:
+            raise ConflictError("restore binding initial temporary exact-set closure conflicts")
+        published_approval_sha256, approval_relative = _publish_restore_approval(target, approval)
+        if published_approval_sha256 != approval_sha256:
+            raise IntegrityError("restore approval publication digest changed")
+        rebound["manifest_hash"] = _restored_manifest_hash(rebound, approval_sha256)
         intended_manifest = canonical_bytes(rebound)
-        transaction_id = secrets.token_hex(32)
+        transaction_id = approval_sha256
         output_digest = sha256_hex(output_bytes)
         output_relative = _relative_path(target, restore_binding_output_object_path(target, output_digest))
         evidence = _build_restore_evidence(
             transaction_id=transaction_id,
+            approval_relative=approval_relative,
+            approval_sha256=approval_sha256,
+            restore_preflight_result_hash=str(preflight["result_hash"]),
             source=source,
             target=target,
             project_id=expected_project_id,
@@ -1083,6 +1869,9 @@ def rebind_restored_store(
         intended_evidence = canonical_bytes(evidence)
         record = _build_restore_transaction(
             transaction_id=transaction_id,
+            approval_relative=approval_relative,
+            approval_sha256=approval_sha256,
+            restore_preflight_result_hash=str(preflight["result_hash"]),
             source=source,
             target=target,
             project_id=expected_project_id,
@@ -1107,6 +1896,9 @@ def rebind_restored_store(
     else:
         if record_raw is None:
             raise IntegrityError("restore binding transaction bytes are missing")
+        approval, _ = _read_restore_approval(target, str(record["approval_sha256"]))
+        if approval["restore_preflight"] != preflight:
+            raise ConflictError("restore preflight differs from immutable approval")
         _validate_record_inputs(
             record,
             source=source,
@@ -1120,6 +1912,8 @@ def rebind_restored_store(
             code_roots=code_values,
             schema_root=str(schema),
             output_bytes=output_bytes,
+            approval_sha256=sha256_hex(canonical_bytes(approval)),
+            restore_preflight_result_hash=str(preflight["result_hash"]),
         )
         if record["source_snapshot"] != source_snapshot:
             raise ConflictError("restore source snapshot changed")
@@ -1248,6 +2042,7 @@ def rebind_restored_store(
             durability_step="clear-durable",
         )
         validate_physical_roots(record)
+        _require_cleared_without_temporaries(target, record)
         return _validate_restore_join(target, record)
     raise IntegrityError(f"unsupported restore binding transaction state: {record['state']}")
 
@@ -1259,10 +2054,23 @@ def verify_restore_binding_admission(control_root: Path) -> dict[str, Any] | Non
     record, _ = _read_restore_binding_transaction(target)
     evidence_raw = _file_bytes(_restore_binding_evidence_path(target))
     output_directory = target / "manifests" / _RESTORE_BINDING_OUTPUT_DIRECTORY
-    outputs_exist = output_directory.exists() and any(output_directory.glob("sha256-*.json"))
+    restore_directory_exists = output_directory.exists()
+    if restore_directory_exists:
+        _require_physical_restore_path(target, output_directory)
+    outputs_exist = restore_directory_exists and any(output_directory.glob("sha256-*.json"))
+    approvals_exist = restore_directory_exists and any(output_directory.glob(f"{_RESTORE_APPROVAL_PREFIX}*.json"))
     transition_temporaries = any((target / "manifests").glob(".restore-binding-transaction.*.tmp"))
     if record is None:
-        if evidence_raw is not None or outputs_exist or transition_temporaries:
+        manifest = _read_manifest(_manifest_path(target), require_canonical=False)
+        _validate_manifest_identity(manifest)
+        _validate_store_origin(target, manifest, expected_initial_root=target)
+        if (
+            evidence_raw is not None
+            or restore_directory_exists
+            or outputs_exist
+            or approvals_exist
+            or transition_temporaries
+        ):
             raise IntegrityError("partial restore binding exists without a transaction record")
         return None
     if record["state"] != "cleared":

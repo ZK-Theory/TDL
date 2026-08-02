@@ -213,6 +213,8 @@ def crash_after_state(path, _state, _generation):
         os._exit(77)
 
 identity._after_restore_transaction_state_written = crash_after_state
+if crash_point == "initial-temporary-durable":
+    identity._after_restore_initial_transaction_temporary_durable = lambda _path: os._exit(77)
 cli.main(json.loads(os.environ["ARS_ARGS"]))
 """
     environment = os.environ.copy()
@@ -901,7 +903,7 @@ def test_restore_recovery_preserves_foreign_output_at_cleanup_mutation_seam(
     substituted: list[Path] = []
 
     def substitute_before_cleanup(path: Path) -> None:
-        if path.parent.name == "restore-bindings" and not substituted:
+        if path.parent.name == "restore-bindings" and path.name.startswith(".sha256-") and not substituted:
             path.write_bytes(foreign_output)
             substituted.append(path)
 
@@ -918,6 +920,73 @@ def test_restore_recovery_preserves_foreign_output_at_cleanup_mutation_seam(
     assert canonical_output.read_bytes() == foreign_output
     assert transaction["state"] == "prepared"
     assert not (case["target"] / "manifests" / ".restore-binding-recovery.json").exists()
+
+
+def test_restore_recovery_preserves_same_byte_replacement_at_cleanup_seam(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Matching bytes do not confer ownership of a replacement file identity."""
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    substituted: list[tuple[Path, bytes]] = []
+
+    def substitute_same_bytes(path: Path) -> None:
+        if path.parent.name == "restore-bindings" and path.name.startswith(".sha256-") and not substituted:
+            expected = path.read_bytes()
+            path.unlink()
+            path.write_bytes(expected)
+            substituted.append((path, expected))
+
+    monkeypatch.setattr(identity_module, "_before_restore_owned_temporary_cleanup", substitute_same_bytes)
+
+    with pytest.raises(ArsError, match="temporary ownership|physical identity"):
+        main(args)
+
+    assert len(substituted) == 1
+    path, expected = substituted[0]
+    assert path.read_bytes() == expected
+    transaction = json.loads(
+        (case["target"] / "manifests" / ".restore-binding-transaction.json").read_text(encoding="utf-8")
+    )
+    assert transaction["state"] == "prepared"
+
+
+def test_restore_cleanup_blocks_post_compare_name_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The comparison and deletion share one handle-sealed ownership interval."""
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    attempts: list[Path] = []
+    blocked: list[OSError] = []
+
+    def replace_after_compare(path: Path) -> None:
+        if path.parent.name != "restore-bindings" or not path.name.startswith(".sha256-") or attempts:
+            return
+        attempts.append(path)
+        try:
+            path.unlink()
+            path.write_bytes(b"foreign post-compare replacement\n")
+        except OSError as exc:
+            blocked.append(exc)
+
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_owned_temporary_compared",
+        replace_after_compare,
+        raising=False,
+    )
+
+    assert main(args) == 0
+    capsys.readouterr()
+    assert len(attempts) == 1
+    assert len(blocked) == 1
+    assert not attempts[0].exists()
 
 
 def test_restore_record_transition_failure_never_creates_sibling_authority(
@@ -1026,6 +1095,75 @@ def test_restore_bind_cli_recovers_after_every_durable_state_crash(
     assert ControlBinding.load(case["target"] / cleared["output_object_path"]).control_root == case["target"].resolve()
     assert not (case["target"] / "manifests" / ".restore-binding-journal.json").exists()
     assert not (case["target"] / "manifests" / ".restore-binding-recovery.json").exists()
+
+
+def test_restore_bind_cli_recovers_process_exit_before_prepared_publication(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    foundation = Path(args[args.index("--foundation-config") + 1])
+    result = _run_restore_crash(args, foundation, "initial-temporary-durable")
+    assert result.returncode == 77, result.stderr
+
+    manifests = case["target"] / "manifests"
+    transaction_path = manifests / ".restore-binding-transaction.json"
+    assert not transaction_path.exists()
+    assert len(list(manifests.glob(".restore-binding-transaction.*.0.tmp"))) == 1
+
+    assert main(args) == 0
+    capsys.readouterr()
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    assert transaction["state"] == "cleared"
+    assert not list(manifests.glob(".restore-binding-transaction.*.tmp"))
+    assert (
+        ControlBinding.load(case["target"] / transaction["output_object_path"]).control_root == case["target"].resolve()
+    )
+
+
+@pytest.mark.parametrize("alias_location", ("inside", "outside"))
+def test_restore_bind_rejects_reparse_output_ancestor_before_publication(
+    tmp_path: Path,
+    alias_location: str,
+) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    output_directory = case["target"] / "manifests" / "restore-bindings"
+    alias_target = (
+        case["target"] / "objects" / "binding-output-alias-target"
+        if alias_location == "inside"
+        else tmp_path / "outside-binding-output-alias-target"
+    )
+    alias_target.mkdir(parents=True)
+    _make_directory_reparse(output_directory, alias_target)
+
+    with pytest.raises(ArsError, match="physical|reparse|escape|alias"):
+        main(args)
+
+    assert not list(alias_target.glob("sha256-*.json"))
+
+
+@pytest.mark.parametrize("alias_location", ("inside", "outside"))
+def test_cleared_admission_rejects_reparse_output_ancestor(
+    tmp_path: Path,
+    alias_location: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from research_system.store.identity import verify_restore_binding_admission
+
+    case, args = _restore_cli_case(tmp_path)
+    assert main(args) == 0
+    capsys.readouterr()
+    output_directory = case["target"] / "manifests" / "restore-bindings"
+    alias_target = (
+        case["target"] / "objects" / "admission-output-alias-target"
+        if alias_location == "inside"
+        else tmp_path / "outside-admission-output-alias-target"
+    )
+    shutil.move(str(output_directory), str(alias_target))
+    _make_directory_reparse(output_directory, alias_target)
+
+    with pytest.raises(ArsError, match="physical|reparse|escape|alias"):
+        verify_restore_binding_admission(case["target"])
 
 
 def test_restore_bind_rejects_a_second_recovery_authority_before_mutation(tmp_path: Path) -> None:

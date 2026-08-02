@@ -882,6 +882,12 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     receipt = service.submit(command)
     assert receipt.status == "accepted"
     assert len(tuple(service.ledger.iter_batches())) == len(before_batches) + 1
+    transaction = json.loads(
+        (case["target"] / "manifests" / ".restore-binding-transaction.json").read_text(encoding="utf-8")
+    )
+    approval = json.loads((case["target"] / transaction["approval_object_path"]).read_text(encoding="utf-8"))
+    assert transaction["restore_preflight_result_hash"] == supplied.result_hash
+    assert approval["restore_preflight"]["result_hash"] == supplied.result_hash
 
     from research_system.config import ControlBinding
     from research_system.command.service import CommandService

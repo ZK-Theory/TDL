@@ -17,6 +17,7 @@ from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from research_system.store.identity import (
+    _restored_manifest_hash,
     canonical_restore_binding_output,
     load_canonical_restore_binding_evidence,
     load_restore_binding_evidence,
@@ -610,6 +611,7 @@ def verify_restore_before_writer_lease(
         failed.append("receipt_hash_mismatch")
 
     identity, target_manifest_bytes_sha256 = _read_json(target / "manifests" / "store-identity.json")
+    transaction = load_restore_binding_transaction(target)
     actual_project = receipt.project_id
     actual_store = receipt.store_identity
     source_root: Path | None = None
@@ -628,7 +630,11 @@ def verify_restore_before_writer_lease(
             failed.append("store_identity_manifest_invalid")
         recorded_hash = identity.get("manifest_hash")
         unsigned = {key: value for key, value in identity.items() if key != "manifest_hash"}
-        if recorded_hash != sha256_hex(canonical_bytes(unsigned)):
+        ordinary_hash = sha256_hex(canonical_bytes(unsigned))
+        restored_hash = (
+            _restored_manifest_hash(identity, str(transaction["approval_sha256"])) if transaction is not None else None
+        )
+        if recorded_hash not in {ordinary_hash, restored_hash}:
             failed.append("store_identity_manifest_invalid")
         actual_project = str(identity.get("project_id", ""))
         actual_store = str(identity.get("store_identity", ""))
@@ -676,7 +682,6 @@ def verify_restore_before_writer_lease(
         ):
             failed.append("restore_source_binding_mismatch")
         if source_root == target:
-            transaction = load_restore_binding_transaction(target)
             binding_evidence = load_restore_binding_evidence(target)
             if transaction is not None and requested_source is not None:
                 source_root = requested_source
@@ -693,6 +698,8 @@ def verify_restore_before_writer_lease(
                     }
                 ):
                     failed.append("restore_binding_evidence_mismatch")
+                else:
+                    target_manifest_bytes_sha256 = str(transaction["target_pre_state_sha256"])
             elif binding_evidence is None:
                 failed.append("store_not_moved")
             elif requested_source is None:
@@ -1085,7 +1092,7 @@ def finalize_verified_restore_binding(
     def validate_finalized_binding() -> None:
         target = target_root.resolve(strict=True)
         manifest_path = target / "manifests" / "store-identity.json"
-        manifest = load_store_manifest(target)
+        manifest = load_store_manifest_unbound(target)
         evidence = load_canonical_restore_binding_evidence(target)
         if evidence is None:
             raise ArsError("restore binding canonical evidence is missing after finalization")
@@ -1119,6 +1126,7 @@ def finalize_verified_restore_binding(
         expected_source_snapshot_hash=current.source_snapshot_hash,
         expected_target_manifest_bytes_sha256=current.target_manifest_bytes_sha256,
         expected_output=expected_output,
+        expected_restore_preflight=_jsonable(asdict(current)),
         source_snapshot_validator=revalidate_source_snapshot,
         finalization_validator=validate_finalized_binding,
     )

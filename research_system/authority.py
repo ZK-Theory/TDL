@@ -20,7 +20,7 @@ from research_system.schema_registry import (
     require_authority_schemas,
     runtime_schema_registry,
 )
-from research_system.store.identity import SCHEMA_BINDING_VERSION
+from research_system.store.identity import SCHEMA_BINDING_VERSION, write_store_origin
 
 
 SCOPED_AUTHORITY_ADMISSION_VERSION = "owner-bound-v1"
@@ -891,6 +891,7 @@ def _write_identity(
         handle.write(canonical_bytes(manifest))
         handle.flush()
         os.fsync(handle.fileno())
+    write_store_origin(stage, manifest, initial_control_root=final_root)
     return identity
 
 

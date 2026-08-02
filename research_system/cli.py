@@ -68,6 +68,7 @@ from research_system.store.identity import (
     load_store_manifest_unbound,
     manifest_schema_root,
     restore_binding_output_object_path,
+    write_store_origin,
 )
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
@@ -198,6 +199,7 @@ def _preflight_restore_binding_load(
             canonical_bytes({key: value for key, value in shadow_manifest.items() if key != "manifest_hash"})
         )
         (shadow_root / "manifests" / "store-identity.json").write_bytes(canonical_bytes(shadow_manifest))
+        write_store_origin(shadow_root, shadow_manifest)
         shadow_config = Path(raw) / "binding.json"
         shadow_value = dict(config_value)
         shadow_value["control_root"] = str(shadow_root.resolve())
