@@ -429,6 +429,8 @@ class GovernedTestCommandService(CommandService):
             )
             grant_id = scoped_lifecycle_grant_id(subject_id)
             if getattr(self, "_restore_preflight_result", None) is None:
+                # Restore reuses the deterministic scoped grant already activated
+                # in the sibling authority store; it must not be activated again.
                 grant_id = activate_lifecycle_grant(
                     self._authority_harness,
                     subject_kind=subject_kind,
