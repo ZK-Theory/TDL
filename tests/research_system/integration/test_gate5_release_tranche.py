@@ -147,16 +147,27 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
 
     entered = []
 
+    original_lock = service_module.WriterLock
+
     class RecordingLock:
         def __init__(self, *args, **kwargs):
-            pass
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
+            self.inner.__enter__()
             entered.append(True)
             return self
 
-        def __exit__(self, *_args):
-            return None
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
 
     monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
@@ -494,16 +505,27 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
 
     entered = []
 
+    original_lock = service_module.WriterLock
+
     class RecordingLock:
         def __init__(self, *args, **kwargs):
-            pass
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
+            self.inner.__enter__()
             entered.append(True)
             return self
 
-        def __exit__(self, *_args):
-            return None
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
 
     monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(
@@ -952,6 +974,14 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_
     class TrackingLock:
         def __init__(self, *args, **kwargs):
             self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
             nonlocal active
