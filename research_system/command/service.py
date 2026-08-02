@@ -826,10 +826,11 @@ class CommandService:
                     ),
                 )
             self._recheck_moved_restore(command)
-            scoped = self._scoped_authority_receipt(command)
+            scoped = self._scoped_authority_receipt(
+                command,
+                command_schema=command_schema,
+            )
             if scoped is not None:
-                if activation_command and scoped.status == "accepted":
-                    self._reconcile_scoped_activation_receipt(command, command_schema)
                 return scoped
             stored_conflict = self._stored_conflict_receipt(command)
             if stored_conflict is not None:
@@ -1260,7 +1261,12 @@ class CommandService:
             command.idempotency_key,
         )
 
-    def _scoped_authority_receipt(self, command: Command) -> Receipt | None:
+    def _scoped_authority_receipt(
+        self,
+        command: Command,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> Receipt | None:
         command_type = command.envelope["command_type"]
         if command_type not in {
             "RevokeAuthorityGrant",
@@ -1304,6 +1310,8 @@ class CommandService:
             return self.receipts.write(conflict)
         if receipt is None:
             return receipt
+        if command.envelope["command_type"] in _SCOPED_ACTIVATION_COMMAND_TYPES and receipt.status == "accepted":
+            self._reconcile_scoped_activation_receipt(command, command_schema)
         self._reconcile_scoped_authority_receipt(command, receipt)
         if command.command_id == receipt.command_id:
             return receipt
