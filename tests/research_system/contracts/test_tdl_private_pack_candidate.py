@@ -1017,11 +1017,10 @@ def test_a_stronger_producer_relationship_than_the_floor_is_accepted(contract, c
     (
         ("missing", "independent pack review relationship_record_id is required"),
         ("foreign", "independent pack review does not bind the resolved producer relationship"),
-        ("stale", "producer relationship is not current at the evaluation time"),
         ("insufficient_grade", "does not meet the independent pack review floor"),
     ),
 )
-def test_independent_pack_review_requires_current_sufficient_relationship_evidence(
+def test_independent_pack_review_requires_bound_sufficient_relationship_evidence(
     contract, candidate, mutation, message
 ):
     pack, raw = candidate
@@ -1030,8 +1029,6 @@ def test_independent_pack_review_requires_current_sufficient_relationship_eviden
         store["independent_pack_review"].pop("relationship_record_id")
     elif mutation == "foreign":
         store["independent_pack_review"]["relationship_record_id"] = "rel_00000000-0000-7000-8000-0000000000ff"
-    elif mutation == "stale":
-        store["producer_relationship_evidence"]["expires_at"] = "2026-07-01T00:00:01Z"
     else:
         store["independent_pack_review"]["minimum_independence_grade"] = "I3"
 

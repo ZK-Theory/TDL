@@ -428,6 +428,31 @@ def _require_accepted_requirement(
     )
 
 
+def _require_relationship_grade(
+    relationship: Mapping[str, object],
+    minimum_grade: object,
+    *,
+    relationship_label: str,
+    insufficient_message: str,
+) -> None:
+    """Require a recognised relationship grade at or above a declared floor.
+
+    Args:
+        relationship: Resolved producer relationship evidence record.
+        minimum_grade: Minimum independence grade declared by the caller's record.
+        relationship_label: Label used for an unrecognised-grade failure.
+        insufficient_message: Caller-specific failure when the grade is below its floor.
+
+    Raises:
+        PackUnconsumable: If either grade is unknown or the relationship is below the floor.
+    """
+    observed = relationship.get("grade")
+    if observed not in _INDEPENDENCE_ORDER or minimum_grade not in _INDEPENDENCE_ORDER:
+        raise PackUnconsumable(f"{relationship_label} grade is not a recognised independence grade")
+    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(minimum_grade)]:
+        raise PackUnconsumable(insufficient_message)
+
+
 def _require_current_producer_relationship(
     requirement: Mapping[str, object],
     relationship: Mapping[str, object],
@@ -462,21 +487,36 @@ def _require_current_producer_relationship(
     if not effective_at <= evaluation_time < expires_at:
         raise PackUnconsumable("producer relationship is not current at the evaluation time")
 
-    observed = relationship.get("grade")
-    accepted = requirement.get("minimum_independence_grade")
-    if observed not in _INDEPENDENCE_ORDER or accepted not in _INDEPENDENCE_ORDER:
-        raise PackUnconsumable("producer relationship grade is not a recognised independence grade")
-    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(accepted)]:
-        raise PackUnconsumable("producer relationship no longer meets the accepted independence floor")
+    _require_relationship_grade(
+        relationship,
+        requirement.get("minimum_independence_grade"),
+        relationship_label="producer relationship",
+        insufficient_message="producer relationship no longer meets the accepted independence floor",
+    )
 
 
-def _require_current_review_relationship(
+def _require_review_relationship(
     review: Mapping[str, object],
     relationship: Mapping[str, object],
     pack: Mapping[str, object],
-    evaluation_time: datetime,
 ) -> None:
-    """Require the independent pack review's declared relationship to hold now."""
+    """Require the review to bind the already-current relationship at its declared grade.
+
+    The accepted-requirement check runs first and establishes the shared
+    relationship record's current validity window. Rechecking that same window
+    here would create an unreachable duplicate failure branch.
+
+    Args:
+        review: Resolved independent pack review record.
+        relationship: Current producer relationship evidence established by the
+            accepted-requirement check.
+        pack: Parsed candidate pack.
+
+    Raises:
+        PackUnconsumable: If the review omits or names another relationship, the
+            actor roles or context do not match, or the relationship grade is
+            below the review's declared floor.
+    """
 
     review_relationship_id = review.get("relationship_record_id")
     if not isinstance(review_relationship_id, str) or not review_relationship_id:
@@ -497,17 +537,12 @@ def _require_current_review_relationship(
     ):
         raise PackUnconsumable("producer relationship evidence does not bind the declared reviewer and producer roles")
 
-    effective_at = _parse_timestamp(relationship.get("effective_at"), "relationship effective_at")
-    expires_at = _parse_timestamp(relationship.get("expires_at"), "relationship expires_at")
-    if not effective_at <= evaluation_time < expires_at:
-        raise PackUnconsumable("producer relationship is not current at the evaluation time")
-
-    observed = relationship.get("grade")
-    review_minimum = review.get("minimum_independence_grade")
-    if observed not in _INDEPENDENCE_ORDER or review_minimum not in _INDEPENDENCE_ORDER:
-        raise PackUnconsumable("producer relationship grade is not a recognised independence grade")
-    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(review_minimum)]:
-        raise PackUnconsumable("producer relationship does not meet the independent pack review floor")
+    _require_relationship_grade(
+        relationship,
+        review.get("minimum_independence_grade"),
+        relationship_label="independent review relationship",
+        insufficient_message="producer relationship does not meet the independent pack review floor",
+    )
 
 
 def _require_subject_bound_lifecycle(
@@ -531,11 +566,10 @@ def _require_subject_bound_lifecycle(
     """
     review = _require_key(resolved, "independent_pack_review", "resolved external records")
     owner = _require_key(resolved, "stephen_owner_acceptance", "resolved external records")
-    _require_current_review_relationship(
+    _require_review_relationship(
         review,
         _require_key(resolved, "producer_relationship_evidence", "resolved external records"),
         pack,
-        evaluation_time,
     )
     review_record_id = _require_key(opaque_external_record_ids, "independent_pack_review", "opaque external record ids")
     expected = {
