@@ -33,7 +33,7 @@ remediate the candidate.
 The review used Handoffs 31 and 32, P-046 in
 `docs/plans/agentic-research-system/03-decisions-and-open-questions.md:942-1005`,
 the WP6.3 control-store acceptance mechanics review, and the preceding exact
-KAN-67 review at commit `159b780b237fdbb50399530439fd1ca0009449f`. These sources
+KAN-67 review at commit `159b780b237fdbb50399530439fd1ca0009449f0`. These sources
 require exact owner/project/store/decision/schema bindings, replay-derived
 authority, fail-closed recovery, and preservation of the accepted WP6.3 bytes.
 They do not authorize implementation, merge, or owner acceptance.

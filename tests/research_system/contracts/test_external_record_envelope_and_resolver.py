@@ -43,7 +43,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = REPO_ROOT / ".research-system" / "schemas" / "contracts" / "wp6-3-tdl-private-assurance-pack.schema.json"
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
 RECORD_ID = "act_01978abc-2000-7000-8000-000000002000"
-STORE_RECORD_ID = RECORD_ID
 _ALL_RECORD_IDS = {
     "canonical_actor": "act_01978abc-2000-7000-8000-000000002010",
     "producer_relationship_evidence": "rel_01978abc-2000-7000-8000-000000002011",
@@ -74,6 +73,8 @@ def _sample_schema(
     *,
     ordinal: int = 0,
 ) -> Any:
+    if not schema:
+        return None
     if "$ref" in schema:
         return _sample_schema(_parent_pointer(parent, schema["$ref"]), parent, counter, ordinal=ordinal)
     if "const" in schema:
@@ -83,6 +84,8 @@ def _sample_schema(
     if "oneOf" in schema or "anyOf" in schema:
         options = schema.get("oneOf", schema.get("anyOf"))
         return _sample_schema(options[0], parent, counter, ordinal=ordinal)
+    if set(schema) == {"not"}:
+        return {}
     if "allOf" in schema:
         result: dict[str, Any] = {}
         own = {key: value for key, value in schema.items() if key not in {"allOf", "if", "then", "else"}}
@@ -150,7 +153,7 @@ def _sample_schema(
         return schema.get("minimum", 1)
     if schema.get("type") == "boolean":
         return False
-    return None
+    raise AssertionError(f"unhandled schema sampler shape: {schema!r}")
 
 
 def _all_external_record_bodies() -> dict[str, tuple[str, dict[str, Any]]]:
@@ -234,19 +237,9 @@ def test_no_record_schema_admits_the_generic_envelope_the_loader_previously_requ
 
 
 def _resolver(tmp_path: Path) -> tuple[ControlStoreAuthorityResolver, ObjectStore, str]:
-    code_root = tmp_path / "code"
-    code_root.mkdir()
-    control_root = tmp_path / "control"
-    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
-    binding = ControlBinding(
-        code_roots=(code_root.resolve(),),
-        control_root=control_root.resolve(),
-        project_id=PROJECT_ID,
-        schema_root=SCHEMA_PATH.parents[1],
-        store_identity=identity,
-    )
+    binding = _binding(tmp_path)
     resolver = ControlStoreAuthorityResolver(binding)
-    return resolver, ObjectStore(control_root), resolver.authority_root
+    return resolver, ObjectStore(binding.control_root), resolver.authority_root
 
 
 def _binding(tmp_path: Path) -> ControlBinding:
@@ -371,10 +364,10 @@ def test_write_and_resolution_require_complete_contiguous_revision_history(tmp_p
 def test_duplicate_revision_and_foreign_identity_fail_closed(tmp_path: Path) -> None:
     binding = _binding(tmp_path)
     store = ExternalAssuranceRecordStore(binding)
-    store.objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, _valid_actor_body())
+    store.objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, _valid_actor_body())
     alternate = _valid_actor_body(name="alternate")
     alternate_bytes = canonical_bytes(alternate)
-    revision_dir = binding.control_root / "objects" / storage_object_kind("canonical_actor") / STORE_RECORD_ID
+    revision_dir = binding.control_root / "objects" / storage_object_kind("canonical_actor") / RECORD_ID
     (revision_dir / f"00000001-{sha256_hex(alternate_bytes)}.json").write_bytes(alternate_bytes)
     with pytest.raises(IntegrityError, match="duplicate"):
         store._write_storage(
@@ -397,13 +390,13 @@ def test_duplicate_revision_and_foreign_identity_fail_closed(tmp_path: Path) -> 
     foreign_root.mkdir()
     binding = _binding(foreign_root)
     store = ExternalAssuranceRecordStore(binding)
+    foreign_id = RECORD_ID.replace("act_", "rel_")
     store.objects.write(
         storage_object_kind("producer_relationship_evidence"),
-        storage_object_id(f"rel_{RECORD_ID.removeprefix('act_')}", "producer_relationship_evidence"),
+        storage_object_id(foreign_id, "producer_relationship_evidence"),
         1,
         _valid_actor_body(),
     )
-    foreign_id = RECORD_ID.replace("act_", "rel_")
     with pytest.raises(IntegrityError, match="identity"):
         store._write_storage(
             record_class="producer_relationship_evidence",
@@ -425,7 +418,7 @@ def test_duplicate_revision_and_foreign_identity_fail_closed(tmp_path: Path) -> 
 def test_resolver_returns_the_persisted_record_body(tmp_path: Path) -> None:
     resolver, objects, root = _resolver(tmp_path)
     body = _valid_actor_body()
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, body)
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, body)
     resolved = resolver.resolve(record_id=RECORD_ID, record_class="canonical_actor", authority_root=root, phase="load")
     assert resolved == body
 
@@ -433,14 +426,14 @@ def test_resolver_returns_the_persisted_record_body(tmp_path: Path) -> None:
 def test_resolver_rejects_a_foreign_authority_root(tmp_path: Path) -> None:
     """The supplied root and the store's own verified identity are two values that must agree."""
     resolver, objects, _ = _resolver(tmp_path)
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, _valid_actor_body())
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, _valid_actor_body())
     with pytest.raises(ArsError, match="authority root"):
         resolver.resolve(record_id=RECORD_ID, record_class="canonical_actor", authority_root="0" * 64, phase="load")
 
 
 def test_resolver_rejects_an_unknown_phase(tmp_path: Path) -> None:
     resolver, objects, root = _resolver(tmp_path)
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, _valid_actor_body())
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, _valid_actor_body())
     with pytest.raises(ArsError, match="phase"):
         resolver.resolve(record_id=RECORD_ID, record_class="canonical_actor", authority_root=root, phase="whenever")
 
@@ -460,21 +453,21 @@ def test_resolution_is_stable_across_phases_until_a_revision_supersedes(tmp_path
     """
     resolver, objects, root = _resolver(tmp_path)
     first = _valid_actor_body(name="first")
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, first)
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, first)
     kwargs = {"record_id": RECORD_ID, "record_class": "canonical_actor", "authority_root": root}
     assert [resolver.resolve(phase=phase, **kwargs) for phase in ("load", "acceptance", "consumption")] == [first] * 3
 
     superseding = _valid_actor_body(name="second")
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 2, superseding)
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 2, superseding)
     assert resolver.resolve(phase="consumption", **kwargs) == superseding
 
 
 def test_resolver_detects_a_tampered_record_body(tmp_path: Path) -> None:
     """Content addressing is the point: an edited body no longer matches its filename digest."""
     resolver, objects, root = _resolver(tmp_path)
-    objects.write(storage_object_kind("canonical_actor"), STORE_RECORD_ID, 1, _valid_actor_body())
+    objects.write(storage_object_kind("canonical_actor"), RECORD_ID, 1, _valid_actor_body())
     persisted = next(
-        (tmp_path / "control" / "objects" / storage_object_kind("canonical_actor") / STORE_RECORD_ID).glob("*.json")
+        (tmp_path / "control" / "objects" / storage_object_kind("canonical_actor") / RECORD_ID).glob("*.json")
     )
     persisted.write_bytes(json.dumps({"record_type": "canonical_actor", "status": "revoked"}).encode("utf-8"))
     with pytest.raises(IntegrityError):
@@ -612,7 +605,7 @@ def test_resolver_schema_validates_every_resolved_record(tmp_path: Path) -> None
     resolver, objects, root = _resolver(tmp_path)
     objects.write(
         storage_object_kind("canonical_actor"),
-        STORE_RECORD_ID,
+        RECORD_ID,
         1,
         {"record_type": "canonical_actor", "status": "active"},
     )
@@ -841,17 +834,21 @@ def test_attributed_writer_rejects_wrong_body_actor_before_authority_gap(tmp_pat
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     (
-        ("project_id", "prj_01978abc-2000-7000-8000-000000002041", "project"),
-        ("store_identity", "0" * 64, "store identity"),
-        ("authority_root", "0" * 64, "authority root"),
-        ("record_action", "revise", "record action"),
-        ("record_class", "producer_relationship_evidence", "class"),
-        ("record_id", "act_01978abc-2000-7000-8000-000000002041", "class"),
-        ("revision", 2, "revision"),
-        ("required_risk", "R4", "risk"),
-        ("occurred_at", "2026-07-18 08:20:00", "occurred_at"),
-        ("task_id", "ctx_01978abc-2000-7000-8000-000000002041", "task"),
-        ("relationship_record_id", _ALL_RECORD_IDS["producer_relationship_evidence"], "relationship"),
+        ("project_id", "prj_01978abc-2000-7000-8000-000000002041", "project does not match"),
+        ("store_identity", "0" * 64, "store identity does not match"),
+        ("authority_root", "0" * 64, "authority root is not a valid"),
+        ("record_action", "revise", "record action does not match"),
+        ("record_class", "producer_relationship_evidence", "record class does not match"),
+        ("record_id", "act_01978abc-2000-7000-8000-000000002041", "record id does not match"),
+        ("revision", 2, "context revision does not match"),
+        ("required_risk", "R4", "risk must be R0 through R3"),
+        ("occurred_at", "2026-07-18 08:20:00", "occurred_at must be strict RFC3339 UTC"),
+        ("task_id", "ctx_01978abc-2000-7000-8000-000000002041", "task is not a valid"),
+        (
+            "relationship_record_id",
+            _ALL_RECORD_IDS["producer_relationship_evidence"],
+            "relationship is not valid for this record class",
+        ),
     ),
 )
 def test_attributed_writer_rejects_mismatched_publication_context(

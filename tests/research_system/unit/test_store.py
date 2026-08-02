@@ -14,6 +14,7 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store import lock as lock_module
+from research_system.store import durability as durability_module
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
@@ -133,6 +134,64 @@ def test_second_composite_writer_lock_reports_existing_writer(tmp_path):
         with pytest.raises(ConflictError, match="writer lock exists"):
             with second:
                 raise AssertionError("second composite writer entered lock")
+
+
+def test_composite_writer_lock_maps_verified_windows_sharing_denial_to_writer_contention(tmp_path, monkeypatch):
+    if os.name != "nt":
+        pytest.skip("Windows sharing-denial classification control")
+    root = tmp_path / "control"
+    runtime = root / "runtime"
+    runtime.mkdir(parents=True)
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_composite-sharing-denial"})
+
+    class SharingViolation(OSError):
+        winerror = 32
+
+    def deny_delete_share(*_args, **_kwargs):
+        raise ConflictError("root delete protection denied") from SharingViolation("sharing violation")
+
+    monkeypatch.setattr(lock_module, "_open_directory_anchor", deny_delete_share)
+    acquired = lock_module._AcquiredMember(candidate._members[0])
+
+    with WriterLock(runtime / "writer.lock", {"command_id": "cmd_live-contender"}):
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            candidate._prepare_member(acquired)
+
+
+@pytest.mark.parametrize("message", ["missing root", "reparse root", "identity changed"])
+def test_composite_writer_lock_preserves_nonsharing_anchor_conflict_with_lock_residue(tmp_path, monkeypatch, message):
+    root = tmp_path / "control"
+    runtime = root / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "writer.lock").write_text("residue", encoding="utf-8")
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_composite-anchor-conflict"})
+
+    def reject_anchor(*_args, **_kwargs):
+        raise ConflictError(message)
+
+    monkeypatch.setattr(lock_module, "_open_directory_anchor", reject_anchor)
+    acquired = lock_module._AcquiredMember(candidate._members[0])
+
+    with pytest.raises(ConflictError, match=message):
+        candidate._prepare_member(acquired)
+
+
+def test_fsync_directory_reraises_unexpected_open_error(tmp_path, monkeypatch):
+    def fail_open(*_args, **_kwargs):
+        raise OSError(5, "unexpected I/O failure")
+
+    monkeypatch.setattr(durability_module.os, "open", fail_open)
+
+    with pytest.raises(OSError, match="unexpected I/O failure"):
+        durability_module.fsync_directory(tmp_path)
+
+
+def test_fsync_directory_tolerates_documented_open_denial(tmp_path, monkeypatch):
+    def deny_open(*_args, **_kwargs):
+        raise OSError(13, "permission denied")
+
+    monkeypatch.setattr(durability_module.os, "open", deny_open)
+    durability_module.fsync_directory(tmp_path)
 
 
 def test_locked_root_capability_is_private_shared_and_retry_scoped(tmp_path):
@@ -983,7 +1042,7 @@ def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeyp
         claim_exists = bool(list(directory.glob(".*.publication-claim")))
         observations.append((directory, target_exists, claim_exists))
 
-    monkeypatch.setattr(object_module, "_fsync_directory", observe)
+    monkeypatch.setattr(object_module, "fsync_directory", observe)
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
     assert (path.parent, True, True) in observations

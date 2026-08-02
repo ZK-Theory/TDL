@@ -685,7 +685,7 @@ def _parser() -> argparse.ArgumentParser:
     write_record.add_argument("--expected-previous-revision", type=int, required=True)
     write_record.add_argument("--record", type=Path, required=True)
     write_record.add_argument("--caller-actor-id", required=True)
-    write_record.add_argument("--caller-actor-class", required=True)
+    write_record.add_argument("--caller-actor-class", choices=("human", "agent", "service"), required=True)
     write_record.add_argument("--authority-grant-id", required=True)
     write_record.add_argument("--record-action", choices=("create", "revise"), required=True)
     write_record.add_argument("--project-id", required=True)

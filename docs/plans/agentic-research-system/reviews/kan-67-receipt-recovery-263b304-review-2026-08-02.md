@@ -31,7 +31,7 @@ multi-party materialization, or authorization to remediate the subject.
 The accepted WP6.3 authority/acceptance boundary was read from Handoffs 31 and
 32, the accepted P-046 scoped-authority decision, and the WP6.3 control-store
 acceptance mechanics review. The preceding exact review for `4b27b04` was read
-from its reachable review commit `159b780b237fdbb50399530439fd1ca0009449f`.
+from its reachable review commit `159b780b237fdbb50399530439fd1ca0009449f0`.
 Those sources preserve the owner-reserved authority boundary and the frozen
 WP6.3 contract/schema bytes; they do not authorize implementation or imply
 owner acceptance.

@@ -37,9 +37,6 @@ _ALLOWED_DISPOSITIONS = frozenset(
     }
 )
 
-_SCOPED_AUTHORITY_GRANT_SCHEMA = "ars://core/scoped-authority-grant"
-_SCOPED_AUTHORITY_GRANT_VERSION = "2.0.0"
-
 
 def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str, str]:
     if command_type == "ActivateExternalAssuranceRecordGrant":
@@ -55,14 +52,30 @@ def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str, str]:
     )
 
 
+def _issued_revocation_schema_for_command(command_type: str) -> tuple[str, str, str]:
+    if command_type == "RevokeExternalAssuranceRecordGrant":
+        return (
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+            "ars://core/event/ExternalAssuranceRecordGrantRevoked",
+        )
+    if command_type == "RevokeIssuedAuthorityGrant":
+        return (
+            SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+            SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+            "ars://core/event/IssuedAuthorityGrantRevoked",
+        )
+    raise ValueError(f"unsupported issued authority revocation command: {command_type}")
+
+
 def _reject_legacy_revocation_of_typed_grant(
     current: dict[str, Any],
 ) -> None:
     if "schema_id" not in current and "schema_version" not in current:
         return
     if (
-        current.get("schema_id") == _SCOPED_AUTHORITY_GRANT_SCHEMA
-        and current.get("schema_version") == _SCOPED_AUTHORITY_GRANT_VERSION
+        current.get("schema_id") == SCOPED_AUTHORITY_GRANT_SCHEMA_ID
+        and current.get("schema_version") == SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
     ):
         raise IntegrityError("legacy authority revocation cannot target scoped grant")
     raise IntegrityError("legacy authority revocation cannot target typed grant with unknown schema marker")
@@ -405,20 +418,8 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "RevokeIssuedAuthorityGrant",
             "RevokeExternalAssuranceRecordGrant",
         }:
-            grant_schema_id = (
-                EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID
-                if event.get("command_type") == "RevokeExternalAssuranceRecordGrant"
-                else SCOPED_AUTHORITY_GRANT_SCHEMA_ID
-            )
-            grant_schema_version = (
-                EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION
-                if event.get("command_type") == "RevokeExternalAssuranceRecordGrant"
-                else SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
-            )
-            event_schema_id = (
-                "ars://core/event/ExternalAssuranceRecordGrantRevoked"
-                if event.get("command_type") == "RevokeExternalAssuranceRecordGrant"
-                else "ars://core/event/IssuedAuthorityGrantRevoked"
+            grant_schema_id, grant_schema_version, event_schema_id = _issued_revocation_schema_for_command(
+                event["command_type"]
             )
             expected_fields = {
                 "authority_admission_version",
