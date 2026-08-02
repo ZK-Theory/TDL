@@ -770,6 +770,25 @@ class ScopedAuthorityGrantResolution:
     revocation_event_id: str | None
 
 
+@dataclass(frozen=True)
+class LifecycleCommandAuthorityEvidence:
+    """Frozen evidence derived from one lifecycle-authority replay.
+
+    Attributes:
+        administration_context: Bound store and bootstrap-owner context.
+        actor_class: Owner-derived actor class used for command resolution.
+        command_resolution: Current command-specific authorization evidence.
+        canonical_grant_identity: The same frozen grant-resolution evidence as
+            ``command_resolution``, retained for bundle-consistency checks. It
+            is not an independent authority read.
+    """
+
+    administration_context: AuthorityAdministrationContext
+    actor_class: str
+    command_resolution: ScopedAuthorityGrantResolution
+    canonical_grant_identity: ScopedAuthorityGrantResolution
+
+
 def authority_bootstrap_sha256(value: object) -> str:
     """Return the canonical SHA-256 digest of an authority bootstrap value.
 
@@ -1785,7 +1804,11 @@ class LedgerAuthorityGrantResolver:
         return result
 
     def administration_context(self) -> AuthorityAdministrationContext:
-        """Read the verified, store-bound owner administration trust anchor."""
+        """Read the verified, store-bound owner administration trust anchor.
+
+        The context is derived from a fresh verified replay on every call; no
+        caller-supplied projection or cached authority state is accepted.
+        """
         projection = self._projection()
         return self._administration_context_from_projection(
             projection,
@@ -1932,8 +1955,11 @@ class LedgerAuthorityGrantResolver:
     ) -> None:
         if now.tzinfo != UTC:
             raise ValueError("trusted authority time must be UTC")
-        if record.get("status") == "revoked":
+        status = record.get("status")
+        if status == "revoked":
             raise ArsError("authority grant revoked")
+        if status != "active":
+            raise ArsError("authority grant is not active")
         if now < grant.effective_at:
             raise ArsError("authority grant not effective")
         if now >= grant.expires_at:
@@ -1943,13 +1969,19 @@ class LedgerAuthorityGrantResolver:
         self,
         grant_id: str,
     ) -> ScopedAuthorityGrantResolution:
-        """Resolve immutable v2 grant identity without claiming current authority."""
+        """Resolve immutable v2 grant identity without claiming current authority.
+
+        Canonical identity is derived from a fresh verified replay on every
+        call; no caller-supplied projection or cached authority state is
+        accepted.
+        """
         projection = self._projection()
         result, _, _ = self._scoped_resolution(grant_id, projection)
         return result
 
     def _resolve_scoped(
         self,
+        *,
         grant_id: str,
         actor_id: str,
         actor_class: str,
@@ -1958,7 +1990,6 @@ class LedgerAuthorityGrantResolver:
         subject_kind: str,
         subject_id: str,
         now: datetime,
-        *,
         projection: dict[str, Any] | None = None,
     ) -> tuple[
         ScopedAuthorityGrantResolution,
@@ -1989,19 +2020,10 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority risk ceiling exceeded")
         return result, grant
 
-    def resolve_command(
+    def _validate_granted_command_identity(
         self,
-        grant_id: str,
-        actor_id: str,
-        actor_class: str,
         command: GrantedCommandIdentity,
-        required_risk: str,
-        project_id: str,
-        subject_kind: str,
-        subject_id: str,
-        now: datetime,
-    ) -> ScopedAuthorityGrantResolution:
-        """Resolve one exact command identity against an active scoped grant."""
+    ) -> None:
         binding = self.schema_registry.command_binding(command.command_type)
         if binding is None or (binding.schema_id, binding.schema_version) != (
             command.schema_id,
@@ -2016,19 +2038,163 @@ class LedgerAuthorityGrantResolver:
             )
         except SchemaError as exc:
             raise ArsError("authority command schema identity mismatch") from exc
+        if identity.sha256 != command.schema_sha256:
+            raise ArsError("authority command identity mismatch")
+
+    def _resolve_command_from_projection(
+        self,
+        *,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        command: GrantedCommandIdentity,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+        projection: dict[str, Any],
+    ) -> ScopedAuthorityGrantResolution:
         result, grant = self._resolve_scoped(
-            grant_id,
-            actor_id,
-            actor_class,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+            projection=projection,
         )
-        if identity.sha256 != command.schema_sha256 or command not in grant.allowed_commands:
+        if command not in grant.allowed_commands:
             raise ArsError("authority command identity mismatch")
         return result
+
+    def resolve_command(
+        self,
+        grant_id: str,
+        actor_id: str,
+        actor_class: str,
+        command: GrantedCommandIdentity,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> ScopedAuthorityGrantResolution:
+        """Resolve one exact command against freshly replayed scoped authority.
+
+        Args:
+            grant_id: Activated scoped authority-grant identity.
+            actor_id: Exact actor identity attributed to the command.
+            actor_class: Trusted actor classification asserted by the caller.
+                This generic API validates the class against the grant but does
+                not infer bootstrap-owner status.
+            command: Exact active command schema identity to authorize.
+            required_risk: Required risk tier, from ``R0`` through ``R3``.
+            project_id: Project identity of the governed subject.
+            subject_kind: Registered scoped-authority subject kind.
+            subject_id: Exact governed subject identity.
+            now: Trusted current UTC time used for effectiveness and expiry.
+
+        Returns:
+            Frozen replay-derived evidence for the authorized scoped grant.
+
+        Raises:
+            ArsError: If the grant, actor, command, scope, time, or risk
+                constraint is not authorized.
+            IntegrityError: If bound store, bootstrap, ledger, decision, grant,
+                or schema evidence is invalid.
+            ValueError: If an identity, actor class, risk tier, scope, or trusted
+                time is malformed.
+
+        Security:
+            The bound store is verified and its authority ledger is replayed
+            afresh on every call. This API accepts no caller projection or
+            cached authorization state. Callers that require bootstrap-owner
+            classification for lifecycle commands must use
+            :meth:`resolve_lifecycle_command`, which derives that class from
+            the same replay rather than trusting ``actor_class``.
+        """
+        self._validate_granted_command_identity(command)
+        projection = self._projection()
+        return self._resolve_command_from_projection(
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            command=command,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+            projection=projection,
+        )
+
+    def resolve_lifecycle_command(
+        self,
+        grant_id: str,
+        actor_id: str,
+        command: GrantedCommandIdentity,
+        required_risk: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> LifecycleCommandAuthorityEvidence:
+        """Resolve owner-governed lifecycle authority from one fresh replay.
+
+        Args:
+            grant_id: Activated scoped authority-grant identity.
+            actor_id: Exact actor identity attributed to the lifecycle command.
+            command: Exact active lifecycle command schema identity.
+            required_risk: Required risk tier, from ``R0`` through ``R3``.
+            project_id: Project identity of the governed subject.
+            subject_kind: Registered lifecycle subject kind.
+            subject_id: Exact governed lifecycle subject identity.
+            now: Trusted current UTC time used for effectiveness and expiry.
+
+        Returns:
+            Frozen owner context, derived actor class, current command
+            resolution, and that resolution reused as the canonical grant
+            identity for bundle-consistency checks.
+
+        Raises:
+            ArsError: If owner classification or any grant constraint fails.
+            IntegrityError: If canonical authority evidence is invalid.
+            ValueError: If an identity, risk tier, scope, or time is malformed.
+
+        Security:
+            This operation invokes :meth:`_projection` exactly once and never
+            exposes its mutable mapping. Owner classification, current command
+            authority, and canonical identity are all derived inside this
+            resolver from that single lock-interval replay. The canonical
+            identity field is not an independent authority read.
+        """
+        projection = self._projection()
+        context = self._administration_context_from_projection(projection)
+        self._validate_granted_command_identity(command)
+        actor_class = "human" if actor_id == context.owner_actor_id else "unproven"
+        command_resolution = self._resolve_command_from_projection(
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            command=command,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+            projection=projection,
+        )
+        if actor_class != "human":
+            raise ArsError("authority actor class is not proven by the bootstrap owner")
+        return LifecycleCommandAuthorityEvidence(
+            administration_context=context,
+            actor_class=actor_class,
+            command_resolution=command_resolution,
+            canonical_grant_identity=command_resolution,
+        )
 
     def resolve_policy_action(
         self,
@@ -2066,14 +2232,14 @@ class LedgerAuthorityGrantResolver:
         except SchemaError as exc:
             raise ArsError("authority policy-action schema identity mismatch") from exc
         result, grant = self._resolve_scoped(
-            grant_id,
-            actor_id,
-            actor_class,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
             projection=projection,
         )
         if identity.sha256 != policy_action.schema_sha256 or policy_action not in grant.allowed_policy_actions:

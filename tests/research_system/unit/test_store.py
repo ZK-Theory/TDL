@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import threading
 
 import pytest
@@ -13,7 +14,13 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store import lock as lock_module
-from research_system.store.lock import WriterLock, inspect_lock, process_instance_id, remove_stale_lock
+from research_system.store.lock import (
+    CompositeWriterLock,
+    WriterLock,
+    inspect_lock,
+    process_instance_id,
+    remove_stale_lock,
+)
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
 
@@ -72,6 +79,466 @@ def test_second_writer_lock_is_rejected(tmp_path):
         with pytest.raises(ConflictError, match="writer lock exists"):
             with WriterLock(path, {"writer_id": "w2"}):
                 raise AssertionError("second writer entered lock")
+
+
+def test_composite_writer_lock_rejects_absent_root_without_state(tmp_path):
+    missing = tmp_path / "missing"
+
+    with pytest.raises(ConflictError, match="existing directory"):
+        CompositeWriterLock(
+            (missing,),
+            {"command_id": "cmd_composite-missing-root"},
+        )
+
+    assert not missing.exists()
+    assert not (missing / "runtime").exists()
+    assert not (missing / "runtime" / "writer.lock").exists()
+
+
+def test_composite_writer_lock_exposes_only_a_live_lease(tmp_path):
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-live-lease"},
+    )
+
+    with pytest.raises(ConflictError, match="lease is not live"):
+        candidate.locked_root(root)
+
+    with candidate as entered:
+        locked = entered.locked_root(root)
+        assert locked.identity.scheme in {"windows-file-id-v1", "posix-dev-inode-v1"}
+        assert locked.aliases == (root,)
+        assert entered.paths == (locked.runtime_final_path / "writer.lock",)
+
+    assert candidate.paths == ()
+    with pytest.raises(ConflictError, match="lease is not live"):
+        candidate.locked_root(root)
+
+
+def test_second_composite_writer_lock_reports_existing_writer(tmp_path):
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    first = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-first-writer"},
+    )
+    second = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-second-writer"},
+    )
+
+    with first:
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            with second:
+                raise AssertionError("second composite writer entered lock")
+
+
+def test_locked_root_capability_is_private_shared_and_retry_scoped(tmp_path):
+    from copy import copy
+
+    from research_system.store.lock import LockedRoot
+
+    root = tmp_path / "capability-root"
+    foreign_root = tmp_path / "foreign-root"
+    (root / "runtime").mkdir(parents=True)
+    (foreign_root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-capability"},
+    )
+    foreign_candidate = CompositeWriterLock(
+        (foreign_root,),
+        {"command_id": "cmd_composite-foreign-capability"},
+    )
+
+    with candidate as entered:
+        live = entered.locked_root(root)
+        shallow_copy = copy(live)
+        assert entered._validate_locked_root(shallow_copy) is shallow_copy
+        with pytest.raises(TypeError, match="lock-created"):
+            LockedRoot(
+                identity=live.identity,
+                final_path=live.final_path,
+                runtime_identity=live.runtime_identity,
+                runtime_final_path=live.runtime_final_path,
+                aliases=live.aliases,
+                _lease_token=object(),
+            )
+        with foreign_candidate as foreign_entered:
+            with pytest.raises(ConflictError, match="lease|member"):
+                entered._validate_locked_root(foreign_entered.locked_root(foreign_root))
+
+    with pytest.raises(ConflictError, match="lease|member"):
+        candidate._validate_locked_root(live)
+    with pytest.raises(ConflictError, match="lease|member"):
+        candidate._validate_locked_root(shallow_copy)
+
+    first_token = live._lease_token
+    with candidate as retried:
+        retried_live = retried.locked_root(root)
+        assert retried_live._lease_token is not first_token
+        with pytest.raises(ConflictError, match="lease|member"):
+            retried._validate_locked_root(live)
+
+
+@pytest.mark.parametrize("runtime_kind", ["missing", "file", "reparse"])
+def test_composite_writer_lock_rejects_invalid_runtime_without_state(tmp_path, runtime_kind):
+    root = tmp_path / f"control-{runtime_kind}"
+    root.mkdir()
+    runtime = root / "runtime"
+    if runtime_kind == "file":
+        runtime.write_text("not a directory", encoding="utf-8")
+    elif runtime_kind == "reparse":
+        target = tmp_path / f"runtime-target-{runtime_kind}"
+        target.mkdir()
+        try:
+            runtime.symlink_to(target, target_is_directory=True)
+        except OSError:
+            pytest.skip("directory reparse creation unavailable on this host")
+
+    with pytest.raises(ConflictError, match="directory|reparse"):
+        CompositeWriterLock(
+            (root,),
+            {"command_id": f"cmd_composite-runtime-{runtime_kind}"},
+        )
+
+    assert not (root / "runtime" / "writer.lock").exists()
+
+
+def test_composite_writer_lock_fails_closed_when_windows_identity_is_unavailable(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows identity backend control")
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "control-identity"
+    (root / "runtime").mkdir(parents=True)
+
+    def unavailable(_handle):
+        raise OSError("identity unavailable")
+
+    monkeypatch.setattr(lock_module, "_windows_file_id", unavailable)
+    with pytest.raises(ConflictError):
+        CompositeWriterLock(
+            (root,),
+            {"command_id": "cmd_composite-identity-unavailable"},
+        )
+    assert not (root / "runtime" / "writer.lock").exists()
+
+
+def test_windows_runtime_anchor_rejects_inside_open_identity_swap_without_publication(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows directory-anchor race control")
+    import research_system.store.lock as lock_module
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    ordinary_identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"ordinary-runtime".ljust(16, b"\0"),
+    )
+    followed_identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"junction-target".ljust(16, b"\0"),
+    )
+    directory_attribute = lock_module._FILE_ATTRIBUTE_DIRECTORY
+    phase = 0
+    handles = []
+
+    class FakeHandle:
+        def __init__(self, name, identity, final_path):
+            self.name = name
+            self.identity = identity
+            self.final_path = final_path
+            self.closed = False
+
+    def fake_open(path, *, open_reparse_point, delete_protect=False):
+        nonlocal phase
+        assert path == runtime
+        assert not delete_protect
+        if open_reparse_point:
+            if phase == 0:
+                phase = 1
+                handle = FakeHandle("probe-before", ordinary_identity, runtime)
+            elif phase == 2:
+                phase = 3
+                handle = FakeHandle("probe-after", ordinary_identity, runtime)
+            else:  # pragma: no cover - the phase assertions are the control
+                raise AssertionError(f"unexpected no-follow phase: {phase}")
+        else:
+            assert phase == 1
+            phase = 2
+            handle = FakeHandle("followed", followed_identity, tmp_path / "junction-target")
+        handles.append(handle)
+        return handle
+
+    def fake_attributes(handle):
+        assert not handle.closed
+        return directory_attribute, 0
+
+    def fake_close(handle):
+        assert not handle.closed
+        handle.closed = True
+
+    monkeypatch.setattr(lock_module, "_windows_open_handle", fake_open)
+    monkeypatch.setattr(lock_module, "_windows_file_attribute_tag", fake_attributes)
+    monkeypatch.setattr(lock_module, "_windows_file_id", lambda handle: handle.identity)
+    monkeypatch.setattr(lock_module, "_windows_final_path", lambda handle: handle.final_path)
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fake_close)
+
+    published = []
+    with pytest.raises(ConflictError, match="identity"):
+        published.append(lock_module._open_windows_anchor(runtime, reject_reparse=True))
+
+    assert published == []
+    assert phase == 2
+    assert all(handle.closed for handle in handles)
+
+
+def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primary_error(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows directory-anchor cleanup control")
+    import research_system.store.lock as lock_module
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"ordinary-runtime".ljust(16, b"\0"),
+    )
+    followed_identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"changed-runtime".ljust(16, b"\0"),
+    )
+    handles = []
+    close_attempts = []
+
+    class FakeHandle:
+        def __init__(self, name):
+            self.name = name
+            self.closed = False
+
+    def fake_open(path, *, open_reparse_point, delete_protect=False):
+        assert path == runtime
+        if open_reparse_point:
+            assert not delete_protect
+            handle = FakeHandle("probe")
+        else:
+            assert not delete_protect
+            handle = FakeHandle("followed")
+        handles.append(handle)
+        return handle
+
+    def fake_attributes(handle):
+        assert not handle.closed
+        return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
+
+    def fake_close(handle):
+        close_attempts.append(handle.name)
+        if handle.name == "followed":
+            raise RuntimeError("close failure")
+        handle.closed = True
+
+    monkeypatch.setattr(lock_module, "_windows_open_handle", fake_open)
+    monkeypatch.setattr(lock_module, "_windows_file_attribute_tag", fake_attributes)
+    monkeypatch.setattr(
+        lock_module,
+        "_windows_file_id",
+        lambda handle: identity if handle.name == "probe" else followed_identity,
+    )
+    monkeypatch.setattr(lock_module, "_windows_final_path", lambda _handle: runtime)
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fake_close)
+
+    with pytest.raises(ConflictError, match="identity") as raised:
+        lock_module._open_windows_anchor(runtime, reject_reparse=True)
+
+    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert str(raised.value.__cause__) == "close failure"
+    assert close_attempts == ["probe", "followed"]
+    assert handles[0].closed is True
+    assert handles[1].closed is False
+
+
+def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
+    tmp_path,
+    monkeypatch,
+):
+    if os.name != "nt":
+        pytest.skip("Windows directory-anchor cleanup control")
+    import research_system.store.lock as lock_module
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"ordinary-runtime".ljust(16, b"\0"),
+    )
+    handles = []
+    close_attempts = []
+
+    class FakeHandle:
+        def __init__(self, name):
+            self.name = name
+            self.closed = False
+
+    def fake_open(path, *, open_reparse_point, delete_protect=False):
+        assert path == runtime
+        if open_reparse_point:
+            assert not delete_protect
+            handle = FakeHandle("probe")
+        else:
+            assert not delete_protect
+            handle = FakeHandle("followed")
+        handles.append(handle)
+        return handle
+
+    def fake_attributes(handle):
+        assert not handle.closed
+        return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
+
+    def fake_close(handle):
+        close_attempts.append(handle.name)
+        if handle.name == "probe" and close_attempts.count("probe") == 1:
+            raise RuntimeError("first close failure")
+        if handle.name == "followed":
+            raise ValueError("second close failure")
+        handle.closed = True
+
+    monkeypatch.setattr(lock_module, "_windows_open_handle", fake_open)
+    monkeypatch.setattr(lock_module, "_windows_file_attribute_tag", fake_attributes)
+    monkeypatch.setattr(lock_module, "_windows_file_id", lambda _handle: identity)
+    monkeypatch.setattr(lock_module, "_windows_final_path", lambda _handle: runtime)
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fake_close)
+
+    with pytest.raises(RuntimeError, match="first close failure"):
+        lock_module._open_windows_anchor(runtime, reject_reparse=True)
+
+    assert close_attempts == ["probe", "probe", "followed"]
+    assert handles[0].closed is True
+    assert handles[1].closed is False
+
+
+def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows directory-handle cleanup control")
+    import research_system.store.lock as lock_module
+
+    identity = lock_module.DirectoryIdentity(
+        "windows-file-id-v1",
+        1,
+        b"retryable-runtime".ljust(16, b"\0"),
+    )
+    handle = object()
+    close_attempts = []
+
+    def close(_handle):
+        close_attempts.append(True)
+        if len(close_attempts) == 1:
+            raise RuntimeError("close failure")
+
+    anchor = lock_module._DirectoryAnchor(
+        identity,
+        tmp_path,
+        handle,
+        lambda _handle: (identity, tmp_path),
+        close,
+    )
+
+    with pytest.raises(RuntimeError, match="close failure"):
+        anchor.close()
+
+    assert anchor._closed is False
+    anchor.close()
+    assert anchor._closed is True
+    assert len(close_attempts) == 2
+
+
+def test_posix_directory_anchor_propagates_delete_protection(tmp_path, monkeypatch):
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "control"
+    sentinel = object()
+    calls = []
+
+    def open_posix(path_value, *, reject_reparse, delete_protect):
+        calls.append((path_value, reject_reparse, delete_protect))
+        return sentinel
+
+    monkeypatch.setattr(lock_module, "_open_posix_anchor", open_posix)
+    monkeypatch.setattr(lock_module.os, "name", "posix")
+
+    assert lock_module._open_directory_anchor(path, delete_protect=True) is sentinel
+    assert calls == [(path, False, True)]
+
+
+@pytest.mark.parametrize("deleted_signal", ["link-count", "final-path"])
+def test_posix_delete_protected_refresh_rejects_unlinked_anchor(monkeypatch, deleted_signal):
+    import research_system.store.lock as lock_module
+
+    observed = type(
+        "Observed",
+        (),
+        {
+            "st_mode": stat.S_IFDIR | 0o700,
+            "st_dev": 1,
+            "st_ino": 2,
+            "st_nlink": 0 if deleted_signal == "link-count" else 1,
+        },
+    )()
+    monkeypatch.setattr(lock_module.os, "fstat", lambda _descriptor: observed)
+    monkeypatch.setattr(
+        lock_module.os,
+        "readlink",
+        lambda _path: "/tmp/control (deleted)" if deleted_signal == "final-path" else "/tmp/control",
+    )
+    refresh = lock_module._posix_anchor_refresh_factory(
+        Path("/tmp/control"),
+        delete_protect=True,
+    )
+
+    with pytest.raises(ConflictError, match="unlinked|deleted"):
+        refresh(17)
+
+
+def test_posix_unprotected_refresh_preserves_deleted_path_compatibility(monkeypatch):
+    import research_system.store.lock as lock_module
+
+    observed = type(
+        "Observed",
+        (),
+        {
+            "st_mode": stat.S_IFDIR | 0o700,
+            "st_dev": 1,
+            "st_ino": 2,
+            "st_nlink": 0,
+        },
+    )()
+    monkeypatch.setattr(lock_module.os, "fstat", lambda _descriptor: observed)
+    monkeypatch.setattr(lock_module.os, "readlink", lambda _path: "/tmp/control (deleted)")
+    refresh = lock_module._posix_anchor_refresh_factory(
+        Path("/tmp/control"),
+        delete_protect=False,
+    )
+
+    identity, final_path = refresh(17)
+
+    assert identity.scheme == "posix-dev-inode-v1"
+    assert final_path == Path("/tmp/control")
 
 
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):
@@ -347,6 +814,70 @@ def test_recovery_lock_reclaims_a_recycled_pid_and_a_revalidated_dead_owner(tmp_
     assert recovered is not None
     recovered.__exit__(None, None, None)
     assert not path.exists()
+
+
+def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failure(tmp_path, monkeypatch):
+    import research_system.store.lock as lock_module
+
+    roots = tuple(tmp_path / name for name in ("a", "b", "c"))
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd_composite-cleanup"},
+    )
+    ordered_members = tuple(candidate._members)
+    ordered_labels = tuple(member.representative.final_path.name for member in ordered_members)
+    failure_label = ordered_labels[-1]
+    release_error_label = ordered_labels[-2]
+    entered: list[str] = []
+    exited: list[str] = []
+    closed_anchors = []
+
+    original_close_anchor = lock_module._close_anchor
+
+    def observed_close_anchor(anchor):
+        if anchor is not None:
+            closed_anchors.append(anchor.final_path)
+        return original_close_anchor(anchor)
+
+    monkeypatch.setattr(lock_module, "_close_anchor", observed_close_anchor)
+
+    class FakeLock:
+        def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.label = path.parent.parent.name
+
+        def __enter__(self):
+            entered.append(self.label)
+            if self.label == failure_label:
+                raise RuntimeError("third lock acquisition failed")
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            exited.append(self.label)
+            if self.label == release_error_label:
+                raise ValueError("second lock release failed")
+            return False
+
+    candidate = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd_composite-cleanup"},
+        lock_factory=FakeLock,
+    )
+    closed_anchors.clear()
+    with pytest.raises(RuntimeError, match="third lock acquisition failed") as raised:
+        candidate.__enter__()
+
+    assert entered == list(ordered_labels)
+    assert exited == list(reversed(ordered_labels[:-1]))
+    assert isinstance(raised.value.__cause__, ValueError)
+    assert candidate._acquired == []
+    expected_anchor_cleanup = []
+    for member in reversed(ordered_members):
+        expected_anchor_cleanup.extend([member.representative.runtime_final_path, member.representative.final_path])
+    assert closed_anchors == expected_anchor_cleanup
+    candidate.__exit__(None, None, None)
+    assert exited == list(reversed(ordered_labels[:-1]))
 
 
 def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):

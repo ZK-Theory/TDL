@@ -34,7 +34,11 @@ from research_system.store.ledger import EventLedger
 from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
-from tests.research_system.factories import REPO_ROOT, create_task_command
+from tests.research_system.factories import (
+    REPO_ROOT,
+    claim_dispatch_command,
+    create_task_command,
+)
 
 
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
@@ -908,13 +912,22 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
-    unrelated = create_task_command(
+    unrelated = claim_dispatch_command(
         CMD_RETRY,
-        "unrelated-command-id-use",
+        "actor-a",
         REUSED_TASK_ID,
-        {"title": "unrelated"},
+        expected_version=0,
     )
-    assert service.submit(unrelated).status == "accepted"
+    unrelated_service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID, schemas),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=_resolver(control_root, PROJECT_ID, identity),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert unrelated_service.submit(unrelated).status == "accepted"
 
     with pytest.raises(ConflictError, match="command ID"):
         service.submit(_revoke_command(CMD_RETRY))
@@ -1407,13 +1420,14 @@ def test_cli_store_init_binds_explicit_schema_authority_across_worktrees(tmp_pat
 def test_exact_retry_rejects_changed_or_malformed_schema_authority(tmp_path, authority_kind, message) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
+    malformed_root = tmp_path / "malformed"
     unregistered_root = tmp_path / "unregistered"
-    for root in (explicit_root, linked_root, unregistered_root):
+    for root in (explicit_root, linked_root, malformed_root, unregistered_root):
         shutil.copytree(
             REPO_ROOT / ".research-system" / "schemas",
             root / ".research-system" / "schemas",
         )
-    code_roots = [explicit_root, linked_root]
+    code_roots = [explicit_root, linked_root, malformed_root]
     explicit_schema_root = explicit_root / ".research-system" / "schemas"
     bootstrap = _bootstrap()
     approved = authority_bootstrap_sha256(bootstrap)
@@ -1436,14 +1450,14 @@ def test_exact_retry_rejects_changed_or_malformed_schema_authority(tmp_path, aut
         "unregistered": unregistered_root / ".research-system" / "schemas",
         "wrong_suffix": explicit_root / ".research-system" / "schemas-wrong",
         "missing": explicit_root / ".research-system" / "schemas",
-        "malformed": explicit_root / ".research-system" / "schemas",
+        "malformed": malformed_root / ".research-system" / "schemas",
     }
     if authority_kind == "wrong_suffix":
         shutil.copytree(explicit_schema_root, candidates[authority_kind])
     elif authority_kind == "missing":
         shutil.rmtree(explicit_schema_root)
     elif authority_kind == "malformed":
-        (explicit_schema_root / "core" / "event.schema.json").unlink()
+        (candidates[authority_kind] / "core" / "event.schema.json").unlink()
 
     with pytest.raises(ArsError, match=message):
         initialize_authority_control_store(

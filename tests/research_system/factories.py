@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+import uuid
+from typing import Any, Callable
 
-from research_system.authority import authority_bootstrap_sha256
+from research_system.authority import (
+    LedgerAuthorityGrantResolver,
+    authority_bootstrap_sha256,
+    initialize_authority_control_store,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
@@ -21,7 +28,8 @@ from research_system.evals.release_snapshot import (
     build_release_snapshot_documents,
     rederive_release_from_snapshot,
 )
-from research_system.schema_registry import runtime_schema_registry
+from research_system.errors import ArsError
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -131,20 +139,388 @@ class ControlPlaneHarness:
     ledger: EventLedger
     objects: ObjectStore
     receipts: ReceiptStore
+    schemas: SchemaRegistry
+    authority_root: Path
+    authority_ledger: EventLedger
+    authority_objects: ObjectStore
+    authority_receipts: ReceiptStore
+    authority_resolver: LedgerAuthorityGrantResolver
+    authority_service: CommandService
 
     def replay(self) -> ControlPlaneState:
         return replay_control_plane(self.ledger.iter_events())
 
 
-def control_plane(tmp_path: Path) -> ControlPlaneHarness:
+def scoped_lifecycle_grant_id(subject_id: str) -> str:
+    """Derive one deterministic valid authority-grant identity for a subject.
+
+    Args:
+        subject_id: UUID-like subject identity whose suffix is reused.
+
+    Returns:
+        The deterministic scoped authority-grant identity for ``subject_id``.
+    """
+    return f"agr_{subject_id.split('_', 1)[1]}"
+
+
+def _prefixed_identity(prefix: str, source_id: str) -> str:
+    return f"{prefix}_{source_id.split('_', 1)[1]}"
+
+
+def _revocation_decision_id(grant_id: str) -> str:
+    """Derive a deterministic, registered assurance-record ID for revocation."""
+    raw = bytearray.fromhex(sha256_hex(f"revoke:{grant_id}".encode("utf-8"))[:32])
+    raw[6] = (raw[6] & 0x0F) | 0x70
+    raw[8] = (raw[8] & 0x3F) | 0x80
+    return f"arec_{uuid.UUID(bytes=bytes(raw))}"
+
+
+def activate_lifecycle_grant(
+    harness: ControlPlaneHarness,
+    *,
+    subject_kind: str,
+    subject_id: str,
+    actor_id: str = ACTORS["actor-a"],
+) -> str:
+    """Activate a real scoped command grant through the authority ledger.
+
+    Args:
+        harness: Test control-plane and sibling authority stores.
+        subject_kind: Governed subject kind for the grant scope.
+        subject_id: Governed subject identity for the grant scope.
+        actor_id: Actor recorded on the issued grant.
+
+    Returns:
+        The deterministic authority-grant identity.
+
+    Raises:
+        AssertionError: If an expected active command binding is missing or
+            the authority service rejects activation.
+    """
+    grant_id = scoped_lifecycle_grant_id(subject_id)
+    try:
+        existing = harness.authority_resolver.scoped_grant_identity(grant_id)
+    except ArsError:
+        existing = None
+    if existing is not None:
+        return grant_id
+    command_types = (
+        ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition")
+        if subject_kind == "scope_definition"
+        else ("CreateTask", "AmendTask", "SupersedeTask")
+    )
+    command_identities = []
+    for command_type in command_types:
+        binding = harness.schemas.command_binding(command_type)
+        if binding is None:
+            raise AssertionError(f"missing active binding for {command_type}")
+        identity = harness.schemas.resolve_identity(binding.schema_id, binding.schema_version)
+        command_identities.append(
+            {
+                "command_type": command_type,
+                "schema_id": identity.schema_id,
+                "schema_version": identity.schema_version,
+                "schema_sha256": identity.sha256,
+            }
+        )
+    context = harness.authority_resolver.administration_context()
+    grant_schema = harness.schemas.resolve_identity(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    )
+    subject_scope = {
+        "project_id": PROJECT_ID,
+        "subject": {"kind": subject_kind, "id": subject_id},
+    }
+    grant = {
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": "2.0.0",
+        "authority_grant_id": grant_id,
+        "actor_id": actor_id,
+        "allowed_actor_classes": ["human"],
+        "allowed_commands": command_identities,
+        "allowed_policy_actions": [],
+        "subject_scope": subject_scope,
+        "risk_ceiling": "R3",
+        "effective_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2030-01-01T00:00:00Z",
+        "delegable": False,
+        "revoked": False,
+    }
+    decision_id = _prefixed_identity("arec", grant_id)
+    decision = {
+        "schema_id": "ars://core/owner-authority-administration-decision",
+        "schema_version": "1.0.0",
+        "record_id": decision_id,
+        "revision": 1,
+        "project_id": context.project_id,
+        "store_identity": context.store_identity,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "owner_actor_id": context.owner_actor_id,
+        "action": "activate_authority_grant",
+        "target_grant_id": grant_id,
+        "target_grant_sha256": sha256_hex(canonical_bytes(grant)),
+        "target_grant_schema_id": grant_schema.schema_id,
+        "target_grant_schema_version": grant_schema.schema_version,
+        "target_grant_schema_sha256": grant_schema.sha256,
+        "subject_scope": subject_scope,
+        "effective_at": grant["effective_at"],
+        "expires_at": grant["expires_at"],
+        "one_time_use": True,
+        "state": "active",
+        "decided_at": "2026-01-01T00:00:00Z",
+    }
+    harness.authority_objects.write("assurance_record", decision_id, 1, decision)
+    activation = {
+        "command_id": _prefixed_identity("cmd", grant_id),
+        "command_type": "ActivateAuthorityGrant",
+        "schema_id": "ars://core/command/ActivateAuthorityGrant",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-01T00:00:00Z",
+        "actor_id": context.owner_actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": context.root_grant_id,
+        "target_stream_id": grant_id,
+        "expected_stream_version": 0,
+        "idempotency_key": f"activate-lifecycle-grant:{grant_id}",
+        "correlation_id": f"activate-lifecycle-grant:{grant_id}",
+        "causation_id": None,
+        "reason": "activate a governed lifecycle command grant for a test subject",
+        "evidence_refs": [decision_id],
+        "project_id": context.project_id,
+        "payload": {
+            "project_id": context.project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": decision_id,
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "new_grant": grant,
+            "new_grant_sha256": sha256_hex(canonical_bytes(grant)),
+            "new_grant_schema_sha256": grant_schema.sha256,
+        },
+    }
+    receipt = harness.authority_service.submit(activation)
+    if receipt.status != "accepted":
+        raise AssertionError(f"real lifecycle grant activation failed: {receipt}")
+    return grant_id
+
+
+def revoke_lifecycle_grant(
+    harness: ControlPlaneHarness,
+    *,
+    subject_id: str,
+    decision_id: str | None = None,
+) -> str:
+    """Revoke one issued lifecycle grant through the governed authority ledger.
+
+    Args:
+        harness: Test control-plane and sibling authority stores.
+        subject_id: Subject whose deterministic lifecycle grant is revoked.
+        decision_id: Optional assurance-record identity for the revocation.
+
+    Returns:
+        The deterministic authority-grant identity that was revoked.
+
+    Raises:
+        ArsError: If the subject grant cannot be resolved from authority
+            history.
+        AssertionError: If the authority service rejects revocation.
+    """
+    grant_id = scoped_lifecycle_grant_id(subject_id)
+    if decision_id is None:
+        decision_id = _revocation_decision_id(grant_id)
+    resolution = harness.authority_resolver.scoped_grant_identity(grant_id)
+    context = harness.authority_resolver.administration_context()
+    decision = {
+        "schema_id": "ars://core/owner-authority-administration-decision",
+        "schema_version": "1.0.0",
+        "record_id": decision_id,
+        "revision": 1,
+        "project_id": context.project_id,
+        "store_identity": context.store_identity,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "owner_actor_id": context.owner_actor_id,
+        "action": "revoke_issued_authority_grant",
+        "target_grant_id": resolution.authority_grant_id,
+        "target_grant_sha256": resolution.authority_grant_sha256,
+        "target_grant_schema_id": resolution.schema_id,
+        "target_grant_schema_version": resolution.schema_version,
+        "target_grant_schema_sha256": resolution.schema_sha256,
+        "subject_scope": resolution.subject_scope.to_dict(),
+        "effective_at": resolution.effective_at.isoformat().replace("+00:00", "Z"),
+        "expires_at": resolution.expires_at.isoformat().replace("+00:00", "Z"),
+        "one_time_use": True,
+        "state": "active",
+        "decided_at": "2026-08-01T00:00:00Z",
+    }
+    harness.authority_objects.write("assurance_record", decision_id, 1, decision)
+    command = {
+        "command_id": _prefixed_identity("cmd", decision_id),
+        "command_type": "RevokeIssuedAuthorityGrant",
+        "schema_id": "ars://core/command/RevokeIssuedAuthorityGrant",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-01T00:00:00Z",
+        "actor_id": context.owner_actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": context.root_grant_id,
+        "target_stream_id": grant_id,
+        "expected_stream_version": 1,
+        "idempotency_key": f"revoke-lifecycle-grant:{grant_id}",
+        "correlation_id": f"revoke-lifecycle-grant:{grant_id}",
+        "causation_id": None,
+        "reason": "revoke a governed lifecycle command grant for a retry test",
+        "evidence_refs": [decision_id],
+        "project_id": context.project_id,
+        "payload": {
+            "project_id": context.project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "target_grant_id": resolution.authority_grant_id,
+            "target_grant_sha256": resolution.authority_grant_sha256,
+            "target_grant_schema_sha256": resolution.schema_sha256,
+            "administration_decision_id": decision_id,
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "reason": "revoke a governed lifecycle command grant for a retry test",
+        },
+    }
+    receipt = harness.authority_service.submit(command)
+    if receipt.status != "accepted":
+        raise AssertionError(f"real lifecycle grant revocation failed: {receipt}")
+    return grant_id
+
+
+class GovernedTestCommandService(CommandService):
+    """Test adapter that provisions real grants in a sibling authority ledger.
+
+    Actor-a lifecycle submissions have their authority-grant field overwritten
+    with a real grant activated in the sibling authority store.  With
+    ``control_plane(auto_authority=False)``, the plain ``CommandService`` is
+    returned instead, so actor-a submissions are not rewritten and must supply
+    an independently activated grant when a positive case is intended.
+    """
+
+    def __init__(self, *args: Any, authority_harness: ControlPlaneHarness, **kwargs: Any) -> None:
+        self._authority_harness = authority_harness
+        self._prepared_authority_grants: dict[str, str] = {}
+        super().__init__(*args, **kwargs)
+
+    def _before_submission_lock(self, command: Command) -> None:
+        if (
+            command.envelope.get("command_type")
+            in {
+                "CreateScopeDefinition",
+                "AmendScopeDefinition",
+                "SupersedeScopeDefinition",
+                "CreateTask",
+                "AmendTask",
+                "SupersedeTask",
+            }
+            and command.actor_id == ACTORS["actor-a"]
+        ):
+            _, subject_kind, subject_id, _ = self._lifecycle_authority_inputs(
+                command,
+                self.ledger.snapshot(),
+            )
+            grant_id = scoped_lifecycle_grant_id(subject_id)
+            if getattr(self, "_restore_preflight_result", None) is None:
+                # Restore reuses the deterministic scoped grant already activated
+                # in the sibling authority store; it must not be activated again.
+                grant_id = activate_lifecycle_grant(
+                    self._authority_harness,
+                    subject_kind=subject_kind,
+                    subject_id=subject_id,
+                )
+            self._prepared_authority_grants[command.command_id] = grant_id
+
+    def _before_authority_resolution(self, command: Command) -> None:
+        grant_id = self._prepared_authority_grants.pop(command.command_id, None)
+        if grant_id is not None:
+            command.envelope["authority_grant_id"] = grant_id
+
+
+def control_plane(
+    tmp_path: Path,
+    *,
+    auto_authority: bool = True,
+    clock: Callable[[], datetime] | None = None,
+) -> ControlPlaneHarness:
     root = tmp_path / "control"
     root.mkdir()
+    clock = clock or (lambda: datetime(2026, 8, 1, tzinfo=UTC))
     schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    authority_root = root.parent / f".{root.name}.authority"
+    bootstrap = authority_bootstrap()
+    authority_identity = initialize_authority_control_store(
+        [REPO_ROOT],
+        authority_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+    authority_ledger = EventLedger(authority_root, PROJECT_ID, schemas)
+    authority_objects = ObjectStore(authority_root)
+    authority_receipts = ReceiptStore(authority_root)
+    authority_resolver = LedgerAuthorityGrantResolver(
+        authority_root,
+        PROJECT_ID,
+        authority_identity,
+        schemas,
+    )
+    authority_service = CommandService(
+        authority_root,
+        authority_ledger,
+        authority_objects,
+        authority_receipts,
+        schemas,
+        authority_resolver=authority_resolver,
+        clock=clock,
+    )
     ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas)
     objects = ObjectStore(root)
     receipts = ReceiptStore(root)
-    service = CommandService(root, ledger, objects, receipts, schemas)
-    return ControlPlaneHarness(service, ledger, objects, receipts)
+    service = CommandService(
+        root,
+        ledger,
+        objects,
+        receipts,
+        schemas,
+        authority_resolver=authority_resolver,
+        clock=clock,
+    )
+    harness = ControlPlaneHarness(
+        service=service,
+        ledger=ledger,
+        objects=objects,
+        receipts=receipts,
+        schemas=schemas,
+        authority_root=authority_root,
+        authority_ledger=authority_ledger,
+        authority_objects=authority_objects,
+        authority_receipts=authority_receipts,
+        authority_resolver=authority_resolver,
+        authority_service=authority_service,
+    )
+    if auto_authority:
+        harness = replace(
+            harness,
+            service=GovernedTestCommandService(
+                root,
+                ledger,
+                objects,
+                receipts,
+                schemas,
+                authority_resolver=authority_resolver,
+                clock=clock,
+                authority_harness=harness,
+            ),
+        )
+    return harness
 
 
 def _command(

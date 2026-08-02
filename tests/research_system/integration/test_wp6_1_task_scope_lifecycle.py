@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ConflictError, IntegrityError, SchemaError
+from research_system.errors import IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.schema_registry import cached_schema_registry
 from research_system.store.ledger import EventLedger
@@ -15,6 +15,7 @@ from tests.research_system.factories import (
     REPO_ROOT,
     control_plane,
     create_task_command,
+    scoped_lifecycle_grant_id,
 )
 
 
@@ -273,7 +274,7 @@ def _submit_idempotently(harness, command: dict) -> dict:
     assert event["command_schema_version"] == command_identity.schema_version
     assert event["command_schema_sha256"] == command_identity.sha256
     assert event["actor_id"] == command["actor_id"]
-    assert event["authority_grant_id"] == AUTHORITY_GRANT_ID
+    assert event["authority_grant_id"] == scoped_lifecycle_grant_id(command["target_stream_id"])
     assert event["stream_id"] == command["target_stream_id"]
     assert event["payload"] == command["payload"]
     harness.service.schemas.validate_active(
@@ -904,7 +905,9 @@ def test_exact_lifecycle_commands_reject_foreign_project(tmp_path):
     scope_receipt = harness.service.submit(scope_command)
 
     assert scope_receipt.status == "rejected"
-    assert scope_receipt.reason_code == "invalid_command_project"
+    assert scope_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert scope_receipt.explanation == "authority subject scope mismatch"
+    assert scope_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
     assert tuple(harness.ledger.iter_events()) == before_events
 
     for task_id, command_id in (
@@ -943,7 +946,9 @@ def test_exact_lifecycle_commands_reject_foreign_project(tmp_path):
     task_receipt = harness.service.submit(task_command)
 
     assert task_receipt.status == "rejected"
-    assert task_receipt.reason_code == "invalid_command_project"
+    assert task_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert task_receipt.explanation == "authority subject scope mismatch"
+    assert task_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
     assert tuple(harness.ledger.iter_events()) == before_events
 
 
@@ -1012,10 +1017,14 @@ def test_project_binding_precedes_committed_idempotency_reconstruction(
     foreign_retry["project_id"] = "prj_01978abc-6869-7000-8000-000000006869"
     before_events = tuple(harness.ledger.iter_events())
 
-    with pytest.raises(ConflictError, match="receipt already exists"):
-        harness.service.submit(foreign_retry)
+    foreign_receipt = harness.service.submit(foreign_retry)
+    assert foreign_receipt.status == "rejected"
+    assert foreign_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert foreign_receipt.explanation == "authority subject scope mismatch"
+    assert foreign_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
 
     assert accepted.status == "accepted"
+    assert harness.receipts.load(command["command_id"]) == accepted
     assert tuple(harness.ledger.iter_events()) == before_events
 
 
