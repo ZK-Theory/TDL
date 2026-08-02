@@ -62,6 +62,7 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
+from research_system.store.identity import StoreOriginWitness
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
@@ -314,6 +315,7 @@ class CommandService:
             | None
         ) = None
         self._restore_source_root: Path | None = None
+        self._restore_approved_witness: StoreOriginWitness | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
         self._recover_scoped_activation_markers()
@@ -775,11 +777,15 @@ class CommandService:
         source_root: Path,
         preflight_result: RestorePreflightResult,
         rechecker: Callable[[], RestorePreflightResult],
+        approved_witness: StoreOriginWitness | None = None,
     ) -> None:
         """Bind a moved store to evidence that is rerun before each writer lock."""
         if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
             raise ValueError("moved restore source must differ from target")
+        if approved_witness is None:
+            raise ValueError("moved restore requires an approved origin witness")
         self._restore_source_root = source_root
+        self._restore_approved_witness = approved_witness
         self._restore_preflight_result = preflight_result
         self._restore_preflight_rechecker = rechecker
 
@@ -788,7 +794,7 @@ class CommandService:
             return
         supplied = self._restore_preflight_result
         rechecker = self._restore_preflight_rechecker
-        if supplied is None or rechecker is None:
+        if supplied is None or rechecker is None or self._restore_approved_witness is None:
             raise ArsError("moved store requires restore preflight")
         current = rechecker()
         validate_restore_preflight_result(
@@ -797,6 +803,7 @@ class CommandService:
             project_id=self.ledger.project_id,
             actor_id=command.actor_id,
             authority_grant_id=command.envelope["authority_grant_id"],
+            approved_witness=self._restore_approved_witness,
         )
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")

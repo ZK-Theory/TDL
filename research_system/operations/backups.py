@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 from pathlib import Path
 
@@ -11,6 +11,13 @@ from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
+from research_system.store.identity import (
+    StoreOriginWitness,
+    canonical_restore_binding_output,
+    load_store_manifest_unbound,
+    manifest_schema_root,
+)
+from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger
 from research_system.schema_registry import bundled_runtime_schema_registry
 
@@ -75,6 +82,16 @@ class RestorePreflightResult:
     actor_id: str
     authority_grant_id: str
     result_hash: str
+    source_root: str = ""
+    code_roots: list[str] = field(default_factory=list)
+    schema_root: str = ""
+    source_snapshot_hash: str = ""
+    target_manifest_bytes_sha256: str = ""
+    expected_output_sha256: str = ""
+    origin_witness_path: str = ""
+    origin_witness_sha256: str = ""
+    origin_initial_control_root: str = ""
+    origin_initial_physical_root_identity: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.status not in {"verified", "diagnostic_only"}:
@@ -134,17 +151,27 @@ def verify_restore_before_writer_lease(
     registry: object,
     actor_id: str,
     authority_grant_id: str,
+    approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> RestorePreflightResult:
     """Independently inspect a moved store and derive a pre-writer result."""
     target = target_root.resolve(strict=False)
     failed: list[str] = []
+    if approved_witness is None:
+        failed.append("origin_witness_required")
+    if approved_witness_path is None or not approved_witness_path.is_absolute():
+        failed.append("origin_witness_path_required")
     if receipt.receipt_hash != _hash_without(receipt, "receipt_hash"):
         failed.append("receipt_hash_mismatch")
 
-    identity, _ = _read_json(target / "manifests" / "store-identity.json")
+    identity, identity_raw_hash = _read_json(target / "manifests" / "store-identity.json")
     actual_project = receipt.project_id
     actual_store = receipt.store_identity
     source_root: Path | None = None
+    code_roots: list[str] = []
+    schema_root = ""
+    target_manifest_bytes_sha256 = identity_raw_hash
+    expected_output_sha256 = "0" * 64
     if identity is None:
         failed.append("store_identity_manifest_invalid")
     else:
@@ -158,6 +185,11 @@ def verify_restore_before_writer_lease(
             failed.append("project_identity_mismatch")
         if actual_store != receipt.store_identity:
             failed.append("store_identity_mismatch")
+        roots_value = identity.get("code_roots")
+        if isinstance(roots_value, list) and roots_value and all(isinstance(item, str) for item in roots_value):
+            code_roots = [str(Path(item).resolve(strict=False)) for item in roots_value]
+        else:
+            failed.append("code_root_binding_invalid")
         if identity.get("endpoint_scheme") != receipt.source_endpoint_scheme:
             failed.append("endpoint_scheme_mismatch")
         try:
@@ -166,15 +198,57 @@ def verify_restore_before_writer_lease(
             failed.append("source_root_invalid")
         if source_root == target:
             failed.append("store_not_moved")
+        try:
+            loaded_manifest = load_store_manifest_unbound(target)
+            target_manifest_bytes_sha256 = sha256_hex((target / "manifests" / "store-identity.json").read_bytes())
+            persisted_schema_root = manifest_schema_root(loaded_manifest)
+            if persisted_schema_root is not None:
+                schema_root = str(persisted_schema_root.resolve(strict=False))
+            elif code_roots:
+                schema_root = str(Path(code_roots[0]) / ".research-system" / "schemas")
+            if approved_witness is not None:
+                if (
+                    loaded_manifest.get("project_id") != approved_witness.project_id
+                    or loaded_manifest.get("store_identity") != approved_witness.store_identity
+                    or loaded_manifest.get("control_root") != approved_witness.initial_control_root
+                    or sha256_hex(canonical_bytes(loaded_manifest)) != approved_witness.initial_manifest_sha256
+                ):
+                    failed.append("origin_witness_manifest_mismatch")
+        except Exception:
+            failed.append("store_identity_manifest_invalid")
+
+    if approved_witness is not None and approved_witness_path is not None:
+        if str(approved_witness_path.resolve(strict=False)) == "":
+            failed.append("origin_witness_path_required")
+        if source_root is not None and source_root != Path(approved_witness.initial_control_root):
+            failed.append("origin_witness_source_mismatch")
+
+    if code_roots and schema_root:
+        try:
+            expected_output = canonical_restore_binding_output(
+                target,
+                actual_project,
+                actual_store,
+                [Path(root) for root in code_roots],
+                Path(schema_root),
+            )
+            expected_output_sha256 = sha256_hex(expected_output)
+        except Exception:
+            failed.append("restore_output_binding_invalid")
 
     try:
         schemas = bundled_runtime_schema_registry()
+        if not code_roots:
+            raise ArsError("store code roots are unavailable")
+        require_existing_control_root([Path(root) for root in code_roots], target)
         ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
         resolver = LedgerAuthorityGrantResolver(
             target,
             receipt.project_id,
             receipt.store_identity,
             schemas,
+            approved_witness=approved_witness,
+            restore_source_alias=True,
         )
         replay_state = replay(
             ledger_snapshot.events,
@@ -194,6 +268,7 @@ def verify_restore_before_writer_lease(
         failed.append("ledger_replay_invalid")
 
     snapshot, snapshot_hash = _read_json(snapshot_path)
+    source_snapshot_hash = sha256_hex(canonical_bytes(snapshot)) if snapshot is not None else "0" * 64
     if snapshot is None:
         failed.append("snapshot_binding_mismatch")
     else:
@@ -302,6 +377,20 @@ def verify_restore_before_writer_lease(
         actor_id=actor_id,
         authority_grant_id=authority_grant_id,
         result_hash="",
+        source_root=str(source_root) if source_root is not None else "",
+        code_roots=code_roots,
+        schema_root=schema_root,
+        source_snapshot_hash=source_snapshot_hash,
+        target_manifest_bytes_sha256=target_manifest_bytes_sha256,
+        expected_output_sha256=expected_output_sha256,
+        origin_witness_path=(
+            str(approved_witness_path.resolve(strict=False)) if approved_witness_path is not None else ""
+        ),
+        origin_witness_sha256=approved_witness.raw_sha256 if approved_witness is not None else "",
+        origin_initial_control_root=(approved_witness.initial_control_root if approved_witness is not None else ""),
+        origin_initial_physical_root_identity=(
+            dict(approved_witness.initial_physical_root_identity) if approved_witness is not None else {}
+        ),
     )
     return seal_restore_preflight_result(result)
 
@@ -320,6 +409,7 @@ def validate_restore_preflight_result(
     project_id: str,
     actor_id: str,
     authority_grant_id: str,
+    approved_witness: StoreOriginWitness | None = None,
 ) -> None:
     """Recheck a preflight result immediately before writer-lock acquisition."""
     if not isinstance(result, RestorePreflightResult):
@@ -334,3 +424,11 @@ def validate_restore_preflight_result(
         raise ArsError("restore preflight project mismatch")
     if result.actor_id != actor_id or result.authority_grant_id != authority_grant_id:
         raise ArsError("restore preflight authority mismatch")
+    if approved_witness is None:
+        raise ArsError("restore preflight requires approved origin witness")
+    if (
+        result.origin_witness_sha256 != approved_witness.raw_sha256
+        or result.origin_initial_control_root != approved_witness.initial_control_root
+        or result.origin_initial_physical_root_identity != approved_witness.initial_physical_root_identity
+    ):
+        raise ArsError("restore preflight origin witness mismatch")

@@ -19,9 +19,14 @@ from research_system.assurance.external_records import (
     ExternalAssuranceRecordStore,
     ExternalRecordPublicationContext,
 )
-from research_system.canonical import canonical_bytes, jsonable
+from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.command.service import CommandService
-from research_system.config import ControlBinding
+from research_system.config import (
+    ApprovedProjectBinding,
+    ControlBinding,
+    canonical_foundation_path,
+    load_foundation_origin_pins,
+)
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
@@ -48,13 +53,23 @@ from research_system.evals.retention_authorizer import (
     build_deletion_manifest_authorizer,
     load_evidence_store_registry,
 )
+from research_system.operations.backups import (
+    ArtefactBinding,
+    BackupReceipt,
+    verify_restore_before_writer_lease,
+)
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import (
     SchemaRegistry,
     require_authority_schemas,
     runtime_schema_registry,
 )
-from research_system.store.identity import load_store_manifest, manifest_schema_root
+from research_system.store.identity import (
+    canonical_restore_binding_output,
+    load_store_manifest,
+    manifest_schema_root,
+    rebind_restored_store,
+)
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -125,6 +140,11 @@ def _store_init(args: argparse.Namespace) -> int:
     approved = bootstrap_input["approved_bootstrap_sha256"]
     if not isinstance(manifest, dict) or not isinstance(approved, str):
         raise ConfigurationError("invalid authority bootstrap input")
+    origin_root, _witness_path, origin_witness_sha256 = load_foundation_origin_pins(
+        canonical_foundation_path(),
+        project_id=args.project_id,
+        initial_control_root=args.control_root,
+    )
     identity = initialize_authority_control_store(
         roots,
         args.control_root,
@@ -132,12 +152,135 @@ def _store_init(args: argparse.Namespace) -> int:
         manifest,
         approved,
         canonical_schema_root=explicit_root / ".research-system" / "schemas",
+        origin_authority_root=origin_root,
+        approved_origin_witness_sha256=origin_witness_sha256,
     )
     _print_json(
         {
             "project_id": args.project_id,
             "store_identity": identity,
             "bootstrap_manifest_sha256": authority_bootstrap_sha256(manifest),
+            "origin_witness_sha256": identity.witness.raw_sha256,
+            "origin_witness_path": str(identity.witness_path),
+        }
+    )
+    return 0
+
+
+def _backup_receipt_from_json(value: dict[str, Any]) -> BackupReceipt:
+    try:
+        payload = dict(value)
+        payload["schema_versions"] = tuple(payload["schema_versions"])
+        payload["tool_versions"] = tuple(payload["tool_versions"])
+        payload["artefact_bindings"] = tuple(ArtefactBinding(**item) for item in payload["artefact_bindings"])
+        return BackupReceipt(**payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ConfigurationError("invalid backup receipt") from exc
+
+
+def _load_canonical_approved_binding(path: Path) -> ApprovedProjectBinding:
+    canonical = canonical_foundation_path().resolve(strict=False)
+    supplied = path.resolve(strict=False)
+    if supplied != canonical:
+        raise ConfigurationError("restore binding requires the canonical foundation config")
+    return ApprovedProjectBinding.load(canonical)
+
+
+def _publish_exact_file(path: Path, data: bytes) -> None:
+    if path.exists():
+        if not path.is_file() or path.read_bytes() != data:
+            raise ArsError(f"output path exists with foreign content: {path}")
+        return
+    if not path.parent.is_dir():
+        raise ArsError(f"output directory is unavailable: {path.parent}")
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except OSError as exc:
+        raise ArsError(f"output path is unavailable: {path}") from exc
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _store_restore_bind(args: argparse.Namespace) -> int:
+    target_root = args.control_root.resolve(strict=True)
+    requested_source = args.source_root.resolve(strict=True)
+    approved = _load_canonical_approved_binding(args.foundation_config)
+    if requested_source != approved.control_root:
+        raise ConfigurationError("restore source root differs from canonical approved control root")
+    schema_root = args.schema_root.resolve(strict=True)
+    if schema_root != approved.schema_root:
+        raise ConfigurationError("caller schema root differs from approved project binding")
+    schemas = require_authority_schemas(runtime_schema_registry(approved.schema_root))
+    receipt = _backup_receipt_from_json(_read_json(args.receipt))
+    if receipt.project_id != approved.project_id:
+        raise ConfigurationError("backup receipt project differs from approved project binding")
+    if receipt.store_identity != approved.store_identity:
+        raise ArsError("restored store identity differs from backup receipt")
+    if receipt.source_endpoint_scheme != approved.endpoint_scheme:
+        raise ConfigurationError("backup receipt endpoint differs from approved project binding")
+    snapshot = _read_json(args.snapshot)
+    expected_output = canonical_restore_binding_output(
+        target_root,
+        approved.project_id,
+        approved.store_identity,
+        approved.code_roots,
+        approved.schema_root,
+    )
+    registry = load_evidence_store_registry(args.registry, schemas)
+    preflight = verify_restore_before_writer_lease(
+        target_root=target_root,
+        receipt=receipt,
+        snapshot_path=args.snapshot,
+        endpoint_ownership_path=args.endpoint_ownership,
+        artefact_manifest_path=args.artefact_manifest,
+        registry=registry,
+        actor_id=args.actor_id,
+        authority_grant_id=args.authority_grant_id,
+        approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
+    )
+    if preflight.status != "verified":
+        raise ArsError(f"restore preflight is not verified: {', '.join(preflight.failed_predicates)}")
+    preflight_value = asdict(preflight)
+    result = rebind_restored_store(
+        target_root,
+        requested_source,
+        expected_project_id=approved.project_id,
+        expected_store_identity=approved.store_identity,
+        expected_code_roots=list(approved.code_roots),
+        expected_schema_root=approved.schema_root,
+        expected_restore_receipt_hash=receipt.receipt_hash,
+        actor_id=args.actor_id,
+        authority_grant_id=args.authority_grant_id,
+        source_snapshot=snapshot,
+        expected_source_snapshot_hash=preflight.source_snapshot_hash,
+        expected_target_manifest_bytes_sha256=preflight.target_manifest_bytes_sha256,
+        expected_output=expected_output,
+        expected_restore_preflight=preflight_value,
+        approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
+        origin_witness_path=str(approved.origin_witness_path),
+    )
+    _publish_exact_file(args.config_output, expected_output)
+    _print_json(
+        {
+            "status": "bound",
+            "transaction_state": "cleared",
+            "control_root": str(target_root),
+            "project_id": approved.project_id,
+            "store_identity": approved.store_identity,
+            "origin_witness_sha256": approved.origin_witness_sha256,
+            "config": str(args.config_output.resolve(strict=False)),
+            "config_sha256": sha256_hex(expected_output),
+            "manifest_hash": result["manifest_hash"],
+            "preflight_result_hash": preflight.result_hash,
         }
     )
     return 0
@@ -159,6 +302,7 @@ def _command_submit(args: argparse.Namespace) -> int:
             binding.project_id,
             binding.store_identity,
             schemas,
+            approved_witness=binding.origin_witness,
         ),
         clock=_authority_clock,
     )
@@ -213,7 +357,8 @@ def _verified_ledger(
     SchemaRegistry,
     LedgerAuthorityGrantResolver,
 ]:
-    manifest = load_store_manifest(control_root)
+    approved = ApprovedProjectBinding.load(canonical_foundation_path())
+    manifest = load_store_manifest(control_root, approved_witness=approved.origin_witness)
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
     return (
@@ -224,6 +369,7 @@ def _verified_ledger(
             manifest["project_id"],
             manifest["store_identity"],
             schemas,
+            approved_witness=approved.origin_witness,
         ),
     )
 
@@ -245,7 +391,8 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     output = args.output.resolve(strict=False)
     if output == control_root or control_root in output.parents:
         raise ArsError("projection output must be external to canonical control root")
-    manifest = load_store_manifest(control_root)
+    approved = ApprovedProjectBinding.load(canonical_foundation_path())
+    manifest = load_store_manifest(control_root, approved_witness=approved.origin_witness)
     projection_roots = [Path(root) / ".research-system" / "projections" for root in manifest["code_roots"]]
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError("projection output must use an ARS namespaced projection root")
@@ -256,6 +403,7 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
         manifest["project_id"],
         manifest["store_identity"],
         schemas,
+        approved_witness=approved.origin_witness,
     )
     state = rebuild_projection(
         ledger.iter_events(),
@@ -411,6 +559,7 @@ def _publication_evidence(
         binding.project_id,
         binding.store_identity,
         schemas,
+        approved_witness=binding.origin_witness,
     )
     existing_projection = replay(
         EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
@@ -532,6 +681,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             binding.project_id,
             binding.store_identity,
             schemas,
+            approved_witness=binding.origin_witness,
         )
         resolution = authority.grant_identity(args.authority_grant_id)
         idempotency_key = f"release-publication:{source['release_gate_decision_id']}"
@@ -610,6 +760,7 @@ def _eval_release(args: argparse.Namespace) -> int:
         binding.project_id,
         binding.store_identity,
         schema_registry,
+        approved_witness=binding.origin_witness,
     )
     projection = replay(
         ledger.iter_events(),
@@ -666,6 +817,21 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--project-id", required=True)
     init.add_argument("--authority-bootstrap", type=Path, required=True)
     init.set_defaults(handler=_store_init)
+
+    restore_bind = store_commands.add_parser("restore-bind")
+    restore_bind.add_argument("--control-root", type=Path, required=True)
+    restore_bind.add_argument("--source-root", type=Path, required=True)
+    restore_bind.add_argument("--receipt", type=Path, required=True)
+    restore_bind.add_argument("--snapshot", type=Path, required=True)
+    restore_bind.add_argument("--endpoint-ownership", type=Path, required=True)
+    restore_bind.add_argument("--artefact-manifest", type=Path, required=True)
+    restore_bind.add_argument("--registry", type=Path, required=True)
+    restore_bind.add_argument("--actor-id", required=True)
+    restore_bind.add_argument("--authority-grant-id", required=True)
+    restore_bind.add_argument("--foundation-config", type=Path, required=True)
+    restore_bind.add_argument("--schema-root", type=Path, required=True)
+    restore_bind.add_argument("--config-output", type=Path, required=True)
+    restore_bind.set_defaults(handler=_store_restore_bind)
 
     command = groups.add_parser("command")
     command_actions = command.add_subparsers(dest="command_action", required=True)

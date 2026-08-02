@@ -395,6 +395,7 @@ def _system(tmp_path):
         PROJECT_ID,
         identity,
         schemas,
+        approved_witness=identity.witness,
     )
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     objects = ObjectStore(control_root)

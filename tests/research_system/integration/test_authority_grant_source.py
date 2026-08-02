@@ -15,7 +15,7 @@ from research_system.authority import (
     LedgerAuthorityGrantResolver,
     _verify_bootstrap_bindings,
     authority_bootstrap_sha256,
-    initialize_authority_control_store,
+    initialize_authority_control_store as _initialize_authority_control_store,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
@@ -60,6 +60,20 @@ SUBSTITUTE_EVENT_ID = "evt_01978abc-1015-7000-8000-000000001015"
 SCHEMAS = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
 
 
+def initialize_authority_control_store(code_roots, control_root, project_id, bootstrap, approved, **kwargs):
+    origin_root = kwargs.pop("origin_authority_root", control_root.parent / "origin-authority")
+    origin_root.mkdir(parents=True, exist_ok=True)
+    return _initialize_authority_control_store(
+        code_roots,
+        control_root,
+        project_id,
+        bootstrap,
+        approved,
+        origin_authority_root=origin_root,
+        **kwargs,
+    )
+
+
 def _code_root(tmp_path, name: str = "repo"):
     root = tmp_path / name
     shutil.copytree(
@@ -80,6 +94,7 @@ def _resolver(
         project_id,
         expected_store_identity,
         SCHEMAS,
+        approved_witness=getattr(expected_store_identity, "witness", None),
     )
 
 
@@ -142,7 +157,16 @@ def _initialized(tmp_path):
     control_root = tmp_path / "control"
     bootstrap = _bootstrap()
     approved = authority_bootstrap_sha256(bootstrap)
-    identity = initialize_authority_control_store([code_root], control_root, PROJECT_ID, bootstrap, approved)
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+    identity = initialize_authority_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        approved,
+        origin_authority_root=origin_root,
+    )
     return control_root, bootstrap, identity
 
 
@@ -190,12 +214,15 @@ def stop(point):
 authority._bootstrap_failpoint = stop
 if failpoint == "at-rename":
     authority.os.rename = lambda *args: os._exit(86)
+origin = base / "origin-authority"
+origin.mkdir(parents=True, exist_ok=True)
 authority.initialize_authority_control_store(
     [base / "repo"],
     base / "control",
     sys.argv[3],
     bootstrap,
     authority.authority_bootstrap_sha256(bootstrap),
+    origin_authority_root=origin,
 )
 """
     # Current interpreter, fixed argv shape, and synthetic test inputs only.
@@ -476,7 +503,7 @@ def test_genesis_rejects_nonempty_target_without_mutation(tmp_path) -> None:
     sentinel.write_bytes(b"foreign-store")
     bootstrap = _bootstrap()
 
-    with pytest.raises(IntegrityError, match="identity manifest"):
+    with pytest.raises(IntegrityError, match="origin witness is missing"):
         initialize_authority_control_store(
             [code_root],
             control_root,

@@ -159,12 +159,15 @@ def _real_lifecycle_service(
         "publication_target_id": publication_target_id,
     }
     authority_root = root.parent / ".release-tranche-authority"
+    origin_authority_root = root.parent / ".release-tranche-origin-authority"
+    origin_authority_root.mkdir(parents=True, exist_ok=True)
     identity = initialize_authority_control_store(
         [Path(__file__).resolve().parents[3]],
         authority_root,
         project_id,
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
+        origin_authority_root=origin_authority_root,
     )
     from research_system.command.service import CommandService
     from research_system.store.ledger import EventLedger
@@ -180,6 +183,7 @@ def _real_lifecycle_service(
         project_id,
         identity,
         schemas,
+        approved_witness=identity.witness,
     )
     authority_service = CommandService(
         authority_root,

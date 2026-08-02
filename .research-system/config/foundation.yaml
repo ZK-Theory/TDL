@@ -3,5 +3,8 @@ project_template_alias: ars-foundation-p0
 project_id: null
 control_root: null
 control_root_required: true
+origin_authority_root: null
+origin_witness_path: null
+origin_witness_sha256: null
 endpoint_scheme: local-cli
 canonical_hash: sha256

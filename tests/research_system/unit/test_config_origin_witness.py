@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.config import ApprovedProjectBinding
+from research_system.errors import ConfigurationError
+from research_system.store.identity import (
+    build_store_origin_witness,
+    persist_store_origin_witness,
+)
+from research_system.store.layout import require_external_control_root
+
+
+PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
+
+
+def _materialized_foundation(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+    code_root = tmp_path / "code"
+    schema_root = code_root / ".research-system" / "schemas"
+    schema_root.mkdir(parents=True)
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+    control_root = tmp_path / "control"
+    require_external_control_root([code_root], control_root)
+    manifest = {
+        "schema_id": "ars://core/store-identity",
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "store_identity": "a" * 64,
+        "control_root": str(control_root.resolve()),
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "schema_binding_version": "1.0.0",
+        "endpoint_scheme": "local-cli",
+    }
+    manifest["manifest_hash"] = sha256_hex(canonical_bytes(manifest))
+    (control_root / "manifests" / "store-identity.json").write_bytes(canonical_bytes(manifest))
+    witness = build_store_origin_witness(manifest, initial_control_root=control_root)
+    witness_path = persist_store_origin_witness(witness, origin_root)
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(control_root.resolve()),
+        "control_root_required": True,
+        "store_identity": manifest["store_identity"],
+        "endpoint_scheme": "local-cli",
+        "canonical_hash": "sha256",
+        "canonical_uri": "local-cli://control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "origin_authority_root": str(origin_root.resolve()),
+        "origin_witness_path": str(witness_path.resolve()),
+        "origin_witness_sha256": witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path = tmp_path / "foundation.yaml"
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    return foundation_path, foundation
+
+
+def test_approved_binding_loads_foundation_pinned_witness_before_store(tmp_path: Path):
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+
+    binding = ApprovedProjectBinding.load(foundation_path)
+    assert binding.origin_witness_sha256 == foundation["origin_witness_sha256"]
+    assert binding.origin_witness.initial_control_root == str(binding.control_root)
+
+
+@pytest.mark.parametrize("mutation", ["path", "digest", "foundation"])
+def test_config_cannot_substitute_an_alternate_witness_or_unapproved_bytes(tmp_path: Path, mutation: str):
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+    value = dict(foundation)
+    if mutation == "path":
+        value["origin_witness_path"] = str((tmp_path / "wrong.json").resolve())
+    elif mutation == "digest":
+        value["origin_witness_sha256"] = "b" * 64
+    else:
+        value["canonical_uri"] = "local-cli://changed"
+    if mutation != "foundation":
+        value["foundation_sha256"] = sha256_hex(canonical_bytes(value))
+    foundation_path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError):
+        ApprovedProjectBinding.load(foundation_path)

@@ -35,7 +35,7 @@ from research_system.assurance.resolver import ControlStoreAuthorityResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
-from research_system.store.identity import _manifest_hash, initialize_control_store
+from research_system.store.identity import _manifest_hash, initialize_control_store as _initialize_control_store
 from research_system.store.objects import ObjectStore
 
 
@@ -58,6 +58,17 @@ _ALL_RECORD_IDS = {
     "active_authority_grant": "agr_01978abc-2000-7000-8000-000000002020",
     "registered_pack_object": "asp_01978abc-2000-7000-8000-000000002021",
 }
+
+
+def initialize_control_store(code_roots, control_root, project_id):
+    origin_root = control_root.parent / ".origin-authority"
+    origin_root.mkdir(parents=True, exist_ok=True)
+    return _initialize_control_store(
+        code_roots,
+        control_root,
+        project_id,
+        origin_authority_root=origin_root,
+    )
 
 
 def _parent_pointer(parent: dict[str, Any], pointer: str) -> Any:
@@ -244,6 +255,10 @@ def _resolver(tmp_path: Path) -> tuple[ControlStoreAuthorityResolver, ObjectStor
         project_id=PROJECT_ID,
         schema_root=SCHEMA_PATH.parents[1],
         store_identity=identity,
+        origin_authority_root=identity.witness_path.parent.parent,
+        origin_witness_path=identity.witness_path,
+        origin_witness_sha256=identity.witness.raw_sha256,
+        origin_witness=identity.witness,
     )
     resolver = ControlStoreAuthorityResolver(binding)
     return resolver, ObjectStore(control_root), resolver.authority_root
@@ -260,6 +275,10 @@ def _binding(tmp_path: Path) -> ControlBinding:
         project_id=PROJECT_ID,
         schema_root=SCHEMA_PATH.parents[1],
         store_identity=identity,
+        origin_authority_root=identity.witness_path.parent.parent,
+        origin_witness_path=identity.witness_path,
+        origin_witness_sha256=identity.witness.raw_sha256,
+        origin_witness=identity.witness,
     )
 
 
@@ -501,7 +520,7 @@ def test_binding_a_resolver_to_a_control_root_inside_a_code_root_is_refused(tmp_
     code_root = tmp_path / "code"
     code_root.mkdir()
     control_root = tmp_path / "control"
-    initialize_control_store([code_root], control_root, PROJECT_ID)
+    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
 
     # Same store bytes, re-registered so the control root now sits inside a declared code root.
     manifest_path = control_root / "manifests" / "store-identity.json"
@@ -510,7 +529,7 @@ def test_binding_a_resolver_to_a_control_root_inside_a_code_root_is_refused(tmp_
     manifest["manifest_hash"] = _manifest_hash(manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ArsError, match="disjoint"):
+    with pytest.raises(ArsError, match="disjoint|origin witness"):
         ControlStoreAuthorityResolver(
             ControlBinding(
                 code_roots=(tmp_path.resolve(),),
@@ -518,6 +537,7 @@ def test_binding_a_resolver_to_a_control_root_inside_a_code_root_is_refused(tmp_
                 project_id=PROJECT_ID,
                 schema_root=SCHEMA_PATH.parents[1],
                 store_identity=manifest["store_identity"],
+                origin_witness=identity.witness,
             )
         )
 
@@ -527,7 +547,7 @@ def test_binding_a_resolver_without_registered_code_roots_is_refused(tmp_path: P
     code_root = tmp_path / "code"
     code_root.mkdir()
     control_root = tmp_path / "control"
-    initialize_control_store([code_root], control_root, PROJECT_ID)
+    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
 
     manifest_path = control_root / "manifests" / "store-identity.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -543,6 +563,7 @@ def test_binding_a_resolver_without_registered_code_roots_is_refused(tmp_path: P
                 project_id=PROJECT_ID,
                 schema_root=SCHEMA_PATH.parents[1],
                 store_identity=manifest["store_identity"],
+                origin_witness=identity.witness,
             )
         )
 

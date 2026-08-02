@@ -26,7 +26,12 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
 from research_system.schema_registry import runtime_schema_registry
-from research_system.store.identity import load_store_manifest
+from research_system.store.identity import (
+    load_store_manifest,
+    load_store_manifest_unbound,
+    load_store_origin_witness,
+    origin_witness_path,
+)
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -304,7 +309,8 @@ def _fixture(tmp_path: Path):
     objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
     accepted = service.submit(_activation_command(resolver, schemas, grant, decision))
     assert accepted.status == "accepted"
-    manifest = load_store_manifest(control_root)
+    witness = resolver.approved_witness
+    manifest = load_store_manifest(control_root, approved_witness=witness)
     code_root = tmp_path / "repo"
     shutil.copytree(
         REPO_ROOT / ".research-system" / "contracts",
@@ -316,6 +322,7 @@ def _fixture(tmp_path: Path):
         project_id=PROJECT_ID,
         schema_root=(code_root / ".research-system" / "schemas").resolve(),
         store_identity=manifest["store_identity"],
+        origin_witness=witness,
     )
     return binding, schemas, resolver, objects, service, grant
 
@@ -339,12 +346,21 @@ def _schema_variant(tmp_path: Path, *, event: bool = False):
 
 
 def _restart_system(control_root: Path, schemas: object):
-    manifest = load_store_manifest(control_root)
+    unbound = load_store_manifest_unbound(control_root)
+    origin_root = control_root.parent / "origin-authority"
+    witness_path = origin_witness_path(
+        origin_root,
+        project_id=PROJECT_ID,
+        initial_control_root=Path(str(unbound["control_root"])),
+    )
+    witness = load_store_origin_witness(witness_path, expected_sha256=sha256_hex(witness_path.read_bytes()))
+    manifest = load_store_manifest(control_root, approved_witness=witness)
     resolver = LedgerAuthorityGrantResolver(
         control_root,
         PROJECT_ID,
         manifest["store_identity"],
         schemas,
+        approved_witness=witness,
     )
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     objects = ObjectStore(control_root)
@@ -583,12 +599,14 @@ def test_exact_retry_rejects_same_envelope_against_changed_schema_bytes(
         service.submit(command)
 
     schemas_b = _schema_variant(tmp_path)
-    manifest = load_store_manifest(control_root)
+    witness = resolver.approved_witness
+    manifest = load_store_manifest(control_root, approved_witness=witness)
     resolver_b = LedgerAuthorityGrantResolver(
         control_root,
         PROJECT_ID,
         manifest["store_identity"],
         schemas_b,
+        approved_witness=witness,
     )
     ledger_b = EventLedger(control_root, PROJECT_ID, schemas_b)
     objects_b = ObjectStore(control_root)
