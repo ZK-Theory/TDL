@@ -59,11 +59,22 @@ def test_the_interpreter_running_the_validator_can_run_pytest() -> None:
 
 
 def _git_bash() -> Path | None:
-    git = shutil.which("git")
-    if git is None:
-        return None
-    candidate = Path(git).resolve().parents[1] / "bin" / "bash.exe"
-    return candidate if candidate.is_file() else None
+    # A Git-for-Windows install has several git.exe copies (cmd/, bin/,
+    # mingw64/bin/) at different depths from the shared bin/bash.exe, so
+    # deriving bash's path from wherever `which git` resolved is unreliable —
+    # it silently skipped every test in this file when git resolved through
+    # mingw64/bin/. Try the discovered git's sibling bin/ first, then the
+    # standard install-root fallback.
+    discovered = shutil.which("git")
+    candidates = [
+        Path(discovered).resolve().parents[1] / "bin" / "bash.exe" if discovered else None,
+        Path(discovered).resolve().parents[2] / "bin" / "bash.exe" if discovered else None,
+        Path(r"C:\Program Files\Git\bin\bash.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and candidate.is_file():
+            return candidate
+    return None
 
 
 def _msys_path(path: Path) -> str:
@@ -138,3 +149,72 @@ exit 0
         f"{_msys_path(worktree)}/tools/sync_agent_skills.py --check",
         f"{_msys_path(worktree)}/.claude/hooks/contract_binding_check.py",
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_blocks_when_a_gate_mutates_a_tracked_file(tmp_path: Path) -> None:
+    """Obs 01KYQ6AMEXS5SZEEGX9RB9QKHF: a validation gate must not leave a side effect.
+
+    A timed-out `git commit` left orphaned pre-commit children running, which
+    completed and rewrote a clean, unstaged, unrelated `uv.lock`. Simulates a
+    gate (standing in for contract_binding_check.py) that mutates a tracked
+    file as a side effect, and asserts the new no-new-diff gate blocks it
+    rather than letting the commit proceed with an unremarked mutation.
+    """
+    main_root = tmp_path / "main"
+    worktree = tmp_path / "linked-worktree"
+    fake_bin = tmp_path / "fake-bin"
+    bash_env = tmp_path / "bash-env"
+    marker = tmp_path / "gate-mutated-a-tracked-file"
+    main_root.joinpath(".git").mkdir(parents=True)
+    worktree.mkdir()
+
+    _write_executable(
+        fake_bin / "git",
+        """#!/bin/sh
+case "$*" in
+  "rev-parse --show-toplevel") printf '%s\n' "$HOOK_TEST_WORKTREE" ;;
+  "rev-parse --git-common-dir") printf '%s\n' "$HOOK_TEST_MAIN/.git" ;;
+  "diff --name-only")
+    if [ -f "$HOOK_TEST_MARKER" ]; then printf 'uv.lock\n'; fi
+    ;;
+  *) exit 0 ;;
+esac
+""",
+    )
+    _write_executable(bash_env, 'export PATH="$HOOK_TEST_PATH"\n')
+    _write_executable(
+        main_root / ".venv" / "Scripts" / "python.exe",
+        """#!/bin/sh
+case "$*" in
+  *contract_binding_check.py*) touch "$HOOK_TEST_MARKER" ;;
+esac
+exit 0
+""",
+    )
+
+    env = os.environ.copy()
+    git_bash = _git_bash()
+    assert git_bash is not None
+    env.update(
+        {
+            "HOOK_TEST_MAIN": _msys_path(main_root),
+            "HOOK_TEST_WORKTREE": _msys_path(worktree),
+            "HOOK_TEST_MARKER": _msys_path(marker),
+            "HOOK_TEST_PATH": f"{_msys_path(fake_bin)}:/usr/bin:/bin",
+            "BASH_ENV": _msys_path(bash_env),
+        }
+    )
+    completed = subprocess.run(
+        [str(git_bash), _msys_path(HOOK)],
+        cwd=worktree,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "modified tracked file(s) outside the staged set" in completed.stderr
+    assert "uv.lock" in completed.stderr
