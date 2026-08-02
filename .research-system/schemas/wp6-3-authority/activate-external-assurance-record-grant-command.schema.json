@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/ActivateExternalAssuranceRecordGrant",
+  "type": "object",
+  "required": ["command_id", "command_type", "schema_id", "schema_version", "submitted_at", "actor_id", "on_behalf_of_actor_id", "authority_grant_id", "target_stream_id", "expected_stream_version", "idempotency_key", "correlation_id", "causation_id", "reason", "evidence_refs", "payload", "project_id"],
+  "properties": {
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "command_type": {"const": "ActivateExternalAssuranceRecordGrant"},
+    "schema_id": {"const": "ars://core/command/ActivateExternalAssuranceRecordGrant"},
+    "schema_version": {"const": "1.0.0"},
+    "submitted_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "on_behalf_of_actor_id": {"const": null},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_stream_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "expected_stream_version": {"const": 0},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "reason": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "payload": {
+      "type": "object",
+      "required": ["project_id", "bootstrap_manifest_sha256", "root_grant_id", "root_grant_sha256", "administration_decision_id", "administration_decision_sha256", "new_grant", "new_grant_sha256", "new_grant_schema_sha256"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "root_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "administration_decision_id": {"type": "string", "pattern": "^arec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "administration_decision_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "new_grant": {"$ref": "#/$defs/external_scoped_grant"},
+        "new_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "new_grant_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "external_scoped_grant": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "authority_grant_id", "actor_id", "allowed_actor_classes", "allowed_commands", "allowed_policy_actions", "subject_scope", "risk_ceiling", "effective_at", "expires_at", "delegable", "revoked"],
+      "properties": {
+        "schema_id": {"const": "ars://core/external-assurance-record-scoped-authority-grant"},
+        "schema_version": {"const": "1.0.0"},
+        "authority_grant_id": {"type": "string", "pattern": "^agr_"},
+        "actor_id": {"type": "string", "pattern": "^act_"},
+        "allowed_actor_classes": {"type": "array", "items": {"enum": ["human", "agent", "service"]}, "minItems": 1, "uniqueItems": true},
+        "allowed_commands": {"const": []},
+        "allowed_policy_actions": {"type": "array", "minItems": 1, "maxItems": 1},
+        "subject_scope": {
+          "type": "object",
+          "required": ["project_id", "subject"],
+          "properties": {
+            "project_id": {"type": "string", "pattern": "^prj_"},
+            "subject": {
+              "type": "object",
+              "required": ["kind", "id"],
+              "properties": {
+                "kind": {"const": "external_assurance_record"},
+                "id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "risk_ceiling": {"enum": ["R0", "R1", "R2", "R3"]},
+        "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "delegable": {"const": false},
+        "revoked": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

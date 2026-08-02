@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/external-assurance-record-scoped-authority-grant",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "authority_grant_id",
+    "actor_id",
+    "allowed_actor_classes",
+    "allowed_commands",
+    "allowed_policy_actions",
+    "subject_scope",
+    "risk_ceiling",
+    "effective_at",
+    "expires_at",
+    "delegable",
+    "revoked"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/external-assurance-record-scoped-authority-grant"},
+    "schema_version": {"const": "1.0.0"},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "allowed_actor_classes": {
+      "type": "array",
+      "items": {"enum": ["human", "agent", "service"]},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "allowed_commands": {"const": []},
+    "allowed_policy_actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["policy_action_type", "schema_id", "schema_version", "schema_sha256"],
+        "properties": {
+          "policy_action_type": {"const": "publish_external_assurance_record"},
+          "schema_id": {"const": "ars://core/policy-action/PublishExternalAssuranceRecord"},
+          "schema_version": {"const": "1.0.0"},
+          "schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      },
+      "uniqueItems": true
+    },
+    "subject_scope": {
+      "type": "object",
+      "required": ["project_id", "subject"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "subject": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {"const": "external_assurance_record"},
+            "id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk_ceiling": {"enum": ["R0", "R1", "R2", "R3"]},
+    "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "delegable": {"const": false},
+    "revoked": {"const": false}
+  },
+  "additionalProperties": false
+}

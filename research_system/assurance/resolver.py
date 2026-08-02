@@ -25,20 +25,23 @@ contract demands of an external record:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 from research_system.assurance.pack_loader import AUTHORITY_RESOLUTION_PHASES
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.assurance.external_records import (
+    EXTERNAL_RECORD_KIND,
+    ExternalAssuranceRecordStore,
+    ExternalRecordResolution,
+    ExternalRecordSchemaCatalogue,
+    load_complete_revision_history,
+    storage_object_key,
+)
+from research_system.config import ControlBinding
 from research_system.errors import ArsError, IntegrityError
-from research_system.store.identity import load_store_manifest
-from research_system.store.layout import require_control_root_disjoint_from_code_roots
-from research_system.store.objects import ObjectStore
 
 
-#: Object kind every external assurance lifecycle record is persisted under. The record's class is
-#: carried in its body and checked by the loader, which fails closed on a class mismatch, so one kind
-#: is sufficient and keeps the identity registry from growing a prefix per record class.
-EXTERNAL_RECORD_KIND = "assurance_record"
+__all__ = ["EXTERNAL_RECORD_KIND", "ControlStoreAuthorityResolver"]
 
 
 class ControlStoreAuthorityResolver:
@@ -49,7 +52,7 @@ class ControlStoreAuthorityResolver:
         authority_root: Store-derived authority root every resolution must be bound to.
     """
 
-    def __init__(self, control_root: Path) -> None:
+    def __init__(self, binding: ControlBinding) -> None:
         """Bind a resolver to a control store, asserting externality and deriving its authority root.
 
         The authority root is read from the store's own verified identity manifest rather than accepted
@@ -65,21 +68,43 @@ class ControlStoreAuthorityResolver:
         roots the manifest itself registers.
 
         Args:
-            control_root: Canonical control-store root.
+            binding: A validated :class:`~research_system.config.ControlBinding`.
 
         Raises:
             ArsError: If the manifest registers no code roots, or the control root overlaps one.
             IntegrityError: If the store identity manifest is missing, malformed, or tampered.
         """
-        manifest = load_store_manifest(control_root)
-        code_roots = [Path(root) for root in manifest.get("code_roots", [])]
-        require_control_root_disjoint_from_code_roots(code_roots, control_root)
-        self.control_root = control_root
-        self.authority_root = str(manifest["store_identity"])
-        self._objects = ObjectStore(control_root)
+        if not isinstance(binding, ControlBinding):
+            raise TypeError("authority resolver requires a validated ControlBinding")
+        # Constructing the writer performs the binding's identity, disjointness,
+        # manifest and exact-catalogue checks once; resolution then reuses its
+        # read-only catalogue and the same bound control root.
+        writer = ExternalAssuranceRecordStore(binding)
+        self.binding = binding
+        self.control_root = binding.control_root
+        self.authority_root = binding.store_identity
+        self._catalogue: ExternalRecordSchemaCatalogue = writer.catalogue
+        self._objects = writer.objects
 
-    def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
-        """Return the current external record body for an opaque record id.
+    def _validate_phase_and_root(self, *, authority_root: str, phase: str) -> None:
+        if phase not in AUTHORITY_RESOLUTION_PHASES:
+            raise ArsError(f"unknown authority resolution phase: {phase}")
+        if authority_root != self.authority_root:
+            raise ArsError("authority root is not the root this control store is bound to")
+
+    def resolve_with_receipt(
+        self,
+        *,
+        record_id: str,
+        record_class: str,
+        authority_root: str,
+        phase: str,
+    ) -> ExternalRecordResolution:
+        """Return the body with trusted revision/digest metadata from storage history.
+
+        The returned receipt is bound to the requested record class and identity,
+        the resolver's verified control store, and the supplied authority root and
+        resolution phase. It is not caller-supplied record metadata.
 
         Args:
             record_id: Opaque content-addressed record identifier.
@@ -88,7 +113,9 @@ class ControlStoreAuthorityResolver:
             phase: One of :data:`~research_system.assurance.pack_loader.AUTHORITY_RESOLUTION_PHASES`.
 
         Returns:
-            The resolved record body at its latest persisted revision.
+            The resolved record body and the canonical digest/revision of the
+            persisted ObjectStore receipt.  Metadata is outside the schema-valid
+            body and cannot be injected through a forbidden body property.
 
         Raises:
             ArsError: If the phase is unknown, the authority root does not match the store's own, or the
@@ -96,17 +123,41 @@ class ControlStoreAuthorityResolver:
             IntegrityError: If the persisted revision is missing, ambiguous, tampered, or is not a record
                 body.
             ValueError: If the record identity is invalid for the external record kind.
+            TypeError: If a record identity or body cannot be interpreted as the
+                required storage or mapping type.
+            SchemaError: If a persisted record body fails validation for the
+                requested record class.
         """
-        if phase not in AUTHORITY_RESOLUTION_PHASES:
-            raise ArsError(f"unknown authority resolution phase: {phase}")
+        self._validate_phase_and_root(authority_root=authority_root, phase=phase)
         if not isinstance(record_class, str) or not record_class:
             raise ArsError("record class must be a non-empty string")
-        if authority_root != self.authority_root:
-            raise ArsError("authority root is not the root this control store is bound to")
-        revision = self._objects.latest_revision(EXTERNAL_RECORD_KIND, record_id)
-        if revision is None:
+        kind, object_id = storage_object_key(record_class, record_id)
+        history = load_complete_revision_history(self._objects, kind, object_id)
+        if not history:
             raise ArsError(f"external record has no persisted revision: {record_id}")
-        record: Any = self._objects.read(EXTERNAL_RECORD_KIND, record_id, revision)
-        if not isinstance(record, dict):
-            raise IntegrityError(f"external record is not a record body: {record_id}")
-        return record
+        row = self._catalogue.row(record_class)
+        for record in history.values():
+            if not isinstance(record, dict):
+                raise IntegrityError(f"external record is not a record body: {record_id}")
+            if record.get("record_type") != row.record_type:
+                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
+            self._catalogue.validate(record_class, record_id, record)
+        revision = max(history)
+        selected_record: Any = history[revision]
+        return ExternalRecordResolution(
+            record_class=record_class,
+            record_id=record_id,
+            revision=revision,
+            canonical_sha256=sha256_hex(canonical_bytes(selected_record)),
+            record=dict(selected_record),
+        )
+
+    def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
+        """Return only the current body for legacy read-side callers."""
+
+        return self.resolve_with_receipt(
+            record_id=record_id,
+            record_class=record_class,
+            authority_root=authority_root,
+            phase=phase,
+        ).record
