@@ -709,7 +709,9 @@ class LifecycleCommandAuthorityEvidence:
         administration_context: Bound store and bootstrap-owner context.
         actor_class: Owner-derived actor class used for command resolution.
         command_resolution: Current command-specific authorization evidence.
-        canonical_grant_identity: Canonical identity from the same replay.
+        canonical_grant_identity: The same frozen grant-resolution evidence as
+            ``command_resolution``, retained for bundle-consistency checks. It
+            is not an independent authority read.
     """
 
     administration_context: AuthorityAdministrationContext
@@ -1896,6 +1898,7 @@ class LedgerAuthorityGrantResolver:
 
     def _resolve_scoped(
         self,
+        *,
         grant_id: str,
         actor_id: str,
         actor_class: str,
@@ -1904,7 +1907,6 @@ class LedgerAuthorityGrantResolver:
         subject_kind: str,
         subject_id: str,
         now: datetime,
-        *,
         projection: dict[str, Any] | None = None,
     ) -> tuple[
         ScopedAuthorityGrantResolution,
@@ -1958,6 +1960,7 @@ class LedgerAuthorityGrantResolver:
 
     def _resolve_command_from_projection(
         self,
+        *,
         grant_id: str,
         actor_id: str,
         actor_class: str,
@@ -1970,14 +1973,14 @@ class LedgerAuthorityGrantResolver:
         projection: dict[str, Any],
     ) -> ScopedAuthorityGrantResolution:
         result, grant = self._resolve_scoped(
-            grant_id,
-            actor_id,
-            actor_class,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
             projection=projection,
         )
         if command not in grant.allowed_commands:
@@ -2033,16 +2036,16 @@ class LedgerAuthorityGrantResolver:
         self._validate_granted_command_identity(command)
         projection = self._projection()
         return self._resolve_command_from_projection(
-            grant_id,
-            actor_id,
-            actor_class,
-            command,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
-            projection,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            command=command,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+            projection=projection,
         )
 
     def resolve_lifecycle_command(
@@ -2070,7 +2073,8 @@ class LedgerAuthorityGrantResolver:
 
         Returns:
             Frozen owner context, derived actor class, current command
-            resolution, and canonical grant identity from one verified replay.
+            resolution, and that resolution reused as the canonical grant
+            identity for bundle-consistency checks.
 
         Raises:
             ArsError: If owner classification or any grant constraint fails.
@@ -2081,35 +2085,32 @@ class LedgerAuthorityGrantResolver:
             This operation invokes :meth:`_projection` exactly once and never
             exposes its mutable mapping. Owner classification, current command
             authority, and canonical identity are all derived inside this
-            resolver from that single lock-interval replay.
+            resolver from that single lock-interval replay. The canonical
+            identity field is not an independent authority read.
         """
         projection = self._projection()
         context = self._administration_context_from_projection(projection)
         self._validate_granted_command_identity(command)
         actor_class = "human" if actor_id == context.owner_actor_id else "unproven"
         command_resolution = self._resolve_command_from_projection(
-            grant_id,
-            actor_id,
-            actor_class,
-            command,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
-            projection,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            command=command,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+            projection=projection,
         )
         if actor_class != "human":
             raise ArsError("authority actor class is not proven by the bootstrap owner")
-        canonical_grant_identity, _, _ = self._scoped_resolution(
-            grant_id,
-            projection,
-        )
         return LifecycleCommandAuthorityEvidence(
             administration_context=context,
             actor_class=actor_class,
             command_resolution=command_resolution,
-            canonical_grant_identity=canonical_grant_identity,
+            canonical_grant_identity=command_resolution,
         )
 
     def resolve_policy_action(
@@ -2148,14 +2149,14 @@ class LedgerAuthorityGrantResolver:
         except SchemaError as exc:
             raise ArsError("authority policy-action schema identity mismatch") from exc
         result, grant = self._resolve_scoped(
-            grant_id,
-            actor_id,
-            actor_class,
-            required_risk,
-            project_id,
-            subject_kind,
-            subject_id,
-            now,
+            grant_id=grant_id,
+            actor_id=actor_id,
+            actor_class=actor_class,
+            required_risk=required_risk,
+            project_id=project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
             projection=projection,
         )
         if identity.sha256 != policy_action.schema_sha256 or policy_action not in grant.allowed_policy_actions:

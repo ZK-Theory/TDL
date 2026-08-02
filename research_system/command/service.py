@@ -819,9 +819,10 @@ class CommandService:
             or not grant_id
             or not isinstance(canonical_history, dict)
             or canonical_history.get("authority_grant_id") != grant_id
-            or self._authority_key(canonical_history) != resolution.get("authority_grant_sha256")
         ):
-            raise IntegrityError("lifecycle authority evidence has no canonical grant hash")
+            raise IntegrityError("lifecycle authority evidence has no canonical grant history")
+        if self._authority_key(canonical_history) != resolution.get("authority_grant_sha256"):
+            raise IntegrityError("lifecycle authority resolution grant hash disagrees with canonical history")
         if (
             event.get("authority_grant_id") != grant_id
             or event.get("actor_id") != resolution.get("actor_id")
@@ -1142,7 +1143,7 @@ class CommandService:
                 resolution = self._authority_resolution_record(evidence.command_resolution)
                 canonical_resolution = self._authority_resolution_record(evidence.canonical_grant_identity)
                 if canonical_resolution != resolution:
-                    raise IntegrityError("lifecycle authority resolution disagrees with canonical history")
+                    raise IntegrityError("lifecycle authority bundle resolutions disagree")
                 binding = {**binding, "actor_class": evidence.actor_class}
             except IntegrityError:
                 raise

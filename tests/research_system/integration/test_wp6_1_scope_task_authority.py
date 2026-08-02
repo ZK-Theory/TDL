@@ -992,6 +992,7 @@ def test_lifecycle_submit_uses_one_resolver_owned_frozen_bundle(tmp_path, monkey
     assert len(bundles) == 1
     bundle = bundles[0]
     assert type(bundle) is LifecycleCommandAuthorityEvidence
+    assert bundle.canonical_grant_identity is bundle.command_resolution
     for evidence in (
         bundle,
         bundle.administration_context,
@@ -1669,7 +1670,7 @@ def test_lifecycle_resolution_hash_must_match_canonical_history_before_append(tm
     before = _domain_snapshot(harness)
     before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
 
-    with pytest.raises(IntegrityError, match="disagrees with canonical history"):
+    with pytest.raises(IntegrityError, match="bundle resolutions disagree"):
         harness.service.submit(command)
 
     assert _domain_snapshot(harness) == before
@@ -1677,7 +1678,7 @@ def test_lifecycle_resolution_hash_must_match_canonical_history_before_append(tm
     assert not tuple(harness.receipts.index_root.glob("*.json"))
 
 
-def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_path):
+def test_lifecycle_receipt_hash_check_distinguishes_missing_history_from_mismatch(tmp_path):
     harness = control_plane(tmp_path)
     grant_id = activate_lifecycle_grant(
         harness,
@@ -1707,7 +1708,7 @@ def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_pa
     assert resolved is not None
     forged = {**resolved, "authority_grant_sha256": "f" * 64}
 
-    with pytest.raises(IntegrityError, match="canonical grant hash"):
+    with pytest.raises(IntegrityError, match="no canonical grant history"):
         harness.service._validate_lifecycle_authority_history(
             Command(command),
             command_schema=command_schema,
@@ -1716,7 +1717,7 @@ def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_pa
             event=event,
             canonical_resolution=None,
         )
-    with pytest.raises(IntegrityError, match="canonical grant hash"):
+    with pytest.raises(IntegrityError, match="grant hash disagrees with canonical history"):
         harness.service._validate_lifecycle_authority_history(
             Command(command),
             command_schema=command_schema,
