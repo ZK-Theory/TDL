@@ -906,6 +906,8 @@ def test_exact_lifecycle_commands_reject_foreign_project(tmp_path):
 
     assert scope_receipt.status == "rejected"
     assert scope_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert scope_receipt.explanation == "authority subject scope mismatch"
+    assert scope_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
     assert tuple(harness.ledger.iter_events()) == before_events
 
     for task_id, command_id in (
@@ -945,6 +947,8 @@ def test_exact_lifecycle_commands_reject_foreign_project(tmp_path):
 
     assert task_receipt.status == "rejected"
     assert task_receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert task_receipt.explanation == "authority subject scope mismatch"
+    assert task_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
     assert tuple(harness.ledger.iter_events()) == before_events
 
 
@@ -1017,8 +1021,10 @@ def test_project_binding_precedes_committed_idempotency_reconstruction(
     assert foreign_receipt.status == "rejected"
     assert foreign_receipt.reason_code == "lifecycle_authority_unauthorized"
     assert foreign_receipt.explanation == "authority subject scope mismatch"
+    assert foreign_receipt.unmet_preconditions == ("lifecycle_authority_unauthorized",)
 
     assert accepted.status == "accepted"
+    assert harness.receipts.load(command["command_id"]) == accepted
     assert tuple(harness.ledger.iter_events()) == before_events
 
 

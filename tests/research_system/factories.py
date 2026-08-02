@@ -14,6 +14,7 @@ from research_system.authority import (
     initialize_authority_control_store,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
@@ -151,7 +152,14 @@ class ControlPlaneHarness:
 
 
 def scoped_lifecycle_grant_id(subject_id: str) -> str:
-    """Derive one deterministic valid authority-grant identity for a subject."""
+    """Derive one deterministic valid authority-grant identity for a subject.
+
+    Args:
+        subject_id: UUID-like subject identity whose suffix is reused.
+
+    Returns:
+        The deterministic scoped authority-grant identity for ``subject_id``.
+    """
     return f"agr_{subject_id.split('_', 1)[1]}"
 
 
@@ -174,7 +182,21 @@ def activate_lifecycle_grant(
     subject_id: str,
     actor_id: str = ACTORS["actor-a"],
 ) -> str:
-    """Activate a real scoped command grant through the authority ledger."""
+    """Activate a real scoped command grant through the authority ledger.
+
+    Args:
+        harness: Test control-plane and sibling authority stores.
+        subject_kind: Governed subject kind for the grant scope.
+        subject_id: Governed subject identity for the grant scope.
+        actor_id: Actor recorded on the issued grant.
+
+    Returns:
+        The deterministic authority-grant identity.
+
+    Raises:
+        AssertionError: If an expected active command binding is missing or
+            the authority service rejects activation.
+    """
     grant_id = scoped_lifecycle_grant_id(subject_id)
     try:
         existing = harness.authority_resolver.scoped_grant_identity(grant_id)
@@ -292,7 +314,21 @@ def revoke_lifecycle_grant(
     subject_id: str,
     decision_id: str | None = None,
 ) -> str:
-    """Revoke one issued lifecycle grant through the governed authority ledger."""
+    """Revoke one issued lifecycle grant through the governed authority ledger.
+
+    Args:
+        harness: Test control-plane and sibling authority stores.
+        subject_id: Subject whose deterministic lifecycle grant is revoked.
+        decision_id: Optional assurance-record identity for the revocation.
+
+    Returns:
+        The deterministic authority-grant identity that was revoked.
+
+    Raises:
+        ArsError: If the subject grant cannot be resolved from authority
+            history.
+        AssertionError: If the authority service rejects revocation.
+    """
     grant_id = scoped_lifecycle_grant_id(subject_id)
     if decision_id is None:
         decision_id = _revocation_decision_id(grant_id)
@@ -359,15 +395,22 @@ def revoke_lifecycle_grant(
     return grant_id
 
 
-class _GovernedTestCommandService(CommandService):
-    """Test adapter that provisions real grants in the sibling authority ledger."""
+class GovernedTestCommandService(CommandService):
+    """Test adapter that provisions real grants in a sibling authority ledger.
 
-    def __init__(self, *args, authority_harness: ControlPlaneHarness, **kwargs) -> None:
+    Actor-a lifecycle submissions have their authority-grant field overwritten
+    with a real grant activated in the sibling authority store.  With
+    ``control_plane(auto_authority=False)``, the plain ``CommandService`` is
+    returned instead, so actor-a submissions are not rewritten and must supply
+    an independently activated grant when a positive case is intended.
+    """
+
+    def __init__(self, *args: Any, authority_harness: ControlPlaneHarness, **kwargs: Any) -> None:
         self._authority_harness = authority_harness
         self._prepared_authority_grants: dict[str, str] = {}
         super().__init__(*args, **kwargs)
 
-    def _before_submission_lock(self, command):
+    def _before_submission_lock(self, command: Command) -> None:
         if (
             command.envelope.get("command_type")
             in {
@@ -393,7 +436,7 @@ class _GovernedTestCommandService(CommandService):
                 )
             self._prepared_authority_grants[command.command_id] = grant_id
 
-    def _before_authority_resolution(self, command):
+    def _before_authority_resolution(self, command: Command) -> None:
         grant_id = self._prepared_authority_grants.pop(command.command_id, None)
         if grant_id is not None:
             command.envelope["authority_grant_id"] = grant_id
@@ -449,22 +492,22 @@ def control_plane(
         clock=clock,
     )
     harness = ControlPlaneHarness(
-        service,
-        ledger,
-        objects,
-        receipts,
-        schemas,
-        authority_root,
-        authority_ledger,
-        authority_objects,
-        authority_receipts,
-        authority_resolver,
-        authority_service,
+        service=service,
+        ledger=ledger,
+        objects=objects,
+        receipts=receipts,
+        schemas=schemas,
+        authority_root=authority_root,
+        authority_ledger=authority_ledger,
+        authority_objects=authority_objects,
+        authority_receipts=authority_receipts,
+        authority_resolver=authority_resolver,
+        authority_service=authority_service,
     )
     if auto_authority:
         harness = replace(
             harness,
-            service=_GovernedTestCommandService(
+            service=GovernedTestCommandService(
                 root,
                 ledger,
                 objects,
