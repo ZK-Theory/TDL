@@ -17,12 +17,14 @@ from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from research_system.store.identity import (
+    load_canonical_restore_binding_evidence,
     load_restore_binding_evidence,
     load_store_manifest,
     load_store_manifest_unbound,
     manifest_schema_root,
     rebind_restored_store,
 )
+from research_system.store.layout import require_existing_control_root
 from research_system.store.lock import WriterLock
 from research_system.schema_registry import SchemaRegistry, bundled_runtime_schema_registry
 
@@ -948,6 +950,7 @@ def finalize_verified_restore_binding(
     output_rollback: Callable[[], None] | None = None,
     final_output_validator: Callable[[], None] | None = None,
     post_commit: Callable[[], Any] | None = None,
+    finalization_validator: Callable[[], Any] | None = None,
     journal_path: Path | None = None,
 ) -> dict[str, Any]:
     """Finalize a verified restore after the caller's current writer-lock recheck.
@@ -986,6 +989,8 @@ def finalize_verified_restore_binding(
         raise ArsError("restore code-root binding mismatch")
     if current.schema_root != str(approved_schema_root):
         raise ArsError("restore schema-root binding mismatch")
+    require_existing_control_root([Path(root) for root in approved_code_values], target_root)
+    require_existing_control_root([Path(root) for root in approved_code_values], source_root)
     expected_output_hash = sha256_hex(expected_output) if expected_output is not None else ""
     if current.expected_output_sha256 != expected_output_hash:
         raise ArsError("restore output binding changed before finalization")
@@ -1046,6 +1051,29 @@ def finalize_verified_restore_binding(
             expected_output=expected_output,
         )
 
+    def validate_finalized_binding() -> None:
+        target = target_root.resolve(strict=True)
+        manifest_path = target / "manifests" / "store-identity.json"
+        manifest = load_store_manifest(target)
+        evidence = load_canonical_restore_binding_evidence(target)
+        if evidence is None:
+            raise ArsError("restore binding canonical evidence is missing after finalization")
+        if (
+            manifest.get("control_root") != str(target)
+            or manifest.get("project_id") != project_id
+            or manifest.get("store_identity") != current.store_identity
+            or evidence["source_root"] != str(source_root.resolve(strict=False))
+            or evidence["target_root"] != str(target)
+            or evidence["manifest_hash"] != manifest.get("manifest_hash")
+            or evidence["target_manifest_bytes_sha256"] != sha256_hex(manifest_path.read_bytes())
+            or evidence["operation_status"] != "bound-and-config-published"
+            or evidence["durability_status"] != "durable"
+            or evidence["expected_output_sha256"] != expected_output_hash
+        ):
+            raise ArsError("restore binding final manifest/evidence identity mismatch")
+        if finalization_validator is not None:
+            finalization_validator()
+
     return rebind_restored_store(
         target_root,
         source_root,
@@ -1063,5 +1091,6 @@ def finalize_verified_restore_binding(
         output_rollback=output_rollback,
         final_output_validator=final_output_validator,
         post_commit=post_commit,
+        finalization_validator=validate_finalized_binding,
         journal_path=journal_path,
     )

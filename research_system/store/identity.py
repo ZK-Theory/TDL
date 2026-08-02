@@ -19,6 +19,7 @@ _IDENTITY_NAME = "store-identity.json"
 _RESTORE_BINDING_EVIDENCE_NAME = "restore-binding-evidence.json"
 _RESTORE_BINDING_PENDING_NAME = ".restore-binding-evidence.pending"
 _RESTORE_BINDING_JOURNAL_NAME = ".restore-binding-journal.json"
+_RESTORE_BINDING_RECOVERY_NAME = ".restore-binding-recovery.json"
 _RESTORE_OPERATION_STATUSES = frozenset({"unbound", "bound-and-config-published", "bound-but-config-unpublished"})
 _RESTORE_DURABILITY_STATUSES = frozenset({"durable", "pending"})
 _SCHEMA_SUFFIX = Path(".research-system") / "schemas"
@@ -296,6 +297,10 @@ def _restore_binding_journal_path(control_root: Path) -> Path:
     return control_root / "manifests" / _RESTORE_BINDING_JOURNAL_NAME
 
 
+def _restore_binding_recovery_path(control_root: Path) -> Path:
+    return control_root / "manifests" / _RESTORE_BINDING_RECOVERY_NAME
+
+
 def _restore_journal_hex(value: bytes | None) -> str | None:
     return value.hex() if value is not None else None
 
@@ -391,8 +396,8 @@ def begin_restore_binding_journal(
     source = source_root.resolve(strict=False)
     output = output_path.resolve(strict=False)
     journal_path = _restore_binding_journal_path(target)
-    if journal_path.exists():
-        raise ConflictError("restore binding journal already exists")
+    if journal_path.exists() or _restore_binding_recovery_path(target).exists():
+        raise ConflictError("restore binding recovery authority already exists")
     manifest_path = _manifest_path(target)
     original_manifest = _restore_journal_file_bytes(manifest_path)
     if original_manifest is None:
@@ -466,12 +471,120 @@ def mark_restore_binding_journal(journal_path: Path, phase: str) -> None:
     _write_restore_binding_journal(journal_path, journal)
 
 
-def clear_restore_binding_journal(journal_path: Path) -> None:
+_RESTORE_STATE_UNSET = object()
+
+
+def _restore_binding_journal_paths(journal: dict[str, Any]) -> dict[str, Path]:
+    try:
+        target_value = Path(journal["target_root"])
+        output_value = Path(journal["output_path"])
+        paths = journal["paths"]
+        target = target_value.resolve(strict=False)
+        output = output_value.resolve(strict=False)
+        if not target_value.is_absolute() or not output_value.is_absolute() or not isinstance(paths, dict):
+            raise IntegrityError("restore binding journal path identity is invalid")
+        expected = {
+            "manifest": _manifest_path(target),
+            "evidence": _restore_binding_evidence_path(target),
+            "pending": _restore_binding_pending_path(target),
+            "output": output,
+        }
+        resolved: dict[str, Path] = {}
+        for name, expected_path in expected.items():
+            supplied = Path(paths[name])
+            resolved[name] = supplied
+            if supplied.resolve(strict=False) != expected_path.resolve(strict=False):
+                raise ConflictError(f"restore binding journal {name} path identity mismatch")
+        return resolved
+    except (KeyError, TypeError, ValueError, OSError) as exc:
+        raise IntegrityError("restore binding journal paths are invalid") from exc
+
+
+def _validate_restore_binding_journal_state(
+    journal: dict[str, Any],
+    *,
+    state: str,
+    expected_pending: bytes | None | object = _RESTORE_STATE_UNSET,
+) -> None:
+    if state not in {"original", "intended"}:
+        raise ValueError("invalid restore binding journal state")
+    paths = _restore_binding_journal_paths(journal)
+    selected = journal["original"] if state == "original" else journal["intended"]
+    expected_manifest = _restore_journal_bytes(selected["manifest"], f"{state}.manifest")
+    expected_output = _restore_journal_bytes(selected["output"], f"{state}.output")
+    expected_evidence = _restore_journal_bytes(selected.get("evidence"), f"{state}.evidence")
+    if state == "intended" and (expected_manifest is None or expected_evidence is None):
+        raise IntegrityError("restore binding journal intended state is incomplete")
+    if expected_pending is _RESTORE_STATE_UNSET:
+        expected_pending = _restore_journal_bytes(journal["original"]["pending"], "original.pending")
+    actual = {
+        "manifest": _restore_journal_file_bytes(paths["manifest"]),
+        "output": _restore_journal_file_bytes(paths["output"]),
+        "evidence": _restore_journal_file_bytes(paths["evidence"]),
+        "pending": _restore_journal_file_bytes(paths["pending"]),
+    }
+    expected = {
+        "manifest": expected_manifest,
+        "output": expected_output,
+        "evidence": expected_evidence,
+        "pending": expected_pending,
+    }
+    mismatched = [name for name in expected if actual[name] != expected[name]]
+    if mismatched:
+        raise ConflictError(f"restore binding final state changed: {mismatched[0]}")
+
+
+def clear_restore_binding_journal(
+    journal_path: Path,
+    *,
+    expected_state: str | None = None,
+    expected_pending: bytes | None | object = _RESTORE_STATE_UNSET,
+) -> None:
+    """Remove finalization authority only after a byte-exact state check.
+
+    The recovery marker is published before the journal is removed.  If the
+    directory durability step fails, the marker remains authoritative for a
+    deterministic restart instead of leaving a committed-looking state with
+    no recovery record.
+    """
     if not journal_path.exists():
         return
-    journal_path.unlink()
-    if not _fsync_directory(journal_path.parent):
-        raise ArsError("restore binding requires durable journal removal")
+    journal = _read_restore_binding_journal(journal_path)
+    state = expected_state or "intended"
+    _validate_restore_binding_journal_state(journal, state=state, expected_pending=expected_pending)
+    marker_path = (
+        journal_path
+        if journal_path.name == _RESTORE_BINDING_RECOVERY_NAME
+        else journal_path.with_name(_RESTORE_BINDING_RECOVERY_NAME)
+    )
+    if marker_path != journal_path:
+        if marker_path.exists():
+            raise ConflictError("restore binding recovery marker already exists")
+        try:
+            os.replace(journal_path, marker_path)
+            if not _fsync_directory(marker_path.parent):
+                raise ArsError("restore binding requires durable recovery marker publication")
+        except BaseException:
+            if not marker_path.exists():
+                try:
+                    _write_restore_binding_journal(marker_path, journal)
+                except BaseException as marker_error:
+                    raise ArsError("restore binding recovery authority could not be retained") from marker_error
+            raise
+    try:
+        _validate_restore_binding_journal_state(journal, state=state, expected_pending=expected_pending)
+        marker_path.unlink()
+        if not _fsync_directory(marker_path.parent):
+            raise ArsError("restore binding requires durable journal removal")
+    except BaseException as exc:
+        if not marker_path.exists():
+            try:
+                _write_restore_binding_journal(marker_path, journal)
+            except BaseException as marker_error:
+                raise ArsError(
+                    "restore binding journal removal failed and recovery authority could not be retained"
+                ) from marker_error
+        raise ArsError("restore binding journal removal was not durable; recovery marker retained") from exc
 
 
 def _restore_exact_path(path: Path, expected: bytes | None) -> None:
@@ -593,7 +706,7 @@ def _recover_restore_binding_journal(control_root: Path, output_path: Path, jour
         _restore_exact_path(evidence_path, original_evidence)
         _restore_exact_path(pending_path, original_pending)
         _restore_journal_cleanup_temporary(output_temporary, expected_output)
-        clear_restore_binding_journal(journal_path)
+        clear_restore_binding_journal(journal_path, expected_state="original")
         return
     if intended_manifest is None or intended_evidence is None:
         raise IntegrityError("restore binding journal intent is incomplete")
@@ -614,7 +727,7 @@ def _recover_restore_binding_journal(control_root: Path, output_path: Path, jour
             if not _fsync_directory(evidence_path.parent):
                 raise ArsError("restore binding requires durable evidence publication")
         _restore_exact_path(pending_path, None)
-        clear_restore_binding_journal(journal_path)
+        clear_restore_binding_journal(journal_path, expected_state="intended", expected_pending=None)
         return
 
     if (
@@ -625,13 +738,13 @@ def _recover_restore_binding_journal(control_root: Path, output_path: Path, jour
         _restore_exact_path(output_path, original_output)
         _restore_exact_path(evidence_path, original_evidence)
         _restore_exact_path(pending_path, original_pending)
-        clear_restore_binding_journal(journal_path)
+        clear_restore_binding_journal(journal_path, expected_state="original")
         return
     if actuals["manifest"] == original_manifest and actuals["manifest"] != intended_manifest:
         _restore_exact_path(output_path, original_output)
         _restore_exact_path(evidence_path, original_evidence)
         _restore_exact_path(pending_path, original_pending)
-        clear_restore_binding_journal(journal_path)
+        clear_restore_binding_journal(journal_path, expected_state="original")
         return
     if actuals["manifest"] != intended_manifest or actuals["output"] != expected_output:
         raise ConflictError("restore binding journal state cannot be completed")
@@ -645,7 +758,7 @@ def _recover_restore_binding_journal(control_root: Path, output_path: Path, jour
         else:
             raise ConflictError("restore binding journal evidence cannot be completed")
     _restore_exact_path(pending_path, original_pending)
-    clear_restore_binding_journal(journal_path)
+    clear_restore_binding_journal(journal_path, expected_state="intended")
 
 
 def recover_restore_binding(control_root: Path, output_path: Path, expected_output: bytes) -> None:
@@ -655,6 +768,10 @@ def recover_restore_binding(control_root: Path, output_path: Path, expected_outp
     journal_path = _restore_binding_journal_path(target)
     if journal_path.exists():
         _recover_restore_binding_journal(target, output, journal_path)
+        return
+    recovery_path = _restore_binding_recovery_path(target)
+    if recovery_path.exists():
+        _recover_restore_binding_journal(target, output, recovery_path)
         return
     pending_path = _restore_binding_pending_path(target)
     if not pending_path.exists():
@@ -760,6 +877,7 @@ def rebind_restored_store(
     output_rollback: Callable[[], None] | None = None,
     final_output_validator: Callable[[], None] | None = None,
     post_commit: Callable[[], Any] | None = None,
+    finalization_validator: Callable[[], Any] | None = None,
     journal_path: Path | None = None,
 ) -> dict[str, Any]:
     """Atomically bind one verified restored store to its target root.
@@ -853,6 +971,8 @@ def rebind_restored_store(
             final_output_validator()
         if post_commit is not None:
             post_commit()
+        if finalization_validator is not None:
+            finalization_validator()
         return manifest
     if evidence is not None:
         raise ConflictError("restore binding evidence conflicts with an unbound manifest")
@@ -967,6 +1087,10 @@ def rebind_restored_store(
             mark_restore_binding_journal(journal_path, "evidence-published")
         if post_commit is not None:
             post_commit()
+        if finalization_validator is not None:
+            finalization_validator()
+        if journal_path is not None:
+            clear_restore_binding_journal(journal_path)
     except BaseException:
         if evidence_published:
             evidence_path.unlink(missing_ok=True)
@@ -980,8 +1104,6 @@ def rebind_restored_store(
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
         evidence_temporary.unlink(missing_ok=True)
-    if journal_path is not None:
-        clear_restore_binding_journal(journal_path)
     return rebound
 
 

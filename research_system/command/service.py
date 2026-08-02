@@ -52,6 +52,7 @@ from research_system.store.ledger import (
     _take_release_submit_guard,
 )
 from research_system.store.lock import WriterLock
+from research_system.store.layout import require_existing_control_root
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -257,6 +258,8 @@ class CommandService:
         )
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")
+        if self._restore_expected_code_roots is not None:
+            require_existing_control_root(list(self._restore_expected_code_roots), self.control_root)
         post_commit_result: list[Any] = []
 
         def commit() -> Any:
@@ -337,6 +340,8 @@ class CommandService:
             )
             ReleasePublicationRequest.from_dict(validated_envelope["payload"])
         command = Command(validated_envelope)
+        if self._restore_source_root is not None and self._restore_expected_code_roots is not None:
+            require_existing_control_root(list(self._restore_expected_code_roots), self.control_root)
         with self._submission_lock(command):
             if (
                 command.envelope["command_type"] in _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES

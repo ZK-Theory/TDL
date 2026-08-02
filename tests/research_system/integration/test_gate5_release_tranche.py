@@ -894,6 +894,45 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     assert restarted.submit(command).status == "accepted"
 
 
+def test_moved_restore_rejects_missing_target_directory_without_repairing(tmp_path):
+    import shutil
+
+    from research_system.store.identity import load_restore_binding_evidence
+
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
+    )
+    missing_path = case["target"] / "objects"
+    shutil.rmtree(missing_path)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before_manifest = manifest_path.read_bytes()
+    before_batches = tuple(service.ledger.iter_batches())
+    command = create_task_command(
+        CMD_RESTORE,
+        "missing-target-directory",
+        TASK_RESTORE,
+        {"title": "missing target directory"},
+    )
+    command["authority_grant_id"] = case["authority_grant_id"]
+
+    with pytest.raises(ArsError, match="control|missing|required|restore"):
+        service.submit(command)
+
+    assert not missing_path.exists()
+    assert manifest_path.read_bytes() == before_manifest
+    assert tuple(service.ledger.iter_batches()) == before_batches
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert load_restore_binding_evidence(case["target"]) is None
+
+
 def test_moved_restore_command_conflict_does_not_bind_store(tmp_path):
     from research_system.store.identity import load_restore_binding_evidence
 

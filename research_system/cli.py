@@ -71,6 +71,7 @@ from research_system.store.identity import (
 )
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
+from research_system.store.layout import require_external_control_root
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -189,7 +190,8 @@ def _preflight_restore_binding_load(
         prefix=f".{target_root.name}.restore-binding-",
     ) as raw:
         shadow_root = Path(raw) / "control"
-        (shadow_root / "manifests").mkdir(parents=True)
+        require_external_control_root(list(expected_code_roots), shadow_root)
+        (shadow_root / "manifests").mkdir(parents=True, exist_ok=True)
         shadow_manifest = dict(manifest)
         shadow_manifest["control_root"] = str(source_root)
         shadow_manifest["manifest_hash"] = sha256_hex(
@@ -510,6 +512,25 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 ):
                     raise ArsError("restore binding canonical evidence is not durable")
 
+            def validate_finalized_output() -> None:
+                validate_published_output()
+                _validate_restore_output_bytes(
+                    args.config_output,
+                    expected_output,
+                    target_root,
+                    locked_approved,
+                )
+                if evidence is None:
+                    raise ArsError("restore binding canonical evidence is missing after finalization")
+                manifest_path = target_root / "manifests" / "store-identity.json"
+                manifest = load_store_manifest(target_root)
+                if (
+                    evidence["manifest_hash"] != manifest["manifest_hash"]
+                    or evidence["target_manifest_bytes_sha256"] != sha256_hex(manifest_path.read_bytes())
+                    or evidence["expected_output_sha256"] != sha256_hex(expected_output)
+                ):
+                    raise ArsError("restore binding final manifest/evidence/output identity mismatch")
+
             finalize_verified_restore_binding(
                 target_root=target_root,
                 source_root=source_root,
@@ -528,6 +549,7 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
                 output_rollback=rollback_output if temporary is not None else None,
                 final_output_validator=validate_final_output,
                 post_commit=validate_published_output,
+                finalization_validator=validate_finalized_output,
                 journal_path=journal_path,
             )
         except BaseException:

@@ -16,7 +16,6 @@ from research_system.store.identity import (
 )
 from research_system.store.layout import (
     require_existing_control_root,
-    require_external_control_root,
 )
 
 
@@ -199,7 +198,7 @@ class ControlBinding:
         if any(not item.is_absolute() for item in all_paths):
             raise ConfigurationError("all binding paths must be absolute")
         project_id = validate_id(str(value["project_id"]), "project")
-        control_root = require_external_control_root(list(code_roots), control_root)
+        control_root = require_existing_control_root(list(code_roots), control_root)
         verify_store_identity(
             control_root,
             project_id,

@@ -158,7 +158,9 @@ def _path_inventory(root: Path) -> tuple[tuple[str, str, bytes], ...]:
     entries: list[tuple[str, str, bytes]] = []
     for path in root.rglob("*"):
         relative = path.relative_to(root).as_posix()
-        if path.is_dir():
+        if path.is_symlink():
+            entries.append((relative, "symlink", os.readlink(path).encode("utf-8", errors="surrogateescape")))
+        elif path.is_dir():
             entries.append((relative, "directory", b""))
         elif path.is_file():
             entries.append((relative, "file", path.read_bytes()))
@@ -382,13 +384,15 @@ def test_approved_project_binding_load_rejects_partial_store_without_repairing(t
     assert not (partial_root / "runtime").exists()
 
 
+@pytest.mark.parametrize("missing_directory", ("objects", "events", "manifests", "receipts", "snapshots", "runtime"))
 def test_approved_project_binding_load_rejects_valid_manifest_with_missing_required_directory(
     tmp_path: Path,
+    missing_directory: str,
 ) -> None:
     case, _ = _restore_cli_case(tmp_path)
     foundation = tmp_path / "missing-directory-foundation.yaml"
     partial_root = case["source"]
-    shutil.rmtree(partial_root / "objects")
+    shutil.rmtree(partial_root / missing_directory)
     _write_foundation(foundation, case, control_root=partial_root)
     before_root = _path_inventory(partial_root)
 
@@ -396,7 +400,71 @@ def test_approved_project_binding_load_rejects_valid_manifest_with_missing_requi
         ApprovedProjectBinding.load(foundation)
 
     assert _path_inventory(partial_root) == before_root
-    assert not (partial_root / "objects").exists()
+    assert not (partial_root / missing_directory).exists()
+
+
+def _make_directory_reparse(path: Path, target: Path) -> str:
+    try:
+        os.symlink(target, path, target_is_directory=True)
+        return "symlink"
+    except OSError:
+        if os.name == "nt":
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(path), str(target)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                return "junction"
+        pytest.skip("directory reparse-point creation is unavailable")
+
+
+@pytest.mark.parametrize("replacement", ("file", "reparse"))
+def test_approved_project_binding_load_rejects_nonphysical_required_child_without_mutation(
+    tmp_path: Path,
+    replacement: str,
+) -> None:
+    case, _ = _restore_cli_case(tmp_path)
+    foundation = tmp_path / f"{replacement}-foundation.yaml"
+    objects = case["source"] / "objects"
+    foreign = tmp_path / "foreign-objects"
+    shutil.rmtree(objects)
+    if replacement == "file":
+        objects.write_bytes(b"not a directory")
+    else:
+        foreign.mkdir()
+        (foreign / "foreign.bin").write_bytes(b"foreign")
+        _make_directory_reparse(objects, foreign)
+    _write_foundation(foundation, case, control_root=case["source"])
+    before_root = _path_inventory(case["source"])
+
+    with pytest.raises(ConfigurationError, match="materialized|matching|missing|physical|reparse|invalid"):
+        ApprovedProjectBinding.load(foundation)
+
+    assert _path_inventory(case["source"]) == before_root
+    if replacement == "reparse":
+        assert objects.is_symlink()
+        assert objects.resolve(strict=True) == foreign.resolve()
+
+
+def test_approved_project_binding_load_accepts_parent_alias_with_physical_children(tmp_path: Path) -> None:
+    case, _ = _restore_cli_case(tmp_path)
+    alias_parent = tmp_path / "control-parent-alias"
+    try:
+        os.symlink(tmp_path, alias_parent, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory alias creation is unavailable")
+    foundation = tmp_path / "parent-alias-foundation.yaml"
+    _write_foundation(foundation, case, control_root=alias_parent / case["source"].name)
+
+    loaded = ApprovedProjectBinding.load(foundation)
+
+    assert loaded.control_root == case["source"].resolve()
+    assert all(
+        (loaded.control_root / name).is_dir()
+        for name in ("objects", "events", "manifests", "receipts", "snapshots", "runtime")
+    )
 
 
 def test_assurance_record_write_cli_persists_and_resolves(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -882,6 +950,180 @@ def test_restore_bind_cli_revalidates_output_on_already_bound_retry(
     assert calls == 1
     assert _target_files(case["target"]) == before_target
     assert output_path.read_bytes() == foreign_output
+
+
+def test_restore_bind_cli_retains_recovery_authority_after_post_commit_output_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import research_system.cli as cli_module
+
+    case, args = _restore_cli_case(tmp_path)
+    foreign_output = _foreign_binding_bytes(tmp_path, case)
+    output_path = Path(args[args.index("--config-output") + 1])
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    original_manifest = manifest_path.read_bytes()
+    original_validate = cli_module._validate_restore_output_identity
+
+    def validate_then_swap(*validation_args, **validation_kwargs) -> None:
+        original_validate(*validation_args, **validation_kwargs)
+        output_path.write_bytes(foreign_output)
+
+    monkeypatch.setattr(cli_module, "_validate_restore_output_identity", validate_then_swap)
+
+    with pytest.raises(ArsError, match="output|binding|journal"):
+        main(args)
+
+    capsys.readouterr()
+    journal_path = case["target"] / "manifests" / ".restore-binding-journal.json"
+    recovery_path = case["target"] / "manifests" / ".restore-binding-recovery.json"
+    authority_path = journal_path if journal_path.exists() else recovery_path
+    assert authority_path.is_file()
+    assert json.loads(authority_path.read_bytes().decode("utf-8"))["schema_id"] == (
+        "ars://internal/restore-binding-journal"
+    )
+    assert manifest_path.read_bytes() == original_manifest
+    assert not evidence_path.exists()
+    assert output_path.read_bytes() == foreign_output
+
+    monkeypatch.setattr(cli_module, "_validate_restore_output_identity", original_validate)
+    output_path.unlink()
+    assert main(args) == 0
+    capsys.readouterr()
+    assert manifest_path.read_bytes() != original_manifest
+    assert evidence_path.is_file()
+    assert output_path.is_file()
+    assert not journal_path.exists()
+    assert not recovery_path.exists()
+
+
+def test_restore_bind_cli_retains_journal_after_output_swap_immediately_before_clear(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    foreign_output = _foreign_binding_bytes(tmp_path, case)
+    output_path = Path(args[args.index("--config-output") + 1])
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    journal_path = case["target"] / "manifests" / ".restore-binding-journal.json"
+    recovery_path = case["target"] / "manifests" / ".restore-binding-recovery.json"
+    original_manifest = manifest_path.read_bytes()
+    original_clear = identity_module.clear_restore_binding_journal
+
+    def swap_before_clear(path: Path, **kwargs: object) -> None:
+        output_path.write_bytes(foreign_output)
+        original_clear(path, **kwargs)
+
+    monkeypatch.setattr(identity_module, "clear_restore_binding_journal", swap_before_clear)
+
+    with pytest.raises(ArsError, match="output|binding|journal"):
+        main(args)
+
+    capsys.readouterr()
+    assert journal_path.is_file()
+    assert not recovery_path.exists()
+    assert manifest_path.read_bytes() == original_manifest
+    assert not evidence_path.exists()
+    assert output_path.read_bytes() == foreign_output
+
+    monkeypatch.setattr(identity_module, "clear_restore_binding_journal", original_clear)
+    output_path.unlink()
+    assert main(args) == 0
+    capsys.readouterr()
+    assert manifest_path.read_bytes() != original_manifest
+    assert evidence_path.is_file()
+    assert output_path.is_file()
+    assert not journal_path.exists()
+    assert not recovery_path.exists()
+
+
+@pytest.mark.parametrize("missing_directory", ("objects", "events", "manifests", "receipts", "snapshots", "runtime"))
+def test_restore_bind_cli_retry_rejects_missing_target_directory_without_repairing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    missing_directory: str,
+) -> None:
+    case, args = _restore_cli_case(tmp_path)
+    assert main(args) == 0
+    capsys.readouterr()
+
+    missing_path = case["target"] / missing_directory
+    shutil.rmtree(missing_path)
+    before_target = _path_inventory(case["target"])
+    output_path = Path(args[args.index("--config-output") + 1])
+    before_output = output_path.read_bytes()
+
+    with pytest.raises(ArsError, match="restore|control|missing|required|preflight"):
+        main(args)
+
+    assert _path_inventory(case["target"]) == before_target
+    assert not missing_path.exists()
+    assert output_path.read_bytes() == before_output
+
+
+def test_restore_bind_cli_retains_recovery_marker_after_journal_unlink_durability_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import research_system.store.identity as identity_module
+
+    case, args = _restore_cli_case(tmp_path)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    journal_path = case["target"] / "manifests" / ".restore-binding-journal.json"
+    recovery_path = case["target"] / "manifests" / ".restore-binding-recovery.json"
+    output_path = Path(args[args.index("--config-output") + 1])
+    original_manifest = manifest_path.read_bytes()
+    armed = False
+    failed = False
+
+    original_fsync = identity_module._fsync_directory
+    original_mark = identity_module.mark_restore_binding_journal
+
+    def fail_after_unlink(path: Path) -> bool:
+        nonlocal failed
+        if armed and not failed and not journal_path.exists() and not recovery_path.exists():
+            failed = True
+            raise OSError("journal unlink durability interrupted")
+        return original_fsync(path)
+
+    def arm_after_evidence(path: Path, phase: str) -> None:
+        nonlocal armed
+        original_mark(path, phase)
+        if phase == "evidence-published":
+            armed = True
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", fail_after_unlink)
+    monkeypatch.setattr(identity_module, "mark_restore_binding_journal", arm_after_evidence)
+
+    with pytest.raises(ArsError, match="journal|durab"):
+        main(args)
+
+    capsys.readouterr()
+    assert failed
+    assert not journal_path.exists()
+    assert recovery_path.is_file()
+    assert json.loads(recovery_path.read_bytes().decode("utf-8"))["schema_id"] == (
+        "ars://internal/restore-binding-journal"
+    )
+    assert manifest_path.read_bytes() == original_manifest
+    assert not evidence_path.exists()
+    assert not output_path.exists()
+
+    assert main(args) == 0
+    capsys.readouterr()
+    assert manifest_path.read_bytes() != original_manifest
+    assert evidence_path.is_file()
+    assert output_path.is_file()
+    assert not journal_path.exists()
+    assert not recovery_path.exists()
 
 
 def test_restore_bind_cli_recovers_after_process_crash_at_manifest_publication(
