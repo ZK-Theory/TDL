@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from copy import deepcopy
+from datetime import UTC, datetime
 from hashlib import sha256
+import json
 import threading
 
 import pytest
@@ -16,6 +17,7 @@ from tests.research_system.factories import (
     PROJECT_ID,
     activate_lifecycle_grant,
     control_plane,
+    revoke_lifecycle_grant,
 )
 
 
@@ -34,6 +36,33 @@ MESSAGE_ROWS = (
     ("message.acknowledge", "AcknowledgeMessage", "MessageAcknowledged"),
     ("message.delivery_failure", "RecordMessageDeliveryFailure", "MessageDeliveryFailed"),
 )
+
+_MESSAGE_MATRIX_AXIS_NAMES = frozenset(
+    {
+        "authority",
+        "retry_idempotency_key_command_id",
+        "concurrency",
+        "failed_mutation",
+        "replay",
+        "projection",
+        "decisive_negative",
+    }
+)
+_MESSAGE_ROW_CONCURRENCY = {
+    "message.publish_assignment": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_acknowledgement": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_progress": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_input_request": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_escalation": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_report": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_review_request": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_review_response": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_decision_request": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.publish_handoff": "not-applicable: absent-stream publication has no competing terminal transition",
+    "message.deliver": "delivery-versus-failure-race",
+    "message.acknowledge": "acknowledgement-race",
+    "message.delivery_failure": "delivery-versus-failure-race",
+}
 
 
 @pytest.mark.parametrize(
@@ -78,6 +107,101 @@ def test_message_schema_bindings_preserve_all_eight_protected_raw_hashes(tmp_pat
         identity = registry.resolve_identity(schema_id, "1.0.0")
         assert identity.sha256 == expected_hash
         assert sha256(identity.raw_bytes).hexdigest() == expected_hash
+
+
+@pytest.mark.parametrize(
+    ("row_id", "command_type", "event_type"),
+    MESSAGE_ROWS,
+    ids=[row_id for row_id, _, _ in MESSAGE_ROWS],
+)
+def test_message_row_common_axis_matrix(tmp_path, row_id, command_type, event_type):
+    """Exercise every frozen Message row through the common completion axes."""
+    expected_rows = {item[0] for item in MESSAGE_ROWS}
+    assert set(_MESSAGE_ROW_CONCURRENCY) == expected_rows
+    assert len(_MESSAGE_ROW_CONCURRENCY) == len(MESSAGE_ROWS) == 13
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    base = 10_000 + (index for index, item in enumerate(MESSAGE_ROWS) if item[0] == row_id).__next__() * 10
+    message_id, command, publication = _matrix_row_command(
+        harness,
+        row_id,
+        command_type,
+        base,
+    )
+
+    accepted = harness.service.submit(command)
+    assert accepted.status == "accepted"
+    event = tuple(harness.ledger.iter_events())[-1]
+    assert event["event_type"] == event_type
+    assert event["authority_grant_id"].startswith("agr_")
+
+    before_retry = _no_domain_mutation_snapshot(harness)
+    assert harness.service.submit(deepcopy(command)) == accepted
+    assert _no_domain_mutation_snapshot(harness) == before_retry
+
+    changed_command_id = deepcopy(command)
+    changed_command_id["command_id"] = _command_id(base + 1_001)
+    with pytest.raises(ConflictError, match="idempotency key"):
+        harness.service.submit(changed_command_id)
+    assert _no_domain_mutation_snapshot(harness) == before_retry
+
+    changed_idempotency_key = deepcopy(command)
+    changed_idempotency_key["idempotency_key"] = f"matrix-changed-key:{row_id}:{base}"
+    with pytest.raises(ConflictError, match="command ID"):
+        harness.service.submit(changed_idempotency_key)
+    assert _no_domain_mutation_snapshot(harness) == before_retry
+
+    authority_negative = _matrix_authority_negative(command, row_id, base)
+    rejected_authority = harness.service.submit(authority_negative)
+    assert rejected_authority.reason_code == "lifecycle_authority_unauthorized"
+    assert _no_domain_mutation_snapshot(harness) == before_retry
+
+    decisive_root = tmp_path / "matrix-decisive-negative"
+    decisive_root.mkdir()
+    decisive_harness = control_plane(
+        decisive_root,
+        message_adapter_registry=_adapter_registry(),
+    )
+    _, decisive_command, decisive_publication = _matrix_row_command(
+        decisive_harness,
+        row_id,
+        command_type,
+        base + 2_000,
+    )
+    decisive_negative = _matrix_decisive_negative(
+        decisive_command,
+        decisive_publication,
+        base + 2_000,
+    )
+    before_decisive_negative = _no_domain_mutation_snapshot(decisive_harness)
+    rejected = decisive_harness.service.submit(decisive_negative)
+    assert rejected.status == "rejected"
+    assert _no_domain_mutation_snapshot(decisive_harness) == before_decisive_negative
+
+    events = tuple(harness.ledger.iter_events())
+    replayed = replay(events, schema_registry=harness.schemas)
+    projection_path = tmp_path / f"{row_id.replace('.', '-')}-projection.json"
+    assert rebuild_projection(events, projection_path, schema_registry=harness.schemas) == replayed
+    assert replayed["streams"][message_id] == harness.replay().stream_states[message_id]
+
+    concurrency = _MESSAGE_ROW_CONCURRENCY[row_id]
+    if concurrency.startswith("not-applicable"):
+        assert command_type == "PublishMessage"
+    elif concurrency == "acknowledgement-race":
+        _assert_matrix_acknowledgement_race(tmp_path, base + 5_000)
+    else:
+        assert concurrency == "delivery-versus-failure-race"
+        _assert_matrix_delivery_failure_race(tmp_path, base + 5_000)
+
+    axes = {
+        "authority": rejected_authority.reason_code,
+        "retry_idempotency_key_command_id": accepted.command_id,
+        "concurrency": concurrency,
+        "failed_mutation": before_retry["tail"],
+        "replay": replayed["streams"][message_id]["status"],
+        "projection": projection_path.read_bytes(),
+        "decisive_negative": rejected.reason_code,
+    }
+    assert set(axes) == _MESSAGE_MATRIX_AXIS_NAMES
 
 
 def _message_id(number: int) -> str:
@@ -245,6 +369,299 @@ def _no_domain_mutation_snapshot(harness) -> dict:
         "projection": replay(ledger_snapshot.events, schema_registry=harness.schemas),
         "history": harness.replay().stream_states,
     }
+
+
+def _accepted_delivery(harness, number: int) -> tuple[str, dict, object]:
+    message_id = _message_id(number)
+    assert (
+        harness.service.submit(
+            _message_command(
+                command_id=_command_id(number),
+                command_type="PublishMessage",
+                message_id=message_id,
+                expected_stream_version=0,
+                payload=_publish_payload(message_id, "handoff"),
+            )
+        ).status
+        == "accepted"
+    )
+    publication = tuple(harness.ledger.iter_events())[-1]
+    delivery = _message_command(
+        command_id=_command_id(number + 1),
+        command_type="RecordMessageDelivery",
+        message_id=message_id,
+        expected_stream_version=1,
+        payload={
+            "message_id": message_id,
+            "content_sha256": sha256_hex(canonical_bytes(publication["payload"])),
+            "recipient_actor_ids": [ACTORS["actor-a"]],
+            "delivery_adapter_id": "pilot-adapter",
+            "delivery_evidence_refs": ["evidence:delivery"],
+        },
+    )
+    accepted = harness.service.submit(delivery)
+    assert accepted.status == "accepted"
+    return message_id, delivery, accepted
+
+
+def _delivery_scoped_index_path(harness):
+    return next(
+        path
+        for path in harness.receipts.index_root.glob("*.json")
+        if json.loads(path.read_text(encoding="utf-8"))["scope"][2] == "RecordMessageDelivery"
+    )
+
+
+def _matrix_row_command(harness, row_id: str, command_type: str, base: int):
+    message_id = _message_id(base)
+    if command_type == "PublishMessage":
+        return (
+            message_id,
+            _message_command(
+                command_id=_command_id(base),
+                command_type=command_type,
+                message_id=message_id,
+                expected_stream_version=0,
+                payload=_publish_payload(
+                    message_id,
+                    row_id.removeprefix("message.publish_"),
+                ),
+            ),
+            None,
+        )
+
+    published = _message_command(
+        command_id=_command_id(base),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    assert harness.service.submit(published).status == "accepted"
+    publication = tuple(harness.ledger.iter_events())[-1]
+    content_sha256 = sha256_hex(canonical_bytes(publication["payload"]))
+    if command_type == "RecordMessageDelivery":
+        return (
+            message_id,
+            _message_command(
+                command_id=_command_id(base + 1),
+                command_type=command_type,
+                message_id=message_id,
+                expected_stream_version=1,
+                payload={
+                    "message_id": message_id,
+                    "content_sha256": content_sha256,
+                    "recipient_actor_ids": [ACTORS["actor-a"]],
+                    "delivery_adapter_id": "pilot-adapter",
+                    "delivery_evidence_refs": ["evidence:delivery"],
+                },
+            ),
+            publication,
+        )
+    if command_type == "AcknowledgeMessage":
+        delivered = _message_command(
+            command_id=_command_id(base + 1),
+            command_type="RecordMessageDelivery",
+            message_id=message_id,
+            expected_stream_version=1,
+            payload={
+                "message_id": message_id,
+                "content_sha256": content_sha256,
+                "recipient_actor_ids": [ACTORS["actor-a"]],
+                "delivery_adapter_id": "pilot-adapter",
+                "delivery_evidence_refs": ["evidence:delivery"],
+            },
+        )
+        assert harness.service.submit(delivered).status == "accepted"
+        return (
+            message_id,
+            _message_command(
+                command_id=_command_id(base + 2),
+                command_type=command_type,
+                message_id=message_id,
+                expected_stream_version=2,
+                payload={
+                    "message_id": message_id,
+                    "content_sha256": content_sha256,
+                    "recipient_actor_ids": [ACTORS["actor-a"]],
+                    "source_position": publication["global_position"],
+                },
+            ),
+            publication,
+        )
+    assert command_type == "RecordMessageDeliveryFailure"
+    return (
+        message_id,
+        _message_command(
+            command_id=_command_id(base + 1),
+            command_type=command_type,
+            message_id=message_id,
+            expected_stream_version=1,
+            payload={
+                "message_id": message_id,
+                "delivery_adapter_id": "pilot-adapter",
+                "failure_kind": "unreachable",
+                "failure_evidence_refs": ["evidence:failure"],
+            },
+        ),
+        publication,
+    )
+
+
+def _matrix_authority_negative(command: dict, row_id: str, base: int) -> dict:
+    negative = deepcopy(command)
+    negative["command_id"] = _command_id(base + 3)
+    negative["idempotency_key"] = f"matrix-authority:{row_id}:{base}"
+    negative["actor_id"] = ACTORS["actor-b"]
+    if negative["command_type"] == "PublishMessage":
+        negative["payload"]["sender_actor_id"] = ACTORS["actor-b"]
+    return negative
+
+
+def _matrix_decisive_negative(command: dict, publication: dict | None, base: int) -> dict:
+    negative = deepcopy(command)
+    negative["command_id"] = _command_id(base + 4)
+    negative["idempotency_key"] = f"matrix-negative:{command['command_type']}:{base}"
+    if command["command_type"] == "PublishMessage":
+        negative["payload"]["sender_actor_id"] = ACTORS["actor-b"]
+    elif command["command_type"] == "RecordMessageDelivery":
+        negative["payload"]["content_sha256"] = "b" * 64
+    elif command["command_type"] == "AcknowledgeMessage":
+        assert publication is not None
+        negative["payload"]["source_position"] = publication["global_position"] + 1
+    else:
+        negative["payload"]["failure_evidence_refs"] = []
+    return negative
+
+
+def _matrix_concurrency_harness(tmp_path):
+    root = tmp_path / "matrix-concurrency"
+    root.mkdir()
+    return control_plane(root, message_adapter_registry=_adapter_registry())
+
+
+def _assert_matrix_acknowledgement_race(tmp_path, base: int) -> None:
+    harness = _matrix_concurrency_harness(tmp_path)
+    message_id, _, _ = _accepted_delivery(harness, base)
+    publication = tuple(harness.ledger.iter_events())[0]
+    content_sha256 = sha256_hex(canonical_bytes(publication["payload"]))
+    commands = {
+        label: _message_command(
+            command_id=_command_id(number),
+            command_type="AcknowledgeMessage",
+            message_id=message_id,
+            expected_stream_version=2,
+            payload={
+                "message_id": message_id,
+                "content_sha256": content_sha256,
+                "recipient_actor_ids": [ACTORS["actor-a"]],
+                "source_position": publication["global_position"],
+            },
+        )
+        for label, number in (("left", base + 2), ("right", base + 3))
+    }
+    barrier = threading.Barrier(3)
+    outcomes: dict[str, object] = {}
+
+    def submit(label: str) -> None:
+        barrier.wait()
+        try:
+            outcomes[label] = harness.service.submit(commands[label])
+        except Exception as exc:  # noqa: BLE001 - the race contract defines the outcome.
+            outcomes[label] = exc
+
+    threads = [threading.Thread(target=submit, args=(label,)) for label in commands]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join()
+
+    accepted = [outcome for outcome in outcomes.values() if getattr(outcome, "status", None) == "accepted"]
+    losers = [
+        outcome for outcome in outcomes.values() if getattr(outcome, "reason_code", None) == "stream_version_conflict"
+    ]
+    assert len(accepted) == len(losers) == 1
+    loser_label = next(
+        label
+        for label, outcome in outcomes.items()
+        if getattr(outcome, "reason_code", None) == "stream_version_conflict"
+    )
+    before = _no_domain_mutation_snapshot(harness)
+    assert harness.service.submit(commands[loser_label]).reason_code == "stream_version_conflict"
+    assert _no_domain_mutation_snapshot(harness) == before
+
+
+def _assert_matrix_delivery_failure_race(tmp_path, base: int) -> None:
+    harness = _matrix_concurrency_harness(tmp_path)
+    message_id = _message_id(base)
+    published = _message_command(
+        command_id=_command_id(base),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    assert harness.service.submit(published).status == "accepted"
+    publication = tuple(harness.ledger.iter_events())[-1]
+    content_sha256 = sha256_hex(canonical_bytes(publication["payload"]))
+    commands = {
+        "delivery": _message_command(
+            command_id=_command_id(base + 1),
+            command_type="RecordMessageDelivery",
+            message_id=message_id,
+            expected_stream_version=1,
+            payload={
+                "message_id": message_id,
+                "content_sha256": content_sha256,
+                "recipient_actor_ids": [ACTORS["actor-a"]],
+                "delivery_adapter_id": "pilot-adapter",
+                "delivery_evidence_refs": ["evidence:delivery"],
+            },
+        ),
+        "failure": _message_command(
+            command_id=_command_id(base + 2),
+            command_type="RecordMessageDeliveryFailure",
+            message_id=message_id,
+            expected_stream_version=1,
+            payload={
+                "message_id": message_id,
+                "delivery_adapter_id": "pilot-adapter",
+                "failure_kind": "unreachable",
+                "failure_evidence_refs": ["evidence:failure"],
+            },
+        ),
+    }
+    barrier = threading.Barrier(3)
+    outcomes: dict[str, object] = {}
+
+    def submit(label: str) -> None:
+        barrier.wait()
+        try:
+            outcomes[label] = harness.service.submit(commands[label])
+        except Exception as exc:  # noqa: BLE001 - the race contract defines the outcome.
+            outcomes[label] = exc
+
+    threads = [threading.Thread(target=submit, args=(label,)) for label in commands]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join()
+
+    accepted = [outcome for outcome in outcomes.values() if getattr(outcome, "status", None) == "accepted"]
+    losers = [
+        outcome for outcome in outcomes.values() if getattr(outcome, "reason_code", None) == "stream_version_conflict"
+    ]
+    assert len(accepted) == len(losers) == 1
+    loser_label = next(
+        label
+        for label, outcome in outcomes.items()
+        if getattr(outcome, "reason_code", None) == "stream_version_conflict"
+    )
+    before = _no_domain_mutation_snapshot(harness)
+    assert harness.service.submit(commands[loser_label]).reason_code == "stream_version_conflict"
+    assert _no_domain_mutation_snapshot(harness) == before
 
 
 def _rehash_event(event: dict) -> dict:
@@ -730,6 +1147,46 @@ def test_delivery_failure_requires_its_own_adapter_capability_and_frozen_snapsho
     assert _no_domain_mutation_snapshot(harness) == before
 
 
+def test_plain_control_plane_uses_explicit_adapter_snapshot_with_manually_activated_authority(tmp_path):
+    harness = control_plane(
+        tmp_path,
+        auto_authority=False,
+        message_adapter_registry=_adapter_registry(),
+    )
+    message_id = _message_id(375)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="message",
+        subject_id=message_id,
+    )
+    published = _message_command(
+        command_id=_command_id(375),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    published["authority_grant_id"] = grant_id
+    assert harness.service.submit(published).status == "accepted"
+    publication = tuple(harness.ledger.iter_events())[-1]
+    delivery = _message_command(
+        command_id=_command_id(376),
+        command_type="RecordMessageDelivery",
+        message_id=message_id,
+        expected_stream_version=1,
+        payload={
+            "message_id": message_id,
+            "content_sha256": sha256_hex(canonical_bytes(publication["payload"])),
+            "recipient_actor_ids": [ACTORS["actor-a"]],
+            "delivery_adapter_id": "pilot-adapter",
+            "delivery_evidence_refs": ["evidence:delivery"],
+        },
+    )
+    delivery["authority_grant_id"] = grant_id
+
+    assert harness.service.submit(delivery).status == "accepted"
+
+
 @pytest.mark.parametrize(
     ("command_type", "payload"),
     [
@@ -908,6 +1365,35 @@ def test_unknown_major_message_event_fails_before_projection_publication(tmp_pat
 
     with pytest.raises(IntegrityError, match="unsupported major at 1"):
         rebuild_projection(unknown_major, projection_path, schema_registry=harness.schemas)
+    assert projection_path.read_bytes() == b"previous-projection\n"
+    assert _no_domain_mutation_snapshot(harness) == before
+
+
+def test_recognized_message_event_under_generic_schema_fails_before_projection_publication(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id = _message_id(565)
+    assert (
+        harness.service.submit(
+            _message_command(
+                command_id=_command_id(565),
+                command_type="PublishMessage",
+                message_id=message_id,
+                expected_stream_version=0,
+                payload=_publish_payload(message_id, "handoff"),
+            )
+        ).status
+        == "accepted"
+    )
+    forged = deepcopy(list(harness.ledger.iter_events()))
+    forged[0]["schema_id"] = "ars://core/event"
+    forged[0] = _rehash_event(forged[0])
+    projection_path = tmp_path / "generic-message-projection.json"
+    projection_path.write_bytes(b"previous-projection\n")
+    before = _no_domain_mutation_snapshot(harness)
+
+    with pytest.raises(IntegrityError, match="exact lifecycle event provenance mismatch"):
+        rebuild_projection(forged, projection_path, schema_registry=harness.schemas)
+
     assert projection_path.read_bytes() == b"previous-projection\n"
     assert _no_domain_mutation_snapshot(harness) == before
 
@@ -1131,6 +1617,139 @@ def test_delivery_retry_and_changed_idempotency_or_command_identity_are_atomic(t
     changed_idempotency["idempotency_key"] = "message:changed-idempotency"
     with pytest.raises(ConflictError, match="command ID"):
         harness.service.submit(changed_idempotency)
+    assert _no_domain_mutation_snapshot(harness) == before
+
+
+def test_published_message_payload_is_detached_from_caller_and_remains_deliverable(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id = _message_id(603)
+    submitted = _message_command(
+        command_id=_command_id(603),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    expected_payload = deepcopy(submitted["payload"])
+    assert harness.service.submit(submitted).status == "accepted"
+
+    submitted["payload"]["body"] = "caller-mutated-after-acceptance"
+
+    cached_publication = harness.ledger.snapshot().events[-1]
+    durable_publication = tuple(harness.ledger.iter_events())[-1]
+    assert cached_publication["payload"] == expected_payload
+    assert durable_publication["payload"] == expected_payload
+    assert (
+        harness.service.submit(
+            _message_command(
+                command_id=_command_id(604),
+                command_type="RecordMessageDelivery",
+                message_id=message_id,
+                expected_stream_version=1,
+                payload={
+                    "message_id": message_id,
+                    "content_sha256": sha256_hex(canonical_bytes(expected_payload)),
+                    "recipient_actor_ids": [ACTORS["actor-a"]],
+                    "delivery_adapter_id": "pilot-adapter",
+                    "delivery_evidence_refs": ["evidence:delivery"],
+                },
+            )
+        ).status
+        == "accepted"
+    )
+
+
+@pytest.mark.parametrize("axis", ("project", "current-authority"))
+def test_adapter_retry_rechecks_project_and_current_authority_before_returning_receipt(tmp_path, axis):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id, delivery, accepted = _accepted_delivery(harness, 605)
+    retry = deepcopy(delivery)
+    if axis == "project":
+        retry["project_id"] = "prj_01978abc-7112-7000-8000-000000007112"
+    else:
+        revoke_lifecycle_grant(harness, subject_id=message_id)
+    before = _no_domain_mutation_snapshot(harness)
+
+    rejected = harness.service.submit(retry)
+
+    assert rejected.status == "rejected", axis
+    assert rejected != accepted
+    assert rejected.reason_code == "lifecycle_authority_unauthorized"
+    assert _no_domain_mutation_snapshot(harness) == before
+
+
+def test_adapter_retry_rejects_unsupported_major_history_without_mutation(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    _, delivery, _ = _accepted_delivery(harness, 610)
+    event_path = max(harness.ledger.events_root.rglob("*.jsonl"))
+    forged = json.loads(event_path.read_text(encoding="utf-8"))
+    forged["schema_version"] = "2.0.0"
+    event_path.write_bytes(canonical_bytes(_rehash_event(forged)) + b"\n")
+    before = {
+        "events": {
+            path.relative_to(harness.ledger.events_root).as_posix(): path.read_bytes()
+            for path in harness.ledger.events_root.rglob("*.jsonl")
+        },
+        "receipts": {
+            path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+            for path in harness.receipts.receipts_root.rglob("*.json")
+        },
+    }
+
+    with pytest.raises(IntegrityError, match="unsupported major at 2"):
+        harness.service.submit(delivery)
+
+    after = {
+        "events": {
+            path.relative_to(harness.ledger.events_root).as_posix(): path.read_bytes()
+            for path in harness.ledger.events_root.rglob("*.jsonl")
+        },
+        "receipts": {
+            path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+            for path in harness.receipts.receipts_root.rglob("*.json")
+        },
+    }
+    assert after == before
+
+
+def test_adapter_retry_reconciles_missing_scoped_index_without_new_message_event(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    _, delivery, accepted = _accepted_delivery(harness, 615)
+    index_path = _delivery_scoped_index_path(harness)
+    expected_index = index_path.read_bytes()
+    index_path.unlink()
+    before = _no_domain_mutation_snapshot(harness)
+
+    retried = harness.service.submit(delivery)
+
+    after = _no_domain_mutation_snapshot(harness)
+    assert retried == accepted
+    assert index_path.read_bytes() == expected_index
+    for axis in (
+        "tail",
+        "batches",
+        "versions",
+        "accepted_receipts",
+        "command_ids",
+        "command_scopes",
+        "projection",
+        "history",
+    ):
+        assert after[axis] == before[axis]
+
+
+def test_adapter_retry_rejects_foreign_scoped_index_without_mutation(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    _, delivery, _ = _accepted_delivery(harness, 620)
+    index_path = _delivery_scoped_index_path(harness)
+    foreign = json.loads(index_path.read_text(encoding="utf-8"))
+    foreign["project_id"] = "prj_01978abc-7113-7000-8000-000000007113"
+    index_path.write_bytes(canonical_bytes(foreign))
+    before = _no_domain_mutation_snapshot(harness)
+
+    with pytest.raises(ConflictError, match="idempotency index target mismatch"):
+        harness.service.submit(delivery)
+
     assert _no_domain_mutation_snapshot(harness) == before
 
 

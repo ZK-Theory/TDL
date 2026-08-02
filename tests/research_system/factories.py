@@ -509,6 +509,7 @@ def control_plane(
         schemas,
         authority_resolver=authority_resolver,
         clock=clock,
+        message_adapter_registry=message_adapter_registry,
     )
     harness = ControlPlaneHarness(
         service=service,

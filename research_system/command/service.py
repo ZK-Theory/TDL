@@ -4,6 +4,7 @@ import sys
 import time
 
 from collections.abc import Callable, Iterable
+from copy import deepcopy
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -448,9 +449,6 @@ class CommandService:
             self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
             snapshot = self.ledger.snapshot()
-            accepted_adapter_retry = self._accepted_message_adapter_retry(command, snapshot)
-            if accepted_adapter_retry is not None:
-                return accepted_adapter_retry
             if lifecycle:
                 lifecycle_authority, denial = self._resolve_lifecycle_authority(
                     command,
@@ -1135,31 +1133,6 @@ class CommandService:
             return "Message adapter registration does not bind the command actor."
         return None
 
-    def _accepted_message_adapter_retry(
-        self,
-        command: Command,
-        snapshot: LedgerSnapshot,
-    ) -> Receipt | None:
-        if command.envelope["command_type"] not in _MESSAGE_ADAPTER_COMMAND_TYPES:
-            return None
-        events = [event for event in snapshot.events if event.get("command_id") == command.command_id]
-        if not events:
-            return None
-        first = events[0]
-        same_submission = (
-            len(events) == 1
-            and first.get("command_type") == command.envelope["command_type"]
-            and first.get("stream_id") == command.target_stream_id
-            and first.get("command_payload_hash") == command.payload_hash
-            and first.get("idempotency_key") == command.idempotency_key
-            and first.get("actor_id") == command.actor_id
-            and first.get("authority_grant_id") == command.envelope["authority_grant_id"]
-            and first.get("stream_version") == command.expected_stream_version + 1
-        )
-        if not same_submission:
-            raise ConflictError("command ID conflicts with committed command")
-        return self._return_or_reconstruct(events)
-
     def _prepare_message_command(
         self,
         command: Command,
@@ -1503,7 +1476,23 @@ class CommandService:
             canonical_resolution=lifecycle_authority.canonical_resolution,
             command_schema=command_schema,
         )
+        self._validate_message_scoped_retry_identity(command, receipt)
         return self._return_scoped_receipt_or_raise(command, receipt)
+
+    def _validate_message_scoped_retry_identity(
+        self,
+        command: Command,
+        receipt: Receipt,
+    ) -> None:
+        if command.envelope["command_type"] not in _MESSAGE_COMMAND_TYPES:
+            return
+        if command.command_id == receipt.command_id:
+            return
+        if self.receipts.load(command.command_id) is not None:
+            raise ConflictError("command ID conflicts with stored receipt")
+        if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
+            raise ConflictError("command ID conflicts with committed command")
+        raise ConflictError("idempotency key conflicts with committed command")
 
     def _return_scoped_receipt_or_raise(
         self,
@@ -1512,7 +1501,11 @@ class CommandService:
     ) -> Receipt:
         if command.command_id == receipt.command_id:
             return receipt
-        raise ConflictError("idempotency key conflicts with committed command")
+        if self.receipts.load(command.command_id) is not None:
+            raise ConflictError("command ID conflicts with stored receipt")
+        if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
+            raise ConflictError("command ID conflicts with committed command")
+        return receipt
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""
@@ -2597,16 +2590,16 @@ class CommandService:
             payload = prepared_payload
         elif command_type == "PublishMessage":
             event_type = "MessagePublished"
-            payload = command.envelope["payload"]
+            payload = deepcopy(command.envelope["payload"])
         elif command_type == "RecordMessageDelivery":
             event_type = "MessageDelivered"
-            payload = command.envelope["payload"]
+            payload = deepcopy(command.envelope["payload"])
         elif command_type == "AcknowledgeMessage":
             event_type = "MessageAcknowledged"
-            payload = command.envelope["payload"]
+            payload = deepcopy(command.envelope["payload"])
         elif command_type == "RecordMessageDeliveryFailure":
             event_type = "MessageDeliveryFailed"
-            payload = command.envelope["payload"]
+            payload = deepcopy(command.envelope["payload"])
         elif command_type == "VerifyEvidenceDeletion":
             authorizer = self.deletion_manifest_authorizer
             if authorizer is None:
