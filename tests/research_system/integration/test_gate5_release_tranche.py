@@ -638,7 +638,7 @@ def test_restore_finalization_rechecks_source_snapshot_before_manifest_replace(t
             )
 
     monkeypatch.setattr(identity_module, "_before_restore_manifest_replace", mutate_source, raising=False)
-    with pytest.raises(ArsError, match="snapshot"):
+    with pytest.raises(ArsError, match="snapshot|canonical path changed"):
         finalize_verified_restore_binding(
             target_root=case["target"],
             source_root=case["source"],
@@ -715,13 +715,39 @@ def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
     assert result.tail_position == 4
 
 
-@pytest.mark.parametrize("mutation", ["forged", "revoked", "wrong_scope"])
+def test_restore_preflight_derives_output_from_approved_inputs_not_caller_bytes(tmp_path):
+    from research_system.store.identity import canonical_restore_binding_output
+
+    case = _build_restore_case(tmp_path)
+    result = _verify_restore(case, expected_output=b'{"caller":"self-attested"}\n')
+    approved = canonical_restore_binding_output(
+        case["target"],
+        case["receipt"].project_id,
+        case["receipt"].store_identity,
+        [case["code_root"]],
+        case["code_root"] / ".research-system" / "schemas",
+    )
+
+    assert result.status == "diagnostic_only"
+    assert "restore_binding_output_mismatch" in result.failed_predicates
+    assert result.expected_output_sha256 == sha256_hex(approved)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "stale", "forged", "revoked", "wrong_scope"])
 def test_restore_preflight_requires_current_replayed_restore_grant(tmp_path, mutation):
     case = _build_restore_case(tmp_path)
     grant_directory = case["source"] / "objects" / "authority_grant" / case["authority_grant_id"]
     grant_path = next(grant_directory.glob("*.json"))
     grant = json.loads(grant_path.read_text(encoding="utf-8"))
-    if mutation == "forged":
+    if mutation == "missing":
+        grant_path.unlink()
+        result = _verify_restore(case)
+        assert result.status == "diagnostic_only"
+        assert "source_snapshot_mismatch" in result.failed_predicates
+        return
+    if mutation == "stale":
+        grant["expires_at"] = "2026-07-12T11:59:59Z"
+    elif mutation == "forged":
         grant["actor_id"] = "act_01978abc-1010-7000-8000-000000001010"
     elif mutation == "revoked":
         grant["revoked"] = True
@@ -892,6 +918,122 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         ),
     )
     assert restarted.submit(command).status == "accepted"
+
+
+def test_command_service_crash_during_restore_is_rejected_by_binding_loader(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reproduce the adjudicated journal-less CommandService crash at the parent."""
+    import research_system.store.identity as identity_module
+    from research_system.config import ControlBinding
+
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
+    )
+    command = create_task_command(
+        CMD_RESTORE,
+        "crash-during-restore",
+        TASK_RESTORE,
+        {"title": "crash during moved restore"},
+    )
+    command["authority_grant_id"] = case["authority_grant_id"]
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    original_replace = identity_module.os.replace
+
+    def crash_after_manifest_replace(source: object, destination: object) -> None:
+        original_replace(source, destination)
+        if Path(destination).resolve(strict=False) == manifest_path.resolve(strict=False) and Path(
+            source
+        ).name.startswith(".store-identity.json."):
+            raise SystemExit(77)
+
+    monkeypatch.setattr(identity_module.os, "replace", crash_after_manifest_replace)
+
+    with pytest.raises(SystemExit) as exc_info:
+        service.submit(command)
+    assert exc_info.value.code == 77
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["control_root"] == str(case["target"].resolve())
+    assert not (case["target"] / "manifests" / "restore-binding-evidence.json").exists()
+    assert not (case["target"] / "manifests" / ".restore-binding-journal.json").exists()
+    assert not (case["target"] / "manifests" / ".restore-binding-recovery.json").exists()
+
+    binding_path = tmp_path / "crashed-binding.json"
+    binding_path.write_bytes(
+        canonical_bytes(
+            {
+                "code_roots": [str(case["code_root"].resolve())],
+                "control_root": str(case["target"].resolve()),
+                "project_id": case["receipt"].project_id,
+                "schema_root": str((case["code_root"] / ".research-system" / "schemas").resolve()),
+                "store_identity": case["receipt"].store_identity,
+            }
+        )
+    )
+    with pytest.raises(ArsError, match="restore|transaction|evidence|cleared"):
+        ControlBinding.load(binding_path)
+
+
+def test_command_service_crash_after_restore_clear_retries_command_once(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from research_system.config import ControlBinding
+    from research_system.store.identity import load_restore_binding_transaction
+
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        expected_project_id=case["receipt"].project_id,
+        expected_code_roots=[case["code_root"]],
+        expected_schema_root=case["code_root"] / ".research-system" / "schemas",
+    )
+    command = create_task_command(
+        CMD_RESTORE,
+        "crash-after-restore-clear",
+        TASK_RESTORE,
+        {"title": "retry command after cleared restore"},
+    )
+    command["authority_grant_id"] = case["authority_grant_id"]
+
+    def crash_before_append() -> None:
+        raise SystemExit(78)
+
+    monkeypatch.setattr(service, "_after_restore_cleared_before_command_append", crash_before_append)
+    with pytest.raises(SystemExit) as exc_info:
+        service.submit(command)
+    assert exc_info.value.code == 78
+
+    transaction = load_restore_binding_transaction(case["target"])
+    assert transaction is not None and transaction["state"] == "cleared"
+    canonical_output = case["target"] / transaction["output_object_path"]
+    assert ControlBinding.load(canonical_output).control_root == case["target"].resolve()
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert not list((case["target"] / "objects" / "task" / TASK_RESTORE).glob("*.json"))
+
+    restarted = _moved_service(case)
+    first = restarted.submit(command)
+    second = restarted.submit(command)
+    assert first.status == second.status == "accepted"
+    assert first.event_batch_id == second.event_batch_id
+    committed = [
+        batch
+        for batch in restarted.ledger.iter_batches()
+        if any(event.get("command_id") == CMD_RESTORE for event in batch)
+    ]
+    assert len(committed) == 1
 
 
 def test_moved_restore_rejects_missing_target_directory_without_repairing(tmp_path):

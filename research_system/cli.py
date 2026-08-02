@@ -60,14 +60,14 @@ from research_system.schema_registry import (
     runtime_schema_registry,
 )
 from research_system.store.identity import (
-    begin_restore_binding_journal,
     _fsync_directory,
+    canonical_restore_binding_output,
     load_canonical_restore_binding_evidence,
+    load_restore_binding_transaction,
     load_store_manifest,
     load_store_manifest_unbound,
     manifest_schema_root,
-    recover_restore_binding,
-    rebind_restored_store,
+    restore_binding_output_object_path,
 )
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
@@ -193,19 +193,11 @@ def _preflight_restore_binding_load(
         require_external_control_root(list(expected_code_roots), shadow_root)
         (shadow_root / "manifests").mkdir(parents=True, exist_ok=True)
         shadow_manifest = dict(manifest)
-        shadow_manifest["control_root"] = str(source_root)
+        shadow_manifest["control_root"] = str(shadow_root.resolve())
         shadow_manifest["manifest_hash"] = sha256_hex(
             canonical_bytes({key: value for key, value in shadow_manifest.items() if key != "manifest_hash"})
         )
         (shadow_root / "manifests" / "store-identity.json").write_bytes(canonical_bytes(shadow_manifest))
-        rebind_restored_store(
-            shadow_root,
-            source_root,
-            expected_project_id=expected_project_id,
-            expected_store_identity=expected_store_identity,
-            expected_code_roots=list(expected_code_roots),
-            expected_schema_root=expected_schema_root,
-        )
         shadow_config = Path(raw) / "binding.json"
         shadow_value = dict(config_value)
         shadow_value["control_root"] = str(shadow_root.resolve())
@@ -250,86 +242,19 @@ def _validate_restore_manifest_against_approved(
         raise ConfigurationError("restored store endpoint differs from approved project binding")
 
 
-def _load_restore_output(
-    output: Path,
-    expected_output: bytes,
-    target_root: Path,
-    approved: ApprovedProjectBinding,
-    *,
-    already_bound: bool,
-) -> ControlBinding | None:
-    if not output.exists():
-        if already_bound:
-            raise ArsError(
-                f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
-            )
-        return None
-    if not already_bound:
-        raise ArsError(f"output path exists: {output}")
+def _publish_restore_binding_projection(output: Path, expected_output: bytes) -> str:
+    """Best-effort compatibility projection; it never determines restore success."""
     try:
-        actual = output.read_bytes()
-    except OSError as exc:
-        raise ArsError(
-            f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
-        ) from exc
-    if actual != expected_output:
-        raise ArsError(
-            f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
-        )
-    try:
-        binding = ControlBinding.load(output)
-    except (ArsError, OSError) as exc:
-        raise ArsError(
-            f"restore binding status=bound-but-config-unpublished; expected output sha256={sha256_hex(expected_output)}"
-        ) from exc
-    _validate_restore_output_identity(output, binding, expected_output, target_root, approved)
-    return binding
-
-
-def _validate_restore_output_identity(
-    output: Path,
-    binding: ControlBinding,
-    expected_output: bytes,
-    target_root: Path,
-    approved: ApprovedProjectBinding,
-) -> None:
-    if not output.is_file() or output.read_bytes() != expected_output:
-        raise ArsError("restore binding output changed during final publication")
-    if (
-        binding.control_root != target_root
-        or binding.project_id != approved.project_id
-        or binding.store_identity != approved.store_identity
-        or binding.schema_root != approved.schema_root
-        or tuple(binding.code_roots) != tuple(approved.code_roots)
-    ):
-        raise ConfigurationError("restore binding output identity differs from canonical foundation")
-
-
-def _validate_restore_output_bytes(
-    output: Path,
-    expected_output: bytes,
-    target_root: Path,
-    approved: ApprovedProjectBinding,
-) -> None:
-    try:
-        actual = output.read_bytes() if output.is_file() else None
-    except OSError as exc:
-        raise ArsError("restore binding output changed during final publication") from exc
-    if actual != expected_output:
-        raise ArsError("restore binding output changed during final publication")
-    try:
-        value = json.loads(expected_output.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ArsError("restore binding output is not canonical JSON") from exc
-    expected_value = {
-        "code_roots": [str(root) for root in approved.code_roots],
-        "control_root": str(target_root),
-        "project_id": approved.project_id,
-        "schema_root": str(approved.schema_root),
-        "store_identity": approved.store_identity,
-    }
-    if value != expected_value or canonical_bytes(value) != expected_output:
-        raise ConfigurationError("restore binding output identity differs from canonical foundation")
+        if output.exists():
+            return "exact-reuse" if output.is_file() and output.read_bytes() == expected_output else "foreign-conflict"
+        temporary, durable = _prepare_restore_output(output, expected_output)
+        if not durable:
+            temporary.unlink(missing_ok=True)
+            return "durability-unavailable"
+        published = _publish_reserved_output(output, temporary, None, expected_output)
+        return "published" if published else "durability-unavailable"
+    except (ArsError, OSError):
+        return "unavailable"
 
 
 def _store_restore_bind(args: argparse.Namespace) -> int:
@@ -362,44 +287,37 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         "schema_root": str(approved.schema_root),
         "store_identity": approved.store_identity,
     }
-    expected_output = canonical_bytes(config_value)
+    expected_output = canonical_restore_binding_output(
+        target_root,
+        approved.project_id,
+        approved.store_identity,
+        approved.code_roots,
+        approved.schema_root,
+    )
+    if expected_output != canonical_bytes(config_value):
+        raise IntegrityError("restore binding output derivation is inconsistent")
     current: Any = None
-    binding: ControlBinding | None = None
     evidence: dict[str, Any] | None = None
+    canonical_output_path: Path | None = None
     with restore_binding_writer_locks(
         requested_source,
         target_root,
         lock_factory=WriterLock,
-        config_output=args.config_output,
     ):
         locked_approved = _load_canonical_approved_binding(_CANONICAL_FOUNDATION_CONFIG)
         if locked_approved != approved:
             raise ConfigurationError("approved project binding changed before final publication")
         _validate_approved_restore_tail(locked_approved, schemas)
-        recover_restore_binding(target_root, args.config_output, expected_output)
         source_manifest = load_store_manifest_unbound(target_root)
         _validate_restore_manifest_against_approved(source_manifest, locked_approved)
         recorded_root = Path(str(source_manifest["control_root"])).resolve(strict=False)
-        already_bound = recorded_root == target_root
-        if already_bound:
-            evidence = load_canonical_restore_binding_evidence(target_root)
-            if evidence is None:
-                raise ArsError("restore binding evidence is missing")
-            if Path(evidence["source_root"]).resolve(strict=False) != requested_source:
-                raise ArsError("restore source binding evidence conflicts with independently supplied source")
-            source_root = requested_source
-        else:
-            if recorded_root != requested_source:
-                raise ArsError("restore source root does not match the copied store manifest")
-            source_root = requested_source
-        existing_binding = _load_restore_output(
-            args.config_output,
-            expected_output,
-            target_root,
-            locked_approved,
-            already_bound=already_bound,
-        )
-        binding = existing_binding
+        transaction = load_restore_binding_transaction(target_root)
+        if recorded_root == target_root:
+            if transaction is None or Path(transaction["source_root"]).resolve(strict=False) != requested_source:
+                raise ArsError("restored target binding has no matching transaction authority")
+        elif recorded_root != requested_source:
+            raise ArsError("restore source root does not match the copied store manifest")
+        source_root = requested_source
         _preflight_restore_binding_load(
             target_root=target_root,
             source_root=source_root,
@@ -431,149 +349,47 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         supplied = verify_restore_before_writer_lease(**preflight_kwargs)
         if supplied.status != "verified":
             raise ArsError(f"restore preflight is not verified: {', '.join(supplied.failed_predicates)}")
-        temporary: Path | None = None
-        journal_path: Path | None = None
-        try:
-            if existing_binding is None:
-                journal_path, reserved_output = begin_restore_binding_journal(
-                    target_root,
-                    source_root,
-                    args.config_output,
-                    expected_output,
-                )
-                temporary, output_preparation_durable = _prepare_restore_output(
-                    args.config_output,
-                    expected_output,
-                    temporary_path=reserved_output,
-                )
-                if not output_preparation_durable:
-                    raise ArsError("restore binding requires durable output directory")
-            current = verify_restore_before_writer_lease(**preflight_kwargs)
-            output_published = False
-
-            def commit_output() -> bool:
-                nonlocal temporary, output_published
-                if temporary is None:
-                    raise ArsError("restore output reservation is missing")
-                reserved = temporary
-                temporary = None
-                try:
-                    durable = _publish_reserved_output(
-                        args.config_output,
-                        reserved,
-                        None,
-                        expected_output,
-                    )
-                finally:
-                    try:
-                        output_published = (
-                            args.config_output.is_file() and args.config_output.read_bytes() == expected_output
-                        )
-                    except OSError:
-                        output_published = False
-                if not output_published:
-                    raise ArsError("restore binding output changed during publication")
-                if not durable:
-                    raise ArsError("restore binding requires durable output publication")
-                return durable
-
-            def rollback_output() -> None:
-                if output_published and args.config_output.is_file():
-                    try:
-                        if args.config_output.read_bytes() == expected_output:
-                            args.config_output.unlink()
-                    except OSError:
-                        return
-
-            def validate_final_output() -> None:
-                _validate_restore_output_bytes(
-                    args.config_output,
-                    expected_output,
-                    target_root,
-                    locked_approved,
-                )
-
-            def validate_published_output() -> None:
-                nonlocal binding, evidence
-                binding = ControlBinding.load(args.config_output)
-                _validate_restore_output_identity(
-                    args.config_output,
-                    binding,
-                    expected_output,
-                    target_root,
-                    locked_approved,
-                )
-                evidence = load_canonical_restore_binding_evidence(target_root)
-                if evidence is None:
-                    raise ArsError("restore binding canonical evidence is missing after finalization")
-                if (
-                    evidence["operation_status"] != "bound-and-config-published"
-                    or evidence["durability_status"] != "durable"
-                ):
-                    raise ArsError("restore binding canonical evidence is not durable")
-
-            def validate_finalized_output() -> None:
-                validate_published_output()
-                _validate_restore_output_bytes(
-                    args.config_output,
-                    expected_output,
-                    target_root,
-                    locked_approved,
-                )
-                if evidence is None:
-                    raise ArsError("restore binding canonical evidence is missing after finalization")
-                manifest_path = target_root / "manifests" / "store-identity.json"
-                manifest = load_store_manifest(target_root)
-                if (
-                    evidence["manifest_hash"] != manifest["manifest_hash"]
-                    or evidence["target_manifest_bytes_sha256"] != sha256_hex(manifest_path.read_bytes())
-                    or evidence["expected_output_sha256"] != sha256_hex(expected_output)
-                ):
-                    raise ArsError("restore binding final manifest/evidence/output identity mismatch")
-
-            finalize_verified_restore_binding(
-                target_root=target_root,
-                source_root=source_root,
-                supplied=supplied,
-                current=current,
-                project_id=locked_approved.project_id,
-                actor_id=args.actor_id,
-                authority_grant_id=args.authority_grant_id,
-                schema_registry=schemas,
-                now=_authority_clock(),
-                expected_output=expected_output,
-                expected_project_id=locked_approved.project_id,
-                expected_code_roots=locked_approved.code_roots,
-                expected_schema_root=locked_approved.schema_root,
-                output_commit=commit_output if temporary is not None else None,
-                output_rollback=rollback_output if temporary is not None else None,
-                final_output_validator=validate_final_output,
-                post_commit=validate_published_output,
-                finalization_validator=validate_finalized_output,
-                journal_path=journal_path,
-            )
-        except BaseException:
-            if journal_path is not None and journal_path.exists():
-                recover_restore_binding(target_root, args.config_output, expected_output)
-            raise
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
+        current = verify_restore_before_writer_lease(**preflight_kwargs)
+        finalize_verified_restore_binding(
+            target_root=target_root,
+            source_root=source_root,
+            supplied=supplied,
+            current=current,
+            project_id=locked_approved.project_id,
+            actor_id=args.actor_id,
+            authority_grant_id=args.authority_grant_id,
+            schema_registry=schemas,
+            now=_authority_clock(),
+            expected_output=expected_output,
+            expected_project_id=locked_approved.project_id,
+            expected_code_roots=locked_approved.code_roots,
+            expected_schema_root=locked_approved.schema_root,
+        )
+        transaction = load_restore_binding_transaction(target_root)
+        evidence = load_canonical_restore_binding_evidence(target_root)
+        if transaction is None or transaction["state"] != "cleared" or evidence is None:
+            raise IntegrityError("restore transaction did not reach durable cleared state")
+        canonical_output_path = restore_binding_output_object_path(
+            target_root,
+            str(transaction["output_object_sha256"]),
+        )
+    if canonical_output_path is None:
+        raise IntegrityError("restore canonical output path is missing")
+    binding = ControlBinding.load(canonical_output_path)
+    projection_status = _publish_restore_binding_projection(args.config_output, expected_output)
     _print_json(
         {
-            "status": (
-                "bound"
-                if evidence is not None
-                and evidence["operation_status"] == "bound-and-config-published"
-                and evidence["durability_status"] == "durable"
-                else "pending"
-            ),
-            "operation_status": evidence["operation_status"] if evidence is not None else "missing",
-            "durability_status": evidence["durability_status"] if evidence is not None else "missing",
-            "config": str(args.config_output.resolve()),
-            "control_root": str(binding.control_root if binding is not None else target_root),
-            "project_id": binding.project_id if binding is not None else approved.project_id,
-            "store_identity": binding.store_identity if binding is not None else approved.store_identity,
+            "status": "bound",
+            "transaction_state": "cleared",
+            "operation_status": evidence["operation_status"],
+            "durability_status": evidence["durability_status"],
+            "config": str(canonical_output_path),
+            "config_sha256": sha256_hex(expected_output),
+            "projection": str(args.config_output.resolve(strict=False)),
+            "projection_status": projection_status,
+            "control_root": str(binding.control_root),
+            "project_id": binding.project_id,
+            "store_identity": binding.store_identity,
             "preflight_result_hash": current.result_hash if current is not None else "",
         }
     )

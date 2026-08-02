@@ -17,8 +17,10 @@ from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from research_system.store.identity import (
+    canonical_restore_binding_output,
     load_canonical_restore_binding_evidence,
     load_restore_binding_evidence,
+    load_restore_binding_transaction,
     load_store_manifest,
     load_store_manifest_unbound,
     manifest_schema_root,
@@ -357,9 +359,8 @@ def restore_binding_writer_locks(
     *,
     lock_factory: Callable[..., Any] = WriterLock,
     held_roots: set[Path] | None = None,
-    config_output: Path | None = None,
 ) -> Iterator[None]:
-    """Hold source, target, and optional output locks in one deterministic order."""
+    """Hold source and target store locks in one deterministic order."""
     source = source_root.resolve(strict=False)
     target = target_root.resolve(strict=False)
     held = {root.resolve(strict=False) for root in (held_roots or set())}
@@ -376,22 +377,6 @@ def restore_binding_writer_locks(
         )
         for root in lock_roots
     ]
-    if config_output is not None:
-        output = config_output.resolve(strict=False)
-        if not output.parent.is_dir():
-            raise ArsError("restore binding output directory is unavailable")
-        lock_specs.append(
-            (
-                output.parent / f".{output.name}.restore-bind.lock",
-                {
-                    "operation": "restore-bind-output",
-                    "source_root": str(source),
-                    "target_root": str(target),
-                    "output_path": str(output),
-                },
-                False,
-            )
-        )
     lock_specs.sort(key=lambda item: str(item[0]))
 
     def clear_dead_restore_lock(path: Path, identity: dict[str, str]) -> None:
@@ -605,6 +590,20 @@ def verify_restore_before_writer_lease(
             approved_schema_value = str(expected_schema_root.resolve(strict=True))
             if not approved_code_values or not Path(approved_schema_value).is_dir():
                 raise ValueError("approved restore binding is unavailable")
+            canonical_output = canonical_restore_binding_output(
+                target,
+                expected_project_id,
+                receipt.store_identity,
+                tuple(Path(root) for root in approved_code_values),
+                Path(approved_schema_value),
+            )
+            if expected_output is not None and expected_output != canonical_output:
+                failed.append("restore_binding_output_mismatch")
+            expected_output = canonical_output
+            approved_code_paths = [Path(root) for root in approved_code_values]
+            require_existing_control_root(approved_code_paths, target)
+            if requested_source is not None:
+                require_existing_control_root(approved_code_paths, requested_source)
         except (OSError, ValueError):
             failed.append("restore_binding_authority_unavailable")
     if receipt.receipt_hash != _hash_without(receipt, "receipt_hash"):
@@ -677,8 +676,24 @@ def verify_restore_before_writer_lease(
         ):
             failed.append("restore_source_binding_mismatch")
         if source_root == target:
+            transaction = load_restore_binding_transaction(target)
             binding_evidence = load_restore_binding_evidence(target)
-            if binding_evidence is None:
+            if transaction is not None and requested_source is not None:
+                source_root = requested_source
+                source_root_value = str(source_root)
+                if (
+                    transaction["source_root"] != source_root_value
+                    or transaction["receipt_hash"] != receipt.receipt_hash
+                    or transaction["project_id"] != actual_project
+                    or transaction["store_identity"] != actual_store
+                    or target_manifest_bytes_sha256
+                    not in {
+                        transaction["original_manifest_sha256"],
+                        transaction["intended_manifest_sha256"],
+                    }
+                ):
+                    failed.append("restore_binding_evidence_mismatch")
+            elif binding_evidence is None:
                 failed.append("store_not_moved")
             elif requested_source is None:
                 failed.append("restore_source_proof_missing")
@@ -946,12 +961,7 @@ def finalize_verified_restore_binding(
     expected_project_id: str | None = None,
     expected_code_roots: Sequence[Path] | None = None,
     expected_schema_root: Path | None = None,
-    output_commit: Callable[[], Any] | None = None,
-    output_rollback: Callable[[], None] | None = None,
-    final_output_validator: Callable[[], None] | None = None,
-    post_commit: Callable[[], Any] | None = None,
     finalization_validator: Callable[[], Any] | None = None,
-    journal_path: Path | None = None,
 ) -> dict[str, Any]:
     """Finalize a verified restore after the caller's current writer-lock recheck.
 
@@ -991,7 +1001,17 @@ def finalize_verified_restore_binding(
         raise ArsError("restore schema-root binding mismatch")
     require_existing_control_root([Path(root) for root in approved_code_values], target_root)
     require_existing_control_root([Path(root) for root in approved_code_values], source_root)
-    expected_output_hash = sha256_hex(expected_output) if expected_output is not None else ""
+    canonical_output = canonical_restore_binding_output(
+        target_root,
+        project_id,
+        current.store_identity,
+        tuple(Path(root) for root in approved_code_values),
+        approved_schema_root,
+    )
+    if expected_output is not None and expected_output != canonical_output:
+        raise ArsError("restore output differs from approved canonical bytes")
+    expected_output = canonical_output
+    expected_output_hash = sha256_hex(expected_output)
     if current.expected_output_sha256 != expected_output_hash:
         raise ArsError("restore output binding changed before finalization")
     schemas = schema_registry or bundled_runtime_schema_registry()
@@ -1024,11 +1044,22 @@ def finalize_verified_restore_binding(
             live_target_manifest_bytes_sha256 = sha256_hex(
                 (target_root.resolve(strict=True) / "manifests" / "store-identity.json").read_bytes()
             )
+            transaction = load_restore_binding_transaction(target_root)
         except (ArsError, OSError, ValueError, UnicodeError) as exc:
             raise ArsError("restore source snapshot changed before manifest replacement") from exc
+        permitted_manifest_hashes = {current.target_manifest_bytes_sha256}
+        authority_manifest_hash = current.target_manifest_bytes_sha256
+        if transaction is not None:
+            permitted_manifest_hashes.update(
+                {
+                    transaction["original_manifest_sha256"],
+                    transaction["intended_manifest_sha256"],
+                }
+            )
+            authority_manifest_hash = transaction["target_pre_state_sha256"]
         if (
             live_hash != current.source_snapshot_hash
-            or live_target_manifest_bytes_sha256 != current.target_manifest_bytes_sha256
+            or live_target_manifest_bytes_sha256 not in permitted_manifest_hashes
         ):
             raise ArsError("restore source snapshot changed before manifest replacement")
         _resolve_restore_authority(
@@ -1047,7 +1078,7 @@ def finalize_verified_restore_binding(
             source_snapshot_hash=live_hash,
             code_roots=approved_code_values,
             schema_root=str(approved_schema_root),
-            target_manifest_bytes_sha256=live_target_manifest_bytes_sha256,
+            target_manifest_bytes_sha256=authority_manifest_hash,
             expected_output=expected_output,
         )
 
@@ -1082,15 +1113,12 @@ def finalize_verified_restore_binding(
         expected_code_roots=[Path(root) for root in approved_code_values],
         expected_schema_root=approved_schema_root,
         expected_restore_receipt_hash=current.receipt_hash,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
         source_snapshot=source_snapshot,
         expected_source_snapshot_hash=current.source_snapshot_hash,
         expected_target_manifest_bytes_sha256=current.target_manifest_bytes_sha256,
         expected_output=expected_output,
         source_snapshot_validator=revalidate_source_snapshot,
-        output_commit=output_commit,
-        output_rollback=output_rollback,
-        final_output_validator=final_output_validator,
-        post_commit=post_commit,
         finalization_validator=validate_finalized_binding,
-        journal_path=journal_path,
     )

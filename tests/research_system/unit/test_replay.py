@@ -11,13 +11,12 @@ import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
-from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.projection.replay import apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
     _fsync_directory,
     initialize_control_store,
-    load_store_manifest,
     rebind_restored_store,
     verify_store_identity,
 )
@@ -239,194 +238,217 @@ def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tm
         verify_store_identity(control_root, PROJECT_ID, identity, [code_root])
 
 
-def test_restored_store_rebind_is_canonical_atomic_and_identity_stable(tmp_path, monkeypatch):
-    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
+def _unit_restore_transaction_case(tmp_path: Path) -> dict[str, object]:
+    from research_system.store.identity import canonical_restore_binding_output
+
     code_root = tmp_path / "repo"
-    code_root.mkdir()
+    schema_root = code_root / ".research-system" / "schemas"
+    schema_root.mkdir(parents=True)
     source_root = tmp_path / "source"
     identity = initialize_control_store([code_root], source_root, PROJECT_ID)
+    manifest_path = source_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_binding_version"] = "1.0.0"
+    manifest["schema_root"] = str(schema_root.resolve())
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
     target_root = tmp_path / "target"
     shutil.copytree(source_root, target_root)
-    manifest_path = target_root / "manifests" / "store-identity.json"
-    before = json.loads(manifest_path.read_text(encoding="utf-8"))
-
-    rebound = rebind_restored_store(
-        target_root,
-        source_root,
-        expected_project_id=PROJECT_ID,
-        expected_store_identity=identity,
-        expected_code_roots=[code_root],
-    )
-
-    after_bytes = manifest_path.read_bytes()
-    after = json.loads(after_bytes)
-    assert after_bytes == canonical_bytes(after)
-    assert after["control_root"] == str(target_root.resolve())
-    assert after["manifest_hash"] == sha256_hex(
-        canonical_bytes({k: v for k, v in after.items() if k != "manifest_hash"})
-    )
-    assert after["store_identity"] == identity
-    assert {key: value for key, value in after.items() if key not in {"control_root", "manifest_hash"}} == {
-        key: value for key, value in before.items() if key not in {"control_root", "manifest_hash"}
+    snapshot = {
+        "source_root": str(source_root.resolve()),
+        "target_root": str(target_root.resolve()),
+        "project_id": PROJECT_ID,
+        "store_identity": identity,
     }
-    assert rebound == after
-    assert load_store_manifest(target_root)["control_root"] == str(target_root.resolve())
+    snapshot_hash = sha256_hex(canonical_bytes(snapshot))
+    output = canonical_restore_binding_output(
+        target_root,
+        PROJECT_ID,
+        identity,
+        [code_root],
+        schema_root,
+    )
+    return {
+        "code_root": code_root,
+        "schema_root": schema_root,
+        "source": source_root,
+        "target": target_root,
+        "identity": identity,
+        "snapshot": snapshot,
+        "snapshot_hash": snapshot_hash,
+        "output": output,
+        "kwargs": {
+            "expected_project_id": PROJECT_ID,
+            "expected_store_identity": identity,
+            "expected_code_roots": [code_root],
+            "expected_schema_root": schema_root,
+            "expected_restore_receipt_hash": "a" * 64,
+            "actor_id": "act_01978abc-1000-7000-8000-000000001001",
+            "authority_grant_id": "agr_01978abc-1000-7000-8000-000000001002",
+            "source_snapshot": snapshot,
+            "expected_source_snapshot_hash": snapshot_hash,
+            "expected_output": output,
+        },
+    }
+
+
+def test_restored_store_transaction_is_canonical_monotone_and_idempotent(tmp_path, monkeypatch):
+    from research_system.store.identity import (
+        load_restore_binding_transaction,
+        restore_binding_output_object_path,
+        verify_restore_binding_admission,
+    )
+
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
+    case = _unit_restore_transaction_case(tmp_path)
+    rebound = rebind_restored_store(
+        case["target"],
+        case["source"],
+        **case["kwargs"],
+    )
+    transaction_path = case["target"] / "manifests" / ".restore-binding-transaction.json"
+    transaction_raw = transaction_path.read_bytes()
+    transaction = load_restore_binding_transaction(case["target"])
+    assert transaction is not None
+    assert transaction_raw == canonical_bytes(transaction)
+    assert transaction["state"] == "cleared"
+    assert transaction["generation"] == 7
+    assert len(transaction["prior_record_sha256"]) == 64
+    assert transaction["last_completed_durability_step"] == "clear-durable"
+    assert rebound["control_root"] == str(case["target"].resolve())
+    output = restore_binding_output_object_path(case["target"], transaction["output_object_sha256"])
+    assert output.read_bytes() == case["output"]
+    assert verify_restore_binding_admission(case["target"]) == transaction
 
     assert (
         rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
+            case["target"],
+            case["source"],
+            **case["kwargs"],
         )
-        == after
+        == rebound
     )
-    with pytest.raises(ConflictError, match="source binding"):
-        rebind_restored_store(
-            target_root,
-            tmp_path / "different-source",
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
-    with pytest.raises(ConflictError, match="project identity"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id="prj_01978abc-1000-7000-8000-000000001099",
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
-    with pytest.raises(ConflictError, match="store identity"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity="0" * 64,
-            expected_code_roots=[code_root],
-        )
-    with pytest.raises(ConflictError, match="source must differ"):
-        rebind_restored_store(
-            target_root,
-            target_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
-    conflicting_target = tmp_path / "conflicting-target"
-    shutil.copytree(source_root, conflicting_target)
-    with pytest.raises(ConflictError, match="source binding"):
-        rebind_restored_store(
-            conflicting_target,
-            tmp_path / "other-source",
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
+    assert transaction_path.read_bytes() == transaction_raw
 
 
-def test_restored_store_rebind_rejects_noncanonical_and_replace_failure(tmp_path, monkeypatch):
+def test_restored_store_rebind_has_no_journal_less_mode(tmp_path, monkeypatch):
     monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
-    code_root = tmp_path / "repo"
-    code_root.mkdir()
-    source_root = tmp_path / "source"
-    identity = initialize_control_store([code_root], source_root, PROJECT_ID)
-    target_root = tmp_path / "target"
-    shutil.copytree(source_root, target_root)
-    manifest_path = target_root / "manifests" / "store-identity.json"
+    case = _unit_restore_transaction_case(tmp_path)
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    before = manifest_path.read_bytes()
+
+    with pytest.raises(ArsError, match="complete approved restore transaction inputs"):
+        rebind_restored_store(
+            case["target"],
+            case["source"],
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=case["identity"],
+            expected_code_roots=[case["code_root"]],
+        )
+
+    assert manifest_path.read_bytes() == before
+    assert not (case["target"] / "manifests" / ".restore-binding-transaction.json").exists()
+
+
+def test_cleared_loader_rejects_coordinated_manifest_evidence_rewrite(tmp_path, monkeypatch):
+    from research_system.store.identity import verify_restore_binding_admission
+
+    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
+    case = _unit_restore_transaction_case(tmp_path)
+    rebind_restored_store(case["target"], case["source"], **case["kwargs"])
+    manifest_path = case["target"] / "manifests" / "store-identity.json"
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    with pytest.raises(IntegrityError, match="noncanonical"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
-
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    manifest["manifest_hash"] = "0" * 64
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(IntegrityError, match="hash mismatch"):
-        rebind_restored_store(target_root, source_root)
+    manifest["endpoint_scheme"] = "coordinated-foreign"
     manifest["manifest_hash"] = sha256_hex(
         canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
     )
-    manifest["code_roots"] = [str(target_root.resolve())]
-    manifest["manifest_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
-    )
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(ArsError, match="disjoint"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[target_root],
-        )
-    manifest["code_roots"] = [str(code_root.resolve())]
-    manifest["manifest_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
-    )
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    original = manifest_path.read_bytes()
+    manifest_bytes = canonical_bytes(manifest)
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["manifest_hash"] = manifest["manifest_hash"]
+    evidence["target_manifest_bytes_sha256"] = sha256_hex(manifest_bytes)
+    manifest_path.write_bytes(manifest_bytes)
+    evidence_path.write_bytes(canonical_bytes(evidence))
 
-    def interrupted_replace(*_args, **_kwargs):
-        raise OSError("replace interrupted")
-
-    monkeypatch.setattr("research_system.store.identity.os.replace", interrupted_replace)
-    with pytest.raises(OSError, match="replace interrupted"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
-    assert manifest_path.read_bytes() == original
-    assert not list(manifest_path.parent.glob(".*.tmp"))
+    with pytest.raises(IntegrityError, match="transaction"):
+        verify_restore_binding_admission(case["target"])
 
 
-def test_restored_store_rebind_recovers_after_post_replace_durability_failure(tmp_path, monkeypatch):
-    code_root = tmp_path / "repo"
-    code_root.mkdir()
-    source_root = tmp_path / "source"
-    identity = initialize_control_store([code_root], source_root, PROJECT_ID)
-    target_root = tmp_path / "target"
-    shutil.copytree(source_root, target_root)
+def test_restored_store_recovers_one_record_after_transition_directory_fsync_failure(tmp_path, monkeypatch):
+    import research_system.store.identity as identity_module
 
-    calls = 0
+    case = _unit_restore_transaction_case(tmp_path)
+    transaction_path = case["target"] / "manifests" / ".restore-binding-transaction.json"
+    original_replace = identity_module.os.replace
+    transition_replaced = False
+    failed = False
 
-    def fail_after_manifest_replace(_path):
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise OSError("directory durability interrupted")
+    def observe_replace(source: object, destination: object) -> None:
+        nonlocal transition_replaced
+        original_replace(source, destination)
+        if Path(destination).resolve(strict=False) == transaction_path.resolve(strict=False):
+            transition_replaced = True
+
+    def fail_transition_directory_fsync(_path: Path) -> bool:
+        nonlocal failed
+        if transition_replaced and not failed:
+            failed = True
+            return False
         return True
 
-    monkeypatch.setattr("research_system.store.identity._fsync_directory", fail_after_manifest_replace)
-    with pytest.raises(OSError, match="directory durability interrupted"):
-        rebind_restored_store(
-            target_root,
-            source_root,
-            expected_project_id=PROJECT_ID,
-            expected_store_identity=identity,
-            expected_code_roots=[code_root],
-        )
+    monkeypatch.setattr(identity_module.os, "replace", observe_replace)
+    monkeypatch.setattr(identity_module, "_fsync_directory", fail_transition_directory_fsync)
+    with pytest.raises(ArsError, match="durable transaction transition"):
+        rebind_restored_store(case["target"], case["source"], **case["kwargs"])
 
-    monkeypatch.setattr("research_system.store.identity._fsync_directory", lambda _path: True)
-    rebound = rebind_restored_store(
-        target_root,
-        source_root,
-        expected_project_id=PROJECT_ID,
-        expected_store_identity=identity,
-        expected_code_roots=[code_root],
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    assert failed
+    assert transaction["state"] == "prepared"
+    assert transaction["last_completed_durability_step"] == "output-object-durable"
+    assert not (case["target"] / "manifests" / ".restore-binding-recovery.json").exists()
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: True)
+    rebound = rebind_restored_store(case["target"], case["source"], **case["kwargs"])
+    assert rebound["control_root"] == str(case["target"].resolve())
+    assert json.loads(transaction_path.read_text(encoding="utf-8"))["state"] == "cleared"
+
+
+@pytest.mark.parametrize("drift_root", ("source", "target"))
+def test_restored_store_rejects_physical_root_identity_drift_after_prepared(
+    tmp_path,
+    monkeypatch,
+    drift_root,
+):
+    import research_system.store.identity as identity_module
+
+    case = _unit_restore_transaction_case(tmp_path)
+    original_identity = identity_module._physical_root_identity
+    drifted = False
+
+    def arm_drift(_path: Path, state: str, generation: int) -> None:
+        nonlocal drifted
+        if state == "prepared" and generation == 0:
+            drifted = True
+
+    def physical_identity(path: Path) -> dict[str, str]:
+        identity = original_identity(path)
+        if drifted and path.resolve(strict=False) == case[drift_root].resolve(strict=False):
+            return {**identity, "inode": str(int(identity["inode"]) + 1)}
+        return identity
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: True)
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", arm_drift)
+    monkeypatch.setattr(identity_module, "_physical_root_identity", physical_identity)
+    with pytest.raises(ArsError, match="physical root identity changed"):
+        rebind_restored_store(case["target"], case["source"], **case["kwargs"])
+
+    transaction = json.loads(
+        (case["target"] / "manifests" / ".restore-binding-transaction.json").read_text(encoding="utf-8")
     )
-    assert rebound["control_root"] == str(target_root.resolve())
-    assert load_store_manifest(target_root)["control_root"] == str(target_root.resolve())
+    assert transaction["state"] == "prepared"
+    assert transaction["last_completed_durability_step"] == "prepared-record-durable"
 
 
 def test_directory_fsync_unsupported_is_explicitly_non_durable(tmp_path, monkeypatch):

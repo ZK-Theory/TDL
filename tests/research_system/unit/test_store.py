@@ -8,6 +8,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
+from research_system.operations.backups import restore_binding_writer_locks
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
@@ -70,6 +71,18 @@ def test_second_writer_lock_is_rejected(tmp_path):
         with pytest.raises(ConflictError, match="writer lock exists"):
             with WriterLock(path, {"writer_id": "w2"}):
                 raise AssertionError("second writer entered lock")
+
+
+def test_second_restore_writer_is_rejected_across_source_target_lock_set(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    (source / "runtime").mkdir(parents=True)
+    (target / "runtime").mkdir(parents=True)
+
+    with restore_binding_writer_locks(source, target):
+        with pytest.raises(ArsError, match="restore binding writer lock exists"):
+            with restore_binding_writer_locks(source, target):
+                raise AssertionError("second restore writer entered the lock set")
 
 
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):

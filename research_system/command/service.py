@@ -239,9 +239,7 @@ class CommandService:
     def _recheck_moved_restore(
         self,
         command: Command,
-        *,
-        post_commit: Callable[[], Any] | None = None,
-    ) -> Receipt | None:
+    ) -> None:
         if self._restore_source_root is None:
             return None
         supplied = self._restore_preflight_result
@@ -260,14 +258,6 @@ class CommandService:
             raise ArsError("restore preflight changed before writer lock")
         if self._restore_expected_code_roots is not None:
             require_existing_control_root(list(self._restore_expected_code_roots), self.control_root)
-        post_commit_result: list[Any] = []
-
-        def commit() -> Any:
-            if post_commit is None:
-                return None
-            result = post_commit()
-            post_commit_result.append(result)
-            return result
 
         finalize_verified_restore_binding(
             target_root=self.control_root,
@@ -282,7 +272,6 @@ class CommandService:
             expected_project_id=self._restore_expected_project_id,
             expected_code_roots=self._restore_expected_code_roots,
             expected_schema_root=self._restore_expected_schema_root,
-            post_commit=commit if post_commit is not None else None,
         )
         self._restore_source_root = None
         self._restore_preflight_result = None
@@ -290,7 +279,10 @@ class CommandService:
         self._restore_expected_project_id = None
         self._restore_expected_code_roots = None
         self._restore_expected_schema_root = None
-        return post_commit_result[0] if post_commit_result else None
+        self._after_restore_cleared_before_command_append()
+
+    def _after_restore_cleared_before_command_append(self) -> None:
+        """Test seam after restore clearance and before ordinary command append."""
 
     @_release_submit_guard
     def submit(
@@ -546,6 +538,10 @@ class CommandService:
 
             def append_accepted() -> Receipt:
                 try:
+                    self._persist_command_objects(
+                        command,
+                        command_schema=command_schema,
+                    )
                     if isinstance(prepared_payload, VerifiedReleasePublication):
                         ledger_receipt = release_append(
                             self.ledger,
@@ -581,13 +577,11 @@ class CommandService:
 
             if moved_restore:
                 try:
-                    committed = self._recheck_moved_restore(command, post_commit=append_accepted)
+                    self._recheck_moved_restore(command)
                 except BaseException:
                     rollback_command_state()
                     raise
-                if committed is None:
-                    raise ArsError("moved restore did not commit the command")
-                return committed
+                return append_accepted()
             return append_accepted()
 
     @contextmanager
@@ -1843,50 +1837,18 @@ class CommandService:
     ) -> dict[str, Any]:
         command_type = command.envelope["command_type"]
         if command_type == "CreateScopeDefinition":
-            self.objects.write(
-                "scope_definition",
-                command.target_stream_id,
-                int(command.envelope["payload"]["revision"]),
-                command.envelope["payload"],
-            )
             event_type = "ScopeDefinitionCreated"
             payload = command.envelope["payload"]
         elif command_type == "AmendScopeDefinition":
-            self.objects.write(
-                "scope_definition",
-                command.target_stream_id,
-                int(command.envelope["payload"]["new_revision"]),
-                command.envelope["payload"],
-            )
             event_type = "ScopeDefinitionAmended"
             payload = command.envelope["payload"]
         elif command_type == "SupersedeScopeDefinition":
             event_type = "ScopeDefinitionSuperseded"
             payload = command.envelope["payload"]
         elif command_type == "CreateTask":
-            create_binding = self.schemas.command_binding("CreateTask")
-            activated_create = create_binding is not None and (
-                command_schema.schema_id,
-                command_schema.schema_version,
-            ) == (
-                create_binding.schema_id,
-                create_binding.schema_version,
-            )
-            self.objects.write(
-                "task",
-                command.target_stream_id,
-                1,
-                (command.envelope["payload"]["definition"] if activated_create else command.envelope["payload"]),
-            )
             event_type = "TaskCreated"
             payload = command.envelope["payload"]
         elif command_type == "AmendTask":
-            self.objects.write(
-                "task",
-                command.target_stream_id,
-                int(command.envelope["payload"]["new_revision"]),
-                command.envelope["payload"]["replacement_definition"],
-            )
             event_type = "TaskAmended"
             payload = command.envelope["payload"]
         elif command_type == "ClaimDispatch":
@@ -1955,6 +1917,60 @@ class CommandService:
             "occurred_at": None,
         }
         return envelope if payload is None else {**envelope, "payload": payload}
+
+    def _persist_command_objects(
+        self,
+        command: Command,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> None:
+        """Persist command-owned objects only at the ordinary append boundary."""
+        command_type = command.envelope["command_type"]
+        payload = command.envelope["payload"]
+        if command_type == "CreateScopeDefinition":
+            self.objects.write(
+                "scope_definition",
+                command.target_stream_id,
+                int(payload["revision"]),
+                payload,
+            )
+        elif command_type == "AmendScopeDefinition":
+            self.objects.write(
+                "scope_definition",
+                command.target_stream_id,
+                int(payload["new_revision"]),
+                payload,
+            )
+        elif command_type == "CreateTask":
+            create_binding = self.schemas.command_binding("CreateTask")
+            activated_create = create_binding is not None and (
+                command_schema.schema_id,
+                command_schema.schema_version,
+            ) == (
+                create_binding.schema_id,
+                create_binding.schema_version,
+            )
+            self.objects.write(
+                "task",
+                command.target_stream_id,
+                1,
+                payload["definition"] if activated_create else payload,
+            )
+        elif command_type == "AmendTask":
+            self.objects.write(
+                "task",
+                command.target_stream_id,
+                int(payload["new_revision"]),
+                payload["replacement_definition"],
+            )
+        elif command_type == "ActivateAuthorityGrant":
+            grant = payload["new_grant"]
+            self.objects.write(
+                "authority_grant",
+                str(grant["authority_grant_id"]),
+                1,
+                grant,
+            )
 
     def _prepare_release_publication(
         self,
@@ -2094,12 +2110,6 @@ class CommandService:
         )
         if decision.record_id not in command.envelope.get("evidence_refs", []):
             raise ArsError("owner authority administration decision evidence missing")
-        self.objects.write(
-            "authority_grant",
-            grant.authority_grant_id,
-            1,
-            grant_value,
-        )
         return {
             "authority_admission_version": SCOPED_AUTHORITY_ADMISSION_VERSION,
             "project_id": self.ledger.project_id,

@@ -12,6 +12,7 @@ from research_system.ids import validate_id
 from research_system.store.identity import (
     load_store_manifest,
     manifest_schema_root,
+    verify_restore_binding_admission,
     verify_store_identity,
 )
 from research_system.store.layout import (
@@ -134,6 +135,7 @@ class ApprovedProjectBinding:
         try:
             require_existing_control_root(list(resolved_code_roots), resolved_control_root)
             manifest = load_store_manifest(resolved_control_root)
+            verify_restore_binding_admission(resolved_control_root)
         except (ArsError, OSError, ValueError) as exc:
             raise ConfigurationError("approved control_root has no matching materialized store") from exc
         if manifest.get("project_id") != project_id or manifest.get("store_identity") != store_identity:
@@ -205,6 +207,7 @@ class ControlBinding:
             str(value["store_identity"]),
             list(code_roots),
         )
+        verify_restore_binding_admission(control_root)
         try:
             resolved_schema_root = schema_root.resolve(strict=True)
         except FileNotFoundError as exc:
