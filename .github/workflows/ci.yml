@@ -45,6 +45,40 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+  windows-store-lock:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies
+        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+
+      - name: Run Windows directory-anchor controls
+        run: >-
+          .venv\Scripts\python.exe -m pytest -q
+          tests/research_system/unit/test_store.py
+          tests/research_system/integration/test_wp6_1_scope_task_authority.py
+          -k "composite_writer_lock_fails_closed_when_windows_identity_is_unavailable
+          or windows_runtime_anchor_rejects_inside_open_identity_swap_without_publication
+          or windows_anchor_close_failure_attempts_both_handles_and_preserves_primary_error
+          or windows_anchor_close_failure_without_primary_surfaces_first_error
+          or directory_anchor_close_failure_retains_live_handle_for_retry
+          or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
+          -o "addopts=" -p no:cacheprovider -p no:cov
+
   # The PETLS C++ backend is an optional dependency group, so `lint-and-test`
   # (which installs only `.[dev]`) leaves PETLS_AVAILABLE false and skips every
   # backend test -- including the cross-backend agreement checks, which are the

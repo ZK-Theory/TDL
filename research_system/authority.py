@@ -1440,6 +1440,15 @@ class LedgerAuthorityGrantResolver:
         )
         return projection
 
+    def projection(self) -> dict[str, Any]:
+        """Return one verified replay projection for same-resolver reuse.
+
+        The returned mapping is trusted only when passed back to methods on
+        this exact resolver instance during the same surrounding store-lock
+        interval. It is not a portable authority token or cross-resolver cache.
+        """
+        return self._projection()
+
     def _administration_context_from_projection(
         self,
         projection: dict[str, Any],
@@ -1712,7 +1721,11 @@ class LedgerAuthorityGrantResolver:
         *,
         projection: dict[str, Any] | None = None,
     ) -> AuthorityAdministrationContext:
-        """Read the verified, store-bound owner administration trust anchor."""
+        """Read the verified, store-bound owner administration trust anchor.
+
+        A supplied projection must come from :meth:`projection` on this exact
+        resolver instance during the same surrounding store-lock interval.
+        """
         if projection is None:
             projection = self._projection()
         return self._administration_context_from_projection(
@@ -1867,7 +1880,11 @@ class LedgerAuthorityGrantResolver:
         *,
         projection: dict[str, Any] | None = None,
     ) -> ScopedAuthorityGrantResolution:
-        """Resolve immutable v2 grant identity without claiming current authority."""
+        """Resolve immutable v2 grant identity without claiming current authority.
+
+        A supplied projection must come from :meth:`projection` on this exact
+        resolver instance during the same surrounding store-lock interval.
+        """
         if projection is None:
             projection = self._projection()
         result, _, _ = self._scoped_resolution(grant_id, projection)

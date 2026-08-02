@@ -674,12 +674,9 @@ def test_t2_authority_lock_revocation_wins_and_rechecks_authority(
     assert tuple(ledger.iter_events()) == before_events
 
 
-@pytest.mark.parametrize("command_type", T2_AUTHORITY_COMMANDS)
 def test_t2_authority_resolver_requires_existing_control_root(
     tmp_path: Path,
-    command_type: str,
 ) -> None:
-    assert command_type in T2_AUTHORITY_COMMANDS
     with pytest.raises(ArsError, match="control_root"):
         _service(tmp_path, records=Records())
 

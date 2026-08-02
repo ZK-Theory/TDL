@@ -389,21 +389,7 @@ class CommandService:
             )
             if scoped is not None:
                 return scoped
-            if lifecycle:
-                if command.envelope.get("project_id") != self.ledger.project_id:
-                    observed_version = snapshot.stream_versions.get(
-                        command.target_stream_id,
-                        0,
-                    )
-                    return write_receipt(
-                        self._rejected(
-                            command,
-                            observed_version,
-                            "invalid_command_project",
-                            "Lifecycle command project must match the control-store project.",
-                        )
-                    )
-            else:
+            if not lifecycle:
                 stored_conflict = self._stored_conflict_receipt(command)
                 if stored_conflict is not None:
                     return stored_conflict
@@ -1158,7 +1144,7 @@ class CommandService:
         authority_projection_error: str | None = None
         if resolver is not None:
             try:
-                authority_projection = resolver._projection()
+                authority_projection = resolver.projection()
             except IntegrityError:
                 raise
             except ArsError as exc:
@@ -1215,13 +1201,15 @@ class CommandService:
             except IntegrityError:
                 raise
             except ArsError as exc:
+                resolution = None
+                canonical_resolution = None
                 denial = str(exc)
         return (
             _LifecycleAuthorityEvidence(
                 binding=binding,
                 resolution=resolution,
                 canonical_resolution=canonical_resolution,
-                authority_key=(self._authority_key(canonical_resolution) if resolution is not None else ""),
+                authority_key=(self._authority_key(canonical_resolution) if canonical_resolution is not None else ""),
                 denial=denial,
                 authority_projection=authority_projection,
             ),

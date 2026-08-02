@@ -37,7 +37,6 @@ SCOPE_A = "obj_01978abc-7201-7000-8000-000000007201"
 SCOPE_B = "obj_01978abc-7202-7000-8000-000000007202"
 TASK_A = "tsk_01978abc-7203-7000-8000-000000007203"
 TASK_B = "tsk_01978abc-7204-7000-8000-000000007204"
-GRANTS = (None,) * 9
 
 
 def _record_resolver(harness, monkeypatch, *, deny: bool = False):
@@ -106,7 +105,6 @@ def _command(
     target_stream_id: str,
     expected_stream_version: int,
     payload: dict,
-    grant_id: str | None,
 ) -> dict:
     command = create_task_command(
         command_id,
@@ -120,7 +118,6 @@ def _command(
             "schema_id": f"ars://core/command/{command_type}",
             "expected_stream_version": expected_stream_version,
             "payload": payload,
-            "authority_grant_id": grant_id,
         }
     )
     return command
@@ -242,7 +239,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 SCOPE_A,
                 0,
                 _scope_create_payload(SCOPE_A),
-                GRANTS[0],
             ),
         )
     )
@@ -258,7 +254,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 SCOPE_A,
                 0,
                 _scope_create_payload(SCOPE_A),
-                GRANTS[1],
             ),
         ).status
         == "accepted"
@@ -288,22 +283,19 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     "effective_boundary": "before the next dispatch",
                     "amendment_authority": "synthetic-owner",
                 },
-                GRANTS[2],
             ),
         )
     )
 
     supersede_scope_harness = new_harness("supersede-scope")
-    for command_id, scope_id, grant_id in (
+    for command_id, scope_id in (
         (
             "cmd_01978abc-7253-7000-8000-000000007253",
             SCOPE_A,
-            GRANTS[3],
         ),
         (
             "cmd_01978abc-7254-7000-8000-000000007254",
             SCOPE_B,
-            GRANTS[4],
         ),
     ):
         assert (
@@ -316,7 +308,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     scope_id,
                     0,
                     _scope_create_payload(scope_id),
-                    grant_id,
                 ),
             ).status
             == "accepted"
@@ -344,7 +335,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     ],
                     "effective_at": "2026-07-30T13:00:00Z",
                 },
-                GRANTS[5],
             ),
         )
     )
@@ -360,7 +350,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 TASK_A,
                 0,
                 {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Denied task", "R1")},
-                GRANTS[6],
             ),
         )
     )
@@ -376,7 +365,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                 TASK_A,
                 0,
                 {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Task A", "R1")},
-                GRANTS[7],
             ),
         ).status
         == "accepted"
@@ -400,22 +388,19 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     "effective_boundary": "before redispatch",
                     "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
                 },
-                GRANTS[8],
             ),
         )
     )
 
     supersede_task_harness = new_harness("supersede-task")
-    for command_id, task_id, grant_id in (
+    for command_id, task_id in (
         (
             "cmd_01978abc-7259-7000-8000-000000007259",
             TASK_A,
-            GRANTS[0],
         ),
         (
             "cmd_01978abc-7260-7000-8000-000000007260",
             TASK_B,
-            GRANTS[1],
         ),
     ):
         assert (
@@ -428,7 +413,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     task_id,
                     0,
                     {"new_task_id": task_id, "definition": _task_definition(task_id, task_id, "R1")},
-                    grant_id,
                 ),
             ).status
             == "accepted"
@@ -449,7 +433,6 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
                     "continuing_consumer_dispositions": ["retain both for audit"],
                     "lineage_reason": "Exercise denied task supersession.",
                 },
-                GRANTS[2],
             ),
         )
     )
@@ -474,7 +457,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
         SCOPE_A,
         0,
         _scope_create_payload(SCOPE_A),
-        GRANTS[0],
     )
     scope_amend = _command(
         "AmendScopeDefinition",
@@ -498,7 +480,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
             "effective_boundary": "before the next task dispatch",
             "amendment_authority": "synthetic-owner",
         },
-        GRANTS[1],
     )
     scope_b_create = _command(
         "CreateScopeDefinition",
@@ -507,7 +488,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
         SCOPE_B,
         0,
         _scope_create_payload(SCOPE_B),
-        GRANTS[2],
     )
     scope_supersede = _command(
         "SupersedeScopeDefinition",
@@ -529,7 +509,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
             ],
             "effective_at": "2026-07-30T13:00:00Z",
         },
-        GRANTS[3],
     )
     task_create = _command(
         "CreateTask",
@@ -538,7 +517,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
         TASK_A,
         0,
         {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Task A", "R2")},
-        GRANTS[4],
     )
     task_amend_definition = _task_definition(TASK_A, "Task A revised", "R3", revision=2)
     task_amend = _command(
@@ -557,7 +535,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
             "effective_boundary": "before redispatch",
             "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
         },
-        GRANTS[5],
     )
     task_b_create = _command(
         "CreateTask",
@@ -566,7 +543,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
         TASK_B,
         0,
         {"new_task_id": TASK_B, "definition": _task_definition(TASK_B, "Task B", "R1")},
-        GRANTS[6],
     )
     task_supersede = _command(
         "SupersedeTask",
@@ -581,7 +557,6 @@ def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkey
             "continuing_consumer_dispositions": ["audit retains both immutable revisions"],
             "lineage_reason": "Bind the task replacement to the current source revision.",
         },
-        GRANTS[7],
     )
 
     for command in (
@@ -645,7 +620,6 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
         TASK_A,
         0,
         {"new_task_id": TASK_A, "definition": _task_definition(TASK_A, "Risk task", "R2")},
-        GRANTS[0],
     )
     assert _submit(harness, create).status == "accepted"
 
@@ -666,7 +640,6 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
             "effective_boundary": "before redispatch",
             "authority_evidence_refs": [scoped_lifecycle_grant_id(TASK_A)],
         },
-        GRANTS[1],
     )
     assert _submit(harness, amend).status == "accepted"
 
@@ -678,7 +651,6 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
         TASK_B,
         0,
         {"new_task_id": TASK_B, "definition": malformed},
-        GRANTS[2],
     )
     assert _submit(harness, create_malformed).status == "accepted"
 
@@ -695,7 +667,6 @@ def test_task_risk_binding_uses_current_and_replacement_max_and_fails_closed(tmp
             "continuing_consumer_dispositions": ["retain both for audit"],
             "lineage_reason": "Malformed replacement risk must fail closed as R3.",
         },
-        GRANTS[3],
     )
     assert _submit(harness, supersede).status == "accepted"
 
@@ -796,7 +767,7 @@ def test_control_plane_clock_override_is_shared_by_domain_and_authority_services
     assert harness.authority_service.clock() == expected
 
 
-def test_lifecycle_submit_reuses_one_authority_projection(tmp_path, monkeypatch):
+def test_lifecycle_submit_reuses_one_public_authority_projection(tmp_path, monkeypatch):
     harness = control_plane(tmp_path, auto_authority=False)
     grant_id = activate_lifecycle_grant(
         harness,
@@ -811,7 +782,7 @@ def test_lifecycle_submit_reuses_one_authority_projection(tmp_path, monkeypatch)
     )
     command["authority_grant_id"] = grant_id
     resolver = harness.authority_resolver
-    original_projection = resolver._projection
+    original_projection = resolver.projection
     calls = 0
 
     def counted_projection():
@@ -819,12 +790,47 @@ def test_lifecycle_submit_reuses_one_authority_projection(tmp_path, monkeypatch)
         calls += 1
         return original_projection()
 
-    monkeypatch.setattr(resolver, "_projection", counted_projection)
+    monkeypatch.setattr(resolver, "projection", counted_projection)
     receipt = harness.service.submit(command)
 
     assert receipt.status == "accepted"
     assert calls == 1
     assert tuple(harness.ledger.iter_events())
+
+
+def test_lifecycle_canonical_resolution_denial_clears_partial_evidence(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    command = create_task_command(
+        "cmd_01978abc-7249-7000-8000-000000007249",
+        "authority-partial-resolution-denial",
+        TASK_A,
+        {"title": "Canonical identity denial"},
+    )
+    command["authority_grant_id"] = grant_id
+    before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+
+    def deny_canonical_identity(*_args, **_kwargs):
+        raise ArsError("canonical lifecycle identity unavailable")
+
+    monkeypatch.setattr(
+        harness.authority_resolver,
+        "scoped_grant_identity",
+        deny_canonical_identity,
+    )
+
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "lifecycle_authority_unauthorized"
+    assert receipt.explanation == "canonical lifecycle identity unavailable"
+    assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
 
 
 def test_cross_store_revocation_cannot_commit_between_projection_and_domain_append(tmp_path, monkeypatch):
@@ -1380,21 +1386,22 @@ def test_missing_lifecycle_index_fails_closed_without_canonical_authority_eviden
             if '"ActivateAuthorityGrant"' in path.read_text(encoding="utf-8")
         )
         original_lines = activation_path.read_bytes().splitlines(keepends=True)
-        activation_path.write_bytes(b"".join((*original_lines, b"\n")))
-        lines = activation_path.read_bytes().splitlines(keepends=True)
+        lines = list(original_lines)
         target_index = next(index for index, line in enumerate(lines) if b'"ActivateAuthorityGrant"' in line)
         activation = json.loads(lines[target_index].decode("utf-8"))
         activation["payload"]["activated_grant_sha256"] = "f" * 64
         activation.pop("event_hash")
         activation["event_hash"] = sha256_hex(canonical_bytes(activation))
-        line_ending = b"\r\n" if lines[target_index].endswith(b"\r\n") else b"\n"
+        line_ending = (
+            b"\r\n"
+            if lines[target_index].endswith(b"\r\n")
+            else (b"\n" if lines[target_index].endswith(b"\n") else b"")
+        )
         lines[target_index] = canonical_bytes(activation) + line_ending
         activation_path.write_bytes(b"".join(lines))
-        assert len(lines) == len(original_lines) + 1
+        assert len(lines) == len(original_lines)
         assert all(
-            line == before
-            for index, (line, before) in enumerate(zip(lines, [*original_lines, b"\n"]))
-            if index != target_index
+            line == before for index, (line, before) in enumerate(zip(lines, original_lines)) if index != target_index
         )
     before = _domain_snapshot(harness)
     before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
@@ -1462,7 +1469,7 @@ def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_pa
     )
     canonical = harness.service._canonical_lifecycle_resolution(grant_id)
     forged = {**canonical, "authority_grant_sha256": "f" * 64}
-    projection = harness.authority_resolver._projection()
+    projection = harness.authority_resolver.projection()
 
     with pytest.raises(IntegrityError, match="canonical grant hash"):
         harness.service._validate_lifecycle_authority_history(

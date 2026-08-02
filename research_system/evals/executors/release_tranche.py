@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
@@ -14,6 +14,9 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+
+if TYPE_CHECKING:
+    from research_system.command.service import CommandService
 
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -94,8 +97,20 @@ def _real_lifecycle_service(
     actor_id: str,
     task_ids: list[str],
     command_types: tuple[str, ...],
-):
-    """Build a domain service backed by activated grants in a real ledger."""
+) -> tuple["CommandService", dict[str, str]]:
+    """Build a domain service backed by activated grants in a real ledger.
+
+    Args:
+        root: Control-store root for the domain service.
+        schemas: Trusted runtime schema registry.
+        project_id: Project identity bound into both stores.
+        actor_id: Owner actor identity for bootstrap and scoped grants.
+        task_ids: Task subjects that receive activated lifecycle grants.
+        command_types: Exact lifecycle command types allowed by each grant.
+
+    Returns:
+        The authority-aware command service and each task's activated grant ID.
+    """
     root_grant_id = "agr_01978abc-5601-7000-8000-000000005601"
     publication_grant_id = "agr_01978abc-5602-7000-8000-000000005602"
     publication_target_id = "rgd_01978abc-5603-7000-8000-000000005603"
