@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/research-dossier-manifest",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "dossier_logical_id", "dossier_revision", "package_version", "purpose", "author", "created_at", "governing_decisions", "component_count", "components", "source_dependency_count", "source_dependencies", "object_blueprints", "scope_definition_blueprints", "dependency_edges", "relationships", "object_count", "scope_count", "edge_count", "relationship_count", "admission_profile_ref", "ownership_declarations", "prohibited_adoption_claims", "closure_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/research-dossier-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "dossier_logical_id": {"type": "string", "minLength": 1},
+    "dossier_revision": {"type": "integer", "minimum": 1},
+    "package_version": {"type": "string", "minLength": 1},
+    "purpose": {"type": "string", "minLength": 1},
+    "author": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "governing_decisions": {"type": "array", "items": {"$ref": "#/$defs/recordRef"}},
+    "component_count": {"type": "integer", "minimum": 0},
+    "components": {"type": "array", "items": {"$ref": "#/$defs/componentRow"}},
+    "source_dependency_count": {"type": "integer", "minimum": 0},
+    "source_dependencies": {"type": "array", "items": {"$ref": "#/$defs/sourceRow"}},
+    "object_blueprints": {"type": "array", "items": {"$ref": "#/$defs/objectRow"}},
+    "scope_definition_blueprints": {"type": "array", "items": {"$ref": "#/$defs/scopeRow"}},
+    "dependency_edges": {"type": "array", "items": {"$ref": "#/$defs/edgeRow"}},
+    "relationships": {"type": "array", "items": {"$ref": "#/$defs/relationshipRow"}},
+    "object_count": {"type": "integer", "minimum": 0},
+    "scope_count": {"type": "integer", "minimum": 0},
+    "edge_count": {"type": "integer", "minimum": 0},
+    "relationship_count": {"type": "integer", "minimum": 0},
+    "admission_profile_ref": {"$ref": "#/$defs/recordRef"},
+    "ownership_declarations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "prohibited_adoption_claims": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "closure_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "recordRef": {
+      "type": "object",
+      "required": ["id", "record_revision", "content_hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "record_revision": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "componentRow": {
+      "type": "object",
+      "required": ["component_key", "component_kind", "schema_id", "schema_version", "root_id", "relative_path_or_object_ref", "size_bytes", "sha256", "required", "dependency_keys", "permitted_consumers", "confidentiality_class"],
+      "properties": {
+        "component_key": {"type": "string"}, "component_kind": {"type": "string"}, "schema_id": {"type": "string"}, "schema_version": {"const": "1.0.0"}, "root_id": {"type": "string"}, "relative_path_or_object_ref": {"type": "string"}, "size_bytes": {"type": "integer", "minimum": 0}, "sha256": {"$ref": "#/$defs/sha256"}, "required": {"type": "boolean"}, "dependency_keys": {"type": "array", "items": {"type": "string"}}, "permitted_consumers": {"type": "array", "items": {"type": "string"}}, "confidentiality_class": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "sourceRow": {
+      "type": "object",
+      "required": ["source_key", "source_kind", "schema_or_media_type", "root_id", "relative_path_or_locator", "size_bytes", "sha256", "source_authority_class", "required", "permitted_consumers", "confidentiality_class", "independent_resolution_policy_id", "independent_resolution_policy_hash"],
+      "properties": {
+        "source_key": {"type": "string"}, "source_kind": {"type": "string"}, "schema_or_media_type": {"type": "string"}, "root_id": {"type": "string"}, "relative_path_or_locator": {"type": "string"}, "size_bytes": {"type": "integer", "minimum": 0}, "sha256": {"$ref": "#/$defs/sha256"}, "source_authority_class": {"type": "string"}, "required": {"type": "boolean"}, "permitted_consumers": {"type": "array", "items": {"type": "string"}}, "confidentiality_class": {"type": "string"}, "independent_resolution_policy_id": {"type": "string", "minLength": 1}, "independent_resolution_policy_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "objectRow": {
+      "type": "object",
+      "required": ["object_key", "portfolio_kind", "schema_id", "schema_version", "proposed_record_id", "proposed_revision", "blueprint_hash", "expected_content_hash", "source_keys", "permitted_consumers"],
+      "properties": {
+        "object_key": {"type": "string"}, "portfolio_kind": {"type": "string"}, "schema_id": {"type": "string"}, "schema_version": {"const": "1.0.0"}, "proposed_record_id": {"type": "string", "minLength": 1}, "proposed_revision": {"type": "integer", "minimum": 1}, "blueprint_hash": {"$ref": "#/$defs/sha256"}, "expected_content_hash": {"$ref": "#/$defs/sha256"}, "source_keys": {"type": "array", "items": {"type": "string"}}, "permitted_consumers": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "scopeRow": {
+      "type": "object",
+      "required": ["scope_key", "scope_schema_id", "scope_schema_version", "proposed_scope_id", "proposed_revision", "blueprint_hash", "expected_content_hash", "governing_object_keys", "permitted_consumers"],
+      "properties": {
+        "scope_key": {"type": "string"}, "scope_schema_id": {"type": "string"}, "scope_schema_version": {"const": "1.0.0"}, "proposed_scope_id": {"type": "string"}, "proposed_revision": {"type": "integer", "minimum": 1}, "blueprint_hash": {"$ref": "#/$defs/sha256"}, "expected_content_hash": {"$ref": "#/$defs/sha256"}, "governing_object_keys": {"type": "array", "items": {"type": "string"}}, "permitted_consumers": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "memberRef": {
+      "type": "object",
+      "required": ["key", "revision", "content_hash"],
+      "properties": {"key": {"type": "string"}, "revision": {"type": "integer", "minimum": 1}, "content_hash": {"$ref": "#/$defs/sha256"}},
+      "additionalProperties": false
+    },
+    "edgeRow": {
+      "type": "object",
+      "required": ["edge_key", "edge_type", "proposed_edge_id", "proposed_revision", "from_key", "to_key", "required", "satisfaction_predicate_ref_or_null", "effective_scope_key", "expected_content_hash"],
+      "properties": {
+        "edge_key": {"type": "string"}, "edge_type": {"type": "string"}, "proposed_edge_id": {"type": "string"}, "proposed_revision": {"type": "integer", "minimum": 1}, "from_key": {"$ref": "#/$defs/memberRef"}, "to_key": {"$ref": "#/$defs/memberRef"}, "required": {"type": "boolean"}, "satisfaction_predicate_ref_or_null": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}, "effective_scope_key": {"type": "string", "minLength": 1}, "expected_content_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "relationshipRow": {
+      "type": "object",
+      "required": ["relationship_key", "relationship_kind", "ordered_member_keys_with_revisions_hashes", "relation_schema_id", "relation_schema_version", "relation_hash"],
+      "properties": {
+        "relationship_key": {"type": "string"}, "relationship_kind": {"type": "string"}, "ordered_member_keys_with_revisions_hashes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/memberRef"}}, "relation_schema_id": {"type": "string"}, "relation_schema_version": {"const": "1.0.0"}, "relation_hash": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
