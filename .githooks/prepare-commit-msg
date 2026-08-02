@@ -6,13 +6,23 @@
 COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="$2"
 
-# Skip for automated/existing-message commit types
+# Skip for automated/existing-message commit types. "message" is git's source
+# value for -m/-F: the caller supplied a complete message and there is no
+# editor step for a human to notice (or strip) an injected template, so
+# prepending one here can only corrupt an already-correct message rather than
+# help (obs 154: a producer's `git commit -F` message came back as
+# "[EXPLORE] PXX:" with this hook's own comment block baked into the body).
 case "$COMMIT_SOURCE" in
-  merge|squash|commit) exit 0 ;;
+  merge|squash|commit|message) exit 0 ;;
 esac
 
-# Don't overwrite a message that already has a TDL prefix
-FIRST_LINE=$(head -1 "$COMMIT_MSG_FILE")
+# Don't overwrite a message that already has a TDL prefix. Strip a leading
+# UTF-8 BOM before checking: `^` anchors before the BOM bytes, not after them,
+# so an otherwise-valid "[PIPELINE] P00: ..." first line silently fails this
+# match when the file was written BOM-prefixed (obs 154; same root cause as
+# reference_bom_free_commit_files.md) — and the false negative is exactly what
+# let this hook clobber an already-correct message.
+FIRST_LINE=$(head -1 "$COMMIT_MSG_FILE" | sed '1s/^\xEF\xBB\xBF//')
 if echo "$FIRST_LINE" | grep -qE '^\[(RESULT|DECISION|NEGATIVE|PIPELINE|DATA|EXPLORE)\]'; then
   exit 0
 fi

@@ -33,6 +33,17 @@ if [ -z "$REPO_ROOT" ]; then
   exit 2
 fi
 
+# Snapshot unstaged changes to tracked files before running any gate. These
+# gates are validation, not producers — a gate mutating a tracked file it has
+# no business touching must block the commit, not ride along silently (obs
+# 01KYQ6AMEXS5SZEEGX9RB9QKHF: a timed-out `git commit`'s orphaned pre-commit
+# children kept running and rewrote a clean, unstaged, unrelated `uv.lock`
+# from revision 1 to revision 3 by the time they finished). The direct trigger
+# (gate 3 re-entering `uv run` and syncing/re-locking the worktree's project)
+# is gone now that gate 3 runs `sys.executable` directly, but this check
+# guards the class, not just that one instance.
+PRE_GATE_DIRTY=$(git diff --name-only)
+
 # Interpreter resolution, needed by gates 0 and 2 alike.
 #
 # A linked worktree has its own (often bare) venv: `uv run` there either attempts a
@@ -87,6 +98,22 @@ fi
 if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
+  exit 1
+fi
+
+# Gate 3 — no-new-diff: every gate above is validation, and validation must be
+# read-only. If any of them left a tracked file dirty that wasn't dirty before
+# they ran, that is exactly the obs 01KYQ6AMEXS5SZEEGX9RB9QKHF failure shape —
+# block rather than let it ride into the commit unremarked.
+POST_GATE_DIRTY=$(git diff --name-only)
+if [ "$PRE_GATE_DIRTY" != "$POST_GATE_DIRTY" ]; then
+  echo "" >&2
+  echo "pre-commit: a validation gate modified tracked file(s) outside the staged set — commit blocked." >&2
+  echo "Unstaged tracked diff before gates ran:" >&2
+  echo "${PRE_GATE_DIRTY:-  (none)}" >&2
+  echo "Unstaged tracked diff after gates ran:" >&2
+  echo "${POST_GATE_DIRTY:-  (none)}" >&2
+  echo "Gates validate; they must not write. Investigate before retrying." >&2
   exit 1
 fi
 

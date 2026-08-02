@@ -91,6 +91,29 @@ manifest through
 warning-first calibration period, carry each warning into the handoff's open
 risks with an explicit disposition.
 
+A hard-stop gated on a precondition must state, in the same place, what
+remains forbidden once the precondition clears — not only that the stop
+applies until then. The precondition clearing is exactly the moment a
+successor reaches for the action; a document that only says "don't, until Y"
+hands the reader a green light the moment Y holds and loses the constraint
+that was meant to survive it (e.g. "the path opens once Y lands, but issuing
+this record is still a multi-party/owner action, not yours" — state the
+surviving constraint explicitly, don't defer it to a later document).
+
+Before naming a step actionable ("write the record", "issue the grant"),
+confirm a production path — not only a test double — performs it: grep for a
+non-test caller of the writer/issuer. If only test fixtures construct the
+object or the resolver, label the step "tooling to be built", not "action to
+be taken", and name the missing production writer/issuer/runner.
+
+An exact-subject handoff (a review or continuation pinned to a specific
+commit/branch) must bind that identity to a concrete, provisioned checkout —
+name the exact worktree path and confirm its branch, HEAD, and clean status —
+not only state the SHA in prose. A SHA is evidence that a commit exists; a
+clean worktree at that SHA is the route the next agent can actually use, and
+prose identifiers alone leave a fresh agent starting from an arbitrary
+current checkout, reporting subject drift instead of reviewing.
+
 For a standalone large workflow, hand off when actual compaction or an owner stop
 makes another task the better continuation surface. Record one next vertical
 action, exact Git/worktree identities, unresolved findings, validation evidence,

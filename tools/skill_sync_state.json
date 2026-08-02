@@ -120,10 +120,10 @@
     "SKILL.md": "2dc3dbfde57577c9ac8592b6be5fe543cfc0849a31fdd1ab2d657021df57b84c"
   },
   "tda-handoff": {
-    "SKILL.md": "a46bf3b4b5b709981e021cd692883e59c5dadf855b94a436f0bd0b071e84495e"
+    "SKILL.md": "e2dded23edfc4bb6af034c3199753dbba92750a068ca79dba36e54c489938609"
   },
   "tda-large-workflow-supervision": {
-    "SKILL.md": "44e560241c7f11ebba95bf6f05e44d5a0a4632d98b3e9afc35582bb8f6f0aba4"
+    "SKILL.md": "f9fdccc2772fca9b131e09a17716b3c104bc26ea25423ffc1814a9cab7d863fa"
   },
   "tda-learning-scaffold": {
     "SKILL.md": "b0778f0c820139e718f67bf258e97d2dd02900a3e78126aaf97f5f81c46cebf8"
@@ -177,7 +177,7 @@
     "SKILL.md": "196ab58f1d44a3fc3d82d99a8e95cb1087c5917291adf1872a4c66eae37daa06"
   },
   "using-git-worktrees-extras": {
-    "SKILL.md": "a6947ea4cab83e0e4e209e0131f3c7376e6a490f159908cc3aa33fef746e52c4",
+    "SKILL.md": "e97958447755a4044c2d34e370fc889670133333f4a0d50ce6dfe82aa4059a54",
     "agents/openai.yaml": "8f6b64afe9c1d5d729d83b90c31c356bc6ccfcf2ceb44f2aedc7de94e965024d"
   },
   "validate-topology": {
@@ -190,7 +190,7 @@
     "SKILL.md": "80c9b3179d16aee0311250d328e5f5b914d026c63574bd132471d7411d7531a5"
   },
   "writing-plans-extras": {
-    "SKILL.md": "5088ceb2a2097aaf48a1e4f71e6544c317b0d02f1bf4b07fd1c77e624ad33b44",
+    "SKILL.md": "78e9aa84ba3ca83a563afa6b354fcf8d1f0de2c00d9f1c5e09d4b774e230b43c",
     "agents/openai.yaml": "2869fe664b3fbb07e1a7d97e5af8a12f50fc1905d695364f3c6ee4e87660d88f"
   }
 }

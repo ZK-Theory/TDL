@@ -110,6 +110,15 @@ boundaries, declare merge order/bases, keep contracts with their review evidence
 and perform a final integration-seam review. Do not squash or rebase away an exact
 accepted subject.
 
+"CodeRabbit reviewed this PR before merge" is a claim about a commit, not
+about the PR as a whole — a review event does not stay valid across later
+commits pushed to the same PR. Before merging, verify by identity, not by
+ordering: the review's `commit_id` (`gh api .../pulls/N/reviews`, latest
+entry) must equal the PR's current `headRefOid`
+(`gh pr view N --json headRefOid`). If a commit landed after the last review
+concluded — even a small "address nitpicks" fixup — the merged bytes are
+unreviewed regardless of an earlier review existing on the PR.
+
 ## Exact-State Record
 
 At rotation or completion, invoke `tda-handoff` and write to the authorized
