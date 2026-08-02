@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from research_system.authority import (
+    AuthorityAdministrationContext,
     GrantedCommandIdentity,
     LedgerAuthorityGrantResolver,
+    LifecycleCommandAuthorityEvidence,
     SCOPED_AUTHORITY_ADMISSION_VERSION,
     ScopedAuthorityGrant,
     ScopedAuthorityGrantResolution,
@@ -204,7 +206,6 @@ class _LifecycleAuthorityEvidence:
     canonical_resolution: dict[str, Any] | None
     authority_key: str
     denial: str | None = None
-    authority_projection: dict[str, Any] | None = None
 
 
 class CommandService:
@@ -740,7 +741,6 @@ class CommandService:
         lifecycle_resolution: dict[str, Any] | None = None,
         canonical_resolution: dict[str, Any] | None = None,
         command_schema: SchemaIdentity | None = None,
-        authority_projection: dict[str, Any] | None = None,
     ) -> None:
         scope = self._authority_scope(command)
         snapshot = self.ledger.snapshot()
@@ -789,7 +789,6 @@ class CommandService:
                     resolution=lifecycle_resolution,
                     event=matching[0],
                     canonical_resolution=canonical_resolution,
-                    authority_projection=authority_projection,
                 )
         elif scoped_events:
             raise IntegrityError("scoped terminal receipt conflicts with canonical ledger")
@@ -807,8 +806,7 @@ class CommandService:
         receipt: Receipt,
         resolution: dict[str, Any],
         event: dict[str, Any],
-        canonical_resolution: dict[str, Any] | None = None,
-        authority_projection: dict[str, Any] | None = None,
+        canonical_resolution: dict[str, Any] | None,
     ) -> None:
         if receipt.status != "accepted":
             return
@@ -816,11 +814,6 @@ class CommandService:
             raise IntegrityError("lifecycle authority resolution evidence is invalid")
         grant_id = resolution.get("authority_grant_id")
         canonical_history = canonical_resolution
-        if canonical_history is None and isinstance(grant_id, str):
-            canonical_history = self._canonical_lifecycle_resolution(
-                grant_id,
-                projection=authority_projection,
-            )
         if (
             not isinstance(grant_id, str)
             or not grant_id
@@ -882,7 +875,6 @@ class CommandService:
                     resolution=lifecycle_authority.resolution,
                     event=event,
                     canonical_resolution=lifecycle_authority.canonical_resolution,
-                    authority_projection=lifecycle_authority.authority_projection,
                 )
             result = self.receipts.write_scoped(
                 self._authority_scope(command),
@@ -986,23 +978,6 @@ class CommandService:
             replacement_risk = replacement.get("risk_tier_request") if isinstance(replacement, dict) else None
         return project_id, "task", subject_id, self._max_risk(current_risk, replacement_risk)
 
-    def _trusted_actor_class(
-        self,
-        actor_id: str,
-        *,
-        authority_projection: dict[str, Any] | None = None,
-    ) -> str:
-        resolver = self._canonical_authority_resolver()
-        if resolver is None:
-            return "unproven"
-        try:
-            context = resolver.administration_context(projection=authority_projection)
-        except IntegrityError:
-            raise
-        except (ArsError, ValueError):
-            return "unproven"
-        return "human" if getattr(context, "owner_actor_id", None) == actor_id else "unproven"
-
     def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
         resolver = self.authority_resolver
         return resolver if type(resolver) is LedgerAuthorityGrantResolver else None
@@ -1071,18 +1046,12 @@ class CommandService:
         command_schema: SchemaIdentity,
         snapshot: LedgerSnapshot,
         *,
-        authority_projection: dict[str, Any] | None = None,
-        actor_class: str | None = None,
+        actor_class: str,
     ) -> tuple[dict[str, Any], str]:
         project_id, subject_kind, subject_id, required_risk = self._lifecycle_authority_inputs(
             command,
             snapshot,
         )
-        if actor_class is None:
-            actor_class = self._trusted_actor_class(
-                command.actor_id,
-                authority_projection=authority_projection,
-            )
         binding = {
             "actor_id": command.actor_id,
             "actor_class": actor_class,
@@ -1115,24 +1084,6 @@ class CommandService:
             return grant_hash
         raise IntegrityError("lifecycle authority resolution has no canonical grant hash")
 
-    def _canonical_lifecycle_resolution(
-        self,
-        grant_id: str,
-        *,
-        projection: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        resolver = self._canonical_authority_resolver()
-        if resolver is None:
-            raise IntegrityError("lifecycle authority evidence resolver is unavailable")
-        canonical = resolver.scoped_grant_identity(
-            grant_id,
-            projection=projection,
-        )
-        record = self._authority_resolution_record(canonical)
-        if record is None:
-            raise IntegrityError("lifecycle authority evidence is not canonical")
-        return record
-
     def _resolve_lifecycle_authority(
         self,
         command: Command,
@@ -1140,29 +1091,17 @@ class CommandService:
         snapshot: LedgerSnapshot,
     ) -> tuple[_LifecycleAuthorityEvidence, str | None]:
         resolver = self._canonical_authority_resolver()
-        authority_projection: dict[str, Any] | None = None
-        authority_projection_error: str | None = None
-        if resolver is not None:
-            try:
-                authority_projection = resolver.projection()
-            except IntegrityError:
-                raise
-            except ArsError as exc:
-                authority_projection_error = str(exc)
-        binding, actor_class = self._lifecycle_authority_binding(
+        binding, _ = self._lifecycle_authority_binding(
             command,
             command_schema,
             snapshot,
-            authority_projection=authority_projection,
-            actor_class=("unproven" if authority_projection_error is not None else None),
+            actor_class="unproven",
         )
         resolution: dict[str, Any] | None = None
         canonical_resolution: dict[str, Any] | None = None
         denial: str | None = None
         if resolver is None:
             denial = "Lifecycle commands require the canonical scoped authority resolver."
-        elif authority_projection_error is not None:
-            denial = authority_projection_error
         else:
             command_identity = GrantedCommandIdentity(
                 command_type=command.envelope["command_type"],
@@ -1175,29 +1114,36 @@ class CommandService:
             subject_id = binding["subject_id"]
             required_risk = binding["required_risk"]
             try:
-                resolved = resolver.resolve_command(
+                evidence = resolver.resolve_lifecycle_command(
                     grant_id=command.envelope["authority_grant_id"],
                     actor_id=command.actor_id,
-                    actor_class=actor_class,
                     command=command_identity,
                     required_risk=required_risk,
                     project_id=project_id,
                     subject_kind=subject_kind,
                     subject_id=subject_id,
                     now=self.clock(),
-                    projection=authority_projection,
                 )
-                if actor_class != "human":
+                if type(evidence) is not LifecycleCommandAuthorityEvidence:
+                    raise ArsError("authority resolver returned non-canonical lifecycle evidence")
+                context = evidence.administration_context
+                if (
+                    type(context) is not AuthorityAdministrationContext
+                    or context.project_id != project_id
+                    or type(evidence.command_resolution) is not ScopedAuthorityGrantResolution
+                    or type(evidence.canonical_grant_identity) is not ScopedAuthorityGrantResolution
+                ):
+                    raise IntegrityError("lifecycle authority bundle evidence is invalid")
+                expected_actor_class = "human" if command.actor_id == context.owner_actor_id else "unproven"
+                if evidence.actor_class != expected_actor_class:
+                    raise IntegrityError("lifecycle authority actor class disagrees with owner context")
+                if evidence.actor_class != "human":
                     raise ArsError("authority actor class is not proven by the bootstrap owner")
-                if type(resolved) is not ScopedAuthorityGrantResolution:
-                    raise ArsError("authority resolver returned non-canonical scoped grant evidence")
-                resolution = self._authority_resolution_record(resolved)
-                canonical_resolution = self._canonical_lifecycle_resolution(
-                    command.envelope["authority_grant_id"],
-                    projection=authority_projection,
-                )
+                resolution = self._authority_resolution_record(evidence.command_resolution)
+                canonical_resolution = self._authority_resolution_record(evidence.canonical_grant_identity)
                 if canonical_resolution != resolution:
                     raise IntegrityError("lifecycle authority resolution disagrees with canonical history")
+                binding = {**binding, "actor_class": evidence.actor_class}
             except IntegrityError:
                 raise
             except ArsError as exc:
@@ -1211,7 +1157,6 @@ class CommandService:
                 canonical_resolution=canonical_resolution,
                 authority_key=(self._authority_key(canonical_resolution) if canonical_resolution is not None else ""),
                 denial=denial,
-                authority_projection=authority_projection,
             ),
             denial,
         )
@@ -1240,7 +1185,6 @@ class CommandService:
             lifecycle_resolution=lifecycle_authority.resolution,
             canonical_resolution=lifecycle_authority.canonical_resolution,
             command_schema=command_schema,
-            authority_projection=lifecycle_authority.authority_projection,
         )
         return self._return_scoped_receipt_or_raise(command, receipt)
 

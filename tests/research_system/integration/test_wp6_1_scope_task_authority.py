@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime
+import inspect
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,11 @@ import threading
 
 import pytest
 
-from research_system.authority import LedgerAuthorityGrantResolver
+from research_system.authority import (
+    GrantedCommandIdentity,
+    LedgerAuthorityGrantResolver,
+    LifecycleCommandAuthorityEvidence,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.service import CommandService
@@ -43,15 +48,20 @@ def _record_resolver(harness, monkeypatch, *, deny: bool = False):
     """Spy on the exact resolver instance while retaining ledger semantics."""
     resolver = harness.authority_resolver
     calls: list[dict] = []
-    original = resolver.resolve_command
+    original = resolver.resolve_lifecycle_command
 
     def recorded(**kwargs):
-        calls.append(kwargs)
+        calls.append(
+            {
+                **kwargs,
+                "actor_class": ("human" if kwargs["actor_id"] == ACTORS["actor-a"] else "unproven"),
+            }
+        )
         if deny:
             raise ArsError("authority command denied")
         return original(**kwargs)
 
-    monkeypatch.setattr(resolver, "resolve_command", recorded)
+    monkeypatch.setattr(resolver, "resolve_lifecycle_command", recorded)
     return resolver, calls
 
 
@@ -173,6 +183,34 @@ def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[str, ...]]:
         if path.is_file() and "receipts" not in path.parts
     )
     return events, files
+
+
+def _direct_create_task_resolution(
+    harness,
+    grant_id: str,
+    *,
+    subject_id: str = TASK_A,
+) -> dict[str, object]:
+    identity = harness.schemas.resolve_identity(
+        "ars://core/command/CreateTask",
+        "1.0.0",
+    )
+    return {
+        "grant_id": grant_id,
+        "actor_id": ACTORS["actor-a"],
+        "actor_class": "human",
+        "command": GrantedCommandIdentity(
+            "CreateTask",
+            identity.schema_id,
+            str(identity.schema_version),
+            identity.sha256,
+        ),
+        "required_risk": "R1",
+        "project_id": PROJECT_ID,
+        "subject_kind": "task",
+        "subject_id": subject_id,
+        "now": harness.service.clock(),
+    }
 
 
 def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path, monkeypatch):
@@ -767,7 +805,155 @@ def test_control_plane_clock_override_is_shared_by_domain_and_authority_services
     assert harness.authority_service.clock() == expected
 
 
-def test_lifecycle_submit_reuses_one_public_authority_projection(tmp_path, monkeypatch):
+def test_public_lifecycle_authority_apis_do_not_accept_projection_mappings():
+    assert not hasattr(LedgerAuthorityGrantResolver, "projection")
+    for method_name in (
+        "administration_context",
+        "scoped_grant_identity",
+        "resolve_command",
+        "resolve_lifecycle_command",
+    ):
+        parameters = inspect.signature(getattr(LedgerAuthorityGrantResolver, method_name)).parameters
+        assert "projection" not in parameters
+
+    resolve_command_doc = inspect.getdoc(LedgerAuthorityGrantResolver.resolve_command)
+    assert resolve_command_doc is not None
+    for section in ("Args:", "Returns:", "Raises:", "Security:"):
+        assert section in resolve_command_doc
+
+
+def test_stale_pre_revocation_projection_cannot_authorize_direct_resolution(tmp_path):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    resolver = harness.authority_resolver
+    stale_projection = resolver._projection()
+    revoke_lifecycle_grant(harness, subject_id=TASK_A)
+    resolution = _direct_create_task_resolution(harness, grant_id)
+    before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+
+    with pytest.raises(TypeError, match="projection"):
+        resolver.resolve_command(**resolution, projection=stale_projection)
+    with pytest.raises(ArsError, match="authority grant revoked"):
+        resolver.resolve_command(**resolution)
+
+    assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
+
+
+def test_mutated_revoked_projection_cannot_restore_direct_authority(tmp_path):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    revoke_lifecycle_grant(harness, subject_id=TASK_A)
+    resolver = harness.authority_resolver
+    mutated_projection = resolver._projection()
+    mutated_projection["authority_grants"][grant_id]["status"] = "active"
+    resolution = _direct_create_task_resolution(harness, grant_id)
+    before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+
+    with pytest.raises(TypeError, match="projection"):
+        resolver.resolve_command(**resolution, projection=mutated_projection)
+    with pytest.raises(ArsError, match="authority grant revoked"):
+        resolver.resolve_command(**resolution)
+
+    assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
+
+
+def test_private_resolution_rejects_unknown_projection_status(tmp_path):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    resolver = harness.authority_resolver
+    projection = resolver._projection()
+    projection["authority_grants"][grant_id]["status"] = "suspended"
+    resolution = _direct_create_task_resolution(harness, grant_id)
+    before = _domain_snapshot(harness)
+
+    with pytest.raises(ArsError, match="authority grant is not active"):
+        resolver._resolve_command_from_projection(
+            **resolution,
+            projection=projection,
+        )
+
+    assert _domain_snapshot(harness) == before
+
+
+def test_foreign_resolver_binding_cannot_consume_valid_projection(tmp_path):
+    harness = control_plane(tmp_path, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    resolver = harness.authority_resolver
+    foreign_resolver = LedgerAuthorityGrantResolver(
+        harness.authority_root,
+        PROJECT_ID,
+        "f" * 64,
+        harness.schemas,
+    )
+    resolution = _direct_create_task_resolution(harness, grant_id)
+    valid_projection = resolver._projection()
+    before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+
+    with pytest.raises(TypeError, match="projection"):
+        foreign_resolver.resolve_command(**resolution, projection=valid_projection)
+    with pytest.raises(ArsError, match="store identity mismatch"):
+        foreign_resolver.resolve_command(**resolution)
+
+    assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
+
+
+def test_synthetic_unactivated_record_cannot_authorize_direct_resolution(tmp_path):
+    source_parent = tmp_path / "source"
+    target_parent = tmp_path / "target"
+    source_parent.mkdir()
+    target_parent.mkdir()
+    source = control_plane(source_parent, auto_authority=False)
+    target = control_plane(target_parent, auto_authority=False)
+    grant_id = activate_lifecycle_grant(
+        source,
+        subject_kind="task",
+        subject_id=TASK_A,
+    )
+    grant = source.authority_objects.read("authority_grant", grant_id, 1)
+    target.authority_objects.write("authority_grant", grant_id, 1, grant)
+    synthetic_projection = source.authority_resolver._projection()
+    assert grant_id not in target.authority_resolver._projection().get("authority_grants", {})
+    resolution = _direct_create_task_resolution(target, grant_id)
+    before_domain = _domain_snapshot(target)
+    before_authority_events = tuple(target.authority_ledger.iter_events())
+    before_receipts = tuple(target.receipts.receipts_root.glob("*.json"))
+
+    with pytest.raises(TypeError, match="projection"):
+        target.authority_resolver.resolve_command(
+            **resolution,
+            projection=synthetic_projection,
+        )
+    with pytest.raises(ArsError, match="scoped authority grant is not activated"):
+        target.authority_resolver.resolve_command(**resolution)
+
+    assert _domain_snapshot(target) == before_domain
+    assert tuple(target.authority_ledger.iter_events()) == before_authority_events
+    assert tuple(target.receipts.receipts_root.glob("*.json")) == before_receipts
+
+
+def test_lifecycle_submit_uses_one_resolver_owned_frozen_bundle(tmp_path, monkeypatch):
     harness = control_plane(tmp_path, auto_authority=False)
     grant_id = activate_lifecycle_grant(
         harness,
@@ -782,19 +968,38 @@ def test_lifecycle_submit_reuses_one_public_authority_projection(tmp_path, monke
     )
     command["authority_grant_id"] = grant_id
     resolver = harness.authority_resolver
-    original_projection = resolver.projection
+    original_projection = resolver._projection
+    original_resolve = resolver.resolve_lifecycle_command
     calls = 0
+    bundles: list[LifecycleCommandAuthorityEvidence] = []
 
     def counted_projection():
         nonlocal calls
         calls += 1
         return original_projection()
 
-    monkeypatch.setattr(resolver, "projection", counted_projection)
+    def capture_bundle(**kwargs):
+        bundle = original_resolve(**kwargs)
+        bundles.append(bundle)
+        return bundle
+
+    monkeypatch.setattr(resolver, "_projection", counted_projection)
+    monkeypatch.setattr(resolver, "resolve_lifecycle_command", capture_bundle)
     receipt = harness.service.submit(command)
 
     assert receipt.status == "accepted"
     assert calls == 1
+    assert len(bundles) == 1
+    bundle = bundles[0]
+    assert type(bundle) is LifecycleCommandAuthorityEvidence
+    for evidence in (
+        bundle,
+        bundle.administration_context,
+        bundle.command_resolution,
+        bundle.canonical_grant_identity,
+    ):
+        with pytest.raises(FrozenInstanceError):
+            setattr(evidence, "actor_class", "unproven")
     assert tuple(harness.ledger.iter_events())
 
 
@@ -814,14 +1019,28 @@ def test_lifecycle_canonical_resolution_denial_clears_partial_evidence(tmp_path,
     command["authority_grant_id"] = grant_id
     before = _domain_snapshot(harness)
     before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
+    original_resolve = harness.authority_resolver.resolve_lifecycle_command
+    original_prepare = harness.service._resolve_lifecycle_authority
+    captured_evidence = []
 
-    def deny_canonical_identity(*_args, **_kwargs):
+    def deny_canonical_identity(**kwargs):
+        original_resolve(**kwargs)
         raise ArsError("canonical lifecycle identity unavailable")
+
+    def capture_evidence(*args, **kwargs):
+        result = original_prepare(*args, **kwargs)
+        captured_evidence.append(result[0])
+        return result
 
     monkeypatch.setattr(
         harness.authority_resolver,
-        "scoped_grant_identity",
+        "resolve_lifecycle_command",
         deny_canonical_identity,
+    )
+    monkeypatch.setattr(
+        harness.service,
+        "_resolve_lifecycle_authority",
+        capture_evidence,
     )
 
     receipt = harness.service.submit(command)
@@ -829,6 +1048,10 @@ def test_lifecycle_canonical_resolution_denial_clears_partial_evidence(tmp_path,
     assert receipt.status == "rejected"
     assert receipt.reason_code == "lifecycle_authority_unauthorized"
     assert receipt.explanation == "canonical lifecycle identity unavailable"
+    assert len(captured_evidence) == 1
+    assert captured_evidence[0].resolution is None
+    assert captured_evidence[0].canonical_resolution is None
+    assert captured_evidence[0].authority_key == ""
     assert _domain_snapshot(harness) == before
     assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
 
@@ -1320,13 +1543,13 @@ def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_
     grant_id = command["authority_grant_id"]
     resolver = harness.authority_resolver
     canonical_calls: list[str] = []
-    original_identity = resolver.scoped_grant_identity
+    original_resolution = resolver.resolve_lifecycle_command
 
-    def record_canonical_identity(requested_grant_id: str, **kwargs):
-        canonical_calls.append(requested_grant_id)
-        return original_identity(requested_grant_id, **kwargs)
+    def record_canonical_identity(**kwargs):
+        canonical_calls.append(kwargs["grant_id"])
+        return original_resolution(**kwargs)
 
-    monkeypatch.setattr(resolver, "scoped_grant_identity", record_canonical_identity)
+    monkeypatch.setattr(resolver, "resolve_lifecycle_command", record_canonical_identity)
     index_paths = tuple(harness.receipts.index_root.glob("*.json"))
     assert len(index_paths) == 1
     index_path = index_paths[0]
@@ -1430,19 +1653,27 @@ def test_lifecycle_resolution_hash_must_match_canonical_history_before_append(tm
     )
     command["authority_grant_id"] = grant_id
     resolver = harness.authority_resolver
-    original_resolve_command = resolver.resolve_command
+    original_resolve_command = resolver.resolve_lifecycle_command
 
     def forged_resolution(**kwargs):
-        resolved = original_resolve_command(**kwargs)
-        return replace(resolved, authority_grant_sha256="f" * 64)
+        evidence = original_resolve_command(**kwargs)
+        return replace(
+            evidence,
+            command_resolution=replace(
+                evidence.command_resolution,
+                authority_grant_sha256="f" * 64,
+            ),
+        )
 
-    monkeypatch.setattr(resolver, "resolve_command", forged_resolution)
+    monkeypatch.setattr(resolver, "resolve_lifecycle_command", forged_resolution)
     before = _domain_snapshot(harness)
+    before_receipts = tuple(harness.receipts.receipts_root.glob("*.json"))
 
     with pytest.raises(IntegrityError, match="disagrees with canonical history"):
         harness.service.submit(command)
 
     assert _domain_snapshot(harness) == before
+    assert tuple(harness.receipts.receipts_root.glob("*.json")) == before_receipts
     assert not tuple(harness.receipts.index_root.glob("*.json"))
 
 
@@ -1467,10 +1698,24 @@ def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_pa
         "ars://core/command/CreateTask",
         "1.0.0",
     )
-    canonical = harness.service._canonical_lifecycle_resolution(grant_id)
-    forged = {**canonical, "authority_grant_sha256": "f" * 64}
-    projection = harness.authority_resolver.projection()
+    lifecycle_inputs = _direct_create_task_resolution(harness, grant_id)
+    lifecycle_inputs.pop("actor_class")
+    evidence = harness.authority_resolver.resolve_lifecycle_command(**lifecycle_inputs)
+    canonical = harness.service._authority_resolution_record(evidence.canonical_grant_identity)
+    resolved = harness.service._authority_resolution_record(evidence.command_resolution)
+    assert canonical is not None
+    assert resolved is not None
+    forged = {**resolved, "authority_grant_sha256": "f" * 64}
 
+    with pytest.raises(IntegrityError, match="canonical grant hash"):
+        harness.service._validate_lifecycle_authority_history(
+            Command(command),
+            command_schema=command_schema,
+            receipt=first,
+            resolution=resolved,
+            event=event,
+            canonical_resolution=None,
+        )
     with pytest.raises(IntegrityError, match="canonical grant hash"):
         harness.service._validate_lifecycle_authority_history(
             Command(command),
@@ -1478,7 +1723,7 @@ def test_lifecycle_receipt_hash_check_uses_an_independent_canonical_value(tmp_pa
             receipt=first,
             resolution=forged,
             event=event,
-            authority_projection=projection,
+            canonical_resolution=canonical,
         )
 
 
