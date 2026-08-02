@@ -42,7 +42,7 @@ PR #205 remains frozen until a later, separately authorized integration action.
 |---|---|---|
 | 36b01db review M-01 | Prove that T2 authority came from the exact frozen physical store, or reject the resolver | Sections 5-7; Slice R |
 | 36b01db review M-02 | Bind lock creation/use to captured directory identity and reject replacement of every multi-root member before append | Sections 4 and 6; Slice L |
-| 06a / P-020 | One writer and atomic no-side-effect rejection | Invariants L-1 through L-9 and A-1 through A-8 |
+| 06a / P-020 | One writer and atomic no-side-effect rejection | Invariants L-1 through L-9 and A-1 through A-9 |
 | 06h | T2 is a real producer path; raw schema provenance and runtime activation are separate work | Current call graph is traced, but schema identity and activation bytes are protected non-goals |
 | 06i | Authority must be replay/store-derived; direct object access is not itself an authorization decision | The new resolver is a bounded read channel only; it creates no grants or authority |
 | Handoff 32 accepted authority details | Grants are ledger/replay-governed, and direct `ObjectStore.write` grant fabrication is forbidden | No grant issue, activation, migration, record admission, or owner decision is introduced |
@@ -151,11 +151,12 @@ entered. It resolves the original claim to exactly one `LockedRoot` or raises
   `DirectoryIdentity`; reversing input order produces the same order.
 - **L-7 No early work.** No replay, authority read, domain append, object write,
   projection write, or receipt write occurs before L-5 passes.
-- **L-8 Total cleanup.** Any acquisition/fence failure releases every acquired
-  writer lock in reverse order, then closes every runtime/root anchor. All
-  releases are attempted; the first cleanup error is raised from the original
-  acquisition error. Normal release uses the same ordering and closes anchors
-  last.
+- **L-8 Total cleanup.** Any acquisition, fence, or protected-body failure
+  remains the primary error. Cleanup still attempts every acquired writer-lock
+  release in reverse order and then every runtime/root anchor close. After all
+  attempts, the first cleanup error is chained as the cause of that primary
+  error. With no primary error, normal release uses the same ordering, closes
+  anchors last, and raises the first cleanup error only after all attempts.
 - **L-9 Retry means reacquire.** A service retry after `ConflictError` creates a
   new `CompositeWriterLock`, recaptures/reopens every identity, and receives a
   new lease token. No claim or lease survives a failed attempt.
@@ -227,6 +228,15 @@ That portable branch does not weaken the Windows rule.
 ## 5. Root-bound T2 authority resolution
 
 ### 5.1 Ownership and types
+
+The root-bound T2 resolver contract is closed over exactly
+`IssueCostGrant` and `AuthorizeProviderIssue`. It is not the resolver contract
+for the six Scope/Task lifecycle commands. `CreateScopeDefinition`,
+`AmendScopeDefinition`, `SupersedeScopeDefinition`, `CreateTask`, `AmendTask`,
+and `SupersedeTask` continue to use the concrete
+`LedgerAuthorityGrantResolver.resolve_command` path and its replay-derived
+scoped-grant evidence. The two resolver families are not substitutes and must
+not share an A-1/A-2 implementation claim.
 
 Define the static interface and one trusted implementation in `t2.py` (a
 separate module is unnecessary for this bounded seam):
@@ -331,6 +341,11 @@ existing stable rejection behavior.
   no authority write, domain event/object/projection mutation, or receipt.
 - **A-8 No authority creation.** The resolver is read-only. It cannot issue,
   activate, revoke, migrate, or admit a grant or assurance record.
+- **A-9 Retry revalidation.** A stored-receipt or ledger-reconstructed retry
+  reacquires the composite lease, rebinds a new `LockedRoot`, and reruns the
+  current `_issue_semantics` or `_authorize_semantics` lookup path before any
+  return. Revocation or record rekeying denies the retry without rewriting the
+  exact accepted receipt or its canonical ledger proof.
 
 ## 6. End-to-end protected command sequence
 
@@ -344,15 +359,22 @@ For `IssueCostGrant` and `AuthorizeProviderIssue` the exact order is:
 4. Obtain `authority_locked_root = lock.locked_root(resolver.control_root)` and
    call `resolver.bind(authority_locked_root)`. Verify the frozen identity and
    live token.
-5. Run active command-schema validation, replay, idempotency, and stream-version
-   checks in their current order.
-6. Pass the bound reader through `_issue_semantics`, `_authorize_semantics`,
-   `_subject_gate`, and `_lookup`. Verify source before each value is returned
-   to semantic code.
-7. Build the unchanged event set and call `EventLedger.append` once. There is
+5. Run active command-schema validation and replay, and locate any stored
+   receipt or ledger-reconstructed retry candidate, but do not return it yet.
+6. Pass the newly bound reader through `_issue_semantics`,
+   `_authorize_semantics`, `_subject_gate`, and `_lookup` for both first
+   execution and retry. A stateful retry derives the pre-command T2 projection
+   from the canonical batch it is reconciling, while every authority/source
+   lookup is current under the new lease.
+7. If a retry passes current semantics, reconcile and return the exact stored
+   receipt identity (or its existing duplicate proof) without replacing it. If
+   current revocation or rekeying denies the retry, return the current denial
+   without persisting over the accepted receipt.
+8. For a first execution, build the unchanged event set and call
+   `EventLedger.append` once. There is
    still no provider invocation.
-8. Build and write the existing Receipt 2.0 accepted outcome.
-9. Invalidate the bound reader, release writer locks in reverse physical order,
+9. Build and write the existing Receipt 2.0 accepted outcome.
+10. Invalidate the bound reader, release writer locks in reverse physical order,
    and close anchors last.
 
 `RecordProviderReceipt` remains outside the composite authority lock, as in the
@@ -392,10 +414,13 @@ receipt reconciliation requires its own authority/atomicity decision and tests.
 
 ## 8. Deterministic test matrix
 
-Every failure row snapshots both physical stores before the action and asserts:
-no new ledger batch, object revision, projection file, accepted or rejected
-receipt, and no authority-store mutation unless the row explicitly tests a
-normal semantic rejection.
+Every failure row snapshots each physical store, root, and `runtime` directory
+that exists before the action and asserts: no new ledger batch, object revision,
+projection file, accepted or rejected receipt, and no authority-store mutation
+unless the row explicitly tests a normal semantic rejection. L-N1 and L-N2
+record absent roots or `runtime` directories as absence facts and assert those
+paths remain absent; their snapshot helpers must not create the paths they are
+meant to test.
 
 ### 8.1 Lock primitive
 
@@ -439,6 +464,7 @@ append callback was never reached for both root positions.
 | A-N7 | Replace authority or domain root at each L-N3/L-N5 phase | Fail before resolver call/append; neither old nor replacement store changes |
 | A-N8 | Resolver root absent or loses stable Windows identity | Construction/acquisition fails closed |
 | A-N9 | `RecordProviderReceipt` regression | Existing domain-only lock set and no-provider-invocation canary remain unchanged |
+| A-N10 | Exact stored or ledger-reconstructed retry after authority revocation or requested-record rekey | Reacquire and rebind, rerun current lookup semantics, deny without changing the accepted receipt or ledger proof |
 
 The malicious A-N1 resolver has an invocation counter and reads A only if
 called. The expected counter is zero. A path or metadata equality assertion

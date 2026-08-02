@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import threading
 
 import pytest
@@ -439,6 +440,79 @@ def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
     anchor.close()
     assert anchor._closed is True
     assert len(close_attempts) == 2
+
+
+def test_posix_directory_anchor_propagates_delete_protection(tmp_path, monkeypatch):
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "control"
+    sentinel = object()
+    calls = []
+
+    def open_posix(path_value, *, reject_reparse, delete_protect):
+        calls.append((path_value, reject_reparse, delete_protect))
+        return sentinel
+
+    monkeypatch.setattr(lock_module, "_open_posix_anchor", open_posix)
+    monkeypatch.setattr(lock_module.os, "name", "posix")
+
+    assert lock_module._open_directory_anchor(path, delete_protect=True) is sentinel
+    assert calls == [(path, False, True)]
+
+
+@pytest.mark.parametrize("deleted_signal", ["link-count", "final-path"])
+def test_posix_delete_protected_refresh_rejects_unlinked_anchor(monkeypatch, deleted_signal):
+    import research_system.store.lock as lock_module
+
+    observed = type(
+        "Observed",
+        (),
+        {
+            "st_mode": stat.S_IFDIR | 0o700,
+            "st_dev": 1,
+            "st_ino": 2,
+            "st_nlink": 0 if deleted_signal == "link-count" else 1,
+        },
+    )()
+    monkeypatch.setattr(lock_module.os, "fstat", lambda _descriptor: observed)
+    monkeypatch.setattr(
+        lock_module.os,
+        "readlink",
+        lambda _path: "/tmp/control (deleted)" if deleted_signal == "final-path" else "/tmp/control",
+    )
+    refresh = lock_module._posix_anchor_refresh_factory(
+        Path("/tmp/control"),
+        delete_protect=True,
+    )
+
+    with pytest.raises(ConflictError, match="unlinked|deleted"):
+        refresh(17)
+
+
+def test_posix_unprotected_refresh_preserves_deleted_path_compatibility(monkeypatch):
+    import research_system.store.lock as lock_module
+
+    observed = type(
+        "Observed",
+        (),
+        {
+            "st_mode": stat.S_IFDIR | 0o700,
+            "st_dev": 1,
+            "st_ino": 2,
+            "st_nlink": 0,
+        },
+    )()
+    monkeypatch.setattr(lock_module.os, "fstat", lambda _descriptor: observed)
+    monkeypatch.setattr(lock_module.os, "readlink", lambda _path: "/tmp/control (deleted)")
+    refresh = lock_module._posix_anchor_refresh_factory(
+        Path("/tmp/control"),
+        delete_protect=False,
+    )
+
+    identity, final_path = refresh(17)
+
+    assert identity.scheme == "posix-dev-inode-v1"
+    assert final_path == Path("/tmp/control")
 
 
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):

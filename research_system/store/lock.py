@@ -382,28 +382,51 @@ def _posix_identity(observed: os.stat_result) -> DirectoryIdentity:
     return DirectoryIdentity("posix-dev-inode-v1", int(observed.st_dev), file_id)
 
 
-def _posix_final_path(file_descriptor: int, fallback: Path) -> Path:
+def _posix_final_path(
+    file_descriptor: int,
+    fallback: Path,
+    *,
+    delete_protect: bool = False,
+) -> Path:
     proc_path = Path(f"/proc/self/fd/{file_descriptor}")
     try:
         value = os.readlink(proc_path)
     except OSError:
         return fallback
-    if value.endswith(" (deleted)"):
+    deleted = value.endswith(" (deleted)")
+    if deleted and delete_protect:
+        raise ConflictError("POSIX directory anchor was deleted")
+    if deleted:
         value = value[: -len(" (deleted)")]
     return Path(value)
 
 
-def _posix_anchor_refresh_factory(fallback: Path) -> Callable[[object], tuple[DirectoryIdentity, Path]]:
+def _posix_anchor_refresh_factory(
+    fallback: Path,
+    *,
+    delete_protect: bool = False,
+) -> Callable[[object], tuple[DirectoryIdentity, Path]]:
     def refresh(file_descriptor: object) -> tuple[DirectoryIdentity, Path]:
         observed = os.fstat(int(file_descriptor))
         if not stat.S_ISDIR(observed.st_mode):
             raise ConflictError("POSIX directory anchor is no longer a directory")
-        return _posix_identity(observed), _posix_final_path(int(file_descriptor), fallback)
+        if delete_protect and observed.st_nlink <= 0:
+            raise ConflictError("POSIX directory anchor is unlinked")
+        return _posix_identity(observed), _posix_final_path(
+            int(file_descriptor),
+            fallback,
+            delete_protect=delete_protect,
+        )
 
     return refresh
 
 
-def _open_posix_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAnchor:
+def _open_posix_anchor(
+    path: Path,
+    *,
+    reject_reparse: bool,
+    delete_protect: bool = False,
+) -> _DirectoryAnchor:
     directory_flag = getattr(os, "O_DIRECTORY", 0)
     if not directory_flag:
         raise ConflictError("platform cannot provide a directory anchor")
@@ -418,16 +441,16 @@ def _open_posix_anchor(path: Path, *, reject_reparse: bool) -> _DirectoryAnchor:
     except OSError as exc:
         raise ConflictError(f"{path} is not an existing directory") from exc
     try:
-        observed = os.fstat(file_descriptor)
-        if not stat.S_ISDIR(observed.st_mode):
-            raise ConflictError(f"{path} is not an existing directory")
-        identity = _posix_identity(observed)
-        final_path = Path(os.path.realpath(path))
+        refresh = _posix_anchor_refresh_factory(
+            Path(os.path.realpath(path)),
+            delete_protect=delete_protect,
+        )
+        identity, final_path = refresh(file_descriptor)
         return _DirectoryAnchor(
             identity,
             final_path,
             file_descriptor,
-            _posix_anchor_refresh_factory(final_path),
+            refresh,
             lambda descriptor: os.close(int(descriptor)),
         )
     except BaseException as primary_error:
@@ -452,7 +475,11 @@ def _open_directory_anchor(
             reject_reparse=reject_reparse,
             delete_protect=delete_protect,
         )
-    return _open_posix_anchor(path, reject_reparse=reject_reparse)
+    return _open_posix_anchor(
+        path,
+        reject_reparse=reject_reparse,
+        delete_protect=delete_protect,
+    )
 
 
 def _root_sort_key(path: Path) -> tuple[str, str]:

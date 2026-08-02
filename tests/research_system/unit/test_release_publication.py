@@ -1100,6 +1100,8 @@ def test_release_append_requires_exact_registered_release_schema(tmp_path) -> No
     )
     authority_root = tmp_path / "authority"
     authority_root.mkdir()
+    # Borrow a fully registered authority store because this control removes
+    # only the release-event schemas from the domain registry under test.
     authority_harness = canonical_publication_plane(authority_root)
     service.authority_resolver = _stub_publication_resolver(
         authority_harness.authority_resolver,
@@ -1607,7 +1609,6 @@ def test_authority_failures_return_stable_unauthorized_receipts(
         raise ArsError(failure)
 
     harness.authority_resolver.resolve = reject
-    harness.service.authority_resolver = harness.authority_resolver
     harness.service.release_publication_evidence = evidence_resolver()
     receipt = harness.service.submit(publication_command())
     assert receipt.status == "rejected"
