@@ -40,7 +40,10 @@ def test_reports_a_ratio_smaller_than_the_full_accepted_set() -> None:
     # tool exists to surface).
     wired_line = next(line for line in result.stdout.splitlines() if line.startswith("Wired in _build_event"))
     wired, _, accepted = wired_line.split(":", 1)[1].strip().partition("/")
-    assert int(wired.strip()) < int(accepted.strip())
+    wired_count = int(wired.strip())
+    accepted_count = int(accepted.strip())
+    assert wired_count > 0, f"Expected at least one wired schema, got {wired_count}"
+    assert wired_count < accepted_count
 
 
 def test_unwired_only_flag_lists_at_least_one_command() -> None:

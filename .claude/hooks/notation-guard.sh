@@ -138,10 +138,11 @@ except Exception:
     "deny"
 
   # Malformed JSON must fail open, but LOUDLY (stderr carries the FAILING OPEN marker).
-  local result stderr_content actual
-  result=$(printf 'not json at all' | bash "$0" 2>/tmp/notation-guard-selftest-stderr.$$)
-  stderr_content=$(cat /tmp/notation-guard-selftest-stderr.$$ 2>/dev/null)
-  rm -f /tmp/notation-guard-selftest-stderr.$$ 2>/dev/null
+  local result stderr_content actual stderr_tmpfile
+  stderr_tmpfile=$(mktemp)
+  result=$(printf 'not json at all' | bash "$0" 2>"$stderr_tmpfile")
+  stderr_content=$(cat "$stderr_tmpfile" 2>/dev/null)
+  rm -f "$stderr_tmpfile" 2>/dev/null
   actual=$(printf '%s' "$result" | python -c "
 import sys, json
 try:

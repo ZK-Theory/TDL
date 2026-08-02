@@ -42,7 +42,8 @@ fi
 # (gate 3 re-entering `uv run` and syncing/re-locking the worktree's project)
 # is gone now that gate 3 runs `sys.executable` directly, but this check
 # guards the class, not just that one instance.
-PRE_GATE_DIRTY=$(git diff --name-only)
+PRE_GATE_DIRTY=$(git diff --no-ext-diff --binary)
+PRE_GATE_DIRTY_NAMES=$(git diff --name-only)
 
 # Interpreter resolution, needed by gates 0 and 2 alike.
 #
@@ -105,14 +106,15 @@ fi
 # read-only. If any of them left a tracked file dirty that wasn't dirty before
 # they ran, that is exactly the obs 01KYQ6AMEXS5SZEEGX9RB9QKHF failure shape —
 # block rather than let it ride into the commit unremarked.
-POST_GATE_DIRTY=$(git diff --name-only)
+POST_GATE_DIRTY=$(git diff --no-ext-diff --binary)
+POST_GATE_DIRTY_NAMES=$(git diff --name-only)
 if [ "$PRE_GATE_DIRTY" != "$POST_GATE_DIRTY" ]; then
   echo "" >&2
   echo "pre-commit: a validation gate modified tracked file(s) outside the staged set — commit blocked." >&2
   echo "Unstaged tracked diff before gates ran:" >&2
-  echo "${PRE_GATE_DIRTY:-  (none)}" >&2
+  echo "${PRE_GATE_DIRTY_NAMES:-  (none)}" >&2
   echo "Unstaged tracked diff after gates ran:" >&2
-  echo "${POST_GATE_DIRTY:-  (none)}" >&2
+  echo "${POST_GATE_DIRTY_NAMES:-  (none)}" >&2
   echo "Gates validate; they must not write. Investigate before retrying." >&2
   exit 1
 fi
