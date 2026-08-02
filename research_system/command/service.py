@@ -11,8 +11,13 @@ from pathlib import Path
 from typing import Any
 
 from research_system.authority import (
+    AuthorityAdministrationContext,
+    GrantedCommandIdentity,
+    LedgerAuthorityGrantResolver,
+    LifecycleCommandAuthorityEvidence,
     SCOPED_AUTHORITY_ADMISSION_VERSION,
     ScopedAuthorityGrant,
+    ScopedAuthorityGrantResolution,
     validate_scoped_grant_activation,
 )
 from research_system.command.lifecycle import (
@@ -49,7 +54,7 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
-from research_system.store.lock import WriterLock
+from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -76,10 +81,37 @@ _TASK_REVISION_COMMAND_TYPES = frozenset(
         "SupersedeTask",
     }
 )
+_LIFECYCLE_COMMAND_TYPES = _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
+_COMMAND_EVENT_TYPES = {
+    "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
+    "ActivateAuthorityGrant": "AuthorityGrantActivated",
+    "RevokeAuthorityGrant": "AuthorityGrantRevoked",
+    "RevokeIssuedAuthorityGrant": "AuthorityGrantRevoked",
+    "CreateScopeDefinition": "ScopeDefinitionCreated",
+    "AmendScopeDefinition": "ScopeDefinitionAmended",
+    "SupersedeScopeDefinition": "ScopeDefinitionSuperseded",
+    "CreateTask": "TaskCreated",
+    "AmendTask": "TaskAmended",
+    "SupersedeTask": "TaskSuperseded",
+}
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
         "ActivateAuthorityGrant",
         "RevokeIssuedAuthorityGrant",
+    }
+)
+_T2_AUTHORITY_COORDINATED_COMMAND_TYPES = frozenset(
+    {
+        "IssueCostGrant",
+        "AuthorizeProviderIssue",
+    }
+)
+_AUTHORITY_COORDINATED_COMMAND_TYPES = _LIFECYCLE_COMMAND_TYPES | frozenset(
+    {
+        "PublishReleaseGateDecision",
+        "RevokeAuthorityGrant",
+        *_SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES,
+        *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
     }
 )
 
@@ -167,6 +199,15 @@ class _TaskRevisionEvidence:
         }
 
 
+@dataclass(frozen=True)
+class _LifecycleAuthorityEvidence:
+    binding: dict[str, Any]
+    resolution: dict[str, Any] | None
+    canonical_resolution: dict[str, Any] | None
+    authority_key: str
+    denial: str | None = None
+
+
 class CommandService:
     def __init__(
         self,
@@ -176,7 +217,7 @@ class CommandService:
         receipts: ReceiptStore,
         schemas: SchemaRegistry,
         *,
-        authority_resolver: Any | None = None,
+        authority_resolver: LedgerAuthorityGrantResolver | None = None,
         release_publication_evidence: ReleasePublicationEvidenceResolver | None = None,
         clock: Callable[[], datetime] | None = None,
         release_lock_timeout_seconds: float = 300.0,
@@ -184,6 +225,8 @@ class CommandService:
         lock_wait: Callable[[float], None] | None = None,
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
     ) -> None:
+        if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
+            raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
         self.control_root = control_root
         self.ledger = ledger
         self.objects = objects
@@ -198,6 +241,13 @@ class CommandService:
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
         self.t2_authority_resolver = t2_authority_resolver
+        self._t2_authority_root: Path | None = None
+        self._t2_authority_identity: tuple[int, int] | None = None
+        if t2_authority_resolver is not None:
+            (
+                self._t2_authority_root,
+                self._t2_authority_identity,
+            ) = self._freeze_t2_authority_root(t2_authority_resolver)
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: (
             Callable[
@@ -290,36 +340,63 @@ class CommandService:
             )
             ReleasePublicationRequest.from_dict(validated_envelope["payload"])
         command = Command(validated_envelope)
+        self._before_submission_lock(command)
         with self._submission_lock(command):
-            if (
-                command.envelope["command_type"] in _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES
-                and command.envelope.get("project_id") != self.ledger.project_id
-            ):
-                snapshot = self.ledger.snapshot()
-                observed_version = snapshot.stream_versions.get(
-                    command.target_stream_id,
-                    0,
-                )
+            lifecycle_authority: _LifecycleAuthorityEvidence | None = None
+
+            def write_receipt(receipt: Receipt) -> Receipt:
                 return self._write_receipt(
                     command,
-                    self._rejected(
+                    receipt,
+                    lifecycle_authority,
+                    command_schema=command_schema,
+                )
+
+            self._recheck_moved_restore(command)
+            self._before_authority_resolution(command)
+            lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
+            snapshot = self.ledger.snapshot()
+            if lifecycle:
+                lifecycle_authority, denial = self._resolve_lifecycle_authority(
+                    command,
+                    command_schema,
+                    snapshot,
+                )
+                if denial is not None:
+                    observed_version = snapshot.stream_versions.get(
+                        command.target_stream_id,
+                        0,
+                    )
+                    rejected = self._rejected(
                         command,
                         observed_version,
-                        "invalid_command_project",
-                        "Lifecycle command project must match the control-store project.",
-                    ),
-                )
-            self._recheck_moved_restore(command)
-            scoped = self._scoped_authority_receipt(command)
+                        "lifecycle_authority_unauthorized",
+                        denial,
+                    )
+                    stored = self.receipts.load(command.command_id)
+                    if (
+                        stored is not None
+                        and stored.status == "rejected"
+                        and stored.payload_hash == command.payload_hash
+                    ):
+                        return stored
+                    # A fresh denial must not return or overwrite an older
+                    # accepted receipt for the same logical submission.
+                    return rejected
+            scoped = self._scoped_authority_receipt(
+                command,
+                command_schema=command_schema,
+                lifecycle_authority=lifecycle_authority,
+            )
             if scoped is not None:
                 return scoped
-            stored_conflict = self._stored_conflict_receipt(command)
-            if stored_conflict is not None:
-                return stored_conflict
-            stored_rejected = self._stored_rejected_receipt(command)
-            if stored_rejected is not None:
-                return stored_rejected
-            snapshot = self.ledger.snapshot()
+            if not lifecycle:
+                stored_conflict = self._stored_conflict_receipt(command)
+                if stored_conflict is not None:
+                    return stored_conflict
+                stored_rejected = self._stored_rejected_receipt(command)
+                if stored_rejected is not None:
+                    return stored_rejected
             view = self._view_for(snapshot)
             existing = self._matching_committed(
                 command,
@@ -327,10 +404,7 @@ class CommandService:
                 command_schema=command_schema,
             )
             if existing is not None:
-                return self._write_receipt(
-                    command,
-                    self._return_or_reconstruct(existing),
-                )
+                return write_receipt(self._return_or_reconstruct(existing))
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
@@ -352,7 +426,7 @@ class CommandService:
                         "release_publication_evidence_mismatch",
                         "Release publication envelope bindings do not match.",
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
                 if self.authority_resolver is None:
                     rejected = self._rejected(
                         command,
@@ -360,7 +434,7 @@ class CommandService:
                         "release_publication_authorizer_unavailable",
                         "Release publication requires the canonical authority resolver.",
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
                 try:
                     prepared_payload = self._prepare_release_publication(command)
                 except IntegrityError:
@@ -372,7 +446,7 @@ class CommandService:
                         "release_publication_evidence_mismatch",
                         str(exc),
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
                 except ArsError as exc:
                     rejected = self._rejected(
                         command,
@@ -380,7 +454,7 @@ class CommandService:
                         "release_publication_unauthorized",
                         str(exc),
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
                 if observed_version > 0:
                     rejected = self._rejected(
                         command,
@@ -388,7 +462,7 @@ class CommandService:
                         "release_decision_already_published",
                         "The canonical release decision stream is already published.",
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
             if observed_version != command.expected_stream_version:
                 receipt = Receipt(
                     status="conflict",
@@ -398,7 +472,7 @@ class CommandService:
                     observed_stream_version=observed_version,
                     reason_code="stream_version_conflict",
                 )
-                return self._write_receipt(command, receipt)
+                return write_receipt(receipt)
             if command.envelope["command_type"] in _SCOPE_COMMAND_TYPES:
                 prepared = self._prepare_scope_command(
                     command,
@@ -406,7 +480,7 @@ class CommandService:
                     observed_version,
                 )
                 if isinstance(prepared, Receipt):
-                    return self._write_receipt(command, prepared)
+                    return write_receipt(prepared)
                 prepared_payload = prepared
             elif command.envelope["command_type"] in _TASK_REVISION_COMMAND_TYPES:
                 prepared = self._prepare_task_command(
@@ -416,7 +490,7 @@ class CommandService:
                     command_schema=command_schema,
                 )
                 if isinstance(prepared, Receipt):
-                    return self._write_receipt(command, prepared)
+                    return write_receipt(prepared)
                 prepared_payload = prepared
             elif command.envelope["command_type"] == "RevokeAuthorityGrant":
                 try:
@@ -430,7 +504,7 @@ class CommandService:
                         "authority_revocation_unauthorized",
                         str(exc),
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
             elif command.envelope["command_type"] in _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES:
                 try:
                     if command.envelope["command_type"] == "ActivateAuthorityGrant":
@@ -454,7 +528,7 @@ class CommandService:
                         "scoped_authority_administration_unauthorized",
                         str(exc),
                     )
-                    return self._write_receipt(command, rejected)
+                    return write_receipt(rejected)
             event = self._build_event(
                 command,
                 prepared_payload,
@@ -487,26 +561,50 @@ class CommandService:
                 event_batch_id=ledger_receipt["event_batch_id"],
                 observed_stream_version=ledger_receipt["resulting_stream_versions"][command.target_stream_id],
             )
-            return self._write_receipt(command, accepted)
+            return write_receipt(accepted)
+
+    def _before_submission_lock(self, command: Command) -> None:
+        """Provide a post-validation setup seam before writer-lock acquisition."""
+
+    def _before_authority_resolution(self, command: Command) -> None:
+        """Provide a locked setup seam immediately before authority evaluation."""
 
     @contextmanager
     def _submission_lock(self, command: Command):
-        """Serialize release retries while preserving fail-fast legacy locks."""
+        """Serialize authority-governed submits across all participating roots."""
         identity = {"command_id": command.command_id}
-        path = self.control_root / "runtime" / "writer.lock"
+        command_type = command.envelope["command_type"]
+        roots: tuple[Path, ...] = (self.control_root,)
+        if command_type in _T2_AUTHORITY_COORDINATED_COMMAND_TYPES:
+            t2_root = self._t2_authority_root_for_lock()
+            if t2_root is not None:
+                roots = (self.control_root, t2_root)
+        elif command_type in _AUTHORITY_COORDINATED_COMMAND_TYPES:
+            resolver = self._canonical_authority_resolver()
+            if resolver is not None:
+                roots = (self.control_root, resolver.control_root)
+        retry_on_conflict = command_type in {
+            "PublishReleaseGateDecision",
+            *_LIFECYCLE_COMMAND_TYPES,
+            *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
+        }
         deadline = self._monotonic() + self.release_lock_timeout_seconds
         while True:
-            lock = WriterLock(path, identity)
+            lock = CompositeWriterLock(
+                roots,
+                identity,
+                lock_factory=WriterLock,
+            )
             try:
                 lock.__enter__()
             except ConflictError:
-                if command.envelope["command_type"] != "PublishReleaseGateDecision" or self._monotonic() >= deadline:
+                if not retry_on_conflict or self._monotonic() >= deadline:
                     raise
                 self._lock_wait(0.01)
                 continue
             break
         try:
-            yield
+            yield lock
         finally:
             lock.__exit__(*sys.exc_info())
 
@@ -540,12 +638,13 @@ class CommandService:
             ConflictError: If the W2 writer lock cannot be acquired.
             IntegrityError: If canonical authority evidence is invalid.
         """
-        resolver = self.authority_resolver
+        resolver = self._canonical_authority_resolver()
         if resolver is None:
             raise ArsError("governed operation requires authority resolver")
-        with WriterLock(
-            self.control_root / "runtime" / "writer.lock",
+        with CompositeWriterLock(
+            (self.control_root, resolver.control_root),
             {"command_id": new_id("command")},
+            lock_factory=WriterLock,
         ):
             snapshot = self.ledger.snapshot()
             replay(
@@ -573,8 +672,22 @@ class CommandService:
             command.idempotency_key,
         )
 
-    def _scoped_authority_receipt(self, command: Command) -> Receipt | None:
+    def _scoped_authority_receipt(
+        self,
+        command: Command,
+        *,
+        command_schema: SchemaIdentity,
+        lifecycle_authority: _LifecycleAuthorityEvidence | None = None,
+    ) -> Receipt | None:
         command_type = command.envelope["command_type"]
+        if command_type in _LIFECYCLE_COMMAND_TYPES:
+            if lifecycle_authority is None:
+                raise IntegrityError("lifecycle command missing fresh authority resolution")
+            return self._load_lifecycle_authority_receipt(
+                command,
+                command_schema,
+                lifecycle_authority,
+            )
         if command_type not in {
             "RevokeAuthorityGrant",
             "PublishReleaseGateDecision",
@@ -618,15 +731,17 @@ class CommandService:
         if receipt is None:
             return receipt
         self._reconcile_scoped_authority_receipt(command, receipt)
-        if command.command_id == receipt.command_id:
-            return receipt
-        if self.receipts.load(command.command_id) is not None:
-            raise ConflictError("command ID conflicts with stored receipt")
-        if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
-            raise ConflictError("command ID conflicts with committed command")
-        return receipt
+        return self._return_scoped_receipt_or_raise(command, receipt)
 
-    def _reconcile_scoped_authority_receipt(self, command: Command, receipt: Receipt) -> None:
+    def _reconcile_scoped_authority_receipt(
+        self,
+        command: Command,
+        receipt: Receipt,
+        *,
+        lifecycle_resolution: dict[str, Any] | None = None,
+        canonical_resolution: dict[str, Any] | None = None,
+        command_schema: SchemaIdentity | None = None,
+    ) -> None:
         scope = self._authority_scope(command)
         snapshot = self.ledger.snapshot()
         replay(
@@ -648,15 +763,11 @@ class CommandService:
         )
         if receipt.status == "accepted":
             matching = tuple(event for event in scoped_events if event.get("transaction_id") == receipt.event_batch_id)
-            expected_event_type = (
-                "ReleaseGateDecisionPublished"
-                if command.envelope["command_type"] == "PublishReleaseGateDecision"
-                else (
-                    "AuthorityGrantActivated"
-                    if command.envelope["command_type"] == "ActivateAuthorityGrant"
-                    else "AuthorityGrantRevoked"
-                )
-            )
+            command_type = command.envelope["command_type"]
+            try:
+                expected_event_type = _COMMAND_EVENT_TYPES[command_type]
+            except KeyError as exc:
+                raise IntegrityError(f"no canonical event type for {command_type}") from exc
             if (
                 len(matching) != 1
                 or matching[0].get("event_type") != expected_event_type
@@ -668,16 +779,113 @@ class CommandService:
                 or matching[0].get("project_id") != self.ledger.project_id
             ):
                 raise IntegrityError("scoped accepted receipt does not match canonical ledger")
+            if lifecycle_resolution is not None:
+                if command_schema is None:
+                    raise IntegrityError("lifecycle command schema evidence is missing")
+                self._validate_lifecycle_authority_history(
+                    command,
+                    command_schema=command_schema,
+                    receipt=receipt,
+                    resolution=lifecycle_resolution,
+                    event=matching[0],
+                    canonical_resolution=canonical_resolution,
+                )
         elif scoped_events:
             raise IntegrityError("scoped terminal receipt conflicts with canonical ledger")
         stored = self.receipts.load(receipt.command_id)
         if stored is None:
             self.receipts.write(receipt)
         elif stored != receipt:
-            raise IntegrityError("scoped index does not match stored receipt")
+            raise IntegrityError("receipt does not match scoped index")
 
-    def _write_receipt(self, command: Command, receipt: Receipt) -> Receipt:
+    def _validate_lifecycle_authority_history(
+        self,
+        command: Command,
+        *,
+        command_schema: SchemaIdentity,
+        receipt: Receipt,
+        resolution: dict[str, Any],
+        event: dict[str, Any],
+        canonical_resolution: dict[str, Any] | None,
+    ) -> None:
+        if receipt.status != "accepted":
+            return
+        if not isinstance(resolution, dict):
+            raise IntegrityError("lifecycle authority resolution evidence is invalid")
+        grant_id = resolution.get("authority_grant_id")
+        canonical_history = canonical_resolution
+        if (
+            not isinstance(grant_id, str)
+            or not grant_id
+            or not isinstance(canonical_history, dict)
+            or canonical_history.get("authority_grant_id") != grant_id
+        ):
+            raise IntegrityError("lifecycle authority evidence has no canonical grant history")
+        if self._authority_key(canonical_history) != resolution.get("authority_grant_sha256"):
+            raise IntegrityError("lifecycle authority resolution grant hash disagrees with canonical history")
+        if (
+            event.get("authority_grant_id") != grant_id
+            or event.get("actor_id") != resolution.get("actor_id")
+            or event.get("stream_id") != command.target_stream_id
+            or event.get("command_type") != command.envelope["command_type"]
+            or event.get("command_schema_id") != command_schema.schema_id
+            or event.get("command_schema_version") != command_schema.schema_version
+            or event.get("command_schema_sha256") != command_schema.sha256
+            or event.get("command_payload_hash") != command.payload_hash
+        ):
+            raise IntegrityError("lifecycle authority resolution is not bound to history")
+
+    def _write_receipt(
+        self,
+        command: Command,
+        receipt: Receipt,
+        lifecycle_authority: _LifecycleAuthorityEvidence | None = None,
+        *,
+        command_schema: SchemaIdentity | None = None,
+    ) -> Receipt:
         command_type = command.envelope["command_type"]
+        if command_type in _LIFECYCLE_COMMAND_TYPES:
+            if lifecycle_authority is None:
+                raise IntegrityError("lifecycle command missing resolved authority evidence")
+            if lifecycle_authority.resolution is None:
+                raise IntegrityError("lifecycle command missing resolution evidence")
+            if command_schema is None:
+                raise IntegrityError("lifecycle command schema evidence is missing")
+            if receipt.status == "accepted":
+                snapshot = self.ledger.snapshot()
+                replay(
+                    snapshot.events,
+                    schema_registry=self.schemas,
+                    authority_state_validator=self._authority_state_validator(),
+                )
+                event = next(
+                    (
+                        event
+                        for event in snapshot.events
+                        if event.get("transaction_id") == receipt.event_batch_id
+                        and event.get("stream_id") == command.target_stream_id
+                    ),
+                    None,
+                )
+                if event is None:
+                    raise IntegrityError("accepted lifecycle receipt has no canonical event")
+                self._validate_lifecycle_authority_history(
+                    command,
+                    command_schema=command_schema,
+                    receipt=receipt,
+                    resolution=lifecycle_authority.resolution,
+                    event=event,
+                    canonical_resolution=lifecycle_authority.canonical_resolution,
+                )
+            result = self.receipts.write_scoped(
+                self._authority_scope(command),
+                lifecycle_authority.authority_key,
+                command.expected_stream_version,
+                receipt,
+                project_id=command.envelope.get("project_id"),
+                target_stream_id=command.target_stream_id,
+            )
+            return result
         if command_type not in {
             "RevokeAuthorityGrant",
             "PublishReleaseGateDecision",
@@ -702,6 +910,297 @@ class CommandService:
             project_id=self.ledger.project_id if publication else None,
             target_stream_id=(command.target_stream_id if publication else None),
         )
+
+    @staticmethod
+    def _risk_tier(value: object) -> str:
+        return value if isinstance(value, str) and value in {"R0", "R1", "R2", "R3"} else "R3"
+
+    @classmethod
+    def _max_risk(cls, *values: object) -> str:
+        order = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
+        return max(
+            (cls._risk_tier(value) for value in values),
+            key=order.__getitem__,
+        )
+
+    def _task_current_risk(self, snapshot: LedgerSnapshot, task_id: str) -> str:
+        current, _, _ = self._revision_graph(snapshot)
+        revision = current.get(task_id)
+        if revision is None:
+            return "R3"
+        definition = self._task_revision_object(task_id, revision)
+        if definition is None:
+            return "R3"
+        return self._risk_tier(definition.get("risk_tier_request"))
+
+    def _lifecycle_authority_inputs(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+    ) -> tuple[str, str, str, str]:
+        command_type = command.envelope["command_type"]
+        payload = command.envelope["payload"]
+        project_id = str(command.envelope.get("project_id", ""))
+        if command_type in _SCOPE_COMMAND_TYPES:
+            subject_id = str(
+                payload.get(
+                    "new_scope_definition_id" if command_type == "CreateScopeDefinition" else "scope_definition_id",
+                    "",
+                )
+            )
+            return project_id, "scope_definition", subject_id, "R3"
+
+        subject_id = str(
+            payload.get(
+                "new_task_id" if command_type == "CreateTask" else "task_id",
+                "",
+            )
+        )
+        if command_type == "CreateTask":
+            definition = payload.get("definition")
+            proposed_risk = definition.get("risk_tier_request") if isinstance(definition, dict) else None
+            return project_id, "task", subject_id, self._risk_tier(proposed_risk)
+
+        current_risk = self._task_current_risk(snapshot, subject_id)
+        if command_type == "AmendTask":
+            replacement = payload.get("replacement_definition")
+            replacement_risk = replacement.get("risk_tier_request") if isinstance(replacement, dict) else None
+        else:
+            replacement_id = payload.get("replacement_task_id")
+            replacement_revision = payload.get("replacement_task_revision")
+            replacement = None
+            if (
+                isinstance(replacement_id, str)
+                and isinstance(replacement_revision, int)
+                and not isinstance(replacement_revision, bool)
+                and replacement_revision >= 1
+            ):
+                replacement = self._task_revision_object(replacement_id, replacement_revision)
+            replacement_risk = replacement.get("risk_tier_request") if isinstance(replacement, dict) else None
+        return project_id, "task", subject_id, self._max_risk(current_risk, replacement_risk)
+
+    def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
+        resolver = self.authority_resolver
+        return resolver if type(resolver) is LedgerAuthorityGrantResolver else None
+
+    @staticmethod
+    def _freeze_t2_authority_root(resolver: Any) -> tuple[Path, tuple[int, int]]:
+        if not callable(resolver):
+            raise ArsError("T2 authority resolver must be callable")
+        candidate = getattr(resolver, "control_root", None)
+        if candidate is None:
+            raise ArsError("T2 authority resolver requires an existing control_root")
+        try:
+            root = Path(candidate).resolve(strict=True)
+            observed = root.stat()
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise ArsError("T2 authority resolver control_root is not verifiable") from exc
+        if not root.is_dir():
+            raise ArsError("T2 authority resolver control_root must be an existing directory")
+        return root, (observed.st_dev, observed.st_ino)
+
+    def _t2_authority_root_for_lock(self) -> Path | None:
+        resolver = self.t2_authority_resolver
+        if resolver is None:
+            return None
+        root, identity = self._freeze_t2_authority_root(resolver)
+        if (root, identity) != (self._t2_authority_root, self._t2_authority_identity):
+            raise ArsError("T2 authority resolver control_root changed after construction")
+        return self._t2_authority_root
+
+    @staticmethod
+    def _authority_time(value: object) -> object:
+        if isinstance(value, datetime):
+            return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        return value
+
+    @classmethod
+    def _authority_resolution_record(cls, resolution: Any | None) -> dict[str, Any] | None:
+        if resolution is None:
+            return None
+        if type(resolution) is not ScopedAuthorityGrantResolution:
+            raise IntegrityError("lifecycle authority resolver returned non-canonical evidence")
+        subject_scope = getattr(resolution, "subject_scope", None)
+        if hasattr(subject_scope, "to_dict"):
+            subject_scope = subject_scope.to_dict()
+        return {
+            "authority_grant_id": getattr(resolution, "authority_grant_id", None),
+            "authority_grant_sha256": getattr(resolution, "authority_grant_sha256", None),
+            "schema_id": getattr(resolution, "schema_id", None),
+            "schema_version": getattr(resolution, "schema_version", None),
+            "schema_sha256": getattr(resolution, "schema_sha256", None),
+            "actor_id": getattr(resolution, "actor_id", None),
+            "subject_scope": subject_scope,
+            "effective_at": cls._authority_time(getattr(resolution, "effective_at", None)),
+            "expires_at": cls._authority_time(getattr(resolution, "expires_at", None)),
+            "activation_event_id": getattr(resolution, "activation_event_id", None),
+            "activation_position": getattr(resolution, "activation_position", None),
+            "administration_decision_id": getattr(resolution, "administration_decision_id", None),
+            "administration_decision_sha256": getattr(resolution, "administration_decision_sha256", None),
+            "status": getattr(resolution, "status", None),
+            "revocation_event_id": getattr(resolution, "revocation_event_id", None),
+        }
+
+    def _lifecycle_authority_binding(
+        self,
+        command: Command,
+        command_schema: SchemaIdentity,
+        snapshot: LedgerSnapshot,
+        *,
+        actor_class: str,
+    ) -> tuple[dict[str, Any], str]:
+        project_id, subject_kind, subject_id, required_risk = self._lifecycle_authority_inputs(
+            command,
+            snapshot,
+        )
+        binding = {
+            "actor_id": command.actor_id,
+            "actor_class": actor_class,
+            "authority_grant_id": command.envelope["authority_grant_id"],
+            "command_type": command.envelope["command_type"],
+            "idempotency_key": command.idempotency_key,
+            "command_schema_id": command_schema.schema_id,
+            "command_schema_version": command_schema.schema_version,
+            "command_schema_sha256": command_schema.sha256,
+            "project_id": project_id,
+            "subject_kind": subject_kind,
+            "subject_id": subject_id,
+            "required_risk": required_risk,
+            "target_stream_id": command.target_stream_id,
+            "expected_stream_version": command.expected_stream_version,
+            "payload_hash": command.payload_hash,
+        }
+        return binding, actor_class
+
+    @staticmethod
+    def _authority_key(
+        resolution: dict[str, Any] | None,
+    ) -> str:
+        grant_hash = resolution.get("authority_grant_sha256") if resolution is not None else None
+        if (
+            isinstance(grant_hash, str)
+            and len(grant_hash) == 64
+            and all(character in "0123456789abcdef" for character in grant_hash)
+        ):
+            return grant_hash
+        raise IntegrityError("lifecycle authority resolution has no canonical grant hash")
+
+    def _resolve_lifecycle_authority(
+        self,
+        command: Command,
+        command_schema: SchemaIdentity,
+        snapshot: LedgerSnapshot,
+    ) -> tuple[_LifecycleAuthorityEvidence, str | None]:
+        resolver = self._canonical_authority_resolver()
+        binding, _ = self._lifecycle_authority_binding(
+            command,
+            command_schema,
+            snapshot,
+            actor_class="unproven",
+        )
+        resolution: dict[str, Any] | None = None
+        canonical_resolution: dict[str, Any] | None = None
+        denial: str | None = None
+        if resolver is None:
+            denial = "Lifecycle commands require the canonical scoped authority resolver."
+        else:
+            command_identity = GrantedCommandIdentity(
+                command_type=command.envelope["command_type"],
+                schema_id=command_schema.schema_id,
+                schema_version=str(command_schema.schema_version),
+                schema_sha256=command_schema.sha256,
+            )
+            project_id = binding["project_id"]
+            subject_kind = binding["subject_kind"]
+            subject_id = binding["subject_id"]
+            required_risk = binding["required_risk"]
+            try:
+                evidence = resolver.resolve_lifecycle_command(
+                    grant_id=command.envelope["authority_grant_id"],
+                    actor_id=command.actor_id,
+                    command=command_identity,
+                    required_risk=required_risk,
+                    project_id=project_id,
+                    subject_kind=subject_kind,
+                    subject_id=subject_id,
+                    now=self.clock(),
+                )
+                if type(evidence) is not LifecycleCommandAuthorityEvidence:
+                    raise ArsError("authority resolver returned non-canonical lifecycle evidence")
+                context = evidence.administration_context
+                if (
+                    type(context) is not AuthorityAdministrationContext
+                    or context.project_id != project_id
+                    or type(evidence.command_resolution) is not ScopedAuthorityGrantResolution
+                    or type(evidence.canonical_grant_identity) is not ScopedAuthorityGrantResolution
+                ):
+                    raise IntegrityError("lifecycle authority bundle evidence is invalid")
+                expected_actor_class = "human" if command.actor_id == context.owner_actor_id else "unproven"
+                if evidence.actor_class != expected_actor_class:
+                    raise IntegrityError("lifecycle authority actor class disagrees with owner context")
+                if evidence.actor_class != "human":
+                    raise ArsError("authority actor class is not proven by the bootstrap owner")
+                resolution = self._authority_resolution_record(evidence.command_resolution)
+                canonical_resolution = self._authority_resolution_record(evidence.canonical_grant_identity)
+                if canonical_resolution != resolution:
+                    raise IntegrityError("lifecycle authority bundle resolutions disagree")
+                binding = {**binding, "actor_class": evidence.actor_class}
+            except IntegrityError:
+                raise
+            except ArsError as exc:
+                resolution = None
+                canonical_resolution = None
+                denial = str(exc)
+        return (
+            _LifecycleAuthorityEvidence(
+                binding=binding,
+                resolution=resolution,
+                canonical_resolution=canonical_resolution,
+                authority_key=(self._authority_key(canonical_resolution) if canonical_resolution is not None else ""),
+                denial=denial,
+            ),
+            denial,
+        )
+
+    def _load_lifecycle_authority_receipt(
+        self,
+        command: Command,
+        command_schema: SchemaIdentity,
+        lifecycle_authority: _LifecycleAuthorityEvidence,
+    ) -> Receipt | None:
+        if lifecycle_authority.resolution is None:
+            raise IntegrityError("lifecycle command missing fresh resolution evidence")
+        receipt = self.receipts.load_scoped(
+            self._authority_scope(command),
+            command.payload_hash,
+            lifecycle_authority.authority_key,
+            command.expected_stream_version,
+            project_id=command.envelope.get("project_id"),
+            target_stream_id=command.target_stream_id,
+        )
+        if receipt is None:
+            return None
+        self._reconcile_scoped_authority_receipt(
+            command,
+            receipt,
+            lifecycle_resolution=lifecycle_authority.resolution,
+            canonical_resolution=lifecycle_authority.canonical_resolution,
+            command_schema=command_schema,
+        )
+        return self._return_scoped_receipt_or_raise(command, receipt)
+
+    def _return_scoped_receipt_or_raise(
+        self,
+        command: Command,
+        receipt: Receipt,
+    ) -> Receipt:
+        if command.command_id == receipt.command_id:
+            return receipt
+        if self.receipts.load(command.command_id) is not None:
+            raise ConflictError("command ID conflicts with stored receipt")
+        if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
+            raise ConflictError("command ID conflicts with committed command")
+        return receipt
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""
@@ -1664,12 +2163,8 @@ class CommandService:
     def _authority_state_validator(
         self,
     ) -> Callable[[dict[str, Any]], None] | None:
-        validator = getattr(
-            self.authority_resolver,
-            "validate_replayed_administration_state",
-            None,
-        )
-        return validator if callable(validator) else None
+        resolver = self._canonical_authority_resolver()
+        return resolver.validate_replayed_administration_state if resolver is not None else None
 
     def _matching_committed(
         self,
@@ -1854,8 +2349,11 @@ class CommandService:
         evidence = self.release_publication_evidence
         if evidence is None:
             raise PublicationEvidenceError("release publication evidence resolver is unavailable")
+        resolver = self._canonical_authority_resolver()
+        if resolver is None:
+            raise ArsError("release publication requires the canonical authority resolver")
         request = ReleasePublicationRequest.from_dict(command.envelope["payload"])
-        resolved = self.authority_resolver.resolve(
+        resolved = resolver.resolve(
             request.publication_authority_grant_id,
             command.actor_id,
             "PublishReleaseGateDecision",
@@ -1875,7 +2373,7 @@ class CommandService:
         return verified
 
     def _prepare_authority_revocation(self, command: Command, observed_version: int) -> dict[str, Any]:
-        resolver = self.authority_resolver
+        resolver = self._canonical_authority_resolver()
         if resolver is None:
             raise ArsError("RevokeAuthorityGrant requires authority resolver")
         payload = command.envelope["payload"]
@@ -1923,7 +2421,7 @@ class CommandService:
         command: Command,
         observed_version: int,
     ) -> dict[str, Any]:
-        resolver = self.authority_resolver
+        resolver = self._canonical_authority_resolver()
         if resolver is None:
             raise ArsError("ActivateAuthorityGrant requires authority resolver")
         payload = command.envelope["payload"]
@@ -2014,7 +2512,7 @@ class CommandService:
         command: Command,
         observed_version: int,
     ) -> dict[str, Any]:
-        resolver = self.authority_resolver
+        resolver = self._canonical_authority_resolver()
         if resolver is None:
             raise ArsError("RevokeIssuedAuthorityGrant requires authority resolver")
         payload = command.envelope["payload"]

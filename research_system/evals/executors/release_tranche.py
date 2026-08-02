@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from research_system.authority import (
+    LedgerAuthorityGrantResolver,
+    authority_bootstrap_sha256,
+    initialize_authority_control_store,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.schema_registry import runtime_schema_registry
+from research_system.errors import ArsError
+from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+
+if TYPE_CHECKING:
+    from research_system.command.service import CommandService
 
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -79,6 +89,224 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
 }
 
 
+def _real_lifecycle_service(
+    root: Path,
+    schemas: SchemaRegistry,
+    *,
+    project_id: str,
+    actor_id: str,
+    task_ids: list[str],
+    command_types: tuple[str, ...],
+) -> tuple["CommandService", dict[str, str]]:
+    """Build a domain service backed by activated grants in a real ledger.
+
+    Args:
+        root: Control-store root for the domain service.
+        schemas: Trusted runtime schema registry.
+        project_id: Project identity bound into both stores.
+        actor_id: Owner actor identity for bootstrap and scoped grants.
+        task_ids: Task subjects that receive activated lifecycle grants.
+        command_types: Exact lifecycle command types allowed by each grant.
+
+    Returns:
+        The authority-aware command service and each task's activated grant ID.
+    """
+    root_grant_id = "agr_01978abc-5601-7000-8000-000000005601"
+    publication_grant_id = "agr_01978abc-5602-7000-8000-000000005602"
+    publication_target_id = "rgd_01978abc-5603-7000-8000-000000005603"
+
+    def bootstrap_grant(grant_id, command_type, subject_kind, subject_id, expires_at):
+        return {
+            "schema_id": "ars://core/authority-grant",
+            "schema_version": "1.1.0",
+            "authority_grant_id": grant_id,
+            "actor_id": actor_id,
+            "allowed_command_types": [command_type],
+            "subject_scope": {
+                "project_id": project_id,
+                "subject": {"kind": subject_kind, "id": subject_id},
+            },
+            "risk_ceiling": "R2",
+            "effective_at": "2026-01-01T00:00:00Z",
+            "expires_at": expires_at,
+            "delegable": False,
+            "revoked": False,
+        }
+
+    root_grant = bootstrap_grant(
+        root_grant_id,
+        "RevokeAuthorityGrant",
+        "authority_grant",
+        publication_grant_id,
+        None,
+    )
+    publication_grant = bootstrap_grant(
+        publication_grant_id,
+        "PublishReleaseGateDecision",
+        "release_gate_decision",
+        publication_target_id,
+        "2030-01-01T00:00:00Z",
+    )
+    bootstrap = {
+        "schema_id": "ars://core/authority-bootstrap-manifest",
+        "schema_version": "1.0.0",
+        "project_id": project_id,
+        "owner_actor_id": actor_id,
+        "root_grant": root_grant,
+        "root_grant_sha256": sha256_hex(canonical_bytes(root_grant)),
+        "publication_grant": publication_grant,
+        "publication_grant_sha256": sha256_hex(canonical_bytes(publication_grant)),
+        "publication_target_id": publication_target_id,
+    }
+    authority_root = root.parent / ".release-tranche-authority"
+    identity = initialize_authority_control_store(
+        [Path(__file__).resolve().parents[3]],
+        authority_root,
+        project_id,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+    from research_system.command.service import CommandService
+    from research_system.store.ledger import EventLedger
+    from research_system.store.objects import ObjectStore
+    from research_system.store.receipts import ReceiptStore
+
+    def clock() -> datetime:
+        return datetime(2026, 8, 1, tzinfo=UTC)
+
+    authority_objects = ObjectStore(authority_root)
+    authority_resolver = LedgerAuthorityGrantResolver(
+        authority_root,
+        project_id,
+        identity,
+        schemas,
+    )
+    authority_service = CommandService(
+        authority_root,
+        EventLedger(authority_root, project_id, schemas),
+        authority_objects,
+        ReceiptStore(authority_root),
+        schemas,
+        authority_resolver=authority_resolver,
+        clock=clock,
+    )
+
+    def activate(task_id: str) -> str:
+        grant_id = f"agr_{task_id.split('_', 1)[1]}"
+        try:
+            authority_resolver.scoped_grant_identity(grant_id)
+            return grant_id
+        except ArsError:
+            pass
+        command_identities = []
+        for command_type in command_types:
+            binding = schemas.command_binding(command_type)
+            if binding is None:
+                raise ArsError(f"missing active command binding: {command_type}")
+            identity = schemas.resolve_identity(binding.schema_id, binding.schema_version)
+            command_identities.append(
+                {
+                    "command_type": command_type,
+                    "schema_id": identity.schema_id,
+                    "schema_version": identity.schema_version,
+                    "schema_sha256": identity.sha256,
+                }
+            )
+        context = authority_resolver.administration_context()
+        grant_schema = schemas.resolve_identity("ars://core/scoped-authority-grant", "2.0.0")
+        scope = {
+            "project_id": project_id,
+            "subject": {"kind": "task", "id": task_id},
+        }
+        grant = {
+            "schema_id": "ars://core/scoped-authority-grant",
+            "schema_version": "2.0.0",
+            "authority_grant_id": grant_id,
+            "actor_id": actor_id,
+            "allowed_actor_classes": ["human"],
+            "allowed_commands": command_identities,
+            "allowed_policy_actions": [],
+            "subject_scope": scope,
+            "risk_ceiling": "R3",
+            "effective_at": "2026-01-01T00:00:00Z",
+            "expires_at": "2030-01-01T00:00:00Z",
+            "delegable": False,
+            "revoked": False,
+        }
+        decision_id = f"arec_{task_id.split('_', 1)[1]}"
+        decision = {
+            "schema_id": "ars://core/owner-authority-administration-decision",
+            "schema_version": "1.0.0",
+            "record_id": decision_id,
+            "revision": 1,
+            "project_id": context.project_id,
+            "store_identity": context.store_identity,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "owner_actor_id": context.owner_actor_id,
+            "action": "activate_authority_grant",
+            "target_grant_id": grant_id,
+            "target_grant_sha256": sha256_hex(canonical_bytes(grant)),
+            "target_grant_schema_id": grant_schema.schema_id,
+            "target_grant_schema_version": grant_schema.schema_version,
+            "target_grant_schema_sha256": grant_schema.sha256,
+            "subject_scope": scope,
+            "effective_at": grant["effective_at"],
+            "expires_at": grant["expires_at"],
+            "one_time_use": True,
+            "state": "active",
+            "decided_at": "2026-01-01T00:00:00Z",
+        }
+        authority_objects.write("assurance_record", decision_id, 1, decision)
+        activation = {
+            "command_id": f"cmd_{task_id.split('_', 1)[1]}",
+            "command_type": "ActivateAuthorityGrant",
+            "schema_id": "ars://core/command/ActivateAuthorityGrant",
+            "schema_version": "1.0.0",
+            "submitted_at": "2026-08-01T00:00:00Z",
+            "actor_id": actor_id,
+            "on_behalf_of_actor_id": None,
+            "authority_grant_id": context.root_grant_id,
+            "target_stream_id": grant_id,
+            "expected_stream_version": 0,
+            "idempotency_key": f"release-tranche-activation:{grant_id}",
+            "correlation_id": f"release-tranche-activation:{grant_id}",
+            "causation_id": None,
+            "reason": "activate a governed Gate 5 lifecycle grant",
+            "evidence_refs": [decision_id],
+            "project_id": project_id,
+            "payload": {
+                "project_id": project_id,
+                "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+                "root_grant_id": context.root_grant_id,
+                "root_grant_sha256": context.root_grant_sha256,
+                "administration_decision_id": decision_id,
+                "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+                "new_grant": grant,
+                "new_grant_sha256": sha256_hex(canonical_bytes(grant)),
+                "new_grant_schema_sha256": grant_schema.sha256,
+            },
+        }
+        if authority_service.submit(activation).status != "accepted":
+            raise ArsError("real lifecycle grant activation was rejected")
+        return grant_id
+
+    grant_ids = {task_id: activate(task_id) for task_id in task_ids}
+    return (
+        CommandService(
+            root,
+            EventLedger(root, project_id, schemas),
+            ObjectStore(root),
+            ReceiptStore(root),
+            schemas,
+            authority_resolver=authority_resolver,
+            clock=clock,
+        ),
+        grant_ids,
+    )
+
+
 def _create_task_payload(
     task_id: str,
     title: str,
@@ -142,31 +370,28 @@ def _execute(fixture_id: str, subject: str, payload: dict[str, Any]) -> dict[str
 def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Exercise moved-store authorization through the real command service."""
     import tempfile
-    from research_system.command.service import CommandService
     from research_system.errors import ArsError
     from research_system.operations.backups import (
         RestorePreflightResult,
         seal_restore_preflight_result,
     )
-    from research_system.store.ledger import EventLedger
-    from research_system.store.objects import ObjectStore
-    from research_system.store.receipts import ReceiptStore
 
     if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
         raise ValueError("release-tranche stimulus contract and action required")
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
     actor_id = "act_01978abc-1002-7000-8000-000000001002"
-    authority_id = "agr_01978abc-1001-7000-8000-000000001001"
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory) / "moved-control"
         root.mkdir()
         schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-        service = CommandService(
+        task_id = "tsk_01978abc-5141-7000-8000-000000005141"
+        service, grant_ids = _real_lifecycle_service(
             root,
-            EventLedger(root, project_id, schemas),
-            ObjectStore(root),
-            ReceiptStore(root),
             schemas,
+            project_id=project_id,
+            actor_id=actor_id,
+            task_ids=[task_id],
+            command_types=("CreateTask",),
         )
         failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
         preflight = seal_restore_preflight_result(
@@ -187,7 +412,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 tail_hash="0" * 64,
                 snapshot_id="snapshot-synthetic-r1",
                 actor_id=actor_id,
-                authority_grant_id=authority_id,
+                authority_grant_id=grant_ids[task_id],
                 result_hash="",
             )
         )
@@ -204,8 +429,8 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "submitted_at": "2026-07-11T00:00:00Z",
             "actor_id": actor_id,
             "on_behalf_of_actor_id": None,
-            "authority_grant_id": authority_id,
-            "target_stream_id": "tsk_01978abc-5141-7000-8000-000000005141",
+            "authority_grant_id": grant_ids[task_id],
+            "target_stream_id": task_id,
             "expected_stream_version": 0,
             "idempotency_key": "s014-restore-authority",
             "correlation_id": "synthetic-s014",
@@ -213,7 +438,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "reason": "exercise S-014 restore authorization",
             "evidence_refs": [],
             "payload": _create_task_payload(
-                "tsk_01978abc-5141-7000-8000-000000005141",
+                task_id,
                 "S-014 synthetic restore",
                 project_id=project_id,
                 actor_id=actor_id,
@@ -240,16 +465,11 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     if subject == "known_bad":
         return dict(_EVIDENCE["S-015"][0])
     import tempfile
-    from research_system.command.service import CommandService
-    from research_system.store.ledger import EventLedger
-    from research_system.store.objects import ObjectStore
-    from research_system.store.receipts import ReceiptStore
 
     if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
         raise ValueError("release-tranche stimulus contract and action required")
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
     actor_id = "act_01978abc-1002-7000-8000-000000001002"
-    authority_id = "agr_01978abc-1001-7000-8000-000000001001"
     task_ids = [
         "tsk_01978abc-5201-7000-8000-000000005201",
         "tsk_01978abc-5202-7000-8000-000000005202",
@@ -277,7 +497,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "submitted_at": "2026-07-11T00:00:00Z",
             "actor_id": actor_id,
             "on_behalf_of_actor_id": None,
-            "authority_grant_id": authority_id,
+            "authority_grant_id": grant_ids[target],
             "target_stream_id": target,
             "expected_stream_version": 0 if command_type == "CreateTask" else 1,
             "idempotency_key": f"s015-{command_id}",
@@ -313,14 +533,15 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         root = Path(directory) / "control"
         root.mkdir()
         schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-        ledger = EventLedger(root, project_id, schemas)
-        service = CommandService(
+        service, grant_ids = _real_lifecycle_service(
             root,
-            ledger,
-            ObjectStore(root),
-            ReceiptStore(root),
             schemas,
+            project_id=project_id,
+            actor_id=actor_id,
+            task_ids=task_ids,
+            command_types=("CreateTask", "SupersedeTask"),
         )
+        ledger = service.ledger
         for index, task_id in enumerate(task_ids):
             service.submit(
                 command(

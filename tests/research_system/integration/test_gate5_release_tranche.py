@@ -8,6 +8,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command import service as service_module
 from research_system.command.models import Command
 from research_system.errors import ArsError, SchemaError
+from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry
 from research_system.store.ledger import EventLedger
@@ -16,6 +17,8 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
+    GovernedTestCommandService,
+    activate_lifecycle_grant,
     control_plane,
     create_task_command,
 )
@@ -23,6 +26,28 @@ from tests.research_system.factories import (
 
 CMD_RESTORE = "cmd_01978abc-5101-7000-8000-000000005101"
 TASK_RESTORE = "tsk_01978abc-5102-7000-8000-000000005102"
+
+
+def test_release_tranche_fails_closed_when_a_command_binding_is_missing(tmp_path, monkeypatch):
+    schemas = cached_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    original_binding = schemas.command_binding
+
+    def missing_binding(command_type):
+        if command_type == "CreateTask":
+            return None
+        return original_binding(command_type)
+
+    monkeypatch.setattr(schemas, "command_binding", missing_binding)
+
+    with pytest.raises(ArsError, match="missing active command binding: CreateTask"):
+        release_tranche._real_lifecycle_service(
+            tmp_path / "release-control",
+            schemas,
+            project_id=PROJECT_ID,
+            actor_id=ACTORS["actor-a"],
+            task_ids=[TASK_RESTORE],
+            command_types=("CreateTask",),
+        )
 
 
 def test_restore_preflight_status_is_biconditional_with_failed_predicates():
@@ -122,22 +147,33 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
 
     entered = []
 
+    original_lock = service_module.WriterLock
+
     class RecordingLock:
         def __init__(self, *args, **kwargs):
-            pass
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
+            self.inner.__enter__()
             entered.append(True)
             return self
 
-        def __exit__(self, *_args):
-            return None
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
 
     monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
     with pytest.raises(ArsError, match="restore preflight"):
         harness.service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
@@ -410,7 +446,6 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
 
 
 def _moved_service(case):
-    from research_system.command.service import CommandService
     from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
@@ -418,12 +453,22 @@ def _moved_service(case):
 
     root = case["target"]
     schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-    return CommandService(
+    authority_harness_root = root.parent / f".{root.name}-authority"
+    authority_harness_root.mkdir()
+    authority_harness = control_plane(authority_harness_root)
+    activate_lifecycle_grant(
+        authority_harness,
+        subject_kind="task",
+        subject_id=TASK_RESTORE,
+    )
+    return GovernedTestCommandService(
         root,
         EventLedger(root, case["receipt"].project_id, schemas),
         ObjectStore(root),
         ReceiptStore(root),
         schemas,
+        authority_resolver=authority_harness.authority_resolver,
+        authority_harness=authority_harness,
     )
 
 
@@ -460,16 +505,27 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
 
     entered = []
 
+    original_lock = service_module.WriterLock
+
     class RecordingLock:
         def __init__(self, *args, **kwargs):
-            pass
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
+            self.inner.__enter__()
             entered.append(True)
             return self
 
-        def __exit__(self, *_args):
-            return None
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
 
     monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(
@@ -480,7 +536,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
     )
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
-    assert entered == [True]
+    assert entered == [True, True]
     assert tuple(service.ledger.iter_batches()) == ()
     assert service.receipts.load(CMD_RESTORE) is None
     assert not list((case["target"] / "objects").rglob("*.json"))
@@ -504,9 +560,10 @@ def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     }
     assert execute_s014("known_bad", payload)["restore_preflight_status"] == "diagnostic_only"
     assert execute_s014("known_good", payload)["restore_preflight_status"] == "verified"
-    assert len(calls) == 2
-    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in calls)
-    assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in calls)
+    domain_calls = [command for command in calls if command["command_type"] == "CreateTask"]
+    assert len(domain_calls) == 2
+    assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in domain_calls)
+    assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in domain_calls)
 
 
 def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
@@ -895,17 +952,19 @@ def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
     observed = execute_s015("known_good", payload)
     assert observed["rejection_reason"] == "supersession_cycle"
     assert observed["authority_unchanged"] is True
-    assert len(calls) == 6
-    creates = [command for command in calls if command["command_type"] == "CreateTask"]
+    domain_calls = [command for command in calls if command["command_type"] in {"CreateTask", "SupersedeTask"}]
+    assert len(domain_calls) == 6
+    creates = [command for command in domain_calls if command["command_type"] == "CreateTask"]
     assert len(creates) == 3
     assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in creates)
-    supersedes = [command for command in calls if command["command_type"] == "SupersedeTask"]
+    supersedes = [command for command in domain_calls if command["command_type"] == "SupersedeTask"]
     assert all(command["schema_id"] == "ars://core/command/SupersedeTask" for command in supersedes)
 
 
 def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
+    grant_id = activate_lifecycle_grant(harness, subject_kind="task", subject_id=TASK_A)
     active = False
     original_lock = service_module.WriterLock
     original_prepare = harness.service._prepare_supersession
@@ -915,6 +974,14 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_
     class TrackingLock:
         def __init__(self, *args, **kwargs):
             self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
 
         def __enter__(self):
             nonlocal active
@@ -945,7 +1012,9 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_
     monkeypatch.setattr(harness.service, "_prepare_supersession", prepare)
     monkeypatch.setattr(harness.receipts, "load", load)
     monkeypatch.setattr(harness.receipts, "write", write)
-    rejected = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
+    command = _supersede_command(CMD_AB, TASK_A, TASK_A)
+    command["authority_grant_id"] = grant_id
+    rejected = harness.service.submit(command)
     assert rejected.reason_code == "supersession_cycle"
     assert active is False
 

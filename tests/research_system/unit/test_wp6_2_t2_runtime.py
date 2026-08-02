@@ -3,17 +3,20 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
+import threading
 from typing import Any
 
 import pytest
 
+import research_system.command.t2 as t2_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
 from research_system.command.t2 import T2Receipt
-from research_system.errors import IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
+from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -179,7 +182,8 @@ def _resolved_provider_receipt(
 
 
 class Records:
-    def __init__(self) -> None:
+    def __init__(self, control_root: Path | None = None) -> None:
+        self.control_root = control_root
         reservation_id = "crs_019f8d10-0002-7000-8000-000000000002"
         self.values: dict[tuple[str, str, int], dict[str, Any]] = {
             ("resource_grant", RESOURCE_GRANT_ID, 1): _subject(
@@ -268,10 +272,15 @@ def _service(
     tmp_path: Path,
     records: Records | None = None,
     schemas: SchemaRegistry = SCHEMAS,
+    *,
+    authority_root: Path | None = None,
 ) -> tuple[CommandService, EventLedger, ReceiptStore, Records]:
     root = tmp_path / "control"
     root.mkdir()
-    resolver = records or Records()
+    authority_root = root if authority_root is None else authority_root
+    authority_root.mkdir(parents=True, exist_ok=True)
+    (authority_root / "runtime").mkdir(parents=True, exist_ok=True)
+    resolver = records or Records(authority_root)
     ledger = EventLedger(root, PROJECT_ID, schemas)
     receipts = ReceiptStore(root)
     service = CommandService(
@@ -501,6 +510,175 @@ def record_command(authorize: dict[str, Any], *, zero_cost: bool = False) -> dic
         "wp6.2.t2.provider.receipt.record",
         key="record-provider-receipt",
     )
+
+
+T2_AUTHORITY_COMMANDS = ("IssueCostGrant", "AuthorizeProviderIssue")
+
+
+def _command_for_authority_lock(service: CommandService, command_type: str) -> dict[str, Any]:
+    if command_type == "IssueCostGrant":
+        return issue_command()
+    assert command_type == "AuthorizeProviderIssue"
+    assert service.submit(issue_command()).status == "accepted"
+    return authorize_command()
+
+
+@pytest.mark.parametrize("command_type", T2_AUTHORITY_COMMANDS)
+def test_t2_authority_lock_domain_wins_before_revocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command_type: str,
+) -> None:
+    authority_root = tmp_path / "authority"
+    service, ledger, _, resolver = _service(tmp_path, authority_root=authority_root)
+    command = _command_for_authority_lock(service, command_type)
+    resolution_ready = threading.Event()
+    release_resolution = threading.Event()
+    append_entered = threading.Event()
+    release_append = threading.Event()
+    revocation_committed = threading.Event()
+    results: dict[str, Any] = {}
+    errors: list[BaseException] = []
+
+    original_lookup = t2_module._lookup
+
+    def paused_lookup(service_value, kind, object_id, revision):
+        value = original_lookup(service_value, kind, object_id, revision)
+        if kind == "authority_grant" and not resolution_ready.is_set():
+            resolution_ready.set()
+            if not release_resolution.wait(2):
+                raise AssertionError("authority-resolution barrier was not released")
+        return value
+
+    monkeypatch.setattr(t2_module, "_lookup", paused_lookup)
+    original_append = ledger.append
+
+    def paused_append(*args, **kwargs):
+        value = original_append(*args, **kwargs)
+        append_entered.set()
+        if not release_append.wait(2):
+            raise AssertionError("append barrier was not released")
+        return value
+
+    monkeypatch.setattr(ledger, "append", paused_append)
+
+    def revoke() -> None:
+        for _ in range(2000):
+            try:
+                with WriterLock(
+                    authority_root / "runtime" / "writer.lock",
+                    {"command_id": "cmd_t2-revoker"},
+                ):
+                    resolver.values[("authority_grant", AUTHORITY_GRANT_ID, 1)] = {
+                        **resolver.values[("authority_grant", AUTHORITY_GRANT_ID, 1)],
+                        "revoked": True,
+                    }
+                    revocation_committed.set()
+                    return
+            except ConflictError:
+                threading.Event().wait(0.001)
+        errors.append(AssertionError("authority revoker did not acquire its lock"))
+
+    def submit() -> None:
+        try:
+            results["receipt"] = service.submit(command)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    submit_thread = threading.Thread(target=submit)
+    revocation_thread = threading.Thread(target=revoke)
+    submit_thread.start()
+    assert resolution_ready.wait(2)
+    revocation_thread.start()
+    try:
+        assert not revocation_committed.wait(0.2)
+        release_resolution.set()
+        assert append_entered.wait(2)
+        assert not revocation_committed.wait(0.2)
+    finally:
+        release_resolution.set()
+        release_append.set()
+        submit_thread.join(4)
+        revocation_thread.join(4)
+
+    assert not submit_thread.is_alive()
+    assert not revocation_thread.is_alive()
+    assert errors == []
+    assert results["receipt"].status == "accepted"
+    assert revocation_committed.is_set()
+
+
+@pytest.mark.parametrize("command_type", T2_AUTHORITY_COMMANDS)
+def test_t2_authority_lock_revocation_wins_and_rechecks_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command_type: str,
+) -> None:
+    authority_root = tmp_path / "authority"
+    service, ledger, _, resolver = _service(tmp_path, authority_root=authority_root)
+    command = _command_for_authority_lock(service, command_type)
+    before_events = tuple(ledger.iter_events())
+    authority_locked = threading.Event()
+    release_authority = threading.Event()
+    lookup_started = threading.Event()
+    results: dict[str, Any] = {}
+    errors: list[BaseException] = []
+
+    def revoke() -> None:
+        try:
+            with WriterLock(
+                authority_root / "runtime" / "writer.lock",
+                {"command_id": "cmd_t2-revoker"},
+            ):
+                resolver.values[("authority_grant", AUTHORITY_GRANT_ID, 1)] = {
+                    **resolver.values[("authority_grant", AUTHORITY_GRANT_ID, 1)],
+                    "revoked": True,
+                }
+                authority_locked.set()
+                if not release_authority.wait(2):
+                    raise AssertionError("authority barrier was not released")
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    original_lookup = t2_module._lookup
+
+    def observed_lookup(service_value, kind, object_id, revision):
+        lookup_started.set()
+        return original_lookup(service_value, kind, object_id, revision)
+
+    monkeypatch.setattr(t2_module, "_lookup", observed_lookup)
+
+    def submit() -> None:
+        try:
+            results["receipt"] = service.submit(command)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    revocation_thread = threading.Thread(target=revoke)
+    submit_thread = threading.Thread(target=submit)
+    revocation_thread.start()
+    assert authority_locked.wait(2)
+    submit_thread.start()
+    try:
+        assert not lookup_started.wait(0.2)
+    finally:
+        release_authority.set()
+        revocation_thread.join(4)
+        submit_thread.join(4)
+
+    assert not revocation_thread.is_alive()
+    assert not submit_thread.is_alive()
+    assert errors == []
+    assert results["receipt"].status == "rejected"
+    assert results["receipt"].record["stable_reason"] == "schema_identity_mismatch"
+    assert tuple(ledger.iter_events()) == before_events
+
+
+def test_t2_authority_resolver_requires_existing_control_root(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ArsError, match="control_root"):
+        _service(tmp_path, records=Records())
 
 
 def test_closed_family_receipt_v2_reducers_projection_and_legacy_indices(tmp_path: Path) -> None:
