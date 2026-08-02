@@ -9,6 +9,7 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Receipt
 from research_system.command.service import MessageAdapterRegistration
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import rebuild_projection, replay
@@ -1736,6 +1737,65 @@ def test_adapter_retry_reconciles_missing_scoped_index_without_new_message_event
         "history",
     ):
         assert after[axis] == before[axis]
+
+
+def test_orphan_message_receipt_is_rejected_before_append_without_mutation(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id = _message_id(616)
+    command = _message_command(
+        command_id=_command_id(616),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    orphan = Receipt(
+        status="accepted",
+        command_id=command["command_id"],
+        payload_hash=sha256_hex(canonical_bytes(command["payload"])),
+        event_batch_id="orphan-batch",
+        observed_stream_version=1,
+    )
+    harness.receipts.write(orphan)
+    receipt_bytes_before = {
+        path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.receipts_root.rglob("*.json")
+    }
+    index_bytes_before = {
+        path.relative_to(harness.receipts.index_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.index_root.rglob("*.json")
+    }
+    before = _no_domain_mutation_snapshot(harness)
+    event_count_before = len(tuple(harness.ledger.iter_events()))
+
+    with pytest.raises(
+        ConflictError,
+        match=f"^receipt already exists: {command['command_id']}$",
+    ):
+        harness.service.submit(command)
+
+    after = _no_domain_mutation_snapshot(harness)
+    receipt_bytes_after = {
+        path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.receipts_root.rglob("*.json")
+    }
+    index_bytes_after = {
+        path.relative_to(harness.receipts.index_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.index_root.rglob("*.json")
+    }
+    assert event_count_before == 0
+    assert len(tuple(harness.ledger.iter_events())) == event_count_before
+    assert after["tail"] == before["tail"]
+    assert after["batches"] == before["batches"]
+    assert after["versions"] == before["versions"]
+    assert receipt_bytes_after == receipt_bytes_before
+    assert after["accepted_receipts"] == before["accepted_receipts"]
+    assert index_bytes_after == index_bytes_before
+    assert after["idempotency_indexes"] == before["idempotency_indexes"]
+    assert after["command_ids"] == before["command_ids"]
+    assert after["command_scopes"] == before["command_scopes"]
+    assert after["history"] == before["history"]
+    assert after["projection"] == before["projection"]
 
 
 def test_adapter_retry_rejects_foreign_scoped_index_without_mutation(tmp_path):

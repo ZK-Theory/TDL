@@ -498,6 +498,11 @@ class CommandService:
             )
             if existing is not None:
                 return write_receipt(self._return_or_reconstruct(existing))
+            if (
+                command.envelope["command_type"] in _MESSAGE_COMMAND_TYPES
+                and self.receipts.load(command.command_id) is not None
+            ):
+                raise ConflictError(f"receipt already exists: {command.command_id}")
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
