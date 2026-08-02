@@ -385,6 +385,11 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, caps
     )
     command_receipt = json.loads(capsys.readouterr().out)
     assert command_receipt["status"] == "rejected"
+    # This CLI fixture initializes the store but intentionally does not
+    # activate a scoped lifecycle grant for the submitted command.
+    assert command_receipt["reason_code"] == "lifecycle_authority_unauthorized"
+    assert command_receipt["explanation"] == "scoped authority grant is not activated"
+    assert command_receipt["unmet_preconditions"] == ["lifecycle_authority_unauthorized"]
     assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
     replay_state = json.loads(capsys.readouterr().out)
     assert replay_state["last_position"] == 2

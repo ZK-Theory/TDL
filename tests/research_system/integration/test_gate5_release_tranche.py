@@ -17,11 +17,10 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     REPO_ROOT,
-    _GovernedTestCommandService,
+    GovernedTestCommandService,
     activate_lifecycle_grant,
     control_plane,
     create_task_command,
-    scoped_lifecycle_grant_id,
 )
 
 
@@ -443,15 +442,15 @@ def _moved_service(case):
 
     root = case["target"]
     schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-    authority_root = root.parent / f".{root.name}-authority"
-    authority_root.mkdir()
-    authority_harness = control_plane(authority_root)
+    authority_harness_root = root.parent / f".{root.name}-authority"
+    authority_harness_root.mkdir()
+    authority_harness = control_plane(authority_harness_root)
     activate_lifecycle_grant(
         authority_harness,
         subject_kind="task",
         subject_id=TASK_RESTORE,
     )
-    return _GovernedTestCommandService(
+    return GovernedTestCommandService(
         root,
         EventLedger(root, case["receipt"].project_id, schemas),
         ObjectStore(root),
@@ -943,7 +942,7 @@ def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
 def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     _create_revision(harness, CMD_A, TASK_A, "A")
-    activate_lifecycle_grant(harness, subject_kind="task", subject_id=TASK_A)
+    grant_id = activate_lifecycle_grant(harness, subject_kind="task", subject_id=TASK_A)
     active = False
     original_lock = service_module.WriterLock
     original_prepare = harness.service._prepare_supersession
@@ -984,7 +983,7 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(tmp_
     monkeypatch.setattr(harness.receipts, "load", load)
     monkeypatch.setattr(harness.receipts, "write", write)
     command = _supersede_command(CMD_AB, TASK_A, TASK_A)
-    command["authority_grant_id"] = scoped_lifecycle_grant_id(TASK_A)
+    command["authority_grant_id"] = grant_id
     rejected = harness.service.submit(command)
     assert rejected.reason_code == "supersession_cycle"
     assert active is False

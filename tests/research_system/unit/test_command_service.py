@@ -61,7 +61,7 @@ def test_create_task_vertical_uses_exact_activated_schema_identity(tmp_path):
     assert event_identity.schema_id == "ars://core/event/TaskCreated"
 
 
-def test_create_task_rejects_unactivated_successor_schema(tmp_path):
+def test_create_task_rejects_unbound_schema_version_without_writes(tmp_path):
     harness = control_plane(tmp_path)
     command = create_task_command(
         CMD_CREATE,
@@ -73,6 +73,10 @@ def test_create_task_rejects_unactivated_successor_schema(tmp_path):
 
     with pytest.raises(SchemaError, match="CreateTask"):
         harness.service.submit(command)
+
+    assert tuple(harness.ledger.iter_batches()) == ()
+    assert harness.receipts.load(command["command_id"]) is None
+    assert not list((harness.service.control_root / "objects").rglob("*.json"))
 
 
 @pytest.mark.parametrize("payload", [None, [], "not-a-mapping"])
@@ -200,7 +204,7 @@ def test_inactive_event_records_generic_schema_identity(tmp_path):
 
 def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):
     harness = control_plane(tmp_path)
-    root = tmp_path / "control"
+    root = harness.service.control_root
     schema_root = REPO_ROOT / ".research-system" / "schemas"
     inert = SchemaRegistry(schema_root)
     runtime = harness.schemas
