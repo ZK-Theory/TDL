@@ -143,6 +143,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
         source_root=source_root,
         preflight_result=supplied,
         rechecker=lambda: stale,
+        approved_witness=harness.authority_resolver.approved_witness,
     )
 
     entered = []
@@ -194,9 +195,17 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
 
     code_root = tmp_path / "code"
     code_root.mkdir()
+    (code_root / ".research-system" / "schemas").mkdir(parents=True)
     source = tmp_path / "source"
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
-    store_identity = initialize_control_store([code_root], source, project_id)
+    store_identity = initialize_control_store(
+        [code_root],
+        source,
+        project_id,
+        origin_authority_root=origin_authority_root,
+    )
     target = tmp_path / "target"
     shutil.copytree(source, target)
 
@@ -310,7 +319,7 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
         receipt_revision=1,
         receipt_hash="",
         project_id=project_id,
-        store_identity=store_identity,
+        store_identity=str(store_identity),
         canonical_tail_position=ledger_snapshot.global_position,
         canonical_tail_hash=ledger_snapshot.event_hash,
         snapshot_id=snapshot["snapshot_id"],
@@ -340,6 +349,8 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
     return {
         "source": source,
         "target": target,
+        "witness": store_identity.witness,
+        "witness_path": store_identity.witness_path,
         "snapshot_path": snapshot_path,
         "endpoint_path": endpoint_path,
         "artefact_manifest_path": artefact_manifest_path,
@@ -363,6 +374,8 @@ def _verify_restore(case, **changes):
         "registry": case["registry"],
         "actor_id": case["actor_id"],
         "authority_grant_id": case["authority_grant_id"],
+        "approved_witness": case["witness"],
+        "approved_witness_path": case["witness_path"],
     }
     values.update(changes)
     return verify_restore_before_writer_lease(**values)
@@ -480,6 +493,7 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+        approved_witness=case["witness"],
     )
     command = create_task_command(
         CMD_RESTORE,
@@ -500,6 +514,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
+        approved_witness=case["witness"],
     )
     case["artefact_path"].unlink()
 

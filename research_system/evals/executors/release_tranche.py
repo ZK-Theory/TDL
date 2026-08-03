@@ -17,6 +17,7 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 
 if TYPE_CHECKING:
     from research_system.command.service import CommandService
+    from research_system.store.identity import StoreOriginWitness
 
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -97,7 +98,7 @@ def _real_lifecycle_service(
     actor_id: str,
     task_ids: list[str],
     command_types: tuple[str, ...],
-) -> tuple["CommandService", dict[str, str]]:
+) -> tuple["CommandService", dict[str, str], "StoreOriginWitness"]:
     """Build a domain service backed by activated grants in a real ledger.
 
     Args:
@@ -109,7 +110,8 @@ def _real_lifecycle_service(
         command_types: Exact lifecycle command types allowed by each grant.
 
     Returns:
-        The authority-aware command service and each task's activated grant ID.
+        The authority-aware command service, each task's activated grant ID,
+        and the external origin witness for the authority store.
     """
     root_grant_id = "agr_01978abc-5601-7000-8000-000000005601"
     publication_grant_id = "agr_01978abc-5602-7000-8000-000000005602"
@@ -309,6 +311,7 @@ def _real_lifecycle_service(
             clock=clock,
         ),
         grant_ids,
+        identity.witness,
     )
 
 
@@ -390,7 +393,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         root.mkdir()
         schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
         task_id = "tsk_01978abc-5141-7000-8000-000000005141"
-        service, grant_ids = _real_lifecycle_service(
+        service, grant_ids, approved_witness = _real_lifecycle_service(
             root,
             schemas,
             project_id=project_id,
@@ -419,12 +422,16 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 actor_id=actor_id,
                 authority_grant_id=grant_ids[task_id],
                 result_hash="",
+                origin_witness_sha256=approved_witness.raw_sha256,
+                origin_initial_control_root=approved_witness.initial_control_root,
+                origin_initial_physical_root_identity=dict(approved_witness.initial_physical_root_identity),
             )
         )
         service.configure_moved_restore(
             source_root=Path(directory) / "source-control",
             preflight_result=preflight,
             rechecker=lambda: preflight,
+            approved_witness=approved_witness,
         )
         command = {
             "command_id": "cmd_01978abc-5140-7000-8000-000000005140",
@@ -538,7 +545,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         root = Path(directory) / "control"
         root.mkdir()
         schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
-        service, grant_ids = _real_lifecycle_service(
+        service, grant_ids, _ = _real_lifecycle_service(
             root,
             schemas,
             project_id=project_id,
