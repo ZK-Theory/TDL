@@ -15,6 +15,7 @@ from research_system.authority import (
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
+    reduce_message,
     reduce_scope,
     reduce_task,
     validate_scope_lifecycle_event,
@@ -501,6 +502,16 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     }:
         validate_scope_lifecycle_event(streams, event)
         streams[stream_id] = reduce_scope(streams.get(stream_id, {}), event)
+    elif event_type in {
+        "MessagePublished",
+        "MessageDelivered",
+        "MessageAcknowledged",
+        "MessageDeliveryFailed",
+    }:
+        try:
+            streams[stream_id] = reduce_message(streams.get(stream_id, {}), event)
+        except ValueError as exc:
+            raise IntegrityError(str(exc)) from exc
     elif event_type == "DispatchClaimed":
         current = streams.get(
             stream_id,
@@ -662,6 +673,8 @@ def replay(
     for source in events:
         event = deepcopy(source)
         position = event.get("global_position")
+        if _major(event) != supported_major:
+            raise IntegrityError(f"unsupported major at {position}")
         release_event = event.get("event_type") == "ReleaseGateDecisionPublished"
         t2_event = str(event.get("schema_id", "")).startswith("ars://wp6-2/t2/event/")
         if release_event and schema_registry is None:
@@ -708,8 +721,6 @@ def replay(
                     _validate_recorded_event_schema(event, schema_registry)
             except SchemaError as exc:
                 raise IntegrityError(f"event schema validation failed at {position}") from exc
-        if _major(event) != supported_major:
-            raise IntegrityError(f"unsupported major at {position}")
         schema_id = event.get("schema_id")
         if not isinstance(schema_id, str) or not (
             schema_id == "ars://core/event"

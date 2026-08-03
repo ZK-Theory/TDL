@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -503,6 +504,83 @@ def reduce_scope(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]
     raise ValueError(f"illegal scope transition: {state.get('status')} -> {event_type}")
 
 
+def reduce_message(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce one exact Message stream without widening its terminal states."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    stream_id = event["stream_id"]
+    if event_type == "MessagePublished":
+        if state:
+            raise ValueError("MessagePublished requires an absent Message stream")
+        if payload.get("new_message_id") != stream_id:
+            raise ValueError("MessagePublished subject binding mismatch")
+        if payload.get("sender_actor_id") != event.get("actor_id"):
+            raise ValueError("MessagePublished sender binding mismatch")
+        if payload.get("reply_to_message_id") == stream_id:
+            raise ValueError("MessagePublished self reference is invalid")
+        if payload.get("message_type") == "acknowledgement" and (
+            payload.get("correlation_message_id") != payload.get("reply_to_message_id")
+        ):
+            raise ValueError("MessagePublished acknowledgement correlation is inconsistent")
+        return {
+            "message_id": stream_id,
+            "status": "published",
+            "published_payload": payload,
+            "content_sha256": sha256_hex(canonical_bytes(payload)),
+            "published_position": event["global_position"],
+            "version": 1,
+        }
+    if not state:
+        raise ValueError(f"{event_type} requires a published Message stream")
+    if payload.get("message_id") != state.get("message_id"):
+        raise ValueError("Message transition subject binding mismatch")
+    if event_type == "MessageDelivered":
+        if state.get("status") != "published":
+            raise ValueError("MessageDelivered requires published Message state")
+        if (
+            payload.get("content_sha256") != state.get("content_sha256")
+            or payload.get("recipient_actor_ids") != state["published_payload"].get("recipient_actor_ids")
+            or not payload.get("delivery_evidence_refs")
+        ):
+            raise ValueError("MessageDelivered content or recipient binding mismatch")
+        return {
+            **state,
+            "status": "delivered",
+            "delivery": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "MessageAcknowledged":
+        if state.get("status") != "delivered":
+            raise ValueError("MessageAcknowledged requires delivered Message state")
+        if event.get("actor_id") not in state["published_payload"].get("recipient_actor_ids", []):
+            raise ValueError("MessageAcknowledged recipient binding mismatch")
+        if (
+            payload.get("content_sha256") != state.get("content_sha256")
+            or payload.get("recipient_actor_ids") != state["published_payload"].get("recipient_actor_ids")
+            or payload.get("source_position") != state.get("published_position")
+        ):
+            raise ValueError("MessageAcknowledged content, recipient, or source binding mismatch")
+        return {
+            **state,
+            "status": "acknowledged",
+            "acknowledgement": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "MessageDeliveryFailed":
+        if state.get("status") != "published":
+            raise ValueError("MessageDeliveryFailed requires published Message state")
+        if not payload.get("failure_evidence_refs"):
+            raise ValueError("MessageDeliveryFailed requires failure evidence")
+        return {
+            **state,
+            "status": "delivery_failed",
+            "failure": payload,
+            "version": state["version"] + 1,
+        }
+    raise ValueError(f"illegal message transition: {state.get('status')} -> {event_type}")
+
+
 def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
     attempts: set[str] = set()
     stream_states: dict[str, dict[str, Any]] = {}
@@ -526,6 +604,17 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             stream_id = event["stream_id"]
             validate_scope_lifecycle_event(stream_states, event)
             stream_states[stream_id] = reduce_scope(
+                stream_states.get(stream_id, {}),
+                event,
+            )
+        elif event["event_type"] in {
+            "MessagePublished",
+            "MessageDelivered",
+            "MessageAcknowledged",
+            "MessageDeliveryFailed",
+        }:
+            stream_id = event["stream_id"]
+            stream_states[stream_id] = reduce_message(
                 stream_states.get(stream_id, {}),
                 event,
             )
