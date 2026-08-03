@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/tda-scale-package-index",
+  "title": "TDA-scale v1.0.1 machine package candidate index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "package_id",
+    "package_version",
+    "lifecycle_status",
+    "dispatchable",
+    "execution_authorized",
+    "candidate_base_git_commit",
+    "self_identity_binding",
+    "predecessor_manifest",
+    "source_dependencies",
+    "reused_component_count",
+    "reused_components",
+    "changed_component_count",
+    "changed_components",
+    "cardinality_authority",
+    "supersession_policy"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-4/tda-scale-package-index"
+    },
+    "schema_version": {
+      "const": "1.0.1"
+    },
+    "package_id": {
+      "const": "TDA-ARS-SCALE-RESEARCH"
+    },
+    "package_version": {
+      "const": "1.0.1"
+    },
+    "lifecycle_status": {
+      "const": "produced_unreviewed"
+    },
+    "dispatchable": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "candidate_base_git_commit": {
+      "const": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704"
+    },
+    "self_identity_binding": {
+      "const": "external_exact_subject_review_envelope_required"
+    },
+    "predecessor_manifest": {
+      "$ref": "#/$defs/predecessorIdentity"
+    },
+    "source_dependencies": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/sourceDependency"
+      },
+      "uniqueItems": true
+    },
+    "reused_component_count": {
+      "const": 17
+    },
+    "reused_components": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "items": {
+        "$ref": "#/$defs/reusedComponent"
+      },
+      "uniqueItems": true
+    },
+    "changed_component_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "changed_components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/changedComponent"
+      },
+      "uniqueItems": true
+    },
+    "cardinality_authority": {
+      "$ref": "#/$defs/cardinalityAuthority"
+    },
+    "supersession_policy": {
+      "const": "immutable_supersede_never_mutate"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitBlob": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "predecessorIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_version",
+        "relative_path",
+        "raw_bytes",
+        "raw_sha256",
+        "identity_source",
+        "git_blob_id",
+        "subject_commit",
+        "subject_tree"
+      ],
+      "properties": {
+        "package_version": {
+          "const": "1.0.0"
+        },
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "identity_source": {
+          "const": "external_vault_read_only"
+        },
+        "git_blob_id": {
+          "type": "null"
+        },
+        "subject_commit": {
+          "type": "null"
+        },
+        "subject_tree": {
+          "type": "null"
+        }
+      }
+    },
+    "sourceDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_id",
+        "schema_version",
+        "repository_path",
+        "git_commit",
+        "raw_bytes",
+        "raw_sha256",
+        "git_blob_id"
+      ],
+      "properties": {
+        "schema_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "repository_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_commit": {
+          "const": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704"
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "git_blob_id": {
+          "$ref": "#/$defs/gitBlob"
+        }
+      }
+    },
+    "reusedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "component_version",
+        "relative_path",
+        "raw_bytes",
+        "raw_sha256",
+        "identity_source",
+        "reuse_in_place",
+        "changed_path",
+        "git_blob_id",
+        "subject_commit",
+        "subject_tree"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        "component_version": {
+          "const": "1.0.0"
+        },
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "identity_source": {
+          "const": "external_vault_read_only"
+        },
+        "reuse_in_place": {
+          "const": true
+        },
+        "changed_path": {
+          "type": "null"
+        },
+        "git_blob_id": {
+          "type": "null"
+        },
+        "subject_commit": {
+          "type": "null"
+        },
+        "subject_tree": {
+          "type": "null"
+        }
+      }
+    },
+    "changedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "component_version",
+        "repository_path",
+        "raw_bytes",
+        "raw_sha256",
+        "git_blob_id",
+        "identity_stage",
+        "review_binding"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        "component_version": {
+          "const": "1.0.1"
+        },
+        "repository_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "git_blob_id": {
+          "$ref": "#/$defs/gitBlob"
+        },
+        "identity_stage": {
+          "const": "content_addressed_precommit"
+        },
+        "review_binding": {
+          "const": "external_exact_subject_required"
+        }
+      }
+    },
+    "cardinalityAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "status",
+        "exact_ref",
+        "object_count",
+        "scope_count",
+        "edge_count",
+        "relationship_count"
+      ],
+      "properties": {
+        "authority": {
+          "const": "wp6_6_dossier_expected_set"
+        },
+        "status": {
+          "const": "pending"
+        },
+        "exact_ref": {
+          "type": "null"
+        },
+        "object_count": {
+          "type": "null"
+        },
+        "scope_count": {
+          "type": "null"
+        },
+        "edge_count": {
+          "type": "null"
+        },
+        "relationship_count": {
+          "type": "null"
+        }
+      }
+    }
+  }
+}

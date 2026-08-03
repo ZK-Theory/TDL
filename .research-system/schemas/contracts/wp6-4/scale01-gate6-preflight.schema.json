@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale01-gate6-preflight",
+  "title": "SCALE-01 Gate 6 pending preflight candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "preflight_id",
+    "package_id",
+    "package_version",
+    "lifecycle_status",
+    "admission_status",
+    "dispatchable",
+    "execution_authorized",
+    "fixture_observation_ref",
+    "no_write_evidence_ref",
+    "admission_event_ref",
+    "dispatch_ref",
+    "result_ref",
+    "claim_ref",
+    "owner_acceptance_ref",
+    "research_claim",
+    "pilot_claim",
+    "result_claim",
+    "dependencies",
+    "cardinality_authority",
+    "scope_definition_blueprint",
+    "publication_policy",
+    "supersession_policy"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-4/scale01-gate6-preflight"
+    },
+    "schema_version": {
+      "const": "1.0.1"
+    },
+    "preflight_id": {
+      "const": "SCALE-01-G6-PREFLIGHT-v1.0.1"
+    },
+    "package_id": {
+      "const": "TDA-ARS-SCALE-RESEARCH"
+    },
+    "package_version": {
+      "const": "1.0.1"
+    },
+    "lifecycle_status": {
+      "const": "produced_unreviewed"
+    },
+    "admission_status": {
+      "const": "pending_wp6_6"
+    },
+    "dispatchable": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "fixture_observation_ref": {
+      "type": "null"
+    },
+    "no_write_evidence_ref": {
+      "type": "null"
+    },
+    "admission_event_ref": {
+      "type": "null"
+    },
+    "dispatch_ref": {
+      "type": "null"
+    },
+    "result_ref": {
+      "type": "null"
+    },
+    "claim_ref": {
+      "type": "null"
+    },
+    "owner_acceptance_ref": {
+      "type": "null"
+    },
+    "research_claim": {
+      "type": "null"
+    },
+    "pilot_claim": {
+      "type": "null"
+    },
+    "result_claim": {
+      "type": "null"
+    },
+    "dependencies": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/pendingDependency"
+      },
+      "uniqueItems": true
+    },
+    "cardinality_authority": {
+      "$ref": "#/$defs/cardinalityAuthority"
+    },
+    "scope_definition_blueprint": {
+      "$ref": "#/$defs/fileIdentity"
+    },
+    "publication_policy": {
+      "$ref": "#/$defs/publicationPolicy"
+    },
+    "supersession_policy": {
+      "const": "immutable_supersede_never_mutate"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitBlob": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "pendingDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependency_id",
+        "status",
+        "exact_ref",
+        "raw_sha256",
+        "git_blob_id"
+      ],
+      "properties": {
+        "dependency_id": {
+          "type": "string",
+          "enum": [
+            "foundation",
+            "kan68_a7",
+            "provider_free_operator_session",
+            "wp6_6_expected_set",
+            "d_g6_5"
+          ]
+        },
+        "status": {
+          "const": "pending"
+        },
+        "exact_ref": {
+          "type": "null"
+        },
+        "raw_sha256": {
+          "type": "null"
+        },
+        "git_blob_id": {
+          "type": "null"
+        }
+      }
+    },
+    "cardinalityAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "status",
+        "exact_ref",
+        "object_count",
+        "scope_count",
+        "edge_count",
+        "relationship_count"
+      ],
+      "properties": {
+        "authority": {
+          "const": "wp6_6_dossier_expected_set"
+        },
+        "status": {
+          "const": "pending"
+        },
+        "exact_ref": {
+          "type": "null"
+        },
+        "object_count": {
+          "type": "null"
+        },
+        "scope_count": {
+          "type": "null"
+        },
+        "edge_count": {
+          "type": "null"
+        },
+        "relationship_count": {
+          "type": "null"
+        }
+      }
+    },
+    "fileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_path",
+        "raw_bytes",
+        "raw_sha256",
+        "git_blob_id"
+      ],
+      "properties": {
+        "repository_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "git_blob_id": {
+          "$ref": "#/$defs/gitBlob"
+        }
+      }
+    },
+    "publicationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier_may_publish",
+        "state_publication",
+        "provider_calls",
+        "legacy_writes"
+      ],
+      "properties": {
+        "verifier_may_publish": {
+          "const": false
+        },
+        "state_publication": {
+          "const": "forbidden"
+        },
+        "provider_calls": {
+          "const": "forbidden"
+        },
+        "legacy_writes": {
+          "const": "forbidden"
+        }
+      }
+    }
+  }
+}

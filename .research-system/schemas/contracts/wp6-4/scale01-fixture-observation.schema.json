@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale01-fixture-observation",
+  "title": "SCALE-01 read-only fixture observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "lifecycle_status",
+    "observation_id",
+    "fixture_root",
+    "fixture_count",
+    "fixture_set_sha256",
+    "fixtures",
+    "alignment_count",
+    "alignments"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-4/scale01-fixture-observation"
+    },
+    "schema_version": {
+      "const": "1.0.1"
+    },
+    "lifecycle_status": {
+      "const": "produced_unreviewed"
+    },
+    "observation_id": {
+      "type": "string",
+      "pattern": "^fobs_[0-9a-f]{64}$"
+    },
+    "fixture_root": {
+      "$ref": "#/$defs/rootIdentity"
+    },
+    "fixture_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "fixture_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fixtureRow"
+      },
+      "uniqueItems": true
+    },
+    "alignment_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "alignments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/alignmentRow"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rootIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_id",
+        "configured_path",
+        "physical_path",
+        "volume_id",
+        "stable_file_id",
+        "reparse_chain",
+        "symlink_free",
+        "casefold_unique",
+        "unicode_nfc_unique",
+        "root_write_capable",
+        "read_only_enforcement",
+        "mutation_probe_performed"
+      ],
+      "properties": {
+        "root_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configured_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "physical_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "volume_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stable_file_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reparse_chain": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "symlink_free": {
+          "const": true
+        },
+        "casefold_unique": {
+          "const": true
+        },
+        "unicode_nfc_unique": {
+          "const": true
+        },
+        "root_write_capable": {
+          "const": false
+        },
+        "read_only_enforcement": {
+          "type": "string",
+          "enum": [
+            "resource_grant_acl",
+            "read_only_mount",
+            "synthetic_read_only_contract"
+          ]
+        },
+        "mutation_probe_performed": {
+          "const": false
+        }
+      }
+    },
+    "fixtureRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_alias",
+        "geometry_alias",
+        "relative_path",
+        "physical_path",
+        "byte_size",
+        "raw_sha256",
+        "volume_id",
+        "stable_file_id",
+        "authority_class",
+        "confidentiality_class",
+        "permitted_consumer",
+        "file_write_capable"
+      ],
+      "properties": {
+        "fixture_alias": {
+          "type": "string",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        "geometry_alias": {
+          "type": "string",
+          "enum": [
+            "G-MEDIAN",
+            "G-SLOW-L5000"
+          ]
+        },
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "physical_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "volume_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stable_file_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority_class": {
+          "const": "closed_t128_engineering_fixture"
+        },
+        "confidentiality_class": {
+          "const": "registered_or_eul_uk_data"
+        },
+        "permitted_consumer": {
+          "const": "scale01_engineering_preflight_only"
+        },
+        "file_write_capable": {
+          "const": false
+        }
+      }
+    },
+    "alignmentPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row_index",
+        "membership_id_sha256"
+      ],
+      "properties": {
+        "row_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "membership_id_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "alignmentRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "geometry_alias",
+        "embedding_fixture_alias",
+        "trajectory_fixture_alias",
+        "checkpoint_fixture_alias",
+        "scratch_row_index_relative_path",
+        "row_count",
+        "membership_count",
+        "pair_count",
+        "row_index_set_sha256",
+        "membership_set_sha256",
+        "alignment_sha256",
+        "aligned",
+        "pairs"
+      ],
+      "properties": {
+        "geometry_alias": {
+          "type": "string",
+          "enum": [
+            "G-MEDIAN",
+            "G-SLOW-L5000"
+          ]
+        },
+        "embedding_fixture_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trajectory_fixture_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkpoint_fixture_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scratch_row_index_relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "row_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "membership_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pair_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "row_index_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "membership_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "alignment_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "aligned": {
+          "const": true
+        },
+        "pairs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/alignmentPair"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale01-scope-definition-blueprint",
+  "title": "SCALE-01 payload-only ScopeDefinition blueprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "new_scope_definition_id",
+    "revision",
+    "members",
+    "ordering_rules",
+    "effective_at",
+    "dependency_rules",
+    "completion_predicate",
+    "amendment_authority"
+  ],
+  "properties": {
+    "new_scope_definition_id": {
+      "type": "string",
+      "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/memberDisposition"
+      },
+      "uniqueItems": true
+    },
+    "ordering_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "effective_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "dependency_rules": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "completion_predicate": {
+      "type": "string",
+      "minLength": 1
+    },
+    "amendment_authority": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "memberDisposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "member_kind",
+        "required_disposition"
+      ],
+      "properties": {
+        "member_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "member_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_disposition": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "partial_accepted",
+            "deferred",
+            "superseded",
+            "removed_by_amendment",
+            "cancelled",
+            "rejected"
+          ]
+        }
+      }
+    }
+  }
+}

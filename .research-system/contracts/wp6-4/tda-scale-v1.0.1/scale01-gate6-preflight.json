@@ -1,0 +1,80 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale01-gate6-preflight",
+  "schema_version": "1.0.1",
+  "preflight_id": "SCALE-01-G6-PREFLIGHT-v1.0.1",
+  "package_id": "TDA-ARS-SCALE-RESEARCH",
+  "package_version": "1.0.1",
+  "lifecycle_status": "produced_unreviewed",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "fixture_observation_ref": null,
+  "no_write_evidence_ref": null,
+  "admission_event_ref": null,
+  "dispatch_ref": null,
+  "result_ref": null,
+  "claim_ref": null,
+  "owner_acceptance_ref": null,
+  "research_claim": null,
+  "pilot_claim": null,
+  "result_claim": null,
+  "dependencies": [
+    {
+      "dependency_id": "foundation",
+      "status": "pending",
+      "exact_ref": null,
+      "raw_sha256": null,
+      "git_blob_id": null
+    },
+    {
+      "dependency_id": "kan68_a7",
+      "status": "pending",
+      "exact_ref": null,
+      "raw_sha256": null,
+      "git_blob_id": null
+    },
+    {
+      "dependency_id": "provider_free_operator_session",
+      "status": "pending",
+      "exact_ref": null,
+      "raw_sha256": null,
+      "git_blob_id": null
+    },
+    {
+      "dependency_id": "wp6_6_expected_set",
+      "status": "pending",
+      "exact_ref": null,
+      "raw_sha256": null,
+      "git_blob_id": null
+    },
+    {
+      "dependency_id": "d_g6_5",
+      "status": "pending",
+      "exact_ref": null,
+      "raw_sha256": null,
+      "git_blob_id": null
+    }
+  ],
+  "cardinality_authority": {
+    "authority": "wp6_6_dossier_expected_set",
+    "status": "pending",
+    "exact_ref": null,
+    "object_count": null,
+    "scope_count": null,
+    "edge_count": null,
+    "relationship_count": null
+  },
+  "scope_definition_blueprint": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+    "raw_bytes": 883,
+    "raw_sha256": "985a50ab193f07ca9b93c3d96945d733189fbc34405ad71d310e3f64f8e52387",
+    "git_blob_id": "ffcf61edb420b4643799bd15b1d81e13aeb1e4bb"
+  },
+  "publication_policy": {
+    "verifier_may_publish": false,
+    "state_publication": "forbidden",
+    "provider_calls": "forbidden",
+    "legacy_writes": "forbidden"
+  },
+  "supersession_policy": "immutable_supersede_never_mutate"
+}

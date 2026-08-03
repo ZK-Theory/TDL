@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale01-no-write-evidence",
+  "title": "SCALE-01 no-write and rollback evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "lifecycle_status",
+    "evidence_id",
+    "fixture_root",
+    "scratch_root",
+    "scratch_disjoint",
+    "failure_injected",
+    "pre_state",
+    "post_state",
+    "comparison",
+    "legacy_write_paths",
+    "publication_paths",
+    "rollback_status"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-4/scale01-no-write-evidence"
+    },
+    "schema_version": {
+      "const": "1.0.1"
+    },
+    "lifecycle_status": {
+      "const": "produced_unreviewed"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^nw_[0-9a-f]{64}$"
+    },
+    "fixture_root": {
+      "$ref": "#/$defs/pathIdentity"
+    },
+    "scratch_root": {
+      "$ref": "#/$defs/pathIdentity"
+    },
+    "scratch_disjoint": {
+      "const": true
+    },
+    "failure_injected": {
+      "type": "boolean"
+    },
+    "pre_state": {
+      "$ref": "#/$defs/protectedState"
+    },
+    "post_state": {
+      "$ref": "#/$defs/protectedState"
+    },
+    "comparison": {
+      "$ref": "#/$defs/comparison"
+    },
+    "legacy_write_paths": {
+      "type": "array",
+      "maxItems": 0,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "publication_paths": {
+      "type": "array",
+      "maxItems": 0,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "rollback_status": {
+      "type": "string",
+      "enum": [
+        "not_required_zero_publication",
+        "verified_zero_publication_after_failure"
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pathIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configured_path",
+        "physical_path",
+        "volume_id",
+        "stable_file_id"
+      ],
+      "properties": {
+        "configured_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "physical_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "volume_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stable_file_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "fileState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "byte_size",
+        "raw_sha256"
+      ],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "protectedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacy_entry_count",
+        "legacy_entry_set_sha256",
+        "legacy_entries",
+        "event_tail_sha256",
+        "object_set_sha256",
+        "scope_definition_set_sha256",
+        "dispatch_set_sha256",
+        "result_set_sha256",
+        "claim_set_sha256"
+      ],
+      "properties": {
+        "legacy_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "legacy_entry_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "legacy_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fileState"
+          },
+          "uniqueItems": true
+        },
+        "event_tail_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "object_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scope_definition_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "dispatch_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "result_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "claim_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacy_entry_sets_equal",
+        "legacy_bytes_equal",
+        "event_tail_unchanged",
+        "object_set_unchanged",
+        "scope_definition_set_unchanged",
+        "dispatch_set_unchanged",
+        "result_set_unchanged",
+        "claim_set_unchanged"
+      ],
+      "properties": {
+        "legacy_entry_sets_equal": {
+          "const": true
+        },
+        "legacy_bytes_equal": {
+          "const": true
+        },
+        "event_tail_unchanged": {
+          "const": true
+        },
+        "object_set_unchanged": {
+          "const": true
+        },
+        "scope_definition_set_unchanged": {
+          "const": true
+        },
+        "dispatch_set_unchanged": {
+          "const": true
+        },
+        "result_set_unchanged": {
+          "const": true
+        },
+        "claim_set_unchanged": {
+          "const": true
+        }
+      }
+    }
+  }
+}
