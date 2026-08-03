@@ -1520,6 +1520,7 @@ def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
     service.release_lock_timeout_seconds = 1.0
     service._monotonic = lambda: 0.0
     service._lock_wait = lambda _seconds: None
+    service._restore_source_root = None
     command = SimpleNamespace(
         command_id="cmd_01978abc-7272-7000-8000-000000007272",
         envelope={"command_type": "UncoordinatedProbe"},

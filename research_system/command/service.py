@@ -1033,7 +1033,6 @@ class CommandService:
                     command_schema=command_schema,
                 )
 
-            self._recheck_moved_restore(command)
             self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
             snapshot = self.ledger.snapshot()
@@ -1473,6 +1472,7 @@ class CommandService:
                 continue
             break
         try:
+            self._recheck_moved_restore(command)
             yield lock
         finally:
             lock.__exit__(*sys.exc_info())

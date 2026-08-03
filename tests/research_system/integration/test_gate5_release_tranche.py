@@ -624,7 +624,11 @@ def test_restore_preflight_joins_generation_to_exact_observable_state(
     } == before
 
 
-@pytest.mark.parametrize("generation", [0, 1, 3], ids=("prepared-record", "output-durable", "evidence-durable"))
+@pytest.mark.parametrize(
+    "generation",
+    [0, 1, 2, 3],
+    ids=("prepared-record", "output-durable", "manifest-durable", "evidence-durable"),
+)
 def test_restore_preflight_valid_generation_resume_is_idempotent(tmp_path, monkeypatch, generation):
     from research_system.store import identity as identity_module
 
@@ -655,6 +659,66 @@ def test_restore_preflight_valid_generation_resume_is_idempotent(tmp_path, monke
         for path in sorted(case["target"].rglob("*"))
         if path.is_file()
     } == durable_tree
+
+
+def test_restore_preflight_rejects_coordinated_record_intent_rewrite_before_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+
+    def interrupt_at_initial_record(_path, _state, generation):
+        if generation == 0:
+            raise OSError("crash at generation 0")
+
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        interrupt_at_initial_record,
+    )
+    with pytest.raises(OSError, match="generation 0"):
+        _rebind_restore_case(case, approved)
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        lambda *_args: None,
+    )
+
+    transaction_path = identity_module.restore_binding_transaction_path(case["target"])
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    assert transaction["generation"] == 0
+    forged_manifest = canonical_bytes({"forged": "manifest-intent"})
+    forged_evidence = canonical_bytes({"forged": "evidence-intent"})
+    for name, forged in (
+        ("intended_manifest", forged_manifest),
+        ("intended_evidence", forged_evidence),
+    ):
+        digest = sha256_hex(forged)
+        transaction[f"{name}_bytes"] = forged.hex()
+        transaction[f"{name}_sha256"] = digest
+        transaction["temporaries"][name.removeprefix("intended_")]["sha256"] = digest
+    transaction_path.write_bytes(canonical_bytes(transaction))
+    before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+
+    with pytest.raises(
+        IntegrityError,
+        match="immutable approval: intended_manifest_bytes",
+    ):
+        _rebind_restore_case(case, approved)
+
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == before
+    assert json.loads(transaction_path.read_text(encoding="utf-8"))["generation"] == 0
 
 
 def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
@@ -724,7 +788,7 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
     assert predicate in result.failed_predicates
 
 
-def _moved_service(case):
+def _moved_service(case, *, t2_authority_resolver=None):
     from research_system.schema_registry import runtime_schema_registry
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
@@ -748,7 +812,22 @@ def _moved_service(case):
         schemas,
         authority_resolver=authority_harness.authority_resolver,
         authority_harness=authority_harness,
+        t2_authority_resolver=t2_authority_resolver,
     )
+
+
+def _moved_t2_service(case):
+    from tests.research_system.unit.test_wp6_2_t2_runtime import NOW, Records
+
+    authority_root = case["target"].parent / ".s014-t2-authority"
+    authority_root.mkdir()
+    (authority_root / "runtime").mkdir()
+    service = _moved_service(
+        case,
+        t2_authority_resolver=Records(authority_root),
+    )
+    service.clock = lambda: NOW
+    return service
 
 
 def test_real_command_service_accepts_only_current_verified_and_cleared_moved_restore(tmp_path):
@@ -756,10 +835,17 @@ def test_real_command_service_accepts_only_current_verified_and_cleared_moved_re
     supplied = _verify_restore(case)
     _rebind_restore_case(case, supplied)
     service = _moved_service(case)
+    rechecks = 0
+
+    def recheck():
+        nonlocal rechecks
+        rechecks += 1
+        return _verify_restore(case)
+
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
-        rechecker=lambda: _verify_restore(case),
+        rechecker=recheck,
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
@@ -772,7 +858,41 @@ def test_real_command_service_accepts_only_current_verified_and_cleared_moved_re
     batches_before = tuple(service.ledger.iter_batches())
     receipt = service.submit(command)
     assert receipt.status == "accepted"
+    assert rechecks == 1
     assert len(tuple(service.ledger.iter_batches())) == len(batches_before) + 1
+
+
+def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path):
+    from tests.research_system.unit.test_wp6_2_t2_runtime import issue_command
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_t2_service(case)
+    rechecks = 0
+
+    def recheck():
+        nonlocal rechecks
+        rechecks += 1
+        return _verify_restore(case)
+
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=recheck,
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+
+    before = service.ledger.snapshot()
+    command = issue_command()
+    receipt = service.submit(command)
+
+    after = service.ledger.snapshot()
+    assert receipt.status == "accepted"
+    assert rechecks == 1
+    assert after.global_position == before.global_position + 1
+    assert service.receipts.load_t2(command["command_id"]) == receipt
 
 
 def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_path, monkeypatch):
@@ -824,6 +944,76 @@ def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_p
         for path in sorted((case["target"] / "objects").rglob("*"))
         if path.is_file()
     } == objects_before
+
+
+def test_real_command_service_rejects_t2_during_generation_two_restore_without_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    from research_system.store import identity as identity_module
+    from tests.research_system.unit.test_wp6_2_t2_runtime import issue_command
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+
+    def interrupt_after_manifest(_path, state, generation):
+        if state == "prepared" and generation == 2:
+            raise OSError("crash after manifest publication")
+
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        interrupt_after_manifest,
+    )
+    with pytest.raises(OSError, match="crash after manifest publication"):
+        _rebind_restore_case(case, supplied)
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        lambda *_args: None,
+    )
+
+    transaction_path = identity_module.restore_binding_transaction_path(case["target"])
+    assert json.loads(transaction_path.read_text(encoding="utf-8"))["generation"] == 2
+    service = _moved_t2_service(case)
+    rechecks = 0
+
+    def recheck():
+        nonlocal rechecks
+        rechecks += 1
+        return _verify_restore(case)
+
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=recheck,
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    command = issue_command()
+    before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+    ledger_before = service.ledger.snapshot()
+
+    with pytest.raises(IntegrityError, match="transaction state is not cleared"):
+        service.submit(command)
+
+    ledger_after = service.ledger.snapshot()
+    assert (ledger_after.global_position, ledger_after.event_hash) == (
+        ledger_before.global_position,
+        ledger_before.event_hash,
+    )
+    assert service.receipts.load_t2(command["command_id"]) is None
+    assert rechecks == 1
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == before
+    assert json.loads(transaction_path.read_text(encoding="utf-8"))["generation"] == 2
 
 
 def test_real_command_service_rejects_preflight_bound_to_an_unapproved_witness_slot(tmp_path):
@@ -967,25 +1157,74 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
 def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     from research_system.command.service import CommandService
     from research_system.evals.executors.release_tranche import execute_s014
+    from research_system.operations import backups as backups_module
 
-    original = CommandService.submit
+    original_submit = CommandService.submit
+    original_preflight = backups_module.verify_restore_before_writer_lease
     calls = []
+    writer_states = []
+    preflights = []
+
+    def service_state(service, command_id):
+        ledger = service.ledger.snapshot()
+        return (
+            ledger.global_position,
+            ledger.event_hash,
+            service.receipts.load(command_id),
+            {
+                path.relative_to(service.control_root / "objects").as_posix(): path.read_bytes()
+                for path in sorted((service.control_root / "objects").rglob("*"))
+                if path.is_file()
+            },
+        )
 
     def counted(self, envelope):
         calls.append(envelope)
-        return original(self, envelope)
+        if envelope["command_type"] != "CreateTask":
+            return original_submit(self, envelope)
+        before = service_state(self, envelope["command_id"])
+        try:
+            return original_submit(self, envelope)
+        finally:
+            writer_states.append((before, service_state(self, envelope["command_id"])))
+
+    def observed_preflight(**kwargs):
+        result = original_preflight(**kwargs)
+        registry = kwargs["registry"]
+        preflights.append(
+            {
+                "backup_roots": tuple(registry.backup_roots),
+                "restore_roots": tuple(registry.restore_roots),
+                "status": result.status,
+                "failed_predicates": result.failed_predicates,
+            }
+        )
+        return result
 
     monkeypatch.setattr(CommandService, "submit", counted)
+    monkeypatch.setattr(
+        backups_module,
+        "verify_restore_before_writer_lease",
+        observed_preflight,
+    )
     payload = {
         "contract": "restore_preflight_registered_topology",
         "action": {"operation": "verify_restore_machine_move"},
     }
-    assert execute_s014("known_bad", payload) == {
+    with pytest.raises(ValueError, match="mutation_id"):
+        execute_s014("known_bad", payload)
+
+    assert execute_s014(
+        "known_bad",
+        {**payload, "mutation_id": "remove_registered_backup_restore_closure"},
+    ) == {
         "restore_preflight_status": "diagnostic_only",
         "failed_predicates": ["registered_topology_incomplete"],
         "writer_authority_attempted_before_verification": True,
         "registered_locations_complete": False,
     }
+    bad_preflights = tuple(preflights)
+    preflights.clear()
     assert execute_s014("known_good", payload) == {
         "restore_preflight_status": "verified",
         "failed_predicates": [],
@@ -996,6 +1235,28 @@ def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
     assert len(domain_calls) == 2
     assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in domain_calls)
     assert all(command["payload"]["new_task_id"] == command["target_stream_id"] for command in domain_calls)
+    assert len(bad_preflights) == 3
+    assert bad_preflights[0]["backup_roots"]
+    assert bad_preflights[0]["restore_roots"]
+    assert bad_preflights[0]["status"] == "verified"
+    assert bad_preflights[0]["failed_predicates"] == ()
+    assert all(
+        item["backup_roots"] == ()
+        and item["restore_roots"] == ()
+        and item["status"] == "diagnostic_only"
+        and item["failed_predicates"] == ("registered_topology_incomplete",)
+        for item in bad_preflights[1:]
+    )
+    assert len(preflights) == 3
+    assert all(
+        item["backup_roots"]
+        and item["restore_roots"]
+        and item["status"] == "verified"
+        and item["failed_predicates"] == ()
+        for item in preflights
+    )
+    assert writer_states[0][0] == writer_states[0][1]
+    assert writer_states[1][0] != writer_states[1][1]
 
 
 def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):

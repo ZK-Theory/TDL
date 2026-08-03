@@ -386,16 +386,26 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     import tempfile
     from dataclasses import asdict, replace
 
-    from research_system.errors import ArsError
+    from research_system.evals.retention import EvidenceStoreRegistry
     from research_system.operations.backups import (
-        RestorePreflightResult,
-        seal_restore_preflight_result,
+        ArtefactBinding,
+        BackupReceipt,
+        seal_backup_receipt,
+        verify_restore_before_writer_lease,
     )
+    from research_system.projection.replay import replay
     from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
     from research_system.store.ledger import EventLedger
 
     if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
         raise ValueError("release-tranche stimulus contract and action required")
+    if subject not in {"known_bad", "known_good"}:
+        raise ValueError("release-tranche subject must be known_bad or known_good")
+    mutation_id = payload.get("mutation_id")
+    if subject == "known_bad" and mutation_id != "remove_registered_backup_restore_closure":
+        raise ValueError("S-014 known_bad requires its declared mutation_id")
+    if subject == "known_good" and mutation_id is not None:
+        raise ValueError("S-014 known_good must not declare a mutation_id")
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
     actor_id = "act_01978abc-1002-7000-8000-000000001002"
     with tempfile.TemporaryDirectory() as directory:
@@ -428,11 +438,115 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             command_types=("CreateTask",),
         )
         source_ledger = EventLedger(source_root, project_id, schemas).snapshot()
+        replay_state = replay(source_ledger.events, schema_registry=schemas)
         source_snapshot = {
             "snapshot_id": "snapshot-synthetic-r1",
             "source_position": source_ledger.global_position,
             "source_hash": source_ledger.event_hash,
+            "state_hash": sha256_hex(canonical_bytes(replay_state)),
+            "replay_start_position": 1,
+            "replay_end_position": source_ledger.global_position,
+            "schema_versions": ["core-v1"],
+            "tool_versions": ["restore-tool-v1"],
         }
+        snapshot_path = root / "snapshots" / "accepted.json"
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_path.write_bytes(canonical_bytes(source_snapshot))
+        endpoint = {
+            "target_root": str(root.resolve(strict=False)),
+            "endpoint_scheme": "local-cli",
+            "owner_actor_id": actor_id,
+            "authority_grant_id": grant_ids[task_id],
+            "observed_at": "2026-07-11T00:00:00Z",
+        }
+        endpoint_path = root / "manifests" / "endpoint-ownership.json"
+        endpoint_path.write_bytes(canonical_bytes(endpoint))
+        artefact_path = root / "external" / "artifact.bin"
+        artefact_path.parent.mkdir(parents=True, exist_ok=True)
+        artefact_path.write_bytes(b"synthetic external artefact\n")
+        artefact_hash = sha256_hex(artefact_path.read_bytes())
+        observation = {
+            "artefact_id": "artifact-synthetic-1",
+            "artefact_hash": artefact_hash,
+            "availability_status": "available",
+            "observed_at": "2026-07-11T00:00:00Z",
+            "authority_grant_id": grant_ids[task_id],
+        }
+        artefact_manifest = {
+            "artefacts": [
+                {
+                    **observation,
+                    "relative_path": "external/artifact.bin",
+                }
+            ]
+        }
+        artefact_manifest_path = root / "manifests" / "external-artifacts.json"
+        artefact_manifest_path.write_bytes(canonical_bytes(artefact_manifest))
+        complete_registry = EvidenceStoreRegistry(
+            store_id="evidence-store",
+            registry_hash="1" * 64,
+            policy_revision="p0-retention-v1",
+            primary_root=root / "evidence-primary",
+            runtime_root=root / "evidence-runtime",
+            staging_root=root / "evidence-staging",
+            temp_root=root / "evidence-temp",
+            replicas=(),
+            backup_roots=(source_root,),
+            restore_roots=(root,),
+            permitted_consumers=("eval",),
+            retention_policy_ids=("R2:minimized_sensitive_excerpt",),
+            verifier_authority_bindings=((actor_id, grant_ids[task_id]),),
+            unregistered_replicas_prohibited=True,
+        )
+        receipt = seal_backup_receipt(
+            BackupReceipt(
+                receipt_id="backup-receipt-synthetic-r1",
+                receipt_revision=1,
+                receipt_hash="",
+                project_id=project_id,
+                store_identity=str(store),
+                canonical_tail_position=source_ledger.global_position,
+                canonical_tail_hash=source_ledger.event_hash,
+                snapshot_id=source_snapshot["snapshot_id"],
+                snapshot_hash=sha256_hex(snapshot_path.read_bytes()),
+                snapshot_source_position=source_ledger.global_position,
+                snapshot_source_hash=source_ledger.event_hash,
+                snapshot_state_hash=source_snapshot["state_hash"],
+                replay_start_position=1,
+                replay_end_position=source_ledger.global_position,
+                schema_versions=("core-v1",),
+                tool_versions=("restore-tool-v1",),
+                encryption_class="synthetic-none",
+                redaction_class="synthetic",
+                external_artefact_manifest_hash=sha256_hex(artefact_manifest_path.read_bytes()),
+                artefact_bindings=(ArtefactBinding("artifact-synthetic-1", artefact_hash),),
+                availability_status="available",
+                availability_observation_hash=sha256_hex(canonical_bytes([observation])),
+                created_at="2026-07-11T00:00:00Z",
+                created_by_actor_id=actor_id,
+                verified_at="2026-07-11T00:00:00Z",
+                verified_by_actor_id=actor_id,
+                verification_authority_grant_id=grant_ids[task_id],
+                destination_class="synthetic-machine-move",
+                source_endpoint_scheme="local-cli",
+                evidence_registry_hash=complete_registry.registry_hash,
+            )
+        )
+
+        def run_preflight(registry: EvidenceStoreRegistry):
+            return verify_restore_before_writer_lease(
+                target_root=root,
+                receipt=receipt,
+                snapshot_path=snapshot_path,
+                endpoint_ownership_path=endpoint_path,
+                artefact_manifest_path=artefact_manifest_path,
+                registry=registry,
+                actor_id=actor_id,
+                authority_grant_id=grant_ids[task_id],
+                approved_witness=store.witness,
+                approved_witness_path=store.witness_path,
+            )
+
         code_roots = [repository_root]
         expected_output = canonical_restore_binding_output(
             root,
@@ -441,39 +555,9 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             code_roots,
             schema_root,
         )
-        target_manifest_path = root / "manifests" / "store-identity.json"
-        verified_preflight = seal_restore_preflight_result(
-            RestorePreflightResult(
-                status="verified",
-                failed_predicates=(),
-                receipt_hash="a" * 64,
-                ledger_hash=source_ledger.event_hash,
-                snapshot_hash=sha256_hex(canonical_bytes(source_snapshot)),
-                target_endpoint_ownership_hash="d" * 64,
-                artefact_manifest_hash="e" * 64,
-                availability_observations_hash="f" * 64,
-                registry_hash="1" * 64,
-                target_root=str(root.resolve(strict=False)),
-                source_root=str(source_root.resolve(strict=False)),
-                project_id=project_id,
-                store_identity=str(store),
-                tail_position=source_ledger.global_position,
-                tail_hash=source_ledger.event_hash,
-                snapshot_id=source_snapshot["snapshot_id"],
-                actor_id=actor_id,
-                authority_grant_id=grant_ids[task_id],
-                result_hash="",
-                code_roots=[str(repository_root)],
-                schema_root=str(schema_root),
-                source_snapshot_hash=sha256_hex(canonical_bytes(source_snapshot)),
-                target_manifest_bytes_sha256=sha256_hex(target_manifest_path.read_bytes()),
-                expected_output_sha256=sha256_hex(expected_output),
-                origin_witness_path=str(store.witness_path.resolve(strict=True)),
-                origin_witness_sha256=store.witness.raw_sha256,
-                origin_initial_control_root=store.witness.initial_control_root,
-                origin_initial_physical_root_identity=dict(store.witness.initial_physical_root_identity),
-            )
-        )
+        verified_preflight = run_preflight(complete_registry)
+        if verified_preflight.status != "verified":
+            raise AssertionError(f"S-014 complete physical preflight failed: {verified_preflight.failed_predicates}")
         rebind_restored_store(
             root,
             source_root,
@@ -492,23 +576,16 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             approved_witness=store.witness,
             approved_witness_path=store.witness_path,
         )
-        failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
-        preflight = (
-            seal_restore_preflight_result(
-                replace(
-                    verified_preflight,
-                    status="diagnostic_only",
-                    failed_predicates=failed,
-                    result_hash="",
-                )
-            )
-            if failed
-            else verified_preflight
+        observed_registry = (
+            replace(complete_registry, backup_roots=(), restore_roots=())
+            if subject == "known_bad"
+            else complete_registry
         )
+        preflight = run_preflight(observed_registry)
         service.configure_moved_restore(
             source_root=source_root,
             preflight_result=preflight,
-            rechecker=lambda: preflight,
+            rechecker=lambda: run_preflight(observed_registry),
             approved_witness=store.witness,
             approved_witness_path=store.witness_path,
         )
@@ -536,17 +613,43 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             ),
             "project_id": project_id,
         }
+        before_snapshot = service.ledger.snapshot()
+        before_files = {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for parent in (root / "objects", root / "receipts")
+            for path in sorted(parent.rglob("*"))
+            if path.is_file()
+        }
         attempted = True
         try:
             receipt = service.submit(command)
             accepted = receipt.status == "accepted"
         except ArsError:
             accepted = False
+        after_snapshot = service.ledger.snapshot()
+        after_files = {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for parent in (root / "objects", root / "receipts")
+            for path in sorted(parent.rglob("*"))
+            if path.is_file()
+        }
+        if subject == "known_bad" and (
+            accepted
+            or (after_snapshot.global_position, after_snapshot.event_hash)
+            != (before_snapshot.global_position, before_snapshot.event_hash)
+            or after_files != before_files
+        ):
+            raise AssertionError("S-014 incomplete physical topology did not fail before writer mutation")
+        checked_locations = set(observed_registry.checked_locations())
+        registered_locations_complete = (
+            root.resolve(strict=False) in checked_locations
+            and Path(preflight.source_root).resolve(strict=False) in checked_locations
+        )
         observed = {
             "restore_preflight_status": preflight.status,
             "failed_predicates": list(preflight.failed_predicates),
             "writer_authority_attempted_before_verification": attempted and not accepted,
-            "registered_locations_complete": not preflight.failed_predicates,
+            "registered_locations_complete": registered_locations_complete,
         }
         return observed
 

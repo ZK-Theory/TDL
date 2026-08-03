@@ -2429,13 +2429,16 @@ def _validate_record_inputs(
     _require_root_identity(target, record["target_root_identity"])
 
 
-def _validate_restore_join(
+def _validate_restore_transaction_approval(
     target: Path,
     record: dict[str, Any],
     *,
+    approval: dict[str, Any] | None = None,
     approved_witness_path: Path | None = None,
-) -> dict[str, Any]:
-    approval, _ = _read_restore_approval(target, str(record["approval_sha256"]))
+) -> tuple[dict[str, Any], str, bytes, bytes, bytes]:
+    """Bind mutable transaction intent to the immutable approval object."""
+    if approval is None:
+        approval, _ = _read_restore_approval(target, str(record["approval_sha256"]))
     preflight = approval["restore_preflight"]
     if approved_witness_path is not None:
         expected_witness_path = str(approved_witness_path)
@@ -2531,14 +2534,34 @@ def _validate_restore_join(
         != approval["original_manifest_sha256"]
     ):
         raise IntegrityError("restore binding original manifest differs from immutable approval")
-    manifest_path = _manifest_path(target)
-    evidence_path = _restore_binding_evidence_path(target)
-    output_path = _record_path(target, str(record["output_object_path"]))
     intended_manifest = _from_hex(record["intended_manifest_bytes"], "intended_manifest_bytes")
     intended_evidence = _from_hex(record["intended_evidence_bytes"], "intended_evidence_bytes")
     output_bytes = _from_hex(record["output_object_bytes"], "output_object_bytes")
     if intended_manifest is None or intended_evidence is None or output_bytes is None:
         raise IntegrityError("restore binding transaction intended tuple is incomplete")
+    return preflight, approval_relative, intended_manifest, intended_evidence, output_bytes
+
+
+def _validate_restore_join(
+    target: Path,
+    record: dict[str, Any],
+    *,
+    approved_witness_path: Path | None = None,
+) -> dict[str, Any]:
+    (
+        preflight,
+        approval_relative,
+        intended_manifest,
+        intended_evidence,
+        output_bytes,
+    ) = _validate_restore_transaction_approval(
+        target,
+        record,
+        approved_witness_path=approved_witness_path,
+    )
+    manifest_path = _manifest_path(target)
+    evidence_path = _restore_binding_evidence_path(target)
+    output_path = _record_path(target, str(record["output_object_path"]))
     if _file_bytes(manifest_path) != intended_manifest:
         raise IntegrityError("restore binding manifest does not match the transaction")
     if _file_bytes(evidence_path) != intended_evidence:
@@ -2838,6 +2861,11 @@ def rebind_restored_store(
         published_approval_sha256, published_approval_relative = _publish_restore_approval(target, approval)
         if published_approval_sha256 != approval_sha256 or published_approval_relative != approval_relative:
             raise IntegrityError("restore approval publication identity changed")
+        _validate_restore_transaction_approval(
+            target,
+            record,
+            approved_witness_path=resolved_witness_path,
+        )
         if source_snapshot_validator is not None:
             source_snapshot_validator()
         record, record_raw = _write_initial_transaction(target, record)
@@ -2870,6 +2898,12 @@ def rebind_restored_store(
         )
         if record["source_snapshot"] != source_snapshot:
             raise ConflictError("restore source snapshot changed")
+        _validate_restore_transaction_approval(
+            target,
+            record,
+            approval=approval,
+            approved_witness_path=resolved_witness_path,
+        )
         _validate_restore_generation_observables(target, record)
         if expected_target_manifest_bytes_sha256 is not None and expected_target_manifest_bytes_sha256 not in {
             record["original_manifest_sha256"],
