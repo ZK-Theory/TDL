@@ -138,6 +138,50 @@ _RUNTIME_BINDINGS = (
         event_type="TaskSuperseded",
     ),
     SchemaBinding(
+        "ars://core/command/PublishMessage",
+        "1.0.0",
+        command_type="PublishMessage",
+    ),
+    SchemaBinding(
+        "ars://core/event/MessagePublished",
+        "1.0.0",
+        event_type="MessagePublished",
+        producer_command_type="PublishMessage",
+    ),
+    SchemaBinding(
+        "ars://core/command/RecordMessageDelivery",
+        "1.0.0",
+        command_type="RecordMessageDelivery",
+    ),
+    SchemaBinding(
+        "ars://core/event/MessageDelivered",
+        "1.0.0",
+        event_type="MessageDelivered",
+        producer_command_type="RecordMessageDelivery",
+    ),
+    SchemaBinding(
+        "ars://core/command/AcknowledgeMessage",
+        "1.0.0",
+        command_type="AcknowledgeMessage",
+    ),
+    SchemaBinding(
+        "ars://core/event/MessageAcknowledged",
+        "1.0.0",
+        event_type="MessageAcknowledged",
+        producer_command_type="AcknowledgeMessage",
+    ),
+    SchemaBinding(
+        "ars://core/command/RecordMessageDeliveryFailure",
+        "1.0.0",
+        command_type="RecordMessageDeliveryFailure",
+    ),
+    SchemaBinding(
+        "ars://core/event/MessageDeliveryFailed",
+        "1.0.0",
+        event_type="MessageDeliveryFailed",
+        producer_command_type="RecordMessageDeliveryFailure",
+    ),
+    SchemaBinding(
         "ars://core/event/ReleaseGateDecisionPublished",
         "1.1.0",
         event_type="ReleaseGateDecisionPublished",

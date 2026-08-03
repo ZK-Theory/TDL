@@ -168,6 +168,10 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "CreateTask": "task",
     "AmendTask": "task",
     "SupersedeTask": "task",
+    "PublishMessage": "message",
+    "RecordMessageDelivery": "message",
+    "AcknowledgeMessage": "message",
+    "RecordMessageDeliveryFailure": "message",
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",

@@ -37,6 +37,33 @@ EXACT_LIFECYCLE_BINDINGS = {
         "SupersedeTask",
         "ars://core/command/SupersedeTask",
     ),
+    "ars://core/event/MessagePublished": (
+        "MessagePublished",
+        "PublishMessage",
+        "ars://core/command/PublishMessage",
+    ),
+    "ars://core/event/MessageDelivered": (
+        "MessageDelivered",
+        "RecordMessageDelivery",
+        "ars://core/command/RecordMessageDelivery",
+    ),
+    "ars://core/event/MessageAcknowledged": (
+        "MessageAcknowledged",
+        "AcknowledgeMessage",
+        "ars://core/command/AcknowledgeMessage",
+    ),
+    "ars://core/event/MessageDeliveryFailed": (
+        "MessageDeliveryFailed",
+        "RecordMessageDeliveryFailure",
+        "ars://core/command/RecordMessageDeliveryFailure",
+    ),
+}
+
+_MESSAGE_EVENT_SCHEMA_IDS = {
+    "MessagePublished": "ars://core/event/MessagePublished",
+    "MessageDelivered": "ars://core/event/MessageDelivered",
+    "MessageAcknowledged": "ars://core/event/MessageAcknowledged",
+    "MessageDeliveryFailed": "ars://core/event/MessageDeliveryFailed",
 }
 
 
@@ -58,7 +85,12 @@ def validate_exact_lifecycle_envelope(
         ValueError: If an exact event's type, schema identity, command
             provenance, or canonical payload hash is inconsistent.
     """
-    binding = EXACT_LIFECYCLE_BINDINGS.get(str(event.get("schema_id", "")))
+    event_type = str(event.get("event_type", ""))
+    schema_id = str(event.get("schema_id", ""))
+    expected_message_schema_id = _MESSAGE_EVENT_SCHEMA_IDS.get(event_type)
+    if expected_message_schema_id is not None and schema_id != expected_message_schema_id:
+        raise ValueError("Message event requires its exact active schema identity")
+    binding = EXACT_LIFECYCLE_BINDINGS.get(schema_id)
     if binding is None:
         return None
     event_type, command_type, command_schema_id = binding
