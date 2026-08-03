@@ -80,7 +80,7 @@ def test_restore_preflight_status_is_biconditional_with_failed_predicates():
 
 
 def test_restore_registry_state_hash_normalizes_set_values_deterministically():
-    from research_system.operations.backups import _registry_state_sha256
+    from research_system.operations.backups import _jsonable, _registry_state_sha256
 
     class SetValuedRegistry:
         __dataclass_fields__ = {"members": object(), "nested": object()}
@@ -94,10 +94,14 @@ def test_restore_registry_state_hash_normalizes_set_values_deterministically():
         {"scopes": frozenset({"gate", "restore"})},
     )
     second = SetValuedRegistry(
-        {"producer", "reviewer"},
-        {"scopes": frozenset({"restore", "gate"})},
+        frozenset({"producer", "reviewer"}),
+        {"scopes": {"restore", "gate"}},
     )
 
+    assert canonical_bytes(_jsonable(first.members)) == b'["producer","reviewer"]'
+    assert canonical_bytes(_jsonable(first.nested)) == b'{"scopes":["gate","restore"]}'
+    assert _jsonable(first.members) == _jsonable(second.members)
+    assert _jsonable(first.nested) == _jsonable(second.nested)
     assert _registry_state_sha256(first) == _registry_state_sha256(second)
 
 
@@ -131,6 +135,8 @@ def test_restore_admission_preparation_has_explicit_required_keyword_signature()
     )
     assert parameters["target_root"].kind is inspect.Parameter.KEYWORD_ONLY
     assert parameters["target_root"].default is inspect.Parameter.empty
+    assert parameters["approved_witness"].default is None
+    assert parameters["approved_witness_path"].default is None
     assert all(parameter.kind is not inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
 
 
