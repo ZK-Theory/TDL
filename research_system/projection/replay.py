@@ -6,7 +6,13 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from research_system.authority import SCOPED_AUTHORITY_ADMISSION_VERSION
+from research_system.authority import (
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+    SCOPED_AUTHORITY_ADMISSION_VERSION,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_message,
@@ -32,8 +38,35 @@ _ALLOWED_DISPOSITIONS = frozenset(
     }
 )
 
-_SCOPED_AUTHORITY_GRANT_SCHEMA = "ars://core/scoped-authority-grant"
-_SCOPED_AUTHORITY_GRANT_VERSION = "2.0.0"
+
+def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str, str]:
+    if command_type == "ActivateExternalAssuranceRecordGrant":
+        return (
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+            "ars://core/event/ExternalAssuranceRecordGrantActivated",
+        )
+    return (
+        SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+        SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        "ars://core/event/ScopedAuthorityGrantActivated",
+    )
+
+
+def _issued_revocation_schema_for_command(command_type: str) -> tuple[str, str, str]:
+    if command_type == "RevokeExternalAssuranceRecordGrant":
+        return (
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+            EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+            "ars://core/event/ExternalAssuranceRecordGrantRevoked",
+        )
+    if command_type == "RevokeIssuedAuthorityGrant":
+        return (
+            SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+            SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+            "ars://core/event/IssuedAuthorityGrantRevoked",
+        )
+    raise ValueError(f"unsupported issued authority revocation command: {command_type}")
 
 
 def _reject_legacy_revocation_of_typed_grant(
@@ -42,8 +75,8 @@ def _reject_legacy_revocation_of_typed_grant(
     if "schema_id" not in current and "schema_version" not in current:
         return
     if (
-        current.get("schema_id") == _SCOPED_AUTHORITY_GRANT_SCHEMA
-        and current.get("schema_version") == _SCOPED_AUTHORITY_GRANT_VERSION
+        current.get("schema_id") == SCOPED_AUTHORITY_GRANT_SCHEMA_ID
+        and current.get("schema_version") == SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
     ):
         raise IntegrityError("legacy authority revocation cannot target scoped grant")
     raise IntegrityError("legacy authority revocation cannot target typed grant with unknown schema marker")
@@ -275,7 +308,13 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 "revocation_event_id": None,
                 "revocation_position": None,
             }
-        elif event.get("command_type") == "ActivateAuthorityGrant":
+        elif event.get("command_type") in {
+            "ActivateAuthorityGrant",
+            "ActivateExternalAssuranceRecordGrant",
+        }:
+            grant_schema_id, grant_schema_version, event_schema_id = _scoped_grant_schema_for_command(
+                str(event.get("command_type"))
+            )
             expected_fields = {
                 "authority_admission_version",
                 "project_id",
@@ -299,7 +338,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             decisions = updated.setdefault("authority_administration_decisions", {})
             decision_id = payload.get("administration_decision_id")
             if (
-                event.get("schema_id") != "ars://core/event/ScopedAuthorityGrantActivated"
+                event.get("schema_id") != event_schema_id
                 or event.get("transaction_index") != 1
                 or event.get("transaction_count") != 1
                 or event.get("authority_grant_id") != root_id
@@ -312,8 +351,8 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 or root_record.get("status") != "active"
                 or payload.get("activated_grant_id") != stream_id
                 or stream_id in grants
-                or payload.get("activated_grant_schema_id") != "ars://core/scoped-authority-grant"
-                or payload.get("activated_grant_schema_version") != "2.0.0"
+                or payload.get("activated_grant_schema_id") != grant_schema_id
+                or payload.get("activated_grant_schema_version") != grant_schema_version
                 or not isinstance(decision_id, str)
                 or decision_id in decisions
             ):
@@ -376,7 +415,13 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 root_id, {}
             ).get("authority_grant_sha256"):
                 raise IntegrityError("authority revocation root mismatch")
-        elif event.get("command_type") == "RevokeIssuedAuthorityGrant":
+        elif event.get("command_type") in {
+            "RevokeIssuedAuthorityGrant",
+            "RevokeExternalAssuranceRecordGrant",
+        }:
+            grant_schema_id, grant_schema_version, event_schema_id = _issued_revocation_schema_for_command(
+                event["command_type"]
+            )
             expected_fields = {
                 "authority_admission_version",
                 "project_id",
@@ -396,7 +441,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             decision_id = payload.get("administration_decision_id")
             if (
                 set(payload) != expected_fields
-                or event.get("schema_id") != "ars://core/event/IssuedAuthorityGrantRevoked"
+                or event.get("schema_id") != event_schema_id
                 or event.get("transaction_index") != 1
                 or event.get("transaction_count") != 1
                 or event.get("authority_grant_id") != root_id
@@ -408,7 +453,8 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 or payload.get("root_grant_sha256") != grants.get(root_id, {}).get("authority_grant_sha256")
                 or current is None
                 or current.get("status") != "active"
-                or current.get("schema_id") != "ars://core/scoped-authority-grant"
+                or current.get("schema_id") != grant_schema_id
+                or current.get("schema_version") != grant_schema_version
                 or payload.get("target_grant_id") != stream_id
                 or payload.get("target_grant_sha256") != current.get("authority_grant_sha256")
                 or payload.get("target_grant_schema_id") != current.get("schema_id")
@@ -438,7 +484,11 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                     "revocation_administration_decision_id": decision_id,
                     "revocation_administration_decision_sha256": payload["administration_decision_sha256"],
                 }
-                if event.get("command_type") == "RevokeIssuedAuthorityGrant"
+                if event.get("command_type")
+                in {
+                    "RevokeIssuedAuthorityGrant",
+                    "RevokeExternalAssuranceRecordGrant",
+                }
                 else {}
             ),
         }

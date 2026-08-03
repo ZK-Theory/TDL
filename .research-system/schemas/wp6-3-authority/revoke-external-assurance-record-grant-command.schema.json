@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/RevokeExternalAssuranceRecordGrant",
+  "type": "object",
+  "required": ["command_id", "command_type", "schema_id", "schema_version", "submitted_at", "actor_id", "on_behalf_of_actor_id", "authority_grant_id", "target_stream_id", "expected_stream_version", "idempotency_key", "correlation_id", "causation_id", "reason", "evidence_refs", "payload", "project_id"],
+  "properties": {
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "command_type": {"const": "RevokeExternalAssuranceRecordGrant"},
+    "schema_id": {"const": "ars://core/command/RevokeExternalAssuranceRecordGrant"},
+    "schema_version": {"const": "1.0.0"},
+    "submitted_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "on_behalf_of_actor_id": {"const": null},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_stream_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "expected_stream_version": {"const": 1},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "reason": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "payload": {
+      "type": "object",
+      "required": ["project_id", "bootstrap_manifest_sha256", "root_grant_id", "root_grant_sha256", "administration_decision_id", "administration_decision_sha256", "target_grant_id", "target_grant_sha256", "target_grant_schema_sha256", "reason"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^prj_"},
+        "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "root_grant_id": {"type": "string", "pattern": "^agr_"},
+        "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "administration_decision_id": {"type": "string", "pattern": "^arec_"},
+        "administration_decision_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "target_grant_id": {"type": "string", "pattern": "^agr_"},
+        "target_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "target_grant_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

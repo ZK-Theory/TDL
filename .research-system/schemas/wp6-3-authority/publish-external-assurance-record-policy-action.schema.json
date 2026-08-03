@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/policy-action/PublishExternalAssuranceRecord",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_action_type",
+    "project_id",
+    "actor_id",
+    "actor_class",
+    "authority_grant_id",
+    "subject_scope",
+    "record_class",
+    "record_id",
+    "record_action",
+    "revision",
+    "expected_previous_revision",
+    "store_identity",
+    "authority_root",
+    "task_id",
+    "session_id",
+    "relationship_record_id",
+    "required_risk",
+    "canonical_sha256",
+    "occurred_at"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/policy-action/PublishExternalAssuranceRecord"},
+    "schema_version": {"const": "1.0.0"},
+    "policy_action_type": {"const": "publish_external_assurance_record"},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_class": {"enum": ["human", "agent", "service"]},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"const": "external_assurance_record"},
+        "id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+      },
+      "additionalProperties": false
+    },
+    "record_class": {
+      "enum": [
+        "canonical_actor",
+        "producer_relationship_evidence",
+        "contract_schema_authorship",
+        "independent_contract_review",
+        "independent_schema_review",
+        "stephen_contract_schema_acceptance",
+        "accepted_assurance_requirement",
+        "obligation_applicability_confirmation",
+        "independent_pack_review",
+        "stephen_owner_acceptance",
+        "active_authority_grant",
+        "registered_pack_object"
+      ]
+    },
+    "record_id": {"type": "string", "pattern": "^(?:act|rel|cau|crv|srv|csa|ard|apc|arv|apr|agr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "record_action": {"enum": ["create", "revise"]},
+    "revision": {"type": "integer", "minimum": 1},
+    "expected_previous_revision": {"type": "integer", "minimum": 0},
+    "store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authority_root": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "task_id": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "session_id": {"type": "string", "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "relationship_record_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+      ]
+    },
+    "required_risk": {"enum": ["R0", "R1", "R2", "R3"]},
+    "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  },
+  "additionalProperties": false
+}

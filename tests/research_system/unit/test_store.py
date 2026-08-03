@@ -7,12 +7,21 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.service import CommandService
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
-from research_system.store.lock import CompositeWriterLock, WriterLock
+from research_system.store import lock as lock_module
+from research_system.store import durability as durability_module
+from research_system.store.lock import (
+    CompositeWriterLock,
+    WriterLock,
+    inspect_lock,
+    process_instance_id,
+    remove_stale_lock,
+)
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
 
@@ -107,6 +116,82 @@ def test_composite_writer_lock_exposes_only_a_live_lease(tmp_path):
     assert candidate.paths == ()
     with pytest.raises(ConflictError, match="lease is not live"):
         candidate.locked_root(root)
+
+
+def test_second_composite_writer_lock_reports_existing_writer(tmp_path):
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    first = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-first-writer"},
+    )
+    second = CompositeWriterLock(
+        (root,),
+        {"command_id": "cmd_composite-second-writer"},
+    )
+
+    with first:
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            with second:
+                raise AssertionError("second composite writer entered lock")
+
+
+def test_composite_writer_lock_maps_verified_windows_sharing_denial_to_writer_contention(tmp_path, monkeypatch):
+    if os.name != "nt":
+        pytest.skip("Windows sharing-denial classification control")
+    root = tmp_path / "control"
+    runtime = root / "runtime"
+    runtime.mkdir(parents=True)
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_composite-sharing-denial"})
+
+    class SharingViolation(OSError):
+        winerror = 32
+
+    def deny_delete_share(*_args, **_kwargs):
+        raise ConflictError("root delete protection denied") from SharingViolation("sharing violation")
+
+    monkeypatch.setattr(lock_module, "_open_directory_anchor", deny_delete_share)
+    acquired = lock_module._AcquiredMember(candidate._members[0])
+
+    with WriterLock(runtime / "writer.lock", {"command_id": "cmd_live-contender"}):
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            candidate._prepare_member(acquired)
+
+
+@pytest.mark.parametrize("message", ["missing root", "reparse root", "identity changed"])
+def test_composite_writer_lock_preserves_nonsharing_anchor_conflict_with_lock_residue(tmp_path, monkeypatch, message):
+    root = tmp_path / "control"
+    runtime = root / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "writer.lock").write_text("residue", encoding="utf-8")
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_composite-anchor-conflict"})
+
+    def reject_anchor(*_args, **_kwargs):
+        raise ConflictError(message)
+
+    monkeypatch.setattr(lock_module, "_open_directory_anchor", reject_anchor)
+    acquired = lock_module._AcquiredMember(candidate._members[0])
+
+    with pytest.raises(ConflictError, match=message):
+        candidate._prepare_member(acquired)
+
+
+def test_fsync_directory_reraises_unexpected_open_error(tmp_path, monkeypatch):
+    def fail_open(*_args, **_kwargs):
+        raise OSError(5, "unexpected I/O failure")
+
+    monkeypatch.setattr(durability_module.os, "open", fail_open)
+
+    with pytest.raises(OSError, match="unexpected I/O failure"):
+        durability_module.fsync_directory(tmp_path)
+
+
+def test_fsync_directory_tolerates_documented_open_denial(tmp_path, monkeypatch):
+    def deny_open(*_args, **_kwargs):
+        raise OSError(13, "permission denied")
+
+    monkeypatch.setattr(durability_module.os, "open", deny_open)
+    durability_module.fsync_directory(tmp_path)
 
 
 def test_locked_root_capability_is_private_shared_and_retry_scoped(tmp_path):
@@ -518,13 +603,275 @@ def test_posix_unprotected_refresh_preserves_deleted_path_compatibility(monkeypa
 def test_writer_lock_removes_new_file_when_identity_write_fails(tmp_path, monkeypatch):
     path = tmp_path / "writer.lock"
 
-    def fail_dump(*args, **kwargs):
-        raise OSError("disk full")
+    def fail_link(*args, **kwargs):
+        raise OSError("link failed")
 
-    monkeypatch.setattr(json, "dump", fail_dump)
-    with pytest.raises(OSError, match="disk full"):
+    monkeypatch.setattr(os, "link", fail_link)
+    with pytest.raises(OSError, match="link failed"):
         with WriterLock(path, {"writer_id": "w1"}):
             raise AssertionError("lock should not be entered")
+    assert not path.exists()
+    assert not list(path.parent.glob(".writer.lock.*.tmp"))
+
+
+def test_writer_lock_publishes_complete_process_instance_metadata(tmp_path):
+    path = tmp_path / "writer.lock"
+    with WriterLock(path, {"writer_id": "w1"}):
+        raw = path.read_bytes()
+        record = json.loads(raw)
+        assert record["process_id"] == str(os.getpid())
+        assert isinstance(record["process_instance_id"], str)
+        assert canonical_bytes(record) == raw
+        assert inspect_lock(path)[0] == "live"
+    assert not path.exists()
+
+
+def test_malformed_lock_is_bounded_and_never_reclaimed_without_identity(tmp_path):
+    path = tmp_path / "writer.lock"
+    path.write_bytes(b'{"process_id":"1"')
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "malformed"
+    assert observed is not None
+    assert not remove_stale_lock(path, observed)
+    assert path.exists()
+
+
+def test_recycled_pid_is_stale_only_when_process_instance_differs(tmp_path):
+    path = tmp_path / "writer.lock"
+    current = process_instance_id(os.getpid())
+    assert current is not None
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(os.getpid()),
+                "process_instance_id": "different-process-instance",
+            }
+        )
+    )
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
+def test_genuine_live_process_instance_is_not_reclaimed(tmp_path):
+    path = tmp_path / "writer.lock"
+    current = process_instance_id(os.getpid())
+    assert current is not None
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(os.getpid()),
+                "process_instance_id": current,
+                "operation": "other-owner",
+            }
+        )
+    )
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "live"
+    assert observed is not None
+    assert not remove_stale_lock(path, observed)
+    assert path.exists()
+
+
+def test_stale_dead_owner_is_reclaimed_after_process_revalidation(tmp_path, monkeypatch):
+    path = tmp_path / "writer.lock"
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": "919191",
+                "process_instance_id": "dead-process-instance",
+            }
+        )
+    )
+
+    def no_process(_pid):
+        return None
+
+    def dead_process(_pid, _signal):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(lock_module, "process_instance_id", no_process)
+    monkeypatch.setattr(lock_module.os, "kill", dead_process)
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
+def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
+    path = tmp_path / "writer.lock"
+    stale_pid = 919191
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "process_id": str(stale_pid),
+                "process_instance_id": "dead-process-instance",
+            }
+        )
+    )
+    real_instance_id = lock_module.process_instance_id
+    real_kill = lock_module.os.kill
+
+    def instance_id(pid):
+        return None if pid == stale_pid else real_instance_id(pid)
+
+    def kill(pid, signal):
+        if pid == stale_pid:
+            raise ProcessLookupError
+        return real_kill(pid, signal)
+
+    monkeypatch.setattr(lock_module, "process_instance_id", instance_id)
+    monkeypatch.setattr(lock_module.os, "kill", kill)
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+
+    ready = threading.Event()
+    release = threading.Event()
+    gate_used = False
+    gate_guard = threading.Lock()
+    real_inspect = lock_module.inspect_lock
+    real_replace = lock_module.os.replace
+
+    def pause_once() -> None:
+        nonlocal gate_used
+        with gate_guard:
+            if gate_used:
+                return
+            gate_used = True
+        ready.set()
+        assert release.wait(2)
+
+    def inspect(candidate):
+        result = real_inspect(candidate)
+        if Path(candidate) == path:
+            pause_once()
+        return result
+
+    def replace(source, target):
+        result = real_replace(source, target)
+        if Path(source) == path and Path(target).parent == path.parent:
+            pause_once()
+        return result
+
+    monkeypatch.setattr(lock_module, "inspect_lock", inspect)
+    monkeypatch.setattr(lock_module.os, "replace", replace)
+    results = []
+    errors = []
+
+    def reclaim():
+        try:
+            results.append(remove_stale_lock(path, observed))
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(target=reclaim)
+    first.start()
+    assert ready.wait(2)
+
+    assert remove_stale_lock(path, observed)
+    fresh = WriterLock(path, {"writer_id": "fresh-winner"})
+    fresh.__enter__()
+    try:
+        assert path.exists()
+        release.set()
+        first.join(timeout=2)
+        assert not first.is_alive()
+        assert errors == []
+        assert results == [True]
+    finally:
+        fresh.__exit__(None, None, None)
+    assert not path.exists()
+
+
+def _recovery_service(root):
+    service = object.__new__(CommandService)
+    service.control_root = root
+    service.recovery_lock_timeout_seconds = 0.05
+    now = [0.0]
+    service._monotonic = lambda: now[0]
+    service._lock_wait = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    return service, now
+
+
+def test_recovery_lock_revalidation_is_bounded_for_malformed_metadata(tmp_path):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'{"truncated"')
+    service, now = _recovery_service(tmp_path)
+
+    assert service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"}) is None
+    assert 0.05 <= now[0] < 0.06
+    assert path.read_bytes() == b'{"truncated"'
+
+
+def test_recovery_lock_does_not_steal_a_live_mismatched_owner(tmp_path):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    held = WriterLock(path, {"operation": "other-owner", "command_id": "cmd_other"})
+    held.__enter__()
+    try:
+        service, now = _recovery_service(tmp_path)
+        assert service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"}) is None
+        assert 0.05 <= now[0] < 0.06
+        assert path.exists()
+    finally:
+        held.__exit__(None, None, None)
+
+
+def test_recovery_lock_reclaims_a_recycled_pid_and_a_revalidated_dead_owner(tmp_path, monkeypatch):
+    path = tmp_path / "runtime" / "writer.lock"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "operation": "other-owner",
+                "command_id": "cmd_other",
+                "process_id": str(os.getpid()),
+                "process_instance_id": "recycled-instance",
+            }
+        )
+    )
+    service, _ = _recovery_service(tmp_path)
+    recovered = service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"})
+    assert recovered is not None
+    recovered.__exit__(None, None, None)
+    assert not path.exists()
+
+    dead_pid = 919191
+    path.write_bytes(
+        canonical_bytes(
+            {
+                "operation": "dead-owner",
+                "command_id": "cmd_dead",
+                "process_id": str(dead_pid),
+                "process_instance_id": "dead-instance",
+            }
+        )
+    )
+    real_instance_id = lock_module.process_instance_id
+
+    def instance_id(pid):
+        return None if pid == dead_pid else real_instance_id(pid)
+
+    real_kill = lock_module.os.kill
+
+    def kill(pid, signal):
+        if pid == dead_pid:
+            raise ProcessLookupError
+        return real_kill(pid, signal)
+
+    monkeypatch.setattr(lock_module, "process_instance_id", instance_id)
+    monkeypatch.setattr(lock_module.os, "kill", kill)
+    recovered = service._take_scoped_activation_recovery_lock({"command_id": "cmd_recovery"})
+    assert recovered is not None
+    recovered.__exit__(None, None, None)
     assert not path.exists()
 
 
@@ -695,7 +1042,7 @@ def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeyp
         claim_exists = bool(list(directory.glob(".*.publication-claim")))
         observations.append((directory, target_exists, claim_exists))
 
-    monkeypatch.setattr(object_module, "_fsync_directory", observe)
+    monkeypatch.setattr(object_module, "fsync_directory", observe)
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
     assert (path.parent, True, True) in observations

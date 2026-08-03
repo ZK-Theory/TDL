@@ -191,7 +191,15 @@ _RUNTIME_BINDINGS = (
         "2.0.0",
     ),
     SchemaBinding(
+        "ars://core/external-assurance-record-scoped-authority-grant",
+        "1.0.0",
+    ),
+    SchemaBinding(
         "ars://core/owner-authority-administration-decision",
+        "1.0.0",
+    ),
+    SchemaBinding(
+        "ars://core/external-assurance-record-owner-authority-administration-decision",
         "1.0.0",
     ),
     SchemaBinding(
@@ -200,14 +208,29 @@ _RUNTIME_BINDINGS = (
         policy_action_type="accept_r3_assurance_requirement",
     ),
     SchemaBinding(
+        "ars://core/policy-action/PublishExternalAssuranceRecord",
+        "1.0.0",
+        policy_action_type="publish_external_assurance_record",
+    ),
+    SchemaBinding(
         "ars://core/command/ActivateAuthorityGrant",
         "1.0.0",
         command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
+        "ars://core/command/ActivateExternalAssuranceRecordGrant",
+        "1.0.0",
+        command_type="ActivateExternalAssuranceRecordGrant",
+    ),
+    SchemaBinding(
         "ars://core/command/RevokeIssuedAuthorityGrant",
         "1.0.0",
         command_type="RevokeIssuedAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/command/RevokeExternalAssuranceRecordGrant",
+        "1.0.0",
+        command_type="RevokeExternalAssuranceRecordGrant",
     ),
     SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
@@ -216,10 +239,22 @@ _RUNTIME_BINDINGS = (
         producer_command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
+        "ars://core/event/ExternalAssuranceRecordGrantActivated",
+        "1.0.0",
+        event_type="AuthorityGrantActivated",
+        producer_command_type="ActivateExternalAssuranceRecordGrant",
+    ),
+    SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
         "1.0.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/event/ExternalAssuranceRecordGrantRevoked",
+        "1.0.0",
+        event_type="AuthorityGrantRevoked",
+        producer_command_type="RevokeExternalAssuranceRecordGrant",
     ),
     SchemaBinding(
         "ars://wp6-2/t2/command/IssueCostGrant",
