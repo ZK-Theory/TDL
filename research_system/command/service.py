@@ -67,7 +67,6 @@ from research_system.store.ledger import (
 from research_system.store.identity import (
     StoreOriginWitness,
     physical_root_identity,
-    restore_binding_transaction_path,
     validate_approved_origin_witness_path,
     verify_restore_binding_admission,
 )
@@ -285,30 +284,23 @@ class _LifecycleAuthorityEvidence:
 
 
 @dataclass(frozen=True, slots=True)
-class _RestoreAdmissionInputStamp:
-    """Small immutable identity set for one full moved-restore preparation."""
-
-    ledger_fingerprint: tuple[tuple[str, int, int], ...]
-    ledger_tail: tuple[int, str]
-    source_root: str
-    source_identity: tuple[tuple[str, str], ...]
-    target_root: str
-    target_identity: tuple[tuple[str, str], ...]
-    origin_root: str
-    origin_identity: tuple[tuple[str, str], ...]
-    witness_path: str
-    witness_sha256: str
-    target_manifest_sha256: str | None
-    restore_transaction_sha256: str | None
-
-
-@dataclass(frozen=True, slots=True)
 class _PreparedRestoreAdmission:
-    """The single callback result and its pre-lock immutable input identities."""
+    """The single authority-bound preflight prepared before writer locking."""
 
     preflight: RestorePreflightResult
     preflight_result_hash: str
-    inputs: _RestoreAdmissionInputStamp
+
+
+@dataclass(frozen=True, slots=True)
+class _SubmissionLease:
+    """Writer-lock lease plus the one verified ledger snapshot for a submit."""
+
+    writer_lock: CompositeWriterLock
+    snapshot: LedgerSnapshot
+
+    def locked_root(self, root: Path) -> Any:
+        """Return the underlying lease for one locked root."""
+        return self.writer_lock.locked_root(root)
 
 
 def _validate_moved_restore_source_lineage(
@@ -941,7 +933,7 @@ class CommandService:
 
         Args:
             source_root: Existing moved-store root pinned to the origin witness.
-            preflight_result: Sealed baseline evidence the fresh preparation must match.
+            preflight_result: Sealed baseline evidence validated when configuration is installed.
             rechecker: Full read-only preparation callback run exactly once before a writer lock.
             approved_witness: Immutable origin witness authorizing the moved-store source.
             approved_witness_path: Absolute owner-approved canonical locator for the witness.
@@ -969,45 +961,8 @@ class CommandService:
             self._restore_preflight_result = preflight_result
             self._restore_preflight_rechecker = rechecker
 
-    def _restore_admission_input_stamp(self) -> _RestoreAdmissionInputStamp:
-        """Capture the bounded durable identities observed around full preparation."""
-        source_root = self._restore_source_root
-        witness = self._restore_approved_witness
-        witness_path = self._restore_approved_witness_path
-        if source_root is None or witness is None or witness_path is None:
-            raise ArsError("moved store requires restore preflight")
-        try:
-            target = self.control_root.resolve(strict=True)
-            source = source_root.resolve(strict=True)
-            resolved_witness_path, origin_root = validate_approved_origin_witness_path(
-                witness_path,
-                witness,
-            )
-            ledger_fingerprint, ledger_tail = self.ledger.admission_identity()
-            manifest_path = target / "manifests" / "store-identity.json"
-            manifest_bytes = manifest_path.read_bytes() if manifest_path.exists() else None
-            target_manifest_sha256 = sha256_hex(manifest_bytes) if manifest_bytes is not None else None
-            transaction_path = restore_binding_transaction_path(target)
-            transaction_bytes = transaction_path.read_bytes() if transaction_path.exists() else None
-        except (ArsError, ConflictError, IntegrityError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            raise ArsError("restore admission inputs are unavailable") from exc
-        return _RestoreAdmissionInputStamp(
-            ledger_fingerprint=ledger_fingerprint,
-            ledger_tail=ledger_tail,
-            source_root=str(source),
-            source_identity=tuple(sorted(physical_root_identity(source).items())),
-            target_root=str(target),
-            target_identity=tuple(sorted(physical_root_identity(target).items())),
-            origin_root=str(origin_root),
-            origin_identity=tuple(sorted(physical_root_identity(origin_root).items())),
-            witness_path=str(resolved_witness_path),
-            witness_sha256=sha256_hex(resolved_witness_path.read_bytes()),
-            target_manifest_sha256=target_manifest_sha256,
-            restore_transaction_sha256=(sha256_hex(transaction_bytes) if transaction_bytes is not None else None),
-        )
-
     def _prepare_moved_restore(self, command: Command) -> _PreparedRestoreAdmission | None:
-        """Run one full unlocked preflight and seal its stable preparation inputs."""
+        """Run and validate one current full preflight before writer locking."""
         if self._restore_source_root is None:
             return None
         supplied = self._restore_preflight_result
@@ -1019,14 +974,7 @@ class CommandService:
             or self._restore_approved_witness_path is None
         ):
             raise ArsError("moved store requires restore preflight")
-        before = self._restore_admission_input_stamp()
         current = rechecker()
-        try:
-            after = self._restore_admission_input_stamp()
-        except ArsError as exc:
-            raise ArsError("restore admission inputs changed during preparation") from exc
-        if after != before:
-            raise ArsError("restore admission inputs changed during preparation")
         _validate_moved_restore_source_lineage(
             self._restore_source_root,
             current,
@@ -1040,22 +988,20 @@ class CommandService:
             authority_grant_id=command.envelope["authority_grant_id"],
             approved_witness=self._restore_approved_witness,
         )
-        if current != supplied:
-            raise ArsError("restore preflight changed before writer lock")
         if current.origin_witness_path != str(self._restore_approved_witness_path):
             raise ArsError("restore preflight origin witness path differs from approved locator")
         return _PreparedRestoreAdmission(
             preflight=current,
             preflight_result_hash=current.result_hash,
-            inputs=after,
         )
 
     def _revalidate_prepared_moved_restore(
         self,
         command: Command,
         prepared: _PreparedRestoreAdmission | None,
+        snapshot: LedgerSnapshot,
     ) -> None:
-        """Perform only bounded post-lock checks; full preparation is never replayed here."""
+        """Join the prepared preflight to the one locked submission snapshot."""
         if prepared is None:
             return
         if (
@@ -1064,12 +1010,6 @@ class CommandService:
             or self._restore_approved_witness_path is None
         ):
             raise ArsError("moved store requires restore preflight")
-        try:
-            current_inputs = self._restore_admission_input_stamp()
-        except ArsError as exc:
-            raise ArsError("restore admission inputs changed after preparation") from exc
-        if current_inputs != prepared.inputs:
-            raise ArsError("restore admission inputs changed after preparation")
         current = prepared.preflight
         if current.result_hash != prepared.preflight_result_hash:
             raise ArsError("restore preflight changed after preparation")
@@ -1088,11 +1028,25 @@ class CommandService:
         )
         if current.origin_witness_path != str(self._restore_approved_witness_path):
             raise ArsError("restore preflight origin witness path differs from approved locator")
+        if (snapshot.global_position, snapshot.event_hash) != (
+            current.tail_position,
+            current.tail_hash,
+        ):
+            raise ArsError("restore preflight ledger tail changed before writer lock")
         verify_restore_binding_admission(
             self.control_root,
             approved_witness=self._restore_approved_witness,
             approved_witness_path=self._restore_approved_witness_path,
         )
+        # The cleared restore transaction and canonical foundation binding are
+        # the durable operational state.  The historical restore preflight is
+        # a one-shot admission gate and would become stale after the first
+        # legitimate append.
+        self._restore_source_root = None
+        self._restore_approved_witness = None
+        self._restore_approved_witness_path = None
+        self._restore_preflight_result = None
+        self._restore_preflight_rechecker = None
 
     @_release_submit_guard
     def submit(
@@ -1155,7 +1109,7 @@ class CommandService:
                     command_schema,
                 )
                 self._validate_scoped_activation_marker_event_schema(preloaded_activation_marker)
-        with self._submission_lock(command):
+        with self._submission_lock(command) as submission:
             lifecycle_authority: _LifecycleAuthorityEvidence | None = None
 
             def write_receipt(receipt: Receipt) -> Receipt:
@@ -1168,7 +1122,7 @@ class CommandService:
 
             self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
-            snapshot = self.ledger.snapshot()
+            snapshot = submission.snapshot
             if lifecycle:
                 lifecycle_authority, denial = self._resolve_lifecycle_authority(
                     command,
@@ -1607,8 +1561,9 @@ class CommandService:
                     continue
                 break
             try:
-                self._revalidate_prepared_moved_restore(command, prepared)
-                yield lock
+                snapshot = self.ledger.snapshot()
+                self._revalidate_prepared_moved_restore(command, prepared, snapshot)
+                yield _SubmissionLease(lock, snapshot)
             finally:
                 lock.__exit__(*sys.exc_info())
 

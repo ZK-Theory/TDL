@@ -1521,14 +1521,18 @@ def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
     service._monotonic = lambda: 0.0
     service._lock_wait = lambda _seconds: None
     service._restore_source_root = None
+    service._restore_admission_sequence_lock = threading.RLock()
+    snapshot = SimpleNamespace(global_position=0, event_hash="0" * 64)
+    service.ledger = SimpleNamespace(snapshot=lambda: snapshot)
     command = SimpleNamespace(
         command_id="cmd_01978abc-7272-7000-8000-000000007272",
         envelope={"command_type": "UncoordinatedProbe"},
     )
 
     with service._submission_lock(command) as lease:
-        assert isinstance(lease, CompositeWriterLock)
-        assert lease.locked_root(root).identity == lease._locked_roots[0].identity
+        assert isinstance(lease.writer_lock, CompositeWriterLock)
+        assert lease.locked_root(root).identity == lease.writer_lock._locked_roots[0].identity
+        assert lease.snapshot is snapshot
 
 
 def test_missing_lifecycle_index_rebuilds_only_after_canonical_history_join(tmp_path, monkeypatch):

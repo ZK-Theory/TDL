@@ -930,6 +930,11 @@ def test_real_command_service_accepts_only_current_verified_and_cleared_moved_re
     assert rechecks == 1
     assert len(tuple(service.ledger.iter_batches())) == len(batches_before) + 1
 
+    duplicate = service.submit(command)
+    assert duplicate == receipt
+    assert rechecks == 1
+    assert len(tuple(service.ledger.iter_batches())) == len(batches_before) + 1
+
 
 def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path):
     from tests.research_system.unit.test_wp6_2_t2_runtime import issue_command
@@ -962,6 +967,15 @@ def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path
     assert rechecks == 1
     assert after.global_position == before.global_position + 1
     assert service.receipts.load_t2(command["command_id"]) == receipt
+
+    duplicate = service.submit(command)
+    after_duplicate = service.ledger.snapshot()
+    assert duplicate.status == "duplicate"
+    assert duplicate.events == receipt.events
+    assert duplicate.record["original_accepted_receipt_hash"] == sha256_hex(canonical_bytes(receipt.to_record()))
+    assert rechecks == 1
+    assert after_duplicate.global_position == after.global_position
+    assert after_duplicate.event_hash == after.event_hash
 
 
 @pytest.mark.parametrize("submission_kind", ("ordinary", "t2"))
@@ -1116,7 +1130,7 @@ def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admi
         {"title": "witness drift must require a fresh preparation"},
     )
 
-    with pytest.raises(ArsError, match="restore admission inputs changed"):
+    with pytest.raises(IntegrityError, match="origin witness raw bytes differ"):
         service.submit(command)
 
     assert mutated == [True]

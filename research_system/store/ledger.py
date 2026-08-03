@@ -275,21 +275,6 @@ class EventLedger:
         )
         return self._snapshot
 
-    def admission_identity(self) -> tuple[tuple[tuple[str, int, int], ...], tuple[int, str]]:
-        """Return a stable persisted ledger fingerprint and tail without replay.
-
-        Returns:
-            The persisted file fingerprint and canonical ledger tail observed together.
-
-        Raises:
-            ConflictError: If the ledger changes while its admission identity is read.
-        """
-        fingerprint = self._fingerprint()
-        tail = self._persisted_tail()
-        if self._fingerprint() != fingerprint:
-            raise ConflictError("ledger changed while reading admission identity")
-        return fingerprint, tail
-
     def _validate_event_schema(
         self,
         validation_payload: dict[str, Any],
