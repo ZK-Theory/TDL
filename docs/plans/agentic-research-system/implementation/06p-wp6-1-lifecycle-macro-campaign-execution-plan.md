@@ -167,7 +167,7 @@ These are closure obligations, not open policy choices:
 | `lifecycle-retry-and-residue-v1` | Stable logical-submission and command-ID rules; current authority/history; retained-artifact integrity; changed-ID conflict; permitted repair; append ordering; full event/receipt/index Cartesian classification | C1 | Sol Ultra; fresh Sol Ultra review |
 | `core-lifecycle-projection-v1` | Exact Task, Scope, Lease, Dispatch, Attempt, Blocker, Artefact, Review, Decision, operations, and governance projection records; retained revisions/evidence/history; producer-aware routing; genesis/incremental equivalence | Base section before C1, then campaign-specific sections before C2/C3 | Sol Ultra; fresh Sol Ultra review |
 | `readiness-assessment-v1` | Required-set authority, evaluator identity/version, Task revision/hash, freshness/equality rule, Request-versus-Approve separation, invalidation after amendment | C1 | Sol Ultra; fresh Sol Ultra review |
-| `campaign-routing-ledger-v1` | Hash-chained `planned`, `launched`, and `integrated` evidence; independently resolved acceptance/start witnesses; routing-class rules; task-service model/thinking/history/root receipts; Git-computed ancestry and actual/generated-path closure; canonical schema path and negative controls | Before any C1 worker fan-out | Sol Ultra contract; Terra Max validator; fresh Sol Ultra review |
+| `campaign-routing-ledger-v1` | Hash-chained `planned`, `launched`, and `integrated` evidence; independently resolved acceptance/start witnesses; routing-class rules; authoritative complete ordered per-turn model/thinking history; immutable review-context exposure manifests with a W2-derived independence grade; Git-computed ancestry and actual/generated-path closure; canonical schema path and negative controls | Before any C1 worker fan-out | Sol Ultra contract; Terra Max validator; fresh Sol Ultra review |
 | `task-suspension-link-v2` | Exact Task/Attempt/Blocker/Input/suspension identities and versions; record -> suspend -> resolve/supply -> resume order; no cross-object evidence substitution; successor schemas where required | C2 | Sol Ultra; fresh Sol Ultra review |
 | `execution-outcome-handoff-v1` | Complete initial Artefact-authority tuple and evidence derivations; immutable Review-request bar; non-empty current Task/Attempt/Artefact/Review joins; failure atomicity; and exactly one owner-selected `preserve_06i` or `supersede_06i` route under §4.2.2; no scientific-review, satisfaction, Decision, or consumer authority is implied | C2 | Sol Ultra; fresh Sol Ultra review |
 | `terminal-epoch-v1` | Initial epoch, exact `current + 1` reopen rule, terminal event ID/hash/Task/status binding, immutable prior outcome, allowed return state, and accepted/rejected/partial/cancelled discriminants | C3 | Sol Ultra; fresh Sol Ultra review |
@@ -672,19 +672,29 @@ and thinking level are part of the packet identity.
    branch, report cwd/HEAD/status, and stop. After the `launched` phase independently
    verifies the task-service receipt and Git preflight, Stephen binds the observed
    task/root facts through an exact `packet_write_clearance` before any repository-
-   content write or launch-cleared continuation.
+   content write or launch-cleared continuation. Every continuation after clearance
+   omits the task service's optional model and thinking override fields. An accepted
+   immutable task-configuration mechanism may replace omission only if it proves the
+   same pair for every turn and is named by the routing contract.
 5. A task may start detached. Its preflight prompt permits one deterministic switch
    to the pre-created task branch only after detached `HEAD` and the branch ref equal
    the required commit. No fallback branch or different commit is permitted.
 6. Every packet names the exact base and subject, capability deliverable, row coverage,
    dependencies, witness references, literal allowed/forbidden/generated paths,
    concurrency and routing class, write and integration owners, validation and review
-   tiers, context/fork policy, stops, and fallback disposition.
-7. If the named model/thinking combination is unavailable or cannot be independently
-   read back, the task is not silently substituted. The manager records
-   `model_unavailable` or `task_metadata_unverifiable` and requests an owner-approved
-   named replacement or waits.
-8. A leaf that discovers a semantic choice or needs a central path stops and returns
+   tiers, complete-turn-history policy, review-context exposure policy, stops, and
+   fallback disposition.
+7. The dispatcher retains the exact task-service request for creation and every
+   continuation. The integration owner later resolves the complete authoritative host
+   session record rather than accepting task/manager summaries. Any later turn makes
+   the prior integrated attestation stale until the complete history and exact
+   candidate are revalidated.
+8. If the named model/thinking combination or complete ordered turn/context metadata
+   is unavailable or cannot be independently read back, the task is not silently
+   substituted. The manager records `model_unavailable` or
+   `task_metadata_unverifiable` and requests an owner-approved named replacement or
+   waits.
+9. A leaf that discovers a semantic choice or needs a central path stops and returns
    the issue to the Terra integration owner; it does not expand its own scope.
 
 ### 7.2 Model routing exercised during plan development
@@ -729,6 +739,12 @@ start_authority_witness_ref: <distinct exact materialization/bootstrap/campaign 
 requested_model: <named model>
 requested_thinking: <named level>
 routing_rule: <rule admitting this pair in this routing class>
+turn_history_policy:
+  authoritative_source: host_session_turn_context
+  covered_interval: allocation_through_exact_candidate_freeze
+  required_pair: [requested_model, requested_thinking]
+  continuation_model_thinking_overrides: prohibited
+  post_freeze_turn_policy: invalidate_and_reintegrate
 write_owner_slot_id: <preallocated unique slot>
 review_owner_slot_id: <preallocated distinct slot>
 integration_owner_task_id: <actual coordinator task id>
@@ -737,8 +753,16 @@ paths:
 forbidden_paths: [<literal path or protected prefix>]
 concurrency_group: <serial-central | leaf-wave-N | mechanical-wave-N>
 validation_tiers: [<exact commands and triggers>]
-review: {model: gpt-5.6-sol, thinking: ultra, file_cap: 90, max_remediation_cycles: 1}
-context_policy: <fresh/no-author-history or bounded source context>
+review:
+  model: gpt-5.6-sol
+  thinking: ultra
+  file_cap: 90
+  max_remediation_cycles: 1
+  context_mode: independent_full | independent_delta
+  context_base_manifest_ref: <immutable pre-launch manifest>
+  permitted_source_refs: [<exact source ids/hashes>]
+  prohibited_exposures: [producer_conclusions, hidden_producer_reasoning]
+  accepted_delta_policy_ref: <required and exact only for independent_delta>
 fork_policy: <none or exact permitted source>
 stop_escalation: [<observable conditions>]
 fallback: stop_model_unavailable_or_semantic_expansion
@@ -755,21 +779,36 @@ unallocated and unattached and its exact-base creation must be authorized; the m
 creates it only after the attestation passes.
 
 **`launched` — after no-write allocation and before launch clearance.** A persisted
-task-creation receipt contains raw task-service creation evidence and an authoritative
-metadata readback: actual task/thread/client ID; actual model/thinking; actual
-history/fork/context mode and parent/source IDs; actual worktree root, symbolic branch,
-starting HEAD and clean state; and the mapping from `write_owner_slot_id` to actual
-task ID. The integration owner independently reads the service metadata and Git state.
-The worker only performs the bounded attachment/preflight and stops. Validation of
-this phase makes the observed facts eligible for Stephen's exact
-`packet_write_clearance`; only after that record also validates may a distinct
-`launch-cleared` continuation authorize repository-content writes. If the task service
-cannot expose actual model, thinking, history, identity, or root, the phase fails
-closed.
+task-creation receipt contains the exact raw task-service creation request and an
+authoritative metadata readback: actual task/thread/client and first-turn IDs; actual
+model/thinking; actual history/fork/context mode and parent/source IDs; actual worktree
+root, symbolic branch, starting HEAD and clean state; and the mapping from
+`write_owner_slot_id` to actual task ID. It binds ordinal zero of an append-only turn
+chain. Each subsequent turn record binds its ordinal, task and turn IDs, exact raw
+input/prompt hash and byte count, authoritative host event-range/transcript hash from
+`turn_context` through turn completion, requested override-field presence/absence,
+observed model and thinking/effort, session/source/history/parent identities,
+visibility class, root/cwd and Git identity, preceding-record hash, and whether the
+turn occurred before or after write clearance. The integration owner independently
+reads the task-service request evidence, authoritative host session metadata, and Git
+state. The worker only
+performs the bounded attachment/preflight and stops. Validation of this phase makes the
+observed facts eligible for Stephen's exact `packet_write_clearance`; only after that
+record also validates may a distinct `launch-cleared` continuation authorize
+repository-content writes. If the service/host cannot expose any required identity,
+model, thinking, request, history, order, or root fact, the phase fails closed.
 
-An independent-review receipt additionally proves Sol Ultra routing, an ID distinct
-from every author/integrator, no author-history or fork ancestry, and report-only
-allowed paths.
+An independent-review allocation also starts an append-only context-exposure chain.
+Its immutable pre-launch base manifest hashes the exact initial prompt, every initial
+attachment, each permitted source task/report/blob, the candidate and producing-
+attempt relationship, the allocated reviewer slot and its prior roles, required
+model/session family, review mode, trace-visibility class, prohibited exposures, and
+the exact accepted delta-review policy when `independent_delta` is used. Every later
+follow-up, attachment, source disclosure, or visibility change appends an ordinal,
+exact raw hash, classification, and preceding-record hash. The manifest hash is bound
+by the external routing record; it is never embedded in the prompt whose bytes it
+hashes. A new task ID, no-fork claim, or reviewer self-declaration supplies no
+independence fact.
 
 **`integrated` — before composition or exact-subject review.** From the candidate
 root/branch and preceding attestation hashes, the validator itself computes candidate
@@ -780,6 +819,29 @@ paths through the literal `kind: generated` entries, and rejects every out-of-al
 or forbidden/protected path, non-descendant candidate, wrong task/write owner, wrong
 branch/root, or actual/generated cross-packet collision. Manager-supplied “actual
 paths” are never an input.
+
+The validator also independently reads the complete authoritative session archive
+from allocation through exact candidate freeze. It reconstructs and hashes the complete
+ordered host turn/event chain; proves no missing, duplicated, truncated, unreadable, or
+reordered turn; proves the packet model/thinking pair on the initial turn and every
+turn after clearance; proves every post-clearance continuation omitted model/thinking override
+fields (or used the accepted immutable equivalent); and binds the final turn ID/root
+to the exact candidate. At composition admission and again at review admission, it
+re-reads the task's latest turn ID and candidate state. Any additional turn or
+candidate drift invalidates integration and requires a new complete attestation before
+composition/review.
+
+For an independent review, the validator reconstructs the complete ordered exposure
+chain through review completion, resolves the reviewer actor/session/model, prior
+roles, producing-attempt relationship, permitted-source set, and trace visibility,
+then derives the W2 independence grade without using the reviewer's assertion. In
+`independent_full`, any producer conclusion or hidden producer reasoning is forbidden.
+In `independent_delta`, only exposures named by an accepted exact delta-review policy
+are permitted; that policy identifies the prior report/finding bytes and still
+requires independent reconstruction of the candidate and findings. The review receipt
+and final report bind the review mode, final context-manifest ID/root, derived grade,
+and exact exposure set. Any undeclared exposure or insufficient grade rejects the
+review.
 
 No packet is allocation-ready while a required planned fact is absent, and no
 allocated task is write-ready before both its launched attestation and exact
@@ -799,12 +861,20 @@ rejects copied hashes without acceptance witnesses; stale, revoked, superseded,
 wrong-subject, wrong-owner, or wrong-scope acceptance; missing start authority or
 post-allocation `packet_write_clearance`;
 requested/observed model or thinking mismatch; a valid pair in the wrong routing
-class; wrong task/write-owner mapping; wrong root/branch/base or dirty launch state;
-reviewer identity/history collision; actual out-of-allowlist edits; rename-source or
-destination escape; generated-output escape/collision; non-descendant candidates; and
-missing, tampered, or out-of-order attestations. The positive suite proves one Terra
-central packet plus disjoint Luna and Spark leaves. `--campaign-state` may remain
-warning-only but never contributes an authority fact or success verdict.
+class; any post-clearance model/thinking override; incomplete, unreadable, reordered,
+or later-extended turn history; wrong task/write-owner mapping; wrong root/branch/base
+or dirty launch state; reviewer identity/history collision; missing/tampered context
+exposure, copied producer conclusions, hidden producer reasoning, undeclared delta
+source, or insufficient derived W2 independence; actual out-of-allowlist edits;
+rename-source or destination escape; generated-output escape/collision; non-descendant
+candidates; and missing, tampered, or out-of-order attestations. The negative suite
+includes a correct launch followed by a wrong-model write turn, a thinking-only
+override, truncated/reordered/unreadable turn metadata, a post-integration additional
+turn/candidate drift, and a fresh-task review prompt that copies producer conclusions.
+The positive suite proves one Terra central packet plus disjoint Luna and Spark leaves,
+one `independent_full` review, and one `independent_delta` review under an accepted
+exact delta policy. `--campaign-state` may remain warning-only but never contributes an
+authority fact or success verdict.
 
 The bootstrap is an exception to self-validation only, never an authority exception:
 
@@ -817,11 +887,13 @@ The bootstrap is an exception to self-validation only, never an authority except
    literal Terra write paths, bounded no-runtime scope, write/review/integration owner
    slots, requested Terra Max task, and surviving non-authorities.
 3. The Terra task is created in preflight-only mode. Its actual task receipt,
-   model/thinking/history/root/branch/HEAD are retained and manually checked before
-   launch clearance.
+   complete ordered turn history, model/thinking/root/branch/HEAD, and continuation
+   override absence are retained and manually checked before launch clearance and
+   again at candidate freeze.
 4. Terra writes only the validator and test paths against the frozen schema.
-5. A fresh Sol reviewer reconstructs all three evidence phases and verifies every
-   negative control and the exact composed three-path subject.
+5. A fresh Sol reviewer has a complete immutable context-exposure manifest, derives
+   its W2 independence grade, reconstructs all three evidence phases, and verifies
+   every negative control and the exact composed three-path subject.
 6. Stephen separately accepts the exact routing-package bytes. Acceptance alone does
    not activate the package. Activation occurs only if the pre-existing
    `routing_validator_bootstrap_start` expressly bound a post-review activation
@@ -863,9 +935,10 @@ Within each campaign:
    source/generated deltas before composition in the predeclared dependency order.
 8. **Certify:** run the targeted campaign suite once at the exact integrated candidate.
    Expand only for a named shared-caller, generator/schema, API, config, or gate trigger.
-9. **Review:** a fresh Sol Ultra task with independently verified no-author history
-   reviews the exact campaign integration subject. Review acceptance is not owner
-   acceptance or merge authority.
+9. **Review:** a fresh Sol Ultra task with an independently reconstructed complete
+   context-exposure manifest and sufficient W2-derived independence grade reviews the
+   exact campaign integration subject. A fresh task ID alone is insufficient. Review
+   acceptance is not owner acceptance or merge authority.
 10. **Handoff:** the campaign goal ends at a durable PR-ready handoff before Stephen's
     CodeRabbit wait. A fresh lightweight closer starts only after Stephen reports that
     external review is complete and separately authorizes the requested integration.
@@ -925,8 +998,10 @@ accompanied by executable evidence for all applicable items:
 11. public callers, registries, wrappers, CLI roots, restore/replay roots, factories,
     and transitive consumers dispositioned fixed/already-compliant/exempt-with-reason;
 12. the complete planned/launched/integrated attestation chain, independently resolved
-    authority witnesses, actual task-service model/thinking/history/root identity, and
-    Git-derived actual/generated path and collision proof;
+    authority witnesses, authoritative ordered per-turn model/thinking/override and
+    session history root through exact candidate freeze, final no-later-turn check,
+    complete review-context manifest and W2-derived independence grade, and Git-derived
+    actual/generated path and collision proof;
 13. current-main merge-base, non-mutating merge-tree composition, changed-file count,
     semantic-overlap disposition, and exact integration regressions;
 14. one end-to-end proof of the campaign capability named in §6, not only isolated row
@@ -1023,8 +1098,15 @@ Stop the campaign and return to the named owner when any of these occurs:
   mismatched, or replaced by a composition of plan, review, accepted-byte, test, PR,
   Jira, or manager evidence;
 - a planned/launched/integrated receipt is missing, tampered, out of order, or cannot
-  independently resolve authority, actual task metadata, branch/root/ancestry, or the
-  Git-derived changed/generated path set;
+  independently resolve authority, complete ordered per-turn model/thinking/request
+  metadata, branch/root/ancestry, final turn identity, or the Git-derived
+  changed/generated path set;
+- any post-clearance continuation overrides model/thinking, any covered turn uses the
+  wrong pair, the authoritative history is missing/truncated/reordered/unreadable, or
+  a turn/candidate changes after the integrated attestation without revalidation;
+- an independent review lacks a complete immutable context-exposure manifest, exposes
+  producer conclusions/hidden reasoning outside an accepted exact delta policy, or
+  cannot independently derive the required W2 independence grade;
 - a task would invent authority, derived-field meaning, projection shape, epoch,
   linkage, consumer policy, or recovery semantics;
 - a parallel task needs a central path or its path overlaps another live task;
@@ -1050,7 +1132,8 @@ PR creation, CodeRabbit interaction, merge, or owner acceptance by implication.
 | Preserve all 173 accepted schema bytes | Hard invariant; successor versions are additive exact subjects only | Every author/reviewer; Stephen accepts any successor identity |
 | Preserve the ten-family semantic map | Retained as ownership and invariant map, not execution order | Portfolio manager and every campaign brief |
 | Deliver large batches | C1/C2/C3 are 23/28/32-row capability campaigns; rows are census, not tickets | Fresh campaign manager |
-| Use Terra, Luna, and Spark intelligently | Three-phase service/Git routing proof and separate model-pinned Codex tasks; no quota, manager self-report, or silent substitution | Portfolio manager; Stephen approves any substitution |
+| Use Terra, Luna, and Spark intelligently | Three-phase service/Git routing proof, authoritative complete-turn model/thinking histories, and separate model-pinned Codex tasks; no quota, launch-only proof, manager self-report, or silent substitution | Portfolio manager; Stephen approves any substitution |
+| Preserve independent review | Immutable complete context-exposure manifest, exact permitted sources, trace visibility, and independently derived W2 grade; a fresh task ID or no-fork assertion is insufficient | Fresh reviewer and routing validator; Stephen accepts any exact delta-review policy |
 | Keep central seams serial | One Terra integration owner per campaign | Campaign manager and path-collision gate |
 | Close semantic gaps upstream | Every exact successor subject in §4.2 has a just-in-time deadline; none is accepted by plan prose | Sol authors/reviewers, then Stephen |
 | Preserve SupersedeTask behavior | Compatibility touchback wherever Task/shared replay changes; never recount the row | C1–C3 candidates/reviewers |
@@ -1072,17 +1155,22 @@ new task with no author history. The reviewer verifies:
 - required-versus-deferrable semantic contracts;
 - non-composable materialization/bootstrap/campaign authority and the exact 06i route;
 - complete initial Artefact authority and Task/Attempt/Artefact/Review joins;
-- model suitability, independently resolved witness authority, task-service metadata,
-  Git-derived path ownership, bootstrap authority, and real concurrency;
-- task-brief completeness, validation triggers, PR caps, review independence, owner
-  gates, and all non-authorities;
+- model suitability, independently resolved witness authority, complete authoritative
+  per-turn model/thinking/request history, no later-turn drift, Git-derived path
+  ownership, bootstrap authority, and real concurrency;
+- task-brief completeness, validation triggers, PR caps, complete review-context
+  exposure manifest, W2-derived independence grade, owner gates, and all
+  non-authorities;
 - the exact post-C3 102-row audit and post-R1 104-row final closure boundary;
 - contradictions with W2, 06a, 06d, 06i, current runtime seams, and active W11 state.
 
 The reviewer writes one durable report and returns `accept`,
 `accept_with_required_changes`, or `rework_required`. This author may perform at most
 one bounded remediation against exact findings, after which a fresh reviewer checks
-the new exact subject. A second remediation request stops for owner rescope.
+the new exact subject. A second remediation request stops for owner rescope; only an
+explicit owner rescope may authorize one further bounded cycle. The 2026-08-03 owner
+instruction authorizes this one R2-M-1/R2-M-2 remediation and its fresh review only;
+it grants no implementation, acceptance, integration, or dispatch authority.
 
 Once the plan is acceptance-ready, this author writes a neutral handoff containing
 only exact repository state, plan/review subjects, unresolved owner gates, and one next
