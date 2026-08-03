@@ -62,7 +62,7 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
-from research_system.store.identity import StoreOriginWitness
+from research_system.store.identity import StoreOriginWitness, _physical_root_identity
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
@@ -261,6 +261,34 @@ class _LifecycleAuthorityEvidence:
     canonical_resolution: dict[str, Any] | None
     authority_key: str
     denial: str | None = None
+
+
+def _validate_moved_restore_source_lineage(
+    source_root: Path,
+    preflight_result: RestorePreflightResult,
+    approved_witness: StoreOriginWitness,
+) -> None:
+    if not isinstance(preflight_result, RestorePreflightResult):
+        raise ArsError("restore source lineage is invalid")
+    if not isinstance(preflight_result.source_root, str) or not preflight_result.source_root:
+        raise ArsError("restore source lineage is missing")
+    try:
+        configured_root = source_root.resolve(strict=True)
+        preflight_root = Path(preflight_result.source_root).resolve(strict=True)
+        witness_root = Path(approved_witness.initial_control_root).resolve(strict=True)
+        configured_identity = _physical_root_identity(configured_root)
+        preflight_identity = _physical_root_identity(preflight_root)
+        witness_identity = _physical_root_identity(witness_root)
+    except (ArsError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise ArsError("restore source lineage identity is unavailable") from exc
+    if (
+        configured_root != witness_root
+        or preflight_root != witness_root
+        or configured_identity != approved_witness.initial_physical_root_identity
+        or preflight_identity != approved_witness.initial_physical_root_identity
+        or witness_identity != approved_witness.initial_physical_root_identity
+    ):
+        raise ArsError("restore source lineage differs from approved origin witness")
 
 
 class CommandService:
@@ -785,6 +813,7 @@ class CommandService:
             raise ValueError("moved restore source must differ from target")
         if approved_witness is None:
             raise ValueError("moved restore requires an approved origin witness")
+        _validate_moved_restore_source_lineage(source_root, preflight_result, approved_witness)
         self._restore_source_root = source_root
         self._restore_approved_witness = approved_witness
         self._restore_preflight_result = preflight_result
@@ -798,6 +827,11 @@ class CommandService:
         if supplied is None or rechecker is None or self._restore_approved_witness is None:
             raise ArsError("moved store requires restore preflight")
         current = rechecker()
+        _validate_moved_restore_source_lineage(
+            self._restore_source_root,
+            current,
+            self._restore_approved_witness,
+        )
         validate_restore_preflight_result(
             current,
             current_root=self.control_root,

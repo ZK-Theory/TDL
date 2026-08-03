@@ -401,6 +401,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             task_ids=[task_id],
             command_types=("CreateTask",),
         )
+        source_root = Path(approved_witness.initial_control_root)
         failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
         preflight = seal_restore_preflight_result(
             RestorePreflightResult(
@@ -414,6 +415,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 availability_observations_hash="f" * 64,
                 registry_hash="1" * 64,
                 target_root=str(root.resolve(strict=False)),
+                source_root=str(source_root.resolve(strict=False)),
                 project_id=project_id,
                 store_identity="2" * 64,
                 tail_position=0,
@@ -428,7 +430,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             )
         )
         service.configure_moved_restore(
-            source_root=Path(directory) / "source-control",
+            source_root=source_root,
             preflight_result=preflight,
             rechecker=lambda: preflight,
             approved_witness=approved_witness,

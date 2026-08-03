@@ -109,7 +109,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
 
     harness = control_plane(tmp_path)
     target_root = harness.service.control_root.resolve(strict=False)
-    source_root = tmp_path / "source-control"
+    source_root = Path(harness.authority_resolver.approved_witness.initial_control_root)
     base = RestorePreflightResult(
         status="verified",
         failed_predicates=(),
@@ -121,6 +121,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
         availability_observations_hash="f" * 64,
         registry_hash="1" * 64,
         target_root=str(target_root),
+        source_root=str(source_root.resolve(strict=False)),
         project_id="prj_01978abc-1000-7000-8000-000000001000",
         store_identity="2" * 64,
         tail_position=0,
@@ -504,6 +505,31 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     receipt = service.submit(command)
     assert receipt.status == "accepted"
     assert len(tuple(service.ledger.iter_batches())) == 1
+
+
+def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tmp_path, monkeypatch):
+    case = _build_restore_case(tmp_path)
+    service = _moved_service(case)
+    supplied = _verify_restore(case)
+    wrong_source = tmp_path / "wrong-source"
+    wrong_source.mkdir()
+
+    def forbidden_lock(*args, **kwargs):
+        raise AssertionError("writer lock must not be touched")
+
+    monkeypatch.setattr(service_module, "WriterLock", forbidden_lock)
+    with pytest.raises(ArsError, match="restore source lineage"):
+        service.configure_moved_restore(
+            source_root=wrong_source,
+            preflight_result=supplied,
+            rechecker=lambda: _verify_restore(case),
+            approved_witness=case["witness"],
+        )
+
+    assert tuple(service.ledger.iter_events()) == ()
+    assert tuple(service.ledger.iter_batches()) == ()
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert not list((case["target"] / "objects").rglob("*.json"))
 
 
 def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_path, monkeypatch):
