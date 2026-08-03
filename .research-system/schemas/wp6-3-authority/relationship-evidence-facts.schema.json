@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-3-authority/relationship-evidence-facts/1.0",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "record_type",
+    "relationship_evidence_facts_id",
+    "relationship_scope",
+    "protected_relationship_record_id",
+    "protected_relationship_revision",
+    "protected_relationship_sha256",
+    "reviewed_subject",
+    "reviewer_actor_id",
+    "producer_actor_id",
+    "evidence",
+    "independence_grade",
+    "review_state",
+    "reviewed_at"
+  ],
+  "properties": {
+    "record_type": {"const": "relationship_evidence_facts"},
+    "relationship_evidence_facts_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "relationship_scope": {"enum": ["requirement_scope", "pack_review"]},
+    "protected_relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "protected_relationship_revision": {"type": "integer", "minimum": 1},
+    "protected_relationship_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reviewed_subject": {
+      "type": "object",
+      "required": ["subject_kind", "subject_id", "subject_revision", "subject_sha256"],
+      "properties": {
+        "subject_kind": {"enum": ["assurance_requirement", "assurance_pack"]},
+        "subject_id": {"type": "string", "minLength": 1},
+        "subject_revision": {"type": "integer", "minimum": 1},
+        "subject_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "evidence": {
+      "type": "object",
+      "required": ["same_actor", "same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"],
+      "properties": {
+        "same_actor": {"type": "boolean"},
+        "same_session": {"type": "boolean"},
+        "same_context_hash": {"type": "boolean"},
+        "same_model_family": {"type": "boolean"},
+        "producer_conclusions_visible": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "independence_grade": {"enum": ["I0", "I1", "I2", "I3"]},
+    "review_state": {"const": "completed"},
+    "reviewed_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

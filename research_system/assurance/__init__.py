@@ -7,6 +7,7 @@ from research_system.assurance.pack_loader import (
     PackUnconsumable,
     git_blob_id,
     validate_tdl_private_pack_for_acceptance,
+    validate_tdl_private_pack_for_preparation,
 )
 from research_system.assurance.resolver import (
     EXTERNAL_RECORD_KIND,
@@ -15,6 +16,13 @@ from research_system.assurance.resolver import (
 from research_system.assurance.external_records import (
     ExternalRecordPublicationContext,
     ExternalRecordResolution,
+)
+from research_system.assurance.runner import (
+    AssurancePackRunResult,
+    AssurancePackRunnerConfig,
+    SemanticRecordLocator,
+    accept_assurance_pack,
+    prepare_assurance_pack,
 )
 
 
@@ -27,6 +35,12 @@ __all__ = [
     "ExternalRecordResolution",
     "PackAcceptanceSubject",
     "PackUnconsumable",
+    "AssurancePackRunResult",
+    "AssurancePackRunnerConfig",
+    "SemanticRecordLocator",
+    "accept_assurance_pack",
     "git_blob_id",
     "validate_tdl_private_pack_for_acceptance",
+    "validate_tdl_private_pack_for_preparation",
+    "prepare_assurance_pack",
 ]
