@@ -26,11 +26,11 @@ from research_system.store.identity import (
     SCHEMA_BINDING_VERSION,
     InitializedStore,
     StoreOriginWitness,
-    _physical_root_identity,
     _validate_origin_authority_root,
     build_store_origin_witness,
     load_store_origin_witness,
     origin_witness_path,
+    physical_root_identity,
     persist_store_origin_witness,
 )
 
@@ -1211,7 +1211,7 @@ def _matching_reserved_stage(
                 or getattr(metadata, "st_file_attributes", 0) & reparse_attribute
             ):
                 continue
-            if _physical_root_identity(stage) != witness.initial_physical_root_identity:
+            if physical_root_identity(stage) != witness.initial_physical_root_identity:
                 continue
             manifest = _load_bound_manifest(stage, final_root)
         except (ArsError, OSError, ValueError):

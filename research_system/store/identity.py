@@ -395,6 +395,25 @@ def _validate_approved_origin_witness_path(
     return resolved, resolved.parent.parent
 
 
+def validate_approved_origin_witness_path(
+    path: Path | None,
+    witness: StoreOriginWitness,
+) -> tuple[Path, Path]:
+    """Validate an approved origin witness locator and its immutable bytes.
+
+    Args:
+        path: Absolute owner-approved path to the external origin witness.
+        witness: Immutable witness whose canonical slot and raw bytes are required.
+
+    Returns:
+        The resolved witness path and its physical origin-authority root.
+
+    Raises:
+        IntegrityError: If the locator, canonical slot, or immutable bytes differ.
+    """
+    return _validate_approved_origin_witness_path(path, witness)
+
+
 def _is_sha256(value: Any) -> bool:
     if not isinstance(value, str) or len(value) != 64 or value.lower() != value:
         return False
@@ -1029,6 +1048,21 @@ def _physical_root_identity(path: Path) -> dict[str, str]:
     except OSError as exc:
         raise ArsError(f"restore binding root identity is unavailable: {path}") from exc
     return {"device": str(metadata.st_dev), "inode": str(metadata.st_ino)}
+
+
+def physical_root_identity(path: Path) -> dict[str, str]:
+    """Return the durable physical identity of an existing filesystem root.
+
+    Args:
+        path: Existing root whose device and inode identity is required.
+
+    Returns:
+        The root's device and inode values as canonical decimal strings.
+
+    Raises:
+        ArsError: If the root cannot be statted for a restore-binding check.
+    """
+    return _physical_root_identity(path)
 
 
 def _require_root_identity(path: Path, expected: dict[str, Any]) -> None:

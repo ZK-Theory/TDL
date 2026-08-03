@@ -9,7 +9,7 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.command.models import Command, Receipt
+from research_system.command.models import Receipt
 from research_system.command.service import MessageAdapterRegistration
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import rebuild_projection, replay
@@ -1616,29 +1616,58 @@ def test_acknowledgement_requires_delivery_and_a_published_recipient_without_dom
 
 
 @pytest.mark.parametrize(
-    ("command_type", "status", "observed_version", "reason_code"),
+    ("command_type", "expected_stream_version"),
     [
-        ("RecordMessageDelivery", "published", 1, "message_content_mismatch"),
-        ("AcknowledgeMessage", "delivered", 2, "message_recipient_mismatch"),
+        ("RecordMessageDelivery", 1),
+        ("AcknowledgeMessage", 2),
+        ("RecordMessageDeliveryFailure", 1),
     ],
 )
-def test_message_transition_rejects_absent_published_recipient_list_with_controlled_receipt(
+def test_malformed_committed_message_recipients_raise_integrity_without_domain_mutation(
     tmp_path,
     monkeypatch,
     command_type,
-    status,
-    observed_version,
-    reason_code,
+    expected_stream_version,
 ):
     harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
     message_id = _message_id(595)
-    published_payload = _publish_payload(message_id, "handoff")
+    assert (
+        harness.service.submit(
+            _message_command(
+                command_id=_command_id(595),
+                command_type="PublishMessage",
+                message_id=message_id,
+                expected_stream_version=0,
+                payload=_publish_payload(message_id, "handoff"),
+            )
+        ).status
+        == "accepted"
+    )
+    publication = tuple(harness.ledger.iter_events())[-1]
+    if command_type == "AcknowledgeMessage":
+        assert (
+            harness.service.submit(
+                _message_command(
+                    command_id=_command_id(596),
+                    command_type="RecordMessageDelivery",
+                    message_id=message_id,
+                    expected_stream_version=1,
+                    payload={
+                        "message_id": message_id,
+                        "content_sha256": sha256_hex(canonical_bytes(publication["payload"])),
+                        "recipient_actor_ids": [ACTORS["actor-a"]],
+                        "delivery_adapter_id": "pilot-adapter",
+                        "delivery_evidence_refs": ["evidence:delivery"],
+                    },
+                )
+            ).status
+            == "accepted"
+        )
+    state = harness.service._message_state(harness.ledger.snapshot(), message_id)
+    assert state is not None
+    published_payload = dict(state["published_payload"])
     published_payload.pop("recipient_actor_ids")
-    state = {
-        "status": status,
-        "published_payload": published_payload,
-        "published_position": 1,
-    }
+    state = {**state, "published_payload": published_payload}
     content_sha256 = sha256_hex(canonical_bytes(published_payload))
     payload = {
         "message_id": message_id,
@@ -1653,27 +1682,28 @@ def test_message_transition_rejects_absent_published_recipient_list_with_control
             }
         )
     else:
-        payload["source_position"] = 1
-    command = Command(
-        _message_command(
-            command_id=_command_id(595 + observed_version),
-            command_type=command_type,
-            message_id=message_id,
-            expected_stream_version=observed_version,
-            payload=payload,
-        )
+        payload["source_position"] = publication["global_position"]
+    if command_type == "RecordMessageDeliveryFailure":
+        payload = {
+            "message_id": message_id,
+            "delivery_adapter_id": "pilot-adapter",
+            "failure_kind": "unreachable",
+            "failure_evidence_refs": ["evidence:failure"],
+        }
+    command = _message_command(
+        command_id=_command_id(597 + expected_stream_version),
+        command_type=command_type,
+        message_id=message_id,
+        expected_stream_version=expected_stream_version,
+        payload=payload,
     )
     monkeypatch.setattr(harness.service, "_message_state", lambda *_args: state)
+    before = _no_domain_mutation_snapshot(harness)
 
-    result = harness.service._prepare_message_command(
-        command,
-        harness.ledger.snapshot(),
-        observed_version,
-    )
+    with pytest.raises(IntegrityError, match="published recipient"):
+        harness.service.submit(command)
 
-    assert isinstance(result, Receipt)
-    assert result.status == "rejected"
-    assert result.reason_code == reason_code
+    assert _no_domain_mutation_snapshot(harness) == before
 
 
 def test_delivery_retry_and_changed_idempotency_or_command_identity_are_atomic(tmp_path):

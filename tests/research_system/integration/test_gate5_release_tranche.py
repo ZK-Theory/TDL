@@ -1,5 +1,6 @@
 import json
 import inspect
+import threading
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -102,7 +103,7 @@ def test_registered_deletion_topology_includes_backup_and_restore_roots(tmp_path
         replace(registry, restore_roots=(roots[5],)).checked_locations()
 
 
-def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
+def test_moved_restore_recheck_fails_before_writer_lock(tmp_path, monkeypatch):
     from research_system.operations.backups import (
         RestorePreflightResult,
         seal_restore_preflight_result,
@@ -177,7 +178,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
     with pytest.raises(ArsError, match="restore preflight"):
         harness.service.submit(command)
-    assert entered == [True, True]
+    assert entered == []
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
@@ -963,6 +964,170 @@ def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path
     assert service.receipts.load_t2(command["command_id"]) == receipt
 
 
+@pytest.mark.parametrize("submission_kind", ("ordinary", "t2"))
+def test_moved_restore_prepares_once_before_composite_lock_for_ordinary_and_t2(
+    tmp_path,
+    monkeypatch,
+    submission_kind,
+):
+    """A blocking full preparation cannot monopolize the writer lock."""
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_t2_service(case) if submission_kind == "t2" else _moved_service(case)
+    entered: list[Path] = []
+    original_lock = service_module.WriterLock
+
+    class RecordingLock:
+        def __init__(self, *args, **kwargs):
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
+
+        def __enter__(self):
+            self.inner.__enter__()
+            entered.append(self.path)
+            return self
+
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
+
+    preflight_started = threading.Event()
+    release_preflight = threading.Event()
+    preflight_calls = 0
+
+    def recheck():
+        nonlocal preflight_calls
+        preflight_calls += 1
+        preflight_started.set()
+        assert entered == []
+        assert release_preflight.wait(timeout=5)
+        assert entered == []
+        return _verify_restore(case)
+
+    admissions: list[bool] = []
+    original_admission = service_module.verify_restore_binding_admission
+
+    def observed_admission(*args, **kwargs):
+        admissions.append(bool(entered))
+        return original_admission(*args, **kwargs)
+
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=recheck,
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
+    monkeypatch.setattr(service_module, "verify_restore_binding_admission", observed_admission)
+    if submission_kind == "t2":
+        from tests.research_system.unit.test_wp6_2_t2_runtime import issue_command
+
+        command = issue_command()
+    else:
+        command = create_task_command(
+            CMD_RESTORE,
+            "slow-preparation",
+            TASK_RESTORE,
+            {"title": "slow preparation remains unlocked"},
+        )
+
+    outcomes: list[object] = []
+    errors: list[BaseException] = []
+
+    def submit() -> None:
+        try:
+            outcomes.append(service.submit(command))
+        except BaseException as exc:  # pragma: no cover - asserted after join
+            errors.append(exc)
+
+    worker = threading.Thread(target=submit)
+    worker.start()
+    assert preflight_started.wait(timeout=5)
+    assert entered == []
+    release_preflight.set()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert errors == []
+    assert len(outcomes) == 1
+    assert outcomes[0].status == "accepted"
+    assert preflight_calls == 1
+    assert admissions == [True]
+
+
+def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admission(
+    tmp_path,
+    monkeypatch,
+):
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_service(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    target_before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+    original_lock = service_module.WriterLock
+    mutated: list[bool] = []
+
+    class WitnessMutatingLock:
+        def __init__(self, *args, **kwargs):
+            self.inner = original_lock(*args, **kwargs)
+
+        @property
+        def path(self):
+            return self.inner.path
+
+        @property
+        def identity(self):
+            return self.inner.identity
+
+        def __enter__(self):
+            self.inner.__enter__()
+            if not mutated:
+                case["witness_path"].write_bytes(b"witness drift after preparation")
+                mutated.append(True)
+            return self
+
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
+
+    monkeypatch.setattr(service_module, "WriterLock", WitnessMutatingLock)
+    command = create_task_command(
+        CMD_RESTORE,
+        "witness-drift",
+        TASK_RESTORE,
+        {"title": "witness drift must require a fresh preparation"},
+    )
+
+    with pytest.raises(ArsError, match="restore admission inputs changed"):
+        service.submit(command)
+
+    assert mutated == [True]
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == target_before
+    assert service.receipts.load(CMD_RESTORE) is None
+
+
 def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_path, monkeypatch):
     from research_system.store import identity as identity_module
 
@@ -1142,6 +1307,14 @@ def test_configure_moved_restore_requires_explicit_approved_witness(tmp_path):
             approved_witness=None,
             approved_witness_path=harness.authority_resolver.approved_witness_path,
         )
+    with pytest.raises(ValueError, match="approved origin witness path"):
+        harness.service.configure_moved_restore(
+            source_root=tmp_path / "different-source",
+            preflight_result=object(),
+            rechecker=lambda: object(),
+            approved_witness=harness.authority_resolver.approved_witness,
+            approved_witness_path=None,
+        )
 
 
 def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tmp_path, monkeypatch):
@@ -1170,7 +1343,7 @@ def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tm
     assert not list((case["target"] / "objects").rglob("*.json"))
 
 
-def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_path, monkeypatch):
+def test_real_command_service_rejects_changed_artifact_before_writer_lock(tmp_path, monkeypatch):
     case = _build_restore_case(tmp_path)
     service = _moved_service(case)
     supplied = _verify_restore(case)
@@ -1216,7 +1389,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
     )
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
-    assert entered == [True, True]
+    assert entered == []
     assert tuple(service.ledger.iter_batches()) == ()
     assert service.receipts.load(CMD_RESTORE) is None
     assert not list((case["target"] / "objects").rglob("*.json"))

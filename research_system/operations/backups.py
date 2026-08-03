@@ -15,10 +15,10 @@ from research_system.store.identity import (
     StoreOriginWitness,
     _require_physical_disjoint,
     _restore_preflight_anchor,
-    _validate_approved_origin_witness_path,
     canonical_restore_binding_output,
     load_store_manifest_unbound,
     manifest_schema_root,
+    validate_approved_origin_witness_path,
 )
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger
@@ -168,7 +168,7 @@ def verify_restore_before_writer_lease(
         failed.append("origin_witness_path_required")
     elif approved_witness is not None:
         try:
-            validated_witness_path, origin_root = _validate_approved_origin_witness_path(
+            validated_witness_path, origin_root = validate_approved_origin_witness_path(
                 approved_witness_path,
                 approved_witness,
             )
