@@ -3457,17 +3457,8 @@ class CommandService:
                 raise IntegrityError("SupersedeTask requires prepared graph payload")
             event_type = "TaskSuperseded"
             payload = prepared_payload
-        elif command_type == "PublishMessage":
-            event_type = "MessagePublished"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "RecordMessageDelivery":
-            event_type = "MessageDelivered"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "AcknowledgeMessage":
-            event_type = "MessageAcknowledged"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "RecordMessageDeliveryFailure":
-            event_type = "MessageDeliveryFailed"
+        elif command_type in _MESSAGE_COMMAND_TYPES:
+            event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(command.envelope["payload"])
         elif command_type == "VerifyEvidenceDeletion":
             authorizer = self.deletion_manifest_authorizer
