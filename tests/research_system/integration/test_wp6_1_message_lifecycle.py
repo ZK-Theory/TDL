@@ -405,6 +405,46 @@ def _accepted_delivery(harness, number: int) -> tuple[str, dict, object]:
     return message_id, delivery, accepted
 
 
+def _accepted_plain_delivery(harness, number: int) -> tuple[str, dict, object, str]:
+    message_id = _message_id(number)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="message",
+        subject_id=message_id,
+    )
+    publication = _message_command(
+        command_id=_command_id(number),
+        command_type="PublishMessage",
+        message_id=message_id,
+        expected_stream_version=0,
+        payload=_publish_payload(message_id, "handoff"),
+    )
+    publication["authority_grant_id"] = grant_id
+    assert harness.service.submit(publication).status == "accepted"
+    published_event = tuple(harness.ledger.iter_events())[-1]
+    delivery = _message_command(
+        command_id=_command_id(number + 1),
+        command_type="RecordMessageDelivery",
+        message_id=message_id,
+        expected_stream_version=1,
+        payload={
+            "message_id": message_id,
+            "content_sha256": sha256_hex(canonical_bytes(published_event["payload"])),
+            "recipient_actor_ids": [ACTORS["actor-a"]],
+            "delivery_adapter_id": "pilot-adapter",
+            "delivery_evidence_refs": ["evidence:delivery"],
+        },
+    )
+    delivery["authority_grant_id"] = grant_id
+    accepted = harness.service.submit(delivery)
+    assert accepted.status == "accepted"
+    return message_id, delivery, accepted, grant_id
+
+
+def _file_tree_bytes(root):
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
 def _delivery_scoped_index_path(harness):
     return next(
         path
@@ -1782,6 +1822,229 @@ def test_message_retry_with_changed_command_id_does_not_reconstruct_missing_scop
     assert harness.receipts.load(changed_command["command_id"]) == fresh_receipt_before
     assert receipt_bytes_after == receipt_bytes_before
     assert after == before
+
+
+def test_message_identical_retry_reconstructs_only_missing_standalone_receipt(tmp_path):
+    harness = control_plane(
+        tmp_path,
+        auto_authority=False,
+        message_adapter_registry=_adapter_registry(),
+    )
+    message_id, delivery, accepted, grant_id = _accepted_plain_delivery(harness, 800)
+    assert message_id == delivery["target_stream_id"]
+    index_path = _delivery_scoped_index_path(harness)
+    index_bytes = index_path.read_bytes()
+    original_receipt_path = harness.receipts.receipts_root / f"{delivery['command_id']}.json"
+    original_receipt_bytes = original_receipt_path.read_bytes()
+    original_receipt = harness.receipts.load(delivery["command_id"])
+    assert original_receipt == accepted
+
+    def snapshot():
+        ledger_snapshot = harness.ledger.snapshot()
+        authority_snapshot = harness.authority_ledger.snapshot()
+        view = harness.service._view_for(ledger_snapshot)
+        return {
+            "control_files": _file_tree_bytes(harness.ledger.control_root),
+            "authority_files": _file_tree_bytes(harness.authority_root),
+            "authority_state": deepcopy(harness.authority_resolver._projection()),
+            "authority_identity": (
+                harness.authority_resolver.administration_context(),
+                harness.authority_resolver.scoped_grant_identity(grant_id),
+            ),
+            "authority_ledger_events": deepcopy(tuple(authority_snapshot.events)),
+            "authority_ledger_tail": (authority_snapshot.global_position, authority_snapshot.event_hash),
+            "authority_ledger_batches": deepcopy(tuple(harness.authority_ledger.iter_batches())),
+            "authority_ledger_versions": dict(authority_snapshot.stream_versions),
+            "ledger_events": deepcopy(tuple(ledger_snapshot.events)),
+            "tail": (ledger_snapshot.global_position, ledger_snapshot.event_hash),
+            "batches": deepcopy(tuple(harness.ledger.iter_batches())),
+            "versions": dict(ledger_snapshot.stream_versions),
+            "receipts": _file_tree_bytes(harness.receipts.receipts_root),
+            "indexes": _file_tree_bytes(harness.receipts.index_root),
+            "command_ids": dict(view.batches_by_command_id),
+            "command_scopes": dict(view.batches_by_scope),
+            "projection": deepcopy(replay(ledger_snapshot.events, schema_registry=harness.schemas)),
+            "history": deepcopy(harness.replay().stream_states),
+        }
+
+    before_fault = snapshot()
+    original_receipt_path.unlink()
+    faulted = snapshot()
+    original_control_path = original_receipt_path.relative_to(harness.ledger.control_root).as_posix()
+    original_receipt_relative_path = original_receipt_path.relative_to(harness.receipts.receipts_root).as_posix()
+    fault_delta = {
+        path: (before_fault["control_files"].get(path), faulted["control_files"].get(path))
+        for path in set(before_fault["control_files"]) | set(faulted["control_files"])
+        if before_fault["control_files"].get(path) != faulted["control_files"].get(path)
+    }
+    assert fault_delta == {original_control_path: (original_receipt_bytes, None)}
+    assert faulted["authority_files"] == before_fault["authority_files"]
+    assert faulted["indexes"] == before_fault["indexes"]
+    assert index_path.read_bytes() == index_bytes
+
+    retried = harness.service.submit(deepcopy(delivery))
+
+    after = snapshot()
+    assert retried == accepted
+    assert original_receipt_path.read_bytes() == original_receipt_bytes
+    assert index_path.read_bytes() == index_bytes
+    assert harness.receipts.load(delivery["command_id"]) == original_receipt
+    assert {
+        path: (faulted["control_files"].get(path), after["control_files"].get(path))
+        for path in set(faulted["control_files"]) | set(after["control_files"])
+        if faulted["control_files"].get(path) != after["control_files"].get(path)
+    } == {original_control_path: (None, original_receipt_bytes)}
+    expected_receipts = dict(faulted["receipts"])
+    expected_receipts[original_receipt_relative_path] = original_receipt_bytes
+    assert after["receipts"] == expected_receipts
+    for key in (
+        "authority_files",
+        "authority_state",
+        "authority_identity",
+        "authority_ledger_events",
+        "authority_ledger_tail",
+        "authority_ledger_batches",
+        "authority_ledger_versions",
+        "ledger_events",
+        "tail",
+        "batches",
+        "versions",
+        "indexes",
+        "command_ids",
+        "command_scopes",
+        "projection",
+        "history",
+    ):
+        assert after[key] == faulted[key], key
+
+
+def test_message_changed_command_retry_does_not_reconstruct_missing_standalone_receipt(tmp_path):
+    harness = control_plane(
+        tmp_path,
+        auto_authority=False,
+        message_adapter_registry=_adapter_registry(),
+    )
+    message_id, delivery, accepted, grant_id = _accepted_plain_delivery(harness, 810)
+    assert message_id == delivery["target_stream_id"]
+    index_path = _delivery_scoped_index_path(harness)
+    index_bytes = index_path.read_bytes()
+    original_receipt_path = harness.receipts.receipts_root / f"{delivery['command_id']}.json"
+    original_receipt_bytes = original_receipt_path.read_bytes()
+    assert harness.receipts.load(delivery["command_id"]) == accepted
+
+    def snapshot():
+        ledger_snapshot = harness.ledger.snapshot()
+        authority_snapshot = harness.authority_ledger.snapshot()
+        view = harness.service._view_for(ledger_snapshot)
+        return {
+            "control_files": _file_tree_bytes(harness.ledger.control_root),
+            "authority_files": _file_tree_bytes(harness.authority_root),
+            "authority_state": deepcopy(harness.authority_resolver._projection()),
+            "authority_identity": (
+                harness.authority_resolver.administration_context(),
+                harness.authority_resolver.scoped_grant_identity(grant_id),
+            ),
+            "authority_ledger_events": deepcopy(tuple(authority_snapshot.events)),
+            "authority_ledger_tail": (authority_snapshot.global_position, authority_snapshot.event_hash),
+            "authority_ledger_batches": deepcopy(tuple(harness.authority_ledger.iter_batches())),
+            "authority_ledger_versions": dict(authority_snapshot.stream_versions),
+            "ledger_events": deepcopy(tuple(ledger_snapshot.events)),
+            "tail": (ledger_snapshot.global_position, ledger_snapshot.event_hash),
+            "batches": deepcopy(tuple(harness.ledger.iter_batches())),
+            "versions": dict(ledger_snapshot.stream_versions),
+            "receipts": _file_tree_bytes(harness.receipts.receipts_root),
+            "indexes": _file_tree_bytes(harness.receipts.index_root),
+            "command_ids": dict(view.batches_by_command_id),
+            "command_scopes": dict(view.batches_by_scope),
+            "projection": deepcopy(replay(ledger_snapshot.events, schema_registry=harness.schemas)),
+            "history": deepcopy(harness.replay().stream_states),
+        }
+
+    before_fault = snapshot()
+    original_receipt_path.unlink()
+    faulted = snapshot()
+    original_control_path = original_receipt_path.relative_to(harness.ledger.control_root).as_posix()
+    original_receipt_relative_path = original_receipt_path.relative_to(harness.receipts.receipts_root).as_posix()
+    assert {
+        path: (before_fault["control_files"].get(path), faulted["control_files"].get(path))
+        for path in set(before_fault["control_files"]) | set(faulted["control_files"])
+        if before_fault["control_files"].get(path) != faulted["control_files"].get(path)
+    } == {original_control_path: (original_receipt_bytes, None)}
+    assert faulted["authority_files"] == before_fault["authority_files"]
+    assert faulted["indexes"] == before_fault["indexes"]
+    assert index_path.read_bytes() == index_bytes
+
+    changed_command = deepcopy(delivery)
+    changed_command["command_id"] = _command_id(812)
+    assert {key: changed_command[key] for key in changed_command if key != "command_id"} == {
+        key: delivery[key] for key in delivery if key != "command_id"
+    }
+
+    with pytest.raises(ConflictError) as exc_info:
+        harness.service.submit(changed_command)
+    assert str(exc_info.value) == "idempotency key conflicts with committed command"
+
+    after = snapshot()
+    assert not original_receipt_path.exists()
+    assert not (harness.receipts.receipts_root / f"{changed_command['command_id']}.json").exists()
+    assert harness.receipts.load(delivery["command_id"]) is None
+    assert harness.receipts.load(changed_command["command_id"]) is None
+    assert index_path.read_bytes() == index_bytes
+    assert original_receipt_relative_path not in after["receipts"]
+    assert after == faulted
+
+
+def test_message_changed_command_retry_preserves_retained_receipt_integrity_precedence(tmp_path):
+    harness = control_plane(
+        tmp_path,
+        auto_authority=False,
+        message_adapter_registry=_adapter_registry(),
+    )
+    message_id, delivery, accepted, grant_id = _accepted_plain_delivery(harness, 820)
+    assert message_id == delivery["target_stream_id"]
+    index_path = _delivery_scoped_index_path(harness)
+    index_bytes = index_path.read_bytes()
+    receipt_path = harness.receipts.receipts_root / f"{delivery['command_id']}.json"
+    receipt_record = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt_record["payload_hash"] = "0" * 64
+    tampered_receipt_bytes = canonical_bytes(receipt_record)
+    receipt_path.write_bytes(tampered_receipt_bytes)
+
+    changed_command = deepcopy(delivery)
+    changed_command["command_id"] = _command_id(822)
+    assert {key: changed_command[key] for key in changed_command if key != "command_id"} == {
+        key: delivery[key] for key in delivery if key != "command_id"
+    }
+    before = _no_domain_mutation_snapshot(harness)
+    control_files_before = _file_tree_bytes(harness.ledger.control_root)
+    authority_files_before = _file_tree_bytes(harness.authority_root)
+    authority_state_before = deepcopy(harness.authority_resolver._projection())
+    authority_identity_before = (
+        harness.authority_resolver.administration_context(),
+        harness.authority_resolver.scoped_grant_identity(grant_id),
+    )
+    receipt_files_before = _file_tree_bytes(harness.receipts.receipts_root)
+    index_files_before = _file_tree_bytes(harness.receipts.index_root)
+
+    with pytest.raises(IntegrityError) as exc_info:
+        harness.service.submit(changed_command)
+    assert str(exc_info.value) == "receipt does not match scoped index"
+
+    assert _no_domain_mutation_snapshot(harness) == before
+    assert _file_tree_bytes(harness.ledger.control_root) == control_files_before
+    assert _file_tree_bytes(harness.authority_root) == authority_files_before
+    assert deepcopy(harness.authority_resolver._projection()) == authority_state_before
+    assert (
+        harness.authority_resolver.administration_context(),
+        harness.authority_resolver.scoped_grant_identity(grant_id),
+    ) == authority_identity_before
+    assert _file_tree_bytes(harness.receipts.receipts_root) == receipt_files_before
+    assert _file_tree_bytes(harness.receipts.index_root) == index_files_before
+    assert receipt_path.read_bytes() == tampered_receipt_bytes
+    assert index_path.read_bytes() == index_bytes
+    assert not (harness.receipts.receipts_root / f"{changed_command['command_id']}.json").exists()
+    assert harness.receipts.load(changed_command["command_id"]) is None
+    assert harness.receipts.load(delivery["command_id"]) != accepted
 
 
 def test_orphan_message_receipt_is_rejected_before_append_without_mutation(tmp_path):

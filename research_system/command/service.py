@@ -900,10 +900,11 @@ class CommandService:
         elif scoped_events:
             raise IntegrityError("scoped terminal receipt conflicts with canonical ledger")
         stored = self.receipts.load(receipt.command_id)
+        if stored is not None and stored != receipt:
+            raise IntegrityError("receipt does not match scoped index")
+        self._validate_message_scoped_retry_identity(command, receipt)
         if stored is None:
             self.receipts.write(receipt)
-        elif stored != receipt:
-            raise IntegrityError("receipt does not match scoped index")
 
     def _validate_lifecycle_authority_history(
         self,
@@ -1481,7 +1482,6 @@ class CommandService:
             canonical_resolution=lifecycle_authority.canonical_resolution,
             command_schema=command_schema,
         )
-        self._validate_message_scoped_retry_identity(command, receipt)
         return self._return_scoped_receipt_or_raise(command, receipt)
 
     def _validate_message_scoped_retry_identity(
