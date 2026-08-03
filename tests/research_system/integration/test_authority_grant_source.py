@@ -1468,7 +1468,7 @@ def test_exact_retry_rejects_changed_or_malformed_schema_authority(tmp_path, aut
     )
 
 
-def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, monkeypatch) -> None:
+def test_cli_store_init_stops_before_manifest_replay_without_materialized_origin_pins(tmp_path, monkeypatch) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
     for root in (explicit_root, linked_root):
@@ -1501,7 +1501,7 @@ def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, 
         )(),
     )
     control_root = tmp_path / "control"
-    assert (
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
                 "store",
@@ -1516,31 +1516,7 @@ def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, 
                 str(bootstrap_path),
             ]
         )
-        == 0
-    )
-    manifest_path = control_root / "manifests" / "store-identity.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["schema_root"] = str((linked_root / ".research-system" / "schemas").resolve())
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(IntegrityError, match="manifest hash mismatch"):
-        main(["replay", "verify", "--control-root", str(control_root)])
-
-    manifest["manifest_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
-    )
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(ConflictError, match="schema root binding mismatch"):
-        initialize_authority_control_store(
-            [explicit_root, linked_root],
-            control_root,
-            PROJECT_ID,
-            bootstrap,
-            authority_bootstrap_sha256(bootstrap),
-            canonical_schema_root=explicit_root / ".research-system" / "schemas",
-        )
-    shutil.rmtree(linked_root / ".research-system" / "schemas")
-    with pytest.raises(ConfigurationError, match="schema root is missing"):
-        main(["replay", "verify", "--control-root", str(control_root)])
+    assert not control_root.exists()
 
 
 def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path) -> None:
@@ -1634,16 +1610,16 @@ def test_control_binding_reports_missing_manifest_schema_root(tmp_path) -> None:
         ControlBinding.load(binding_path)
 
 
-def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys, monkeypatch) -> None:
+def test_cli_command_submit_stops_without_materialized_canonical_foundation(tmp_path, capsys, monkeypatch) -> None:
     control_root, _, identity = _initialized(tmp_path)
     config_path = tmp_path / "binding.json"
     config_path.write_text(
         json.dumps(
             {
-                "code_roots": [str((tmp_path / "repo").resolve())],
+                "code_roots": [str(REPO_ROOT.resolve())],
                 "control_root": str(control_root.resolve()),
                 "project_id": PROJECT_ID,
-                "schema_root": str((tmp_path / "repo" / ".research-system" / "schemas").resolve()),
+                "schema_root": str((REPO_ROOT / ".research-system" / "schemas").resolve()),
                 "store_identity": identity,
             }
         ),
@@ -1657,7 +1633,7 @@ def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys,
         raising=False,
     )
 
-    assert (
+    with pytest.raises(ConfigurationError, match="missing approved project binding fields"):
         main(
             [
                 "command",
@@ -1668,10 +1644,8 @@ def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys,
                 str(command_path),
             ]
         )
-        == 0
-    )
 
-    assert json.loads(capsys.readouterr().out)["status"] == "accepted"
+    assert capsys.readouterr().out == ""
 
 
 def test_pre_rename_crash_leaves_no_visible_store_and_exact_retry_recovers(tmp_path, monkeypatch) -> None:

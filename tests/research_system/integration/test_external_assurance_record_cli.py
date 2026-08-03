@@ -221,11 +221,38 @@ def test_assurance_record_write_cli_persists_activated_grant_receipt(
     assert isinstance(grant, dict)
     caller_actor_id = str(grant["actor_id"])
     record_id = str(grant["subject_scope"]["subject"]["id"])
-    manifest = load_store_manifest(control_root)
+    manifest = load_store_manifest(
+        control_root,
+        approved_witness=resolver.approved_witness,
+        approved_witness_path=resolver.approved_witness_path,
+    )
     shutil.copytree(
         REPO_ROOT / ".research-system" / "contracts",
         Path(manifest["schema_root"]).parent / "contracts",
     )
+    code_root = Path(manifest["code_roots"][0])
+    foundation_path = code_root / ".research-system" / "config" / "foundation.yaml"
+    foundation_path.parent.mkdir(parents=True, exist_ok=True)
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(control_root.resolve()),
+        "control_root_required": True,
+        "store_identity": manifest["store_identity"],
+        "endpoint_scheme": "local-cli",
+        "canonical_hash": "sha256",
+        "canonical_uri": "local-cli://control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": manifest["schema_root"],
+        "origin_authority_root": str(resolver.approved_witness_path.parents[1].resolve()),
+        "origin_witness_path": str(resolver.approved_witness_path.resolve()),
+        "origin_witness_sha256": resolver.approved_witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: foundation_path)
     config = tmp_path / "binding.json"
     config.write_text(
         json.dumps(
