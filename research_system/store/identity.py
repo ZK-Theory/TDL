@@ -1765,11 +1765,8 @@ def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> 
     except ArsError:
         _posix_restore_quarantined_path(quarantined, path)
         raise
-    try:
-        os.unlink(quarantined)
-        os.rmdir(quarantine_directory)
-    except OSError as exc:
-        raise ArsError(f"restore binding could not remove verified cleanup quarantine: {quarantined}") from exc
+    # POSIX pathname unlink cannot bind deletion to the verified inode. Retain
+    # the private quarantine artifact for separately governed cleanup/evidence.
 
 
 def _cleanup_owned_temporary(path: Path, expected: bytes, *, anchor: Path) -> None:
