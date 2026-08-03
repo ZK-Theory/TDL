@@ -79,6 +79,61 @@ def test_restore_preflight_status_is_biconditional_with_failed_predicates():
         RestorePreflightResult(status="diagnostic_only", failed_predicates=(), **common)
 
 
+def test_restore_registry_state_hash_normalizes_set_values_deterministically():
+    from research_system.operations.backups import _registry_state_sha256
+
+    class SetValuedRegistry:
+        __dataclass_fields__ = {"members": object(), "nested": object()}
+
+        def __init__(self, members, nested):
+            self.members = members
+            self.nested = nested
+
+    first = SetValuedRegistry(
+        {"reviewer", "producer"},
+        {"scopes": frozenset({"gate", "restore"})},
+    )
+    second = SetValuedRegistry(
+        {"producer", "reviewer"},
+        {"scopes": frozenset({"restore", "gate"})},
+    )
+
+    assert _registry_state_sha256(first) == _registry_state_sha256(second)
+
+
+def test_restore_registry_state_hash_maps_serialization_failure_to_ars_error():
+    from research_system.operations.backups import _registry_state_sha256
+
+    class UnsupportedRegistry:
+        __dataclass_fields__ = {"unsupported": object()}
+        unsupported = object()
+
+    with pytest.raises(ArsError, match="registry state is not canonical"):
+        _registry_state_sha256(UnsupportedRegistry())
+
+
+def test_restore_admission_preparation_has_explicit_required_keyword_signature():
+    from research_system.operations.backups import prepare_restore_admission_before_writer_lease
+
+    parameters = inspect.signature(prepare_restore_admission_before_writer_lease).parameters
+
+    assert tuple(parameters) == (
+        "target_root",
+        "receipt",
+        "snapshot_path",
+        "endpoint_ownership_path",
+        "artefact_manifest_path",
+        "registry",
+        "actor_id",
+        "authority_grant_id",
+        "approved_witness",
+        "approved_witness_path",
+    )
+    assert parameters["target_root"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameters["target_root"].default is inspect.Parameter.empty
+    assert all(parameter.kind is not inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+
+
 def test_registered_deletion_topology_includes_backup_and_restore_roots(tmp_path):
     roots = [tmp_path / name for name in ("primary", "runtime", "staging", "temp", "replica", "backup", "restore")]
     registry = EvidenceStoreRegistry(

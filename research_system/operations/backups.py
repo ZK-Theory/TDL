@@ -6,7 +6,7 @@ import json
 import os
 import stat
 from dataclasses import asdict, dataclass, field, replace
-from typing import Any, cast
+from typing import Any
 from pathlib import Path
 
 from research_system.authority import LedgerAuthorityGrantResolver
@@ -169,6 +169,8 @@ def _jsonable(value: object) -> object:
         return {key: _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_jsonable(item) for item in value), key=canonical_bytes)
     return value
 
 
@@ -176,8 +178,11 @@ def _registry_state_sha256(registry: object) -> str:
     fields = getattr(registry, "__dataclass_fields__", None)
     if not isinstance(fields, dict):
         raise ArsError("restore registry does not expose immutable state")
-    state = {name: _jsonable(getattr(registry, name)) for name in fields}
-    return sha256_hex(canonical_bytes(state))
+    try:
+        state = {name: _jsonable(getattr(registry, name)) for name in fields}
+        return sha256_hex(canonical_bytes(state))
+    except (TypeError, ValueError) as exc:
+        raise ArsError("restore registry state is not canonical") from exc
 
 
 def _strict_relative_path(root: Path, path: Path) -> tuple[Path, str]:
@@ -622,13 +627,35 @@ def verify_restore_before_writer_lease(
 
 
 def prepare_restore_admission_before_writer_lease(
-    **kwargs: Any,
+    *,
+    target_root: Path,
+    receipt: BackupReceipt,
+    snapshot_path: Path,
+    endpoint_ownership_path: Path,
+    artefact_manifest_path: Path,
+    registry: object,
+    actor_id: str,
+    authority_grant_id: str,
+    approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> RestoreAdmissionBundle:
     """Run the full preflight once and retain its exact bounded input closure."""
-    return cast(
-        RestoreAdmissionBundle,
-        verify_restore_before_writer_lease(**kwargs, _capture_bundle=True),
+    bundle = verify_restore_before_writer_lease(
+        target_root=target_root,
+        receipt=receipt,
+        snapshot_path=snapshot_path,
+        endpoint_ownership_path=endpoint_ownership_path,
+        artefact_manifest_path=artefact_manifest_path,
+        registry=registry,
+        actor_id=actor_id,
+        authority_grant_id=authority_grant_id,
+        approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
+        _capture_bundle=True,
     )
+    if not isinstance(bundle, RestoreAdmissionBundle):
+        raise ArsError("restore admission preparation did not return a checked-input bundle")
+    return bundle
 
 
 def revalidate_restore_admission_closure(bundle: RestoreAdmissionBundle) -> None:
