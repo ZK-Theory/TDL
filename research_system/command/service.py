@@ -2498,6 +2498,11 @@ class CommandService:
         scoped = view.batches_by_scope.get(scope)
         if scoped is not None:
             first = scoped[0]
+            if (
+                command.envelope["command_type"] in _MESSAGE_COMMAND_TYPES
+                and first.get("command_id") != command.command_id
+            ):
+                raise ConflictError("idempotency key conflicts with committed command")
             same_submission = (
                 first.get("command_payload_hash") == command.payload_hash
                 and first.get("stream_id") == command.target_stream_id

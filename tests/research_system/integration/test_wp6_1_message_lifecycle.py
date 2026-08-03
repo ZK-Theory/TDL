@@ -1739,6 +1739,51 @@ def test_adapter_retry_reconciles_missing_scoped_index_without_new_message_event
         assert after[axis] == before[axis]
 
 
+def test_message_retry_with_changed_command_id_does_not_reconstruct_missing_scoped_index(tmp_path):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    _, delivery, accepted = _accepted_delivery(harness, 617)
+    canonical_event = tuple(harness.ledger.iter_events())[-1]
+    assert canonical_event["event_type"] == "MessageDelivered"
+    assert canonical_event["command_id"] == delivery["command_id"]
+    assert harness.receipts.load(delivery["command_id"]) == accepted
+
+    index_path = _delivery_scoped_index_path(harness)
+    index_path.unlink()
+    assert not index_path.exists()
+
+    changed_command = deepcopy(delivery)
+    changed_command["command_id"] = _command_id(619)
+    assert changed_command["command_id"] != delivery["command_id"]
+    assert {key: changed_command[key] for key in changed_command if key != "command_id"} == {
+        key: delivery[key] for key in delivery if key != "command_id"
+    }
+
+    before = _no_domain_mutation_snapshot(harness)
+    receipt_bytes_before = {
+        path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.receipts_root.rglob("*.json")
+    }
+    original_receipt_before = harness.receipts.load(delivery["command_id"])
+    fresh_receipt_before = harness.receipts.load(changed_command["command_id"])
+    assert original_receipt_before == accepted
+    assert fresh_receipt_before is None
+
+    with pytest.raises(ConflictError) as exc_info:
+        harness.service.submit(changed_command)
+    assert str(exc_info.value) == "idempotency key conflicts with committed command"
+
+    after = _no_domain_mutation_snapshot(harness)
+    receipt_bytes_after = {
+        path.relative_to(harness.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in harness.receipts.receipts_root.rglob("*.json")
+    }
+    assert not index_path.exists()
+    assert harness.receipts.load(delivery["command_id"]) == original_receipt_before
+    assert harness.receipts.load(changed_command["command_id"]) == fresh_receipt_before
+    assert receipt_bytes_after == receipt_bytes_before
+    assert after == before
+
+
 def test_orphan_message_receipt_is_rejected_before_append_without_mutation(tmp_path):
     harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
     message_id = _message_id(616)
