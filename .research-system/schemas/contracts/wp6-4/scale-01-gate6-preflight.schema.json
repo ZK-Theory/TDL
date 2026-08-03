@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale-01-gate6-preflight",
+  "title": "Closed SCALE-01 Gate 6 preflight candidate",
+  "description": "An immutable, pending WP6.6, non-dispatchable mechanics candidate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "preflight_id",
+    "candidate_state",
+    "admission_status",
+    "dispatchable",
+    "execution_authorized",
+    "preflight_self_binding",
+    "schema_binding",
+    "package_index_ref",
+    "component_refs",
+    "admission_event_ref",
+    "dispatch_ref",
+    "result_ref",
+    "claim_ref",
+    "owner_acceptance_ref",
+    "research_claim",
+    "pilot_claim",
+    "result_claim",
+    "dependencies",
+    "cardinality",
+    "supersession"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-4/scale-01-gate6-preflight"},
+    "schema_version": {"const": "1.0.1"},
+    "preflight_id": {"const": "SCALE-01-GATE6-PREFLIGHT-v1.0.1"},
+    "candidate_state": {"const": "closed_preflight_candidate"},
+    "admission_status": {"const": "pending_wp6_6"},
+    "dispatchable": {"const": false},
+    "execution_authorized": {"const": false},
+    "preflight_self_binding": {"$ref": "#/$defs/selfBinding"},
+    "schema_binding": {"$ref": "#/$defs/identityRef"},
+    "package_index_ref": {"$ref": "#/$defs/identityRef"},
+    "component_refs": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/identityRef"}
+    },
+    "admission_event_ref": {"type": "null"},
+    "dispatch_ref": {"type": "null"},
+    "result_ref": {"type": "null"},
+    "claim_ref": {"type": "null"},
+    "owner_acceptance_ref": {"type": "null"},
+    "research_claim": {"type": "null"},
+    "pilot_claim": {"type": "null"},
+    "result_claim": {"type": "null"},
+    "dependencies": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {"$ref": "#/$defs/dependency"}
+    },
+    "cardinality": {"$ref": "#/$defs/cardinality"},
+    "supersession": {"$ref": "#/$defs/supersession"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "identityRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_id", "schema_version", "subject_commit", "subject_tree", "byte_length", "raw_sha256", "git_blob"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^\\.research-system/"},
+        "schema_id": {"type": "string", "minLength": 1},
+        "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "subject_commit": {"const": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704"},
+        "subject_tree": {"const": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c"},
+        "byte_length": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"}
+      }
+    },
+    "selfBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_id", "schema_version", "self_hashing", "external_verifier_required"],
+      "properties": {
+        "path": {"const": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/gate6-preflight.json"},
+        "schema_id": {"const": "ars://contracts/wp6-4/scale-01-gate6-preflight"},
+        "schema_version": {"const": "1.0.1"},
+        "self_hashing": {"const": "prohibited_due_to_self_reference"},
+        "external_verifier_required": {"const": true}
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dependency_id", "status", "exact_reference"],
+      "properties": {
+        "dependency_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "status": {"const": "pending"},
+        "exact_reference": {"type": "null"}
+      }
+    },
+    "cardinality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "object_count", "scope_count", "edge_count", "relationship_count"],
+      "properties": {
+        "status": {"const": "pending_wp6_6"},
+        "object_count": {"type": "null"},
+        "scope_count": {"type": "null"},
+        "edge_count": {"type": "null"},
+        "relationship_count": {"type": "null"}
+      }
+    },
+    "supersession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "mutation_prohibited", "superseded_by_ref"],
+      "properties": {
+        "status": {"const": "superseded_after_wp6_6"},
+        "mutation_prohibited": {"const": true},
+        "superseded_by_ref": {"type": "null"}
+      }
+    }
+  }
+}

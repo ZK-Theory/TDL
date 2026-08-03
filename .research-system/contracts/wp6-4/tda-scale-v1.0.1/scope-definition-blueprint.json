@@ -1,0 +1,10 @@
+{
+  "new_scope_definition_id": "obj_00000000-0000-7000-8000-000000000001",
+  "revision": 1,
+  "members": [],
+  "ordering_rules": [],
+  "effective_at": "2026-08-03T00:00:00Z",
+  "dependency_rules": [],
+  "completion_predicate": "pending_wp6_6_expected_set_design",
+  "amendment_authority": "pending_wp6_6_admission_authority"
+}

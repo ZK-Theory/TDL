@@ -1,0 +1,36 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale-01-gate6-preflight",
+  "schema_version": "1.0.1",
+  "preflight_id": "SCALE-01-GATE6-PREFLIGHT-v1.0.1",
+  "candidate_state": "closed_preflight_candidate",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "preflight_self_binding": {"path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/gate6-preflight.json", "schema_id": "ars://contracts/wp6-4/scale-01-gate6-preflight", "schema_version": "1.0.1", "self_hashing": "prohibited_due_to_self_reference", "external_verifier_required": true},
+  "schema_binding": {"path": ".research-system/schemas/contracts/wp6-4/scale-01-gate6-preflight.schema.json", "schema_id": "ars://contracts/wp6-4/scale-01-gate6-preflight", "schema_version": "1.0.1", "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704", "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c", "byte_length": 4732, "raw_sha256": "800aa3888eeba31a41e24403cf2d4f4331a77ecdfda2a888b4c440efd83a3d69", "git_blob": "b4c8ec48b808d1d7b2f20032306a62d5a46e97be"},
+  "package_index_ref": {"path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json", "schema_id": "ars://contracts/wp6-4/tda-scale-package-index", "schema_version": "1.0.1", "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704", "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c", "byte_length": 18147, "raw_sha256": "fc2ac1ea95d2f8ab73d20e90088aacf3d26efe9e942da8c3105776820a450692", "git_blob": "cde3b1f2e6a862b401bb89d135bf91c6701a0714"},
+  "component_refs": [
+    {"path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scope-definition-blueprint.json", "schema_id": "ars://contracts/wp6-4/scale-01-scope-definition-blueprint", "schema_version": "1.0.1", "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704", "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c", "byte_length": 327, "raw_sha256": "cb0670bf1d17e8c191d085e625b0a4e3c780625694dc9c05e98448d0de5e8b92", "git_blob": "e9f082915557cc9792bf98a40ac8d128ab851379"},
+    {"path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/fixture-observation.json", "schema_id": "ars://contracts/wp6-4/scale-01-fixture-observation", "schema_version": "1.0.1", "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704", "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c", "byte_length": 7944, "raw_sha256": "b595e4829208413e9c44cdbb8f8248f1134f9d2e634a7435292b0f0d1f3047e5", "git_blob": "3d9aca49c8975fc9e67830ebbf2e0bb3f49dc570"},
+    {"path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/no-write-evidence.json", "schema_id": "ars://contracts/wp6-4/scale-01-no-write-evidence", "schema_version": "1.0.1", "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704", "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c", "byte_length": 2798, "raw_sha256": "0270a037eed2e5ba444a48bddcb00dd304126d3c5295feeea437bdbe81f54ee5", "git_blob": "fd5c9973c897e773e2c819772e179917eacd52e0"}
+  ],
+  "admission_event_ref": null,
+  "dispatch_ref": null,
+  "result_ref": null,
+  "claim_ref": null,
+  "owner_acceptance_ref": null,
+  "research_claim": null,
+  "pilot_claim": null,
+  "result_claim": null,
+  "dependencies": [
+    {"dependency_id": "foundation_binding", "status": "pending", "exact_reference": null},
+    {"dependency_id": "kan68_a7", "status": "pending", "exact_reference": null},
+    {"dependency_id": "operator_session", "status": "pending", "exact_reference": null},
+    {"dependency_id": "wp6_6_admission_profile", "status": "pending", "exact_reference": null},
+    {"dependency_id": "wp6_6_expected_set", "status": "pending", "exact_reference": null},
+    {"dependency_id": "wp6_6_blueprint_locator", "status": "pending", "exact_reference": null},
+    {"dependency_id": "wp6_6_atomic_admission", "status": "pending", "exact_reference": null}
+  ],
+  "cardinality": {"status": "pending_wp6_6", "object_count": null, "scope_count": null, "edge_count": null, "relationship_count": null},
+  "supersession": {"status": "superseded_after_wp6_6", "mutation_prohibited": true, "superseded_by_ref": null}
+}

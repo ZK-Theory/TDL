@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/tda-scale-package-index",
+  "title": "WP6.4 TDA-scale v1.0.1 package index candidate",
+  "description": "Exact-byte package index for the additive, non-dispatchable WP6.4 machine candidate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "package_id",
+    "package_version",
+    "candidate_state",
+    "admission_status",
+    "dispatchable",
+    "execution_authorized",
+    "predecessor_manifest",
+    "predecessor_components",
+    "changed_components",
+    "schema_bindings",
+    "artifact_bindings",
+    "dependency_boundary",
+    "index_self_binding"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-4/tda-scale-package-index"},
+    "schema_version": {"const": "1.0.1"},
+    "package_id": {"const": "tda-scale-v1.0.1"},
+    "package_version": {"const": "1.0.1"},
+    "candidate_state": {"const": "machine_candidate_non_dispatchable"},
+    "admission_status": {"const": "pending_wp6_6"},
+    "dispatchable": {"const": false},
+    "execution_authorized": {"const": false},
+    "predecessor_manifest": {"$ref": "#/$defs/predecessorManifest"},
+    "predecessor_components": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "items": {"$ref": "#/$defs/predecessorComponent"}
+    },
+    "changed_components": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/changedComponent"}
+    },
+    "schema_bindings": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {"$ref": "#/$defs/identityBinding"}
+    },
+    "artifact_bindings": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/identityBinding"}
+    },
+    "dependency_boundary": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {"$ref": "#/$defs/dependency"}
+    },
+    "index_self_binding": {"$ref": "#/$defs/selfBinding"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "subjectCommit": {"const": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704"},
+    "subjectTree": {"const": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c"},
+    "identityBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "binding_kind",
+        "path",
+        "schema_id",
+        "schema_version",
+        "subject_commit",
+        "subject_tree",
+        "byte_length",
+        "raw_sha256",
+        "git_blob"
+      ],
+      "properties": {
+        "binding_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]+$"},
+        "binding_kind": {"enum": ["candidate_schema", "governing_schema", "machine_artifact"]},
+        "path": {"type": "string", "pattern": "^\\.research-system/"},
+        "schema_id": {"type": "string", "minLength": 1},
+        "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "subject_commit": {"$ref": "#/$defs/subjectCommit"},
+        "subject_tree": {"$ref": "#/$defs/subjectTree"},
+        "byte_length": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"}
+      }
+    },
+    "predecessorManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_path",
+        "package_id",
+        "package_version",
+        "schema_id",
+        "schema_version",
+        "byte_length",
+        "raw_sha256",
+        "git_blob",
+        "subject_commit",
+        "subject_tree",
+        "identity_source"
+      ],
+      "properties": {
+        "manifest_path": {"const": "00-Meta/Research Direction Reports/Evidence-Led TDA Scale and Research Programme for ARS - package manifest - v1.0.0 - 2026-07-16.md"},
+        "package_id": {"const": "TDA-ARS-SCALE-RESEARCH"},
+        "package_version": {"const": "1.0.0"},
+        "schema_id": {"const": "external://tda-scale/package-manifest"},
+        "schema_version": {"const": "1.0.0"},
+        "byte_length": {"const": 5843},
+        "raw_sha256": {"const": "e20d173b1787c7adf141d08eadecb320ee534a075ad764e542b9fd495df61cbf"},
+        "git_blob": {"type": "null"},
+        "subject_commit": {"type": "null"},
+        "subject_tree": {"type": "null"},
+        "identity_source": {"const": "external_vault_read_only"}
+      }
+    },
+    "predecessorComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "source_relative_path",
+        "package_version",
+        "schema_id",
+        "schema_version",
+        "byte_length",
+        "raw_sha256",
+        "git_blob",
+        "subject_commit",
+        "subject_tree",
+        "reuse_in_place",
+        "changed_path",
+        "identity_source"
+      ],
+      "properties": {
+        "component_id": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9_.-]+$"},
+        "source_relative_path": {"type": "string", "minLength": 1},
+        "package_version": {"const": "1.0.0"},
+        "schema_id": {"const": "external://tda-scale/vault-component"},
+        "schema_version": {"const": "1.0.0"},
+        "byte_length": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_blob": {"type": "null"},
+        "subject_commit": {"type": "null"},
+        "subject_tree": {"type": "null"},
+        "reuse_in_place": {"const": true},
+        "changed_path": {"type": "null"},
+        "identity_source": {"const": "external_vault_read_only"}
+      }
+    },
+    "changedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "path", "schema_id", "schema_version", "predecessor_component_id", "change_kind"],
+      "properties": {
+        "component_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]+$"},
+        "path": {"type": "string", "pattern": "^\\.research-system/contracts/wp6-4/tda-scale-v1\\.0\\.1/"},
+        "schema_id": {"type": "string", "pattern": "^ars://contracts/wp6-4/"},
+        "schema_version": {"const": "1.0.1"},
+        "predecessor_component_id": {"type": "null"},
+        "change_kind": {"const": "new_machine_contract_candidate"}
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dependency_id", "status", "exact_reference"],
+      "properties": {
+        "dependency_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "status": {"const": "pending"},
+        "exact_reference": {"type": "null"}
+      }
+    },
+    "selfBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_id", "schema_version", "self_hashing", "external_verifier_required"],
+      "properties": {
+        "path": {"const": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json"},
+        "schema_id": {"const": "ars://contracts/wp6-4/tda-scale-package-index"},
+        "schema_version": {"const": "1.0.1"},
+        "self_hashing": {"const": "prohibited_due_to_self_reference"},
+        "external_verifier_required": {"const": true}
+      }
+    }
+  }
+}

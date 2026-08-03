@@ -1,0 +1,57 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale-01-no-write-evidence",
+  "schema_version": "1.0.1",
+  "evidence_id": "scale-01-no-write-evidence-v1.0.1",
+  "evidence_status": "synthetic_candidate_not_executed",
+  "execution_performed": false,
+  "attempt_scratch": {
+    "root_class": "new_attempt_specific_scratch_outside_legacy_roots",
+    "relative_path": "C:/Users/steph/TDL/.scratch/scale-01",
+    "physical_path": "C:/Users/steph/TDL/.scratch/scale-01",
+    "legacy_root_paths": ["C:/Users/steph/TDL/results", "C:/Users/steph/TDL/.partial", "C:/Users/steph/TDL/papers"],
+    "path_disjoint": true,
+    "attempt_write_count": 0
+  },
+  "fixture_set_comparison": {
+    "source": "fixed_independent_fixture_tuple",
+    "before_member_ids": ["F-USOC-EMBED", "F-USOC-TRAJ", "F-BHPS-EMBED", "F-BHPS-TRAJ", "F-G-MEDIAN-CHECKPOINT", "F-G-SLOW-L5000-CHECKPOINT"],
+    "after_member_ids": ["F-USOC-EMBED", "F-USOC-TRAJ", "F-BHPS-EMBED", "F-BHPS-TRAJ", "F-G-MEDIAN-CHECKPOINT", "F-G-SLOW-L5000-CHECKPOINT"],
+    "before_multiset_sha256": "9828d1891e17fd378b6fcdbc66090481b10484c6b5fb3e7fcd9d074c8886fd4f",
+    "after_multiset_sha256": "9828d1891e17fd378b6fcdbc66090481b10484c6b5fb3e7fcd9d074c8886fd4f",
+    "sets_match": true,
+    "duplicate_free": true
+  },
+  "legacy_root_write_checks": [
+    {"root_path": "C:/Users/steph/TDL/results", "write_observed": false, "pre_hash": null, "post_hash": null, "observation_status": "not_executed"},
+    {"root_path": "C:/Users/steph/TDL/.partial", "write_observed": false, "pre_hash": null, "post_hash": null, "observation_status": "not_executed"},
+    {"root_path": "C:/Users/steph/TDL/papers", "write_observed": false, "pre_hash": null, "post_hash": null, "observation_status": "not_executed"}
+  ],
+  "authoritative_state_unchanged": {
+    "event_tail": {"before_ref": null, "after_ref": null, "unchanged": true},
+    "object_state": {"before_ref": null, "after_ref": null, "unchanged": true},
+    "scope_definition_state": {"before_ref": null, "after_ref": null, "unchanged": true},
+    "dispatch_state": {"before_ref": null, "after_ref": null, "unchanged": true},
+    "result_state": {"before_ref": null, "after_ref": null, "unchanged": true},
+    "claim_state": {"before_ref": null, "after_ref": null, "unchanged": true}
+  },
+  "publication": {
+    "authoritative_publication": false,
+    "object_count_delta": 0,
+    "scope_count_delta": 0,
+    "event_count_delta": 0,
+    "dispatch_ref": null,
+    "result_ref": null,
+    "claim_ref": null
+  },
+  "rollback": {
+    "rollback_required": false,
+    "rollback_performed": false,
+    "residue_expected": false,
+    "rollback_proof_ref": null
+  },
+  "failure_injection": {
+    "failure_point": "before_authoritative_publication",
+    "failure_injected": true,
+    "expected_authoritative_publication": false
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale-01-scope-definition-blueprint",
+  "title": "SCALE-01 payload-only ScopeDefinition blueprint",
+  "description": "A non-authoritative payload fragment. It is checked against CreateScopeDefinition#/$defs/payload by the verifier and contains no command envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "new_scope_definition_id",
+    "revision",
+    "members",
+    "ordering_rules",
+    "effective_at",
+    "dependency_rules",
+    "completion_predicate",
+    "amendment_authority"
+  ],
+  "properties": {
+    "new_scope_definition_id": {"type": "string", "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "members": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/memberDisposition"}
+    },
+    "ordering_rules": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/orderingRule"}
+    },
+    "effective_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "dependency_rules": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "completion_predicate": {"type": "string", "minLength": 1},
+    "amendment_authority": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "memberDisposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member_id", "member_kind", "required_disposition"],
+      "properties": {
+        "member_id": {"type": "string", "minLength": 1},
+        "member_kind": {"type": "string", "minLength": 1},
+        "required_disposition": {
+          "type": "string",
+          "enum": ["accepted", "partial_accepted", "deferred", "superseded", "removed_by_amendment", "cancelled", "rejected"]
+        }
+      }
+    },
+    "orderingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before_member_id", "after_member_id"],
+      "properties": {
+        "before_member_id": {"type": "string", "minLength": 1},
+        "after_member_id": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "x-source-payload-identity": {
+    "schema_path": ".research-system/schemas/core/commands/create_scope_definition.schema.json",
+    "schema_id": "ars://core/command/CreateScopeDefinition",
+    "schema_version": "1.0.0",
+    "json_pointer": "#/$defs/payload",
+    "subject_commit": "cbe24f86b65c2c49bd58eecf4b6786e8879c4704",
+    "subject_tree": "a16afef0f29ad1d1c52d0f91b9ab00fa4d343b6c",
+    "byte_length": 16949,
+    "raw_sha256": "0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856",
+    "git_blob": "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1"
+  }
+}

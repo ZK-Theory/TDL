@@ -1,0 +1,199 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale-01-fixture-observation",
+  "schema_version": "1.0.1",
+  "observation_id": "scale-01-fixture-observation-v1.0.1",
+  "observation_status": "pending_wp6_6",
+  "registered_root": {
+    "root_id": "tdl-project-root-v1.0.0",
+    "root_class": "registered_external_project_root",
+    "canonical_relative_root": "C:/Users/steph/TDL",
+    "diagnostic_physical_path": "C:/Users/steph/TDL",
+    "read_only_required": true,
+    "path_is_diagnostic_only": true,
+    "source_manifest": {
+      "path": "00-Meta/Discovery/ars-scale-benchmark-fixture-manifest-v1.0.0-2026-07-16.md",
+      "schema_id": "external://tda-scale/benchmark-fixture-manifest",
+      "schema_version": "1.0.0",
+      "byte_length": 10114,
+      "raw_sha256": "fc05bff665917f88349767213a39a6bf1be2e2238d8d08493a8882fb00275341",
+      "git_blob": null,
+      "identity_source": "external_vault_read_only"
+    }
+  },
+  "fixtures": [
+    {
+      "fixture_id": "F-USOC-EMBED",
+      "alias": "F-USOC-EMBED",
+      "relative_path": "results/trajectory_tda_integration/embeddings.npy",
+      "physical_path": "C:/Users/steph/TDL/results/trajectory_tda_integration/embeddings.npy",
+      "size_bytes": 4364928,
+      "raw_sha256": "69b2ba55902565960e8009004d2c21332d3786e2af3e83edc4ac0a2d3a5f5540",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    },
+    {
+      "fixture_id": "F-USOC-TRAJ",
+      "alias": "F-USOC-TRAJ",
+      "relative_path": "results/trajectory_tda_integration/01_trajectories.json",
+      "physical_path": "C:/Users/steph/TDL/results/trajectory_tda_integration/01_trajectories.json",
+      "size_bytes": 5584666,
+      "raw_sha256": "d356874922685ac7052124b8a7897f6a52e5cde2a124a1ec4816bc30e6748c39",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    },
+    {
+      "fixture_id": "F-BHPS-EMBED",
+      "alias": "F-BHPS-EMBED",
+      "relative_path": "results/trajectory_tda_bhps/embeddings.npy",
+      "physical_path": "C:/Users/steph/TDL/results/trajectory_tda_bhps/embeddings.npy",
+      "size_bytes": 1361568,
+      "raw_sha256": "349fd443529a1212f03e8a1b8b189c02bdce6afffe82ea17c5ca8895e041b3c0",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    },
+    {
+      "fixture_id": "F-BHPS-TRAJ",
+      "alias": "F-BHPS-TRAJ",
+      "relative_path": "results/trajectory_tda_bhps/01_trajectories.json",
+      "physical_path": "C:/Users/steph/TDL/results/trajectory_tda_bhps/01_trajectories.json",
+      "size_bytes": 1898001,
+      "raw_sha256": "a872606a435478515daa8edd91ac58172c173d61c8a8c2e2f12e305dc1b07b47",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    },
+    {
+      "fixture_id": "F-G-MEDIAN-CHECKPOINT",
+      "alias": "G-MEDIAN",
+      "relative_path": "results/panel_methodology/fdr/subgroup_checkpoints/bhps_nssec_Routine-Manual_B1000_seed42.json",
+      "physical_path": "C:/Users/steph/TDL/results/panel_methodology/fdr/subgroup_checkpoints/bhps_nssec_Routine-Manual_B1000_seed42.json",
+      "size_bytes": 579,
+      "raw_sha256": "9a0feef58c77d8e5d2b798db2936fc6c14f1f56518177b9d31ee71f2360bd8a7",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    },
+    {
+      "fixture_id": "F-G-SLOW-L5000-CHECKPOINT",
+      "alias": "G-SLOW-L5000",
+      "relative_path": "results/panel_methodology/fdr/subgroup_checkpoints/usoc_nssec_Routine-Manual_B1000_seed42.json",
+      "physical_path": "C:/Users/steph/TDL/results/panel_methodology/fdr/subgroup_checkpoints/usoc_nssec_Routine-Manual_B1000_seed42.json",
+      "size_bytes": 583,
+      "raw_sha256": "3c4dc1e29f2817b0f8c51a2b1892375053cb82b7f7223940f16797b207f06541",
+      "authority_class": "registered_read_only_engineering_fixture",
+      "confidentiality_class": "access_controlled_registered_data",
+      "permitted_consumers": ["SCALE-01-preflight-verifier"],
+      "write_mode": "read_only",
+      "path_safety": {
+        "status": "pending_wp6_6",
+        "no_path_escape": true,
+        "no_reparse_point": true,
+        "no_symlink": true,
+        "no_case_fold_ambiguity": true,
+        "no_unicode_normalization_ambiguity": true,
+        "evidence_ref": null
+      },
+      "row_membership_alignment": {
+        "status": "pending_wp6_6",
+        "membership_key": "pidp",
+        "row_index_relative_path": null,
+        "row_index_sha256": null,
+        "positional_alignment": null,
+        "evidence_ref": null
+      }
+    }
+  ]
+}

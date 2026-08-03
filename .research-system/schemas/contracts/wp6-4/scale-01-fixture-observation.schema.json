@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale-01-fixture-observation",
+  "title": "SCALE-01 registered fixture observation candidate",
+  "description": "A content-addressed, read-only fixture observation with pending row-alignment verification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "observation_id", "observation_status", "registered_root", "fixtures"],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-4/scale-01-fixture-observation"},
+    "schema_version": {"const": "1.0.1"},
+    "observation_id": {"const": "scale-01-fixture-observation-v1.0.1"},
+    "observation_status": {"const": "pending_wp6_6"},
+    "registered_root": {"$ref": "#/$defs/registeredRoot"},
+    "fixtures": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {"$ref": "#/$defs/fixture"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registeredRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_id", "root_class", "canonical_relative_root", "diagnostic_physical_path", "read_only_required", "path_is_diagnostic_only", "source_manifest"],
+      "properties": {
+        "root_id": {"const": "tdl-project-root-v1.0.0"},
+        "root_class": {"const": "registered_external_project_root"},
+        "canonical_relative_root": {"const": "C:/Users/steph/TDL"},
+        "diagnostic_physical_path": {"const": "C:/Users/steph/TDL"},
+        "read_only_required": {"const": true},
+        "path_is_diagnostic_only": {"const": true},
+        "source_manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "schema_id", "schema_version", "byte_length", "raw_sha256", "git_blob", "identity_source"],
+          "properties": {
+            "path": {"const": "00-Meta/Discovery/ars-scale-benchmark-fixture-manifest-v1.0.0-2026-07-16.md"},
+            "schema_id": {"const": "external://tda-scale/benchmark-fixture-manifest"},
+            "schema_version": {"const": "1.0.0"},
+            "byte_length": {"const": 10114},
+            "raw_sha256": {"const": "fc05bff665917f88349767213a39a6bf1be2e2238d8d08493a8882fb00275341"},
+            "git_blob": {"type": "null"},
+            "identity_source": {"const": "external_vault_read_only"}
+          }
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "alias",
+        "relative_path",
+        "physical_path",
+        "size_bytes",
+        "raw_sha256",
+        "authority_class",
+        "confidentiality_class",
+        "permitted_consumers",
+        "write_mode",
+        "path_safety",
+        "row_membership_alignment"
+      ],
+      "properties": {
+        "fixture_id": {"type": "string", "pattern": "^F-[A-Z0-9-]+$"},
+        "alias": {"type": "string", "minLength": 1},
+        "relative_path": {"type": "string", "pattern": "^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+$"},
+        "physical_path": {"type": "string", "pattern": "^C:/Users/steph/TDL/[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+$"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "authority_class": {"const": "registered_read_only_engineering_fixture"},
+        "confidentiality_class": {"const": "access_controlled_registered_data"},
+        "permitted_consumers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"const": "SCALE-01-preflight-verifier"}
+        },
+        "write_mode": {"const": "read_only"},
+        "path_safety": {"$ref": "#/$defs/pathSafety"},
+        "row_membership_alignment": {"$ref": "#/$defs/rowAlignment"}
+      }
+    },
+    "pathSafety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "no_path_escape", "no_reparse_point", "no_symlink", "no_case_fold_ambiguity", "no_unicode_normalization_ambiguity", "evidence_ref"],
+      "properties": {
+        "status": {"const": "pending_wp6_6"},
+        "no_path_escape": {"const": true},
+        "no_reparse_point": {"const": true},
+        "no_symlink": {"const": true},
+        "no_case_fold_ambiguity": {"const": true},
+        "no_unicode_normalization_ambiguity": {"const": true},
+        "evidence_ref": {"type": "null"}
+      }
+    },
+    "rowAlignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "membership_key", "row_index_relative_path", "row_index_sha256", "positional_alignment", "evidence_ref"],
+      "properties": {
+        "status": {"const": "pending_wp6_6"},
+        "membership_key": {"const": "pidp"},
+        "row_index_relative_path": {"type": "null"},
+        "row_index_sha256": {"type": "null"},
+        "positional_alignment": {"type": "null"},
+        "evidence_ref": {"type": "null"}
+      }
+    }
+  }
+}

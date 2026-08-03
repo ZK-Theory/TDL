@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-4/scale-01-no-write-evidence",
+  "title": "SCALE-01 synthetic no-write and rollback evidence candidate",
+  "description": "A closed mechanical no-op proof shape. It explicitly records that no live execution occurred.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "evidence_id",
+    "evidence_status",
+    "execution_performed",
+    "attempt_scratch",
+    "fixture_set_comparison",
+    "legacy_root_write_checks",
+    "authoritative_state_unchanged",
+    "publication",
+    "rollback",
+    "failure_injection"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-4/scale-01-no-write-evidence"},
+    "schema_version": {"const": "1.0.1"},
+    "evidence_id": {"const": "scale-01-no-write-evidence-v1.0.1"},
+    "evidence_status": {"const": "synthetic_candidate_not_executed"},
+    "execution_performed": {"const": false},
+    "attempt_scratch": {"$ref": "#/$defs/attemptScratch"},
+    "fixture_set_comparison": {"$ref": "#/$defs/fixtureSetComparison"},
+    "legacy_root_write_checks": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/legacyRoot"}
+    },
+    "authoritative_state_unchanged": {"$ref": "#/$defs/stateUnchanged"},
+    "publication": {"$ref": "#/$defs/publication"},
+    "rollback": {"$ref": "#/$defs/rollback"},
+    "failure_injection": {"$ref": "#/$defs/failureInjection"}
+  },
+  "$defs": {
+    "attemptScratch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_class", "relative_path", "physical_path", "legacy_root_paths", "path_disjoint", "attempt_write_count"],
+      "properties": {
+        "root_class": {"const": "new_attempt_specific_scratch_outside_legacy_roots"},
+        "relative_path": {"const": "C:/Users/steph/TDL/.scratch/scale-01"},
+        "physical_path": {"const": "C:/Users/steph/TDL/.scratch/scale-01"},
+        "legacy_root_paths": {
+          "const": ["C:/Users/steph/TDL/results", "C:/Users/steph/TDL/.partial", "C:/Users/steph/TDL/papers"]
+        },
+        "path_disjoint": {"const": true},
+        "attempt_write_count": {"const": 0}
+      }
+    },
+    "fixtureSetComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "before_member_ids", "after_member_ids", "before_multiset_sha256", "after_multiset_sha256", "sets_match", "duplicate_free"],
+      "properties": {
+        "source": {"const": "fixed_independent_fixture_tuple"},
+        "before_member_ids": {"const": ["F-USOC-EMBED", "F-USOC-TRAJ", "F-BHPS-EMBED", "F-BHPS-TRAJ", "F-G-MEDIAN-CHECKPOINT", "F-G-SLOW-L5000-CHECKPOINT"]},
+        "after_member_ids": {"const": ["F-USOC-EMBED", "F-USOC-TRAJ", "F-BHPS-EMBED", "F-BHPS-TRAJ", "F-G-MEDIAN-CHECKPOINT", "F-G-SLOW-L5000-CHECKPOINT"]},
+        "before_multiset_sha256": {"const": "9828d1891e17fd378b6fcdbc66090481b10484c6b5fb3e7fcd9d074c8886fd4f"},
+        "after_multiset_sha256": {"const": "9828d1891e17fd378b6fcdbc66090481b10484c6b5fb3e7fcd9d074c8886fd4f"},
+        "sets_match": {"const": true},
+        "duplicate_free": {"const": true}
+      }
+    },
+    "legacyRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_path", "write_observed", "pre_hash", "post_hash", "observation_status"],
+      "properties": {
+        "root_path": {"enum": ["C:/Users/steph/TDL/results", "C:/Users/steph/TDL/.partial", "C:/Users/steph/TDL/papers"]},
+        "write_observed": {"const": false},
+        "pre_hash": {"type": "null"},
+        "post_hash": {"type": "null"},
+        "observation_status": {"const": "not_executed"}
+      }
+    },
+    "stateCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before_ref", "after_ref", "unchanged"],
+      "properties": {
+        "before_ref": {"type": "null"},
+        "after_ref": {"type": "null"},
+        "unchanged": {"const": true}
+      }
+    },
+    "stateUnchanged": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_tail", "object_state", "scope_definition_state", "dispatch_state", "result_state", "claim_state"],
+      "properties": {
+        "event_tail": {"$ref": "#/$defs/stateCell"},
+        "object_state": {"$ref": "#/$defs/stateCell"},
+        "scope_definition_state": {"$ref": "#/$defs/stateCell"},
+        "dispatch_state": {"$ref": "#/$defs/stateCell"},
+        "result_state": {"$ref": "#/$defs/stateCell"},
+        "claim_state": {"$ref": "#/$defs/stateCell"}
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoritative_publication", "object_count_delta", "scope_count_delta", "event_count_delta", "dispatch_ref", "result_ref", "claim_ref"],
+      "properties": {
+        "authoritative_publication": {"const": false},
+        "object_count_delta": {"const": 0},
+        "scope_count_delta": {"const": 0},
+        "event_count_delta": {"const": 0},
+        "dispatch_ref": {"type": "null"},
+        "result_ref": {"type": "null"},
+        "claim_ref": {"type": "null"}
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rollback_required", "rollback_performed", "residue_expected", "rollback_proof_ref"],
+      "properties": {
+        "rollback_required": {"const": false},
+        "rollback_performed": {"const": false},
+        "residue_expected": {"const": false},
+        "rollback_proof_ref": {"type": "null"}
+      }
+    },
+    "failureInjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failure_point", "failure_injected", "expected_authoritative_publication"],
+      "properties": {
+        "failure_point": {"const": "before_authoritative_publication"},
+        "failure_injected": {"const": true},
+        "expected_authoritative_publication": {"const": false}
+      }
+    }
+  }
+}
