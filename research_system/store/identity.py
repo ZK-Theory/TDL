@@ -1723,14 +1723,53 @@ def _posix_compare_owned_temporary(path: Path, anchor: Path, expected: bytes) ->
             raise ArsError(f"restore binding could not close sealed cleanup descriptor: {path}") from close_error
 
 
+def _posix_cleanup_quarantine(path: Path) -> tuple[Path, Path]:
+    for _ in range(8):
+        directory = path.parent / f".{path.name}.restore-cleanup-quarantine-{secrets.token_hex(16)}"
+        try:
+            os.mkdir(directory, 0o700)
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise ArsError(f"restore binding could not reserve cleanup quarantine: {path}") from exc
+        return directory, directory / path.name
+    raise ConflictError(f"restore binding cleanup quarantine name conflicts: {path}")
+
+
+def _posix_restore_quarantined_path(quarantined: Path, path: Path) -> None:
+    try:
+        os.link(quarantined, path, follow_symlinks=False)
+    except FileExistsError as exc:
+        raise ConflictError(
+            f"restore binding temporary replacement remains quarantined without overwriting current path: {quarantined}"
+        ) from exc
+    except OSError as exc:
+        raise ArsError(f"restore binding temporary replacement remains quarantined: {quarantined}") from exc
+
+
 def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> None:
     _posix_compare_owned_temporary(path, anchor, expected)
     _after_restore_owned_temporary_compared(path)
     _posix_compare_owned_temporary(path, anchor, expected)
+    quarantine_directory, quarantined = _posix_cleanup_quarantine(path)
     try:
-        os.unlink(path)
+        os.rename(path, quarantined)
     except OSError as exc:
-        raise ArsError(f"restore binding could not seal temporary cleanup: {path}") from exc
+        try:
+            os.rmdir(quarantine_directory)
+        except OSError:
+            pass
+        raise ArsError(f"restore binding could not quarantine temporary cleanup: {path}") from exc
+    try:
+        _posix_compare_owned_temporary(quarantined, anchor, expected)
+    except ArsError:
+        _posix_restore_quarantined_path(quarantined, path)
+        raise
+    try:
+        os.unlink(quarantined)
+        os.rmdir(quarantine_directory)
+    except OSError as exc:
+        raise ArsError(f"restore binding could not remove verified cleanup quarantine: {quarantined}") from exc
 
 
 def _cleanup_owned_temporary(path: Path, expected: bytes, *, anchor: Path) -> None:

@@ -155,6 +155,7 @@ def test_posix_cleanup_removes_owned_temporary_hardlink(tmp_path: Path, monkeypa
 
     assert not temporary.exists()
     assert anchor.read_bytes() == expected
+    assert not list(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
 
 
 def test_posix_cleanup_preserves_replaced_temporary_path(tmp_path: Path, monkeypatch):
@@ -175,6 +176,89 @@ def test_posix_cleanup_preserves_replaced_temporary_path(tmp_path: Path, monkeyp
 
     assert temporary.read_bytes() == b"foreign replacement"
     assert anchor.read_bytes() == expected
+
+
+def test_posix_cleanup_preserves_post_final_compare_replacement(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    foreign = b"foreign after final comparison"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+    original_compare = identity_module._posix_compare_owned_temporary
+    completed_comparisons = []
+
+    def replace_after_second_compare(path: Path, compared_anchor: Path, compared_expected: bytes):
+        original_compare(path, compared_anchor, compared_expected)
+        completed_comparisons.append(path)
+        if len(completed_comparisons) == 2:
+            path.unlink()
+            path.write_bytes(foreign)
+
+    monkeypatch.setattr(identity_module, "_posix_compare_owned_temporary", replace_after_second_compare)
+    with pytest.raises(ConflictError, match="temporary physical identity changed"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert len(completed_comparisons) == 2
+    assert temporary.read_bytes() == foreign
+    assert anchor.read_bytes() == expected
+    quarantine_directories = list(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    assert len(quarantine_directories) == 1
+    quarantined = quarantine_directories[0] / temporary.name
+    assert quarantined.read_bytes() == foreign
+    assert os.path.samefile(temporary, quarantined)
+
+
+def test_posix_cleanup_preserves_quarantine_without_overwriting_concurrent_path(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    foreign = b"foreign after final comparison"
+    concurrent = b"concurrently created path"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+    original_compare = identity_module._posix_compare_owned_temporary
+    compare_paths = []
+
+    def replace_then_collide(path: Path, compared_anchor: Path, compared_expected: bytes):
+        compare_paths.append(path)
+        if len(compare_paths) == 3:
+            temporary.write_bytes(concurrent)
+        original_compare(path, compared_anchor, compared_expected)
+        if len(compare_paths) == 2:
+            path.unlink()
+            path.write_bytes(foreign)
+
+    monkeypatch.setattr(identity_module, "_posix_compare_owned_temporary", replace_then_collide)
+    with pytest.raises(ConflictError, match="without overwriting current path"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert len(compare_paths) == 3
+    assert temporary.read_bytes() == concurrent
+    assert anchor.read_bytes() == expected
+    quarantine_directories = list(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    assert len(quarantine_directories) == 1
+    assert (quarantine_directories[0] / temporary.name).read_bytes() == foreign
+
+
+def test_posix_cleanup_preserves_same_inode_content_mismatch(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    changed = b"changed through the shared inode"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    temporary.write_bytes(changed)
+    _simulate_posix_cleanup(monkeypatch)
+
+    with pytest.raises(ConflictError, match="temporary ownership changed"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert os.path.samefile(temporary, anchor)
+    assert temporary.read_bytes() == changed
+    assert anchor.read_bytes() == changed
 
 
 def test_posix_cleanup_rejects_temporary_symlink_without_following(tmp_path: Path, monkeypatch):
