@@ -1004,6 +1004,26 @@ acceptance after review.<br>
 W5 R3 assurance acceptance; Handoff 32 scoped-grant and control-store
 sequencing.
 
+## WP6.4 mechanics integration status (non-decision)
+
+PR #208 was merged at
+`be0a6cb57d7ec2839f3b4549a5d68e1b8a64c348` with final PR head
+`a958452d608ec49bbc94f3a943b49f55578cbc3b`, and Stephen explicitly approved
+the merged PR on 2026-08-03. The merge integrates the independently accepted
+external origin-witness, restore-recovery, approved temporary-path,
+restore-admission, and deterministic registry-closure mechanics together with
+their exact-subject review records. The merge tree is byte-identical to the
+final PR-head tree. The exact integration record is
+`reviews/wp6-4-pr208-integration-record-2026-08-03.md`.
+
+This closes only the PR #208 implementation, review, integration, and owner
+disposition tail. KAN-57 and the WP6.4 master-plan row remain open because the
+canonical foundation values are still null and no real external-store A8
+proof, bounded session evidence, TDA-scale v1.0.1/SCALE-01 accepted preflight,
+or D-G6-5 record exists. KAN-68 and genuine distinct-party Gate A A7 evidence
+also remain prerequisites. No provider invocation, credentials, dispatch,
+live research, or pilot-result claim is authorized by this status record.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at
