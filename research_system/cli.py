@@ -19,6 +19,12 @@ from research_system.assurance.external_records import (
     ExternalAssuranceRecordStore,
     ExternalRecordPublicationContext,
 )
+from research_system.assurance.runner import (
+    AssurancePackRunnerConfig,
+    SemanticRecordLocator,
+    accept_assurance_pack,
+    prepare_assurance_pack,
+)
 from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.command.service import CommandService
 from research_system.config import (
@@ -347,6 +353,42 @@ def _assurance_record_write(args: argparse.Namespace) -> int:
         ),
     )
     _print_json(asdict(receipt))
+    return 0
+
+
+def _assurance_pack_locator(value: str) -> tuple[str, SemanticRecordLocator]:
+    """Parse one required semantic-to-opaque-record locator argument."""
+
+    semantic, separator, address = value.partition("=")
+    record_class, class_separator, record_id = address.rpartition(":")
+    if not separator or not semantic or not class_separator or not record_class or not record_id:
+        raise ConfigurationError("--record-locator must be SEMANTIC=RECORD_CLASS:RECORD_ID")
+    return semantic, SemanticRecordLocator(record_class, record_id)
+
+
+def _assurance_pack_run(args: argparse.Namespace) -> int:
+    locators: dict[str, SemanticRecordLocator] = {}
+    for raw_locator in args.record_locator:
+        semantic, locator = _assurance_pack_locator(raw_locator)
+        if semantic in locators:
+            raise ConfigurationError(f"duplicate assurance-pack semantic locator: {semantic}")
+        locators[semantic] = locator
+    try:
+        evaluation_time = datetime.fromisoformat(args.evaluation_time.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ConfigurationError("--evaluation-time must be an RFC 3339 timestamp") from exc
+    config = AssurancePackRunnerConfig.load(args.config, repository_root=Path.cwd())
+    runner = prepare_assurance_pack if args.phase == "prepare" else accept_assurance_pack
+    result = runner(
+        config=config,
+        candidate_path=args.candidate,
+        evaluation_time=evaluation_time,
+        run_id=args.run_id,
+        record_locators=locators,
+    )
+    output = asdict(result)
+    output["evidence_path"] = str(result.evidence_path)
+    _print_json(output)
     return 0
 
 
@@ -878,6 +920,38 @@ def _parser() -> argparse.ArgumentParser:
     write_record.add_argument("--occurred-at", required=True)
     write_record.set_defaults(handler=_assurance_record_write)
 
+    assurance_pack = groups.add_parser(
+        "assurance-pack",
+        help="prepare or authorize consumption of the TDL_private assurance pack",
+    )
+    assurance_pack_actions = assurance_pack.add_subparsers(dest="assurance_pack_action", required=True)
+    assurance_pack_run = assurance_pack_actions.add_parser(
+        "run",
+        help="run the read-only two-phase assurance-pack coordinator",
+    )
+    assurance_pack_run.add_argument("--config", type=Path, required=True, help="verified ControlBinding JSON")
+    assurance_pack_run.add_argument("--candidate", type=Path, required=True, help="candidate pack path")
+    assurance_pack_run.add_argument(
+        "--evaluation-time",
+        required=True,
+        help="UTC RFC 3339 evaluation time, for example 2026-08-03T12:00:00Z",
+    )
+    assurance_pack_run.add_argument("--run-id", required=True, help="immutable evaluation-run identity")
+    assurance_pack_run.add_argument(
+        "--phase",
+        choices=("prepare", "acceptance"),
+        required=True,
+        help="phase to execute; acceptance reloads preparation and authorizes consumption",
+    )
+    assurance_pack_run.add_argument(
+        "--record-locator",
+        action="append",
+        required=True,
+        metavar="SEMANTIC=RECORD_CLASS:RECORD_ID",
+        help="opaque semantic record locator; repeat for every required authority record",
+    )
+    assurance_pack_run.set_defaults(handler=_assurance_pack_run)
+
     replay_parser = groups.add_parser("replay")
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)
     verify = replay_actions.add_parser("verify")
@@ -931,7 +1005,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group != "eval":
+    if args.group not in {"eval", "assurance-pack"}:
         return int(args.handler(args))
     try:
         return int(args.handler(args))

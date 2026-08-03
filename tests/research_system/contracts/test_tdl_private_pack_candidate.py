@@ -332,7 +332,7 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
         store[record_class] = {id_field: record_id, "record_type": record_class, state_field: active_state}
     store["registered_pack_object"] |= {
         "assurance_pack_id": pack["assurance_pack_id"],
-        "assurance_pack_revision": pack["assurance_pack_revision"],
+        "revision": pack["assurance_pack_revision"],
         "canonical_repository_path": pack["canonical_repository_path"],
     }
     store["producer_relationship_evidence"] |= {
@@ -356,7 +356,7 @@ def _record_store(pack: dict, raw: bytes, contract: dict) -> dict[str, dict]:
         "producer_actor_id": pack["producer_actor_id"],
         "relationship_record_id": ids["producer_relationship_evidence"],
         "minimum_independence_grade": "I2",
-        "decided_at": "2026-07-28T10:00:00Z",
+        "reviewed_at": "2026-07-28T10:00:00Z",
     }
     store["stephen_owner_acceptance"] |= {
         "subject": subject,
@@ -941,7 +941,7 @@ def test_loader_binds_the_registered_object_and_accepted_requirement(contract, c
     store = _record_store(pack, raw, contract)
     # The record's identity field *is* `assurance_pack_id`, so swapping it is caught earlier, as an
     # identity mismatch. Diverge on a non-identity binding field to reach the registered-object check.
-    store["registered_pack_object"] = store["registered_pack_object"] | {"assurance_pack_revision": 99}
+    store["registered_pack_object"] = store["registered_pack_object"] | {"revision": 99}
     with pytest.raises(PackUnconsumable, match="W1-registered pack object"):
         validate_tdl_private_pack_for_acceptance(
             **_loader_kwargs(pack, raw, contract, trusted_w1_w2_content_addressed_authority_resolver=_Resolver(store))

@@ -26,6 +26,7 @@ reference snapshot, resolution of external lifecycle records, and time.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +35,7 @@ from pathlib import Path
 from typing import Protocol
 
 import yaml
+from jsonschema import Draft202012Validator, FormatChecker
 
 from research_system.errors import ArsError
 from research_system.assurance.external_records import ExternalRecordResolution, _RECORD_ENVELOPE
@@ -158,7 +160,12 @@ def _pack_schema_registry() -> SchemaRegistry:
     return SchemaRegistry(_SCHEMAS_ROOT)
 
 
-def _accepted_repository_artifact(path: Path, accepted_subject: Mapping[str, object], label: str) -> bytes:
+def _accepted_repository_artifact(
+    path: Path,
+    accepted_subject: Mapping[str, object],
+    label: str,
+    trusted_bytes: bytes | None = None,
+) -> bytes:
     """Read a repository artifact and prove it is the independently accepted one.
 
     The loader derives the contract's requirements from the contract itself. That is only
@@ -176,10 +183,15 @@ def _accepted_repository_artifact(path: Path, accepted_subject: Mapping[str, obj
     Raises:
         PackUnconsumable: If the artifact is unreadable or is not the accepted bytes.
     """
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        raise PackUnconsumable(f"{label} is unreadable at {path}") from exc
+    if trusted_bytes is None:
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            raise PackUnconsumable(f"{label} is unreadable at {path}") from exc
+    else:
+        data = trusted_bytes
+        if not isinstance(data, bytes):
+            raise PackUnconsumable(f"{label} trusted bytes are not bytes")
     if b"\r" in data:
         raise PackUnconsumable(f"{label} is not on the git_blob_utf8_lf canonical byte surface")
     if accepted_subject.get("git_blob") != git_blob_id(data) or accepted_subject.get("canonical_sha256") != _sha256(
@@ -189,7 +201,7 @@ def _accepted_repository_artifact(path: Path, accepted_subject: Mapping[str, obj
     return data
 
 
-def _parse_candidate(raw_candidate_pack_bytes: bytes) -> dict:
+def _parse_candidate(raw_candidate_pack_bytes: bytes, trusted_schema_bytes: bytes | None = None) -> dict:
     """Parse and schema-validate raw candidate bytes.
 
     Args:
@@ -214,8 +226,18 @@ def _parse_candidate(raw_candidate_pack_bytes: bytes) -> dict:
     if not isinstance(parsed, dict):
         raise PackUnconsumable("candidate bytes must parse to one pack object")
     try:
-        _pack_schema_registry().validate(PACK_SCHEMA_ID, parsed)
-    except ArsError as exc:
+        if trusted_schema_bytes is None:
+            _pack_schema_registry().validate(PACK_SCHEMA_ID, parsed)
+        else:
+            schema = json.loads(trusted_schema_bytes)
+            Draft202012Validator.check_schema(schema)
+            errors = sorted(
+                Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(parsed),
+                key=lambda error: list(error.absolute_path),
+            )
+            if errors:
+                raise ValueError("; ".join(error.message for error in errors))
+    except (ArsError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise PackUnconsumable(f"candidate fails the accepted pack schema: {exc}") from exc
     return parsed
 
@@ -301,7 +323,7 @@ def _revalidate_references(pack: Mapping[str, object], snapshot: Mapping[str, Ma
 
 def _resolve_records(
     required_classes: Sequence[str],
-    opaque_external_record_ids: Mapping[str, str],
+    opaque_external_record_ids: Mapping[str, object],
     resolver: ContentAddressedAuthorityResolver,
     authority_root: str,
 ) -> dict[str, ExternalRecordResolution]:
@@ -327,66 +349,74 @@ def _resolve_records(
 
     resolved: dict[str, ExternalRecordResolution] = {}
     for record_class in required_classes:
-        record_id = opaque_external_record_ids[record_class]
-        per_phase: list[ExternalRecordResolution] = []
-        resolver_with_receipt = getattr(resolver, "resolve_with_receipt", None)
-        if not callable(resolver_with_receipt):
-            raise PackUnconsumable(
-                f"external record resolver does not provide trusted storage receipts: {record_class}"
-            )
-        for phase in AUTHORITY_RESOLUTION_PHASES:
-            try:
-                resolution = resolver_with_receipt(
-                    record_id=record_id,
-                    record_class=record_class,
-                    authority_root=authority_root,
-                    phase=phase,
+        requested = opaque_external_record_ids[record_class]
+        if isinstance(requested, Mapping):
+            record_ids = {str(label): value for label, value in requested.items()}
+        else:
+            record_ids = {"default": requested}
+        if not record_ids or not all(isinstance(record_id, str) and record_id for record_id in record_ids.values()):
+            raise PackUnconsumable(f"external record ids are not exact: {record_class}")
+        for semantic_label, record_id in record_ids.items():
+            per_phase: list[ExternalRecordResolution] = []
+            resolver_with_receipt = getattr(resolver, "resolve_with_receipt", None)
+            if not callable(resolver_with_receipt):
+                raise PackUnconsumable(
+                    f"external record resolver does not provide trusted storage receipts: {record_class}"
                 )
-            except Exception as exc:  # noqa: BLE001 - any resolver failure is fail-closed
-                raise PackUnconsumable(f"external record did not resolve at phase {phase}: {record_class}") from exc
-            if not isinstance(resolution, ExternalRecordResolution) or not isinstance(resolution.record, Mapping):
-                raise PackUnconsumable(f"external record lacks trusted storage metadata: {record_class}")
-            record = resolution.record
-            if (
-                resolution.record_class != record_class
-                or resolution.record_id != record_id
-                or isinstance(resolution.revision, bool)
-                or not isinstance(resolution.revision, int)
-                or resolution.revision < 1
-                or not isinstance(resolution.canonical_sha256, str)
+            for phase in AUTHORITY_RESOLUTION_PHASES:
+                try:
+                    resolution = resolver_with_receipt(
+                        record_id=record_id,
+                        record_class=record_class,
+                        authority_root=authority_root,
+                        phase=phase,
+                    )
+                except Exception as exc:  # noqa: BLE001 - any resolver failure is fail-closed
+                    raise PackUnconsumable(f"external record did not resolve at phase {phase}: {record_class}") from exc
+                if not isinstance(resolution, ExternalRecordResolution) or not isinstance(resolution.record, Mapping):
+                    raise PackUnconsumable(f"external record lacks trusted storage metadata: {record_class}")
+                record = resolution.record
+                if (
+                    resolution.record_class != record_class
+                    or resolution.record_id != record_id
+                    or isinstance(resolution.revision, bool)
+                    or not isinstance(resolution.revision, int)
+                    or resolution.revision < 1
+                    or not isinstance(resolution.canonical_sha256, str)
+                ):
+                    raise PackUnconsumable(f"external record trusted identity is not exact: {record_class}")
+                if "content_sha256" in record:
+                    raise PackUnconsumable(f"schema-forbidden content_sha256 in external record: {record_class}")
+                per_phase.append(resolution)
+            if any(
+                (
+                    resolution.record != per_phase[0].record
+                    or resolution.revision != per_phase[0].revision
+                    or resolution.canonical_sha256 != per_phase[0].canonical_sha256
+                )
+                for resolution in per_phase[1:]
             ):
-                raise PackUnconsumable(f"external record trusted identity is not exact: {record_class}")
-            if "content_sha256" in record:
-                raise PackUnconsumable(f"schema-forbidden content_sha256 in external record: {record_class}")
-            per_phase.append(resolution)
-        if any(
-            (
-                resolution.record != per_phase[0].record
-                or resolution.revision != per_phase[0].revision
-                or resolution.canonical_sha256 != per_phase[0].canonical_sha256
-            )
-            for resolution in per_phase[1:]
-        ):
-            raise PackUnconsumable(f"external record is unstable across authority phases: {record_class}")
+                raise PackUnconsumable(f"external record is unstable across authority phases: {record_class}")
 
-        resolution = per_phase[0]
-        record = resolution.record
-        envelope = _RECORD_ENVELOPE.get(record_class)
-        if envelope is None:
-            raise PackUnconsumable(f"no accepted record envelope for record class: {record_class}")
-        id_field, state_field, active_state = envelope
-        if record.get(id_field) != record_id or record.get("record_type") != record_class:
-            raise PackUnconsumable(f"resolved record does not identify as the requested record: {record_class}")
-        if record.get(state_field) != active_state:
-            raise PackUnconsumable(f"resolved record is not active: {record_class}")
-        resolved[record_class] = resolution
+            resolution = per_phase[0]
+            record = resolution.record
+            envelope = _RECORD_ENVELOPE.get(record_class)
+            if envelope is None:
+                raise PackUnconsumable(f"no accepted record envelope for record class: {record_class}")
+            id_field, state_field, active_state = envelope
+            if record.get(id_field) != record_id or record.get("record_type") != record_class:
+                raise PackUnconsumable(f"resolved record does not identify as the requested record: {record_class}")
+            if record.get(state_field) != active_state:
+                raise PackUnconsumable(f"resolved record is not active: {record_class}")
+            key = record_class if semantic_label == "default" else f"{record_class}:{semantic_label}"
+            resolved[key] = resolution
     return resolved
 
 
 def _require_registered_object(record: Mapping[str, object], pack: Mapping[str, object]) -> None:
     if (
         record.get("assurance_pack_id") != pack["assurance_pack_id"]
-        or record.get("assurance_pack_revision") != pack["assurance_pack_revision"]
+        or record.get("revision") != pack["assurance_pack_revision"]
         or record.get("canonical_repository_path") != pack["canonical_repository_path"]
     ):
         raise PackUnconsumable("candidate object identity is not the W1-registered pack object")
@@ -420,12 +450,12 @@ def _require_accepted_requirement(
         raise PackUnconsumable("candidate requirement reference is not the accepted assurance requirement")
     if record.get("prospective_producer_actor_id") != pack["producer_actor_id"]:
         raise PackUnconsumable("prospective producer relationship is stale")
-    _require_current_producer_relationship(
-        record,
-        _require_key(resolved, "producer_relationship_evidence", "resolved external records"),
-        pack,
-        evaluation_time,
-    )
+    scope_relationship = resolved.get("producer_relationship_evidence:requirement_scope")
+    if scope_relationship is None:
+        # Preserve the original single-relationship test seam.  Production
+        # runners supply the explicit semantic requirement-scope locator.
+        scope_relationship = _require_key(resolved, "producer_relationship_evidence", "resolved external records")
+    _require_current_producer_relationship(record, scope_relationship, pack, evaluation_time)
 
 
 def _require_relationship_grade(
@@ -566,9 +596,14 @@ def _require_subject_bound_lifecycle(
     """
     review = _require_key(resolved, "independent_pack_review", "resolved external records")
     owner = _require_key(resolved, "stephen_owner_acceptance", "resolved external records")
+    review_relationship = resolved.get("producer_relationship_evidence:pack_review")
+    if review_relationship is None:
+        # Preserve the original single-relationship test seam.  Production
+        # runners supply the explicit semantic pack-review locator above.
+        review_relationship = _require_key(resolved, "producer_relationship_evidence", "resolved external records")
     _require_review_relationship(
         review,
-        _require_key(resolved, "producer_relationship_evidence", "resolved external records"),
+        review_relationship,
         pack,
     )
     review_record_id = _require_key(opaque_external_record_ids, "independent_pack_review", "opaque external record ids")
@@ -585,8 +620,18 @@ def _require_subject_bound_lifecycle(
     if owner.get("review_record_id") != review_record_id:
         raise PackUnconsumable("owner acceptance does not bind the resolved independent pack review")
 
-    reviewed_at = _parse_timestamp(str(review.get("decided_at")), "independent pack review decided_at")
+    reviewed_at = _parse_timestamp(str(review.get("reviewed_at")), "independent pack review reviewed_at")
     accepted_at = _parse_timestamp(str(owner.get("decided_at")), "owner acceptance decided_at")
+    relationship_effective_at = _parse_timestamp(
+        str(review_relationship.get("effective_at")), "pack-review relationship effective_at"
+    )
+    relationship_expires_at = _parse_timestamp(
+        str(review_relationship.get("expires_at")), "pack-review relationship expires_at"
+    )
+    if not relationship_effective_at <= reviewed_at < relationship_expires_at:
+        raise PackUnconsumable("independent pack review is outside its relationship validity window")
+    if not relationship_effective_at <= evaluation_time < relationship_expires_at:
+        raise PackUnconsumable("pack-review relationship is not current at the evaluation time")
     if not reviewed_at < accepted_at <= evaluation_time:
         raise PackUnconsumable("owner acceptance must follow the independent review and precede evaluation")
 
@@ -597,10 +642,12 @@ def validate_tdl_private_pack_for_acceptance(
     accepted_schema_subject: Mapping[str, object],
     trusted_w1_w2_content_addressed_authority_resolver: ContentAddressedAuthorityResolver,
     independently_supplied_authority_root: str,
-    opaque_external_record_ids: Mapping[str, str],
+    opaque_external_record_ids: Mapping[str, object],
     current_exact_reference_snapshot: Mapping[str, Mapping[str, object]],
     raw_candidate_pack_bytes: bytes,
     evaluation_time: datetime,
+    trusted_upstream_contract_bytes: bytes | None = None,
+    trusted_schema_bytes: bytes | None = None,
 ) -> PackAcceptanceSubject:
     """Compute and validate the exact acceptance subject of a ``TDL_private`` pack candidate.
 
@@ -628,13 +675,16 @@ def validate_tdl_private_pack_for_acceptance(
         raise PackUnconsumable("evaluation_time must carry a timezone")
 
     contract_bytes = _accepted_repository_artifact(
-        _CONTRACT_PATH, accepted_upstream_contract_subject, "upstream contract"
+        _CONTRACT_PATH,
+        accepted_upstream_contract_subject,
+        "upstream contract",
+        trusted_upstream_contract_bytes,
     )
-    _accepted_repository_artifact(_PACK_SCHEMA_PATH, accepted_schema_subject, "pack schema")
+    _accepted_repository_artifact(_PACK_SCHEMA_PATH, accepted_schema_subject, "pack schema", trusted_schema_bytes)
     contract = yaml.safe_load(contract_bytes.decode("utf-8"))
     required = _require_key(contract, "required_pack_contract", "upstream contract")
 
-    pack = _parse_candidate(raw_candidate_pack_bytes)
+    pack = _parse_candidate(raw_candidate_pack_bytes, trusted_schema_bytes)
 
     # The candidate's own claims about the contract and schema must equal the independently
     # accepted subjects. A coordinated edit of both sides still fails, because neither side
@@ -681,3 +731,83 @@ def validate_tdl_private_pack_for_acceptance(
     )
     _require_subject_bound_lifecycle(resolved, subject, opaque_external_record_ids, pack, evaluation_time)
     return subject
+
+
+def validate_tdl_private_pack_for_preparation(
+    *,
+    accepted_upstream_contract_subject: Mapping[str, object],
+    accepted_schema_subject: Mapping[str, object],
+    trusted_w1_w2_content_addressed_authority_resolver: ContentAddressedAuthorityResolver,
+    independently_supplied_authority_root: str,
+    opaque_external_record_ids: Mapping[str, object],
+    current_exact_reference_snapshot: Mapping[str, Mapping[str, object]],
+    raw_candidate_pack_bytes: bytes,
+    evaluation_time: datetime,
+    trusted_upstream_contract_bytes: bytes | None = None,
+    trusted_schema_bytes: bytes | None = None,
+) -> PackAcceptanceSubject:
+    """Validate the candidate subject before future pack review or owner records exist.
+
+    Preparation deliberately shares the accepted candidate/schema/reference and
+    requirement/registered-object checks with the consumption loader, but its
+    required record map is supplied by the caller and must omit the future
+    ``independent_pack_review`` and ``stephen_owner_acceptance`` records.  This
+    is the only loader entry point that may persist a preparation evidence file;
+    it never treats a candidate as accepted.
+    """
+    if evaluation_time.tzinfo is None or evaluation_time.utcoffset() is None:
+        raise PackUnconsumable("evaluation_time must carry a timezone")
+
+    contract_bytes = _accepted_repository_artifact(
+        _CONTRACT_PATH,
+        accepted_upstream_contract_subject,
+        "upstream contract",
+        trusted_upstream_contract_bytes,
+    )
+    _accepted_repository_artifact(_PACK_SCHEMA_PATH, accepted_schema_subject, "pack schema", trusted_schema_bytes)
+    try:
+        contract = yaml.safe_load(contract_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise PackUnconsumable("accepted upstream contract is not valid YAML") from exc
+    required = _require_key(contract, "required_pack_contract", "upstream contract")
+    pack = _parse_candidate(raw_candidate_pack_bytes, trusted_schema_bytes)
+    _require_matching_subject(
+        pack["upstream_contract_reference"], accepted_upstream_contract_subject, "upstream contract reference"
+    )
+    _require_matching_subject(pack["schema_reference"], accepted_schema_subject, "pack schema reference")
+    _revalidate_references(pack, current_exact_reference_snapshot)
+    evidence = _require_key(required, "external_acceptance_evidence", "upstream contract")
+    required_record_types = _require_key(evidence, "required_record_types", "external acceptance evidence")
+    future = {"independent_pack_review", "stephen_owner_acceptance"}
+    if future.intersection(opaque_external_record_ids):
+        raise PackUnconsumable("prepare cannot resolve future pack review and owner acceptance records")
+    pre_required = [record_class for record_class in required_record_types if record_class not in future]
+    resolved = _resolve_records(
+        pre_required,
+        opaque_external_record_ids,
+        trusted_w1_w2_content_addressed_authority_resolver,
+        independently_supplied_authority_root,
+    )
+    _require_registered_object(_require_key(resolved, "registered_pack_object", "resolved external records"), pack)
+    _require_accepted_requirement(resolved, pack, evaluation_time)
+    currency = pack["currency"]
+    authored_at = _parse_timestamp(currency["authored_at"], "authored_at")
+    effective_at = _parse_timestamp(currency["effective_at"], "effective_at")
+    expires_at = _parse_timestamp(currency["expires_at"], "expires_at")
+    if not authored_at <= effective_at < expires_at:
+        raise PackUnconsumable("candidate currency time order is invalid")
+    if not effective_at <= evaluation_time < expires_at:
+        raise PackUnconsumable("candidate is not current at the evaluation time")
+    return PackAcceptanceSubject(
+        pack_id=pack["pack_id"],
+        assurance_pack_id=pack["assurance_pack_id"],
+        assurance_pack_revision=pack["assurance_pack_revision"],
+        canonical_repository_path=pack["canonical_repository_path"],
+        pack_git_blob=git_blob_id(raw_candidate_pack_bytes),
+        pack_raw_sha256=_sha256(raw_candidate_pack_bytes),
+        schema_id=pack["schema_reference"]["schema_id"],
+        schema_version=pack["schema_reference"]["schema_version"],
+        schema_repository_path=pack["schema_reference"]["repository_path"],
+        schema_git_blob=pack["schema_reference"]["git_blob"],
+        schema_canonical_sha256=pack["schema_reference"]["canonical_sha256"],
+    )
