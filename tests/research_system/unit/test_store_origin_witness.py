@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from research_system.errors import ArsError, ConflictError, IntegrityError
+import research_system.store.identity as identity_module
 from research_system.store.identity import (
     initialize_control_store,
     load_store_manifest,
@@ -16,6 +17,11 @@ from research_system.store.identity import (
 
 
 PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
+
+
+def _simulate_posix_cleanup(monkeypatch):
+    monkeypatch.setattr(identity_module.os, "name", "posix")
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda _path: True)
 
 
 def _initialized(tmp_path: Path):
@@ -121,6 +127,74 @@ def test_witness_is_write_once_and_exact_retry_is_idempotent(tmp_path: Path):
     with pytest.raises(ConflictError, match="conflicts"):
         persist_store_origin_witness(witness, origin_root)
     assert first.witness_path.read_bytes() == b"foreign witness"
+
+
+def test_posix_cleanup_preserves_foreign_temporary_inode(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    temporary.write_bytes(b"foreign")
+    _simulate_posix_cleanup(monkeypatch)
+
+    with pytest.raises(ConflictError, match="temporary physical identity changed"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert temporary.read_bytes() == b"foreign"
+
+
+def test_posix_cleanup_removes_owned_temporary_hardlink(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+
+    identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert not temporary.exists()
+    assert anchor.read_bytes() == expected
+
+
+def test_posix_cleanup_preserves_replaced_temporary_path(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+
+    def replace_temporary(path: Path):
+        path.unlink()
+        path.write_bytes(b"foreign replacement")
+
+    monkeypatch.setattr(identity_module, "_after_restore_owned_temporary_compared", replace_temporary)
+    with pytest.raises(ConflictError, match="temporary physical identity changed"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert temporary.read_bytes() == b"foreign replacement"
+    assert anchor.read_bytes() == expected
+
+
+def test_posix_cleanup_rejects_temporary_symlink_without_following(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    foreign = tmp_path / "foreign"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    foreign.write_bytes(b"foreign")
+    try:
+        temporary.symlink_to(foreign)
+    except OSError as exc:
+        pytest.skip(f"file symlink unavailable: {exc}")
+    _simulate_posix_cleanup(monkeypatch)
+
+    with pytest.raises(ConflictError, match="not a regular file"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert temporary.is_symlink()
+    assert foreign.read_bytes() == b"foreign"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows reparse controls are platform-specific")

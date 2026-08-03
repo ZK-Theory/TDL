@@ -1667,15 +1667,97 @@ def _windows_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -
             raise ArsError(f"restore binding could not close sealed cleanup handle: {path}") from close_error
 
 
+def _posix_file_identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def _posix_open_regular(path: Path, *, label: str) -> int:
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ConflictError(f"restore binding {label} is not a regular file: {path}")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or _posix_file_identity(opened) != _posix_file_identity(metadata):
+            raise ConflictError(f"restore binding {label} physical identity changed: {path}")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _posix_read_descriptor(descriptor: int) -> bytes:
+    chunks: list[bytes] = []
+    while True:
+        chunk = os.read(descriptor, 1024 * 1024)
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+
+
+def _posix_compare_owned_temporary(path: Path, anchor: Path, expected: bytes) -> None:
+    temporary_descriptor = -1
+    anchor_descriptor = -1
+    try:
+        temporary_descriptor = _posix_open_regular(path, label="temporary")
+        anchor_descriptor = _posix_open_regular(anchor, label="anchor")
+        temporary_identity = _posix_file_identity(os.fstat(temporary_descriptor))
+        anchor_identity = _posix_file_identity(os.fstat(anchor_descriptor))
+        if temporary_identity != anchor_identity:
+            raise ConflictError(f"restore binding temporary physical identity changed: {path}")
+        if _posix_read_descriptor(temporary_descriptor) != expected:
+            raise ConflictError(f"restore binding temporary ownership changed: {path}")
+    except ConflictError:
+        raise
+    except OSError as exc:
+        raise ArsError(f"restore binding could not seal temporary cleanup: {path}") from exc
+    finally:
+        close_error: OSError | None = None
+        for descriptor in (anchor_descriptor, temporary_descriptor):
+            if descriptor != -1:
+                try:
+                    os.close(descriptor)
+                except OSError as exc:
+                    close_error = exc
+        if close_error is not None:
+            raise ArsError(f"restore binding could not close sealed cleanup descriptor: {path}") from close_error
+
+
+def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> None:
+    _posix_compare_owned_temporary(path, anchor, expected)
+    _after_restore_owned_temporary_compared(path)
+    _posix_compare_owned_temporary(path, anchor, expected)
+    try:
+        os.unlink(path)
+    except OSError as exc:
+        raise ArsError(f"restore binding could not seal temporary cleanup: {path}") from exc
+
+
 def _cleanup_owned_temporary(path: Path, expected: bytes, *, anchor: Path) -> None:
-    if not path.exists():
-        if not _fsync_directory(path.parent):
-            raise ArsError("restore binding requires durable temporary cleanup")
-        return
-    _before_restore_owned_temporary_cleanup(path)
-    _windows_delete_owned_temporary(path, anchor, expected)
-    if path.exists():
-        raise ConflictError(f"restore binding temporary name was replaced during cleanup: {path}")
+    if os.name == "nt":
+        if not path.exists():
+            if not _fsync_directory(path.parent):
+                raise ArsError("restore binding requires durable temporary cleanup")
+            return
+        _before_restore_owned_temporary_cleanup(path)
+        _windows_delete_owned_temporary(path, anchor, expected)
+        if path.exists():
+            raise ConflictError(f"restore binding temporary name was replaced during cleanup: {path}")
+    else:
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            if not _fsync_directory(path.parent):
+                raise ArsError("restore binding requires durable temporary cleanup")
+            return
+        _before_restore_owned_temporary_cleanup(path)
+        _posix_delete_owned_temporary(path, anchor, expected)
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            raise ConflictError(f"restore binding temporary name was replaced during cleanup: {path}")
     if not _fsync_directory(path.parent):
         raise ArsError("restore binding requires durable temporary cleanup")
 
