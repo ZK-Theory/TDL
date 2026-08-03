@@ -15,7 +15,7 @@ from research_system.authority import (
     LedgerAuthorityGrantResolver,
     _verify_bootstrap_bindings,
     authority_bootstrap_sha256,
-    initialize_authority_control_store,
+    initialize_authority_control_store as _initialize_authority_control_store,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
@@ -31,7 +31,6 @@ from research_system.errors import (
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
-from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -60,6 +59,20 @@ SUBSTITUTE_EVENT_ID = "evt_01978abc-1015-7000-8000-000000001015"
 SCHEMAS = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
 
 
+def initialize_authority_control_store(code_roots, control_root, project_id, bootstrap, approved, **kwargs):
+    origin_root = kwargs.pop("origin_authority_root", control_root.parent / "origin-authority")
+    origin_root.mkdir(parents=True, exist_ok=True)
+    return _initialize_authority_control_store(
+        code_roots,
+        control_root,
+        project_id,
+        bootstrap,
+        approved,
+        origin_authority_root=origin_root,
+        **kwargs,
+    )
+
+
 def _code_root(tmp_path, name: str = "repo"):
     root = tmp_path / name
     shutil.copytree(
@@ -80,6 +93,8 @@ def _resolver(
         project_id,
         expected_store_identity,
         SCHEMAS,
+        approved_witness=getattr(expected_store_identity, "witness", None),
+        approved_witness_path=getattr(expected_store_identity, "witness_path", None),
     )
 
 
@@ -142,7 +157,16 @@ def _initialized(tmp_path):
     control_root = tmp_path / "control"
     bootstrap = _bootstrap()
     approved = authority_bootstrap_sha256(bootstrap)
-    identity = initialize_authority_control_store([code_root], control_root, PROJECT_ID, bootstrap, approved)
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+    identity = initialize_authority_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        approved,
+        origin_authority_root=origin_root,
+    )
     return control_root, bootstrap, identity
 
 
@@ -190,12 +214,15 @@ def stop(point):
 authority._bootstrap_failpoint = stop
 if failpoint == "at-rename":
     authority.os.rename = lambda *args: os._exit(86)
+origin = base / "origin-authority"
+origin.mkdir(parents=True, exist_ok=True)
 authority.initialize_authority_control_store(
     [base / "repo"],
     base / "control",
     sys.argv[3],
     bootstrap,
     authority.authority_bootstrap_sha256(bootstrap),
+    origin_authority_root=origin,
 )
 """
     # Current interpreter, fixed argv shape, and synthetic test inputs only.
@@ -476,7 +503,7 @@ def test_genesis_rejects_nonempty_target_without_mutation(tmp_path) -> None:
     sentinel.write_bytes(b"foreign-store")
     bootstrap = _bootstrap()
 
-    with pytest.raises(IntegrityError, match="identity manifest"):
+    with pytest.raises(IntegrityError, match="origin witness is missing"):
         initialize_authority_control_store(
             [code_root],
             control_root,
@@ -1277,7 +1304,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
         restarted.submit(changed_version)
 
 
-def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_path, monkeypatch, capsys) -> None:
+def test_cli_store_init_requires_materialized_canonical_origin_pins(tmp_path, monkeypatch) -> None:
     code_root = tmp_path / "repo"
     shutil.copytree(
         REPO_ROOT / ".research-system" / "schemas",
@@ -1302,7 +1329,7 @@ def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_
         )(),
     )
     control_root = tmp_path / "control"
-    assert (
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
                 "store",
@@ -1317,14 +1344,10 @@ def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(tmp_
                 str(bootstrap_path),
             ]
         )
-        == 0
-    )
-    output = __import__("json").loads(capsys.readouterr().out)
-    assert output["bootstrap_manifest_sha256"] == authority_bootstrap_sha256(bootstrap)
-    assert output["store_identity"]
+    assert not control_root.exists()
 
 
-def test_cli_store_init_binds_explicit_schema_authority_across_worktrees(tmp_path, monkeypatch, capsys) -> None:
+def test_cli_store_init_schema_authority_stops_before_unmaterialized_origin_pins(tmp_path, monkeypatch) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
     for root in (explicit_root, linked_root):
@@ -1372,39 +1395,9 @@ def test_cli_store_init_binds_explicit_schema_authority_across_worktrees(tmp_pat
         str(bootstrap_path),
     ]
 
-    assert main(init_args) == 0
-    first_identity = json.loads(capsys.readouterr().out)["store_identity"]
-    manifest = load_store_manifest(control_root)
-    assert manifest["schema_root"] == str((explicit_root / ".research-system" / "schemas").resolve())
-    assert manifest["code_roots"] == sorted([str(explicit_root.resolve()), str(linked_root.resolve())])
-    stable = {
-        "schema_id": manifest["schema_id"],
-        "schema_version": manifest["schema_version"],
-        "store_nonce": manifest["store_nonce"],
-        "project_id": manifest["project_id"],
-        "bootstrap_manifest_sha256": manifest["bootstrap_manifest_sha256"],
-    }
-    assert first_identity == sha256_hex(canonical_bytes(stable))
-
-    assert main(init_args) == 0
-    assert json.loads(capsys.readouterr().out)["store_identity"] == first_identity
-    assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
-    capsys.readouterr()
-    projection = explicit_root / ".research-system" / "projections" / "state.json"
-    assert (
-        main(
-            [
-                "projection",
-                "rebuild",
-                "--control-root",
-                str(control_root),
-                "--output",
-                str(projection),
-            ]
-        )
-        == 0
-    )
-    assert json.loads(projection.read_text(encoding="utf-8"))["last_position"] == 2
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
+        main(init_args)
+    assert not control_root.exists()
 
 
 @pytest.mark.parametrize(
@@ -1475,7 +1468,7 @@ def test_exact_retry_rejects_changed_or_malformed_schema_authority(tmp_path, aut
     )
 
 
-def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, monkeypatch) -> None:
+def test_cli_store_init_stops_before_manifest_replay_without_materialized_origin_pins(tmp_path, monkeypatch) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
     for root in (explicit_root, linked_root):
@@ -1508,7 +1501,7 @@ def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, 
         )(),
     )
     control_root = tmp_path / "control"
-    assert (
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
                 "store",
@@ -1523,31 +1516,7 @@ def test_manifest_replay_rejects_tampered_or_missing_schema_authority(tmp_path, 
                 str(bootstrap_path),
             ]
         )
-        == 0
-    )
-    manifest_path = control_root / "manifests" / "store-identity.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["schema_root"] = str((linked_root / ".research-system" / "schemas").resolve())
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(IntegrityError, match="manifest hash mismatch"):
-        main(["replay", "verify", "--control-root", str(control_root)])
-
-    manifest["manifest_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
-    )
-    manifest_path.write_bytes(canonical_bytes(manifest))
-    with pytest.raises(ConflictError, match="schema root binding mismatch"):
-        initialize_authority_control_store(
-            [explicit_root, linked_root],
-            control_root,
-            PROJECT_ID,
-            bootstrap,
-            authority_bootstrap_sha256(bootstrap),
-            canonical_schema_root=explicit_root / ".research-system" / "schemas",
-        )
-    shutil.rmtree(linked_root / ".research-system" / "schemas")
-    with pytest.raises(ConfigurationError, match="schema root is missing"):
-        main(["replay", "verify", "--control-root", str(control_root)])
+    assert not control_root.exists()
 
 
 def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path) -> None:
@@ -1641,16 +1610,16 @@ def test_control_binding_reports_missing_manifest_schema_root(tmp_path) -> None:
         ControlBinding.load(binding_path)
 
 
-def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys, monkeypatch) -> None:
+def test_cli_command_submit_stops_without_materialized_canonical_foundation(tmp_path, capsys, monkeypatch) -> None:
     control_root, _, identity = _initialized(tmp_path)
     config_path = tmp_path / "binding.json"
     config_path.write_text(
         json.dumps(
             {
-                "code_roots": [str((tmp_path / "repo").resolve())],
+                "code_roots": [str(REPO_ROOT.resolve())],
                 "control_root": str(control_root.resolve()),
                 "project_id": PROJECT_ID,
-                "schema_root": str((tmp_path / "repo" / ".research-system" / "schemas").resolve()),
+                "schema_root": str((REPO_ROOT / ".research-system" / "schemas").resolve()),
                 "store_identity": identity,
             }
         ),
@@ -1664,7 +1633,7 @@ def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys,
         raising=False,
     )
 
-    assert (
+    with pytest.raises(ConfigurationError, match="missing approved project binding fields"):
         main(
             [
                 "command",
@@ -1675,10 +1644,8 @@ def test_cli_command_submit_wires_validated_authority_resolver(tmp_path, capsys,
                 str(command_path),
             ]
         )
-        == 0
-    )
 
-    assert json.loads(capsys.readouterr().out)["status"] == "accepted"
+    assert capsys.readouterr().out == ""
 
 
 def test_pre_rename_crash_leaves_no_visible_store_and_exact_retry_recovers(tmp_path, monkeypatch) -> None:
@@ -1813,6 +1780,11 @@ def test_hard_exit_boundaries_recover_only_one_complete_store(tmp_path, failpoin
         datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert resolved.authority_grant_sha256 == bootstrap["publication_grant_sha256"]
+    root_stat = control_root.stat()
+    assert identity.witness.initial_physical_root_identity == {
+        "device": str(root_stat.st_dev),
+        "inode": str(root_stat.st_ino),
+    }
 
 
 def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:

@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +22,17 @@ from research_system.schema_registry import (
     runtime_schema_registry,
 )
 from research_system.store.durability import fsync_directory
-from research_system.store.identity import SCHEMA_BINDING_VERSION
+from research_system.store.identity import (
+    SCHEMA_BINDING_VERSION,
+    InitializedStore,
+    StoreOriginWitness,
+    _validate_origin_authority_root,
+    build_store_origin_witness,
+    load_store_origin_witness,
+    origin_witness_path,
+    physical_root_identity,
+    persist_store_origin_witness,
+)
 
 
 SCOPED_AUTHORITY_ADMISSION_VERSION = "owner-bound-v1"
@@ -965,26 +976,48 @@ def _write_identity(
     project_id: str,
     bootstrap_hash: str,
     schema_root: Path,
+    *,
+    reserved_manifest: dict[str, Any] | None = None,
 ) -> str:
-    nonce = secrets.token_hex(16)
-    stable = {
-        "schema_id": "ars://core/store-identity",
-        "schema_version": "1.1.0",
-        "store_nonce": nonce,
-        "project_id": project_id,
-        "bootstrap_manifest_sha256": bootstrap_hash,
-    }
-    identity = sha256_hex(canonical_bytes(stable))
-    manifest: dict[str, Any] = {
-        **stable,
-        "store_identity": identity,
-        "control_root": str(final_root.resolve(strict=False)),
-        "code_roots": sorted(str(root.resolve(strict=True)) for root in code_roots),
-        "endpoint_scheme": "local-cli",
-    }
-    manifest["schema_root"] = str(schema_root)
-    manifest["schema_binding_version"] = SCHEMA_BINDING_VERSION
-    manifest["manifest_hash"] = _manifest_hash(manifest)
+    expected_code_roots = sorted(str(root.resolve(strict=True)) for root in code_roots)
+    if reserved_manifest is None:
+        nonce = secrets.token_hex(16)
+        stable = {
+            "schema_id": "ars://core/store-identity",
+            "schema_version": "1.1.0",
+            "store_nonce": nonce,
+            "project_id": project_id,
+            "bootstrap_manifest_sha256": bootstrap_hash,
+        }
+        identity = sha256_hex(canonical_bytes(stable))
+        manifest: dict[str, Any] = {
+            **stable,
+            "store_identity": identity,
+            "control_root": str(final_root.resolve(strict=False)),
+            "code_roots": expected_code_roots,
+            "endpoint_scheme": "local-cli",
+        }
+        manifest["schema_root"] = str(schema_root)
+        manifest["schema_binding_version"] = SCHEMA_BINDING_VERSION
+        manifest["manifest_hash"] = _manifest_hash(manifest)
+    else:
+        manifest = dict(reserved_manifest)
+        identity = manifest.get("store_identity")
+        if (
+            not isinstance(identity, str)
+            or len(identity) != 64
+            or identity.lower() != identity
+            or manifest.get("schema_id") != "ars://core/store-identity"
+            or manifest.get("schema_version") != "1.1.0"
+            or manifest.get("project_id") != project_id
+            or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash
+            or manifest.get("control_root") != str(final_root.resolve(strict=False))
+            or manifest.get("code_roots") != expected_code_roots
+            or manifest.get("schema_root") != str(schema_root)
+            or manifest.get("schema_binding_version") != SCHEMA_BINDING_VERSION
+            or manifest.get("manifest_hash") != _manifest_hash(manifest)
+        ):
+            raise ConflictError("reserved authority origin witness does not match initializer request")
     path = stage / "manifests" / "store-identity.json"
     with path.open("xb") as handle:
         handle.write(canonical_bytes(manifest))
@@ -1098,6 +1131,8 @@ def _verify_complete_store(
     *,
     require_schema_binding: bool = False,
     require_genesis_only: bool = False,
+    approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> str:
     from research_system.projection.replay import replay
 
@@ -1108,6 +1143,12 @@ def _verify_complete_store(
     bootstrap_bytes = canonical_bytes(value)
     bootstrap_hash = authority_bootstrap_sha256(value)
     manifest = _load_bound_manifest(store_root, expected_control_root)
+    if approved_witness is None:
+        approved_witness = build_store_origin_witness(
+            manifest,
+            initial_control_root=expected_control_root,
+            physical_root=store_root,
+        )
     if manifest.get("project_id") != project_id or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash:
         raise ConflictError("authority bootstrap conflicts with existing store")
     expected_roots = sorted(str(root.resolve(strict=True)) for root in code_roots)
@@ -1139,6 +1180,8 @@ def _verify_complete_store(
         project_id,
         str(manifest["store_identity"]),
         schemas,
+        approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
     )
     state = replay(
         events,
@@ -1147,6 +1190,61 @@ def _verify_complete_store(
     )
     _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
+
+
+def _matching_reserved_stage(
+    final_root: Path,
+    witness: StoreOriginWitness | None,
+) -> Path | None:
+    """Find the incomplete stage whose physical root is already witness-pinned."""
+    if witness is None:
+        return None
+    prefix = f".{final_root.name}.authority-stage-"
+    matches: list[Path] = []
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for stage in sorted(final_root.parent.glob(f"{prefix}*")):
+        try:
+            metadata = stage.lstat()
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & reparse_attribute
+            ):
+                continue
+            if physical_root_identity(stage) != witness.initial_physical_root_identity:
+                continue
+            manifest = _load_bound_manifest(stage, final_root)
+        except (ArsError, OSError, ValueError):
+            continue
+        if manifest != witness.initial_manifest:
+            raise ConflictError("reserved origin witness stage manifest differs from its authority")
+        matches.append(stage)
+    if len(matches) > 1:
+        raise ConflictError("multiple authority stages match the reserved origin witness")
+    return matches[0] if matches else None
+
+
+def _reset_reserved_stage(stage: Path) -> None:
+    """Clear only a witness-proven stage while preserving its physical root."""
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for child in stage.iterdir():
+        metadata = child.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
+            raise ConflictError("reserved authority stage contains a reparse child")
+        if stat.S_ISDIR(metadata.st_mode):
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    for name in (
+        "objects",
+        "events",
+        "manifests",
+        "receipts",
+        "snapshots",
+        "runtime",
+    ):
+        (stage / name).mkdir()
+    fsync_directory(stage)
 
 
 def _matching_complete_stage(
@@ -1159,6 +1257,8 @@ def _matching_complete_stage(
     schema_root: Path | None,
     *,
     require_schema_binding: bool,
+    approved_witness: StoreOriginWitness | None = None,
+    approved_witness_path: Path | None = None,
 ) -> tuple[Path, str] | None:
     prefix = f".{final_root.name}.authority-stage-"
     for stage in sorted(final_root.parent.glob(f"{prefix}*")):
@@ -1180,6 +1280,8 @@ def _matching_complete_stage(
                 schema_root,
                 require_schema_binding=require_schema_binding,
                 require_genesis_only=True,
+                approved_witness=approved_witness,
+                approved_witness_path=approved_witness_path,
             )
         except (ArsError, OSError, ValueError):
             continue
@@ -1224,7 +1326,9 @@ def initialize_authority_control_store(
     approved_bootstrap_sha256: str,
     *,
     canonical_schema_root: Path | None = None,
-) -> str:
+    origin_authority_root: Path | None = None,
+    approved_origin_witness_sha256: str | None = None,
+) -> InitializedStore:
     """Publish one complete authority-aware control store atomically.
 
     Args:
@@ -1261,6 +1365,13 @@ def initialize_authority_control_store(
     for code_root in resolved_codes:
         if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
             raise ArsError("control root must be disjoint from every code root")
+    if origin_authority_root is None:
+        raise ArsError("origin authority root is required for new authority stores")
+    resolved_origin_root = _validate_origin_authority_root(
+        origin_authority_root,
+        code_roots=resolved_codes,
+        control_roots=[final_root],
+    )
     resolved_schema_root = Path(os.path.abspath(canonical_schema_root)) if canonical_schema_root is not None else None
     bootstrap_schemas, selected_schema_root = _authority_schema_registry(
         resolved_codes,
@@ -1268,8 +1379,40 @@ def initialize_authority_control_store(
         allow_bundled_fallback=final_root.exists(),
     )
     require_schema_binding = canonical_schema_root is not None
+    witness_path = origin_witness_path(
+        resolved_origin_root,
+        project_id=project_id,
+        initial_control_root=final_root,
+    )
+    reserved_witness: StoreOriginWitness | None = None
+    if witness_path.exists():
+        try:
+            witness_raw = witness_path.read_bytes()
+        except OSError as exc:
+            raise IntegrityError("authority store origin witness reservation is unavailable") from exc
+        reserved_witness = load_store_origin_witness(
+            witness_path,
+            expected_sha256=approved_origin_witness_sha256 or sha256_hex(witness_raw),
+        )
+        reserved_manifest = reserved_witness.initial_manifest
+        if (
+            reserved_witness.project_id != project_id
+            or reserved_witness.initial_control_root != str(final_root)
+            or reserved_manifest.get("bootstrap_manifest_sha256") != bootstrap_hash
+            or reserved_manifest.get("code_roots") != sorted(str(root.resolve(strict=True)) for root in resolved_codes)
+            or (selected_schema_root is not None and reserved_manifest.get("schema_root") != str(selected_schema_root))
+        ):
+            raise ConflictError("authority store origin witness does not match initializer request")
     if final_root.exists():
-        return _verify_complete_store(
+        try:
+            witness_raw = witness_path.read_bytes()
+        except OSError as exc:
+            raise IntegrityError("authority store origin witness is missing") from exc
+        witness = load_store_origin_witness(
+            witness_path,
+            expected_sha256=approved_origin_witness_sha256 or sha256_hex(witness_raw),
+        )
+        identity = _verify_complete_store(
             final_root,
             final_root,
             project_id,
@@ -1278,7 +1421,11 @@ def initialize_authority_control_store(
             bootstrap_schemas,
             selected_schema_root,
             require_schema_binding=require_schema_binding,
+            approved_witness=witness,
+            approved_witness_path=witness_path,
         )
+        manifest = _load_bound_manifest(final_root, final_root)
+        return InitializedStore(identity, manifest, witness, witness_path)
     resumed = _matching_complete_stage(
         final_root,
         project_id,
@@ -1288,21 +1435,30 @@ def initialize_authority_control_store(
         bootstrap_schemas,
         selected_schema_root,
         require_schema_binding=require_schema_binding,
+        approved_witness=reserved_witness,
+        approved_witness_path=witness_path,
     )
+    reserved_stage = _matching_reserved_stage(final_root, reserved_witness)
     if resumed is None:
         if selected_schema_root is None:
             raise ArsError("new authority store requires a registered schema root")
-        stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
-        stage.mkdir()
-        for name in (
-            "objects",
-            "events",
-            "manifests",
-            "receipts",
-            "snapshots",
-            "runtime",
-        ):
-            (stage / name).mkdir()
+        if reserved_stage is None:
+            stage = final_root.with_name(
+                f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}"
+            )
+            stage.mkdir()
+            for name in (
+                "objects",
+                "events",
+                "manifests",
+                "receipts",
+                "snapshots",
+                "runtime",
+            ):
+                (stage / name).mkdir()
+        else:
+            stage = reserved_stage
+            _reset_reserved_stage(stage)
         _write_stage_marker(stage, bootstrap_hash, "building")
         _bootstrap_failpoint("after-stage-marker")
         identity = _write_identity(
@@ -1312,6 +1468,22 @@ def initialize_authority_control_store(
             project_id,
             bootstrap_hash,
             selected_schema_root,
+            reserved_manifest=reserved_witness.initial_manifest if reserved_witness is not None else None,
+        )
+        staged_manifest = _load_bound_manifest(stage, final_root)
+        witness = (
+            reserved_witness
+            if reserved_witness is not None
+            else build_store_origin_witness(
+                staged_manifest,
+                initial_control_root=final_root,
+                physical_root=stage,
+            )
+        )
+        witness_path = persist_store_origin_witness(
+            witness,
+            resolved_origin_root,
+            expected_sha256=approved_origin_witness_sha256,
         )
         _bootstrap_failpoint("after-identity")
         _write_durable(
@@ -1413,9 +1585,22 @@ def initialize_authority_control_store(
             selected_schema_root,
             require_schema_binding=require_schema_binding,
             require_genesis_only=True,
+            approved_witness=witness,
+            approved_witness_path=witness_path,
         )
     else:
         stage, identity = resumed
+        staged_manifest = _load_bound_manifest(stage, final_root)
+        witness = reserved_witness or build_store_origin_witness(
+            staged_manifest,
+            initial_control_root=final_root,
+            physical_root=stage,
+        )
+        witness_path = persist_store_origin_witness(
+            witness,
+            resolved_origin_root,
+            expected_sha256=approved_origin_witness_sha256,
+        )
         _flush_tree(stage)
     _bootstrap_failpoint("after-staged-replay")
     try:
@@ -1434,19 +1619,23 @@ def initialize_authority_control_store(
                 bootstrap_schemas,
                 selected_schema_root,
                 require_schema_binding=require_schema_binding,
+                approved_witness=witness,
+                approved_witness_path=witness_path,
             )
         except (ArsError, OSError) as verify_error:
             raise ConflictError("competing authority initializer published a foreign store") from verify_error
         _remove_stage_marker(final_root)
         fsync_directory(final_root.parent)
-        return winner_identity
+        winner_manifest = _load_bound_manifest(final_root, final_root)
+        return InitializedStore(winner_identity, winner_manifest, witness, witness_path)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
     _remove_stage_marker(final_root)
     _bootstrap_failpoint("after-rename")
     fsync_directory(final_root.parent)
-    return identity
+    final_manifest = _load_bound_manifest(final_root, final_root)
+    return InitializedStore(identity, final_manifest, witness, witness_path)
 
 
 class LedgerAuthorityGrantResolver:
@@ -1468,10 +1657,17 @@ class LedgerAuthorityGrantResolver:
         project_id: str,
         expected_store_identity: str,
         schema_registry: SchemaRegistry,
+        *,
+        approved_witness: StoreOriginWitness | None = None,
+        approved_witness_path: Path | None = None,
+        restore_source_alias: bool = False,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
         self.expected_store_identity = expected_store_identity
+        self.approved_witness = approved_witness
+        self.approved_witness_path = approved_witness_path
+        self.restore_source_alias = restore_source_alias
         if not isinstance(schema_registry, SchemaRegistry):
             raise TypeError("authority resolver requires a trusted SchemaRegistry")
         self.schema_registry = schema_registry
@@ -1482,10 +1678,29 @@ class LedgerAuthorityGrantResolver:
         from research_system.store.ledger import EventLedger
 
         try:
-            verify_store_identity(self.control_root, self.project_id, self.expected_store_identity)
+            if self.restore_source_alias:
+                from research_system.store.identity import load_store_manifest_unbound
+
+                manifest = load_store_manifest_unbound(self.control_root)
+                if self.approved_witness is None or sha256_hex(canonical_bytes(manifest)) != (
+                    self.approved_witness.initial_manifest_sha256
+                ):
+                    raise IntegrityError("restore source manifest differs from approved origin witness")
+            else:
+                verify_store_identity(
+                    self.control_root,
+                    self.project_id,
+                    self.expected_store_identity,
+                    approved_witness=self.approved_witness,
+                    approved_witness_path=self.approved_witness_path,
+                )
+                manifest = load_store_manifest(
+                    self.control_root,
+                    approved_witness=self.approved_witness,
+                    approved_witness_path=self.approved_witness_path,
+                )
         except (OSError, IntegrityError) as exc:
             raise ArsError("authority_bootstrap_required") from exc
-        manifest = load_store_manifest(self.control_root)
         if manifest.get("schema_version") != "1.1.0":
             raise ArsError("authority_bootstrap_required")
         bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
@@ -1528,7 +1743,16 @@ class LedgerAuthorityGrantResolver:
     ) -> AuthorityAdministrationContext:
         from research_system.store.identity import load_store_manifest
 
-        manifest = load_store_manifest(self.control_root)
+        if self.restore_source_alias:
+            from research_system.store.identity import load_store_manifest_unbound
+
+            manifest = load_store_manifest_unbound(self.control_root)
+        else:
+            manifest = load_store_manifest(
+                self.control_root,
+                approved_witness=self.approved_witness,
+                approved_witness_path=self.approved_witness_path,
+            )
         bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
         try:
             bootstrap_bytes = bootstrap_path.read_bytes()

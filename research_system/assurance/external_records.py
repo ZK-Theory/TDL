@@ -32,7 +32,10 @@ from research_system.errors import ArsError, ConflictError, IntegrityError, Sche
 from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.identity import load_store_manifest, manifest_schema_root, verify_store_identity
-from research_system.store.layout import require_control_root_disjoint_from_code_roots
+from research_system.store.layout import (
+    require_control_root_disjoint_from_code_roots,
+    require_existing_control_root,
+)
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 
@@ -535,11 +538,26 @@ class ExternalAssuranceRecordStore:
         if not isinstance(binding, ControlBinding):
             raise TypeError("external assurance records require a validated ControlBinding")
         try:
-            control_root = binding.control_root.resolve(strict=True)
+            if binding.origin_witness is None:
+                raise IntegrityError("control binding has no approved origin witness")
             code_roots = [root.resolve(strict=True) for root in binding.code_roots]
-            verify_store_identity(control_root, binding.project_id, binding.store_identity, code_roots)
+            control_root = require_existing_control_root(code_roots, binding.control_root)
+            verify_store_identity(
+                control_root,
+                binding.project_id,
+                binding.store_identity,
+                code_roots,
+                approved_witness=binding.origin_witness,
+                approved_witness_path=binding.origin_witness_path,
+            )
             require_control_root_disjoint_from_code_roots(code_roots, control_root)
-            manifest_schema = manifest_schema_root(load_store_manifest(control_root))
+            manifest_schema = manifest_schema_root(
+                load_store_manifest(
+                    control_root,
+                    approved_witness=binding.origin_witness,
+                    approved_witness_path=binding.origin_witness_path,
+                )
+            )
             if manifest_schema is not None and manifest_schema.resolve(strict=True) != binding.schema_root.resolve(
                 strict=True
             ):
@@ -843,6 +861,8 @@ class ExternalAssuranceRecordStore:
                 self.binding.project_id,
                 self.binding.store_identity,
                 self._authority_schemas,
+                approved_witness=self.binding.origin_witness,
+                approved_witness_path=self.binding.origin_witness_path,
             )
         action = self._publication_action_payload(context)
         self._authority_schemas.validate_active(

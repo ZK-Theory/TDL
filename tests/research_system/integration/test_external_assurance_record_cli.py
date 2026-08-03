@@ -8,13 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+import yaml
 
 from research_system.cli import main
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
 from research_system.errors import ArsError, ConfigurationError
-from research_system.store.identity import initialize_control_store, load_store_manifest
+from research_system.authority import initialize_authority_control_store
+from research_system.store.identity import load_store_manifest
 from research_system.store.objects import ObjectStore
+from tests.research_system.factories import (
+    ROOT_AUTHORITY_GRANT_ID,
+    authority_bootstrap,
+    authority_bootstrap_sha256,
+)
 from tests.research_system.integration.test_external_assurance_record_publication import _activation_case
 
 
@@ -22,7 +29,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_ROOT = REPO_ROOT / ".research-system" / "schemas"
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
 RECORD_ID = "act_01978abc-2000-7000-8000-000000002000"
-ROOT_GRANT_ID = "agr_01978abc-2000-7000-8000-000000002033"
 
 
 def _record() -> dict[str, str]:
@@ -35,11 +41,55 @@ def _record() -> dict[str, str]:
     }
 
 
-def _config(tmp_path: Path) -> tuple[Path, Path, str]:
+def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path, str]:
     code_root = tmp_path / "code"
-    code_root.mkdir()
+    schema_root = code_root / ".research-system" / "schemas"
+    schema_root.mkdir(parents=True)
+    for source in (REPO_ROOT / ".research-system" / "schemas").iterdir():
+        target = schema_root / source.name
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            target.write_bytes(source.read_bytes())
+    shutil.copytree(
+        REPO_ROOT / ".research-system" / "contracts",
+        code_root / ".research-system" / "contracts",
+    )
     control_root = tmp_path / "control"
-    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
+    bootstrap = authority_bootstrap()
+    identity = initialize_authority_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        canonical_schema_root=schema_root,
+        origin_authority_root=origin_authority_root,
+    )
+    foundation_path = code_root / ".research-system" / "config" / "foundation.yaml"
+    foundation_path.parent.mkdir()
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(control_root.resolve()),
+        "control_root_required": True,
+        "store_identity": str(identity),
+        "endpoint_scheme": "local-cli",
+        "canonical_hash": "sha256",
+        "canonical_uri": "local-cli://control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "origin_authority_root": str(origin_authority_root.resolve()),
+        "origin_witness_path": str(identity.witness_path.resolve()),
+        "origin_witness_sha256": identity.witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: foundation_path)
     config = tmp_path / "binding.json"
     config.write_text(
         json.dumps(
@@ -47,7 +97,7 @@ def _config(tmp_path: Path) -> tuple[Path, Path, str]:
                 "code_roots": [str(code_root.resolve())],
                 "control_root": str(control_root.resolve()),
                 "project_id": PROJECT_ID,
-                "schema_root": str(SCHEMA_ROOT.resolve()),
+                "schema_root": str(schema_root.resolve()),
                 "store_identity": identity,
             }
         ),
@@ -64,7 +114,7 @@ def _publication_args(
     caller_actor_class: str = "agent",
     caller_actor_id: str = RECORD_ID,
     authority_grant_id: str = "agr_01978abc-2000-7000-8000-000000002030",
-    authority_root: str = ROOT_GRANT_ID,
+    authority_root: str = ROOT_AUTHORITY_GRANT_ID,
 ) -> list[str]:
     record = _record() if record is None else record
     return [
@@ -98,12 +148,14 @@ def _publication_args(
 
 
 @pytest.mark.integration
-def test_assurance_record_write_cli_requires_current_publication_authority(tmp_path: Path) -> None:
-    config, control_root, authority_root = _config(tmp_path)
+def test_assurance_record_write_cli_requires_current_publication_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, control_root, authority_root = _config(tmp_path, monkeypatch)
     record_path = tmp_path / "record.json"
     record_path.write_text(json.dumps(_record()), encoding="utf-8")
 
-    with pytest.raises(ArsError, match="authority_bootstrap_required"):
+    with pytest.raises(ArsError, match="scoped authority grant is not activated"):
         main(
             [
                 "assurance-record",
@@ -125,8 +177,8 @@ def test_assurance_record_write_cli_requires_current_publication_authority(tmp_p
 
 
 @pytest.mark.integration
-def test_assurance_record_write_cli_requires_json_object(tmp_path: Path) -> None:
-    config, _, authority_root = _config(tmp_path)
+def test_assurance_record_write_cli_requires_json_object(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config, _, authority_root = _config(tmp_path, monkeypatch)
     record_path = tmp_path / "record.json"
     record_path.write_text("[]", encoding="utf-8")
     with pytest.raises(ConfigurationError, match="must contain an object"):
@@ -169,11 +221,38 @@ def test_assurance_record_write_cli_persists_activated_grant_receipt(
     assert isinstance(grant, dict)
     caller_actor_id = str(grant["actor_id"])
     record_id = str(grant["subject_scope"]["subject"]["id"])
-    manifest = load_store_manifest(control_root)
+    manifest = load_store_manifest(
+        control_root,
+        approved_witness=resolver.approved_witness,
+        approved_witness_path=resolver.approved_witness_path,
+    )
     shutil.copytree(
         REPO_ROOT / ".research-system" / "contracts",
         Path(manifest["schema_root"]).parent / "contracts",
     )
+    code_root = Path(manifest["code_roots"][0])
+    foundation_path = code_root / ".research-system" / "config" / "foundation.yaml"
+    foundation_path.parent.mkdir(parents=True, exist_ok=True)
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(control_root.resolve()),
+        "control_root_required": True,
+        "store_identity": manifest["store_identity"],
+        "endpoint_scheme": "local-cli",
+        "canonical_hash": "sha256",
+        "canonical_uri": "local-cli://control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": manifest["schema_root"],
+        "origin_authority_root": str(resolver.approved_witness_path.parents[1].resolve()),
+        "origin_witness_path": str(resolver.approved_witness_path.resolve()),
+        "origin_witness_sha256": resolver.approved_witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: foundation_path)
     config = tmp_path / "binding.json"
     config.write_text(
         json.dumps(

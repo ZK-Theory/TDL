@@ -471,6 +471,8 @@ def control_plane(
     clock = clock or (lambda: datetime(2026, 8, 1, tzinfo=UTC))
     schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     authority_root = root.parent / f".{root.name}.authority"
+    origin_authority_root = root.parent / f".{root.name}.origin-authority"
+    origin_authority_root.mkdir()
     bootstrap = authority_bootstrap()
     authority_identity = initialize_authority_control_store(
         [REPO_ROOT],
@@ -478,6 +480,7 @@ def control_plane(
         PROJECT_ID,
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
+        origin_authority_root=origin_authority_root,
     )
     authority_ledger = EventLedger(authority_root, PROJECT_ID, schemas)
     authority_objects = ObjectStore(authority_root)
@@ -487,6 +490,8 @@ def control_plane(
         PROJECT_ID,
         authority_identity,
         schemas,
+        approved_witness=authority_identity.witness,
+        approved_witness_path=authority_identity.witness_path,
     )
     authority_service = CommandService(
         authority_root,

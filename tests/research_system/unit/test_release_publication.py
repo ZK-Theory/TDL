@@ -259,6 +259,8 @@ def evidence_resolver(*, derived: dict | None = None, gate: object = False):
 def canonical_publication_plane(tmp_path):
     """Return a unit harness with replayable canonical authority genesis."""
     control_root = tmp_path / "control"
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
     bootstrap = authority_bootstrap()
     identity = initialize_authority_control_store(
         [ROOT],
@@ -266,6 +268,7 @@ def canonical_publication_plane(tmp_path):
         PROJECT_ID,
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
+        origin_authority_root=origin_authority_root,
     )
     schemas = runtime_schema_registry(ROOT / ".research-system" / "schemas")
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
@@ -276,6 +279,8 @@ def canonical_publication_plane(tmp_path):
         PROJECT_ID,
         identity,
         schemas,
+        approved_witness=identity.witness,
+        approved_witness_path=identity.witness_path,
     )
     service = CommandService(
         control_root,
@@ -1180,6 +1185,7 @@ def test_authority_store_init_is_idempotent_after_release_publication(
             PROJECT_ID,
             bootstrap,
             authority_bootstrap_sha256(bootstrap),
+            origin_authority_root=harness.identity.witness_path.parent.parent,
         )
         == harness.identity
     )
@@ -1237,6 +1243,8 @@ def test_historical_publication_retry_and_eval_survive_later_revocation(
         PROJECT_ID,
         harness.identity,
         schemas,
+        approved_witness=harness.identity.witness,
+        approved_witness_path=harness.identity.witness_path,
     )
     harness.service.authority_resolver = authority
     harness.service.release_publication_evidence = evidence_resolver()
@@ -1289,6 +1297,8 @@ def test_authority_identity_lookup_survives_expiry_without_authorizing_use(
         PROJECT_ID,
         harness.identity,
         schemas,
+        approved_witness=harness.identity.witness,
+        approved_witness_path=harness.identity.witness_path,
     )
     identity = authority.grant_identity(GRANT_ID)
     assert identity.authority_grant_sha256 == harness.authority_hash
@@ -1315,6 +1325,8 @@ def test_authority_resolution_replays_one_verified_projection(
         PROJECT_ID,
         harness.identity,
         schemas,
+        approved_witness=harness.identity.witness,
+        approved_witness_path=harness.identity.witness_path,
     )
     calls = 0
     project = authority._projection

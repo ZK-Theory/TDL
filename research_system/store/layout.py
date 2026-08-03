@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import stat
 from pathlib import Path
 
 from research_system.errors import ArsError
@@ -51,4 +53,42 @@ def require_external_control_root(code_roots: list[Path], control_root: Path) ->
     control = require_control_root_disjoint_from_code_roots(code_roots, control_root)
     for name in _CONTROL_DIRECTORIES:
         (control / name).mkdir(parents=True, exist_ok=True)
+    return control
+
+
+def _require_physical_control_child(control: Path, name: str) -> None:
+    child = control / name
+    try:
+        metadata = child.lstat()
+    except FileNotFoundError as exc:
+        raise ArsError(f"control root is missing required directory: {name}") from exc
+    except OSError as exc:
+        raise ArsError(f"control root required directory is unavailable: {name}") from exc
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
+        raise ArsError(f"control root required directory must be a physical child: {name}")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ArsError(f"control root required path is not a directory: {name}")
+    try:
+        resolved_child = child.resolve(strict=True)
+        if resolved_child.parent != control or not os.path.samefile(child.parent, control):
+            raise ArsError(f"control root required directory is not physically bound to the root: {name}")
+    except ArsError:
+        raise
+    except OSError as exc:
+        raise ArsError(f"control root required directory identity is unavailable: {name}") from exc
+
+
+def require_existing_control_root(code_roots: list[Path], control_root: Path) -> Path:
+    """Return an existing control root with every required store directory present.
+
+    This check is deliberately read-only.  Binding and validation callers must
+    reject an absent or partial store rather than allowing the initializer to
+    repair it as a side effect of loading configuration.
+    """
+    control = require_control_root_disjoint_from_code_roots(code_roots, control_root)
+    if not control.is_dir():
+        raise ArsError("control root must be an existing directory")
+    for name in _CONTROL_DIRECTORIES:
+        _require_physical_control_child(control, name)
     return control

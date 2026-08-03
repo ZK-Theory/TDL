@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
 
 from collections.abc import Callable, Iterable
@@ -53,7 +54,10 @@ from research_system.evals.release_publication import (
 )
 from research_system.ids import new_id, validate_id
 from research_system.operations.backups import (
+    RestoreAdmissionBundle,
     RestorePreflightResult,
+    revalidate_restore_admission_closure,
+    restore_admission_bundle_for_result,
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
@@ -62,6 +66,12 @@ from research_system.store.ledger import (
     EventLedger,
     LedgerSnapshot,
     _take_release_submit_guard,
+)
+from research_system.store.identity import (
+    StoreOriginWitness,
+    physical_root_identity,
+    validate_approved_origin_witness_path,
+    verify_restore_binding_admission,
 )
 from research_system.store.lock import (
     CompositeWriterLock,
@@ -276,6 +286,54 @@ class _LifecycleAuthorityEvidence:
     denial: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedRestoreAdmission:
+    """The single authority-bound preflight prepared before writer locking."""
+
+    bundle: RestoreAdmissionBundle
+    preflight_result_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class _SubmissionLease:
+    """Writer-lock lease plus the one verified ledger snapshot for a submit."""
+
+    writer_lock: CompositeWriterLock
+    snapshot: LedgerSnapshot
+
+    def locked_root(self, root: Path) -> Any:
+        """Return the underlying lease for one locked root."""
+        return self.writer_lock.locked_root(root)
+
+
+def _validate_moved_restore_source_lineage(
+    source_root: Path,
+    preflight_result: RestorePreflightResult,
+    approved_witness: StoreOriginWitness,
+) -> None:
+    if not isinstance(preflight_result, RestorePreflightResult):
+        raise ArsError("restore source lineage is invalid")
+    if not isinstance(preflight_result.source_root, str) or not preflight_result.source_root:
+        raise ArsError("restore source lineage is missing")
+    try:
+        configured_root = source_root.resolve(strict=True)
+        preflight_root = Path(preflight_result.source_root).resolve(strict=True)
+        witness_root = Path(approved_witness.initial_control_root).resolve(strict=True)
+        configured_identity = physical_root_identity(configured_root)
+        preflight_identity = physical_root_identity(preflight_root)
+        witness_identity = physical_root_identity(witness_root)
+    except (ArsError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise ArsError("restore source lineage identity is unavailable") from exc
+    if (
+        configured_root != witness_root
+        or preflight_root != witness_root
+        or configured_identity != approved_witness.initial_physical_root_identity
+        or preflight_identity != approved_witness.initial_physical_root_identity
+        or witness_identity != approved_witness.initial_physical_root_identity
+    ):
+        raise ArsError("restore source lineage differs from approved origin witness")
+
+
 @dataclass(frozen=True)
 class MessageAdapterRegistration:
     """An immutable, service-local snapshot entry for one Message adapter."""
@@ -407,8 +465,11 @@ class CommandService:
             | None
         ) = None
         self._restore_source_root: Path | None = None
+        self._restore_approved_witness: StoreOriginWitness | None = None
+        self._restore_approved_witness_path: Path | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
-        self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
+        self._restore_preflight_rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle] | None = None
+        self._restore_admission_sequence_lock = threading.Lock()
         self._recover_scoped_activation_markers()
 
     def _scoped_activation_marker_path(self, command_id: str) -> Path:
@@ -867,32 +928,136 @@ class CommandService:
         *,
         source_root: Path,
         preflight_result: RestorePreflightResult,
-        rechecker: Callable[[], RestorePreflightResult],
+        rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle],
+        approved_witness: StoreOriginWitness,
+        approved_witness_path: Path,
     ) -> None:
-        """Bind a moved store to evidence that is rerun before each writer lock."""
-        if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
-            raise ValueError("moved restore source must differ from target")
-        self._restore_source_root = source_root
-        self._restore_preflight_result = preflight_result
-        self._restore_preflight_rechecker = rechecker
+        """Configure two-phase moved-restore admission for future submissions.
 
-    def _recheck_moved_restore(self, command: Command) -> None:
-        if self._restore_source_root is None:
-            return
+        Args:
+            source_root: Existing moved-store root pinned to the origin witness.
+            preflight_result: Sealed baseline evidence validated when configuration is installed.
+            rechecker: Full read-only preparation callback run exactly once before a writer lock.
+            approved_witness: Immutable origin witness authorizing the moved-store source.
+            approved_witness_path: Absolute owner-approved canonical locator for the witness.
+
+        Raises:
+            ValueError: If the source equals the target or the witness inputs are absent or invalid.
+            IntegrityError: If the approved witness path is not canonical or its bytes changed.
+            ArsError: If the supplied preflight and source do not bind to the approved origin.
+        """
+        if not isinstance(approved_witness, StoreOriginWitness):
+            raise ValueError("moved restore requires an approved origin witness")
+        with self._restore_admission_sequence_lock:
+            if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
+                raise ValueError("moved restore source must differ from target")
+            if approved_witness_path is None:
+                raise ValueError("moved restore requires an approved origin witness path")
+            resolved_witness_path, _origin_root = validate_approved_origin_witness_path(
+                approved_witness_path,
+                approved_witness,
+            )
+            _validate_moved_restore_source_lineage(source_root, preflight_result, approved_witness)
+            self._restore_source_root = source_root
+            self._restore_approved_witness = approved_witness
+            self._restore_approved_witness_path = resolved_witness_path
+            self._restore_preflight_result = preflight_result
+            self._restore_preflight_rechecker = rechecker
+
+    def _prepare_moved_restore(self, command: Command) -> _PreparedRestoreAdmission | None:
+        """Run and validate one current full preflight before writer locking."""
+        if self._restore_preflight_result is None and self._restore_preflight_rechecker is None:
+            return None
         supplied = self._restore_preflight_result
         rechecker = self._restore_preflight_rechecker
-        if supplied is None or rechecker is None:
+        if (
+            supplied is None
+            or rechecker is None
+            or self._restore_approved_witness is None
+            or self._restore_approved_witness_path is None
+        ):
             raise ArsError("moved store requires restore preflight")
-        current = rechecker()
+        validate_approved_origin_witness_path(
+            self._restore_approved_witness_path,
+            self._restore_approved_witness,
+        )
+        checked = rechecker()
+        bundle = (
+            checked if isinstance(checked, RestoreAdmissionBundle) else restore_admission_bundle_for_result(checked)
+        )
+        current = bundle.result
+        _validate_moved_restore_source_lineage(
+            self._restore_source_root,
+            current,
+            self._restore_approved_witness,
+        )
         validate_restore_preflight_result(
             current,
             current_root=self.control_root,
             project_id=self.ledger.project_id,
             actor_id=command.actor_id,
             authority_grant_id=command.envelope["authority_grant_id"],
+            approved_witness=self._restore_approved_witness,
         )
-        if current != supplied:
-            raise ArsError("restore preflight changed before writer lock")
+        if current.origin_witness_path != str(self._restore_approved_witness_path):
+            raise ArsError("restore preflight origin witness path differs from approved locator")
+        if bundle.closure is None:
+            raise ArsError("verified restore preflight requires checked-input closure")
+        return _PreparedRestoreAdmission(
+            bundle=bundle,
+            preflight_result_hash=current.result_hash,
+        )
+
+    def _revalidate_prepared_moved_restore(
+        self,
+        command: Command,
+        prepared: _PreparedRestoreAdmission | None,
+        snapshot: LedgerSnapshot,
+    ) -> None:
+        """Join the prepared preflight to the one locked submission snapshot."""
+        if (
+            self._restore_source_root is None
+            or self._restore_approved_witness is None
+            or self._restore_approved_witness_path is None
+        ):
+            if prepared is not None:
+                raise ArsError("moved store requires restore preflight")
+            return
+        if prepared is not None:
+            current = prepared.bundle.result
+            if current.result_hash != prepared.preflight_result_hash:
+                raise ArsError("restore preflight changed after preparation")
+            _validate_moved_restore_source_lineage(
+                self._restore_source_root,
+                current,
+                self._restore_approved_witness,
+            )
+            validate_restore_preflight_result(
+                current,
+                current_root=self.control_root,
+                project_id=self.ledger.project_id,
+                actor_id=command.actor_id,
+                authority_grant_id=command.envelope["authority_grant_id"],
+                approved_witness=self._restore_approved_witness,
+            )
+            if current.origin_witness_path != str(self._restore_approved_witness_path):
+                raise ArsError("restore preflight origin witness path differs from approved locator")
+            if (snapshot.global_position, snapshot.event_hash) != (
+                current.tail_position,
+                current.tail_hash,
+            ):
+                raise ArsError("restore preflight ledger tail changed before writer lock")
+            revalidate_restore_admission_closure(prepared.bundle)
+        verify_restore_binding_admission(
+            self.control_root,
+            approved_witness=self._restore_approved_witness,
+            approved_witness_path=self._restore_approved_witness_path,
+        )
+
+    def _retire_moved_restore_preflight(self) -> None:
+        """Retire historical preflight state only after an EventLedger append."""
+        self._restore_preflight_result = None
+        self._restore_preflight_rechecker = None
 
     @_release_submit_guard
     def submit(
@@ -955,7 +1120,7 @@ class CommandService:
                     command_schema,
                 )
                 self._validate_scoped_activation_marker_event_schema(preloaded_activation_marker)
-        with self._submission_lock(command):
+        with self._submission_lock(command) as submission:
             lifecycle_authority: _LifecycleAuthorityEvidence | None = None
 
             def write_receipt(receipt: Receipt) -> Receipt:
@@ -966,10 +1131,9 @@ class CommandService:
                     command_schema=command_schema,
                 )
 
-            self._recheck_moved_restore(command)
             self._before_authority_resolution(command)
             lifecycle = command.envelope["command_type"] in _LIFECYCLE_COMMAND_TYPES
-            snapshot = self.ledger.snapshot()
+            snapshot = submission.snapshot
             if lifecycle:
                 lifecycle_authority, denial = self._resolve_lifecycle_authority(
                     command,
@@ -1243,6 +1407,7 @@ class CommandService:
                     )
                 else:
                     ledger_receipt = self.ledger.append([event], snapshot=snapshot)
+                self._retire_moved_restore_preflight()
                 updated = self.ledger.snapshot()
                 view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
                 accepted = Receipt(
@@ -1374,41 +1539,45 @@ class CommandService:
     @contextmanager
     def _submission_lock(self, command: Command):
         """Serialize authority-governed submits across all participating roots."""
-        identity = {"command_id": command.command_id}
-        command_type = command.envelope["command_type"]
-        roots: tuple[Path, ...] = (self.control_root,)
-        if command_type in _T2_AUTHORITY_COORDINATED_COMMAND_TYPES:
-            t2_root = self._t2_authority_root_for_lock()
-            if t2_root is not None:
-                roots = (self.control_root, t2_root)
-        elif command_type in _AUTHORITY_COORDINATED_COMMAND_TYPES:
-            resolver = self._canonical_authority_resolver()
-            if resolver is not None:
-                roots = (self.control_root, resolver.control_root)
-        retry_on_conflict = command_type in {
-            "PublishReleaseGateDecision",
-            *_LIFECYCLE_COMMAND_TYPES,
-            *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
-        }
-        deadline = self._monotonic() + self.release_lock_timeout_seconds
-        while True:
-            lock = CompositeWriterLock(
-                roots,
-                identity,
-                lock_factory=WriterLock,
-            )
+        with self._restore_admission_sequence_lock:
+            prepared = self._prepare_moved_restore(command)
+            identity = {"command_id": command.command_id}
+            command_type = command.envelope["command_type"]
+            roots: tuple[Path, ...] = (self.control_root,)
+            if command_type in _T2_AUTHORITY_COORDINATED_COMMAND_TYPES:
+                t2_root = self._t2_authority_root_for_lock()
+                if t2_root is not None:
+                    roots = (self.control_root, t2_root)
+            elif command_type in _AUTHORITY_COORDINATED_COMMAND_TYPES:
+                resolver = self._canonical_authority_resolver()
+                if resolver is not None:
+                    roots = (self.control_root, resolver.control_root)
+            retry_on_conflict = command_type in {
+                "PublishReleaseGateDecision",
+                *_LIFECYCLE_COMMAND_TYPES,
+                *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
+            }
+            deadline = self._monotonic() + self.release_lock_timeout_seconds
+            while True:
+                lock = CompositeWriterLock(
+                    roots,
+                    identity,
+                    lock_factory=WriterLock,
+                )
+                try:
+                    lock.__enter__()
+                except ConflictError:
+                    if not retry_on_conflict or self._monotonic() >= deadline:
+                        raise
+                    self._lock_wait(0.01)
+                    continue
+                break
             try:
-                lock.__enter__()
-            except ConflictError:
-                if not retry_on_conflict or self._monotonic() >= deadline:
-                    raise
-                self._lock_wait(0.01)
-                continue
-            break
-        try:
-            yield lock
-        finally:
-            lock.__exit__(*sys.exc_info())
+                snapshot = self.ledger.snapshot()
+                self._revalidate_prepared_moved_restore(command, prepared, snapshot)
+                yield _SubmissionLease(lock, snapshot)
+            finally:
+                lock.__exit__(*sys.exc_info())
 
     def with_locked_authority(
         self,
@@ -1899,6 +2068,12 @@ class CommandService:
                 "message_not_published",
                 "Message transition requires a committed MessagePublished event.",
             )
+        published_payload = state.get("published_payload")
+        if not isinstance(published_payload, dict):
+            raise IntegrityError("Message history has no immutable publication payload")
+        recipients = published_payload.get("recipient_actor_ids")
+        if not isinstance(recipients, list) or any(not isinstance(recipient, str) for recipient in recipients):
+            raise IntegrityError("Message history has an invalid published recipient list")
         if command_type in _MESSAGE_ADAPTER_COMMAND_TYPES:
             denial = self._message_adapter_denial(command)
             if denial is not None:
@@ -1909,7 +2084,6 @@ class CommandService:
                     denial,
                 )
         content_sha256 = self._message_content_sha256(state)
-        recipients = state.get("published_payload", {}).get("recipient_actor_ids")
         if command_type == "RecordMessageDelivery":
             if state.get("status") != "published":
                 return self._rejected(
@@ -3295,17 +3469,8 @@ class CommandService:
                 raise IntegrityError("SupersedeTask requires prepared graph payload")
             event_type = "TaskSuperseded"
             payload = prepared_payload
-        elif command_type == "PublishMessage":
-            event_type = "MessagePublished"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "RecordMessageDelivery":
-            event_type = "MessageDelivered"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "AcknowledgeMessage":
-            event_type = "MessageAcknowledged"
-            payload = deepcopy(command.envelope["payload"])
-        elif command_type == "RecordMessageDeliveryFailure":
-            event_type = "MessageDeliveryFailed"
+        elif command_type in _MESSAGE_COMMAND_TYPES:
+            event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(command.envelope["payload"])
         elif command_type == "VerifyEvidenceDeletion":
             authorizer = self.deletion_manifest_authorizer

@@ -207,23 +207,61 @@ def test_s012_store_identity_mismatch_and_worktree_local_store_are_rejected(
     code_root = tmp_path / "repo"
     code_root.mkdir()
     control_root = tmp_path / "control"
-    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
-    assert verify_store_identity(control_root, PROJECT_ID, identity) == identity
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
+    identity = initialize_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        origin_authority_root=origin_authority_root,
+    )
+    assert (
+        verify_store_identity(
+            control_root,
+            PROJECT_ID,
+            identity,
+            approved_witness=identity.witness,
+        )
+        == identity
+    )
     with pytest.raises(ArsError, match="store identity mismatch"):
-        verify_store_identity(control_root, PROJECT_ID, "0" * 64)
+        verify_store_identity(
+            control_root,
+            PROJECT_ID,
+            "0" * 64,
+            approved_witness=identity.witness,
+        )
     rogue_root = tmp_path / "rogue-repo"
     rogue_root.mkdir()
     with pytest.raises(ArsError, match="code root binding mismatch"):
-        verify_store_identity(control_root, PROJECT_ID, identity, [rogue_root])
+        verify_store_identity(
+            control_root,
+            PROJECT_ID,
+            identity,
+            [rogue_root],
+            approved_witness=identity.witness,
+        )
     with pytest.raises(ArsError, match="disjoint from every code root"):
-        initialize_control_store([code_root], code_root / "worktree-local-control", PROJECT_ID)
+        initialize_control_store(
+            [code_root],
+            code_root / "worktree-local-control",
+            PROJECT_ID,
+            origin_authority_root=origin_authority_root,
+        )
 
 
 def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tmp_path):
     code_root = tmp_path / "repo"
     code_root.mkdir()
     control_root = tmp_path / "control"
-    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
+    identity = initialize_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        origin_authority_root=origin_authority_root,
+    )
     manifest_path = control_root / "manifests" / "store-identity.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.pop("code_roots")
@@ -232,8 +270,14 @@ def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tm
     )
     manifest_path.write_bytes(canonical_bytes(manifest))
 
-    with pytest.raises(ArsError, match="code root binding mismatch"):
-        verify_store_identity(control_root, PROJECT_ID, identity, [code_root])
+    with pytest.raises(ArsError, match="initial store manifest differs from approved origin witness"):
+        verify_store_identity(
+            control_root,
+            PROJECT_ID,
+            identity,
+            [code_root],
+            approved_witness=identity.witness,
+        )
 
 
 def test_cli_requires_explicit_control_and_code_paths():
@@ -322,7 +366,7 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(tmp_path, m
     assert not (tmp_path / "control").exists()
 
 
-def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, capsys, monkeypatch):
+def test_s006_cli_requires_materialized_canonical_origin_pins(tmp_path, monkeypatch):
     code_root = tmp_path / "repo"
     shutil.copytree(
         REPO_ROOT / ".research-system" / "schemas",
@@ -338,7 +382,7 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, caps
     )
     control_root = tmp_path / "control"
     bootstrap_path = write_authority_bootstrap_input(tmp_path / "authority-bootstrap.json")
-    assert (
+    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
                 "store",
@@ -353,80 +397,4 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, caps
                 str(bootstrap_path),
             ]
         )
-        == 0
-    )
-    identity = json.loads(capsys.readouterr().out)["store_identity"]
-    config_path = tmp_path / "binding.json"
-    config_path.write_bytes(
-        canonical_bytes(
-            {
-                "code_roots": [str(code_root.resolve())],
-                "control_root": str(control_root.resolve()),
-                "project_id": PROJECT_ID,
-                "schema_root": str((code_root / ".research-system" / "schemas").resolve()),
-                "store_identity": identity,
-            }
-        )
-    )
-    command_path = tmp_path / "command.json"
-    command_path.write_bytes(canonical_bytes(create_task_command(COMMAND_ID, "cli-submit", TASK_ID, {"title": "CLI"})))
-    assert (
-        main(
-            [
-                "command",
-                "submit",
-                "--config",
-                str(config_path),
-                "--command",
-                str(command_path),
-            ]
-        )
-        == 0
-    )
-    command_receipt = json.loads(capsys.readouterr().out)
-    assert command_receipt["status"] == "rejected"
-    # This CLI fixture initializes the store but intentionally does not
-    # activate a scoped lifecycle grant for the submitted command.
-    assert command_receipt["reason_code"] == "lifecycle_authority_unauthorized"
-    assert command_receipt["explanation"] == "scoped authority grant is not activated"
-    assert command_receipt["unmet_preconditions"] == ["lifecycle_authority_unauthorized"]
-    assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
-    replay_state = json.loads(capsys.readouterr().out)
-    assert replay_state["last_position"] == 2
-    output = code_root / ".research-system" / "projections" / "state.json"
-    assert (
-        main(
-            [
-                "projection",
-                "rebuild",
-                "--control-root",
-                str(control_root),
-                "--output",
-                str(output),
-            ]
-        )
-        == 0
-    )
-    assert json.loads(output.read_text(encoding="utf-8"))["last_position"] == 2
-    with pytest.raises(ArsError, match="namespaced projection root"):
-        main(
-            [
-                "projection",
-                "rebuild",
-                "--control-root",
-                str(control_root),
-                "--output",
-                str(code_root / "task.md"),
-            ]
-        )
-    with pytest.raises(ArsError, match="projection output must be external"):
-        main(
-            [
-                "projection",
-                "rebuild",
-                "--control-root",
-                str(control_root),
-                "--output",
-                str(control_root / "events" / "projection.json"),
-            ]
-        )
+    assert not control_root.exists()

@@ -1615,6 +1615,97 @@ def test_acknowledgement_requires_delivery_and_a_published_recipient_without_dom
     assert _no_domain_mutation_snapshot(harness) == before
 
 
+@pytest.mark.parametrize(
+    ("command_type", "expected_stream_version"),
+    [
+        ("RecordMessageDelivery", 1),
+        ("AcknowledgeMessage", 2),
+        ("RecordMessageDeliveryFailure", 1),
+    ],
+)
+def test_malformed_committed_message_recipients_raise_integrity_without_domain_mutation(
+    tmp_path,
+    monkeypatch,
+    command_type,
+    expected_stream_version,
+):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id = _message_id(595)
+    assert (
+        harness.service.submit(
+            _message_command(
+                command_id=_command_id(595),
+                command_type="PublishMessage",
+                message_id=message_id,
+                expected_stream_version=0,
+                payload=_publish_payload(message_id, "handoff"),
+            )
+        ).status
+        == "accepted"
+    )
+    publication = tuple(harness.ledger.iter_events())[-1]
+    if command_type == "AcknowledgeMessage":
+        assert (
+            harness.service.submit(
+                _message_command(
+                    command_id=_command_id(596),
+                    command_type="RecordMessageDelivery",
+                    message_id=message_id,
+                    expected_stream_version=1,
+                    payload={
+                        "message_id": message_id,
+                        "content_sha256": sha256_hex(canonical_bytes(publication["payload"])),
+                        "recipient_actor_ids": [ACTORS["actor-a"]],
+                        "delivery_adapter_id": "pilot-adapter",
+                        "delivery_evidence_refs": ["evidence:delivery"],
+                    },
+                )
+            ).status
+            == "accepted"
+        )
+    state = harness.service._message_state(harness.ledger.snapshot(), message_id)
+    assert state is not None
+    published_payload = dict(state["published_payload"])
+    published_payload.pop("recipient_actor_ids")
+    state = {**state, "published_payload": published_payload}
+    content_sha256 = sha256_hex(canonical_bytes(published_payload))
+    payload = {
+        "message_id": message_id,
+        "content_sha256": content_sha256,
+        "recipient_actor_ids": [ACTORS["actor-a"]],
+    }
+    if command_type == "RecordMessageDelivery":
+        payload.update(
+            {
+                "delivery_adapter_id": "pilot-adapter",
+                "delivery_evidence_refs": ["evidence:delivery"],
+            }
+        )
+    else:
+        payload["source_position"] = publication["global_position"]
+    if command_type == "RecordMessageDeliveryFailure":
+        payload = {
+            "message_id": message_id,
+            "delivery_adapter_id": "pilot-adapter",
+            "failure_kind": "unreachable",
+            "failure_evidence_refs": ["evidence:failure"],
+        }
+    command = _message_command(
+        command_id=_command_id(597 + expected_stream_version),
+        command_type=command_type,
+        message_id=message_id,
+        expected_stream_version=expected_stream_version,
+        payload=payload,
+    )
+    monkeypatch.setattr(harness.service, "_message_state", lambda *_args: state)
+    before = _no_domain_mutation_snapshot(harness)
+
+    with pytest.raises(IntegrityError, match="published recipient"):
+        harness.service.submit(command)
+
+    assert _no_domain_mutation_snapshot(harness) == before
+
+
 def test_delivery_retry_and_changed_idempotency_or_command_identity_are_atomic(tmp_path):
     harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
     message_id = _message_id(600)

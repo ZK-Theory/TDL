@@ -1017,7 +1017,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
     if command_type not in T2_COMMAND_TYPES:
         raise IntegrityError("unsupported T2 command type")
     command = _T2Command(envelope)
-    with service._submission_lock(command):
+    with service._submission_lock(command) as submission:
         try:
             command_binding = service.schemas.command_binding(str(command_type))
             if command_binding is None:
@@ -1055,7 +1055,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             rejected = _receipt(envelope, "rejected", stable_reason="schema_hash_mismatch")
             service.schemas.validate("ars://core/receipt/v2", rejected.to_record())
             return service.receipts.write_t2(rejected)
-        snapshot = service.ledger.snapshot()
+        snapshot = submission.snapshot
         from research_system.projection.replay import replay
 
         replay(
@@ -1193,6 +1193,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             return service.receipts.write_t2(rejected)
         proposed = _events_for(envelope, state, command_schema)
         ledger_result = service.ledger.append(proposed, snapshot=snapshot)
+        service._retire_moved_restore_preflight()
         updated = service.ledger.snapshot()
         committed = list(updated.events[len(snapshot.events) :])
         if tuple(event["event_type"] for event in committed) != _EVENT_ORDER[command_type]:
