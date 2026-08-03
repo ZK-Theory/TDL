@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import secrets
 import subprocess
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -38,6 +40,7 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, IntegrityError
 from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.schema_registry import runtime_schema_registry
+from research_system.store.durability import fsync_directory
 
 
 __all__ = [
@@ -1044,20 +1047,65 @@ def _phase_evidence_identity(value: Mapping[str, object]) -> str:
     return sha256_hex(_canonical_json_bytes(value, "run evidence"))
 
 
+def _after_immutable_temp_fsync(_temporary: Path) -> None:
+    """Test seam after a complete durable temporary and before publication."""
+
+
+def _existing_immutable(path: Path, data: bytes) -> bool:
+    try:
+        existing = path.read_bytes()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise PackUnconsumable("existing run evidence is unreadable") from exc
+    if existing != data:
+        raise PackUnconsumable("run idempotency identity conflicts with existing evidence")
+    return True
+
+
 def _immutable_write(path: Path, value: Mapping[str, object]) -> None:
     data = _canonical_json_bytes(value, "run evidence")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("xb") as handle:
-            handle.write(data)
-    except FileExistsError:
-        try:
-            if path.read_bytes() != data:
-                raise PackUnconsumable("run idempotency identity conflicts with existing evidence")
-        except OSError as exc:
-            raise PackUnconsumable("existing run evidence is unreadable") from exc
     except OSError as exc:
         raise PackUnconsumable("run evidence could not be persisted") from exc
+    if _existing_immutable(path, data):
+        return
+    temporary = path.parent / f".{path.name}.{secrets.token_hex(16)}.tmp"
+    failure: BaseException | None = None
+    try:
+        try:
+            descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _after_immutable_temp_fsync(temporary)
+            if _existing_immutable(path, data):
+                return
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                if not _existing_immutable(path, data):
+                    raise PackUnconsumable("run evidence publication could not be reconciled")
+            else:
+                fsync_directory(path.parent)
+                if not _existing_immutable(path, data):
+                    raise PackUnconsumable("run evidence publication could not be verified")
+        except PackUnconsumable:
+            raise
+        except OSError as exc:
+            raise PackUnconsumable("run evidence could not be persisted") from exc
+    except BaseException as exc:
+        failure = exc
+        raise
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+            fsync_directory(temporary.parent)
+        except OSError as exc:
+            if failure is None:
+                raise PackUnconsumable("run evidence temporary cleanup failed") from exc
 
 
 def _read_immutable(path: Path) -> Mapping[str, object]:

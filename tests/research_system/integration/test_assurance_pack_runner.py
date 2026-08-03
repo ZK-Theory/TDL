@@ -402,6 +402,36 @@ def test_changed_retry_conflicts_without_mutating_immutable_preparation(
     assert prepared.evidence_path.read_bytes() == before
 
 
+def test_interrupted_publication_has_no_final_artifact_and_retries_are_write_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "runtime" / "preparation.json"
+    value = {"evidence": {"state": "prepared"}}
+
+    def interrupt(temporary: Path) -> None:
+        assert temporary.exists()
+        assert temporary.parent == path.parent
+        assert not path.exists()
+        raise RuntimeError("injected publication interruption")
+
+    monkeypatch.setattr(runner_module, "_after_immutable_temp_fsync", interrupt, raising=False)
+    with pytest.raises(RuntimeError, match="injected publication interruption"):
+        runner_module._immutable_write(path, value)
+    assert not path.exists()
+    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
+
+    monkeypatch.setattr(runner_module, "_after_immutable_temp_fsync", lambda _temporary: None, raising=False)
+    runner_module._immutable_write(path, value)
+    published = path.read_bytes()
+    assert published == canonical_bytes(value)
+
+    runner_module._immutable_write(path, value)
+    assert path.read_bytes() == published
+    with pytest.raises(PackUnconsumable, match="idempotency identity conflicts"):
+        runner_module._immutable_write(path, {"changed": True})
+    assert path.read_bytes() == published
+
+
 @pytest.mark.parametrize("failure", ("foreign", "expired", "revoked", "integrity"))
 def test_replay_backed_policy_rejects_wrong_expired_revoked_or_corrupt_grants(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
