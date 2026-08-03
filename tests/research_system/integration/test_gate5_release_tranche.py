@@ -661,6 +661,74 @@ def test_restore_preflight_valid_generation_resume_is_idempotent(tmp_path, monke
     } == durable_tree
 
 
+@pytest.mark.parametrize("temporary_name", ("output", "manifest", "evidence"))
+def test_restore_preflight_rejects_alternate_temporary_path_before_resume_cleanup(
+    tmp_path,
+    monkeypatch,
+    temporary_name,
+):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+
+    def interrupt_at_initial_record(_path, _state, generation):
+        if generation == 0:
+            raise OSError("crash at generation 0")
+
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        interrupt_at_initial_record,
+    )
+    with pytest.raises(OSError, match="generation 0"):
+        _rebind_restore_case(case, approved)
+    monkeypatch.setattr(
+        identity_module,
+        "_after_restore_transaction_state_written",
+        lambda *_args: None,
+    )
+
+    transaction_path = identity_module.restore_binding_transaction_path(case["target"])
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    assert transaction["generation"] == 0
+    temporary = transaction["temporaries"][temporary_name]
+    if temporary_name == "output":
+        temporary_bytes = bytes.fromhex(transaction["output_object_bytes"])
+    else:
+        temporary_bytes = bytes.fromhex(transaction[f"intended_{temporary_name}_bytes"])
+    alternate_fixture = case["target"] / "fixtures" / f"alternate-{temporary_name}.tmp"
+    alternate_fixture.parent.mkdir()
+    alternate_fixture.write_bytes(temporary_bytes)
+    temporary["relative_path"] = alternate_fixture.relative_to(case["target"]).as_posix()
+    transaction_path.write_bytes(canonical_bytes(transaction))
+    transaction_before = transaction_path.read_bytes()
+    canonical_paths = (
+        case["target"] / "manifests" / "store-identity.json",
+        case["target"] / "manifests" / "restore-binding-evidence.json",
+        case["target"] / transaction["output_object_path"],
+    )
+    canonical_before = {path: path.read_bytes() if path.exists() else None for path in canonical_paths}
+    durable_tree_before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+
+    with pytest.raises(IntegrityError, match="temporar"):
+        _rebind_restore_case(case, approved)
+
+    assert transaction_path.read_bytes() == transaction_before
+    assert json.loads(transaction_path.read_text(encoding="utf-8"))["generation"] == 0
+    assert alternate_fixture.read_bytes() == temporary_bytes
+    assert {path: path.read_bytes() if path.exists() else None for path in canonical_paths} == canonical_before
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == durable_tree_before
+
+
 def test_restore_preflight_rejects_coordinated_record_intent_rewrite_before_mutation(
     tmp_path,
     monkeypatch,

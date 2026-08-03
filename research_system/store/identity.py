@@ -1409,6 +1409,34 @@ _TRANSACTION_FIELDS = frozenset(
 )
 
 
+def _restore_transaction_temporaries(
+    *,
+    target: Path,
+    transaction_id: str,
+    output_digest: str,
+    intended_manifest: bytes,
+    intended_evidence: bytes,
+) -> dict[str, dict[str, str]]:
+    output_path = restore_binding_output_object_path(target, output_digest)
+    return {
+        "output": {
+            "relative_path": _relative_path(
+                target,
+                output_path.parent / f".{output_path.name}.{transaction_id}.tmp",
+            ),
+            "sha256": output_digest,
+        },
+        "manifest": {
+            "relative_path": f"manifests/.{_IDENTITY_NAME}.{transaction_id}.tmp",
+            "sha256": sha256_hex(intended_manifest),
+        },
+        "evidence": {
+            "relative_path": f"manifests/.{_RESTORE_BINDING_EVIDENCE_NAME}.{transaction_id}.tmp",
+            "sha256": sha256_hex(intended_evidence),
+        },
+    }
+
+
 def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], raw: bytes) -> None:
     if raw != canonical_bytes(value) or set(value) != _TRANSACTION_FIELDS:
         raise IntegrityError("restore binding transaction fields are invalid")
@@ -1511,19 +1539,21 @@ def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], r
     temporaries = value["temporaries"]
     if not isinstance(temporaries, dict) or set(temporaries) != {"output", "manifest", "evidence"}:
         raise IntegrityError("restore binding transaction temporary identities are invalid")
-    expected_digests = {
-        "output": value["output_object_sha256"],
-        "manifest": value["intended_manifest_sha256"],
-        "evidence": value["intended_evidence_sha256"],
-    }
-    for name, temporary in temporaries.items():
-        if (
-            not isinstance(temporary, dict)
-            or set(temporary) != {"relative_path", "sha256"}
-            or temporary["sha256"] != expected_digests[name]
-        ):
-            raise IntegrityError(f"restore binding transaction temporary is invalid: {name}")
-        _record_path(target, str(temporary["relative_path"]))
+    intended_manifest = _from_hex(value["intended_manifest_bytes"], "intended_manifest_bytes")
+    intended_evidence = _from_hex(value["intended_evidence_bytes"], "intended_evidence_bytes")
+    if (
+        intended_manifest is None
+        or intended_evidence is None
+        or temporaries
+        != _restore_transaction_temporaries(
+            target=target,
+            transaction_id=str(value["transaction_id"]),
+            output_digest=str(value["output_object_sha256"]),
+            intended_manifest=intended_manifest,
+            intended_evidence=intended_evidence,
+        )
+    ):
+        raise IntegrityError("restore binding transaction temporary identities are invalid")
 
 
 def _validate_restore_generation_observables(
@@ -2364,20 +2394,13 @@ def _build_restore_transaction(
         "output_object_path": output_relative,
         "output_object_sha256": output_digest,
         "output_object_bytes": _hex_bytes(output_bytes),
-        "temporaries": {
-            "output": {
-                "relative_path": f"manifests/{_RESTORE_BINDING_OUTPUT_DIRECTORY}/.{output_path.name}.{transaction_id}.tmp",
-                "sha256": output_digest,
-            },
-            "manifest": {
-                "relative_path": f"manifests/.{_IDENTITY_NAME}.{transaction_id}.tmp",
-                "sha256": sha256_hex(intended_manifest),
-            },
-            "evidence": {
-                "relative_path": f"manifests/.{_RESTORE_BINDING_EVIDENCE_NAME}.{transaction_id}.tmp",
-                "sha256": sha256_hex(intended_evidence),
-            },
-        },
+        "temporaries": _restore_transaction_temporaries(
+            target=target,
+            transaction_id=transaction_id,
+            output_digest=output_digest,
+            intended_manifest=intended_manifest,
+            intended_evidence=intended_evidence,
+        ),
     }
 
 
@@ -2539,6 +2562,14 @@ def _validate_restore_transaction_approval(
     output_bytes = _from_hex(record["output_object_bytes"], "output_object_bytes")
     if intended_manifest is None or intended_evidence is None or output_bytes is None:
         raise IntegrityError("restore binding transaction intended tuple is incomplete")
+    if record["temporaries"] != _restore_transaction_temporaries(
+        target=target,
+        transaction_id=str(record["approval_sha256"]),
+        output_digest=output_digest,
+        intended_manifest=intended_manifest,
+        intended_evidence=intended_evidence,
+    ):
+        raise IntegrityError("restore binding transaction temporaries differ from immutable approval")
     return preflight, approval_relative, intended_manifest, intended_evidence, output_bytes
 
 
