@@ -90,29 +90,8 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
 }
 
 
-def _real_lifecycle_service(
-    root: Path,
-    schemas: SchemaRegistry,
-    *,
-    project_id: str,
-    actor_id: str,
-    task_ids: list[str],
-    command_types: tuple[str, ...],
-) -> tuple["CommandService", dict[str, str], "StoreOriginWitness"]:
-    """Build a domain service backed by activated grants in a real ledger.
-
-    Args:
-        root: Control-store root for the domain service.
-        schemas: Trusted runtime schema registry.
-        project_id: Project identity bound into both stores.
-        actor_id: Owner actor identity for bootstrap and scoped grants.
-        task_ids: Task subjects that receive activated lifecycle grants.
-        command_types: Exact lifecycle command types allowed by each grant.
-
-    Returns:
-        The authority-aware command service, each task's activated grant ID,
-        and the external origin witness for the authority store.
-    """
+def _release_tranche_authority_bootstrap(project_id: str, actor_id: str) -> dict[str, Any]:
+    """Build the authority bootstrap shared by real release-tranche stores."""
     root_grant_id = "agr_01978abc-5601-7000-8000-000000005601"
     publication_grant_id = "agr_01978abc-5602-7000-8000-000000005602"
     publication_target_id = "rgd_01978abc-5603-7000-8000-000000005603"
@@ -149,7 +128,7 @@ def _real_lifecycle_service(
         publication_target_id,
         "2030-01-01T00:00:00Z",
     )
-    bootstrap = {
+    return {
         "schema_id": "ars://core/authority-bootstrap-manifest",
         "schema_version": "1.0.0",
         "project_id": project_id,
@@ -160,6 +139,32 @@ def _real_lifecycle_service(
         "publication_grant_sha256": sha256_hex(canonical_bytes(publication_grant)),
         "publication_target_id": publication_target_id,
     }
+
+
+def _real_lifecycle_service(
+    root: Path,
+    schemas: SchemaRegistry,
+    *,
+    project_id: str,
+    actor_id: str,
+    task_ids: list[str],
+    command_types: tuple[str, ...],
+) -> tuple["CommandService", dict[str, str], "StoreOriginWitness"]:
+    """Build a domain service backed by activated grants in a real ledger.
+
+    Args:
+        root: Control-store root for the domain service.
+        schemas: Trusted runtime schema registry.
+        project_id: Project identity bound into both stores.
+        actor_id: Owner actor identity for bootstrap and scoped grants.
+        task_ids: Task subjects that receive activated lifecycle grants.
+        command_types: Exact lifecycle command types allowed by each grant.
+
+    Returns:
+        The authority-aware command service, each task's activated grant ID,
+        and the external origin witness for the authority store.
+    """
+    bootstrap = _release_tranche_authority_bootstrap(project_id, actor_id)
     authority_root = root.parent / ".release-tranche-authority"
     origin_authority_root = root.parent / ".release-tranche-origin-authority"
     origin_authority_root.mkdir(parents=True, exist_ok=True)
@@ -377,23 +382,44 @@ def _execute(fixture_id: str, subject: str, payload: dict[str, Any]) -> dict[str
 
 def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Exercise moved-store authorization through the real command service."""
+    import shutil
     import tempfile
+    from dataclasses import asdict, replace
+
     from research_system.errors import ArsError
     from research_system.operations.backups import (
         RestorePreflightResult,
         seal_restore_preflight_result,
     )
+    from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
+    from research_system.store.ledger import EventLedger
 
     if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
         raise ValueError("release-tranche stimulus contract and action required")
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
     actor_id = "act_01978abc-1002-7000-8000-000000001002"
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory) / "moved-control"
-        root.mkdir()
-        schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
+        temporary_root = Path(directory)
+        repository_root = Path(__file__).resolve().parents[3]
+        schema_root = repository_root / ".research-system" / "schemas"
+        schemas = runtime_schema_registry(schema_root)
+        source_root = temporary_root / "source-control"
+        root = temporary_root / "moved-control"
+        origin_authority_root = temporary_root / ".s014-domain-origin-authority"
+        origin_authority_root.mkdir()
+        bootstrap = _release_tranche_authority_bootstrap(project_id, actor_id)
+        store = initialize_authority_control_store(
+            [repository_root],
+            source_root,
+            project_id,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+            canonical_schema_root=schema_root,
+            origin_authority_root=origin_authority_root,
+        )
+        shutil.copytree(source_root, root)
         task_id = "tsk_01978abc-5141-7000-8000-000000005141"
-        service, grant_ids, approved_witness = _real_lifecycle_service(
+        service, grant_ids, _authority_witness = _real_lifecycle_service(
             root,
             schemas,
             project_id=project_id,
@@ -401,15 +427,28 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             task_ids=[task_id],
             command_types=("CreateTask",),
         )
-        source_root = Path(approved_witness.initial_control_root)
-        failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
-        preflight = seal_restore_preflight_result(
+        source_ledger = EventLedger(source_root, project_id, schemas).snapshot()
+        source_snapshot = {
+            "snapshot_id": "snapshot-synthetic-r1",
+            "source_position": source_ledger.global_position,
+            "source_hash": source_ledger.event_hash,
+        }
+        code_roots = [repository_root]
+        expected_output = canonical_restore_binding_output(
+            root,
+            project_id,
+            str(store),
+            code_roots,
+            schema_root,
+        )
+        target_manifest_path = root / "manifests" / "store-identity.json"
+        verified_preflight = seal_restore_preflight_result(
             RestorePreflightResult(
-                status="diagnostic_only" if failed else "verified",
-                failed_predicates=failed,
+                status="verified",
+                failed_predicates=(),
                 receipt_hash="a" * 64,
-                ledger_hash="b" * 64,
-                snapshot_hash="c" * 64,
+                ledger_hash=source_ledger.event_hash,
+                snapshot_hash=sha256_hex(canonical_bytes(source_snapshot)),
                 target_endpoint_ownership_hash="d" * 64,
                 artefact_manifest_hash="e" * 64,
                 availability_observations_hash="f" * 64,
@@ -417,23 +456,61 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 target_root=str(root.resolve(strict=False)),
                 source_root=str(source_root.resolve(strict=False)),
                 project_id=project_id,
-                store_identity="2" * 64,
-                tail_position=0,
-                tail_hash="0" * 64,
-                snapshot_id="snapshot-synthetic-r1",
+                store_identity=str(store),
+                tail_position=source_ledger.global_position,
+                tail_hash=source_ledger.event_hash,
+                snapshot_id=source_snapshot["snapshot_id"],
                 actor_id=actor_id,
                 authority_grant_id=grant_ids[task_id],
                 result_hash="",
-                origin_witness_sha256=approved_witness.raw_sha256,
-                origin_initial_control_root=approved_witness.initial_control_root,
-                origin_initial_physical_root_identity=dict(approved_witness.initial_physical_root_identity),
+                code_roots=[str(repository_root)],
+                schema_root=str(schema_root),
+                source_snapshot_hash=sha256_hex(canonical_bytes(source_snapshot)),
+                target_manifest_bytes_sha256=sha256_hex(target_manifest_path.read_bytes()),
+                expected_output_sha256=sha256_hex(expected_output),
+                origin_witness_path=str(store.witness_path.resolve(strict=True)),
+                origin_witness_sha256=store.witness.raw_sha256,
+                origin_initial_control_root=store.witness.initial_control_root,
+                origin_initial_physical_root_identity=dict(store.witness.initial_physical_root_identity),
             )
+        )
+        rebind_restored_store(
+            root,
+            source_root,
+            expected_project_id=project_id,
+            expected_store_identity=str(store),
+            expected_code_roots=code_roots,
+            expected_schema_root=schema_root,
+            expected_restore_receipt_hash=verified_preflight.receipt_hash,
+            actor_id=actor_id,
+            authority_grant_id=grant_ids[task_id],
+            source_snapshot=source_snapshot,
+            expected_source_snapshot_hash=verified_preflight.source_snapshot_hash,
+            expected_target_manifest_bytes_sha256=verified_preflight.target_manifest_bytes_sha256,
+            expected_output=expected_output,
+            expected_restore_preflight=asdict(verified_preflight),
+            approved_witness=store.witness,
+            approved_witness_path=store.witness_path,
+        )
+        failed = ("registered_topology_incomplete",) if subject == "known_bad" else ()
+        preflight = (
+            seal_restore_preflight_result(
+                replace(
+                    verified_preflight,
+                    status="diagnostic_only",
+                    failed_predicates=failed,
+                    result_hash="",
+                )
+            )
+            if failed
+            else verified_preflight
         )
         service.configure_moved_restore(
             source_root=source_root,
             preflight_result=preflight,
             rechecker=lambda: preflight,
-            approved_witness=approved_witness,
+            approved_witness=store.witness,
+            approved_witness_path=store.witness_path,
         )
         command = {
             "command_id": "cmd_01978abc-5140-7000-8000-000000005140",

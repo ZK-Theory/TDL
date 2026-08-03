@@ -63,7 +63,12 @@ from research_system.store.ledger import (
     LedgerSnapshot,
     _take_release_submit_guard,
 )
-from research_system.store.identity import StoreOriginWitness, _physical_root_identity
+from research_system.store.identity import (
+    StoreOriginWitness,
+    _physical_root_identity,
+    _validate_approved_origin_witness_path,
+    verify_restore_binding_admission,
+)
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
@@ -437,6 +442,7 @@ class CommandService:
         ) = None
         self._restore_source_root: Path | None = None
         self._restore_approved_witness: StoreOriginWitness | None = None
+        self._restore_approved_witness_path: Path | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
         self._recover_scoped_activation_markers()
@@ -898,16 +904,24 @@ class CommandService:
         source_root: Path,
         preflight_result: RestorePreflightResult,
         rechecker: Callable[[], RestorePreflightResult],
-        approved_witness: StoreOriginWitness | None = None,
+        approved_witness: StoreOriginWitness,
+        approved_witness_path: Path,
     ) -> None:
         """Bind a moved store to evidence that is rerun before each writer lock."""
         if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
             raise ValueError("moved restore source must differ from target")
         if approved_witness is None:
             raise ValueError("moved restore requires an approved origin witness")
+        if approved_witness_path is None:
+            raise ValueError("moved restore requires an approved origin witness path")
+        resolved_witness_path, _origin_root = _validate_approved_origin_witness_path(
+            approved_witness_path,
+            approved_witness,
+        )
         _validate_moved_restore_source_lineage(source_root, preflight_result, approved_witness)
         self._restore_source_root = source_root
         self._restore_approved_witness = approved_witness
+        self._restore_approved_witness_path = resolved_witness_path
         self._restore_preflight_result = preflight_result
         self._restore_preflight_rechecker = rechecker
 
@@ -916,7 +930,12 @@ class CommandService:
             return
         supplied = self._restore_preflight_result
         rechecker = self._restore_preflight_rechecker
-        if supplied is None or rechecker is None or self._restore_approved_witness is None:
+        if (
+            supplied is None
+            or rechecker is None
+            or self._restore_approved_witness is None
+            or self._restore_approved_witness_path is None
+        ):
             raise ArsError("moved store requires restore preflight")
         current = rechecker()
         _validate_moved_restore_source_lineage(
@@ -934,6 +953,13 @@ class CommandService:
         )
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")
+        if current.origin_witness_path != str(self._restore_approved_witness_path):
+            raise ArsError("restore preflight origin witness path differs from approved locator")
+        verify_restore_binding_admission(
+            self.control_root,
+            approved_witness=self._restore_approved_witness,
+            approved_witness_path=self._restore_approved_witness_path,
+        )
 
     @_release_submit_guard
     def submit(
@@ -1963,7 +1989,11 @@ class CommandService:
                     "message_evidence_required",
                     "Message delivery requires immutable delivery evidence.",
                 )
-            if payload.get("content_sha256") != content_sha256 or payload.get("recipient_actor_ids") != recipients:
+            if (
+                not isinstance(recipients, list)
+                or payload.get("content_sha256") != content_sha256
+                or payload.get("recipient_actor_ids") != recipients
+            ):
                 return self._rejected(
                     command,
                     observed_version,
@@ -1978,7 +2008,7 @@ class CommandService:
                     "invalid_message_transition",
                     "Message acknowledgement requires delivery.",
                 )
-            if command.actor_id not in recipients:
+            if not isinstance(recipients, list) or command.actor_id not in recipients:
                 return self._rejected(
                     command,
                     observed_version,

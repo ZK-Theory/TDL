@@ -1,4 +1,5 @@
 import json
+import inspect
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -7,7 +8,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command import service as service_module
 from research_system.command.models import Command
-from research_system.errors import ArsError, SchemaError
+from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry
@@ -145,6 +146,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
         preflight_result=supplied,
         rechecker=lambda: stale,
         approved_witness=harness.authority_resolver.approved_witness,
+        approved_witness_path=harness.authority_resolver.approved_witness_path,
     )
 
     entered = []
@@ -401,7 +403,7 @@ def _verify_restore(case, **changes):
     return verify_restore_before_writer_lease(**values)
 
 
-def _rebind_restore_case(case, preflight):
+def _rebind_restore_case(case, preflight, *, witness_path=None):
     from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
 
     code_roots = [Path(root) for root in preflight.code_roots]
@@ -429,7 +431,7 @@ def _rebind_restore_case(case, preflight):
         ),
         expected_restore_preflight=asdict(preflight),
         approved_witness=case["witness"],
-        approved_witness_path=case["witness_path"],
+        approved_witness_path=witness_path or case["witness_path"],
     )
 
 
@@ -462,6 +464,21 @@ def test_restore_preflight_retry_recovers_after_manifest_publication(tmp_path, m
     rebound_manifest = identity_module.load_store_manifest_unbound(case["target"])
     assert rebound_manifest["control_root"] == str(case["target"].resolve())
     assert identity_module.manifest_schema_root(rebound_manifest) == Path(approved.schema_root)
+
+    evidence_path = case["target"] / "manifests" / "restore-binding-evidence.json"
+    assert not evidence_path.exists()
+    (case["target"] / "manifests" / "store-identity.json").write_bytes(
+        canonical_bytes(case["witness"].initial_manifest)
+    )
+    replayed = _verify_restore(case)
+    assert replayed.status == "diagnostic_only"
+    assert "origin_witness_manifest_mismatch" in replayed.failed_predicates
+    with pytest.raises(IntegrityError, match="observable state conflicts with generation"):
+        _rebind_restore_case(case, approved)
+    assert not evidence_path.exists()
+    assert (case["target"] / "manifests" / ".restore-binding-transaction.json").read_bytes() == transaction_before
+    (case["target"] / "manifests" / "store-identity.json").write_bytes(manifest_before)
+
     rechecked = _verify_restore(case)
     assert rechecked == approved, rechecked.failed_predicates
     assert (case["target"] / "manifests" / "store-identity.json").read_bytes() == manifest_before
@@ -480,6 +497,164 @@ def test_restore_preflight_retry_recovers_after_manifest_publication(tmp_path, m
     monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", lambda *_args: None)
     rebound = _rebind_restore_case(case, rechecked)
     assert rebound["control_root"] == str(case["target"].resolve())
+    durable_tree = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+    assert _rebind_restore_case(case, _verify_restore(case)) == rebound
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == durable_tree
+
+
+def test_restore_preflight_rejects_foreign_output_before_initial_transaction(tmp_path):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+    output_root = case["target"] / "manifests" / "restore-bindings"
+    output_root.mkdir()
+    foreign_output = output_root / f"sha256-{'9' * 64}.json"
+    foreign_output.write_bytes(b"foreign restore binding output\n")
+    before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+
+    with pytest.raises(IntegrityError, match="observable state conflicts with generation"):
+        _rebind_restore_case(case, approved)
+
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == before
+    assert not identity_module.restore_binding_transaction_path(case["target"]).exists()
+
+
+def test_restore_preflight_rechecks_observables_after_initial_record_write(tmp_path, monkeypatch):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+    original_write = identity_module._write_initial_transaction
+    foreign_output = case["target"] / "manifests" / "restore-bindings" / f"sha256-{'8' * 64}.json"
+
+    def write_then_inject_foreign_output(target, record):
+        written = original_write(target, record)
+        foreign_output.write_bytes(b"foreign output concurrent with initial record\n")
+        return written
+
+    monkeypatch.setattr(identity_module, "_write_initial_transaction", write_then_inject_foreign_output)
+
+    with pytest.raises(IntegrityError, match="observable state conflicts with generation"):
+        _rebind_restore_case(case, approved)
+
+    transaction = json.loads(identity_module.restore_binding_transaction_path(case["target"]).read_text())
+    assert transaction["state"] == "prepared"
+    assert transaction["generation"] == 0
+    assert transaction["last_completed_durability_step"] == "prepared-record-durable"
+    assert foreign_output.read_bytes() == b"foreign output concurrent with initial record\n"
+    assert (case["target"] / "manifests" / "store-identity.json").read_bytes() == canonical_bytes(
+        case["witness"].initial_manifest
+    )
+    assert not (case["target"] / "manifests" / "restore-binding-evidence.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("generation", "mutation"),
+    [
+        (0, "premature-manifest"),
+        (1, "missing-output"),
+        (3, "missing-evidence"),
+    ],
+    ids=("prepared-record", "output-durable", "evidence-durable"),
+)
+def test_restore_preflight_joins_generation_to_exact_observable_state(
+    tmp_path,
+    monkeypatch,
+    generation,
+    mutation,
+):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+
+    def interrupt_at_generation(_path, _state, written_generation):
+        if written_generation == generation:
+            raise OSError(f"crash at generation {generation}")
+
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", interrupt_at_generation)
+    with pytest.raises(OSError, match=f"generation {generation}"):
+        _rebind_restore_case(case, approved)
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", lambda *_args: None)
+
+    transaction_path = identity_module.restore_binding_transaction_path(case["target"])
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    assert transaction["generation"] == generation
+    if mutation == "premature-manifest":
+        (case["target"] / "manifests" / "store-identity.json").write_bytes(
+            bytes.fromhex(transaction["intended_manifest_bytes"])
+        )
+    elif mutation == "missing-output":
+        (case["target"] / transaction["output_object_path"]).unlink()
+    else:
+        assert mutation == "missing-evidence"
+        (case["target"] / "manifests" / "restore-binding-evidence.json").unlink()
+    before = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+
+    rejected = _verify_restore(case)
+    assert rejected.status == "diagnostic_only"
+    assert "origin_witness_manifest_mismatch" in rejected.failed_predicates
+    with pytest.raises(IntegrityError, match="observable state conflicts with generation"):
+        _rebind_restore_case(case, approved)
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == before
+
+
+@pytest.mark.parametrize("generation", [0, 1, 3], ids=("prepared-record", "output-durable", "evidence-durable"))
+def test_restore_preflight_valid_generation_resume_is_idempotent(tmp_path, monkeypatch, generation):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+
+    def interrupt_at_generation(_path, _state, written_generation):
+        if written_generation == generation:
+            raise OSError(f"crash at generation {generation}")
+
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", interrupt_at_generation)
+    with pytest.raises(OSError, match=f"generation {generation}"):
+        _rebind_restore_case(case, approved)
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", lambda *_args: None)
+
+    rechecked = _verify_restore(case)
+    assert rechecked == approved, rechecked.failed_predicates
+    rebound = _rebind_restore_case(case, rechecked)
+    durable_tree = {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    }
+
+    assert _rebind_restore_case(case, _verify_restore(case)) == rebound
+    assert {
+        path.relative_to(case["target"]).as_posix(): path.read_bytes()
+        for path in sorted(case["target"].rglob("*"))
+        if path.is_file()
+    } == durable_tree
 
 
 def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
@@ -576,15 +751,17 @@ def _moved_service(case):
     )
 
 
-def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_path):
-    case = _build_restore_case(tmp_path)
-    service = _moved_service(case)
+def test_real_command_service_accepts_only_current_verified_and_cleared_moved_restore(tmp_path):
+    case = _build_restore_case(tmp_path, rebindable=True)
     supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_service(case)
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
         approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
     )
     command = create_task_command(
         CMD_RESTORE,
@@ -592,9 +769,121 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
         TASK_RESTORE,
         {"title": "verified moved store"},
     )
+    batches_before = tuple(service.ledger.iter_batches())
     receipt = service.submit(command)
     assert receipt.status == "accepted"
-    assert len(tuple(service.ledger.iter_batches())) == 1
+    assert len(tuple(service.ledger.iter_batches())) == len(batches_before) + 1
+
+
+def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_path, monkeypatch):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+
+    def interrupt_after_manifest(_path, state, generation):
+        if state == "prepared" and generation == 2:
+            raise OSError("crash after manifest publication")
+
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", interrupt_after_manifest)
+    with pytest.raises(OSError, match="crash after manifest publication"):
+        _rebind_restore_case(case, supplied)
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", lambda *_args: None)
+
+    service = _moved_service(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    command = create_task_command(
+        CMD_RESTORE,
+        "recovery-only-preflight",
+        TASK_RESTORE,
+        {"title": "must wait for restore clear"},
+    )
+    before = service.ledger.snapshot()
+    batches_before = tuple(service.ledger.iter_batches())
+    objects_before = {
+        path.relative_to(case["target"] / "objects").as_posix(): path.read_bytes()
+        for path in sorted((case["target"] / "objects").rglob("*"))
+        if path.is_file()
+    }
+
+    with pytest.raises(IntegrityError, match="transaction state is not cleared"):
+        service.submit(command)
+
+    after = service.ledger.snapshot()
+    assert (after.global_position, after.event_hash) == (before.global_position, before.event_hash)
+    assert tuple(service.ledger.iter_batches()) == batches_before
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert {
+        path.relative_to(case["target"] / "objects").as_posix(): path.read_bytes()
+        for path in sorted((case["target"] / "objects").rglob("*"))
+        if path.is_file()
+    } == objects_before
+
+
+def test_real_command_service_rejects_preflight_bound_to_an_unapproved_witness_slot(tmp_path):
+    case = _build_restore_case(tmp_path, rebindable=True)
+    alternate_witness_path = tmp_path / "alternate-origin-authority" / "store-origins" / case["witness_path"].name
+    alternate_witness_path.parent.mkdir(parents=True)
+    alternate_witness_path.write_bytes(case["witness"].raw_bytes)
+    supplied = _verify_restore(case, approved_witness_path=alternate_witness_path)
+    _rebind_restore_case(case, supplied, witness_path=alternate_witness_path)
+    service = _moved_service(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _verify_restore(case, approved_witness_path=alternate_witness_path),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    command = create_task_command(
+        CMD_RESTORE,
+        "unapproved-witness-slot",
+        TASK_RESTORE,
+        {"title": "must use the independently approved witness slot"},
+    )
+    before = service.ledger.snapshot()
+    batches_before = tuple(service.ledger.iter_batches())
+    objects_before = {
+        path.relative_to(case["target"] / "objects").as_posix(): path.read_bytes()
+        for path in sorted((case["target"] / "objects").rglob("*"))
+        if path.is_file()
+    }
+
+    with pytest.raises(ArsError, match="origin witness path differs from approved locator"):
+        service.submit(command)
+
+    after = service.ledger.snapshot()
+    assert (after.global_position, after.event_hash) == (before.global_position, before.event_hash)
+    assert tuple(service.ledger.iter_batches()) == batches_before
+    assert service.receipts.load(CMD_RESTORE) is None
+    assert {
+        path.relative_to(case["target"] / "objects").as_posix(): path.read_bytes()
+        for path in sorted((case["target"] / "objects").rglob("*"))
+        if path.is_file()
+    } == objects_before
+
+
+def test_configure_moved_restore_requires_explicit_approved_witness(tmp_path):
+    parameters = inspect.signature(service_module.CommandService.configure_moved_restore).parameters
+    for name in ("approved_witness", "approved_witness_path"):
+        assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+        assert parameters[name].default is inspect.Parameter.empty
+
+    harness = control_plane(tmp_path)
+    with pytest.raises(ValueError, match="approved origin witness"):
+        harness.service.configure_moved_restore(
+            source_root=tmp_path / "different-source",
+            preflight_result=object(),
+            rechecker=lambda: object(),
+            approved_witness=None,
+            approved_witness_path=harness.authority_resolver.approved_witness_path,
+        )
 
 
 def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tmp_path, monkeypatch):
@@ -614,6 +903,7 @@ def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tm
             preflight_result=supplied,
             rechecker=lambda: _verify_restore(case),
             approved_witness=case["witness"],
+            approved_witness_path=case["witness_path"],
         )
 
     assert tuple(service.ledger.iter_events()) == ()
@@ -631,6 +921,7 @@ def test_real_command_service_rejects_changed_artifact_under_writer_lock(tmp_pat
         preflight_result=supplied,
         rechecker=lambda: _verify_restore(case),
         approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
     )
     case["artefact_path"].unlink()
 
@@ -689,8 +980,18 @@ def test_s014_executor_crosses_real_command_service_seam(monkeypatch):
         "contract": "restore_preflight_registered_topology",
         "action": {"operation": "verify_restore_machine_move"},
     }
-    assert execute_s014("known_bad", payload)["restore_preflight_status"] == "diagnostic_only"
-    assert execute_s014("known_good", payload)["restore_preflight_status"] == "verified"
+    assert execute_s014("known_bad", payload) == {
+        "restore_preflight_status": "diagnostic_only",
+        "failed_predicates": ["registered_topology_incomplete"],
+        "writer_authority_attempted_before_verification": True,
+        "registered_locations_complete": False,
+    }
+    assert execute_s014("known_good", payload) == {
+        "restore_preflight_status": "verified",
+        "failed_predicates": [],
+        "writer_authority_attempted_before_verification": False,
+        "registered_locations_complete": True,
+    }
     domain_calls = [command for command in calls if command["command_type"] == "CreateTask"]
     assert len(domain_calls) == 2
     assert all(command["schema_id"] == "ars://core/command/CreateTask" for command in domain_calls)

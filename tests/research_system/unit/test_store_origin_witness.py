@@ -200,6 +200,98 @@ def test_posix_cleanup_fails_closed_when_quarantine_destination_is_not_durable(t
     assert anchor.read_bytes() == expected
 
 
+def test_posix_cleanup_retry_reconfirms_both_quarantine_durability_barriers(
+    tmp_path: Path,
+    monkeypatch,
+):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+    flushed: list[Path] = []
+    destination_attempts = 0
+
+    def durability(path: Path) -> bool:
+        nonlocal destination_attempts
+        flushed.append(path)
+        if ".restore-cleanup-quarantine-" in path.name:
+            destination_attempts += 1
+            return destination_attempts >= 3
+        return True
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", durability)
+
+    for expected_attempts in (1, 2):
+        with pytest.raises(ArsError, match="durable cleanup quarantine"):
+            identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+        assert destination_attempts == expected_attempts
+        assert not temporary.exists()
+        assert len(list(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))) == 1
+        assert flushed.count(tmp_path) >= expected_attempts
+
+    identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert destination_attempts == 3
+    assert flushed.count(tmp_path) >= 3
+    quarantine = next(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    assert (quarantine / temporary.name).read_bytes() == expected
+    assert os.path.samefile(quarantine / temporary.name, anchor)
+
+
+def test_posix_cleanup_rejects_foreign_quarantine_contents_without_mutation(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+    quarantine = identity_module._posix_cleanup_quarantine_path(temporary, expected)
+    quarantine.mkdir(mode=0o700)
+    (quarantine / "foreign").write_bytes(b"unowned")
+
+    with pytest.raises(ConflictError, match="quarantine identity conflicts"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert temporary.read_bytes() == expected
+    assert os.path.samefile(temporary, anchor)
+    assert (quarantine / "foreign").read_bytes() == b"unowned"
+
+
+def test_posix_cleanup_retry_restores_mismatched_quarantine_durably(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    foreign = b"foreign quarantine replacement"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+
+    def fail_quarantine_durability(path: Path) -> bool:
+        return ".restore-cleanup-quarantine-" not in path.name
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", fail_quarantine_durability)
+    with pytest.raises(ArsError, match="durable cleanup quarantine"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    quarantine = next(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    quarantined = quarantine / temporary.name
+    quarantined.unlink()
+    quarantined.write_bytes(foreign)
+    flushed: list[Path] = []
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda path: not flushed.append(path))
+
+    with pytest.raises(ConflictError, match="temporary physical identity changed"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert temporary.read_bytes() == foreign
+    assert os.path.samefile(temporary, quarantined)
+    assert anchor.read_bytes() == expected
+    assert tmp_path in flushed
+    assert quarantine in flushed
+
+
 def test_posix_cleanup_preserves_replaced_temporary_path(tmp_path: Path, monkeypatch):
     anchor = tmp_path / "anchor"
     temporary = tmp_path / "temporary"
@@ -230,6 +322,7 @@ def test_posix_cleanup_preserves_post_final_compare_replacement(tmp_path: Path, 
     _simulate_posix_cleanup(monkeypatch)
     original_compare = identity_module._posix_compare_owned_temporary
     completed_comparisons = []
+    flushed: list[Path] = []
 
     def replace_after_second_compare(path: Path, compared_anchor: Path, compared_expected: bytes):
         original_compare(path, compared_anchor, compared_expected)
@@ -239,6 +332,7 @@ def test_posix_cleanup_preserves_post_final_compare_replacement(tmp_path: Path, 
             path.write_bytes(foreign)
 
     monkeypatch.setattr(identity_module, "_posix_compare_owned_temporary", replace_after_second_compare)
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda path: not flushed.append(path))
     with pytest.raises(ConflictError, match="temporary physical identity changed"):
         identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
 
@@ -250,6 +344,8 @@ def test_posix_cleanup_preserves_post_final_compare_replacement(tmp_path: Path, 
     quarantined = quarantine_directories[0] / temporary.name
     assert quarantined.read_bytes() == foreign
     assert os.path.samefile(temporary, quarantined)
+    assert tmp_path in flushed
+    assert quarantine_directories[0] in flushed
 
 
 def test_posix_cleanup_retains_quarantine_if_replaced_after_final_compare(tmp_path: Path, monkeypatch):

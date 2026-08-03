@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import stat
+import sys
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any, Callable
@@ -660,6 +661,7 @@ def _restore_preflight_anchor(
         or canonical_bytes(manifest) not in {initial_raw, intended_raw}
     ):
         raise IntegrityError("restore manifest differs from immutable approval")
+    _validate_restore_generation_observables(control, record)
     return dict(preflight)
 
 
@@ -1524,6 +1526,58 @@ def _validate_restore_binding_transaction(target: Path, value: dict[str, Any], r
         _record_path(target, str(temporary["relative_path"]))
 
 
+def _validate_restore_generation_observables(
+    target: Path,
+    record: dict[str, Any],
+    *,
+    fresh_transaction: bool = False,
+) -> None:
+    """Join a durable transaction generation to the exact live object tuple."""
+    generation = int(record["generation"])
+    original_manifest = _from_hex(record["original_manifest_bytes"], "original_manifest_bytes")
+    intended_manifest = _from_hex(record["intended_manifest_bytes"], "intended_manifest_bytes")
+    original_evidence = _from_hex(record["original_evidence_bytes"], "original_evidence_bytes")
+    intended_evidence = _from_hex(record["intended_evidence_bytes"], "intended_evidence_bytes")
+    intended_output = _from_hex(record["output_object_bytes"], "output_object_bytes")
+    if original_manifest is None or intended_manifest is None or intended_evidence is None or intended_output is None:
+        raise IntegrityError("restore binding observable state conflicts with generation")
+
+    output_path = _record_path(target, str(record["output_object_path"]))
+    output_candidates = set(output_path.parent.glob("sha256-*.json")) if output_path.parent.exists() else set()
+    expected_output_candidates = {output_path}
+    if generation == 0 and fresh_transaction:
+        output_candidates_valid = not output_candidates
+        output_allowed = {None}
+    elif generation == 0:
+        output_candidates_valid = output_candidates in (set(), expected_output_candidates)
+        output_allowed = {None, intended_output}
+    else:
+        output_candidates_valid = output_candidates == expected_output_candidates
+        output_allowed = {intended_output}
+
+    if generation == 0:
+        manifest_allowed = {original_manifest}
+    elif generation == 1:
+        manifest_allowed = {original_manifest, intended_manifest}
+    else:
+        manifest_allowed = {intended_manifest}
+
+    if generation < 2:
+        evidence_allowed = {original_evidence}
+    elif generation == 2:
+        evidence_allowed = {original_evidence, intended_evidence}
+    else:
+        evidence_allowed = {intended_evidence}
+
+    if (
+        not output_candidates_valid
+        or _file_bytes(output_path) not in output_allowed
+        or _file_bytes(_manifest_path(target)) not in manifest_allowed
+        or _file_bytes(_restore_binding_evidence_path(target)) not in evidence_allowed
+    ):
+        raise IntegrityError("restore binding observable state conflicts with generation")
+
+
 def _read_restore_binding_transaction(control_root: Path) -> tuple[dict[str, Any] | None, bytes | None]:
     target = control_root.resolve(strict=True)
     _assert_no_second_restore_authority(target)
@@ -1780,17 +1834,59 @@ def _posix_compare_owned_temporary(path: Path, anchor: Path, expected: bytes) ->
             raise ArsError(f"restore binding could not close sealed cleanup descriptor: {path}") from close_error
 
 
-def _posix_cleanup_quarantine(path: Path) -> tuple[Path, Path]:
-    for _ in range(8):
-        directory = path.parent / f".{path.name}.restore-cleanup-quarantine-{secrets.token_hex(16)}"
+def _posix_cleanup_quarantine_path(path: Path, expected: bytes) -> Path:
+    digest = sha256_hex(expected)
+    return path.parent / f".{path.name}.restore-cleanup-quarantine-sha256-{digest}"
+
+
+def _posix_existing_cleanup_quarantine(path: Path, expected: bytes) -> tuple[Path, Path] | None:
+    expected_directory = _posix_cleanup_quarantine_path(path, expected)
+    candidates = set(path.parent.glob(f".{path.name}.restore-cleanup-quarantine-*"))
+    if candidates.difference({expected_directory}):
+        raise ConflictError(f"restore binding cleanup quarantine identity conflicts: {path}")
+    if expected_directory not in candidates:
+        return None
+    try:
+        metadata = expected_directory.lstat()
+    except OSError as exc:
+        raise ArsError(f"restore binding cleanup quarantine identity is unavailable: {path}") from exc
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or (sys.platform != "win32" and stat.S_IMODE(metadata.st_mode) & 0o077)
+    ):
+        raise ConflictError(f"restore binding cleanup quarantine is not a physical directory: {path}")
+    quarantined = expected_directory / path.name
+    try:
+        contents = set(expected_directory.iterdir())
+    except OSError as exc:
+        raise ArsError(f"restore binding cleanup quarantine identity is unavailable: {path}") from exc
+    if contents.difference({quarantined}):
+        raise ConflictError(f"restore binding cleanup quarantine identity conflicts: {path}")
+    return expected_directory, quarantined
+
+
+def _posix_cleanup_quarantine(path: Path, expected: bytes) -> tuple[Path, Path]:
+    existing = _posix_existing_cleanup_quarantine(path, expected)
+    if existing is None:
+        directory = _posix_cleanup_quarantine_path(path, expected)
         try:
             os.mkdir(directory, 0o700)
-        except FileExistsError:
-            continue
         except OSError as exc:
             raise ArsError(f"restore binding could not reserve cleanup quarantine: {path}") from exc
-        return directory, directory / path.name
-    raise ConflictError(f"restore binding cleanup quarantine name conflicts: {path}")
+        quarantined = directory / path.name
+    else:
+        directory, quarantined = existing
+    if not _fsync_directory(path.parent):
+        raise ArsError("restore binding requires durable cleanup quarantine reservation")
+    return directory, quarantined
+
+
+def _posix_confirm_cleanup_quarantine(path: Path, quarantine_directory: Path) -> None:
+    source_durable = _fsync_directory(path.parent)
+    quarantine_durable = _fsync_directory(quarantine_directory)
+    if not source_durable or not quarantine_durable:
+        raise ArsError("restore binding requires durable cleanup quarantine")
 
 
 def _posix_restore_quarantined_path(quarantined: Path, path: Path) -> None:
@@ -1805,10 +1901,56 @@ def _posix_restore_quarantined_path(quarantined: Path, path: Path) -> None:
 
 
 def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> None:
+    existing_quarantine = _posix_existing_cleanup_quarantine(path, expected)
+    if existing_quarantine is not None:
+        quarantine_directory, quarantined = existing_quarantine
+        try:
+            quarantined.lstat()
+        except FileNotFoundError:
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                _posix_confirm_cleanup_quarantine(path, quarantine_directory)
+                raise ConflictError(f"restore binding cleanup quarantine recovery identity is missing: {path}")
+        else:
+            comparison_error: ArsError | None = None
+            try:
+                _posix_compare_owned_temporary(quarantined, anchor, expected)
+            except ArsError as exc:
+                comparison_error = exc
+            restoration_error: ArsError | None = None
+            if comparison_error is not None:
+                try:
+                    path.lstat()
+                except FileNotFoundError:
+                    try:
+                        _posix_restore_quarantined_path(quarantined, path)
+                    except ArsError as exc:
+                        restoration_error = exc
+            try:
+                _posix_confirm_cleanup_quarantine(path, quarantine_directory)
+            except ArsError as durability_error:
+                raise durability_error from (restoration_error or comparison_error)
+            if restoration_error is not None:
+                raise restoration_error from comparison_error
+            if comparison_error is not None:
+                raise comparison_error
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                return
+            raise ConflictError(f"restore binding cleanup source remains beside quarantine: {path}")
+
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        if not _fsync_directory(path.parent):
+            raise ArsError("restore binding requires durable temporary cleanup")
+        return
     _posix_compare_owned_temporary(path, anchor, expected)
     _after_restore_owned_temporary_compared(path)
     _posix_compare_owned_temporary(path, anchor, expected)
-    quarantine_directory, quarantined = _posix_cleanup_quarantine(path)
+    quarantine_directory, quarantined = _posix_cleanup_quarantine(path, expected)
     try:
         os.rename(path, quarantined)
     except OSError as exc:
@@ -1816,16 +1958,25 @@ def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> 
             os.rmdir(quarantine_directory)
         except OSError:
             pass
+        if not _fsync_directory(path.parent):
+            raise ArsError("restore binding requires durable cleanup quarantine rollback") from exc
         raise ArsError(f"restore binding could not quarantine temporary cleanup: {path}") from exc
     try:
         _posix_compare_owned_temporary(quarantined, anchor, expected)
-    except ArsError:
-        _posix_restore_quarantined_path(quarantined, path)
+    except ArsError as comparison_error:
+        restoration_error: ArsError | None = None
+        try:
+            _posix_restore_quarantined_path(quarantined, path)
+        except ArsError as exc:
+            restoration_error = exc
+        try:
+            _posix_confirm_cleanup_quarantine(path, quarantine_directory)
+        except ArsError as durability_error:
+            raise durability_error from (restoration_error or comparison_error)
+        if restoration_error is not None:
+            raise restoration_error from comparison_error
         raise
-    source_durable = _fsync_directory(path.parent)
-    quarantine_durable = _fsync_directory(quarantine_directory)
-    if not source_durable or not quarantine_durable:
-        raise ArsError("restore binding requires durable cleanup quarantine")
+    _posix_confirm_cleanup_quarantine(path, quarantine_directory)
     # POSIX pathname unlink cannot bind deletion to the verified inode. Retain
     # the private quarantine artifact for separately governed cleanup/evidence.
 
@@ -1844,10 +1995,9 @@ def _cleanup_owned_temporary(path: Path, expected: bytes, *, anchor: Path) -> No
         try:
             path.lstat()
         except FileNotFoundError:
-            if not _fsync_directory(path.parent):
-                raise ArsError("restore binding requires durable temporary cleanup")
-            return
-        _before_restore_owned_temporary_cleanup(path)
+            pass
+        else:
+            _before_restore_owned_temporary_cleanup(path)
         _posix_delete_owned_temporary(path, anchor, expected)
         try:
             path.lstat()
@@ -2622,9 +2772,10 @@ def rebind_restored_store(
         initial_candidates = set((target / "manifests").glob(".restore-binding-transaction.*.tmp"))
         if initial_candidates and initial_candidates != {initial_temporary}:
             raise ConflictError("restore binding initial temporary exact-set closure conflicts")
-        published_approval_sha256, approval_relative = _publish_restore_approval(target, approval)
-        if published_approval_sha256 != approval_sha256:
-            raise IntegrityError("restore approval publication digest changed")
+        approval_relative = _relative_path(
+            target,
+            restore_binding_approval_object_path(target, approval_sha256),
+        )
         rebound["manifest_hash"] = _restored_manifest_hash(rebound, approval_sha256)
         intended_manifest = canonical_bytes(rebound)
         transaction_id = approval_sha256
@@ -2683,9 +2834,14 @@ def rebind_restored_store(
             output_bytes=output_bytes,
         )
         _validate_restore_binding_transaction(target, record, canonical_bytes(record))
+        _validate_restore_generation_observables(target, record, fresh_transaction=True)
+        published_approval_sha256, published_approval_relative = _publish_restore_approval(target, approval)
+        if published_approval_sha256 != approval_sha256 or published_approval_relative != approval_relative:
+            raise IntegrityError("restore approval publication identity changed")
         if source_snapshot_validator is not None:
             source_snapshot_validator()
         record, record_raw = _write_initial_transaction(target, record)
+        _validate_restore_generation_observables(target, record)
     else:
         if record_raw is None:
             raise IntegrityError("restore binding transaction bytes are missing")
@@ -2714,6 +2870,7 @@ def rebind_restored_store(
         )
         if record["source_snapshot"] != source_snapshot:
             raise ConflictError("restore source snapshot changed")
+        _validate_restore_generation_observables(target, record)
         if expected_target_manifest_bytes_sha256 is not None and expected_target_manifest_bytes_sha256 not in {
             record["original_manifest_sha256"],
             record["intended_manifest_sha256"],

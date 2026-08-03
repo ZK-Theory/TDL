@@ -9,7 +9,7 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.command.models import Receipt
+from research_system.command.models import Command, Receipt
 from research_system.command.service import MessageAdapterRegistration
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import rebuild_projection, replay
@@ -1613,6 +1613,67 @@ def test_acknowledgement_requires_delivery_and_a_published_recipient_without_dom
     )
     assert nonrecipient.reason_code == "message_recipient_mismatch"
     assert _no_domain_mutation_snapshot(harness) == before
+
+
+@pytest.mark.parametrize(
+    ("command_type", "status", "observed_version", "reason_code"),
+    [
+        ("RecordMessageDelivery", "published", 1, "message_content_mismatch"),
+        ("AcknowledgeMessage", "delivered", 2, "message_recipient_mismatch"),
+    ],
+)
+def test_message_transition_rejects_absent_published_recipient_list_with_controlled_receipt(
+    tmp_path,
+    monkeypatch,
+    command_type,
+    status,
+    observed_version,
+    reason_code,
+):
+    harness = control_plane(tmp_path, message_adapter_registry=_adapter_registry())
+    message_id = _message_id(595)
+    published_payload = _publish_payload(message_id, "handoff")
+    published_payload.pop("recipient_actor_ids")
+    state = {
+        "status": status,
+        "published_payload": published_payload,
+        "published_position": 1,
+    }
+    content_sha256 = sha256_hex(canonical_bytes(published_payload))
+    payload = {
+        "message_id": message_id,
+        "content_sha256": content_sha256,
+        "recipient_actor_ids": [ACTORS["actor-a"]],
+    }
+    if command_type == "RecordMessageDelivery":
+        payload.update(
+            {
+                "delivery_adapter_id": "pilot-adapter",
+                "delivery_evidence_refs": ["evidence:delivery"],
+            }
+        )
+    else:
+        payload["source_position"] = 1
+    command = Command(
+        _message_command(
+            command_id=_command_id(595 + observed_version),
+            command_type=command_type,
+            message_id=message_id,
+            expected_stream_version=observed_version,
+            payload=payload,
+        )
+    )
+    monkeypatch.setattr(harness.service, "_message_state", lambda *_args: state)
+
+    result = harness.service._prepare_message_command(
+        command,
+        harness.ledger.snapshot(),
+        observed_version,
+    )
+
+    assert isinstance(result, Receipt)
+    assert result.status == "rejected"
+    assert result.reason_code == reason_code
 
 
 def test_delivery_retry_and_changed_idempotency_or_command_identity_are_atomic(tmp_path):

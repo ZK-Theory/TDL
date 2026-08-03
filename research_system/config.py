@@ -183,6 +183,13 @@ class ApprovedProjectBinding:
             raise ConfigurationError("approved origin witness is not materialized or valid") from exc
         if origin_witness.project_id != project_id or origin_witness.store_identity != store_identity:
             raise ConfigurationError("approved origin witness differs from foundation identity")
+        expected_witness_path = origin_witness_path(
+            resolved_origin_authority_root,
+            project_id=origin_witness.project_id,
+            initial_control_root=Path(origin_witness.initial_control_root),
+        ).resolve(strict=False)
+        if resolved_witness_path != expected_witness_path:
+            raise ConfigurationError("approved origin witness path differs from origin authority root")
         try:
             require_existing_control_root(list(resolved_code_roots), resolved_control_root)
             manifest = load_store_manifest(
@@ -276,6 +283,8 @@ class ControlBinding:
             approved = ApprovedProjectBinding.load(canonical_foundation)
         except ConfigurationError:
             raise
+        if control_root != approved.control_root:
+            raise ConfigurationError("binding control_root differs from canonical foundation")
         if project_id != approved.project_id or str(value["store_identity"]) != approved.store_identity:
             raise ConfigurationError("binding identity differs from canonical foundation")
         if tuple(sorted(resolved_code_roots, key=str)) != approved.code_roots:

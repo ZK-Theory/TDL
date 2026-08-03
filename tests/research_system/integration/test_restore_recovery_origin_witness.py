@@ -137,7 +137,6 @@ def test_normal_bindings_use_restored_target_after_source_is_removed(tmp_path: P
     code_root = tmp_path / "repo"
     schema_root = code_root / ".research-system" / "schemas"
     source_root = tmp_path / "source"
-    shutil.rmtree(source_root)
 
     foundation = {
         "schema_version": "1.0.0",
@@ -170,7 +169,7 @@ def test_normal_bindings_use_restored_target_after_source_is_removed(tmp_path: P
         yaml.safe_dump(
             {
                 "code_roots": foundation["code_roots"],
-                "control_root": foundation["control_root"],
+                "control_root": str(source_root.resolve()),
                 "project_id": PROJECT_ID,
                 "schema_root": foundation["schema_root"],
                 "store_identity": str(initialized),
@@ -180,10 +179,60 @@ def test_normal_bindings_use_restored_target_after_source_is_removed(tmp_path: P
         encoding="utf-8",
     )
     monkeypatch.setattr(config_module, "canonical_foundation_path", lambda: foundation_path)
+    with pytest.raises(ConfigurationError, match="control_root differs from canonical foundation"):
+        ControlBinding.load(binding_path)
+
+    binding_path.write_text(
+        yaml.safe_dump(
+            {
+                "code_roots": foundation["code_roots"],
+                "control_root": foundation["control_root"],
+                "project_id": PROJECT_ID,
+                "schema_root": foundation["schema_root"],
+                "store_identity": str(initialized),
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    assert ControlBinding.load(binding_path).control_root == target_root.resolve()
+    shutil.rmtree(source_root)
     assert ControlBinding.load(binding_path).control_root == target_root.resolve()
 
     restore_binding_transaction_path(target_root).unlink()
     with pytest.raises(ConfigurationError, match="matching materialized store"):
+        ApprovedProjectBinding.load(foundation_path)
+
+
+def test_approved_binding_joins_claimed_origin_authority_to_witness_slot(tmp_path: Path):
+    initialized, witness, target_root, rebound = _restored_fixture(tmp_path)
+    code_root = tmp_path / "repo"
+    schema_root = code_root / ".research-system" / "schemas"
+    claimed_origin_root = tmp_path / "claimed-origin-authority"
+    claimed_origin_root.mkdir()
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(target_root.resolve()),
+        "control_root_required": True,
+        "store_identity": str(initialized),
+        "endpoint_scheme": rebound["endpoint_scheme"],
+        "canonical_hash": "sha256",
+        "canonical_uri": f"{rebound['endpoint_scheme']}://restored-control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "origin_authority_root": str(claimed_origin_root.resolve()),
+        "origin_witness_path": str(initialized.witness_path.resolve()),
+        "origin_witness_sha256": witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path = code_root / ".research-system" / "config" / "foundation.yaml"
+    foundation_path.parent.mkdir(parents=True)
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="origin witness.*authority root"):
         ApprovedProjectBinding.load(foundation_path)
 
 
