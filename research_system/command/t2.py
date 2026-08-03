@@ -1193,6 +1193,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             return service.receipts.write_t2(rejected)
         proposed = _events_for(envelope, state, command_schema)
         ledger_result = service.ledger.append(proposed, snapshot=snapshot)
+        service._retire_moved_restore_preflight()
         updated = service.ledger.snapshot()
         committed = list(updated.events[len(snapshot.events) :])
         if tuple(event["event_type"] for event in committed) != _EVENT_ORDER[command_type]:

@@ -54,7 +54,10 @@ from research_system.evals.release_publication import (
 )
 from research_system.ids import new_id, validate_id
 from research_system.operations.backups import (
+    RestoreAdmissionBundle,
     RestorePreflightResult,
+    revalidate_restore_admission_closure,
+    restore_admission_bundle_for_result,
     validate_restore_preflight_result,
 )
 from research_system.projection.replay import replay
@@ -287,7 +290,7 @@ class _LifecycleAuthorityEvidence:
 class _PreparedRestoreAdmission:
     """The single authority-bound preflight prepared before writer locking."""
 
-    preflight: RestorePreflightResult
+    bundle: RestoreAdmissionBundle
     preflight_result_hash: str
 
 
@@ -465,7 +468,7 @@ class CommandService:
         self._restore_approved_witness: StoreOriginWitness | None = None
         self._restore_approved_witness_path: Path | None = None
         self._restore_preflight_result: RestorePreflightResult | None = None
-        self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
+        self._restore_preflight_rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle] | None = None
         self._restore_admission_sequence_lock = threading.Lock()
         self._recover_scoped_activation_markers()
 
@@ -925,7 +928,7 @@ class CommandService:
         *,
         source_root: Path,
         preflight_result: RestorePreflightResult,
-        rechecker: Callable[[], RestorePreflightResult],
+        rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle],
         approved_witness: StoreOriginWitness,
         approved_witness_path: Path,
     ) -> None:
@@ -963,7 +966,7 @@ class CommandService:
 
     def _prepare_moved_restore(self, command: Command) -> _PreparedRestoreAdmission | None:
         """Run and validate one current full preflight before writer locking."""
-        if self._restore_source_root is None:
+        if self._restore_preflight_result is None and self._restore_preflight_rechecker is None:
             return None
         supplied = self._restore_preflight_result
         rechecker = self._restore_preflight_rechecker
@@ -974,7 +977,15 @@ class CommandService:
             or self._restore_approved_witness_path is None
         ):
             raise ArsError("moved store requires restore preflight")
-        current = rechecker()
+        validate_approved_origin_witness_path(
+            self._restore_approved_witness_path,
+            self._restore_approved_witness,
+        )
+        checked = rechecker()
+        bundle = (
+            checked if isinstance(checked, RestoreAdmissionBundle) else restore_admission_bundle_for_result(checked)
+        )
+        current = bundle.result
         _validate_moved_restore_source_lineage(
             self._restore_source_root,
             current,
@@ -990,8 +1001,10 @@ class CommandService:
         )
         if current.origin_witness_path != str(self._restore_approved_witness_path):
             raise ArsError("restore preflight origin witness path differs from approved locator")
+        if bundle.closure is None:
+            raise ArsError("verified restore preflight requires checked-input closure")
         return _PreparedRestoreAdmission(
-            preflight=current,
+            bundle=bundle,
             preflight_result_hash=current.result_hash,
         )
 
@@ -1002,49 +1015,47 @@ class CommandService:
         snapshot: LedgerSnapshot,
     ) -> None:
         """Join the prepared preflight to the one locked submission snapshot."""
-        if prepared is None:
-            return
         if (
             self._restore_source_root is None
             or self._restore_approved_witness is None
             or self._restore_approved_witness_path is None
         ):
-            raise ArsError("moved store requires restore preflight")
-        current = prepared.preflight
-        if current.result_hash != prepared.preflight_result_hash:
-            raise ArsError("restore preflight changed after preparation")
-        _validate_moved_restore_source_lineage(
-            self._restore_source_root,
-            current,
-            self._restore_approved_witness,
-        )
-        validate_restore_preflight_result(
-            current,
-            current_root=self.control_root,
-            project_id=self.ledger.project_id,
-            actor_id=command.actor_id,
-            authority_grant_id=command.envelope["authority_grant_id"],
-            approved_witness=self._restore_approved_witness,
-        )
-        if current.origin_witness_path != str(self._restore_approved_witness_path):
-            raise ArsError("restore preflight origin witness path differs from approved locator")
-        if (snapshot.global_position, snapshot.event_hash) != (
-            current.tail_position,
-            current.tail_hash,
-        ):
-            raise ArsError("restore preflight ledger tail changed before writer lock")
+            if prepared is not None:
+                raise ArsError("moved store requires restore preflight")
+            return
+        if prepared is not None:
+            current = prepared.bundle.result
+            if current.result_hash != prepared.preflight_result_hash:
+                raise ArsError("restore preflight changed after preparation")
+            _validate_moved_restore_source_lineage(
+                self._restore_source_root,
+                current,
+                self._restore_approved_witness,
+            )
+            validate_restore_preflight_result(
+                current,
+                current_root=self.control_root,
+                project_id=self.ledger.project_id,
+                actor_id=command.actor_id,
+                authority_grant_id=command.envelope["authority_grant_id"],
+                approved_witness=self._restore_approved_witness,
+            )
+            if current.origin_witness_path != str(self._restore_approved_witness_path):
+                raise ArsError("restore preflight origin witness path differs from approved locator")
+            if (snapshot.global_position, snapshot.event_hash) != (
+                current.tail_position,
+                current.tail_hash,
+            ):
+                raise ArsError("restore preflight ledger tail changed before writer lock")
+            revalidate_restore_admission_closure(prepared.bundle)
         verify_restore_binding_admission(
             self.control_root,
             approved_witness=self._restore_approved_witness,
             approved_witness_path=self._restore_approved_witness_path,
         )
-        # The cleared restore transaction and canonical foundation binding are
-        # the durable operational state.  The historical restore preflight is
-        # a one-shot admission gate and would become stale after the first
-        # legitimate append.
-        self._restore_source_root = None
-        self._restore_approved_witness = None
-        self._restore_approved_witness_path = None
+
+    def _retire_moved_restore_preflight(self) -> None:
+        """Retire historical preflight state only after an EventLedger append."""
         self._restore_preflight_result = None
         self._restore_preflight_rechecker = None
 
@@ -1396,6 +1407,7 @@ class CommandService:
                     )
                 else:
                     ledger_receipt = self.ledger.append([event], snapshot=snapshot)
+                self._retire_moved_restore_preflight()
                 updated = self.ledger.snapshot()
                 view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
                 accepted = Receipt(

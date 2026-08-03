@@ -404,6 +404,25 @@ def _verify_restore(case, **changes):
     return verify_restore_before_writer_lease(**values)
 
 
+def _prepare_restore_admission(case, **changes):
+    from research_system.operations.backups import prepare_restore_admission_before_writer_lease
+
+    values = {
+        "target_root": case["target"],
+        "receipt": case["receipt"],
+        "snapshot_path": case["snapshot_path"],
+        "endpoint_ownership_path": case["endpoint_path"],
+        "artefact_manifest_path": case["artefact_manifest_path"],
+        "registry": case["registry"],
+        "actor_id": case["actor_id"],
+        "authority_grant_id": case["authority_grant_id"],
+        "approved_witness": case["witness"],
+        "approved_witness_path": case["witness_path"],
+    }
+    values.update(changes)
+    return prepare_restore_admission_before_writer_lease(**values)
+
+
 def _rebind_restore_case(case, preflight, *, witness_path=None):
     from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
 
@@ -811,6 +830,8 @@ def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
         ("wrong_endpoint", "endpoint_authority_mismatch"),
         ("artefact_absent", "artefact_unavailable"),
         ("artefact_changed", "artefact_unavailable"),
+        ("duplicate_artefact_id", "artefact_manifest_mismatch"),
+        ("escaped_artefact_path", "artefact_unavailable"),
         ("stale_availability", "availability_observation_mismatch"),
         ("wrong_registry", "registry_hash_mismatch"),
     ],
@@ -843,11 +864,33 @@ def test_restore_preflight_fails_closed_on_bound_evidence_drift(tmp_path, mutati
         case["artefact_path"].unlink()
     elif mutation == "artefact_changed":
         case["artefact_path"].write_bytes(b"changed")
+    elif mutation == "duplicate_artefact_id":
+        manifest = json.loads(case["artefact_manifest_path"].read_text(encoding="utf-8"))
+        manifest["artefacts"].append(dict(manifest["artefacts"][0]))
+        manifest_bytes = canonical_bytes(manifest)
+        case["artefact_manifest_path"].write_bytes(manifest_bytes)
+        receipt = seal_backup_receipt(
+            replace(
+                receipt,
+                external_artefact_manifest_hash=sha256_hex(manifest_bytes),
+                receipt_hash="",
+            )
+        )
+    elif mutation == "escaped_artefact_path":
+        manifest = json.loads(case["artefact_manifest_path"].read_text(encoding="utf-8"))
+        manifest["artefacts"][0]["relative_path"] = "../external/artifact.bin"
+        manifest_bytes = canonical_bytes(manifest)
+        case["artefact_manifest_path"].write_bytes(manifest_bytes)
+        receipt = seal_backup_receipt(
+            replace(
+                receipt,
+                external_artefact_manifest_hash=sha256_hex(manifest_bytes),
+                receipt_hash="",
+            )
+        )
     elif mutation == "stale_availability":
         manifest = json.loads(case["artefact_manifest_path"].read_text(encoding="utf-8"))
         manifest["artefacts"][0]["observed_at"] = "2026-07-10T00:00:00Z"
-        from research_system.canonical import canonical_bytes
-
         case["artefact_manifest_path"].write_bytes(canonical_bytes(manifest))
     elif mutation == "wrong_registry":
         registry = replace(registry, registry_hash="6" * 64)
@@ -909,7 +952,7 @@ def test_real_command_service_accepts_only_current_verified_and_cleared_moved_re
     def recheck():
         nonlocal rechecks
         rechecks += 1
-        return _verify_restore(case)
+        return _prepare_restore_admission(case)
 
     service.configure_moved_restore(
         source_root=case["source"],
@@ -935,6 +978,11 @@ def test_real_command_service_accepts_only_current_verified_and_cleared_moved_re
     assert rechecks == 1
     assert len(tuple(service.ledger.iter_batches())) == len(batches_before) + 1
 
+    case["witness_path"].write_bytes(b"origin witness drift after ordinary append")
+    with pytest.raises(IntegrityError, match="origin witness raw bytes differ"):
+        service.submit(command)
+    assert rechecks == 1
+
 
 def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path):
     from tests.research_system.unit.test_wp6_2_t2_runtime import issue_command
@@ -948,7 +996,7 @@ def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path
     def recheck():
         nonlocal rechecks
         rechecks += 1
-        return _verify_restore(case)
+        return _prepare_restore_admission(case)
 
     service.configure_moved_restore(
         source_root=case["source"],
@@ -976,6 +1024,11 @@ def test_real_command_service_accepts_t2_after_moved_restore_is_cleared(tmp_path
     assert rechecks == 1
     assert after_duplicate.global_position == after.global_position
     assert after_duplicate.event_hash == after.event_hash
+
+    case["witness_path"].write_bytes(b"origin witness drift after T2 append")
+    with pytest.raises(IntegrityError, match="origin witness raw bytes differ"):
+        service.submit(command)
+    assert rechecks == 1
 
 
 @pytest.mark.parametrize("submission_kind", ("ordinary", "t2"))
@@ -1023,7 +1076,7 @@ def test_moved_restore_prepares_once_before_composite_lock_for_ordinary_and_t2(
         assert entered == []
         assert release_preflight.wait(timeout=5)
         assert entered == []
-        return _verify_restore(case)
+        return _prepare_restore_admission(case)
 
     admissions: list[bool] = []
     original_admission = service_module.verify_restore_binding_admission
@@ -1039,6 +1092,21 @@ def test_moved_restore_prepares_once_before_composite_lock_for_ordinary_and_t2(
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
+    append_snapshots = []
+    admission_snapshots = []
+    original_append = service.ledger.append
+    original_revalidate = service._revalidate_prepared_moved_restore
+
+    def observed_append(*args, **kwargs):
+        append_snapshots.append(kwargs.get("snapshot"))
+        return original_append(*args, **kwargs)
+
+    def observed_revalidate(command, prepared, snapshot):
+        admission_snapshots.append(snapshot)
+        return original_revalidate(command, prepared, snapshot)
+
+    monkeypatch.setattr(service.ledger, "append", observed_append)
+    monkeypatch.setattr(service, "_revalidate_prepared_moved_restore", observed_revalidate)
     monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     monkeypatch.setattr(service_module, "verify_restore_binding_admission", observed_admission)
     if submission_kind == "t2":
@@ -1075,6 +1143,9 @@ def test_moved_restore_prepares_once_before_composite_lock_for_ordinary_and_t2(
     assert outcomes[0].status == "accepted"
     assert preflight_calls == 1
     assert admissions == [True]
+    assert len(admission_snapshots) == 1
+    assert len(append_snapshots) == 1
+    assert append_snapshots == admission_snapshots
 
 
 def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admission(
@@ -1088,7 +1159,7 @@ def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admi
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
-        rechecker=lambda: _verify_restore(case),
+        rechecker=lambda: _prepare_restore_admission(case),
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
@@ -1142,6 +1213,152 @@ def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admi
     assert service.receipts.load(CMD_RESTORE) is None
 
 
+def test_moved_restore_stream_conflict_does_not_retire_origin_witness_admission(tmp_path):
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_service(case)
+    rechecks = 0
+
+    def recheck():
+        nonlocal rechecks
+        rechecks += 1
+        return _prepare_restore_admission(case)
+
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=recheck,
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    conflicted = create_task_command(
+        CMD_RESTORE,
+        "restore-stream-conflict",
+        TASK_RESTORE,
+        {"title": "stream conflict cannot retire restore admission"},
+    )
+    conflicted["expected_stream_version"] = 1
+
+    conflict = service.submit(conflicted)
+
+    assert conflict.status == "conflict"
+    assert conflict.reason_code == "stream_version_conflict"
+    assert rechecks == 1
+
+    case["witness_path"].write_bytes(b"origin witness drift after stream conflict")
+    retry = create_task_command(
+        "cmd_01978abc-5103-7000-8000-000000005103",
+        "restore-after-stream-conflict",
+        TASK_RESTORE,
+        {"title": "retry must still enforce origin witness"},
+    )
+
+    with pytest.raises(IntegrityError, match="origin witness raw bytes differ"):
+        service.submit(retry)
+
+    assert service.receipts.load(retry["command_id"]) is None
+
+
+def test_moved_restore_rechecks_bound_artefact_after_target_writer_lock(
+    tmp_path,
+    monkeypatch,
+):
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_service(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _prepare_restore_admission(case),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    snapshot_before = service.ledger.snapshot()
+    original_lock = service_module.CompositeWriterLock
+    mutated: list[bool] = []
+
+    class ArtefactMutatingLock:
+        def __init__(self, *args, **kwargs):
+            self.inner = original_lock(*args, **kwargs)
+
+        def __enter__(self):
+            self.inner.__enter__()
+            if not mutated:
+                case["artefact_path"].write_bytes(b"artefact drift after full preflight\n")
+                mutated.append(True)
+            return self
+
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
+
+        def locked_root(self, root):
+            return self.inner.locked_root(root)
+
+    monkeypatch.setattr(service_module, "CompositeWriterLock", ArtefactMutatingLock)
+    command = create_task_command(
+        CMD_RESTORE,
+        "artefact-drift",
+        TASK_RESTORE,
+        {"title": "locked admission must bind external artefact bytes"},
+    )
+
+    with pytest.raises(IntegrityError, match="artefact"):
+        service.submit(command)
+
+    snapshot_after = service.ledger.snapshot()
+    assert mutated == [True]
+    assert snapshot_after == snapshot_before
+    assert service.receipts.load(CMD_RESTORE) is None
+
+
+def test_moved_restore_rechecks_registry_state_after_target_writer_lock(
+    tmp_path,
+    monkeypatch,
+):
+    case = _build_restore_case(tmp_path, rebindable=True)
+    supplied = _verify_restore(case)
+    _rebind_restore_case(case, supplied)
+    service = _moved_service(case)
+    service.configure_moved_restore(
+        source_root=case["source"],
+        preflight_result=supplied,
+        rechecker=lambda: _prepare_restore_admission(case),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+    original_lock = service_module.CompositeWriterLock
+
+    class RegistryMutatingLock:
+        def __init__(self, *args, **kwargs):
+            self.inner = original_lock(*args, **kwargs)
+
+        def __enter__(self):
+            self.inner.__enter__()
+            object.__setattr__(case["registry"], "registry_hash", "6" * 64)
+            return self
+
+        def __exit__(self, *args):
+            return self.inner.__exit__(*args)
+
+        def locked_root(self, root):
+            return self.inner.locked_root(root)
+
+    monkeypatch.setattr(service_module, "CompositeWriterLock", RegistryMutatingLock)
+    command = create_task_command(
+        CMD_RESTORE,
+        "registry-drift",
+        TASK_RESTORE,
+        {"title": "locked admission must bind full registry state"},
+    )
+
+    with pytest.raises(IntegrityError, match="registry"):
+        service.submit(command)
+
+    assert service.receipts.load(CMD_RESTORE) is None
+
+
 def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_path, monkeypatch):
     from research_system.store import identity as identity_module
 
@@ -1161,7 +1378,7 @@ def test_real_command_service_rejects_recovery_only_preflight_before_clear(tmp_p
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
-        rechecker=lambda: _verify_restore(case),
+        rechecker=lambda: _prepare_restore_admission(case),
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
@@ -1228,7 +1445,7 @@ def test_real_command_service_rejects_t2_during_generation_two_restore_without_m
     def recheck():
         nonlocal rechecks
         rechecks += 1
-        return _verify_restore(case)
+        return _prepare_restore_admission(case)
 
     service.configure_moved_restore(
         source_root=case["source"],
@@ -1274,7 +1491,10 @@ def test_real_command_service_rejects_preflight_bound_to_an_unapproved_witness_s
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
-        rechecker=lambda: _verify_restore(case, approved_witness_path=alternate_witness_path),
+        rechecker=lambda: _prepare_restore_admission(
+            case,
+            approved_witness_path=alternate_witness_path,
+        ),
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
@@ -1346,7 +1566,7 @@ def test_real_command_service_rejects_source_lineage_mismatch_before_mutation(tm
         service.configure_moved_restore(
             source_root=wrong_source,
             preflight_result=supplied,
-            rechecker=lambda: _verify_restore(case),
+            rechecker=lambda: _prepare_restore_admission(case),
             approved_witness=case["witness"],
             approved_witness_path=case["witness_path"],
         )
@@ -1364,7 +1584,7 @@ def test_real_command_service_rejects_changed_artifact_before_writer_lock(tmp_pa
     service.configure_moved_restore(
         source_root=case["source"],
         preflight_result=supplied,
-        rechecker=lambda: _verify_restore(case),
+        rechecker=lambda: _prepare_restore_admission(case),
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )

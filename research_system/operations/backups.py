@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 from dataclasses import asdict, dataclass, field, replace
-from typing import Any
+from typing import Any, cast
 from pathlib import Path
 
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError
+from research_system.errors import ArsError, IntegrityError
 from research_system.projection.replay import replay
 from research_system.store.identity import (
     StoreOriginWitness,
@@ -106,12 +108,131 @@ class RestorePreflightResult:
             raise ValueError("restore preflight failed predicates must be unique")
 
 
+@dataclass(frozen=True, slots=True)
+class RestoreBoundFile:
+    """One exact regular file observed by the full restore preflight."""
+
+    relative_path: str
+    raw_sha256: str
+    canonical_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreBoundArtefact:
+    """One receipt-bound artefact and its exact manifest observation."""
+
+    artefact_id: str
+    relative_path: str
+    artefact_sha256: str
+    observation_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreAdmissionClosure:
+    """Immutable checked-input closure for the bounded locked recheck."""
+
+    target_root: str
+    snapshot: RestoreBoundFile
+    endpoint_ownership: RestoreBoundFile
+    artefact_manifest: RestoreBoundFile
+    artefacts: tuple[RestoreBoundArtefact, ...]
+    registry: object
+    registry_state_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreAdmissionBundle:
+    """Full preflight result plus its immutable checked-input closure."""
+
+    result: RestorePreflightResult
+    closure: RestoreAdmissionClosure | None
+
+
+class _RestorePreflightWithClosure(RestorePreflightResult):
+    """API-compatible result carrying non-serialized admission state."""
+
+    __slots__ = ("_admission_closure",)
+
+
+def restore_admission_bundle_for_result(result: RestorePreflightResult) -> RestoreAdmissionBundle:
+    """Recover the checked-input bundle carried by a full verifier result."""
+    return RestoreAdmissionBundle(
+        result=result,
+        closure=getattr(result, "_admission_closure", None),
+    )
+
+
 def _jsonable(value: object) -> object:
+    if isinstance(value, Path):
+        return str(value.resolve(strict=False))
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     return value
+
+
+def _registry_state_sha256(registry: object) -> str:
+    fields = getattr(registry, "__dataclass_fields__", None)
+    if not isinstance(fields, dict):
+        raise ArsError("restore registry does not expose immutable state")
+    state = {name: _jsonable(getattr(registry, name)) for name in fields}
+    return sha256_hex(canonical_bytes(state))
+
+
+def _strict_relative_path(root: Path, path: Path) -> tuple[Path, str]:
+    target = root.resolve(strict=False)
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise ArsError("restore input path must be absolute")
+    try:
+        relative = candidate.relative_to(target)
+    except ValueError as exc:
+        raise ArsError("restore input path escapes target root") from exc
+    if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+        raise ArsError("restore input path is not canonical")
+    if "\\" in relative.as_posix():
+        raise ArsError("restore input path is not canonical")
+
+    current = target
+    for part in relative.parts:
+        current = current / part
+        try:
+            metadata = os.lstat(current)
+        except OSError as exc:
+            raise ArsError("restore input path is unavailable") from exc
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & 0x400:
+            raise ArsError("restore input path crosses a reparse point")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ArsError("restore input path is not a regular file")
+    return current, relative.as_posix()
+
+
+def _read_bound_json(root: Path, path: Path) -> tuple[dict[str, Any] | None, RestoreBoundFile | None]:
+    try:
+        current, relative = _strict_relative_path(root, path)
+        data = current.read_bytes()
+        value = json.loads(data.decode("utf-8"))
+    except (ArsError, OSError, UnicodeError, json.JSONDecodeError):
+        return None, None
+    if not isinstance(value, dict):
+        return None, None
+    return value, RestoreBoundFile(
+        relative_path=relative,
+        raw_sha256=sha256_hex(data),
+        canonical_sha256=sha256_hex(canonical_bytes(value)),
+    )
+
+
+def _read_bound_bytes(root: Path, relative_path: str) -> tuple[bytes, str, tuple[int, int]]:
+    if not isinstance(relative_path, str) or "\\" in relative_path:
+        raise ArsError("restore artefact path is not canonical")
+    relative = Path(relative_path)
+    if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+        raise ArsError("restore artefact path is not canonical")
+    current, canonical_relative = _strict_relative_path(root, root / relative)
+    metadata = os.stat(current)
+    return current.read_bytes(), canonical_relative, (metadata.st_dev, metadata.st_ino)
 
 
 def _hash_without(value: object, field: str) -> str:
@@ -156,7 +277,8 @@ def verify_restore_before_writer_lease(
     authority_grant_id: str,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
-) -> RestorePreflightResult:
+    _capture_bundle: bool = False,
+) -> RestorePreflightResult | RestoreAdmissionBundle:
     """Independently inspect a moved store and derive a pre-writer result."""
     target = target_root.resolve(strict=False)
     failed: list[str] = []
@@ -307,7 +429,8 @@ def verify_restore_before_writer_lease(
         ledger_hash = "0" * 64
         failed.append("ledger_replay_invalid")
 
-    snapshot, snapshot_hash = _read_json(snapshot_path)
+    snapshot, snapshot_binding = _read_bound_json(target, snapshot_path)
+    snapshot_hash = snapshot_binding.raw_sha256 if snapshot_binding is not None else "0" * 64
     source_snapshot_hash = sha256_hex(canonical_bytes(snapshot)) if snapshot is not None else "0" * 64
     if snapshot is None:
         failed.append("snapshot_binding_mismatch")
@@ -335,7 +458,8 @@ def verify_restore_before_writer_lease(
         ):
             failed.append("snapshot_tail_mismatch")
 
-    endpoint, endpoint_hash = _read_json(endpoint_ownership_path)
+    endpoint, endpoint_binding = _read_bound_json(target, endpoint_ownership_path)
+    endpoint_hash = endpoint_binding.raw_sha256 if endpoint_binding is not None else "0" * 64
     if endpoint is None or not (
         endpoint.get("target_root") == str(target)
         and endpoint.get("endpoint_scheme") == receipt.source_endpoint_scheme
@@ -345,43 +469,86 @@ def verify_restore_before_writer_lease(
     ):
         failed.append("endpoint_authority_mismatch")
 
-    manifest, artefact_manifest_hash = _read_json(artefact_manifest_path)
+    manifest, manifest_binding = _read_bound_json(target, artefact_manifest_path)
+    artefact_manifest_hash = manifest_binding.raw_sha256 if manifest_binding is not None else "0" * 64
     observations: list[dict[str, Any]] = []
     rows = manifest.get("artefacts", []) if manifest is not None else []
+    bound_artefacts: list[RestoreBoundArtefact] = []
     if artefact_manifest_hash != receipt.external_artefact_manifest_hash:
         failed.append("artefact_manifest_mismatch")
+    if not isinstance(rows, list) or not all(isinstance(item, dict) for item in rows):
+        rows = []
+        failed.append("artefact_manifest_mismatch")
+    rows_by_id: dict[str, list[dict[str, Any]]] = {}
+    for item in rows:
+        artefact_id = item.get("artefact_id")
+        if not isinstance(artefact_id, str) or not artefact_id:
+            failed.append("artefact_manifest_mismatch")
+            continue
+        rows_by_id.setdefault(artefact_id, []).append(item)
+    if any(len(items) != 1 for items in rows_by_id.values()):
+        failed.append("artefact_manifest_mismatch")
+    receipt_ids = [binding.artefact_id for binding in receipt.artefact_bindings]
+    if len(receipt_ids) != len(set(receipt_ids)):
+        failed.append("artefact_manifest_mismatch")
+    bound_paths: set[str] = set()
+    bound_identities: set[tuple[int, int]] = set()
     for binding in receipt.artefact_bindings:
-        row = next(
-            (item for item in rows if isinstance(item, dict) and item.get("artefact_id") == binding.artefact_id),
-            None,
-        )
-        path = _inside(target, str(row.get("relative_path", ""))) if row else None
+        matches = rows_by_id.get(binding.artefact_id, [])
+        row = matches[0] if len(matches) == 1 else None
+        artefact_bytes: bytes | None = None
+        canonical_relative = ""
+        physical_identity: tuple[int, int] | None = None
+        if row is not None:
+            try:
+                artefact_bytes, canonical_relative, physical_identity = _read_bound_bytes(
+                    target,
+                    row.get("relative_path"),
+                )
+            except (ArsError, OSError, TypeError):
+                pass
         if (
             row is None
             or row.get("artefact_hash") != binding.artefact_hash
             or row.get("availability_status") != "available"
             or row.get("authority_grant_id") != authority_grant_id
             or not row.get("observed_at")
-            or path is None
-            or not path.is_file()
-            or sha256_hex(path.read_bytes()) != binding.artefact_hash
+            or artefact_bytes is None
+            or physical_identity is None
+            or sha256_hex(artefact_bytes) != binding.artefact_hash
+            or canonical_relative in bound_paths
+            or physical_identity in bound_identities
         ):
             failed.append("artefact_unavailable")
             continue
-        observations.append(
-            {
-                "artefact_id": row["artefact_id"],
-                "artefact_hash": row["artefact_hash"],
-                "availability_status": row["availability_status"],
-                "observed_at": row["observed_at"],
-                "authority_grant_id": row["authority_grant_id"],
-            }
+        bound_paths.add(canonical_relative)
+        bound_identities.add(physical_identity)
+        observation = {
+            "artefact_id": row["artefact_id"],
+            "artefact_hash": row["artefact_hash"],
+            "availability_status": row["availability_status"],
+            "observed_at": row["observed_at"],
+            "authority_grant_id": row["authority_grant_id"],
+        }
+        observations.append(observation)
+        bound_artefacts.append(
+            RestoreBoundArtefact(
+                artefact_id=binding.artefact_id,
+                relative_path=canonical_relative,
+                artefact_sha256=binding.artefact_hash,
+                observation_sha256=sha256_hex(canonical_bytes(observation)),
+            )
         )
     availability_hash = sha256_hex(canonical_bytes(observations))
     if receipt.availability_status != "available" or availability_hash != receipt.availability_observation_hash:
         failed.append("availability_observation_mismatch")
 
     registry_hash = str(getattr(registry, "registry_hash", ""))
+    try:
+        registry_state_sha256 = _registry_state_sha256(registry)
+    except ArsError:
+        registry_state_sha256 = "0" * 64
+        failed.append("registered_topology_incomplete")
     if registry_hash != receipt.evidence_registry_hash:
         failed.append("registry_hash_mismatch")
     try:
@@ -430,7 +597,72 @@ def verify_restore_before_writer_lease(
             dict(approved_witness.initial_physical_root_identity) if approved_witness is not None else {}
         ),
     )
-    return seal_restore_preflight_result(result)
+    sealed = seal_restore_preflight_result(result)
+    closure = None
+    if (
+        sealed.status == "verified"
+        and snapshot_binding is not None
+        and endpoint_binding is not None
+        and manifest_binding is not None
+        and len(bound_artefacts) == len(receipt.artefact_bindings)
+    ):
+        closure = RestoreAdmissionClosure(
+            target_root=str(target),
+            snapshot=snapshot_binding,
+            endpoint_ownership=endpoint_binding,
+            artefact_manifest=manifest_binding,
+            artefacts=tuple(bound_artefacts),
+            registry=registry,
+            registry_state_sha256=registry_state_sha256,
+        )
+    carried = _RestorePreflightWithClosure(**asdict(sealed))
+    object.__setattr__(carried, "_admission_closure", closure)
+    bundle = RestoreAdmissionBundle(result=carried, closure=closure)
+    return bundle if _capture_bundle else carried
+
+
+def prepare_restore_admission_before_writer_lease(
+    **kwargs: Any,
+) -> RestoreAdmissionBundle:
+    """Run the full preflight once and retain its exact bounded input closure."""
+    return cast(
+        RestoreAdmissionBundle,
+        verify_restore_before_writer_lease(**kwargs, _capture_bundle=True),
+    )
+
+
+def revalidate_restore_admission_closure(bundle: RestoreAdmissionBundle) -> None:
+    """Recheck the full preflight's bounded mutable inputs under the target lock."""
+    closure = bundle.closure
+    if closure is None:
+        raise ArsError("verified restore admission requires checked-input closure")
+    target = Path(closure.target_root)
+    for label, expected in (
+        ("snapshot", closure.snapshot),
+        ("endpoint ownership", closure.endpoint_ownership),
+        ("artefact manifest", closure.artefact_manifest),
+    ):
+        value, observed = _read_bound_json(target, target / Path(expected.relative_path))
+        if (
+            value is None
+            or observed is None
+            or observed.raw_sha256 != expected.raw_sha256
+            or observed.canonical_sha256 != expected.canonical_sha256
+        ):
+            raise IntegrityError(f"restore {label} changed after full preflight")
+    for expected in closure.artefacts:
+        try:
+            data, relative, _identity = _read_bound_bytes(target, expected.relative_path)
+        except (ArsError, OSError) as exc:
+            raise IntegrityError("restore artefact changed after full preflight") from exc
+        if relative != expected.relative_path or sha256_hex(data) != expected.artefact_sha256:
+            raise IntegrityError("restore artefact changed after full preflight")
+    try:
+        current_registry_sha256 = _registry_state_sha256(closure.registry)
+    except ArsError as exc:
+        raise IntegrityError("restore registry changed after full preflight") from exc
+    if current_registry_sha256 != closure.registry_state_sha256:
+        raise IntegrityError("restore registry changed after full preflight")
 
 
 def seal_restore_preflight_result(
