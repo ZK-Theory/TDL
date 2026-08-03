@@ -1,5 +1,5 @@
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -181,7 +181,7 @@ def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
 
 
-def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
+def _build_restore_case(tmp_path, *, with_exact_task: bool = False, rebindable: bool = False):
     import shutil
 
     from research_system.canonical import canonical_bytes, sha256_hex
@@ -196,17 +196,36 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False):
 
     code_root = tmp_path / "code"
     code_root.mkdir()
-    (code_root / ".research-system" / "schemas").mkdir(parents=True)
+    schema_root = code_root / ".research-system" / "schemas"
+    if rebindable:
+        shutil.copytree(REPO_ROOT / ".research-system" / "schemas", schema_root)
+    else:
+        schema_root.mkdir(parents=True)
     source = tmp_path / "source"
     origin_authority_root = tmp_path / "origin-authority"
     origin_authority_root.mkdir()
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
-    store_identity = initialize_control_store(
-        [code_root],
-        source,
-        project_id,
-        origin_authority_root=origin_authority_root,
-    )
+    if rebindable:
+        from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
+        from tests.research_system.factories import authority_bootstrap
+
+        bootstrap = authority_bootstrap()
+        store_identity = initialize_authority_control_store(
+            [code_root],
+            source,
+            project_id,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+            canonical_schema_root=schema_root,
+            origin_authority_root=origin_authority_root,
+        )
+    else:
+        store_identity = initialize_control_store(
+            [code_root],
+            source,
+            project_id,
+            origin_authority_root=origin_authority_root,
+        )
     target = tmp_path / "target"
     shutil.copytree(source, target)
 
@@ -382,6 +401,38 @@ def _verify_restore(case, **changes):
     return verify_restore_before_writer_lease(**values)
 
 
+def _rebind_restore_case(case, preflight):
+    from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
+
+    code_roots = [Path(root) for root in preflight.code_roots]
+    schema_root = Path(preflight.schema_root)
+    snapshot = json.loads(case["snapshot_path"].read_text(encoding="utf-8"))
+    return rebind_restored_store(
+        case["target"],
+        case["source"],
+        expected_project_id=preflight.project_id,
+        expected_store_identity=preflight.store_identity,
+        expected_code_roots=code_roots,
+        expected_schema_root=schema_root,
+        expected_restore_receipt_hash=preflight.receipt_hash,
+        actor_id=preflight.actor_id,
+        authority_grant_id=preflight.authority_grant_id,
+        source_snapshot=snapshot,
+        expected_source_snapshot_hash=preflight.source_snapshot_hash,
+        expected_target_manifest_bytes_sha256=preflight.target_manifest_bytes_sha256,
+        expected_output=canonical_restore_binding_output(
+            case["target"],
+            preflight.project_id,
+            preflight.store_identity,
+            code_roots,
+            schema_root,
+        ),
+        expected_restore_preflight=asdict(preflight),
+        approved_witness=case["witness"],
+        approved_witness_path=case["witness_path"],
+    )
+
+
 def test_restore_preflight_independently_verifies_moved_store_and_artifacts(tmp_path):
     case = _build_restore_case(tmp_path)
     result = _verify_restore(case)
@@ -390,6 +441,45 @@ def test_restore_preflight_independently_verifies_moved_store_and_artifacts(tmp_
     assert result.target_root == str(case["target"].resolve(strict=False))
     assert result.receipt_hash == case["receipt"].receipt_hash
     assert result.registry_hash == case["registry"].registry_hash
+
+
+def test_restore_preflight_retry_recovers_after_manifest_publication(tmp_path, monkeypatch):
+    from research_system.store import identity as identity_module
+
+    case = _build_restore_case(tmp_path, rebindable=True)
+    approved = _verify_restore(case)
+
+    def interrupt_after_manifest(_path, state, generation):
+        if state == "prepared" and generation == 2:
+            raise OSError("crash after manifest publication")
+
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", interrupt_after_manifest)
+    with pytest.raises(OSError, match="crash after manifest publication"):
+        _rebind_restore_case(case, approved)
+
+    manifest_before = (case["target"] / "manifests" / "store-identity.json").read_bytes()
+    transaction_before = (case["target"] / "manifests" / ".restore-binding-transaction.json").read_bytes()
+    rebound_manifest = identity_module.load_store_manifest_unbound(case["target"])
+    assert rebound_manifest["control_root"] == str(case["target"].resolve())
+    assert identity_module.manifest_schema_root(rebound_manifest) == Path(approved.schema_root)
+    rechecked = _verify_restore(case)
+    assert rechecked == approved, rechecked.failed_predicates
+    assert (case["target"] / "manifests" / "store-identity.json").read_bytes() == manifest_before
+    assert (case["target"] / "manifests" / ".restore-binding-transaction.json").read_bytes() == transaction_before
+
+    approval_path = next((case["target"] / "manifests" / "restore-bindings").glob("approval-*.json"))
+    approval_before = approval_path.read_bytes()
+    approval_path.write_bytes(b"{}")
+    rejected = _verify_restore(case)
+    assert rejected.status == "diagnostic_only"
+    assert "origin_witness_manifest_mismatch" in rejected.failed_predicates
+    assert (case["target"] / "manifests" / "store-identity.json").read_bytes() == manifest_before
+    assert (case["target"] / "manifests" / ".restore-binding-transaction.json").read_bytes() == transaction_before
+    approval_path.write_bytes(approval_before)
+
+    monkeypatch.setattr(identity_module, "_after_restore_transaction_state_written", lambda *_args: None)
+    rebound = _rebind_restore_case(case, rechecked)
+    assert rebound["control_root"] == str(case["target"].resolve())
 
 
 def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):

@@ -162,6 +162,44 @@ def test_posix_cleanup_removes_owned_temporary_hardlink(tmp_path: Path, monkeypa
     assert os.path.samefile(quarantined, anchor)
 
 
+def test_posix_cleanup_flushes_private_quarantine_destination(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+    flushed = []
+    monkeypatch.setattr(identity_module, "_fsync_directory", lambda path: not flushed.append(path))
+
+    identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    quarantine = next(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    assert tmp_path in flushed
+    assert quarantine in flushed
+
+
+def test_posix_cleanup_fails_closed_when_quarantine_destination_is_not_durable(tmp_path: Path, monkeypatch):
+    anchor = tmp_path / "anchor"
+    temporary = tmp_path / "temporary"
+    expected = b"owned"
+    anchor.write_bytes(expected)
+    os.link(anchor, temporary)
+    _simulate_posix_cleanup(monkeypatch)
+
+    def durability(path: Path) -> bool:
+        return ".restore-cleanup-quarantine-" not in path.name
+
+    monkeypatch.setattr(identity_module, "_fsync_directory", durability)
+    with pytest.raises(ArsError, match="durable cleanup quarantine"):
+        identity_module._cleanup_owned_temporary(temporary, expected, anchor=anchor)
+
+    assert not temporary.exists()
+    quarantine = next(tmp_path.glob(".temporary.restore-cleanup-quarantine-*"))
+    assert (quarantine / temporary.name).read_bytes() == expected
+    assert anchor.read_bytes() == expected
+
+
 def test_posix_cleanup_preserves_replaced_temporary_path(tmp_path: Path, monkeypatch):
     anchor = tmp_path / "anchor"
     temporary = tmp_path / "temporary"

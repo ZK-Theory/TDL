@@ -169,25 +169,19 @@ class ApprovedProjectBinding:
             )
         except ArsError as exc:
             raise ConfigurationError("approved origin_authority_root overlaps an approved code root") from exc
-        expected_witness_path = origin_witness_path(
-            resolved_origin_authority_root,
-            project_id=project_id,
-            initial_control_root=resolved_control_root,
-        ).resolve(strict=False)
-        if resolved_witness_path != expected_witness_path:
-            raise ConfigurationError("approved origin_witness_path is not the canonical witness locator")
         try:
             origin_witness = load_store_origin_witness(
                 resolved_witness_path,
                 expected_sha256=origin_witness_sha256,
             )
+            resolved_witness_path = _validate_origin_witness_locator(
+                resolved_witness_path,
+                expected_witness=origin_witness,
+                require_exists=True,
+            )
         except (ArsError, OSError, ValueError) as exc:
             raise ConfigurationError("approved origin witness is not materialized or valid") from exc
-        if (
-            origin_witness.project_id != project_id
-            or origin_witness.store_identity != store_identity
-            or origin_witness.initial_control_root != str(resolved_control_root)
-        ):
+        if origin_witness.project_id != project_id or origin_witness.store_identity != store_identity:
             raise ConfigurationError("approved origin witness differs from foundation identity")
         try:
             require_existing_control_root(list(resolved_code_roots), resolved_control_root)

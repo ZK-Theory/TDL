@@ -14,6 +14,7 @@ from research_system.projection.replay import replay
 from research_system.store.identity import (
     StoreOriginWitness,
     _require_physical_disjoint,
+    _restore_preflight_anchor,
     _validate_approved_origin_witness_path,
     canonical_restore_binding_output,
     load_store_manifest_unbound,
@@ -189,13 +190,13 @@ def verify_restore_before_writer_lease(
     schema_root = ""
     target_manifest_bytes_sha256 = identity_raw_hash
     expected_output_sha256 = "0" * 64
+    ordinary_manifest_hash_valid = False
     if identity is None:
         failed.append("store_identity_manifest_invalid")
     else:
         recorded_hash = identity.get("manifest_hash")
         unsigned = {key: value for key, value in identity.items() if key != "manifest_hash"}
-        if recorded_hash != sha256_hex(canonical_bytes(unsigned)):
-            failed.append("store_identity_manifest_invalid")
+        ordinary_manifest_hash_valid = recorded_hash == sha256_hex(canonical_bytes(unsigned))
         actual_project = str(identity.get("project_id", ""))
         actual_store = str(identity.get("store_identity", ""))
         if actual_project != receipt.project_id:
@@ -213,8 +214,6 @@ def verify_restore_before_writer_lease(
             source_root = Path(str(identity.get("control_root"))).resolve(strict=False)
         except OSError:
             failed.append("source_root_invalid")
-        if source_root == target:
-            failed.append("store_not_moved")
         try:
             loaded_manifest = load_store_manifest_unbound(target)
             target_manifest_bytes_sha256 = sha256_hex((target / "manifests" / "store-identity.json").read_bytes())
@@ -223,16 +222,32 @@ def verify_restore_before_writer_lease(
                 schema_root = str(persisted_schema_root.resolve(strict=False))
             elif code_roots:
                 schema_root = str(Path(code_roots[0]) / ".research-system" / "schemas")
-            if approved_witness is not None:
-                if (
-                    loaded_manifest.get("project_id") != approved_witness.project_id
-                    or loaded_manifest.get("store_identity") != approved_witness.store_identity
-                    or loaded_manifest.get("control_root") != approved_witness.initial_control_root
-                    or sha256_hex(canonical_bytes(loaded_manifest)) != approved_witness.initial_manifest_sha256
-                ):
-                    failed.append("origin_witness_manifest_mismatch")
         except Exception:
             failed.append("store_identity_manifest_invalid")
+        else:
+            if approved_witness is not None and validated_witness_path is not None:
+                try:
+                    immutable_preflight = _restore_preflight_anchor(
+                        target,
+                        loaded_manifest,
+                        approved_witness,
+                        validated_witness_path,
+                    )
+                except (ArsError, OSError, ValueError):
+                    if not ordinary_manifest_hash_valid:
+                        failed.append("store_identity_manifest_invalid")
+                    failed.append("origin_witness_manifest_mismatch")
+                else:
+                    if immutable_preflight is not None:
+                        source_root = Path(str(immutable_preflight["source_root"])).resolve(strict=False)
+                        target_manifest_bytes_sha256 = str(immutable_preflight["target_manifest_bytes_sha256"])
+                    elif not ordinary_manifest_hash_valid:
+                        failed.append("store_identity_manifest_invalid")
+            elif not ordinary_manifest_hash_valid:
+                failed.append("store_identity_manifest_invalid")
+
+    if source_root == target:
+        failed.append("store_not_moved")
 
     if approved_witness is not None and validated_witness_path is not None:
         if source_root is not None and source_root != Path(approved_witness.initial_control_root):

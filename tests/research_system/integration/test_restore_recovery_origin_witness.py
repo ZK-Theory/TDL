@@ -5,10 +5,13 @@ from dataclasses import asdict
 from pathlib import Path
 
 import pytest
+import yaml
 
 from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ConflictError, IntegrityError
+from research_system.config import ApprovedProjectBinding, ControlBinding
+import research_system.config as config_module
+from research_system.errors import ConfigurationError, ConflictError, IntegrityError
 from research_system.operations.backups import RestorePreflightResult, seal_restore_preflight_result
 from research_system.store.identity import (
     canonical_restore_binding_output,
@@ -127,6 +130,61 @@ def test_cleared_restore_requires_witness_join_and_transaction_presence(tmp_path
             approved_witness_path=initialized.witness_path,
         )
     assert initialized.witness_path.is_file()
+
+
+def test_normal_bindings_use_restored_target_after_source_is_removed(tmp_path: Path, monkeypatch):
+    initialized, witness, target_root, rebound = _restored_fixture(tmp_path)
+    code_root = tmp_path / "repo"
+    schema_root = code_root / ".research-system" / "schemas"
+    source_root = tmp_path / "source"
+    shutil.rmtree(source_root)
+
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "control_root": str(target_root.resolve()),
+        "control_root_required": True,
+        "store_identity": str(initialized),
+        "endpoint_scheme": rebound["endpoint_scheme"],
+        "canonical_hash": "sha256",
+        "canonical_uri": f"{rebound['endpoint_scheme']}://restored-control",
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(code_root.resolve())],
+        "schema_root": str(schema_root.resolve()),
+        "origin_authority_root": str(initialized.witness_path.parent.parent.resolve()),
+        "origin_witness_path": str(initialized.witness_path.resolve()),
+        "origin_witness_sha256": witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path = code_root / ".research-system" / "config" / "foundation.yaml"
+    foundation_path.parent.mkdir(parents=True)
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+
+    approved = ApprovedProjectBinding.load(foundation_path)
+    assert approved.control_root == target_root.resolve()
+    assert approved.origin_witness.initial_control_root == str(source_root.resolve())
+
+    binding_path = tmp_path / "binding.yaml"
+    binding_path.write_text(
+        yaml.safe_dump(
+            {
+                "code_roots": foundation["code_roots"],
+                "control_root": foundation["control_root"],
+                "project_id": PROJECT_ID,
+                "schema_root": foundation["schema_root"],
+                "store_identity": str(initialized),
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_module, "canonical_foundation_path", lambda: foundation_path)
+    assert ControlBinding.load(binding_path).control_root == target_root.resolve()
+
+    restore_binding_transaction_path(target_root).unlink()
+    with pytest.raises(ConfigurationError, match="matching materialized store"):
+        ApprovedProjectBinding.load(foundation_path)
 
 
 def test_third_root_copy_and_changed_external_witness_fail_closed(tmp_path: Path):

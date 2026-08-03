@@ -606,6 +606,63 @@ def load_store_manifest_unbound(control_root: Path) -> dict[str, Any]:
     return manifest
 
 
+def _restore_preflight_anchor(
+    control_root: Path,
+    manifest: dict[str, Any],
+    witness: StoreOriginWitness,
+    approved_witness_path: Path,
+) -> dict[str, Any] | None:
+    """Return the immutable preflight for a valid in-progress restore."""
+    control = control_root.resolve(strict=True)
+    record, _ = _read_restore_binding_transaction(control)
+    if record is None:
+        if (
+            manifest != witness.initial_manifest
+            or manifest.get("control_root") != witness.initial_control_root
+            or sha256_hex(canonical_bytes(manifest)) != witness.initial_manifest_sha256
+        ):
+            raise IntegrityError("store manifest differs from approved origin witness")
+        return None
+
+    approval, approval_raw = _read_restore_approval(control, str(record["approval_sha256"]))
+    preflight = approval["restore_preflight"]
+    intended = dict(approval["rebound_manifest"])
+    intended["manifest_hash"] = _restored_manifest_hash(intended, str(record["approval_sha256"]))
+    intended_raw = canonical_bytes(intended)
+    initial_raw = canonical_bytes(witness.initial_manifest)
+    approved_path = str(approved_witness_path)
+    if (
+        sha256_hex(approval_raw) != record["approval_sha256"]
+        or record["restore_preflight_result_hash"] != preflight["result_hash"]
+        or record["source_root"] != witness.initial_control_root
+        or record["source_root_identity"] != witness.initial_physical_root_identity
+        or record["origin_witness_path"] != approved_path
+        or record["origin_witness_sha256"] != witness.raw_sha256
+        or record["origin_initial_control_root"] != witness.initial_control_root
+        or record["origin_initial_physical_root_identity"] != witness.initial_physical_root_identity
+        or record["original_manifest_bytes"] != initial_raw.hex()
+        or record["original_manifest_sha256"] != witness.initial_manifest_sha256
+        or record["intended_manifest_bytes"] != intended_raw.hex()
+        or record["intended_manifest_sha256"] != sha256_hex(intended_raw)
+        or approval["original_manifest_sha256"] != witness.initial_manifest_sha256
+        or approval["origin_witness_path"] != approved_path
+        or approval["origin_witness_sha256"] != witness.raw_sha256
+        or approval["origin_initial_control_root"] != witness.initial_control_root
+        or approval["origin_initial_physical_root_identity"] != witness.initial_physical_root_identity
+        or preflight["source_root"] != witness.initial_control_root
+        or preflight["target_root"] != str(control)
+        or preflight["project_id"] != witness.project_id
+        or preflight["store_identity"] != witness.store_identity
+        or preflight["origin_witness_path"] != approved_path
+        or preflight["origin_witness_sha256"] != witness.raw_sha256
+        or preflight["origin_initial_control_root"] != witness.initial_control_root
+        or preflight["origin_initial_physical_root_identity"] != witness.initial_physical_root_identity
+        or canonical_bytes(manifest) not in {initial_raw, intended_raw}
+    ):
+        raise IntegrityError("restore manifest differs from immutable approval")
+    return dict(preflight)
+
+
 def _validate_external_witness_for_store(
     control_root: Path,
     manifest: dict[str, Any],
@@ -1765,6 +1822,10 @@ def _posix_delete_owned_temporary(path: Path, anchor: Path, expected: bytes) -> 
     except ArsError:
         _posix_restore_quarantined_path(quarantined, path)
         raise
+    source_durable = _fsync_directory(path.parent)
+    quarantine_durable = _fsync_directory(quarantine_directory)
+    if not source_durable or not quarantine_durable:
+        raise ArsError("restore binding requires durable cleanup quarantine")
     # POSIX pathname unlink cannot bind deletion to the verified inode. Retain
     # the private quarantine artifact for separately governed cleanup/evidence.
 
@@ -2844,11 +2905,19 @@ def verify_restore_binding_admission(
     source = Path(str(record["source_root"]))
     if origin_root is None or resolved_witness_path is None:
         raise IntegrityError("foundation-approved origin witness path is required")
-    _require_physical_disjoint(
-        origin_root,
-        source,
-        message="origin authority root must be physically disjoint from the restore source",
-    )
+    try:
+        source.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise IntegrityError("restore source availability is indeterminate") from exc
+    else:
+        _require_physical_disjoint(
+            origin_root,
+            source,
+            message="origin authority root must be physically disjoint from the restore source",
+        )
+        _require_root_identity(source, record["source_root_identity"])
     _require_cleared_without_temporaries(target, record)
     _require_root_identity(target, record["target_root_identity"])
     _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
