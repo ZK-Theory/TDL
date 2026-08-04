@@ -559,15 +559,20 @@ def _git_blob_at(repo_root: Path, commit: str, repository_path: str) -> str:
         or any(part in {"", ".", ".."} for part in PurePosixPath(repository_path).parts)
     ):
         raise Scale01VerificationError("Git repository path is not a canonical relative path")
-    result = subprocess.run(
-        [GIT_EXECUTABLE, "ls-tree", commit, "--", repository_path],
-        cwd=repo_root,
-        check=True,
-        shell=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        result = subprocess.run(
+            [GIT_EXECUTABLE, "ls-tree", commit, "--", repository_path],
+            cwd=repo_root,
+            check=False,
+            shell=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise Scale01VerificationError("Git ls-tree process could not start") from exc
+    if result.returncode != 0:
+        raise Scale01VerificationError(f"Git ls-tree failed for {commit}:{repository_path}")
     parts = result.stdout.strip().split()
     if len(parts) < 3 or parts[1] != "blob":
         raise Scale01VerificationError(f"Git object is absent at {commit}:{repository_path}")

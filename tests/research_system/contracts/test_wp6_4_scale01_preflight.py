@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -730,6 +731,33 @@ def test_no_write_evidence_rejects_empty_directory_mutations(synthetic_bundle: d
         )
 
 
+@pytest.mark.parametrize(
+    ("failure_injected", "rollback_status"),
+    (
+        (True, "not_required_zero_publication"),
+        (False, "verified_zero_publication_after_failure"),
+    ),
+)
+def test_no_write_evidence_rejects_bidirectional_rollback_status_mismatch(
+    synthetic_bundle: dict[str, Any],
+    failure_injected: bool,
+    rollback_status: str,
+) -> None:
+    evidence = deepcopy(synthetic_bundle["evidence"])
+    evidence["failure_injected"] = failure_injected
+    evidence["rollback_status"] = rollback_status
+    _refresh_evidence(evidence)
+
+    with pytest.raises(scale01.Scale01VerificationError, match="schema violation"):
+        scale01.verify_no_write_evidence(
+            REPO_ROOT,
+            synthetic_bundle["fixture_root"],
+            synthetic_bundle["scratch_root"],
+            evidence,
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
+        )
+
+
 def test_git_blob_identity_uses_git_sha1_for_non_security_identity(tmp_path: Path) -> None:
     path = tmp_path / "identity.txt"
     raw = b"git identity bytes\n"
@@ -740,6 +768,7 @@ def test_git_blob_identity_uses_git_sha1_for_non_security_identity(tmp_path: Pat
     assert identity["git_blob_id"] == expected
 
 
+@pytest.mark.integration
 def test_git_lookup_uses_an_absolute_bound_executable() -> None:
     assert Path(scale01.GIT_EXECUTABLE).is_absolute()
     assert Path(scale01.GIT_EXECUTABLE).is_file()
@@ -751,6 +780,31 @@ def test_git_lookup_uses_an_absolute_bound_executable() -> None:
         )
         == "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1"
     )
+
+
+@pytest.mark.parametrize("failure_mode", ("startup", "nonzero"))
+def test_git_lookup_normalizes_process_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_mode: str,
+) -> None:
+    if failure_mode == "startup":
+
+        def failing_run(*args: Any, **kwargs: Any) -> Any:
+            raise OSError("git unavailable")
+
+    else:
+
+        def failing_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(args, 1, "", "fatal: git failed")
+
+    monkeypatch.setattr(scale01.subprocess, "run", failing_run)
+
+    with pytest.raises(scale01.Scale01VerificationError, match="Git ls-tree"):
+        scale01._git_blob_at(
+            REPO_ROOT,
+            scale01.BASE_COMMIT,
+            scale01.CREATE_SCOPE_SCHEMA_PATH.as_posix(),
+        )
 
 
 def test_no_write_evidence_requires_disjoint_scratch(synthetic_bundle: dict[str, Any]) -> None:

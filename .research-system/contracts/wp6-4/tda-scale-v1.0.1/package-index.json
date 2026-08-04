@@ -317,9 +317,9 @@
       "component_id": "SCALE01-NO-WRITE-EVIDENCE-SCHEMA",
       "component_version": "1.0.1",
       "repository_path": ".research-system/schemas/contracts/wp6-4/scale01-no-write-evidence.schema.json",
-      "raw_bytes": 5633,
-      "raw_sha256": "b4ca1b7f97fd86288f039583677d1f0c8ec7e232b4b80e21ce356b27c3896b44",
-      "git_blob_id": "d987025a761c8b19127c3d8d2fcaf18b0bebb431",
+      "raw_bytes": 6057,
+      "raw_sha256": "874f7567afbe63ec7e404be1759c70debc55e295747b0e4a0c54c4a8a9e793be",
+      "git_blob_id": "357e1770c6603b1f62f9e689ddee6d41a6422084",
       "identity_stage": "content_addressed_precommit",
       "review_binding": "external_exact_subject_required"
     },

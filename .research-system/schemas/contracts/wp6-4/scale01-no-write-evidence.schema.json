@@ -79,6 +79,28 @@
       ]
     }
   },
+  "oneOf": [
+    {
+      "properties": {
+        "failure_injected": {
+          "const": false
+        },
+        "rollback_status": {
+          "const": "not_required_zero_publication"
+        }
+      }
+    },
+    {
+      "properties": {
+        "failure_injected": {
+          "const": true
+        },
+        "rollback_status": {
+          "const": "verified_zero_publication_after_failure"
+        }
+      }
+    }
+  ],
   "$defs": {
     "sha256": {
       "type": "string",
