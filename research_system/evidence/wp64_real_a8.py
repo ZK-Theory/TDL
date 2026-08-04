@@ -143,11 +143,13 @@ class ContentAddressedEvidenceStore:
         root: Path,
         *,
         forbidden_physical_root_identity: Mapping[str, str] | None = None,
+        forbidden_physical_roots: Sequence[Path] = (),
     ) -> None:
         self.root = Path(root)
         self.forbidden_physical_root_identity = (
             dict(forbidden_physical_root_identity) if forbidden_physical_root_identity is not None else None
         )
+        self.forbidden_physical_roots = tuple(Path(root) for root in forbidden_physical_roots)
 
     def write_once(self, key: str, raw: bytes) -> tuple[Path, str, str]:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", key):
@@ -166,6 +168,12 @@ class ContentAddressedEvidenceStore:
             and physical_root_identity(self.root) == self.forbidden_physical_root_identity
         ):
             raise EvidenceHarnessError("candidate output root retains the original source physical identity")
+        for protected_root in self.forbidden_physical_roots:
+            _require_physical_root_disjoint_if_available(
+                self.root,
+                protected_root,
+                "candidate output root is a physical alias of a protected root",
+            )
         claims = self.root / "claims"
         objects = self.root / "objects"
         claims.mkdir(parents=True, exist_ok=True)
@@ -321,6 +329,7 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
         produced_files,
         source_root=source_root,
         output_root=output_root,
+        protected_roots=(*approved.code_roots, target_root, origin_root),
     )
 
     candidate_without_id: dict[str, Any] = {
@@ -394,6 +403,7 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
         produced_files,
         source_root=source_root,
         output_root=output_root,
+        protected_roots=(*approved.code_roots, target_root, origin_root),
     )
     candidate = dict(candidate_without_id)
     candidate["candidate_id"] = _candidate_id(candidate_without_id)
@@ -402,6 +412,7 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
     path, raw_sha256, blob_sha1 = ContentAddressedEvidenceStore(
         output_root,
         forbidden_physical_root_identity=witness.initial_physical_root_identity,
+        forbidden_physical_roots=(*approved.code_roots, target_root, origin_root),
     ).write_once(
         candidate["candidate_id"],
         raw,
@@ -1538,6 +1549,7 @@ def _revalidate_publication_inputs(
     *,
     source_root: Path,
     output_root: Path,
+    protected_roots: Sequence[Path],
 ) -> None:
     if _path_state(source_root) != "unavailable":
         raise EvidenceHarnessError("original root became available before publication")
@@ -1545,6 +1557,12 @@ def _revalidate_publication_inputs(
     if output_root.exists():
         _validate_no_follow_directory(output_root, "candidate output root")
         _require_physical_root_disjoint_if_available(source_root, output_root, "source and output roots are aliases")
+        for protected_root in protected_roots:
+            _require_physical_root_disjoint_if_available(
+                output_root,
+                protected_root,
+                "candidate output root is a physical alias of a protected root",
+            )
     for record in records:
         current = _file_record(Path(record["path"]), str(record["role"]))
         if current != dict(record):

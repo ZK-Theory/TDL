@@ -528,6 +528,50 @@ def test_red_existing_output_root_rejects_physical_alias_of_every_protected_root
     assert not (roots["output"] / "objects").exists()
 
 
+@pytest.mark.parametrize("protected_name", ["code", "target", "origin"])
+def test_red_publication_rechecks_reject_late_physical_alias_of_every_protected_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    protected_name: str,
+) -> None:
+    roots = {name: tmp_path / name for name in ("code", "target", "origin", "output")}
+    for root in roots.values():
+        root.mkdir()
+    resolved = {name: root.resolve() for name, root in roots.items()}
+    identities = {path: {"device": "1", "inode": str(index + 20)} for index, path in enumerate(resolved.values())}
+    monkeypatch.setattr(
+        harness_module,
+        "physical_root_identity",
+        lambda path: identities[Path(path).resolve(strict=True)],
+    )
+    protected_roots = (roots["code"], roots["target"], roots["origin"])
+
+    harness_module._validate_output_root(
+        roots["output"],
+        source_root=tmp_path / "unavailable-source",
+        code_roots=(roots["code"],),
+        target_root=roots["target"],
+        origin_root=roots["origin"],
+    )
+    identities[resolved["output"]] = identities[resolved[protected_name]]
+
+    with pytest.raises(EvidenceHarnessError, match="physical alias.*protected root"):
+        harness_module._revalidate_publication_inputs(
+            (),
+            source_root=tmp_path / "unavailable-source",
+            output_root=roots["output"],
+            protected_roots=protected_roots,
+        )
+    with pytest.raises(EvidenceHarnessError, match="physical alias.*protected root"):
+        ContentAddressedEvidenceStore(
+            roots["output"],
+            forbidden_physical_roots=protected_roots,
+        ).write_once("late-alias", b"must-not-publish")
+
+    assert not (roots["output"] / "claims").exists()
+    assert not (roots["output"] / "objects").exists()
+
+
 def test_execution_root_selection_uses_canonical_checkout_with_multiple_approved_roots(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
