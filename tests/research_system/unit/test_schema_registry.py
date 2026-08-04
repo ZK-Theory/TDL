@@ -9,6 +9,11 @@ import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
 from research_system.errors import SchemaError
+from research_system.operations.resources import (
+    RESOURCE_GRANT_V1_1_SCHEMA_ID,
+    RESOURCE_GRANT_V1_1_SCHEMA_SHA256,
+    RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
+)
 from research_system.schema_registry import (
     SchemaBinding,
     SchemaRegistry,
@@ -465,6 +470,27 @@ def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
     assert identity.source_path == source.resolve()
     assert identity.raw_bytes == source.read_bytes()
     assert identity.sha256 == sha256(source.read_bytes()).hexdigest()
+
+
+def test_resource_grant_versions_coexist_and_require_explicit_version():
+    registry = SchemaRegistry(SCHEMAS)
+    schema_id = RESOURCE_GRANT_V1_1_SCHEMA_ID
+
+    legacy = registry.resolve_identity(schema_id, "1.0.0")
+    current = registry.resolve_identity(schema_id, RESOURCE_GRANT_V1_1_SCHEMA_VERSION)
+    source = SCHEMAS / "operations" / "resource-grant.v1-1.schema.json"
+
+    assert legacy.source_path.name == "resource-grant.schema.json"
+    assert current.source_path == source.resolve()
+    assert current.raw_bytes == source.read_bytes()
+    assert legacy.schema_id == current.schema_id == schema_id
+    assert legacy.schema_version == "1.0.0"
+    assert current.schema_version == RESOURCE_GRANT_V1_1_SCHEMA_VERSION
+    assert RESOURCE_GRANT_V1_1_SCHEMA_SHA256 == "3cf8e8b48e90c63d06eb7f807d02ef15fdc0507416ac3a014dd326ae10e8da39"
+    assert current.sha256 == RESOURCE_GRANT_V1_1_SCHEMA_SHA256
+    assert sha256(source.read_bytes()).hexdigest() == RESOURCE_GRANT_V1_1_SCHEMA_SHA256
+    with pytest.raises(SchemaError, match="schema version required"):
+        registry.validate(schema_id, {"schema_version": "1.1.0"})
 
 
 def test_t2_v1_1_siblings_have_independent_exact_new_write_contracts():

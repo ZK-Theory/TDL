@@ -85,12 +85,22 @@ def _generic_lease_granted_event(template, harness):
     return _rehash(event)
 
 
-def _generic_claim_dispatch_events(template, *, malformed_field):
+def _generic_claim_dispatch_events(
+    template,
+    harness,
+    *,
+    malformed_field: str | None = None,
+    claim_schema_command_type: str = "ClaimDispatch",
+    claim_event_schema_ids: tuple[str, str] = ("ars://core/event", "ars://core/event"),
+):
     events = []
     previous_event_hash = "0" * 64
 
-    def append(event_type, stream_id, stream_version, payload, **overrides):
+    def append(event_type, stream_id, stream_version, payload, *, command_type, **overrides):
         nonlocal previous_event_hash
+        binding = harness.schemas.command_binding(command_type)
+        assert binding is not None
+        command_identity = harness.schemas.resolve_identity(binding.schema_id, binding.schema_version)
         event = _rehash(
             {
                 **template,
@@ -98,10 +108,15 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
                 "stream_id": stream_id,
                 "stream_version": stream_version,
                 "schema_id": "ars://core/event",
+                "command_type": command_type,
+                "command_schema_id": command_identity.schema_id,
+                "command_schema_version": command_identity.schema_version,
+                "command_schema_sha256": command_identity.sha256,
+                "command_payload_hash": sha256_hex(canonical_bytes(payload)),
                 "payload": payload,
                 "global_position": len(events) + 1,
                 "previous_event_hash": previous_event_hash,
-                "transaction_id": f"generic-{len(events) + 1}",
+                "transaction_id": f"txb_01978abc-{4001 + len(events):04d}-7000-8000-{4001 + len(events):012d}",
                 "transaction_count": 1,
                 "transaction_index": 1,
                 **overrides,
@@ -111,6 +126,36 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
         previous_event_hash = event["event_hash"]
 
     append(
+        "TaskCreated",
+        TASK_ID,
+        1,
+        {"title": "Generic historical ClaimDispatch Task"},
+        command_type="CreateTask",
+    )
+    append(
+        "ReadinessRequested",
+        TASK_ID,
+        2,
+        {
+            "task_id": TASK_ID,
+            "task_revision": 1,
+            "readiness_evidence_refs": ["evidence:generic-readiness"],
+        },
+        command_type="RequestReadiness",
+    )
+    append(
+        "ReadinessApproved",
+        TASK_ID,
+        3,
+        {
+            "task_id": TASK_ID,
+            "task_revision": 1,
+            "readiness_evidence_refs": ["evidence:generic-readiness"],
+            "passed_check_ids": ["check:generic-readiness"],
+        },
+        command_type="ApproveReadiness",
+    )
+    append(
         "DispatchIssued",
         DISPATCH_ID,
         1,
@@ -118,6 +163,7 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
             "dispatch_id": DISPATCH_ID,
             "definition": {"dispatch_id": DISPATCH_ID, "task_id": TASK_ID, "task_revision": 1},
         },
+        command_type="IssueDispatch",
     )
     append(
         "DispatchDelivered",
@@ -128,12 +174,14 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
             "recipient_actor_id": "actor-a",
             "delivery_evidence_refs": ["evidence:generic-delivery"],
         },
+        command_type="RecordDispatchDelivery",
     )
     append(
         "DispatchAcknowledged",
         DISPATCH_ID,
         3,
         {"dispatch_id": DISPATCH_ID, "recipient_actor_id": "actor-a"},
+        command_type="AcknowledgeDispatch",
     )
     dispatch_payload = {
         "dispatch_id": DISPATCH_ID,
@@ -141,12 +189,13 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
         "task_revision": 1,
         "lease_id": LEASE_ID,
         "expected_dispatch_stream_version": 3,
-        "expected_task_stream_version": 0,
+        "expected_task_stream_version": 3,
         "declared_write_set": ["dispatch", "task"],
-        "expected_global_position": 3,
+        "expected_global_position": 6,
         "expected_tail_hash": previous_event_hash,
     }
-    dispatch_payload[malformed_field] = "not-an-integer"
+    if malformed_field is not None:
+        dispatch_payload[malformed_field] = "not-an-integer"
     transaction_id = "txb_01978abc-4007-7000-8000-000000004007"
     command_payload_hash = sha256_hex(canonical_bytes(dispatch_payload))
     append(
@@ -155,20 +204,46 @@ def _generic_claim_dispatch_events(template, *, malformed_field):
         4,
         dispatch_payload,
         command_type="ClaimDispatch",
+        schema_id=claim_event_schema_ids[0],
         transaction_id=transaction_id,
         transaction_count=2,
         transaction_index=1,
+        command_schema_id=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).schema_id,
+        command_schema_version=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).schema_version,
+        command_schema_sha256=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).sha256,
         command_payload_hash=command_payload_hash,
     )
     append(
         "TaskClaimStarted",
         TASK_ID,
-        1,
+        4,
         {"task_id": TASK_ID, "task_revision": 1},
         command_type="ClaimDispatch",
+        schema_id=claim_event_schema_ids[1],
         transaction_id=transaction_id,
         transaction_count=2,
         transaction_index=2,
+        command_schema_id=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).schema_id,
+        command_schema_version=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).schema_version,
+        command_schema_sha256=harness.schemas.resolve_identity(
+            harness.schemas.command_binding(claim_schema_command_type).schema_id,
+            harness.schemas.command_binding(claim_schema_command_type).schema_version,
+        ).sha256,
         command_payload_hash=command_payload_hash,
     )
     return events
@@ -318,7 +393,69 @@ def test_replay_rejects_non_integer_generic_claim_dispatch_expected_positions(tm
     events, harness = _events(tmp_path)
 
     with pytest.raises(IntegrityError, match="ClaimDispatch expected positions must be integers"):
-        replay(_generic_claim_dispatch_events(events[0], malformed_field=malformed_field))
+        replay(
+            _generic_claim_dispatch_events(events[0], harness, malformed_field=malformed_field),
+            schema_registry=harness.service.schemas,
+        )
+
+
+def test_replay_keeps_valid_generic_claim_dispatch_history_readable(tmp_path):
+    events, harness = _events(tmp_path)
+
+    projection = replay(
+        _generic_claim_dispatch_events(events[0], harness),
+        schema_registry=harness.service.schemas,
+    )
+
+    assert projection["streams"][DISPATCH_ID]["status"] == "claimed"
+    assert projection["streams"][TASK_ID]["status"] == "in_progress"
+
+
+def test_replay_rejects_generic_claim_dispatch_with_another_registered_command_identity(tmp_path):
+    events, harness = _events(tmp_path)
+
+    with pytest.raises(IntegrityError, match="ClaimDispatch command schema binding mismatch"):
+        replay(
+            _generic_claim_dispatch_events(
+                events[0],
+                harness,
+                claim_schema_command_type="IssueDispatch",
+            ),
+            schema_registry=harness.service.schemas,
+        )
+
+
+def test_invalid_claim_dispatch_batch_cannot_replace_an_existing_projection(tmp_path):
+    events, harness = _events(tmp_path)
+    output = tmp_path / "projection.json"
+    output.write_bytes(b"previous-projection\n")
+
+    with pytest.raises(IntegrityError, match="ClaimDispatch command schema binding mismatch"):
+        rebuild_projection(
+            _generic_claim_dispatch_events(
+                events[0],
+                harness,
+                claim_schema_command_type="IssueDispatch",
+            ),
+            output,
+            schema_registry=harness.service.schemas,
+        )
+
+    assert output.read_bytes() == b"previous-projection\n"
+
+
+def test_replay_rejects_mixed_generic_and_exact_claim_dispatch_event_schemas(tmp_path):
+    events, harness = _events(tmp_path)
+
+    with pytest.raises(IntegrityError, match="ClaimDispatch event schema representation mismatch"):
+        replay(
+            _generic_claim_dispatch_events(
+                events[0],
+                harness,
+                claim_event_schema_ids=("ars://core/event", "ars://core/event/TaskClaimStarted"),
+            ),
+            schema_registry=harness.service.schemas,
+        )
 
 
 def test_replay_rejects_absent_command_provenance_after_default_cutover(tmp_path):

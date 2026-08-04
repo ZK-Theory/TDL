@@ -18,6 +18,7 @@ from research_system.command.models import Command
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService, MessageAdapterRegistration
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
+from research_system.operations.resources import TrustedRuntimeAuthority
 from research_system.evals.harness import (
     build_release_decision,
     decision_document,
@@ -220,6 +221,7 @@ def activate_lifecycle_grant(
     subject_id: str,
     actor_id: str = ACTORS["actor-a"],
     command_types: tuple[str, ...] | None = None,
+    grant_id: str | None = None,
     effective_at: str = "2026-01-01T00:00:00Z",
     expires_at: str = "2030-01-01T00:00:00Z",
 ) -> str:
@@ -238,7 +240,7 @@ def activate_lifecycle_grant(
         AssertionError: If an expected active command binding is missing or
             the authority service rejects activation.
     """
-    grant_id = scoped_lifecycle_grant_id(subject_id)
+    grant_id = scoped_lifecycle_grant_id(subject_id) if grant_id is None else grant_id
     try:
         existing = harness.authority_resolver.scoped_grant_identity(grant_id)
     except ArsError:
@@ -477,6 +479,7 @@ def control_plane(
     *,
     auto_authority: bool = True,
     clock: Callable[[], datetime] | None = None,
+    trusted_runtime_authority_provider: Callable[[], TrustedRuntimeAuthority] | None = None,
     message_adapter_registry: tuple[MessageAdapterRegistration, ...] | None = None,
 ) -> ControlPlaneHarness:
     root = tmp_path / "control"
@@ -527,6 +530,7 @@ def control_plane(
         schemas,
         authority_resolver=authority_resolver,
         clock=clock,
+        trusted_runtime_authority_provider=trusted_runtime_authority_provider,
         message_adapter_registry=message_adapter_registry,
     )
     harness = ControlPlaneHarness(
@@ -553,6 +557,7 @@ def control_plane(
                 schemas,
                 authority_resolver=authority_resolver,
                 clock=clock,
+                trusted_runtime_authority_provider=trusted_runtime_authority_provider,
                 authority_harness=harness,
                 message_adapter_registry=message_adapter_registry,
             ),

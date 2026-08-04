@@ -203,7 +203,10 @@ def _validate_scope_completion(payload: dict[str, Any]) -> None:
         raise IntegrityError(f"invalid dispositions: {', '.join(invalid)}")
 
 
-def _validate_claim_dispatch_transaction(events: tuple[dict[str, Any], ...]) -> None:
+def _validate_claim_dispatch_transaction(
+    events: tuple[dict[str, Any], ...],
+    schema_registry: SchemaRegistry | None,
+) -> None:
     """Require ClaimDispatch's exact two-stream atomic transaction shape."""
     claim_events = [event for event in events if event.get("event_type") in {"DispatchClaimed", "TaskClaimStarted"}]
     if not claim_events:
@@ -213,6 +216,8 @@ def _validate_claim_dispatch_transaction(events: tuple[dict[str, Any], ...]) -> 
         "TaskClaimStarted",
     ]:
         raise IntegrityError("ClaimDispatch requires exact ordered Dispatch/Task event pair")
+    if schema_registry is None:
+        raise IntegrityError("ClaimDispatch schema registry unavailable")
     dispatch_event, task_event = events
     dispatch_payload = dispatch_event.get("payload")
     task_payload = task_event.get("payload")
@@ -265,6 +270,47 @@ def _validate_claim_dispatch_transaction(events: tuple[dict[str, Any], ...]) -> 
     }
     if any(dispatch_event.get(field) != task_event.get(field) for field in common_fields):
         raise IntegrityError("ClaimDispatch events do not share one command provenance")
+    command_binding = schema_registry.command_binding("ClaimDispatch")
+    if command_binding is None:
+        raise IntegrityError("ClaimDispatch command schema binding is unavailable")
+    try:
+        command_identity = schema_registry.resolve_identity(
+            command_binding.schema_id,
+            command_binding.schema_version,
+        )
+    except SchemaError as exc:
+        raise IntegrityError("ClaimDispatch command schema binding is unresolved") from exc
+    expected_command_identity = (
+        command_identity.schema_id,
+        command_identity.schema_version,
+        command_identity.sha256,
+    )
+    if any(
+        (
+            event.get("command_schema_id"),
+            event.get("command_schema_version"),
+            event.get("command_schema_sha256"),
+        )
+        != expected_command_identity
+        for event in events
+    ):
+        raise IntegrityError("ClaimDispatch command schema binding mismatch")
+    dispatch_binding = schema_registry.event_binding("DispatchClaimed", "ClaimDispatch")
+    task_binding = schema_registry.event_binding("TaskClaimStarted", "ClaimDispatch")
+    if dispatch_binding is None or task_binding is None:
+        raise IntegrityError("ClaimDispatch event schema bindings are unavailable")
+    exact_pair = (dispatch_event.get("schema_id"), dispatch_event.get("schema_version")) == (
+        dispatch_binding.schema_id,
+        dispatch_binding.schema_version,
+    ) and (task_event.get("schema_id"), task_event.get("schema_version")) == (
+        task_binding.schema_id,
+        task_binding.schema_version,
+    )
+    generic_pair = (
+        dispatch_event.get("schema_id") == "ars://core/event" and task_event.get("schema_id") == "ars://core/event"
+    )
+    if not exact_pair and not generic_pair:
+        raise IntegrityError("ClaimDispatch event schema representation mismatch")
 
 
 def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
@@ -856,7 +902,7 @@ def replay(
         transaction_seen += 1
         transaction_events.append(event)
         if transaction_seen == transaction_count:
-            _validate_claim_dispatch_transaction(tuple(transaction_events))
+            _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
         state = apply_event(state, event)
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]

@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterable
 from copy import deepcopy
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -61,9 +61,12 @@ from research_system.operations.backups import (
     validate_restore_preflight_result,
 )
 from research_system.operations.resources import (
-    RESOURCE_GRANT_SCHEMA_ID,
-    RESOURCE_GRANT_SCHEMA_VERSION,
-    derive_resource_grant_record,
+    RESOURCE_GRANT_V1_1_SCHEMA_ID,
+    RESOURCE_GRANT_V1_1_SCHEMA_SHA256,
+    RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
+    TrustedRuntimeAuthority,
+    derive_resource_grant_authority_preimage_ref,
+    derive_resource_grant_v1_1_record,
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaIdentity, SchemaRegistry
@@ -472,6 +475,7 @@ class CommandService:
         authority_resolver: LedgerAuthorityGrantResolver | None = None,
         release_publication_evidence: ReleasePublicationEvidenceResolver | None = None,
         clock: Callable[[], datetime] | None = None,
+        trusted_runtime_authority_provider: Callable[[], TrustedRuntimeAuthority] | None = None,
         release_lock_timeout_seconds: float = 300.0,
         recovery_lock_timeout_seconds: float = 1.0,
         monotonic: Callable[[], float] | None = None,
@@ -489,6 +493,9 @@ class CommandService:
         self.authority_resolver = authority_resolver
         self.release_publication_evidence = release_publication_evidence
         self.clock = clock or (lambda: datetime.now(UTC))
+        if trusted_runtime_authority_provider is not None and not callable(trusted_runtime_authority_provider):
+            raise TypeError("trusted_runtime_authority_provider must be callable")
+        self._trusted_runtime_authority_provider = trusted_runtime_authority_provider
         if release_lock_timeout_seconds <= 0:
             raise ValueError("release lock timeout must be positive")
         if recovery_lock_timeout_seconds <= 0:
@@ -527,6 +534,19 @@ class CommandService:
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle] | None = None
         self._restore_admission_sequence_lock = threading.Lock()
         self._recover_scoped_activation_markers()
+
+    def _current_trusted_runtime_authority(self) -> TrustedRuntimeAuthority:
+        """Return exactly one current trusted runtime authority binding."""
+        provider = self._trusted_runtime_authority_provider
+        if provider is None:
+            raise IntegrityError("trusted runtime authority provider is unavailable")
+        try:
+            authority = provider()
+        except Exception as exc:
+            raise IntegrityError("trusted runtime authority provider failed") from exc
+        if type(authority) is not TrustedRuntimeAuthority:
+            raise IntegrityError("trusted runtime authority provider returned an invalid binding")
+        return authority
 
     def _scoped_activation_marker_path(self, command_id: str) -> Path:
         return self.control_root / "runtime" / "scoped-authority-activation-recovery" / f"{command_id}.json"
@@ -1812,7 +1832,7 @@ class CommandService:
             except KeyError as exc:
                 raise IntegrityError(f"no canonical event type for {command_type}") from exc
             event = (
-                self._claim_dispatch_receipt_event(command, matching)
+                self._claim_dispatch_receipt_event(command, matching, receipt)
                 if command_type == "ClaimDispatch"
                 else (matching[0] if len(matching) == 1 else None)
             )
@@ -1851,6 +1871,7 @@ class CommandService:
     def _claim_dispatch_receipt_event(
         command: Command,
         events: tuple[dict[str, Any], ...],
+        receipt: Receipt,
     ) -> dict[str, Any]:
         """Return ClaimDispatch's Dispatch event after exact batch validation."""
         payload = command.envelope["payload"]
@@ -1861,10 +1882,10 @@ class CommandService:
             or any(event.get("transaction_count") != 2 for event in events)
             or events[0].get("stream_id") != command.target_stream_id
             or events[1].get("stream_id") != payload.get("task_id")
-            or events[0].get("command_id") != command.command_id
-            or events[1].get("command_id") != command.command_id
-            or events[0].get("command_payload_hash") != command.payload_hash
-            or events[1].get("command_payload_hash") != command.payload_hash
+            or events[0].get("command_id") != receipt.command_id
+            or events[1].get("command_id") != receipt.command_id
+            or events[0].get("command_payload_hash") != receipt.payload_hash
+            or events[1].get("command_payload_hash") != receipt.payload_hash
             or events[0].get("payload") != payload
             or events[1].get("payload")
             != {"task_id": payload.get("task_id"), "task_revision": payload.get("task_revision")}
@@ -1941,7 +1962,7 @@ class CommandService:
                     event for event in snapshot.events if event.get("transaction_id") == receipt.event_batch_id
                 )
                 if command_type == "ClaimDispatch":
-                    event = self._claim_dispatch_receipt_event(command, batch)
+                    event = self._claim_dispatch_receipt_event(command, batch, receipt)
                 else:
                     event = next(
                         (event for event in batch if event.get("stream_id") == command.target_stream_id),
@@ -2374,11 +2395,31 @@ class CommandService:
                     return rejected("invalid_dispatch_transition", "Acknowledgement requires the delivered recipient.")
                 return payload
             if command_type == "ExpireDispatch":
-                if dispatch.get("status") not in {"issued", "delivered", "acknowledged"} or payload[
-                    "observed_prior_state"
-                ] != dispatch.get("status"):
+                prior_state = dispatch.get("status")
+                if (
+                    prior_state not in {"issued", "delivered", "acknowledged"}
+                    or payload["observed_prior_state"] != prior_state
+                ):
                     return rejected(
                         "invalid_dispatch_transition", "Expiry requires its exact observed pre-claim state."
+                    )
+                definition = dispatch.get("definition")
+                deadline_field = "delivery_deadline" if prior_state == "issued" else "claim_deadline"
+                expected_deadline = definition.get(deadline_field) if isinstance(definition, dict) else None
+                deadline = self._resource_grant_expiry(expected_deadline)
+                observed_at = self._resource_grant_expiry(payload.get("observed_at"))
+                now = self._c1_trusted_now()
+                if (
+                    payload.get("observed_deadline") != expected_deadline
+                    or deadline is None
+                    or observed_at is None
+                    or now is None
+                    or observed_at < deadline
+                    or observed_at > now
+                ):
+                    return rejected(
+                        "dispatch_expiry_observation_invalid",
+                        "Dispatch expiry requires its exact deadline observed at or after that deadline and not in the future.",
                     )
                 return payload
             if command_type == "WithdrawDispatch":
@@ -2416,6 +2457,8 @@ class CommandService:
         if command_type == "CreateAttempt":
             dispatch = streams.get(payload["dispatch_id"])
             task = streams.get(payload["task_id"])
+            lease_id = dispatch.get("lease_id") if isinstance(dispatch, dict) else None
+            lease = streams.get(lease_id) if isinstance(lease_id, str) else None
             existing = [
                 value
                 for stream_id, value in streams.items()
@@ -2428,17 +2471,28 @@ class CommandService:
             if (
                 command.target_stream_id in streams
                 or not isinstance(dispatch, dict)
-                or dispatch.get("status") not in {"acknowledged", "claimed"}
+                or dispatch.get("status") != "claimed"
+                or dispatch.get("task_id") != payload["task_id"]
+                or int(dispatch.get("task_revision", 0)) != int(payload["task_revision"])
                 or not isinstance(task, dict)
-                or int(payload["task_revision"]) != int(dispatch.get("task_revision", 0))
+                or task.get("task_id") != payload["task_id"]
+                or task.get("status") != "in_progress"
                 or int(payload["task_revision"]) != int(task.get("current_revision", 0))
+                or not isinstance(lease, dict)
+                or lease.get("lease_id") != lease_id
+                or lease.get("status") != "active"
+                or not self._c1_lease_is_current(lease)
+                or lease.get("task_id") != payload["task_id"]
+                or int(lease.get("task_revision", 0)) != int(payload["task_revision"])
+                or lease.get("dispatch_id") != payload["dispatch_id"]
+                or lease.get("attempt_id") != command.target_stream_id
                 or payload["attempt_ordinal"] != 1
                 or payload["execution_epoch"] != 1
                 or existing
             ):
                 return rejected(
                     "attempt_creation_precondition_failed",
-                    "Initial Attempt requires one current acknowledged Dispatch relation.",
+                    "Initial Attempt requires the current Task, Dispatch, and active Lease relation.",
                 )
             return payload
 
@@ -2467,40 +2521,20 @@ class CommandService:
             if command.target_stream_id in streams:
                 return rejected("lease_already_granted", "Lease claim requires an empty Lease stream.")
             resource = streams.get(payload["resource_grant_id"])
-            if not isinstance(resource, dict) or resource.get("status") != "active":
-                return rejected(
-                    "resource_request_missing", "Lease claim requires the recorded ResourceGrantRequested request."
-                )
             try:
-                expected_grant = derive_resource_grant_record(
-                    {
-                        "resource_id": resource["resource_id"],
-                        "resource_request": resource["request"],
-                    }
+                stored_grant, grant_reason = self._current_materialized_resource_grant(
+                    resource_grant_id=payload["resource_grant_id"],
+                    resource=resource,
+                    trusted_authority=self._current_trusted_runtime_authority(),
                 )
-                self.schemas.validate(
-                    RESOURCE_GRANT_SCHEMA_ID,
-                    expected_grant,
-                    schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
-                )
-            except (KeyError, SchemaError, TypeError, ValueError):
-                return rejected("resource_grant_invalid", "Projected Resource grant record is invalid.")
-            if resource.get("grant") != expected_grant:
-                return rejected("resource_grant_mismatch", "Projected Resource grant does not match its request.")
-            if not self.objects.revision_exists("resource_grant", payload["resource_grant_id"], 1):
+            except IntegrityError:
+                stored_grant, grant_reason = None, "resource_grant_invalid"
+            if grant_reason is not None or stored_grant is None:
                 return rejected(
-                    "resource_grant_unmaterialized",
-                    "Lease claim requires the committed ResourceGrantRequested grant object.",
+                    grant_reason or "resource_grant_invalid",
+                    "Lease claim requires the current committed Resource grant.",
                 )
-            try:
-                stored_grant = self._read_resource_grant_record(payload["resource_grant_id"])
-            except (IntegrityError, SchemaError, TypeError, ValueError):
-                return rejected("resource_grant_invalid", "Stored Resource grant record is invalid.")
-            if stored_grant != expected_grant:
-                return rejected(
-                    "resource_grant_mismatch", "Stored Resource grant does not match its committed request."
-                )
-            request = expected_grant["granted_claims"]
+            request = stored_grant["granted_claims"]
             dispatch = streams.get(payload["dispatch_id"])
             definition = dispatch.get("definition") if isinstance(dispatch, dict) else None
             dispatch_capabilities = definition.get("capabilities") if isinstance(definition, dict) else None
@@ -2528,7 +2562,7 @@ class CommandService:
                     "resource_grant_binding_mismatch",
                     "Lease claim must bind the committed Resource grant request and referenced Dispatch.",
                 )
-            grant_expiry = self._resource_grant_expiry(expected_grant["expires_at"])
+            grant_expiry = self._resource_grant_expiry(stored_grant["expires_at"])
             lease_expiry = self._resource_grant_expiry(payload["expires_at"])
             now = self._c1_trusted_now()
             if grant_expiry is None or lease_expiry is None or now is None:
@@ -2551,11 +2585,15 @@ class CommandService:
             lease = streams.get(command.target_stream_id)
             if not isinstance(lease, dict) or lease.get("status") != "active":
                 return rejected("lease_not_active", "Lease transition requires an active LeaseGranted record.")
-            if command_type in {"RenewExecutionLease", "ReleaseExecutionLease"} and (
+            if payload.get("lease_id") != lease.get("lease_id"):
+                return rejected("lease_relation_mismatch", "Lease command must bind its active Lease.")
+            if command_type == "RenewExecutionLease" and (
                 payload["holder_actor_id"] != lease.get("holder_actor_id")
                 or command.actor_id != lease.get("holder_actor_id")
             ):
                 return rejected("lease_holder_mismatch", "Lease transition requires the current holder.")
+            if command_type == "ReleaseExecutionLease" and payload["holder_actor_id"] != lease.get("holder_actor_id"):
+                return rejected("lease_holder_mismatch", "Lease release must preserve its immutable holder.")
             if command_type == "RenewExecutionLease":
                 prior_expiry = self._resource_grant_expiry(payload["prior_expiry"])
                 new_expiry = self._resource_grant_expiry(payload["new_expiry"])
@@ -2567,102 +2605,290 @@ class CommandService:
                     or new_expiry <= prior_expiry
                 ):
                     return rejected("lease_renewal_mismatch", "Lease renewal must bind its current expiry and policy.")
-                resource_grant_id = lease.get("resource_grant_id")
-                resource = streams.get(resource_grant_id) if isinstance(resource_grant_id, str) else None
-                if not isinstance(resource, dict) or resource.get("status") != "active":
+            if command_type == "ReleaseExecutionLease":
+                observed_at = self._resource_grant_expiry(payload.get("observed_at"))
+                now = self._c1_trusted_now()
+                if observed_at is None or now is None or observed_at > now:
                     return rejected(
-                        "resource_request_missing",
-                        "Lease renewal requires its active ResourceGrantRequested record.",
+                        "lease_release_observation_invalid",
+                        "Lease release observation must not be later than trusted current time.",
                     )
-                try:
-                    expected_grant = derive_resource_grant_record(
-                        {
-                            "resource_id": resource["resource_id"],
-                            "resource_request": resource["request"],
-                        }
-                    )
-                    self.schemas.validate(
-                        RESOURCE_GRANT_SCHEMA_ID,
-                        expected_grant,
-                        schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
-                    )
-                except (KeyError, SchemaError, TypeError, ValueError):
-                    return rejected("resource_grant_invalid", "Projected Resource grant record is invalid.")
-                if resource.get("grant") != expected_grant:
-                    return rejected("resource_grant_mismatch", "Projected Resource grant does not match its request.")
-                if not self.objects.revision_exists("resource_grant", resource_grant_id, 1):
-                    return rejected(
-                        "resource_grant_unmaterialized",
-                        "Lease renewal requires the committed Resource grant object.",
-                    )
-                try:
-                    stored_grant = self._read_resource_grant_record(resource_grant_id)
-                except (IntegrityError, SchemaError, TypeError, ValueError):
-                    return rejected("resource_grant_invalid", "Stored Resource grant record is invalid.")
-                if stored_grant != expected_grant:
-                    return rejected(
-                        "resource_grant_mismatch", "Stored Resource grant does not match its committed request."
-                    )
-                grant_expiry = self._resource_grant_expiry(expected_grant["expires_at"])
-                if grant_expiry is None:
-                    return rejected("resource_grant_invalid", "Resource grant expiry is invalid.")
-                if new_expiry > grant_expiry:
-                    return rejected("resource_grant_expiry_exceeded", "Lease expiry exceeds the Resource grant expiry.")
-            if command_type == "RecordHeartbeat":
-                attempt = streams.get(lease.get("attempt_id"))
-                started = attempt.get("start") if isinstance(attempt, dict) else None
+            if command_type == "ExpireLease":
+                observed_at = self._resource_grant_expiry(payload.get("observed_at"))
+                lease_expiry = self._resource_grant_expiry(lease.get("expires_at"))
+                now = self._c1_trusted_now()
                 if (
-                    not isinstance(attempt, dict)
-                    or attempt.get("status") != "running"
-                    or not isinstance(started, dict)
-                    or payload["process_identity_id"] != started.get("process_identity_id")
+                    observed_at is None
+                    or lease_expiry is None
+                    or now is None
+                    or observed_at < lease_expiry
+                    or observed_at > now
                 ):
                     return rejected(
-                        "heartbeat_process_mismatch", "Heartbeat requires the active Lease's running process identity."
+                        "lease_expiry_observation_invalid",
+                        "Lease expiry requires an observation at or after its deadline and not in the future.",
                     )
+            if command_type == "RevokeLease":
+                observed_at = self._resource_grant_expiry(payload.get("observed_at"))
+                now = self._c1_trusted_now()
+                if observed_at is None or now is None or observed_at > now:
+                    return rejected(
+                        "lease_revocation_observation_invalid",
+                        "Lease revocation observation must not be later than trusted current time.",
+                    )
+            if command_type in {"RenewExecutionLease", "RecordHeartbeat"}:
+                context, context_reason = self._current_c1_lease_context(
+                    streams=streams,
+                    lease=lease,
+                    require_running_attempt=command_type == "RecordHeartbeat",
+                )
+                if context is None:
+                    return rejected(
+                        context_reason or "lease_relation_mismatch",
+                        "Lease command requires the current Task, Dispatch, Attempt, and Lease relation.",
+                    )
+                _, _, attempt, now = context
+                resource_grant_id = lease.get("resource_grant_id")
+                resource = streams.get(resource_grant_id) if isinstance(resource_grant_id, str) else None
+                try:
+                    trusted_authority = self._current_trusted_runtime_authority()
+                    stored_grant, grant_reason = self._current_materialized_resource_grant(
+                        resource_grant_id=resource_grant_id,
+                        resource=resource,
+                        trusted_authority=trusted_authority,
+                    )
+                except IntegrityError:
+                    stored_grant, grant_reason = None, "resource_grant_invalid"
+                if grant_reason is not None or stored_grant is None:
+                    return rejected(
+                        grant_reason or "resource_grant_invalid",
+                        "Lease command requires the current committed Resource grant.",
+                    )
+                grant_expiry = self._resource_grant_expiry(stored_grant.get("expires_at"))
+                if grant_expiry is None:
+                    return rejected("resource_grant_invalid", "Resource grant expiry is invalid.")
+                if now >= grant_expiry:
+                    return rejected("resource_grant_expired", "Resource grant is no longer current.")
+                if (
+                    stored_grant.get("resource_grant_id") != resource_grant_id
+                    or stored_grant.get("task_id") != lease.get("task_id")
+                    or stored_grant.get("dispatch_id") != lease.get("dispatch_id")
+                    or stored_grant.get("attempt_id") != lease.get("attempt_id")
+                ):
+                    return rejected("resource_grant_mismatch", "Lease relation does not match its Resource grant.")
+                if lease.get("renewal_policy_ref") != stored_grant.get("renewal_policy_ref"):
+                    return rejected(
+                        "lease_renewal_mismatch"
+                        if command_type == "RenewExecutionLease"
+                        else "resource_grant_mismatch",
+                        "Lease policy does not match its Resource grant.",
+                    )
+                threshold = self._grant_heartbeat_stale_threshold(stored_grant)
+                if threshold is None:
+                    return rejected("resource_grant_invalid", "Resource grant heartbeat policy is invalid.")
+                snapshot_events = tuple(self.ledger.snapshot().events)
+                heartbeat_events = self._heartbeat_events_for_lease(
+                    snapshot_events,
+                    lease["lease_id"],
+                )
+                last_heartbeat = lease.get("last_heartbeat")
+                if command_type == "RenewExecutionLease":
+                    profile_constraints = stored_grant.get("profile_constraints")
+                    if (
+                        not isinstance(profile_constraints, dict)
+                        or profile_constraints.get("renewal_allowed") is not True
+                    ):
+                        return rejected("lease_renewal_mismatch", "Resource grant does not permit lease renewal.")
+                    if not isinstance(last_heartbeat, dict) or not heartbeat_events:
+                        return rejected(
+                            "lease_renewal_heartbeat_missing",
+                            "Lease renewal requires one latest accepted heartbeat.",
+                        )
+                    latest_heartbeat_event = heartbeat_events[-1]
+                    latest_heartbeat = latest_heartbeat_event["payload"]
+                    latest_heartbeat_id = latest_heartbeat.get("heartbeat_id")
+                    if latest_heartbeat != last_heartbeat or not isinstance(latest_heartbeat_id, str):
+                        return rejected(
+                            "lease_renewal_heartbeat_mismatch",
+                            "Lease renewal heartbeat does not match canonical history.",
+                        )
+                    if payload.get("heartbeat_evidence_refs") != [latest_heartbeat_id]:
+                        return rejected(
+                            "lease_renewal_heartbeat_mismatch",
+                            "Lease renewal must cite exactly its latest heartbeat.",
+                        )
+                    heartbeat_wall_time = self._resource_grant_expiry(latest_heartbeat.get("wall_time"))
+                    heartbeat_recorded_at = self._resource_grant_expiry(latest_heartbeat_event.get("recorded_at"))
+                    if heartbeat_wall_time is None or heartbeat_recorded_at is None:
+                        return rejected(
+                            "lease_renewal_heartbeat_mismatch",
+                            "Lease renewal heartbeat timestamps are invalid.",
+                        )
+                    if now > heartbeat_wall_time + timedelta(
+                        seconds=threshold
+                    ) or now > heartbeat_recorded_at + timedelta(seconds=threshold):
+                        return rejected("heartbeat_stale", "Lease renewal heartbeat is stale.")
+                    if payload["renewal_policy_ref"] != stored_grant.get("renewal_policy_ref"):
+                        return rejected("lease_renewal_mismatch", "Lease renewal policy is not current.")
+                    if new_expiry > grant_expiry:
+                        return rejected(
+                            "resource_grant_expiry_exceeded", "Lease expiry exceeds the Resource grant expiry."
+                        )
+                else:
+                    started = attempt.get("start")
+                    if not isinstance(started, dict) or payload.get("process_identity_id") != started.get(
+                        "process_identity_id"
+                    ):
+                        return rejected(
+                            "heartbeat_process_mismatch",
+                            "Heartbeat requires the active Lease's running process identity.",
+                        )
+                    if (
+                        payload.get("host_identity") != trusted_authority.host_identity
+                        or payload.get("host_identity") != stored_grant.get("host_identity")
+                        or payload.get("boot_identity") != trusted_authority.boot_identity
+                        or payload.get("boot_identity") != stored_grant.get("boot_identity")
+                    ):
+                        return rejected(
+                            "heartbeat_runtime_identity_mismatch",
+                            "Heartbeat host and boot must match the current Resource grant authority.",
+                        )
+                    heartbeat_sequence = payload.get("heartbeat_sequence")
+                    heartbeat_id = payload.get("heartbeat_id")
+                    wall_time = self._resource_grant_expiry(payload.get("wall_time"))
+                    monotonic_time = payload.get("monotonic_time")
+                    work_unit_progress = payload.get("work_unit_progress")
+                    issued_at = self._resource_grant_expiry(stored_grant.get("issued_at"))
+                    if (
+                        type(heartbeat_sequence) is not int
+                        or not isinstance(heartbeat_id, str)
+                        or wall_time is None
+                        or type(monotonic_time) is not int
+                        or type(work_unit_progress) is not int
+                        or issued_at is None
+                    ):
+                        return rejected("heartbeat_identity_invalid", "Heartbeat identity and time values are invalid.")
+                    if wall_time > now:
+                        return rejected("heartbeat_time_invalid", "Heartbeat wall time cannot be in the future.")
+                    if any(
+                        event["payload"].get("heartbeat_id") == heartbeat_id
+                        for event in snapshot_events
+                        if event.get("event_type") == "HeartbeatRecorded" and isinstance(event.get("payload"), dict)
+                    ):
+                        return rejected("heartbeat_id_conflict", "Heartbeat ID already exists in canonical history.")
+                    if last_heartbeat is None:
+                        if heartbeat_events or heartbeat_sequence != 1:
+                            return rejected(
+                                "heartbeat_sequence_mismatch", "First heartbeat sequence must be exactly one."
+                            )
+                        if wall_time < issued_at:
+                            return rejected("heartbeat_time_invalid", "First heartbeat precedes its Resource grant.")
+                        stale_boundary = issued_at
+                    else:
+                        if (
+                            not isinstance(last_heartbeat, dict)
+                            or not heartbeat_events
+                            or heartbeat_events[-1]["payload"] != last_heartbeat
+                        ):
+                            return rejected("heartbeat_identity_invalid", "Latest heartbeat is not canonical.")
+                        prior_sequence = last_heartbeat.get("heartbeat_sequence")
+                        prior_wall_time = self._resource_grant_expiry(last_heartbeat.get("wall_time"))
+                        prior_monotonic_time = last_heartbeat.get("monotonic_time")
+                        prior_work_unit_progress = last_heartbeat.get("work_unit_progress")
+                        if (
+                            type(prior_sequence) is not int
+                            or prior_wall_time is None
+                            or type(prior_monotonic_time) is not int
+                            or type(prior_work_unit_progress) is not int
+                            or heartbeat_sequence != prior_sequence + 1
+                            or wall_time <= prior_wall_time
+                            or monotonic_time <= prior_monotonic_time
+                            or work_unit_progress <= prior_work_unit_progress
+                        ):
+                            return rejected(
+                                "heartbeat_progression_mismatch",
+                                "Heartbeat sequence, time, and progress must strictly advance.",
+                            )
+                        stale_boundary = prior_wall_time
+                    if now > stale_boundary + timedelta(seconds=threshold) or wall_time > stale_boundary + timedelta(
+                        seconds=threshold
+                    ):
+                        return rejected("heartbeat_stale", "Heartbeat cannot revive a stale lease.")
             return payload
 
         if command_type == "ClaimAttempt":
-            attempt = streams.get(command.target_stream_id)
-            dispatch = streams.get(payload["dispatch_id"])
             lease = streams.get(payload["lease_id"])
+            if not isinstance(lease, dict) or lease.get("status") != "active":
+                return rejected(
+                    "claim_attempt_precondition_failed",
+                    "Attempt claim requires the current Task, Dispatch, and active Lease relation.",
+                )
+            context, _ = self._current_c1_lease_context(
+                streams=streams,
+                lease=lease,
+                require_running_attempt=False,
+                allowed_attempt_statuses=frozenset({"created"}),
+                require_attempt_lease=False,
+            )
+            if context is None:
+                return rejected(
+                    "claim_attempt_precondition_failed",
+                    "Attempt claim requires the current Task, Dispatch, and active Lease relation.",
+                )
+            task, dispatch, attempt, _ = context
+            grant = lease.get("grant")
             if (
-                not isinstance(attempt, dict)
-                or attempt.get("status") != "created"
-                or not isinstance(dispatch, dict)
-                or dispatch.get("status") != "claimed"
-                or not isinstance(lease, dict)
-                or lease.get("status") != "active"
-                or not self._c1_lease_is_current(lease)
-                or dispatch.get("lease_id") != payload["lease_id"]
-                or any(payload[field] != attempt.get(field) for field in ("task_id", "dispatch_id"))
-                or int(payload["task_revision"]) != int(attempt.get("task_revision", 0))
-                or lease.get("attempt_id") != command.target_stream_id
+                payload["attempt_id"] != attempt.get("attempt_id")
+                or payload["lease_id"] != lease.get("lease_id")
+                or payload["task_id"] != task.get("task_id")
+                or int(payload["task_revision"]) != int(task.get("current_revision", 0))
+                or payload["dispatch_id"] != dispatch.get("dispatch_id")
+                or command.actor_id != lease.get("holder_actor_id")
+                or not isinstance(grant, dict)
+                or grant.get("holder_actor_id") != lease.get("holder_actor_id")
             ):
                 return rejected(
                     "claim_attempt_precondition_failed",
-                    "Attempt claim requires matching claimed Dispatch and active Lease.",
+                    "Attempt claim requires the current Task, Dispatch, and active Lease relation.",
                 )
             return payload
 
         if command_type == "StartAttempt":
             attempt = streams.get(command.target_stream_id)
-            lease = streams.get(attempt.get("lease_id")) if isinstance(attempt, dict) else None
-            dispatch = streams.get(attempt.get("dispatch_id")) if isinstance(attempt, dict) else None
-            definition = dispatch.get("definition") if isinstance(dispatch, dict) else None
+            lease_id = attempt.get("lease_id") if isinstance(attempt, dict) else None
+            lease = streams.get(lease_id) if isinstance(lease_id, str) else None
+            if not isinstance(lease, dict) or lease.get("status") != "active":
+                return rejected(
+                    "start_attempt_precondition_failed",
+                    "Attempt start requires the current Task, Dispatch, and active Lease relation.",
+                )
+            context, _ = self._current_c1_lease_context(
+                streams=streams,
+                lease=lease,
+                require_running_attempt=False,
+                allowed_attempt_statuses=frozenset({"claimed"}),
+            )
+            if context is None:
+                return rejected(
+                    "start_attempt_precondition_failed",
+                    "Attempt start requires the current Task, Dispatch, and active Lease relation.",
+                )
+            _, dispatch, attempt, _ = context
+            definition = dispatch.get("definition")
+            grant = lease.get("grant")
             if (
-                not isinstance(attempt, dict)
-                or attempt.get("status") != "claimed"
-                or not isinstance(lease, dict)
-                or lease.get("status") != "active"
-                or not self._c1_lease_is_current(lease)
+                payload["attempt_id"] != attempt.get("attempt_id")
                 or not isinstance(definition, dict)
+                or command.actor_id != lease.get("holder_actor_id")
+                or not isinstance(grant, dict)
+                or grant.get("holder_actor_id") != lease.get("holder_actor_id")
+                or payload["session_identity"] != grant.get("holder_session")
                 or payload["context_packet_id"] != definition.get("context_packet_id")
                 or payload["root_bindings"] != definition.get("root_bindings")
             ):
                 return rejected(
                     "start_attempt_precondition_failed",
-                    "Attempt start requires matching active Lease, context, and roots.",
+                    "Attempt start requires the current Task, Dispatch, active Lease, context, and roots.",
                 )
             return payload
 
@@ -2670,26 +2896,69 @@ class CommandService:
             resource = streams.get(command.target_stream_id)
             if not isinstance(resource, dict) or resource.get("status") != "active":
                 return rejected("resource_request_missing", "Resource release requires ResourceGrantRequested history.")
+            stored_grant, grant_reason = self._stored_materialized_resource_grant(
+                resource_grant_id=command.target_stream_id,
+                resource=resource,
+            )
+            if stored_grant is None:
+                return rejected(
+                    grant_reason or "resource_grant_invalid",
+                    "Resource release requires one authoritative committed Resource grant.",
+                )
             lease = streams.get(payload["lease_id"])
-            if not isinstance(lease, dict) or lease.get("resource_grant_id") != command.target_stream_id:
+            if (
+                not isinstance(lease, dict)
+                or lease.get("lease_id") != payload["lease_id"]
+                or lease.get("resource_grant_id") != command.target_stream_id
+                or stored_grant.get("resource_grant_id") != command.target_stream_id
+                or stored_grant.get("task_id") != lease.get("task_id")
+                or stored_grant.get("dispatch_id") != lease.get("dispatch_id")
+                or stored_grant.get("attempt_id") != lease.get("attempt_id")
+            ):
                 return rejected("resource_lease_mismatch", "Resource release must bind its owning Lease.")
+            if lease.get("status") not in {"released", "expired", "revoked"}:
+                return rejected(
+                    "resource_release_lease_not_terminal",
+                    "Resource release requires the owning Lease to be terminal.",
+                )
+            if not self._meaningful_text_list(payload.get("consumption_reconciliation")):
+                return rejected(
+                    "resource_consumption_reconciliation_invalid",
+                    "Resource release requires non-empty meaningful consumption reconciliation.",
+                )
+            granted_claims = stored_grant.get("granted_claims")
+            cleanup_obligations = (
+                granted_claims.get("cleanup_obligations") if isinstance(granted_claims, dict) else None
+            )
+            if cleanup_obligations is not None and not self._meaningful_text_list(cleanup_obligations):
+                return rejected("resource_grant_invalid", "Resource grant cleanup obligations are invalid.")
+            if cleanup_obligations and not self._meaningful_text_list(payload.get("cleanup_evidence_refs")):
+                return rejected(
+                    "resource_cleanup_evidence_missing",
+                    "Resource release requires cleanup evidence for granted cleanup obligations.",
+                )
             return payload
         raise IntegrityError(f"unsupported C1 command type: {command_type}")
 
     def _prepare_resource_grant_materialization(self, command: Command) -> dict[str, Any]:
-        """Validate a deterministic grant and fail closed on a foreign revision before append."""
-        record = derive_resource_grant_record(command.envelope["payload"])
-        self.schemas.validate(
-            RESOURCE_GRANT_SCHEMA_ID,
-            record,
-            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
-        )
-        resource_grant_id = record["resource_grant_id"]
+        """Validate the exact authority preimage without writing before append."""
+        payload = command.envelope["payload"]
+        try:
+            resource_grant_id = payload["resource_id"]
+            request = payload["resource_request"]
+            expected_ref = derive_resource_grant_authority_preimage_ref(
+                project_id=self.ledger.project_id,
+                resource_grant_id=resource_grant_id,
+                resource_request=request,
+                trusted_authority=self._current_trusted_runtime_authority(),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError("resource grant authority preimage is invalid") from exc
+        if request.get("projection_evidence_refs") != [expected_ref]:
+            raise IntegrityError("resource grant authority preimage is invalid")
         if self.objects.revision_exists("resource_grant", resource_grant_id, 1):
-            existing = self._read_resource_grant_record(resource_grant_id)
-            if existing != record:
-                raise ConflictError("resource grant revision conflicts")
-        return record
+            raise ConflictError("resource grant revision conflicts")
+        return {"authority_preimage_ref": expected_ref}
 
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed request event."""
@@ -2703,12 +2972,15 @@ class CommandService:
         ]
         if len(events) != 1 or events[0].get("payload") != command.envelope["payload"]:
             raise IntegrityError("resource grant materialization requires one exact committed request")
-        record = derive_resource_grant_record(events[0]["payload"])
-        self.schemas.validate(
-            RESOURCE_GRANT_SCHEMA_ID,
-            record,
-            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
-        )
+        try:
+            record = derive_resource_grant_v1_1_record(
+                committed_event=events[0],
+                project_id=self.ledger.project_id,
+                trusted_authority=self._current_trusted_runtime_authority(),
+            )
+            self._validate_resource_grant_record(record)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError("resource grant materialization is invalid") from exc
         resource_grant_id = record["resource_grant_id"]
         if self.objects.revision_exists("resource_grant", resource_grant_id, 1):
             existing = self._read_resource_grant_record(resource_grant_id)
@@ -2723,14 +2995,224 @@ class CommandService:
 
     def _read_resource_grant_record(self, resource_grant_id: str) -> dict[str, Any]:
         record = self.objects.read("resource_grant", resource_grant_id, 1)
+        self._validate_resource_grant_record(record)
+        return record
+
+    def _validate_resource_grant_record(self, record: object) -> None:
         if not isinstance(record, dict):
             raise IntegrityError("resource grant revision must be an object")
         self.schemas.validate(
-            RESOURCE_GRANT_SCHEMA_ID,
+            RESOURCE_GRANT_V1_1_SCHEMA_ID,
             record,
-            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
+            schema_version=RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
+            expected_sha256=RESOURCE_GRANT_V1_1_SCHEMA_SHA256,
         )
-        return record
+        content_hash = record.get("content_hash")
+        immutable_content = {key: value for key, value in record.items() if key != "content_hash"}
+        if content_hash != sha256_hex(canonical_bytes(immutable_content)):
+            raise IntegrityError("resource grant content hash is invalid")
+
+    def _stored_materialized_resource_grant(
+        self,
+        *,
+        resource_grant_id: str,
+        resource: object,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Return one source/projection-bound persisted grant without runtime identity.
+
+        This validates the immutable grant record against its committed request
+        event and current resource projection.  It deliberately does not read
+        the live runtime-authority provider, so terminal cleanup remains
+        possible after that provider has drifted.
+        """
+        if not isinstance(resource, dict) or resource.get("status") != "active":
+            return None, "resource_request_missing"
+        if not self.objects.revision_exists("resource_grant", resource_grant_id, 1):
+            return None, "resource_grant_unmaterialized"
+        try:
+            stored_grant = self._read_resource_grant_record(resource_grant_id)
+            source_events = [
+                event
+                for event in self.ledger.snapshot().events
+                if event.get("event_id") == stored_grant["source_event_id"]
+                and event.get("event_hash") == stored_grant["source_event_hash"]
+                and event.get("command_id") == stored_grant["source_command_id"]
+                and event.get("command_payload_hash") == stored_grant["source_command_payload_hash"]
+                and event.get("stream_id") == resource_grant_id
+            ]
+            if len(source_events) != 1:
+                raise IntegrityError("resource grant source event is not exact")
+            source_event = source_events[0]
+            source_payload = source_event.get("payload")
+            if source_event.get("event_type") != "ResourceGrantRequested" or not isinstance(source_payload, dict):
+                raise IntegrityError("resource grant source event is invalid")
+            source_request = source_payload.get("resource_request")
+            if not isinstance(source_request, dict):
+                raise IntegrityError("resource grant source request is invalid")
+            canonical_request = json.loads(canonical_bytes(source_request).decode("utf-8"))
+            if not isinstance(canonical_request, dict):
+                raise IntegrityError("resource grant source request is invalid")
+            source_request_sha256 = sha256_hex(canonical_bytes(canonical_request))
+            projected_request = resource.get("request")
+            if not isinstance(projected_request, dict):
+                raise IntegrityError("resource grant projection request is invalid")
+            projected_request_sha256 = sha256_hex(canonical_bytes(projected_request))
+            expected_grant_ref = {
+                "kind": "resource_grant",
+                "id": resource_grant_id,
+                "revision": 1,
+                "schema_version": RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
+            }
+            source_preimage_refs = canonical_request.get("projection_evidence_refs")
+            source_matches = (
+                source_payload.get("resource_id") == resource_grant_id
+                and stored_grant.get("resource_grant_id") == resource_grant_id
+                and stored_grant.get("resource_request_id") == canonical_request.get("resource_request_id")
+                and stored_grant.get("task_id") == canonical_request.get("task_id")
+                and stored_grant.get("dispatch_id") == canonical_request.get("dispatch_id")
+                and stored_grant.get("attempt_id") == canonical_request.get("attempt_id")
+                and stored_grant.get("requesting_actor_id") == canonical_request.get("requesting_actor_id")
+                and stored_grant.get("requesting_authority_grant_id")
+                == canonical_request.get("requesting_authority_grant_id")
+                and stored_grant.get("expected_control_store_position")
+                == canonical_request.get("expected_control_store_position")
+                and stored_grant.get("resource_request_sha256") == source_request_sha256
+                and stored_grant.get("granted_claims") == canonical_request
+                and stored_grant.get("granted_claims_sha256") == source_request_sha256
+                and isinstance(source_preimage_refs, list)
+                and len(source_preimage_refs) == 1
+                and stored_grant.get("authority_preimage_ref") == source_preimage_refs[0]
+            )
+            projected_matches = (
+                resource.get("resource_id") == resource_grant_id
+                and resource.get("request_sha256") == projected_request_sha256
+                and resource.get("request_sha256") == stored_grant.get("resource_request_sha256")
+                and resource.get("authority_preimage_ref") == stored_grant.get("authority_preimage_ref")
+                and resource.get("grant_ref") == expected_grant_ref
+            )
+        except (IntegrityError, KeyError, SchemaError, TypeError, ValueError):
+            return None, "resource_grant_invalid"
+        if not source_matches or not projected_matches:
+            return None, "resource_grant_mismatch"
+        return stored_grant, None
+
+    def _current_materialized_resource_grant(
+        self,
+        *,
+        resource_grant_id: str,
+        resource: object,
+        trusted_authority: TrustedRuntimeAuthority,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Return one current v1.1 grant or its stable admission denial code."""
+        stored_grant, stored_reason = self._stored_materialized_resource_grant(
+            resource_grant_id=resource_grant_id,
+            resource=resource,
+        )
+        if stored_grant is None:
+            return None, stored_reason
+        try:
+            source_events = [
+                event
+                for event in self.ledger.snapshot().events
+                if event.get("event_id") == stored_grant["source_event_id"]
+                and event.get("event_hash") == stored_grant["source_event_hash"]
+                and event.get("command_id") == stored_grant["source_command_id"]
+                and event.get("command_payload_hash") == stored_grant["source_command_payload_hash"]
+                and event.get("stream_id") == resource_grant_id
+            ]
+            if len(source_events) != 1:
+                raise IntegrityError("resource grant source event is not exact")
+            expected_grant = derive_resource_grant_v1_1_record(
+                committed_event=source_events[0],
+                project_id=self.ledger.project_id,
+                trusted_authority=trusted_authority,
+            )
+            self._validate_resource_grant_record(expected_grant)
+        except (IntegrityError, KeyError, SchemaError, TypeError, ValueError):
+            return None, "resource_grant_invalid"
+        if stored_grant != expected_grant:
+            return None, "resource_grant_mismatch"
+        return stored_grant, None
+
+    def _current_c1_lease_context(
+        self,
+        *,
+        streams: dict[str, dict[str, Any]],
+        lease: dict[str, Any],
+        require_running_attempt: bool,
+        allowed_attempt_statuses: frozenset[str] | None = None,
+        require_attempt_lease: bool = True,
+    ) -> tuple[tuple[dict[str, Any], dict[str, Any], dict[str, Any], datetime] | None, str | None]:
+        """Return the active Task/Dispatch/Attempt/Lease relation at trusted now."""
+        now = self._c1_trusted_now()
+        lease_expiry = self._resource_grant_expiry(lease.get("expires_at"))
+        if now is None or lease_expiry is None:
+            return None, "lease_time_invalid"
+        if now >= lease_expiry:
+            return None, "lease_expired"
+        task_id = lease.get("task_id")
+        dispatch_id = lease.get("dispatch_id")
+        attempt_id = lease.get("attempt_id")
+        if not all(isinstance(value, str) for value in (task_id, dispatch_id, attempt_id)):
+            return None, "lease_relation_mismatch"
+        task = streams.get(task_id)
+        dispatch = streams.get(dispatch_id)
+        attempt = streams.get(attempt_id)
+        task_revision = lease.get("task_revision")
+        attempt_statuses = (
+            allowed_attempt_statuses
+            if allowed_attempt_statuses is not None
+            else ({"running"} if require_running_attempt else {"claimed", "running"})
+        )
+        if (
+            not isinstance(task, dict)
+            or task.get("task_id") != task_id
+            or task.get("status") != "in_progress"
+            or task.get("current_revision") != task_revision
+            or not isinstance(dispatch, dict)
+            or dispatch.get("dispatch_id") != dispatch_id
+            or dispatch.get("status") != "claimed"
+            or dispatch.get("task_id") != task_id
+            or dispatch.get("task_revision") != task_revision
+            or dispatch.get("lease_id") != lease.get("lease_id")
+            or not isinstance(attempt, dict)
+            or attempt.get("attempt_id") != attempt_id
+            or attempt.get("status") not in attempt_statuses
+            or attempt.get("task_id") != task_id
+            or attempt.get("task_revision") != task_revision
+            or attempt.get("dispatch_id") != dispatch_id
+            or (require_attempt_lease and attempt.get("lease_id") != lease.get("lease_id"))
+            or (not require_attempt_lease and attempt.get("lease_id") is not None)
+        ):
+            return None, "lease_relation_mismatch"
+        return (task, dispatch, attempt, now), None
+
+    @staticmethod
+    def _heartbeat_events_for_lease(events: Iterable[dict[str, Any]], lease_id: str) -> list[dict[str, Any]]:
+        return [
+            event
+            for event in events
+            if event.get("event_type") == "HeartbeatRecorded"
+            and event.get("stream_id") == lease_id
+            and isinstance(event.get("payload"), dict)
+            and event["payload"].get("lease_id") == lease_id
+        ]
+
+    @staticmethod
+    def _grant_heartbeat_stale_threshold(grant: dict[str, Any]) -> int | None:
+        heartbeat_policy = grant.get("heartbeat_policy")
+        threshold = heartbeat_policy.get("stale_threshold_seconds") if isinstance(heartbeat_policy, dict) else None
+        if type(threshold) is not int or threshold < 0:
+            return None
+        return threshold
+
+    @staticmethod
+    def _meaningful_text_list(value: object) -> bool:
+        return (
+            isinstance(value, list)
+            and bool(value)
+            and all(isinstance(item, str) and bool(item.strip()) for item in value)
+        )
 
     @staticmethod
     def _resource_grant_expiry(value: object) -> datetime | None:
@@ -2924,10 +3406,16 @@ class CommandService:
                     or type(evidence.canonical_grant_identity) is not ScopedAuthorityGrantResolution
                 ):
                     raise IntegrityError("lifecycle authority bundle evidence is invalid")
-                expected_actor_class = "human" if command.actor_id == context.owner_actor_id else "unproven"
+                if (
+                    command.envelope["command_type"] == "ReleaseExecutionLease"
+                    and command.actor_id != context.owner_actor_id
+                ):
+                    expected_actor_class = evidence.actor_class
+                else:
+                    expected_actor_class = "human" if command.actor_id == context.owner_actor_id else "unproven"
                 if evidence.actor_class != expected_actor_class:
                     raise IntegrityError("lifecycle authority actor class disagrees with owner context")
-                if evidence.actor_class != "human":
+                if evidence.actor_class == "unproven":
                     raise ArsError("authority actor class is not proven by the bootstrap owner")
                 resolution = self._authority_resolution_record(evidence.command_resolution)
                 canonical_resolution = self._authority_resolution_record(evidence.canonical_grant_identity)
@@ -2985,7 +3473,7 @@ class CommandService:
         command: Command,
         receipt: Receipt,
     ) -> None:
-        if command.envelope["command_type"] not in _MESSAGE_COMMAND_TYPES:
+        if command.envelope["command_type"] not in {*_MESSAGE_COMMAND_TYPES, "ClaimDispatch"}:
             return
         if command.command_id == receipt.command_id:
             return
@@ -3995,7 +4483,7 @@ class CommandService:
         if scoped is not None:
             first = scoped[0]
             if (
-                command.envelope["command_type"] in _MESSAGE_COMMAND_TYPES
+                command.envelope["command_type"] in {*_MESSAGE_COMMAND_TYPES, "ClaimDispatch"}
                 and first.get("command_id") != command.command_id
             ):
                 raise ConflictError("idempotency key conflicts with committed command")
@@ -4029,7 +4517,7 @@ class CommandService:
             if stored != receipt:
                 raise IntegrityError("stored receipt does not match committed batch")
             return stored
-        return self.receipts.write(receipt)
+        return receipt
 
     def _build_events(
         self,
@@ -4179,6 +4667,12 @@ class CommandService:
         event_schema_version = event_binding.schema_version if event_binding is not None else "1.0.0"
         if event_type == "ReleaseGateDecisionPublished" and event_binding is None:
             event_schema_id = "ars://core/event/ReleaseGateDecisionPublished"
+        occurred_at: str | None = None
+        if command_type == "RequestResourceGrant":
+            trusted_now = self._c1_trusted_now()
+            if trusted_now is None:
+                raise IntegrityError("resource grant requires a valid trusted service clock")
+            occurred_at = trusted_now.isoformat().replace("+00:00", "Z")
         envelope = {
             "event_type": event_type,
             "stream_id": command.target_stream_id,
@@ -4195,7 +4689,7 @@ class CommandService:
             "causation_id": command.envelope["causation_id"],
             "schema_id": event_schema_id,
             "schema_version": event_schema_version,
-            "occurred_at": None,
+            "occurred_at": occurred_at,
         }
         return envelope if payload is None else {**envelope, "payload": payload}
 

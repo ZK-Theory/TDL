@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -12,8 +14,6 @@ from research_system.command.lifecycle import (
     materialize_scope_member_changes,
     validate_exact_lifecycle_envelope,
 )
-from research_system.operations.resources import derive_resource_grant_record
-
 
 _TASK_TERMINAL = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
 
@@ -588,12 +588,22 @@ def reduce_resource(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
     if event_type == "ResourceGrantRequested":
         if state or payload["resource_id"] != event["stream_id"]:
             raise ValueError("ResourceGrantRequested requires an empty bound Resource stream")
-        grant = derive_resource_grant_record(payload)
+        request = json.loads(canonical_bytes(payload["resource_request"]).decode("utf-8"))
+        authority_refs = request.get("projection_evidence_refs")
+        if not isinstance(authority_refs, list) or len(authority_refs) != 1 or not isinstance(authority_refs[0], str):
+            raise ValueError("ResourceGrantRequested requires one authority preimage reference")
         return {
             "resource_id": event["stream_id"],
             "status": "active",
-            "request": grant["granted_claims"],
-            "grant": grant,
+            "request": request,
+            "request_sha256": sha256_hex(canonical_bytes(request)),
+            "authority_preimage_ref": authority_refs[0],
+            "grant_ref": {
+                "kind": "resource_grant",
+                "id": event["stream_id"],
+                "revision": 1,
+                "schema_version": "1.1.0",
+            },
             "version": event["stream_version"],
         }
     if event_type == "ResourcesReleased":
