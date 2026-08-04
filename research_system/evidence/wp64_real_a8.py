@@ -17,6 +17,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -1153,22 +1154,31 @@ def _fresh_process_binding_load(
     code = (
         "import json, sys\n"
         "from pathlib import Path\n"
+        "sys.path.insert(0, str(Path(sys.argv[2]).resolve(strict=True)))\n"
         "from research_system.config import ControlBinding\n"
         "binding = ControlBinding.load(Path(sys.argv[1]))\n"
         "print(json.dumps({'control_root': str(binding.control_root), 'project_id': binding.project_id, "
         "'store_identity': binding.store_identity}, sort_keys=True, separators=(',', ':')))\n"
     )
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(code_root), existing)))
     try:
-        result = subprocess.run(
-            [sys.executable, "-c", code, str(Path(binding_path).resolve(strict=True))],
-            cwd=str(code_root.resolve(strict=True)),
-            env=env,
-            capture_output=True,
-            check=False,
-        )
+        resolved_code_root = code_root.resolve(strict=True)
+        with tempfile.TemporaryDirectory(prefix="wp64-a8-pycache-") as pycache_root:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-X",
+                    f"pycache_prefix={pycache_root}",
+                    "-c",
+                    code,
+                    str(Path(binding_path).resolve(strict=True)),
+                    str(resolved_code_root),
+                ],
+                cwd=str(resolved_code_root),
+                capture_output=True,
+                check=False,
+            )
     except OSError as exc:
         raise EvidenceHarnessError("fresh-process ControlBinding probe could not start") from exc
     if result.returncode != 0:

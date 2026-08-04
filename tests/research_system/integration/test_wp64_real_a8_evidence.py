@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib.util
 import json
 import os
+import py_compile
 import shutil
 import subprocess
 from dataclasses import asdict, replace
@@ -546,6 +548,34 @@ def test_red_capture_rejects_fresh_process_code_not_bound_to_git(
     with pytest.raises(EvidenceHarnessError, match="execution.*(?:Git|HEAD|bytes)|(?:Git|HEAD).*execution"):
         capture_real_a8_candidate(request=request)
     assert not request.output_root.exists()
+
+
+def test_red_fresh_process_ignores_unchecked_hash_config_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    request, foundation_path, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    foundation = json_load(foundation_path)
+    execution_root = Path(str(foundation["code_roots"][0]))
+    executed_config = execution_root / "research_system" / "config.py"
+    tracked_config = REPO_ROOT / "research_system" / "config.py"
+    marker = tmp_path / "unchecked-hash-config-cache-consumed.txt"
+    cached_source = tmp_path / "cached-config.py"
+    cached_source.write_bytes(
+        executed_config.read_bytes()
+        + (f"\n__import__('pathlib').Path({str(marker)!r}).write_text('consumed', encoding='utf-8')\n").encode("utf-8")
+    )
+    cache_path = Path(importlib.util.cache_from_source(str(executed_config)))
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    py_compile.compile(
+        str(cached_source),
+        cfile=str(cache_path),
+        doraise=True,
+        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+    )
+
+    assert executed_config.read_bytes() == tracked_config.read_bytes()
+    capture = capture_real_a8_candidate(request=request)
+    assert executed_config.read_bytes() == tracked_config.read_bytes()
+    assert not marker.exists()
+    assert capture.candidate["restart"]["binding_load"] == "successful"
 
 
 def test_red_validator_rejects_registry_digest_join_with_recomputed_candidate_id(
