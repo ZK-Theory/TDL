@@ -28,6 +28,10 @@ from tests.research_system.factories import (
 
 COMMAND_ID = "cmd_01978abc-4001-7000-8000-000000004001"
 TASK_ID = "tsk_01978abc-4002-7000-8000-000000004002"
+DISPATCH_ID = "dsp_01978abc-4004-7000-8000-000000004004"
+LEASE_ID = "els_01978abc-4005-7000-8000-000000004005"
+ATTEMPT_ID = "att_01978abc-4006-7000-8000-000000004006"
+RESOURCE_GRANT_ID = "rgr_01978abc-4007-7000-8000-000000004007"
 
 
 def _events(tmp_path):
@@ -41,6 +45,133 @@ def _rehash(event):
     changed.pop("event_hash", None)
     changed["event_hash"] = sha256_hex(canonical_bytes(changed))
     return changed
+
+
+def _generic_lease_granted_event(template, harness):
+    event = deepcopy(template)
+    binding = harness.schemas.command_binding("ClaimExecutionLease")
+    assert binding is not None
+    identity = harness.schemas.resolve_identity(binding.schema_id, binding.schema_version)
+    payload = {
+        "new_lease_id": LEASE_ID,
+        "task_id": TASK_ID,
+        "task_revision": 1,
+        "dispatch_id": DISPATCH_ID,
+        "attempt_id": ATTEMPT_ID,
+        "resource_grant_id": RESOURCE_GRANT_ID,
+        "holder_actor_id": "actor-a",
+        "expires_at": "2026-08-01T13:00:00Z",
+        "renewal_policy_ref": "policy:lease:v1",
+    }
+    event.update(
+        {
+            "event_type": "LeaseGranted",
+            "stream_id": LEASE_ID,
+            "stream_version": 1,
+            "schema_id": "ars://core/event",
+            "schema_version": "1.0.0",
+            "command_type": "ClaimExecutionLease",
+            "command_schema_id": identity.schema_id,
+            "command_schema_version": identity.schema_version,
+            "command_schema_sha256": identity.sha256,
+            "command_payload_hash": sha256_hex(canonical_bytes(payload)),
+            "payload": payload,
+            "global_position": 1,
+            "previous_event_hash": "0" * 64,
+            "transaction_count": 1,
+            "transaction_index": 1,
+        }
+    )
+    return _rehash(event)
+
+
+def _generic_claim_dispatch_events(template, *, malformed_field):
+    events = []
+    previous_event_hash = "0" * 64
+
+    def append(event_type, stream_id, stream_version, payload, **overrides):
+        nonlocal previous_event_hash
+        event = _rehash(
+            {
+                **template,
+                "event_type": event_type,
+                "stream_id": stream_id,
+                "stream_version": stream_version,
+                "schema_id": "ars://core/event",
+                "payload": payload,
+                "global_position": len(events) + 1,
+                "previous_event_hash": previous_event_hash,
+                "transaction_id": f"generic-{len(events) + 1}",
+                "transaction_count": 1,
+                "transaction_index": 1,
+                **overrides,
+            }
+        )
+        events.append(event)
+        previous_event_hash = event["event_hash"]
+
+    append(
+        "DispatchIssued",
+        DISPATCH_ID,
+        1,
+        {
+            "dispatch_id": DISPATCH_ID,
+            "definition": {"dispatch_id": DISPATCH_ID, "task_id": TASK_ID, "task_revision": 1},
+        },
+    )
+    append(
+        "DispatchDelivered",
+        DISPATCH_ID,
+        2,
+        {
+            "dispatch_id": DISPATCH_ID,
+            "recipient_actor_id": "actor-a",
+            "delivery_evidence_refs": ["evidence:generic-delivery"],
+        },
+    )
+    append(
+        "DispatchAcknowledged",
+        DISPATCH_ID,
+        3,
+        {"dispatch_id": DISPATCH_ID, "recipient_actor_id": "actor-a"},
+    )
+    dispatch_payload = {
+        "dispatch_id": DISPATCH_ID,
+        "task_id": TASK_ID,
+        "task_revision": 1,
+        "lease_id": LEASE_ID,
+        "expected_dispatch_stream_version": 3,
+        "expected_task_stream_version": 0,
+        "declared_write_set": ["dispatch", "task"],
+        "expected_global_position": 3,
+        "expected_tail_hash": previous_event_hash,
+    }
+    dispatch_payload[malformed_field] = "not-an-integer"
+    transaction_id = "txb_01978abc-4007-7000-8000-000000004007"
+    command_payload_hash = sha256_hex(canonical_bytes(dispatch_payload))
+    append(
+        "DispatchClaimed",
+        DISPATCH_ID,
+        4,
+        dispatch_payload,
+        command_type="ClaimDispatch",
+        transaction_id=transaction_id,
+        transaction_count=2,
+        transaction_index=1,
+        command_payload_hash=command_payload_hash,
+    )
+    append(
+        "TaskClaimStarted",
+        TASK_ID,
+        1,
+        {"task_id": TASK_ID, "task_revision": 1},
+        command_type="ClaimDispatch",
+        transaction_id=transaction_id,
+        transaction_count=2,
+        transaction_index=2,
+        command_payload_hash=command_payload_hash,
+    )
+    return events
 
 
 def test_emitted_event_matches_frozen_schema(tmp_path):
@@ -143,6 +274,51 @@ def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
     )
 
     assert projection["streams"][TASK_ID]["status"] == "draft"
+
+
+def test_replay_keeps_valid_generic_lease_granted_history_readable(tmp_path):
+    events, harness = _events(tmp_path)
+
+    projection = replay([_generic_lease_granted_event(events[0], harness)], schema_registry=harness.service.schemas)
+
+    assert projection["streams"][LEASE_ID]["status"] == "active"
+
+
+def test_replay_maps_malformed_generic_lease_granted_shapes_to_integrity_error(tmp_path):
+    events, harness = _events(tmp_path)
+    valid = _generic_lease_granted_event(events[0], harness)
+    malformed_payloads = []
+
+    missing = deepcopy(valid)
+    missing["payload"].pop("new_lease_id")
+    malformed_payloads.append(_rehash(missing))
+
+    wrong_type = deepcopy(valid)
+    wrong_type["payload"]["task_revision"] = None
+    malformed_payloads.append(_rehash(wrong_type))
+
+    wrong_value = deepcopy(valid)
+    wrong_value["payload"]["task_revision"] = "not-an-integer"
+    malformed_payloads.append(_rehash(wrong_value))
+
+    for malformed in malformed_payloads:
+        with pytest.raises(IntegrityError):
+            replay([malformed], schema_registry=harness.service.schemas)
+
+
+@pytest.mark.parametrize(
+    "malformed_field",
+    (
+        "expected_dispatch_stream_version",
+        "expected_task_stream_version",
+        "expected_global_position",
+    ),
+)
+def test_replay_rejects_non_integer_generic_claim_dispatch_expected_positions(tmp_path, malformed_field):
+    events, harness = _events(tmp_path)
+
+    with pytest.raises(IntegrityError, match="ClaimDispatch expected positions must be integers"):
+        replay(_generic_claim_dispatch_events(events[0], malformed_field=malformed_field))
 
 
 def test_replay_rejects_absent_command_provenance_after_default_cutover(tmp_path):

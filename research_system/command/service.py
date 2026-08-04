@@ -2530,12 +2530,17 @@ class CommandService:
                 or command.actor_id != lease.get("holder_actor_id")
             ):
                 return rejected("lease_holder_mismatch", "Lease transition requires the current holder.")
-            if command_type == "RenewExecutionLease" and (
-                payload["prior_expiry"] != lease.get("expires_at")
-                or payload["renewal_policy_ref"] != lease.get("renewal_policy_ref")
-                or payload["new_expiry"] <= payload["prior_expiry"]
-            ):
-                return rejected("lease_renewal_mismatch", "Lease renewal must bind its current expiry and policy.")
+            if command_type == "RenewExecutionLease":
+                prior_expiry = self._resource_grant_expiry(payload["prior_expiry"])
+                new_expiry = self._resource_grant_expiry(payload["new_expiry"])
+                if (
+                    payload["prior_expiry"] != lease.get("expires_at")
+                    or payload["renewal_policy_ref"] != lease.get("renewal_policy_ref")
+                    or prior_expiry is None
+                    or new_expiry is None
+                    or new_expiry <= prior_expiry
+                ):
+                    return rejected("lease_renewal_mismatch", "Lease renewal must bind its current expiry and policy.")
             if command_type == "RecordHeartbeat":
                 attempt = streams.get(lease.get("attempt_id"))
                 started = attempt.get("start") if isinstance(attempt, dict) else None

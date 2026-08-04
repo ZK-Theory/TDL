@@ -166,6 +166,9 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
     "MessageDeliveryFailed": "ars://core/event/MessageDeliveryFailed",
 }
 
+# These payloads are derived from their command payloads rather than copied verbatim.
+_DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset({"TaskClaimStarted", "LeaseExpired", "AttemptCreated"})
+
 
 def validate_exact_lifecycle_envelope(
     event: Mapping[str, Any],
@@ -202,7 +205,7 @@ def validate_exact_lifecycle_envelope(
         or event.get("command_schema_id") != command_schema_id
         or event.get("command_schema_version") != "1.0.0"
         or (
-            event_type not in {"TaskClaimStarted", "LeaseExpired", "AttemptCreated"}
+            event_type not in _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES
             and event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
         )
     ):

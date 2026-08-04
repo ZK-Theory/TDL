@@ -338,19 +338,6 @@ def test_malformed_active_c1_command_does_not_consume_reused_command_id(tmp_path
     assert harness.receipts.load(CMD_CREATE) == original
 
 
-def test_malformed_competing_claims_create_no_active_attempt(tmp_path):
-    harness = control_plane(tmp_path)
-    first = claim_dispatch_command(CMD_CLAIM_A, "actor-a", DISPATCH_ID, expected_version=0)
-    second = claim_dispatch_command(CMD_CLAIM_B, "actor-b", DISPATCH_ID, expected_version=0)
-    with pytest.raises(SchemaError, match="ClaimDispatch"):
-        harness.service.submit(first)
-    with pytest.raises(SchemaError, match="ClaimDispatch"):
-        harness.service.submit(second)
-    state = harness.replay()
-    assert len(state.active_attempt_ids) == 0
-    assert state.stream_states == {}
-
-
 def test_conflict_receipt_is_persisted_and_reused_after_stream_changes(tmp_path):
     harness = control_plane(tmp_path)
     blocked = create_task_command(CMD_CLAIM_A, "blocked", TASK_ID, {"title": "Blocked"})

@@ -378,6 +378,12 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         event_type="TaskClaimStarted",
         producer_command_type="ClaimDispatch",
     )
+    assert registry.event_binding("DispatchClaimed", "WrongProducer") is None
+    assert registry.event_binding("DispatchClaimed", None) is None
+    assert registry.has_producer_bindings("DispatchClaimed")
+    assert registry.event_binding("TaskClaimStarted", "WrongProducer") is None
+    assert registry.event_binding("TaskClaimStarted", None) is None
+    assert registry.has_producer_bindings("TaskClaimStarted")
     assert registry.event_binding(
         "AuthorityGrantActivated",
         "ActivateAuthorityGrant",

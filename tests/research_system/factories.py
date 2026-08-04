@@ -44,6 +44,44 @@ ACTORS = {
 ROOT_AUTHORITY_GRANT_ID = "agr_01978abc-1004-7000-8000-000000001004"
 RELEASE_DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 
+_LIFECYCLE_COMMAND_TYPES_BY_SUBJECT = {
+    "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
+    "task": (
+        "CreateTask",
+        "AmendTask",
+        "SupersedeTask",
+        "RequestReadiness",
+        "ApproveReadiness",
+    ),
+    "dispatch": (
+        "IssueDispatch",
+        "RecordDispatchDelivery",
+        "AcknowledgeDispatch",
+        "ExpireDispatch",
+        "WithdrawDispatch",
+        "ClaimDispatch",
+    ),
+    "lease": (
+        "ClaimExecutionLease",
+        "RenewExecutionLease",
+        "ReleaseExecutionLease",
+        "ExpireLease",
+        "RevokeLease",
+        "RecordHeartbeat",
+    ),
+    "attempt": ("CreateAttempt", "ClaimAttempt", "StartAttempt"),
+    "resource": ("RequestResourceGrant", "ReleaseResources"),
+    "message": (
+        "PublishMessage",
+        "RecordMessageDelivery",
+        "AcknowledgeMessage",
+        "RecordMessageDeliveryFailure",
+    ),
+}
+_LIFECYCLE_COMMAND_TYPES = frozenset(
+    command_type for command_types in _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.values() for command_type in command_types
+)
+
 
 def authority_bootstrap(
     publication_target_id: str = RELEASE_DECISION_ID,
@@ -207,41 +245,7 @@ def activate_lifecycle_grant(
         existing = None
     if existing is not None:
         return grant_id
-    command_types_by_subject = {
-        "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
-        "task": (
-            "CreateTask",
-            "AmendTask",
-            "SupersedeTask",
-            "RequestReadiness",
-            "ApproveReadiness",
-        ),
-        "dispatch": (
-            "IssueDispatch",
-            "RecordDispatchDelivery",
-            "AcknowledgeDispatch",
-            "ExpireDispatch",
-            "WithdrawDispatch",
-            "ClaimDispatch",
-        ),
-        "lease": (
-            "ClaimExecutionLease",
-            "RenewExecutionLease",
-            "ReleaseExecutionLease",
-            "ExpireLease",
-            "RevokeLease",
-            "RecordHeartbeat",
-        ),
-        "attempt": ("CreateAttempt", "ClaimAttempt", "StartAttempt"),
-        "resource": ("RequestResourceGrant", "ReleaseResources"),
-        "message": (
-            "PublishMessage",
-            "RecordMessageDelivery",
-            "AcknowledgeMessage",
-            "RecordMessageDeliveryFailure",
-        ),
-    }
-    resolved_command_types = command_types or command_types_by_subject.get(subject_kind)
+    resolved_command_types = command_types or _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.get(subject_kind)
     if resolved_command_types is None:
         raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
     command_identities = []
@@ -446,41 +450,7 @@ class GovernedTestCommandService(CommandService):
         super().__init__(*args, **kwargs)
 
     def _before_submission_lock(self, command: Command) -> None:
-        if (
-            command.envelope.get("command_type")
-            in {
-                "CreateScopeDefinition",
-                "AmendScopeDefinition",
-                "SupersedeScopeDefinition",
-                "CreateTask",
-                "AmendTask",
-                "SupersedeTask",
-                "PublishMessage",
-                "RecordMessageDelivery",
-                "AcknowledgeMessage",
-                "RecordMessageDeliveryFailure",
-                "RequestReadiness",
-                "ApproveReadiness",
-                "IssueDispatch",
-                "RecordDispatchDelivery",
-                "AcknowledgeDispatch",
-                "ExpireDispatch",
-                "WithdrawDispatch",
-                "ClaimDispatch",
-                "ClaimExecutionLease",
-                "RenewExecutionLease",
-                "ReleaseExecutionLease",
-                "ExpireLease",
-                "RevokeLease",
-                "CreateAttempt",
-                "ClaimAttempt",
-                "StartAttempt",
-                "RequestResourceGrant",
-                "RecordHeartbeat",
-                "ReleaseResources",
-            }
-            and command.actor_id == ACTORS["actor-a"]
-        ):
+        if command.envelope.get("command_type") in _LIFECYCLE_COMMAND_TYPES and command.actor_id == ACTORS["actor-a"]:
             _, subject_kind, subject_id, _ = self._lifecycle_authority_inputs(
                 command,
                 self.ledger.snapshot(),

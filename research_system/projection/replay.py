@@ -218,6 +218,18 @@ def _validate_claim_dispatch_transaction(events: tuple[dict[str, Any], ...]) -> 
     task_payload = task_event.get("payload")
     if not isinstance(dispatch_payload, dict) or not isinstance(task_payload, dict):
         raise IntegrityError("ClaimDispatch payloads must be mappings")
+    expected_dispatch_stream_version = dispatch_payload.get("expected_dispatch_stream_version")
+    expected_task_stream_version = dispatch_payload.get("expected_task_stream_version")
+    expected_global_position = dispatch_payload.get("expected_global_position")
+    if any(
+        type(value) is not int
+        for value in (
+            expected_dispatch_stream_version,
+            expected_task_stream_version,
+            expected_global_position,
+        )
+    ):
+        raise IntegrityError("ClaimDispatch expected positions must be integers")
     if (
         dispatch_event.get("command_type") != "ClaimDispatch"
         or task_event.get("command_type") != "ClaimDispatch"
@@ -229,9 +241,9 @@ def _validate_claim_dispatch_transaction(events: tuple[dict[str, Any], ...]) -> 
             "task_revision": dispatch_payload.get("task_revision"),
         }
         or dispatch_payload.get("declared_write_set") != ["dispatch", "task"]
-        or dispatch_event.get("stream_version") != dispatch_payload.get("expected_dispatch_stream_version", -1) + 1
-        or task_event.get("stream_version") != dispatch_payload.get("expected_task_stream_version", -1) + 1
-        or dispatch_event.get("global_position") != dispatch_payload.get("expected_global_position", -1) + 1
+        or dispatch_event.get("stream_version") != expected_dispatch_stream_version + 1
+        or task_event.get("stream_version") != expected_task_stream_version + 1
+        or dispatch_event.get("global_position") != expected_global_position + 1
         or dispatch_event.get("previous_event_hash") != dispatch_payload.get("expected_tail_hash")
     ):
         raise IntegrityError("ClaimDispatch stream, version, or tail binding mismatch")
@@ -585,7 +597,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     }:
         try:
             streams[stream_id] = reduce_dispatch(streams.get(stream_id, {}), event)
-        except ValueError as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type in {
         "LeaseGranted",
@@ -597,17 +609,17 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     }:
         try:
             streams[stream_id] = reduce_lease(streams.get(stream_id, {}), event)
-        except ValueError as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type in {"AttemptCreated", "AttemptClaimed", "AttemptStarted"}:
         try:
             streams[stream_id] = reduce_attempt(streams.get(stream_id, {}), event)
-        except ValueError as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type in {"ResourceGrantRequested", "ResourcesReleased"}:
         try:
             streams[stream_id] = reduce_resource(streams.get(stream_id, {}), event)
-        except ValueError as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type == "ScopeCompleted":
         _validate_scope_completion(event["payload"])

@@ -1033,6 +1033,61 @@ def test_public_admission_chain_reaches_claimed_task_and_running_attempt(tmp_pat
     assert projection["streams"][ATTEMPT_ID]["status"] == "running"
 
 
+def test_same_snapshot_claim_dispatch_conflicts_once_without_creating_an_attempt(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    _assert_event(
+        harness,
+        _issue_dispatch_command(number=10),
+        event_type="DispatchIssued",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _record_dispatch_delivery_command(number=11),
+        event_type="DispatchDelivered",
+        resulting_stream_version=2,
+    )
+    _assert_event(
+        harness,
+        _acknowledge_dispatch_command(number=12),
+        event_type="DispatchAcknowledged",
+        resulting_stream_version=3,
+    )
+    _assert_event(
+        harness,
+        _request_resource_command(number=13),
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=14),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    first = _claim_dispatch_command(harness, number=15)
+    second = _claim_dispatch_command(harness, number=16)
+
+    assert first["command_id"] != second["command_id"]
+    assert first["actor_id"] == second["actor_id"] == ACTORS["actor-a"]
+    assert first["payload"] == second["payload"]
+    assert harness.service.submit(first).status == "accepted"
+    assert harness.service.submit(second).status == "conflict"
+
+    claim_batches = [
+        [event["event_type"] for event in batch]
+        for batch in harness.ledger.iter_batches()
+        if any(event["event_type"] in {"DispatchClaimed", "TaskClaimStarted"} for event in batch)
+    ]
+    assert claim_batches == [["DispatchClaimed", "TaskClaimStarted"]]
+    projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
+    assert projection["streams"][DISPATCH_ID]["status"] == "claimed"
+    assert projection["streams"][TASK_ID]["status"] == "in_progress"
+    assert ATTEMPT_ID not in projection["streams"]
+    assert not any(event["event_type"].startswith("Attempt") for event in harness.ledger.iter_events())
+
+
 @pytest.mark.parametrize(
     ("row_id", "command_type", "event_type", "command_factory", "expected_status"),
     (
@@ -1094,6 +1149,58 @@ def test_live_lease_holder_and_expiry_cannot_be_substituted(tmp_path, field, val
     assert _domain_snapshot(harness) == before
 
 
+def test_renewal_rejects_lexically_later_spelling_of_the_same_instant_without_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    lease = _claim_execution_lease_command(number=5)
+    lease["payload"]["expires_at"] = "2026-08-01T13:00:00.000Z"
+    _assert_event(
+        harness,
+        lease,
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    renewal = _renew_lease_command(number=10, expected_stream_version=1)
+    renewal["payload"]["prior_expiry"] = "2026-08-01T13:00:00.000Z"
+    renewal["payload"]["new_expiry"] = INITIAL_EXPIRY
+    before = _domain_snapshot(harness)
+
+    rejected = harness.service.submit(renewal)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "lease_renewal_mismatch"
+    assert _domain_snapshot(harness) == before
+
+
+def test_renewal_accepts_later_fractional_instant_below_deliberately_later_grant_ceiling(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(number=4)
+    request["payload"]["resource_request"]["deadline"] = "2026-08-01T14:00:00Z"
+    _assert_event(
+        harness,
+        request,
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=5),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    renewal = _renew_lease_command(number=10, expected_stream_version=1)
+    renewal["payload"]["new_expiry"] = "2026-08-01T13:00:00.500Z"
+
+    receipt = harness.service.submit(renewal)
+
+    assert receipt.status == "accepted"
+    assert (
+        replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][LEASE_ID]["expires_at"]
+        == "2026-08-01T13:00:00.500Z"
+    )
+
+
 @pytest.mark.parametrize(
     "field",
     ("host_identity", "boot_identity", "process_identity_id"),
@@ -1134,22 +1241,7 @@ def test_heartbeat_requires_the_live_host_boot_and_process_identity(tmp_path, fi
 )
 def test_lease_and_resource_rows_reject_illegal_empty_state_without_mutation(tmp_path, row_id, command_factory):
     harness = control_plane(tmp_path)
-    kwargs = {"number": 20}
-    if command_factory is _claim_execution_lease_command:
-        kwargs["expected_stream_version"] = 0
-    elif command_factory is _renew_lease_command:
-        kwargs["expected_stream_version"] = 0
-    elif command_factory is _release_lease_command:
-        kwargs["expected_stream_version"] = 0
-    elif command_factory is _expire_lease_command:
-        kwargs["expected_stream_version"] = 0
-    elif command_factory is _revoke_lease_command:
-        kwargs["expected_stream_version"] = 0
-    elif command_factory is _heartbeat_command:
-        kwargs["expected_stream_version"] = 0
-    else:
-        kwargs["expected_stream_version"] = 0
-    command = command_factory(**kwargs)
+    command = command_factory(number=20, expected_stream_version=0)
     before = _domain_snapshot(harness)
 
     rejected = harness.service.submit(command)
