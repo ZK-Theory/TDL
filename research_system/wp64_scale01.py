@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import stat
 import subprocess
 import unicodedata
@@ -283,6 +284,19 @@ class Scale01VerificationError(ValueError):
     """Raised when the produced-unreviewed SCALE-01 candidate fails closed."""
 
 
+def _resolve_git_executable() -> str:
+    candidate = shutil.which("git")
+    if candidate is None:
+        raise Scale01VerificationError("Git executable is not available")
+    executable = Path(candidate).resolve(strict=True)
+    if not executable.is_absolute() or not executable.is_file():
+        raise Scale01VerificationError("Git executable is not an absolute regular file")
+    return str(executable)
+
+
+GIT_EXECUTABLE = _resolve_git_executable()
+
+
 @dataclass(frozen=True)
 class _PathBinding:
     configured_path: str
@@ -352,6 +366,36 @@ def derive_alignment_hashes(pairs: Sequence[Mapping[str, Any]]) -> dict[str, str
     }
 
 
+def _derive_alignment_pairs_from_bound_bytes(
+    geometry_alias: str,
+    bound_fixture_bytes: Mapping[str, bytes],
+    index_fixture_alias: str,
+) -> list[dict[str, Any]]:
+    """Derive alignment pairs from the bound fixture and checkpoint bytes."""
+
+    try:
+        index = json.loads(bound_fixture_bytes[index_fixture_alias])
+    except (KeyError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise Scale01VerificationError(f"{geometry_alias} bound fixture/index bytes are not valid JSON") from exc
+    if not isinstance(index, dict) or not isinstance(index.get("n"), int) or isinstance(index["n"], bool):
+        raise Scale01VerificationError(f"{geometry_alias} bound fixture/index bytes have no integer n")
+    if index["n"] < 1:
+        raise Scale01VerificationError(f"{geometry_alias} bound fixture/index bytes have an empty n")
+
+    source_digest = canonical_sha256(
+        {alias: hashlib.sha256(raw).hexdigest() for alias, raw in sorted(bound_fixture_bytes.items())}
+    )
+    return [
+        {
+            "row_index": row_index,
+            "membership_id_sha256": hashlib.sha256(
+                f"scale01-alignment|{geometry_alias}|{source_digest}|{row_index}".encode("ascii")
+            ).hexdigest(),
+        }
+        for row_index in range(index["n"])
+    ]
+
+
 def path_identity(path: Path) -> dict[str, str]:
     """Observe one existing directory without changing it."""
 
@@ -401,23 +445,30 @@ def snapshot_protected_state(
     if actual_fields != expected_fields:
         raise Scale01VerificationError("protected surface path set mismatch")
 
+    _assert_no_reparse_path_chain(fixture_root, "fixture root")
     fixture_identity = path_identity(fixture_root)
     root = Path(fixture_identity["physical_path"])
     if not root.is_dir():
         raise Scale01VerificationError("fixture root is not a directory")
     entries = []
-    for path in sorted(
-        (candidate for candidate in root.rglob("*") if candidate.is_file()), key=lambda item: item.as_posix()
-    ):
+    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
         relative_path = path.relative_to(root).as_posix()
-        raw = path.read_bytes()
-        entries.append(
-            {
+        metadata = path.lstat()
+        if stat.S_ISREG(metadata.st_mode):
+            raw = path.read_bytes()
+            entry = {
                 "relative_path": relative_path,
+                "entry_type": "file",
                 "byte_size": len(raw),
                 "raw_sha256": hashlib.sha256(raw).hexdigest(),
             }
-        )
+        elif stat.S_ISDIR(metadata.st_mode):
+            entry = {"relative_path": relative_path, "entry_type": "directory", "byte_size": 0, "raw_sha256": None}
+        elif stat.S_ISLNK(metadata.st_mode):
+            entry = {"relative_path": relative_path, "entry_type": "symlink", "byte_size": 0, "raw_sha256": None}
+        else:
+            entry = {"relative_path": relative_path, "entry_type": "other", "byte_size": 0, "raw_sha256": None}
+        entries.append(entry)
     state = {
         "legacy_entry_count": len(entries),
         "legacy_entry_set_sha256": canonical_sha256(entries),
@@ -454,10 +505,13 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _raw_identity(path: Path) -> dict[str, Any]:
     raw = path.read_bytes()
     header = f"blob {len(raw)}\0".encode("ascii")
+    # Git's blob identity is specified as SHA-1 over this exact header and byte stream;
+    # this is a non-security identity calculation, so mark it usedforsecurity=False.
+    git_blob_id = hashlib.sha1(header + raw, usedforsecurity=False).hexdigest()
     return {
         "raw_bytes": len(raw),
         "raw_sha256": hashlib.sha256(raw).hexdigest(),
-        "git_blob_id": hashlib.sha1(header + raw).hexdigest(),
+        "git_blob_id": git_blob_id,
     }
 
 
@@ -494,8 +548,18 @@ def _require_equal(actual: Any, expected: Any, label: str) -> None:
 
 
 def _git_blob_at(repo_root: Path, commit: str, repository_path: str) -> str:
+    if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
+        raise Scale01VerificationError("Git commit identity is not a verified SHA-1")
+    if (
+        not repository_path
+        or "\\" in repository_path
+        or repository_path.startswith("/")
+        or ":" in repository_path
+        or any(part in {"", ".", ".."} for part in PurePosixPath(repository_path).parts)
+    ):
+        raise Scale01VerificationError("Git repository path is not a canonical relative path")
     result = subprocess.run(
-        ["git", "ls-tree", commit, "--", repository_path],
+        [GIT_EXECUTABLE, "ls-tree", commit, "--", repository_path],
         cwd=repo_root,
         check=True,
         shell=False,
@@ -726,15 +790,41 @@ def _is_reparse(path: Path) -> bool:
     return stat.S_ISLNK(metadata.st_mode) or bool(getattr(metadata, "st_file_attributes", 0) & _REPARSE_ATTRIBUTE)
 
 
+def _assert_no_reparse_path_chain(path: Path, label: str) -> Path:
+    configured = path.absolute()
+    current = Path(configured.anchor)
+    for part in configured.parts[1:]:
+        current = current / part
+        try:
+            is_reparse = _is_reparse(current)
+        except FileNotFoundError as exc:
+            raise Scale01VerificationError(f"{label} is missing: {current}") from exc
+        if is_reparse:
+            raise Scale01VerificationError(f"{label} contains a symlink or reparse point: {current}")
+    return configured
+
+
 def _assert_no_reparse_chain(root: Path, relative_path: PurePosixPath) -> Path:
-    current = root
-    if _is_reparse(current):
-        raise Scale01VerificationError("fixture root is a symlink or reparse point")
+    configured_root = _assert_no_reparse_path_chain(root, "fixture root")
+    current = configured_root
     for part in relative_path.parts:
         current = current / part
-        if _is_reparse(current):
+        try:
+            is_reparse = _is_reparse(current)
+        except FileNotFoundError as exc:
+            raise Scale01VerificationError(f"fixture path is missing: {current}") from exc
+        if is_reparse:
             raise Scale01VerificationError(f"fixture path contains a symlink or reparse point: {current}")
     return current
+
+
+def _derive_root_write_capability(path: Path) -> bool:
+    """Derive the root's portable directory write capability from its mode bits."""
+
+    metadata = path.stat()
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise Scale01VerificationError("fixture root is not a directory")
+    return bool(metadata.st_mode & _WRITE_BITS)
 
 
 def _validate_alias_uniqueness(values: Sequence[str], label: str) -> None:
@@ -759,13 +849,14 @@ def verify_fixture_observation(
     if observation["observation_id"] != derive_fixture_observation_id(observation):
         raise Scale01VerificationError("fixture observation content address mismatch")
 
+    _assert_no_reparse_path_chain(fixture_root, "fixture root")
     actual_root_identity = path_identity(fixture_root)
     observed_root = observation["fixture_root"]
     for key, value in actual_root_identity.items():
         _require_equal(observed_root[key], value, f"fixture root {key}")
-    if _is_reparse(fixture_root.resolve(strict=True)):
-        raise Scale01VerificationError("fixture root is a symlink or reparse point")
-    if observed_root["root_write_capable"]:
+    actual_root_write_capable = _derive_root_write_capability(fixture_root)
+    _require_equal(observed_root["root_write_capable"], actual_root_write_capable, "fixture root write capability")
+    if actual_root_write_capable:
         raise Scale01VerificationError("fixture root is write-capable")
 
     fixtures = list(observation["fixtures"])
@@ -799,10 +890,9 @@ def verify_fixture_observation(
     )
     _require_equal(actual_projection, expected_projection, "independent fixed fixture tuple")
 
-    physical_root = fixture_root.resolve(strict=True)
     for row in fixtures:
         relative = _safe_relative_path(row["relative_path"], f"fixture {row['fixture_alias']} path")
-        physical = _assert_no_reparse_chain(physical_root, relative)
+        physical = _assert_no_reparse_chain(fixture_root, relative)
         if not physical.is_file():
             raise Scale01VerificationError(f"fixture is not a regular file: {row['fixture_alias']}")
         metadata = physical.stat()
@@ -835,7 +925,19 @@ def verify_fixture_observation(
         _safe_relative_path(row["scratch_row_index_relative_path"], "scratch row-index path")
         if not row["scratch_row_index_relative_path"].startswith("scale-01/row-indices/"):
             raise Scale01VerificationError("row-index evidence is not under scale-01 scratch")
+        bound_fixture_bytes = {}
+        for fixture_alias in expected_binding:
+            fixture_row = next(item for item in fixtures if item["fixture_alias"] == fixture_alias)
+            bound_fixture_bytes[fixture_alias] = (
+                fixture_root / _safe_relative_path(fixture_row["relative_path"], f"fixture {fixture_alias} path")
+            ).read_bytes()
+        expected_pairs = _derive_alignment_pairs_from_bound_bytes(
+            row["geometry_alias"],
+            bound_fixture_bytes,
+            row["checkpoint_fixture_alias"],
+        )
         pairs = list(row["pairs"])
+        _require_equal(pairs, expected_pairs, f"{row['geometry_alias']} bound fixture/index pairs")
         row_indices = [pair["row_index"] for pair in pairs]
         memberships = [pair["membership_id_sha256"] for pair in pairs]
         if len(row_indices) != len(set(row_indices)) or len(memberships) != len(set(memberships)):

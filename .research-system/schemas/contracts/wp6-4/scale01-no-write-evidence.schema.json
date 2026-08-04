@@ -124,6 +124,7 @@
       "additionalProperties": false,
       "required": [
         "relative_path",
+        "entry_type",
         "byte_size",
         "raw_sha256"
       ],
@@ -132,12 +133,28 @@
           "type": "string",
           "minLength": 1
         },
+        "entry_type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "directory",
+            "symlink",
+            "other"
+          ]
+        },
         "byte_size": {
           "type": "integer",
           "minimum": 0
         },
         "raw_sha256": {
-          "$ref": "#/$defs/sha256"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },

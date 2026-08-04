@@ -53,6 +53,32 @@ def _tree_snapshot(root: Path) -> tuple[tuple[str, int, str], ...]:
     return tuple(rows)
 
 
+def _bound_alignment_pairs(
+    fixture_root: Path, geometry_alias: str, aliases: tuple[str, str, str]
+) -> list[dict[str, Any]]:
+    bound_bytes = {
+        alias: next(
+            (fixture_root / template["relative_path"]).read_bytes()
+            for template in scale01.EXPECTED_FIXTURE_TUPLE
+            if template["fixture_alias"] == alias
+        )
+        for alias in aliases
+    }
+    index = json.loads(bound_bytes[aliases[2]])
+    source_digest = scale01.canonical_sha256(
+        {alias: hashlib.sha256(raw).hexdigest() for alias, raw in sorted(bound_bytes.items())}
+    )
+    return [
+        {
+            "row_index": row_index,
+            "membership_id_sha256": hashlib.sha256(
+                f"scale01-alignment|{geometry_alias}|{source_digest}|{row_index}".encode()
+            ).hexdigest(),
+        }
+        for row_index in range(index["n"])
+    ]
+
+
 def _valid_w11_manifest() -> dict[str, Any]:
     record_ref = {
         "id": "obj_00000000-0000-7000-8000-000000000001",
@@ -109,7 +135,12 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     for template in scale01.EXPECTED_FIXTURE_TUPLE:
         path = fixture_root / template["relative_path"]
         path.parent.mkdir(parents=True, exist_ok=True)
-        raw = f"synthetic:{template['fixture_alias']}\n".encode()
+        if template["fixture_alias"].endswith("-TRAJ"):
+            raw = json.dumps({"n": 2}, separators=(",", ":")).encode()
+        elif template["fixture_alias"].endswith("-CHECKPOINT"):
+            raw = json.dumps({"n": 2, "actual_landmarks": 2}, separators=(",", ":")).encode()
+        else:
+            raw = f"synthetic:{template['fixture_alias']}\n".encode()
         path.write_bytes(raw)
         metadata = path.stat()
         raw_sha256 = hashlib.sha256(raw).hexdigest()
@@ -131,16 +162,11 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     monkeypatch.setattr(scale01, "EXPECTED_FIXTURE_TUPLE", tuple(expected_rows))
     for path in fixture_paths:
         path.chmod(0o444)
+    fixture_root.chmod(0o555)
 
     alignments = []
     for geometry_alias, binding in scale01.EXPECTED_ALIGNMENT_BINDINGS.items():
-        pairs = [
-            {
-                "row_index": index,
-                "membership_id_sha256": hashlib.sha256(f"{geometry_alias}:{index}".encode()).hexdigest(),
-            }
-            for index in range(2)
-        ]
+        pairs = _bound_alignment_pairs(fixture_root, geometry_alias, binding)
         alignments.append(
             {
                 "geometry_alias": geometry_alias,
@@ -224,6 +250,7 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
             "evidence": evidence,
         }
     finally:
+        fixture_root.chmod(0o777)
         for path in fixture_paths:
             if path.exists():
                 path.chmod(0o666)
@@ -424,6 +451,24 @@ def test_fixture_tuple_rejects_coordinated_omission(synthetic_bundle: dict[str, 
         scale01.verify_fixture_observation(REPO_ROOT, synthetic_bundle["fixture_root"], observation)
 
 
+def test_alignment_rejects_arbitrary_pairs_with_recomputed_hashes(synthetic_bundle: dict[str, Any]) -> None:
+    observation = deepcopy(synthetic_bundle["observation"])
+    pairs = [
+        {"row_index": 101, "membership_id_sha256": "a" * 64},
+        {"row_index": 202, "membership_id_sha256": "b" * 64},
+    ]
+    alignment = observation["alignments"][0]
+    alignment["pairs"] = pairs
+    alignment["row_count"] = len(pairs)
+    alignment["membership_count"] = len(pairs)
+    alignment["pair_count"] = len(pairs)
+    alignment.update(scale01.derive_alignment_hashes(pairs))
+    _refresh_observation(observation)
+
+    with pytest.raises(scale01.Scale01VerificationError, match="bound fixture/index pairs"):
+        scale01.verify_fixture_observation(REPO_ROOT, synthetic_bundle["fixture_root"], observation)
+
+
 def test_fixture_path_rejects_traversal(synthetic_bundle: dict[str, Any]) -> None:
     observation = deepcopy(synthetic_bundle["observation"])
     observation["fixtures"][0]["relative_path"] = "../escape.json"
@@ -454,22 +499,15 @@ def test_fixture_path_rejects_non_nfc_unicode(synthetic_bundle: dict[str, Any]) 
         scale01.verify_fixture_observation(REPO_ROOT, synthetic_bundle["fixture_root"], observation)
 
 
-def test_fixture_root_rejects_reparse_or_symlink_state(
-    synthetic_bundle: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fixture_root = synthetic_bundle["fixture_root"].resolve(strict=True)
-    original = scale01._is_reparse
+def test_fixture_root_rejects_a_real_symlink_root(synthetic_bundle: dict[str, Any], tmp_path: Path) -> None:
+    symlink_root = tmp_path / "fixture-root-link"
+    try:
+        symlink_root.symlink_to(synthetic_bundle["fixture_root"], target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
 
-    def injected_reparse(path: Path) -> bool:
-        return path.resolve(strict=True) == fixture_root or original(path)
-
-    monkeypatch.setattr(scale01, "_is_reparse", injected_reparse)
     with pytest.raises(scale01.Scale01VerificationError, match="symlink or reparse"):
-        scale01.verify_fixture_observation(
-            REPO_ROOT,
-            synthetic_bundle["fixture_root"],
-            synthetic_bundle["observation"],
-        )
+        scale01.verify_fixture_observation(REPO_ROOT, symlink_root, synthetic_bundle["observation"])
 
 
 def test_foreign_but_byte_valid_fixture_root_is_rejected(synthetic_bundle: dict[str, Any], tmp_path: Path) -> None:
@@ -496,6 +534,16 @@ def test_write_capable_root_claim_is_rejected(synthetic_bundle: dict[str, Any]) 
 
     with pytest.raises(scale01.Scale01VerificationError, match="schema violation"):
         scale01.verify_fixture_observation(REPO_ROOT, synthetic_bundle["fixture_root"], observation)
+
+
+def test_writable_root_cannot_claim_false(synthetic_bundle: dict[str, Any]) -> None:
+    fixture_root = synthetic_bundle["fixture_root"]
+    fixture_root.chmod(0o777)
+    try:
+        with pytest.raises(scale01.Scale01VerificationError, match="write capability"):
+            scale01.verify_fixture_observation(REPO_ROOT, fixture_root, synthetic_bundle["observation"])
+    finally:
+        fixture_root.chmod(0o555)
 
 
 def test_actual_write_capable_fixture_file_is_rejected(synthetic_bundle: dict[str, Any]) -> None:
@@ -600,6 +648,71 @@ def test_no_write_evidence_rejects_changed_legacy_set(synthetic_bundle: dict[str
             evidence,
             pre_snapshot=synthetic_bundle["pre_snapshot"],
         )
+
+
+@pytest.mark.parametrize("mutation", ("create", "delete", "rename"))
+def test_no_write_evidence_rejects_empty_directory_mutations(synthetic_bundle: dict[str, Any], mutation: str) -> None:
+    fixture_root = synthetic_bundle["fixture_root"]
+    directory = fixture_root / "empty-directory"
+    fixture_root.chmod(0o777)
+    if mutation in {"delete", "rename"}:
+        directory.mkdir()
+    fixture_root.chmod(0o555)
+
+    if mutation == "create":
+        pre_snapshot = synthetic_bundle["pre_snapshot"]
+        evidence = synthetic_bundle["evidence"]
+    else:
+        pre_snapshot = scale01.snapshot_protected_state(
+            fixture_root,
+            protected_surface_paths=synthetic_bundle["protected_surface_paths"],
+        )
+        evidence = deepcopy(synthetic_bundle["evidence"])
+        state = pre_snapshot.evidence_state()
+        evidence["pre_state"] = deepcopy(state)
+        evidence["post_state"] = deepcopy(state)
+        _refresh_evidence(evidence)
+
+    fixture_root.chmod(0o777)
+    if mutation == "create":
+        directory.mkdir()
+    elif mutation == "delete":
+        directory.rmdir()
+    else:
+        directory.rename(fixture_root / "renamed-empty-directory")
+    fixture_root.chmod(0o555)
+
+    with pytest.raises(scale01.Scale01VerificationError, match="pre/post protected state mismatch"):
+        scale01.verify_no_write_evidence(
+            REPO_ROOT,
+            fixture_root,
+            synthetic_bundle["scratch_root"],
+            evidence,
+            pre_snapshot=pre_snapshot,
+        )
+
+
+def test_git_blob_identity_uses_git_sha1_for_non_security_identity(tmp_path: Path) -> None:
+    path = tmp_path / "identity.txt"
+    raw = b"git identity bytes\n"
+    path.write_bytes(raw)
+    identity = scale01._raw_identity(path)
+    header = f"blob {len(raw)}\0".encode()
+    expected = hashlib.sha1(header + raw, usedforsecurity=False).hexdigest()
+    assert identity["git_blob_id"] == expected
+
+
+def test_git_lookup_uses_an_absolute_bound_executable() -> None:
+    assert Path(scale01.GIT_EXECUTABLE).is_absolute()
+    assert Path(scale01.GIT_EXECUTABLE).is_file()
+    assert (
+        scale01._git_blob_at(
+            REPO_ROOT,
+            scale01.BASE_COMMIT,
+            scale01.CREATE_SCOPE_SCHEMA_PATH.as_posix(),
+        )
+        == "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1"
+    )
 
 
 def test_no_write_evidence_requires_disjoint_scratch(synthetic_bundle: dict[str, Any]) -> None:
