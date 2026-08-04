@@ -30,6 +30,8 @@ from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pac
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACK_PATH = ".research-system/packs/tdl-private-assurance.yaml"
+FACTS_PRODUCER_CONTEXT_ID = "ctx_019fc96b-2ddc-7740-9d6c-425adf7fa3a1"
+FACTS_REVIEW_CONTEXT_ID = "ctx_019fc96b-2ddc-7740-9d6c-425adf7fa3a2"
 FACTS_PRODUCER_SESSION_ID = frozen.PRODUCER_SESSION_ID
 FACTS_REVIEW_SESSION_ID = frozen.REVIEW_SESSION_ID
 FACTS_HANDOFF_ID = frozen.REVIEW_HANDOFF_ID
@@ -137,6 +139,7 @@ def _temporary_repository(tmp_path: Path, raw_candidate: bytes) -> tuple[Path, P
     repository_paths = {
         ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml",
         ".research-system/schemas/assurance/assurance-pack.schema.json",
+        ".research-system/schemas/wp6-3-authority/relationship-evidence-facts.schema.json",
     }
     reference_rows = source_contract["required_pack_contract"]["references"]["exact_reference_rows"]
     repository_paths.update(row["repository_path"] for row in reference_rows)
@@ -184,7 +187,8 @@ def _facts_for(
         "producer": {
             "actor_id": producer,
             "task_id": frozen.PRODUCER_TASK_ID,
-            "session_id": FACTS_PRODUCER_SESSION_ID,
+            "session_id": FACTS_PRODUCER_CONTEXT_ID,
+            "operator_session_id": FACTS_PRODUCER_SESSION_ID,
             "context_hash": "1" * 64,
             "model_family": "codex",
             "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
@@ -192,7 +196,8 @@ def _facts_for(
         "reviewer": {
             "actor_id": reviewer,
             "task_id": frozen.REVIEW_TASK_ID,
-            "session_id": FACTS_REVIEW_SESSION_ID,
+            "session_id": FACTS_REVIEW_CONTEXT_ID,
+            "operator_session_id": FACTS_REVIEW_SESSION_ID,
             "context_hash": "2" * 64,
             "model_family": "claude",
             "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
@@ -213,7 +218,15 @@ def _facts_for(
     return _FactsResolution(relationship.record_id, 1, sha256_hex(canonical_bytes(body)), body)
 
 
-def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _write_facts(binding: ControlBinding, facts: dict[str, _FactsResolution]) -> None:
+    for fact in facts.values():
+        data = canonical_bytes(fact.record)
+        directory = binding.control_root / "runtime" / runner_module.FACTS_ROOT / fact.record_id
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{fact.revision:08d}-{sha256_hex(data)}.json").write_bytes(data)
+
+
+def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, production_facts_reader: bool = False):
     contract = frozen._load_yaml(frozen.CONTRACT_PATH)
     pack = frozen._proposed_pack(contract)
     pack, raw_candidate, record_store, _ = frozen._external_records(pack, contract)
@@ -290,7 +303,10 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             reviewed_at="2026-07-28T10:30:00Z",
         ),
     }
-    facts_reader = _FactsReader({value.record_id: value for value in facts.values()})
+    facts_by_id = {value.record_id: value for value in facts.values()}
+    facts_reader = _FactsReader(facts_by_id)
+    if production_facts_reader:
+        _write_facts(binding, facts_by_id)
     authority = _GrantAuthority(
         project_id=binding.project_id,
         requirement_id=requirement["assurance_requirement_id"],
@@ -301,7 +317,8 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             return SimpleNamespace(schema_id=schema_id, schema_version=schema_version, sha256="b" * 64)
 
     monkeypatch.setattr(runner_module, "ControlStoreAuthorityResolver", lambda _: record_resolver)
-    monkeypatch.setattr(runner_module, "_FactsReader", lambda *_: facts_reader)
+    if not production_facts_reader:
+        monkeypatch.setattr(runner_module, "_FactsReader", lambda *_: facts_reader)
     monkeypatch.setattr(runner_module, "LedgerAuthorityGrantResolver", lambda *_, **__: authority)
     monkeypatch.setattr(runner_module, "runtime_schema_registry", lambda *_: _Registry())
 
@@ -425,6 +442,56 @@ def test_prepare_then_acceptance_reloads_exact_subject_and_ignores_working_tree_
     assert prepared.evidence_path.read_bytes() == preparation_bytes
     assert {phase for _, phase in record_resolver.calls} == {"load", "acceptance", "consumption"}
     assert {phase for _, phase in facts_reader.calls} == {"load", "acceptance", "consumption"}
+
+
+def test_prepare_then_acceptance_uses_production_facts_reader_with_schema_valid_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(
+        tmp_path, monkeypatch, production_facts_reader=True
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3a3"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+
+    prepared = prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    accepted = accept_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=locators,
+    )
+
+    assert prepared.state == "prepared"
+    assert accepted.state == "consumption_authorized"
+    assert facts_reader.calls == []
+    assert (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+def test_production_facts_reader_rejects_schema_invalid_operator_session_in_context_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _, _, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch, production_facts_reader=True)
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    directory = config.binding.control_root / "runtime" / runner_module.FACTS_ROOT / fact.record_id
+    for path in directory.glob("*.json"):
+        path.unlink()
+    body = deepcopy(fact.record)
+    body["reviewer"]["session_id"] = FACTS_REVIEW_SESSION_ID
+    data = canonical_bytes(body)
+    (directory / f"{fact.revision:08d}-{sha256_hex(data)}.json").write_bytes(data)
+
+    with pytest.raises(PackUnconsumable, match="schema validation failed"):
+        runner_module._FactsReader(config.binding, _GitObjectReader(config.repository_root)).resolve(
+            fact.record_id, phase="load"
+        )
 
 
 def test_acceptance_public_seam_rejects_incomplete_two_key_closure(
@@ -566,7 +633,7 @@ def test_acceptance_public_seam_rejects_unresolved_schema_review_relationship(
     ("field", "value"),
     (
         ("task_id", "tsk_00000000-0000-7000-8000-0000000000aa"),
-        ("session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
+        ("operator_session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
         ("stable_handoff_or_run_id", "hnd_00000000-0000-7000-8000-0000000000ff"),
     ),
 )
@@ -709,7 +776,7 @@ def test_relationship_facts_recompute_grade_from_concrete_provenance(dimension: 
     )
     body = deepcopy(facts.record)
     if dimension == "same_session":
-        body["reviewer"]["session_id"] = body["producer"]["session_id"]
+        body["reviewer"]["operator_session_id"] = body["producer"]["operator_session_id"]
     elif dimension == "same_context_hash":
         body["reviewer"]["context_hash"] = body["producer"]["context_hash"]
     elif dimension == "same_model_family":

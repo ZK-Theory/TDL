@@ -924,10 +924,10 @@ def _check_pack_review_fact_provenance(facts: _FactsResolution, provenance: Mapp
     reviewer = _mapping(record.get("reviewer"), "pack-review relationship-evidence-facts reviewer")
     if (
         producer.get("task_id") != provenance.get("producer_task_id")
-        or producer.get("session_id") != provenance.get("producer_session_id")
+        or producer.get("operator_session_id") != provenance.get("producer_session_id")
         or producer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
         or reviewer.get("task_id") != provenance.get("review_task_id")
-        or reviewer.get("session_id") != provenance.get("review_session_id")
+        or reviewer.get("operator_session_id") != provenance.get("review_session_id")
         or reviewer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
     ):
         raise PackUnconsumable("pack-review relationship facts do not bind independent review operator provenance")
@@ -988,7 +988,7 @@ def _check_fact(
     evidence = _mapping(record.get("derived_comparisons"), "relationship-evidence-facts derived comparisons")
     expected_comparisons = {
         "same_actor": producer.get("actor_id") == reviewer.get("actor_id"),
-        "same_session": producer.get("session_id") == reviewer.get("session_id"),
+        "same_session": producer.get("operator_session_id") == reviewer.get("operator_session_id"),
         "same_context_hash": producer.get("context_hash") == reviewer.get("context_hash"),
         "same_model_family": producer.get("model_family") == reviewer.get("model_family"),
         "producer_conclusions_visible": record.get("producer_conclusions_visibility") == "visible_to_reviewer",

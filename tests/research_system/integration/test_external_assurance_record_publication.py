@@ -357,8 +357,10 @@ def _fixture(tmp_path: Path):
 FACTS_RELATIONSHIP_ID = "rel_01978abc-6300-7000-8000-0000000063a0"
 FACTS_PRODUCER_TASK_ID = "tsk_01978abc-6300-7000-8000-0000000063a1"
 FACTS_REVIEW_TASK_ID = "tsk_01978abc-6300-7000-8000-0000000063a2"
-FACTS_PRODUCER_SESSION_ID = "ctx_01978abc-6300-7000-8000-0000000063a3"
-FACTS_REVIEW_SESSION_ID = "ctx_01978abc-6300-7000-8000-0000000063a4"
+FACTS_PRODUCER_CONTEXT_ID = "ctx_01978abc-6300-7000-8000-0000000063a3"
+FACTS_REVIEW_CONTEXT_ID = "ctx_01978abc-6300-7000-8000-0000000063a4"
+FACTS_PRODUCER_SESSION_ID = "ses_01978abc-6300-7000-8000-0000000063a3"
+FACTS_REVIEW_SESSION_ID = "ses_01978abc-6300-7000-8000-0000000063a4"
 FACTS_HANDOFF_ID = "hnd_01978abc-6300-7000-8000-0000000063a5"
 
 
@@ -415,7 +417,8 @@ def _facts_participants(
     producer = RelationshipEvidenceParticipant(
         actor_id=FOREIGN_ACTOR_ID,
         task_id=FACTS_PRODUCER_TASK_ID,
-        session_id=FACTS_PRODUCER_SESSION_ID,
+        session_id=FACTS_PRODUCER_CONTEXT_ID,
+        operator_session_id=FACTS_PRODUCER_SESSION_ID,
         context_hash="1" * 64,
         model_family="codex",
         stable_handoff_or_run_id=FACTS_HANDOFF_ID,
@@ -423,7 +426,8 @@ def _facts_participants(
     reviewer = RelationshipEvidenceParticipant(
         actor_id=ACTOR_ID,
         task_id=FACTS_PRODUCER_TASK_ID if same_task else FACTS_REVIEW_TASK_ID,
-        session_id=FACTS_PRODUCER_SESSION_ID if same_session else FACTS_REVIEW_SESSION_ID,
+        session_id=FACTS_REVIEW_CONTEXT_ID,
+        operator_session_id=FACTS_PRODUCER_SESSION_ID if same_session else FACTS_REVIEW_SESSION_ID,
         context_hash="1" * 64 if same_context_hash else "2" * 64,
         model_family="codex" if same_model_family else "claude",
         stable_handoff_or_run_id=FACTS_HANDOFF_ID,
@@ -452,7 +456,7 @@ def _facts_publication_context(
         authority_root=ROOT_ID,
         canonical_sha256=sha256_hex(canonical_bytes(body)),
         task_id=FACTS_REVIEW_TASK_ID,
-        session_id=FACTS_REVIEW_SESSION_ID,
+        session_id=FACTS_REVIEW_CONTEXT_ID,
         relationship_record_id=FACTS_RELATIONSHIP_ID,
         required_risk="R1",
         occurred_at="2026-07-12T12:00:00Z",
@@ -1477,6 +1481,10 @@ def test_governed_relationship_facts_publish_authorized_round_trip(tmp_path: Pat
     )
     body = json.loads(path.read_bytes())
     assert body["relationship_evidence_facts_id"] == FACTS_RELATIONSHIP_ID
+    assert body["producer"]["session_id"] == FACTS_PRODUCER_CONTEXT_ID
+    assert body["producer"]["operator_session_id"] == FACTS_PRODUCER_SESSION_ID
+    assert body["reviewer"]["session_id"] == FACTS_REVIEW_CONTEXT_ID
+    assert body["reviewer"]["operator_session_id"] == FACTS_REVIEW_SESSION_ID
     assert path.name == f"00000001-{sha256_hex(canonical_bytes(body))}.json"
     retry = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW).publish(**kwargs)
     assert retry == receipt
@@ -1534,7 +1542,7 @@ def test_governed_relationship_facts_rejects_protected_actor_mismatch_without_mu
     ("field", "value"),
     (
         ("task_id", FACTS_PRODUCER_TASK_ID),
-        ("session_id", FACTS_PRODUCER_SESSION_ID),
+        ("session_id", FACTS_PRODUCER_CONTEXT_ID),
     ),
 )
 def test_governed_relationship_facts_rejects_publication_context_reviewer_mismatch_without_mutation(
@@ -1549,6 +1557,20 @@ def test_governed_relationship_facts_rejects_publication_context_reviewer_mismat
     kwargs["publication_context"] = replace(kwargs["publication_context"], **{field: value})
 
     with pytest.raises(SchemaError, match="reviewer provenance"):
+        store.publish(**kwargs)
+
+    assert not (binding.control_root / "runtime" / "relationship-evidence-facts" / FACTS_RELATIONSHIP_ID).exists()
+
+
+@pytest.mark.integration
+def test_governed_relationship_facts_rejects_malformed_operator_session_without_mutation(tmp_path: Path) -> None:
+    binding = _facts_fixture(tmp_path)
+    protected = _publish_protected_relationship(binding)
+    store = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW)
+    kwargs = _facts_publish_kwargs(binding, store, protected)
+    kwargs["reviewer"] = replace(kwargs["reviewer"], operator_session_id=FACTS_REVIEW_CONTEXT_ID)
+
+    with pytest.raises(SchemaError, match="operator session id"):
         store.publish(**kwargs)
 
     assert not (binding.control_root / "runtime" / "relationship-evidence-facts" / FACTS_RELATIONSHIP_ID).exists()

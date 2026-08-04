@@ -99,6 +99,10 @@
       "type": "string",
       "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "operatorSessionId": {
+      "type": "string",
+      "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "stableHandoffOrRunId": {
       "type": "string",
       "pattern": "^(?:run|hnd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -111,6 +115,7 @@
         "actor_id",
         "task_id",
         "session_id",
+        "operator_session_id",
         "context_hash",
         "model_family",
         "stable_handoff_or_run_id"
@@ -119,6 +124,7 @@
         "actor_id": {"$ref": "#/$defs/actorId"},
         "task_id": {"$ref": "#/$defs/taskId"},
         "session_id": {"$ref": "#/$defs/contextId"},
+        "operator_session_id": {"$ref": "#/$defs/operatorSessionId"},
         "context_hash": {"$ref": "#/$defs/sha256"},
         "model_family": {"type": "string", "minLength": 1},
         "stable_handoff_or_run_id": {"$ref": "#/$defs/stableHandoffOrRunId"}

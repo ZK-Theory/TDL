@@ -51,6 +51,7 @@ _FACT_ID = re.compile(r"^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]
 _STABLE_HANDOFF_OR_RUN_ID = re.compile(
     r"^(?:run|hnd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
+_OPERATOR_SESSION_ID = re.compile(r"^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _REVISION_FILE = re.compile(r"^(?P<revision>[0-9]{8})-(?P<sha>[0-9a-f]{64})\.json$")
 
 
@@ -59,6 +60,7 @@ class RelationshipEvidenceParticipant:
     actor_id: str
     task_id: str
     session_id: str
+    operator_session_id: str
     context_hash: str
     model_family: str
     stable_handoff_or_run_id: str
@@ -315,6 +317,8 @@ class RelationshipEvidenceFactsStore:
             validate_id(value.session_id, "context")
         except ValueError as exc:
             raise SchemaError(f"{label} participant identity is malformed") from exc
+        if _OPERATOR_SESSION_ID.fullmatch(value.operator_session_id) is None:
+            raise SchemaError(f"{label} operator session id is malformed")
         if not _SHA256.fullmatch(value.context_hash):
             raise SchemaError(f"{label} context hash is not a lowercase SHA-256")
         if not isinstance(value.model_family, str) or not value.model_family:
@@ -378,7 +382,7 @@ class RelationshipEvidenceFactsStore:
 
         comparisons = {
             "same_actor": producer.actor_id == reviewer.actor_id,
-            "same_session": producer.session_id == reviewer.session_id,
+            "same_session": producer.operator_session_id == reviewer.operator_session_id,
             "same_context_hash": producer.context_hash == reviewer.context_hash,
             "same_model_family": producer.model_family == reviewer.model_family,
             "producer_conclusions_visible": producer_conclusions_visibility == "visible_to_reviewer",
