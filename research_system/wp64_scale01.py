@@ -14,6 +14,7 @@ import subprocess
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -36,6 +37,15 @@ PENDING_DEPENDENCY_IDS = (
     "provider_free_operator_session",
     "wp6_6_expected_set",
     "d_g6_5",
+)
+
+_PROTECTED_STATE_SHA_FIELDS = (
+    "event_tail_sha256",
+    "object_set_sha256",
+    "scope_definition_set_sha256",
+    "dispatch_set_sha256",
+    "result_set_sha256",
+    "claim_set_sha256",
 )
 
 EXPECTED_SOURCE_DEPENDENCIES = (
@@ -273,6 +283,37 @@ class Scale01VerificationError(ValueError):
     """Raised when the produced-unreviewed SCALE-01 candidate fails closed."""
 
 
+@dataclass(frozen=True)
+class _PathBinding:
+    configured_path: str
+    physical_path: str
+    volume_id: str
+    stable_file_id: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "configured_path": self.configured_path,
+            "physical_path": self.physical_path,
+            "volume_id": self.volume_id,
+            "stable_file_id": self.stable_file_id,
+        }
+
+
+@dataclass(frozen=True)
+class ProtectedStateSnapshot:
+    """Immutable binding between protected paths and one observed byte state."""
+
+    fixture_root: _PathBinding
+    surface_bindings: tuple[tuple[str, _PathBinding], ...]
+    _state_bytes: bytes
+
+    def evidence_state(self) -> dict[str, Any]:
+        value = json.loads(self._state_bytes)
+        if not isinstance(value, dict):  # pragma: no cover - constructor invariant
+            raise Scale01VerificationError("protected snapshot state is not an object")
+        return value
+
+
 def canonical_sha256(value: Any) -> str:
     """Return the SHA-256 of one canonical JSON value."""
 
@@ -325,19 +366,45 @@ def path_identity(path: Path) -> dict[str, str]:
     }
 
 
+def _read_bound_file(path: Path, label: str) -> tuple[_PathBinding, bytes]:
+    configured = path.absolute()
+    physical = configured.resolve(strict=True)
+    if not physical.is_file():
+        raise Scale01VerificationError(f"protected surface is not a regular file: {label}")
+    before = physical.stat()
+    raw = physical.read_bytes()
+    after = physical.stat()
+    before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+    after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if before_identity != after_identity or len(raw) != after.st_size:
+        raise Scale01VerificationError(f"protected surface changed while observed: {label}")
+    return (
+        _PathBinding(
+            configured_path=configured.as_posix(),
+            physical_path=physical.as_posix(),
+            volume_id=str(after.st_dev),
+            stable_file_id=f"dev:{after.st_dev}:ino:{after.st_ino}",
+        ),
+        raw,
+    )
+
+
 def snapshot_protected_state(
     fixture_root: Path,
     *,
-    event_tail_sha256: str | None,
-    object_set_sha256: str,
-    scope_definition_set_sha256: str,
-    dispatch_set_sha256: str,
-    result_set_sha256: str,
-    claim_set_sha256: str,
-) -> dict[str, Any]:
-    """Read a complete fixture tree and join it to supplied protected-state tokens."""
+    protected_surface_paths: Mapping[str, Path],
+) -> ProtectedStateSnapshot:
+    """Read and bind the legacy tree plus all six protected surface bytes."""
 
-    root = fixture_root.resolve(strict=True)
+    actual_fields = set(protected_surface_paths)
+    expected_fields = set(_PROTECTED_STATE_SHA_FIELDS)
+    if actual_fields != expected_fields:
+        raise Scale01VerificationError("protected surface path set mismatch")
+
+    fixture_identity = path_identity(fixture_root)
+    root = Path(fixture_identity["physical_path"])
+    if not root.is_dir():
+        raise Scale01VerificationError("fixture root is not a directory")
     entries = []
     for path in sorted(
         (candidate for candidate in root.rglob("*") if candidate.is_file()), key=lambda item: item.as_posix()
@@ -351,17 +418,27 @@ def snapshot_protected_state(
                 "raw_sha256": hashlib.sha256(raw).hexdigest(),
             }
         )
-    return {
+    state = {
         "legacy_entry_count": len(entries),
         "legacy_entry_set_sha256": canonical_sha256(entries),
         "legacy_entries": entries,
-        "event_tail_sha256": event_tail_sha256,
-        "object_set_sha256": object_set_sha256,
-        "scope_definition_set_sha256": scope_definition_set_sha256,
-        "dispatch_set_sha256": dispatch_set_sha256,
-        "result_set_sha256": result_set_sha256,
-        "claim_set_sha256": claim_set_sha256,
     }
+    surface_bindings = []
+    stable_ids = []
+    for field in _PROTECTED_STATE_SHA_FIELDS:
+        binding, raw = _read_bound_file(Path(protected_surface_paths[field]), field)
+        surface_bindings.append((field, binding))
+        stable_ids.append((binding.volume_id, binding.stable_file_id))
+        state[field] = hashlib.sha256(raw).hexdigest()
+    if len(stable_ids) != len(set(stable_ids)):
+        raise Scale01VerificationError("protected surface paths are not distinct")
+
+    state_bytes = json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return ProtectedStateSnapshot(
+        fixture_root=_PathBinding(**fixture_identity),
+        surface_bindings=tuple(surface_bindings),
+        _state_bytes=state_bytes,
+    )
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -793,13 +870,29 @@ def _assert_disjoint(first: Path, second: Path) -> None:
         raise Scale01VerificationError("scratch and fixture roots are not disjoint")
 
 
+def _derive_protected_state_comparison(pre_state: Mapping[str, Any], post_state: Mapping[str, Any]) -> dict[str, bool]:
+    return {
+        "legacy_entry_sets_equal": pre_state["legacy_entry_set_sha256"] == post_state["legacy_entry_set_sha256"],
+        "legacy_bytes_equal": pre_state["legacy_entries"] == post_state["legacy_entries"],
+        "event_tail_unchanged": pre_state["event_tail_sha256"] == post_state["event_tail_sha256"],
+        "object_set_unchanged": pre_state["object_set_sha256"] == post_state["object_set_sha256"],
+        "scope_definition_set_unchanged": pre_state["scope_definition_set_sha256"]
+        == post_state["scope_definition_set_sha256"],
+        "dispatch_set_unchanged": pre_state["dispatch_set_sha256"] == post_state["dispatch_set_sha256"],
+        "result_set_unchanged": pre_state["result_set_sha256"] == post_state["result_set_sha256"],
+        "claim_set_unchanged": pre_state["claim_set_sha256"] == post_state["claim_set_sha256"],
+    }
+
+
 def verify_no_write_evidence(
     repo_root: Path,
     fixture_root: Path,
     scratch_root: Path,
     evidence: Mapping[str, Any],
+    *,
+    pre_snapshot: ProtectedStateSnapshot,
 ) -> None:
-    """Recompute equal pre/post protected sets and zero-publication evidence."""
+    """Derive post-state from the immutable, byte-backed pre-state binding."""
 
     root = repo_root.resolve(strict=True)
     schema = _read_json(root / SCHEMA_DIR / "scale01-no-write-evidence.schema.json")
@@ -811,22 +904,40 @@ def verify_no_write_evidence(
     _require_equal(evidence["scratch_root"], path_identity(scratch_root), "no-write scratch root")
     _assert_disjoint(fixture_root, scratch_root)
 
-    pre_state = evidence["pre_state"]
-    post_state = evidence["post_state"]
-    _validate_protected_state(pre_state, "pre-state")
-    _validate_protected_state(post_state, "post-state")
-    _require_equal(pre_state, post_state, "pre/post protected state")
-
-    current = snapshot_protected_state(
-        fixture_root,
-        event_tail_sha256=post_state["event_tail_sha256"],
-        object_set_sha256=post_state["object_set_sha256"],
-        scope_definition_set_sha256=post_state["scope_definition_set_sha256"],
-        dispatch_set_sha256=post_state["dispatch_set_sha256"],
-        result_set_sha256=post_state["result_set_sha256"],
-        claim_set_sha256=post_state["claim_set_sha256"],
+    if not isinstance(pre_snapshot, ProtectedStateSnapshot):
+        raise Scale01VerificationError("protected pre-snapshot type mismatch")
+    _require_equal(
+        pre_snapshot.fixture_root.as_dict(),
+        path_identity(fixture_root),
+        "immutable pre-snapshot fixture-root binding",
     )
-    _require_equal(current, post_state, "current protected state")
+
+    bound_paths = {field: Path(binding.configured_path) for field, binding in pre_snapshot.surface_bindings}
+    post_snapshot = snapshot_protected_state(
+        fixture_root,
+        protected_surface_paths=bound_paths,
+    )
+    _require_equal(
+        post_snapshot.fixture_root,
+        pre_snapshot.fixture_root,
+        "immutable pre-snapshot fixture-root binding",
+    )
+    _require_equal(
+        post_snapshot.surface_bindings,
+        pre_snapshot.surface_bindings,
+        "immutable pre-snapshot protected-path binding",
+    )
+
+    pre_state = pre_snapshot.evidence_state()
+    post_state = post_snapshot.evidence_state()
+    _validate_protected_state(pre_state, "observed pre-state")
+    _validate_protected_state(post_state, "observed post-state")
+    derived_comparison = _derive_protected_state_comparison(pre_state, post_state)
+    _require_equal(evidence["pre_state"], pre_state, "pre/post protected state")
+    _require_equal(evidence["post_state"], post_state, "pre/post protected state")
+    _require_equal(evidence["comparison"], derived_comparison, "derived protected-state comparison")
+    if not all(derived_comparison.values()):
+        raise Scale01VerificationError("pre/post protected state changed")
 
     if evidence["legacy_write_paths"] or evidence["publication_paths"]:
         raise Scale01VerificationError("no-write evidence records a forbidden write or publication")
@@ -843,6 +954,7 @@ def verify_scale01_preflight_candidate(
     fixture_observation: Mapping[str, Any],
     no_write_evidence: Mapping[str, Any],
     *,
+    protected_surface_paths: Mapping[str, Path],
     package_index: Mapping[str, Any] | None = None,
     blueprint: Mapping[str, Any] | None = None,
     preflight: Mapping[str, Any] | None = None,
@@ -861,10 +973,20 @@ def verify_scale01_preflight_candidate(
     if w11_dossier_manifest is not None:
         verify_w11_dossier_manifest(root, w11_dossier_manifest)
     verify_fixture_observation(root, fixture_root, fixture_observation)
+    pre_snapshot = snapshot_protected_state(
+        fixture_root,
+        protected_surface_paths=protected_surface_paths,
+    )
     if failure_injector is not None:
         try:
             failure_injector()
         except Exception as exc:
             raise Scale01VerificationError("injected preflight failure before publication") from exc
-    verify_no_write_evidence(root, fixture_root, scratch_root, no_write_evidence)
+    verify_no_write_evidence(
+        root,
+        fixture_root,
+        scratch_root,
+        no_write_evidence,
+        pre_snapshot=pre_snapshot,
+    )
     return verified

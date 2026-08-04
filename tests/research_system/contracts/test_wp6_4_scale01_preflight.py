@@ -92,8 +92,16 @@ def _valid_w11_manifest() -> dict[str, Any]:
 def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     fixture_root = tmp_path / "legacy-fixtures"
     scratch_root = tmp_path / "attempt-scratch"
+    protected_root = tmp_path / "protected-surfaces"
     fixture_root.mkdir()
     scratch_root.mkdir()
+    protected_root.mkdir()
+
+    protected_surface_paths = {}
+    for field in _SHA_FIELDS:
+        path = protected_root / f"{field.removesuffix('_sha256')}.json"
+        path.write_bytes(f"synthetic:{field}\n".encode())
+        protected_surface_paths[field] = path
 
     expected_rows = []
     observation_rows = []
@@ -173,8 +181,11 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     }
     _refresh_observation(observation)
 
-    tokens = {field: hashlib.sha256(field.encode()).hexdigest() for field in _SHA_FIELDS}
-    state = scale01.snapshot_protected_state(fixture_root, **tokens)
+    pre_snapshot = scale01.snapshot_protected_state(
+        fixture_root,
+        protected_surface_paths=protected_surface_paths,
+    )
+    state = pre_snapshot.evidence_state()
     evidence = {
         "schema_id": "ars://contracts/wp6-4/scale01-no-write-evidence",
         "schema_version": "1.0.1",
@@ -207,6 +218,8 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
             "fixture_root": fixture_root,
             "scratch_root": scratch_root,
             "fixture_paths": fixture_paths,
+            "protected_surface_paths": protected_surface_paths,
+            "pre_snapshot": pre_snapshot,
             "observation": observation,
             "evidence": evidence,
         }
@@ -363,6 +376,7 @@ def test_positive_synthetic_evidence_still_ends_pending_and_non_dispatchable(
         synthetic_bundle["scratch_root"],
         synthetic_bundle["observation"],
         synthetic_bundle["evidence"],
+        protected_surface_paths=synthetic_bundle["protected_surface_paths"],
     )
 
     assert verified == {
@@ -481,8 +495,34 @@ def test_row_index_membership_alignment_is_recomputed(synthetic_bundle: dict[str
 
 @pytest.mark.parametrize("field", _SHA_FIELDS)
 def test_no_write_evidence_rejects_each_changed_protected_surface(synthetic_bundle: dict[str, Any], field: str) -> None:
+    synthetic_bundle["protected_surface_paths"][field].write_bytes(b"mutated protected bytes\n")
+
+    with pytest.raises(scale01.Scale01VerificationError, match="pre/post protected state"):
+        scale01.verify_no_write_evidence(
+            REPO_ROOT,
+            synthetic_bundle["fixture_root"],
+            synthetic_bundle["scratch_root"],
+            synthetic_bundle["evidence"],
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
+        )
+
+
+def test_no_write_evidence_rejects_coordinated_caller_hash_substitution(
+    synthetic_bundle: dict[str, Any],
+) -> None:
     evidence = deepcopy(synthetic_bundle["evidence"])
-    evidence["post_state"][field] = "f" * 64
+    original_paths = dict(synthetic_bundle["protected_surface_paths"])
+    original_bytes = {field: path.read_bytes() for field, path in original_paths.items()}
+    substitute_root = synthetic_bundle["scratch_root"] / "coordinated-substitute"
+    substitute_root.mkdir()
+    for field in _SHA_FIELDS:
+        raw = f"substitute:{field}\n".encode()
+        substitute_path = substitute_root / f"{field}.json"
+        substitute_path.write_bytes(raw)
+        fabricated_hash = hashlib.sha256(raw).hexdigest()
+        evidence["pre_state"][field] = fabricated_hash
+        evidence["post_state"][field] = fabricated_hash
+        synthetic_bundle["protected_surface_paths"][field] = substitute_path
     _refresh_evidence(evidence)
 
     with pytest.raises(scale01.Scale01VerificationError, match="pre/post protected state"):
@@ -491,6 +531,26 @@ def test_no_write_evidence_rejects_each_changed_protected_surface(synthetic_bund
             synthetic_bundle["fixture_root"],
             synthetic_bundle["scratch_root"],
             evidence,
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
+        )
+    assert {field: path.read_bytes() for field, path in original_paths.items()} == original_bytes
+
+
+def test_no_write_evidence_rejects_same_path_surface_replacement(
+    synthetic_bundle: dict[str, Any],
+) -> None:
+    path = synthetic_bundle["protected_surface_paths"]["object_set_sha256"]
+    raw = path.read_bytes()
+    path.rename(path.with_suffix(".original"))
+    path.write_bytes(raw)
+
+    with pytest.raises(scale01.Scale01VerificationError, match="protected-path binding"):
+        scale01.verify_no_write_evidence(
+            REPO_ROOT,
+            synthetic_bundle["fixture_root"],
+            synthetic_bundle["scratch_root"],
+            synthetic_bundle["evidence"],
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
         )
 
 
@@ -510,6 +570,7 @@ def test_no_write_evidence_rejects_changed_legacy_set(synthetic_bundle: dict[str
             synthetic_bundle["fixture_root"],
             synthetic_bundle["scratch_root"],
             evidence,
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
         )
 
 
@@ -524,6 +585,7 @@ def test_no_write_evidence_requires_disjoint_scratch(synthetic_bundle: dict[str,
             synthetic_bundle["fixture_root"],
             synthetic_bundle["fixture_root"],
             evidence,
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
         )
 
 
@@ -538,6 +600,7 @@ def test_no_write_evidence_rejects_a_legacy_write_record(synthetic_bundle: dict[
             synthetic_bundle["fixture_root"],
             synthetic_bundle["scratch_root"],
             evidence,
+            pre_snapshot=synthetic_bundle["pre_snapshot"],
         )
 
 
@@ -559,6 +622,7 @@ def test_failure_injection_has_zero_publication(synthetic_bundle: dict[str, Any]
             synthetic_bundle["scratch_root"],
             synthetic_bundle["observation"],
             synthetic_bundle["evidence"],
+            protected_surface_paths=synthetic_bundle["protected_surface_paths"],
             failure_injector=fail_before_publication,
         )
 
