@@ -2451,7 +2451,7 @@ class CommandService:
                 or payload["declared_write_set"] != ["dispatch", "task"]
                 or payload["expected_dispatch_stream_version"] != observed_version
                 or payload["expected_task_stream_version"] != snapshot.stream_versions.get(payload["task_id"], 0)
-                or payload["expected_global_position"] != len(snapshot.events)
+                or payload["expected_global_position"] != snapshot.global_position
                 or payload["expected_tail_hash"] != expected_tail_hash
                 or not isinstance(lease, dict)
                 or lease.get("status") != "active"
@@ -2766,7 +2766,8 @@ class CommandService:
                         return rejected("heartbeat_stale", "Lease renewal heartbeat is stale.")
                     if payload["renewal_policy_ref"] != stored_grant.get("renewal_policy_ref"):
                         return rejected("lease_renewal_mismatch", "Lease renewal policy is not current.")
-                    if new_expiry > grant_expiry:
+                    renewal_expiry = self._resource_grant_expiry(payload["new_expiry"])
+                    if renewal_expiry is None or renewal_expiry > grant_expiry:
                         return rejected(
                             "resource_grant_expiry_exceeded", "Lease expiry exceeds the Resource grant expiry."
                         )

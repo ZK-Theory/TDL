@@ -191,13 +191,16 @@ def _generic_claim_dispatch_events(
         "expected_dispatch_stream_version": 3,
         "expected_task_stream_version": 3,
         "declared_write_set": ["dispatch", "task"],
-        "expected_global_position": 6,
+        "expected_global_position": len(events),
         "expected_tail_hash": previous_event_hash,
     }
     if malformed_field is not None:
         dispatch_payload[malformed_field] = "not-an-integer"
     transaction_id = "txb_01978abc-4007-7000-8000-000000004007"
     command_payload_hash = sha256_hex(canonical_bytes(dispatch_payload))
+    claim_binding = harness.schemas.command_binding(claim_schema_command_type)
+    assert claim_binding is not None, f"missing active binding for {claim_schema_command_type}"
+    claim_identity = harness.schemas.resolve_identity(claim_binding.schema_id, claim_binding.schema_version)
     append(
         "DispatchClaimed",
         DISPATCH_ID,
@@ -208,18 +211,9 @@ def _generic_claim_dispatch_events(
         transaction_id=transaction_id,
         transaction_count=2,
         transaction_index=1,
-        command_schema_id=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).schema_id,
-        command_schema_version=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).schema_version,
-        command_schema_sha256=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).sha256,
+        command_schema_id=claim_identity.schema_id,
+        command_schema_version=claim_identity.schema_version,
+        command_schema_sha256=claim_identity.sha256,
         command_payload_hash=command_payload_hash,
     )
     append(
@@ -232,18 +226,9 @@ def _generic_claim_dispatch_events(
         transaction_id=transaction_id,
         transaction_count=2,
         transaction_index=2,
-        command_schema_id=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).schema_id,
-        command_schema_version=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).schema_version,
-        command_schema_sha256=harness.schemas.resolve_identity(
-            harness.schemas.command_binding(claim_schema_command_type).schema_id,
-            harness.schemas.command_binding(claim_schema_command_type).schema_version,
-        ).sha256,
+        command_schema_id=claim_identity.schema_id,
+        command_schema_version=claim_identity.schema_version,
+        command_schema_sha256=claim_identity.sha256,
         command_payload_hash=command_payload_hash,
     )
     return events
@@ -359,26 +344,38 @@ def test_replay_keeps_valid_generic_lease_granted_history_readable(tmp_path):
     assert projection["streams"][LEASE_ID]["status"] == "active"
 
 
-def test_replay_maps_malformed_generic_lease_granted_shapes_to_integrity_error(tmp_path):
+@pytest.mark.parametrize(
+    ("case", "field", "value", "expected_error"),
+    (
+        ("missing", "new_lease_id", None, "'new_lease_id'"),
+        (
+            "wrong-type",
+            "task_revision",
+            None,
+            "int() argument must be a string, a bytes-like object or a real number, not 'NoneType'",
+        ),
+        (
+            "wrong-value",
+            "task_revision",
+            "not-an-integer",
+            "invalid literal for int() with base 10: 'not-an-integer'",
+        ),
+    ),
+    ids=["missing", "wrong-type", "wrong-value"],
+)
+def test_replay_maps_malformed_generic_lease_granted_shapes_to_integrity_error(
+    tmp_path, case, field, value, expected_error
+):
     events, harness = _events(tmp_path)
-    valid = _generic_lease_granted_event(events[0], harness)
-    malformed_payloads = []
+    malformed = _generic_lease_granted_event(events[0], harness)
+    if case == "missing":
+        malformed["payload"].pop(field)
+    else:
+        malformed["payload"][field] = value
 
-    missing = deepcopy(valid)
-    missing["payload"].pop("new_lease_id")
-    malformed_payloads.append(_rehash(missing))
-
-    wrong_type = deepcopy(valid)
-    wrong_type["payload"]["task_revision"] = None
-    malformed_payloads.append(_rehash(wrong_type))
-
-    wrong_value = deepcopy(valid)
-    wrong_value["payload"]["task_revision"] = "not-an-integer"
-    malformed_payloads.append(_rehash(wrong_value))
-
-    for malformed in malformed_payloads:
-        with pytest.raises(IntegrityError):
-            replay([malformed], schema_registry=harness.service.schemas)
+    with pytest.raises(IntegrityError) as exc_info:
+        replay([_rehash(malformed)], schema_registry=harness.service.schemas)
+    assert str(exc_info.value) == expected_error
 
 
 @pytest.mark.parametrize(

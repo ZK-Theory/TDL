@@ -14,6 +14,7 @@ from research_system.command.lifecycle import (
     materialize_scope_member_changes,
     validate_exact_lifecycle_envelope,
 )
+from research_system.operations.resources import RESOURCE_GRANT_V1_1_SCHEMA_VERSION
 
 _TASK_TERMINAL = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
 
@@ -602,7 +603,7 @@ def reduce_resource(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
                 "kind": "resource_grant",
                 "id": event["stream_id"],
                 "revision": 1,
-                "schema_version": "1.1.0",
+                "schema_version": RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
             },
             "version": event["stream_version"],
         }

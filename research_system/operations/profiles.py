@@ -11,6 +11,21 @@ import yaml
 from research_system.canonical import canonical_bytes, sha256_hex
 
 
+_REQUIRED_PROFILE_FIELDS = frozenset(
+    {
+        "profile_id",
+        "max_runtime_s",
+        "allow_child_process",
+        "allow_durable_writer",
+        "require_benchmark",
+        "require_periodic_heartbeat",
+        "require_checkpoint",
+        "heartbeat",
+        "renewal",
+    }
+)
+
+
 @dataclass(frozen=True)
 class ResourceClaim:
     """Claim units on one named resource under a sharing mode."""
@@ -102,11 +117,13 @@ def _load_current_operational_profile_policy() -> tuple[OperationalProfilePolicy
 
     profiles: dict[str, OperationalProfile] = {}
     for name, raw_profile in raw_profiles.items():
-        if not isinstance(raw_profile, dict):
+        if not isinstance(raw_profile, dict) or not _REQUIRED_PROFILE_FIELDS.issubset(raw_profile):
             raise ValueError("operational_profile_invalid")
         heartbeat = raw_profile.get("heartbeat")
         renewal = raw_profile.get("renewal")
         if not isinstance(heartbeat, dict) or not isinstance(renewal, dict):
+            raise ValueError("operational_profile_controls_invalid")
+        if "disposition" not in heartbeat or "allowed" not in renewal:
             raise ValueError("operational_profile_controls_invalid")
         profiles[name] = OperationalProfile(
             profile_id=str(raw_profile["profile_id"]),

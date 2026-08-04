@@ -202,6 +202,34 @@ def test_active_claim_dispatch_requires_its_exact_command_envelope(tmp_path):
     assert tuple(harness.ledger.iter_events()) == ()
 
 
+@pytest.mark.parametrize(
+    ("actor_id", "command_types"),
+    (
+        (ACTORS["actor-b"], ("CreateTask",)),
+        (ACTORS["actor-a"], ("AmendTask",)),
+    ),
+    ids=["actor-mismatch", "command-mismatch"],
+)
+def test_activate_lifecycle_grant_rejects_mismatched_existing_scope(tmp_path, actor_id, command_types):
+    harness = control_plane(tmp_path)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_ID,
+        command_types=("CreateTask",),
+    )
+
+    with pytest.raises(AssertionError, match="existing lifecycle grant does not match requested scope"):
+        activate_lifecycle_grant(
+            harness,
+            subject_kind="task",
+            subject_id=TASK_ID,
+            actor_id=actor_id,
+            command_types=command_types,
+            grant_id=grant_id,
+        )
+
+
 def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):
     harness = control_plane(tmp_path)
     root = harness.service.control_root

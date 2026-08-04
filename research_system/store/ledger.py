@@ -34,6 +34,7 @@ _COMMAND_SCHEMA_FIELDS = frozenset(
         "command_schema_sha256",
     }
 )
+_T2_EVENT_SCHEMA_PREFIX = "ars://wp6-2/t2/event/"
 
 
 @dataclass(frozen=True)
@@ -335,6 +336,14 @@ class EventLedger:
         proposed = list(proposed_events)
         if not proposed:
             raise ArsError("event batch must not be empty")
+        event_families = {
+            str((event.envelope if isinstance(event, EventDraft) else event).get("schema_id", "")).startswith(
+                _T2_EVENT_SCHEMA_PREFIX
+            )
+            for event in proposed
+        }
+        if len(event_families) != 1:
+            raise ArsError("event batch must not mix transaction_index conventions")
         current = self.snapshot() if snapshot is None else snapshot
         if self._fingerprint() != current.fingerprint:
             self._snapshot = None
@@ -394,7 +403,7 @@ class EventLedger:
             stream_versions[stream_id] = stream_version
             event_id = new_id("event")
             recorded_at_text = recorded_at.isoformat().replace("+00:00", "Z")
-            t2_event = str(candidate.get("schema_id", "")).startswith("ars://wp6-2/t2/event/")
+            t2_event = str(candidate.get("schema_id", "")).startswith(_T2_EVENT_SCHEMA_PREFIX)
             transaction_index = offset if t2_event else offset + 1
             if draft is None and event_type == "ReleaseGateDecisionPublished":
                 raise ArsError("release publication requires a ledger event finalizer")
@@ -564,23 +573,30 @@ class EventLedger:
             except KeyError as exc:
                 raise ArsError(f"event batch missing required field: {exc.args[0]}") from exc
 
-            if transaction_count != len(batch):
+            if type(transaction_count) is not int or transaction_count != len(batch):
                 raise ArsError("invalid event batch envelope: transaction_count does not match physical line count")
 
             transaction_indexes: list[int] = []
+            event_families: set[bool] = set()
             for event in batch:
                 try:
                     if event["transaction_id"] != transaction_id:
                         raise ArsError("invalid event batch envelope: batch contains multiple transaction_ids")
-                    if event["transaction_count"] != transaction_count:
+                    if type(event["transaction_count"]) is not int or event["transaction_count"] != transaction_count:
                         raise ArsError("invalid event batch envelope: transaction_count is not contiguous")
                 except KeyError as exc:
                     raise ArsError(f"event batch missing required field: {exc.args[0]}") from exc
-                transaction_indexes.append(event["transaction_index"])
+                transaction_index = event.get("transaction_index")
+                if type(transaction_index) is not int:
+                    raise ArsError("invalid event batch envelope: invalid transaction_index sequence")
+                transaction_indexes.append(transaction_index)
+                event_families.add(str(event.get("schema_id", "")).startswith(_T2_EVENT_SCHEMA_PREFIX))
 
-            expected_zero = list(range(len(batch)))
-            expected_one = list(range(1, len(batch) + 1))
-            if sorted(transaction_indexes) not in (expected_zero, expected_one):
+            if len(event_families) != 1:
+                raise ArsError("invalid event batch envelope: mixed transaction_index conventions")
+            t2_event = next(iter(event_families))
+            expected_indexes = list(range(len(batch))) if t2_event else list(range(1, len(batch) + 1))
+            if transaction_indexes != expected_indexes:
                 raise ArsError("invalid event batch envelope: invalid transaction_index sequence")
 
             yield batch

@@ -490,7 +490,7 @@ def test_resource_grant_versions_coexist_and_require_explicit_version():
     assert current.sha256 == RESOURCE_GRANT_V1_1_SCHEMA_SHA256
     assert sha256(source.read_bytes()).hexdigest() == RESOURCE_GRANT_V1_1_SCHEMA_SHA256
     with pytest.raises(SchemaError, match="schema version required"):
-        registry.validate(schema_id, {"schema_version": "1.1.0"})
+        registry.validate(schema_id, {})
 
 
 def test_t2_v1_1_siblings_have_independent_exact_new_write_contracts():

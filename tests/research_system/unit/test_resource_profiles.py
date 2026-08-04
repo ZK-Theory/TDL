@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.operations import profiles as profiles_module
 from research_system.operations.profiles import (
     CURRENT_OPERATIONAL_PROFILE_POLICY,
     CURRENT_PROFILES,
@@ -166,3 +167,28 @@ def test_operational_profile_v1_1_policy_freezes_heartbeat_and_renewal_controls(
     assert CURRENT_PROFILES["trivial"].heartbeat_disposition == "not_applicable"
     assert CURRENT_PROFILES["trivial"].heartbeat_cadence_seconds is None
     assert CURRENT_PROFILES["trivial"].renewal_allowed is False
+
+
+@pytest.mark.parametrize(
+    ("control", "field", "expected_error"),
+    (
+        (None, "profile_id", "operational_profile_invalid"),
+        ("heartbeat", "disposition", "operational_profile_controls_invalid"),
+        ("renewal", "allowed", "operational_profile_controls_invalid"),
+    ),
+    ids=["profile-field", "heartbeat-disposition", "renewal-allowed"],
+)
+def test_operational_profile_policy_missing_required_keys_raise_named_errors(
+    monkeypatch, control, field, expected_error
+):
+    root = Path(__file__).resolve().parents[3]
+    policy_path = root / ".research-system" / "policies" / "operational-profiles.v1-1.yaml"
+    payload = yaml.safe_load(policy_path.read_bytes())
+    bounded = payload["profiles"]["bounded"]
+    target = bounded if control is None else bounded[control]
+    target.pop(field)
+    malformed = yaml.safe_dump(payload, sort_keys=False).encode("utf-8")
+    monkeypatch.setattr(Path, "read_bytes", lambda _path: malformed)
+
+    with pytest.raises(ValueError, match=expected_error):
+        profiles_module._load_current_operational_profile_policy()

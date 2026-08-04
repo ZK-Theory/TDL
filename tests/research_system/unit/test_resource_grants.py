@@ -23,6 +23,7 @@ RESOURCE_REQUEST_ID = "rsq_0198825f-0003-7000-8000-000000000003"
 ATTEMPT_ID = "att_0198825f-0004-7000-8000-000000000004"
 TASK_ID = "tsk_0198825f-0005-7000-8000-000000000005"
 DISPATCH_ID = "dsp_0198825f-0006-7000-8000-000000000006"
+SCHEMAS = Path(__file__).resolve().parents[3] / ".research-system" / "schemas"
 
 
 def _trusted_authority() -> TrustedRuntimeAuthority:
@@ -235,7 +236,7 @@ def test_resource_grant_v1_1_is_deterministic_content_addressed_and_bounded():
     assert grant["resource_request_sha256"] != grant["authority_request_basis_sha256"]
     preimage = {key: value for key, value in grant.items() if key != "content_hash"}
     assert grant["content_hash"] == sha256_hex(canonical_bytes(preimage))
-    registry = SchemaRegistry(Path(".research-system/schemas"))
+    registry = SchemaRegistry(SCHEMAS)
     registry.validate("ars://core/event/ResourceGrantRequested", event)
     registry.validate(
         RESOURCE_GRANT_V1_1_SCHEMA_ID,

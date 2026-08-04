@@ -197,6 +197,10 @@ def derive_resource_grant_authority_preimage_ref(
         resource_request=resource_request,
         trusted_authority=trusted_authority,
     )
+    return _authority_preimage_ref(preimage)
+
+
+def _authority_preimage_ref(preimage: Mapping[str, Any]) -> str:
     return f"ars://operations/resource-grant-authority-preimage/sha256/{sha256_hex(canonical_bytes(preimage))}"
 
 
@@ -213,7 +217,7 @@ def _require_exact_authority_preimage_ref(
         resource_request=request,
         trusted_authority=trusted_authority,
     )
-    expected_ref = f"ars://operations/resource-grant-authority-preimage/sha256/{sha256_hex(canonical_bytes(preimage))}"
+    expected_ref = _authority_preimage_ref(preimage)
     refs = request.get("projection_evidence_refs")
     if (
         not isinstance(refs, list)

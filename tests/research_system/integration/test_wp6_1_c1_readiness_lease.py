@@ -50,7 +50,7 @@ CONTEXT_ID = "ctx_01978abc-7212-7000-8000-000000007212"
 HEARTBEAT_ID = "hbt_01978abc-7210-7000-8000-000000007210"
 OTHER_HEARTBEAT_ID = "hbt_01978abc-7216-7000-8000-000000007216"
 CHECKPOINT_ID = "cpm_01978abc-7211-7000-8000-000000007211"
-POLICY_ID = "pol_01978abc-7212-7000-8000-000000007212"
+POLICY_ID = "pol_01978abc-7217-7000-8000-000000007217"
 OPERATOR_RELEASE_GRANT_ID = "agr_01978abc-7220-7000-8000-000000007220"
 
 GRANTED_AT = "2026-08-01T12:00:00Z"
@@ -367,7 +367,7 @@ def _claim_dispatch_command(harness, *, number: int) -> dict[str, Any]:
             "expected_dispatch_stream_version": 3,
             "expected_task_stream_version": snapshot.stream_versions[TASK_ID],
             "declared_write_set": ["dispatch", "task"],
-            "expected_global_position": len(snapshot.events),
+            "expected_global_position": snapshot.global_position,
             "expected_tail_hash": snapshot.events[-1]["event_hash"],
         },
     )
@@ -948,12 +948,12 @@ def _fold_trusted_c1_tail_batches(
 def _grant_admission_snapshot(harness) -> dict[str, Any]:
     return {
         **_domain_snapshot(harness),
-        "receipts": _json_files(harness.objects.control_root / "receipts"),
+        "receipts": _json_files(harness.receipts.receipts_root),
     }
 
 
 def _rejection_snapshot(harness) -> dict[str, Any]:
-    receipts = _json_files(harness.objects.control_root / "receipts")
+    receipts = _json_files(harness.receipts.receipts_root)
     return {
         **_domain_snapshot(harness),
         "accepted_receipts": {
@@ -2886,6 +2886,8 @@ def test_resource_release_requires_its_owning_lease_but_can_follow_lease_release
     assert rejected.status == "rejected"
     assert rejected.reason_code == "resource_cleanup_evidence_missing"
     assert _rejection_snapshot(harness) == before_empty_cleanup
+    # Resource teardown must remain available after runtime authority moves on;
+    # it retires existing resources and cannot create new execution authority.
     authority["current"] = _drifted_runtime_authority("host_identity")
     receipt = harness.service.submit(_release_resources_command(number=13))
     assert receipt.status == "accepted"
@@ -2910,15 +2912,17 @@ def test_first_heartbeat_is_accepted_only_after_the_public_chain_reaches_running
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    ("field", "value", "expected_reason"),
     (
-        ("host_identity", "host:sha256:" + "e" * 64),
-        ("boot_identity", "boot:sha256:" + "f" * 64),
-        ("process_identity_id", OTHER_PROCESS_ID),
+        ("host_identity", "host:sha256:" + "e" * 64, "heartbeat_runtime_identity_mismatch"),
+        ("boot_identity", "boot:sha256:" + "f" * 64, "heartbeat_runtime_identity_mismatch"),
+        ("process_identity_id", OTHER_PROCESS_ID, "heartbeat_process_mismatch"),
     ),
     ids=["wrong-host", "wrong-boot", "wrong-process"],
 )
-def test_heartbeat_rejects_valid_shaped_wrong_host_boot_or_process_without_mutation(tmp_path, field, value):
+def test_heartbeat_rejects_valid_shaped_wrong_host_boot_or_process_without_mutation(
+    tmp_path, field, value, expected_reason
+):
     harness = _c1_control_plane(tmp_path)
     _seed_running_attempt(harness)
     command = _heartbeat_command(number=109)
@@ -2928,6 +2932,7 @@ def test_heartbeat_rejects_valid_shaped_wrong_host_boot_or_process_without_mutat
     rejected = harness.service.submit(command)
 
     assert rejected.status == "rejected"
+    assert rejected.reason_code == expected_reason
     assert _domain_snapshot(harness) == before
 
 
@@ -2959,18 +2964,20 @@ def test_heartbeat_rejects_missing_and_non_running_attempt_without_mutation(tmp_
 
 
 @pytest.mark.parametrize(
-    ("case", "overrides"),
+    ("case", "overrides", "expected_reason"),
     (
-        ("repeated-sequence", {"heartbeat_sequence": 1}),
-        ("skipped-sequence", {"heartbeat_sequence": 3}),
-        ("duplicate-heartbeat-id", {"heartbeat_id": HEARTBEAT_ID}),
-        ("non-increasing-wall-time", {"wall_time": HEARTBEAT_AT}),
-        ("non-increasing-monotonic-time", {"monotonic_time": 120}),
-        ("non-increasing-progress", {"work_unit_progress": 1}),
+        ("repeated-sequence", {"heartbeat_sequence": 1}, "heartbeat_progression_mismatch"),
+        ("skipped-sequence", {"heartbeat_sequence": 3}, "heartbeat_progression_mismatch"),
+        ("duplicate-heartbeat-id", {"heartbeat_id": HEARTBEAT_ID}, "heartbeat_id_conflict"),
+        ("non-increasing-wall-time", {"wall_time": HEARTBEAT_AT}, "heartbeat_progression_mismatch"),
+        ("non-increasing-monotonic-time", {"monotonic_time": 120}, "heartbeat_progression_mismatch"),
+        ("non-increasing-progress", {"work_unit_progress": 1}, "heartbeat_progression_mismatch"),
     ),
 )
-def test_heartbeat_rejects_non_monotonic_identity_or_progression_without_mutation(tmp_path, case, overrides):
-    harness = _c1_control_plane(tmp_path)
+def test_heartbeat_rejects_non_monotonic_identity_or_progression_without_mutation(
+    tmp_path, case, overrides, expected_reason
+):
+    harness, clock = _mutable_c1_control_plane(tmp_path)
     _seed_running_attempt(harness)
     _assert_event(
         harness,
@@ -2978,6 +2985,7 @@ def test_heartbeat_rejects_non_monotonic_identity_or_progression_without_mutatio
         event_type="HeartbeatRecorded",
         resulting_stream_version=2,
     )
+    clock["now"] = datetime(2026, 8, 1, 12, 31, tzinfo=UTC)
     command = _heartbeat_command(
         number=110,
         expected_stream_version=2,
@@ -2993,6 +3001,7 @@ def test_heartbeat_rejects_non_monotonic_identity_or_progression_without_mutatio
     rejected = harness.service.submit(command)
 
     assert rejected.status == "rejected", case
+    assert rejected.reason_code == expected_reason, case
     assert _domain_snapshot(harness) == before, case
 
 
@@ -3036,10 +3045,16 @@ def test_renewal_accepts_the_latest_fresh_heartbeat_from_the_running_attempt(tmp
 
 
 @pytest.mark.parametrize(
-    "case",
-    ("missing", "wrong", "stale", "wrong-policy", "authority-drift"),
+    ("case", "expected_reason"),
+    (
+        ("missing", "lease_renewal_heartbeat_missing"),
+        ("wrong", "lease_renewal_heartbeat_mismatch"),
+        ("stale", "heartbeat_stale"),
+        ("wrong-policy", "lease_renewal_mismatch"),
+        ("authority-drift", "resource_grant_invalid"),
+    ),
 )
-def test_renewal_requires_exact_latest_fresh_heartbeat_current_policy_and_authority(tmp_path, case):
+def test_renewal_requires_exact_latest_fresh_heartbeat_current_policy_and_authority(tmp_path, case, expected_reason):
     if case == "authority-drift":
         harness, authority = _mutable_c1_authority_control_plane(tmp_path)
         clock = None
@@ -3076,6 +3091,7 @@ def test_renewal_requires_exact_latest_fresh_heartbeat_current_policy_and_author
     rejected = harness.service.submit(renewal)
 
     assert rejected.status == "rejected", case
+    assert rejected.reason_code == expected_reason, case
     assert _domain_snapshot(harness) == before, case
 
 

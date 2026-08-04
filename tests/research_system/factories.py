@@ -232,6 +232,12 @@ def activate_lifecycle_grant(
         subject_kind: Governed subject kind for the grant scope.
         subject_id: Governed subject identity for the grant scope.
         actor_id: Actor recorded on the issued grant.
+        command_types: Exact commands allowed by the grant, or the centralized
+            defaults for ``subject_kind`` when omitted.
+        grant_id: Explicit grant identity, or the deterministic identity derived
+            from ``subject_id`` when omitted.
+        effective_at: Grant activation instant.
+        expires_at: Grant expiry instant.
 
     Returns:
         The deterministic authority-grant identity.
@@ -241,15 +247,27 @@ def activate_lifecycle_grant(
             the authority service rejects activation.
     """
     grant_id = scoped_lifecycle_grant_id(subject_id) if grant_id is None else grant_id
+    resolved_command_types = command_types or _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.get(subject_kind)
+    if resolved_command_types is None:
+        raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
+    subject_scope = {
+        "project_id": PROJECT_ID,
+        "subject": {"kind": subject_kind, "id": subject_id},
+    }
     try:
         existing = harness.authority_resolver.scoped_grant_identity(grant_id)
     except ArsError:
         existing = None
     if existing is not None:
+        stored_grant = harness.authority_objects.read("authority_grant", grant_id, 1)
+        stored_command_types = tuple(command["command_type"] for command in stored_grant["allowed_commands"])
+        if (
+            existing.actor_id != actor_id
+            or existing.subject_scope.to_dict() != subject_scope
+            or stored_command_types != tuple(resolved_command_types)
+        ):
+            raise AssertionError("existing lifecycle grant does not match requested scope")
         return grant_id
-    resolved_command_types = command_types or _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.get(subject_kind)
-    if resolved_command_types is None:
-        raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
     command_identities = []
     for command_type in resolved_command_types:
         binding = harness.schemas.command_binding(command_type)
@@ -269,10 +287,6 @@ def activate_lifecycle_grant(
         "ars://core/scoped-authority-grant",
         "2.0.0",
     )
-    subject_scope = {
-        "project_id": PROJECT_ID,
-        "subject": {"kind": subject_kind, "id": subject_id},
-    }
     grant = {
         "schema_id": "ars://core/scoped-authority-grant",
         "schema_version": "2.0.0",
