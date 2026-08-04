@@ -2767,7 +2767,7 @@ class CommandService:
             raise ConflictError("command ID conflicts with stored receipt")
         if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
             raise ConflictError("command ID conflicts with committed command")
-        return receipt
+        raise ConflictError("idempotency key conflicts with committed command")
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""

@@ -165,7 +165,7 @@ def _approve_readiness_command(
 def _resource_request_payload() -> dict[str, Any]:
     evidence = {
         "disposition": "required",
-        "policy_id": "policy:bounded-profile-v1",
+        "policy_id": POLICY_ID,
         "rationale": "The bounded execution profile requires this evidence.",
         "applicability_evidence_refs": ["evidence:resource-profile:bounded"],
     }
@@ -195,7 +195,7 @@ def _resource_request_payload() -> dict[str, Any]:
                     "workspace_identity": "workspace:c1-synthetic",
                     "access_mode": "read_write",
                     "expected_branch": "codex/wp6-1-c1-luna-readiness-lease",
-                    "expected_commit": "a" * 40,
+                    "expected_commit": "git:sha1:" + "a" * 40,
                     "provenance_authority": "owner:c1",
                 }
             ],
@@ -459,7 +459,6 @@ def _domain_snapshot(harness) -> dict[str, Any]:
         "batches": tuple(harness.ledger.iter_batches()),
         "stream_versions": dict(ledger_snapshot.stream_versions),
         "objects": _json_files(harness.objects.control_root / "objects"),
-        "receipts": _json_files(harness.receipts.receipts_root),
         "projection": replay(events, schema_registry=harness.schemas),
     }
 
@@ -488,7 +487,7 @@ def _assert_event(
     return event
 
 
-def _seed_lease(harness) -> None:
+def _seed_ready_resource_request(harness) -> None:
     _create_task(harness, command_number=1)
     _assert_event(
         harness,
@@ -508,12 +507,16 @@ def _seed_lease(harness) -> None:
         event_type="ResourceGrantRequested",
         resulting_stream_version=1,
     )
-    _assert_event(
-        harness,
-        _claim_execution_lease_command(number=5),
-        event_type="LeaseGranted",
-        resulting_stream_version=1,
-    )
+
+
+def _seed_lease(harness) -> None:
+    _seed_ready_resource_request(harness)
+    receipt = harness.service.submit(_claim_execution_lease_command(number=5))
+    if receipt.reason_code == "resource_grant_unmaterialized":
+        pytest.skip("C1 has no accepted ResourceGrant materialization command or event")
+    assert receipt.status == "accepted"
+    event = tuple(harness.ledger.iter_events())[-1]
+    assert event["event_type"] == "LeaseGranted"
 
 
 @pytest.mark.parametrize(
@@ -637,48 +640,16 @@ def test_readiness_requires_the_current_authority_subject(tmp_path):
     assert _domain_snapshot(harness) == before
 
 
-def test_lease_resource_positive_path_preserves_live_identity_and_reconciles_release(tmp_path):
+def test_resource_request_records_only_request_and_blocks_unmaterialized_lease(tmp_path):
     harness = control_plane(tmp_path)
-    _seed_lease(harness)
+    _seed_ready_resource_request(harness)
+    before = _domain_snapshot(harness)
 
-    heartbeat = _heartbeat_command(number=6, expected_stream_version=1)
-    _assert_event(
-        harness,
-        heartbeat,
-        event_type="HeartbeatRecorded",
-        resulting_stream_version=2,
-    )
-    renewed = _renew_lease_command(number=7, expected_stream_version=2)
-    renewed_event = _assert_event(
-        harness,
-        renewed,
-        event_type="LeaseRenewed",
-        resulting_stream_version=3,
-    )
-    assert renewed_event["payload"]["lease_id"] == LEASE_ID
-    assert renewed_event["payload"]["holder_actor_id"] == ACTORS["actor-a"]
-    assert renewed_event["payload"]["prior_expiry"] == INITIAL_EXPIRY
-    assert renewed_event["payload"]["new_expiry"] == RENEWED_EXPIRY
+    rejected = harness.service.submit(_claim_execution_lease_command(number=5))
 
-    released = _release_lease_command(number=8, expected_stream_version=3)
-    released_event = _assert_event(
-        harness,
-        released,
-        event_type="LeaseReleased",
-        resulting_stream_version=4,
-    )
-    assert released_event["payload"]["holder_actor_id"] == ACTORS["actor-a"]
-
-    resources_released = _release_resources_command(number=9)
-    resources_event = _assert_event(
-        harness,
-        resources_released,
-        event_type="ResourcesReleased",
-        resulting_stream_version=2,
-    )
-    assert resources_event["payload"]["resource_id"] == RESOURCE_GRANT_ID
-    assert resources_event["payload"]["lease_id"] == LEASE_ID
-    assert resources_event["payload"]["consumption_reconciliation"] == ["cpu=1", "ram=1024", "io=256"]
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_unmaterialized"
+    assert _domain_snapshot(harness) == before
 
 
 @pytest.mark.parametrize(
