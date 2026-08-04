@@ -37,6 +37,7 @@ from research_system.operations.backups import (
     RestoreBoundFile,
     RestorePreflightResult,
     revalidate_restore_admission_closure,
+    seal_backup_receipt,
     validate_restore_preflight_result,
     verify_restore_before_writer_lease,
 )
@@ -135,8 +136,16 @@ class _RuntimeInputs:
 class ContentAddressedEvidenceStore:
     """Write one logical evidence key with durable, crash-convergent objects."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        forbidden_physical_root_identity: Mapping[str, str] | None = None,
+    ) -> None:
         self.root = Path(root)
+        self.forbidden_physical_root_identity = (
+            dict(forbidden_physical_root_identity) if forbidden_physical_root_identity is not None else None
+        )
 
     def write_once(self, key: str, raw: bytes) -> tuple[Path, str, str]:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", key):
@@ -145,7 +154,16 @@ class ContentAddressedEvidenceStore:
         blob_sha1 = _git_blob_sha1(raw)
         claim_path = self.root / "claims" / f"{key}.json"
         object_path = self.root / "objects" / f"sha256-{digest}.json"
+        root_was_absent = not self.root.exists()
         self.root.mkdir(parents=True, exist_ok=True)
+        if root_was_absent:
+            fsync_directory(self.root.parent)
+        _validate_no_follow_directory(self.root, "candidate output root")
+        if (
+            self.forbidden_physical_root_identity is not None
+            and physical_root_identity(self.root) == self.forbidden_physical_root_identity
+        ):
+            raise EvidenceHarnessError("candidate output root retains the original source physical identity")
         claims = self.root / "claims"
         objects = self.root / "objects"
         claims.mkdir(parents=True, exist_ok=True)
@@ -238,9 +256,15 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
     if source_state != "unavailable":
         raise EvidenceHarnessError("original root is still available at the restart checkpoint")
     destination_identity = physical_root_identity(target_root)
+    git_identity = _capture_git_identity(
+        request.expected_git_commit,
+        request.git_paths,
+        execution_root=approved.code_roots[0],
+    )
+    checked_execution_root = Path(git_identity["execution_root"])
     restart = _fresh_process_binding_load(
         binding_path=request.binding_path,
-        code_root=approved.code_roots[0],
+        code_root=checked_execution_root,
         expected=approved,
     )
 
@@ -296,7 +320,6 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
         output_root=output_root,
     )
 
-    git_identity = _capture_git_identity(request.expected_git_commit, request.git_paths)
     candidate_without_id: dict[str, Any] = {
         "schema_id": _SCHEMA_ID,
         "schema_version": "1.0.0",
@@ -373,7 +396,10 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
     candidate["candidate_id"] = _candidate_id(candidate_without_id)
     validate_real_a8_candidate(candidate)
     raw = canonical_bytes(candidate)
-    path, raw_sha256, blob_sha1 = ContentAddressedEvidenceStore(output_root).write_once(
+    path, raw_sha256, blob_sha1 = ContentAddressedEvidenceStore(
+        output_root,
+        forbidden_physical_root_identity=witness.initial_physical_root_identity,
+    ).write_once(
         candidate["candidate_id"],
         raw,
     )
@@ -458,7 +484,7 @@ def _load_approved_foundation(path: Path) -> tuple[ApprovedProjectBinding, dict[
         raise EvidenceHarnessError("foundation path is not the canonical materialized foundation")
     snapshot = _read_physical_file_snapshot(resolved, "foundation")
     try:
-        approved = ApprovedProjectBinding.load(resolved)
+        approved = ApprovedProjectBinding.from_raw(snapshot.raw)
     except (ArsError, OSError, ValueError, TypeError) as exc:
         raise EvidenceHarnessError("owner-materialized canonical foundation is required") from exc
     _revalidate_file_snapshot(resolved, snapshot, "foundation")
@@ -469,7 +495,7 @@ def _load_canonical_binding(path: Path, approved: ApprovedProjectBinding) -> Con
     binding_path = Path(path)
     before = _read_physical_file_snapshot(binding_path, "ControlBinding")
     try:
-        binding = ControlBinding.load(binding_path)
+        binding = ControlBinding.from_raw(before.raw, approved=approved)
     except (ArsError, OSError, ValueError, TypeError) as exc:
         raise EvidenceHarnessError("canonical ControlBinding could not be loaded") from exc
     _revalidate_file_snapshot(binding_path, before, "ControlBinding")
@@ -666,7 +692,10 @@ def _backup_receipt_from_json(value: Mapping[str, Any]) -> BackupReceipt:
         payload["schema_versions"] = tuple(payload["schema_versions"])
         payload["tool_versions"] = tuple(payload["tool_versions"])
         payload["artefact_bindings"] = tuple(ArtefactBinding(**item) for item in payload["artefact_bindings"])
-        return BackupReceipt(**payload)
+        receipt = BackupReceipt(**payload)
+        if seal_backup_receipt(receipt) != receipt:
+            raise EvidenceHarnessError("runtime backup receipt seal does not match its canonical payload")
+        return receipt
     except (KeyError, TypeError, ValueError) as exc:
         raise EvidenceHarnessError("runtime backup receipt is invalid") from exc
 
@@ -1168,10 +1197,25 @@ def _fresh_process_binding_load(
     }
 
 
-def _capture_git_identity(expected_commit: str, paths: Sequence[str]) -> dict[str, Any]:
+def _capture_git_identity(
+    expected_commit: str,
+    paths: Sequence[str],
+    *,
+    execution_root: Path | None = None,
+) -> dict[str, Any]:
     if not _COMMIT.fullmatch(expected_commit):
         raise EvidenceHarnessError("exact Git subject must be a full commit SHA")
     repo_root = Path(__file__).resolve().parents[2]
+    execution_candidate = repo_root if execution_root is None else Path(execution_root)
+    if not execution_candidate.is_absolute():
+        raise EvidenceHarnessError("execution root must be an absolute approved code root")
+    try:
+        checked_execution_root = execution_candidate.resolve(strict=True)
+    except OSError as exc:
+        raise EvidenceHarnessError("execution root is unavailable") from exc
+    if not checked_execution_root.is_dir():
+        raise EvidenceHarnessError("execution root must be a physical directory")
+    _validate_no_follow_directory(checked_execution_root, "execution root")
     expected_paths = governed_repository_paths(repo_root)
     supplied_paths = tuple(paths)
     if supplied_paths != expected_paths or len(set(supplied_paths)) != len(supplied_paths):
@@ -1202,10 +1246,17 @@ def _capture_git_identity(expected_commit: str, paths: Sequence[str]) -> dict[st
         committed = _git_bytes(repo_root, "show", f"HEAD:{raw_path}")
         if working.raw != committed or working.record["git_blob_sha1"] != blob:
             raise EvidenceHarnessError(f"governed Git path bytes differ from HEAD: {raw_path}")
+        executed = _read_physical_file_snapshot(
+            checked_execution_root / Path(raw_path),
+            f"governed execution path {raw_path}",
+        )
+        if executed.raw != committed or executed.record["git_blob_sha1"] != blob:
+            raise EvidenceHarnessError(f"execution root bytes differ from Git HEAD: {raw_path}")
         path_records.append({"path": raw_path, "mode": mode, "blob_sha1": blob})
     path_set_hash = sha256_hex(canonical_bytes(list(supplied_paths)))
     return {
         "repository_root": str(repo_root),
+        "execution_root": str(checked_execution_root),
         "commit": commit,
         "parent_commits": parent_line[1:],
         "tree": tree,
@@ -1213,6 +1264,7 @@ def _capture_git_identity(expected_commit: str, paths: Sequence[str]) -> dict[st
         "paths": path_records,
         "path_set_sha256": path_set_hash,
         "working_bytes_match_head": True,
+        "execution_bytes_match_head": True,
     }
 
 
@@ -1691,6 +1743,10 @@ def _validate_candidate_joins(candidate: Mapping[str, Any]) -> None:
         raise EvidenceHarnessError("candidate Git path-set digest is invalid")
     if not candidate["git"]["working_bytes_match_head"]:
         raise EvidenceHarnessError("candidate Git proof does not bind working bytes")
+    if not candidate["git"]["execution_bytes_match_head"]:
+        raise EvidenceHarnessError("candidate Git proof does not bind execution-root bytes")
+    if candidate["registry"]["raw_sha256"] != candidate["registry"]["file"]["raw_sha256"]:
+        raise EvidenceHarnessError("candidate registry raw_sha256 does not join its file digest")
     file_records: dict[str, Mapping[str, Any]] = {}
     for record in candidate["produced_files"]:
         path = record["path"]

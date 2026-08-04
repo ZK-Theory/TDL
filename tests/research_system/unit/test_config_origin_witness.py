@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.config import ApprovedProjectBinding
+from research_system.config import ApprovedProjectBinding, ControlBinding
 from research_system.errors import ConfigurationError
 from research_system.store.identity import (
     build_store_origin_witness,
@@ -88,3 +88,31 @@ def test_config_cannot_substitute_an_alternate_witness_or_unapproved_bytes(tmp_p
 
     with pytest.raises(ConfigurationError):
         ApprovedProjectBinding.load(foundation_path)
+
+
+def test_control_binding_from_raw_uses_supplied_approved_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+    approved = ApprovedProjectBinding.from_raw(foundation_path.read_bytes())
+    binding_raw = yaml.safe_dump(
+        {
+            "code_roots": foundation["code_roots"],
+            "control_root": foundation["control_root"],
+            "project_id": foundation["project_id"],
+            "schema_root": foundation["schema_root"],
+            "store_identity": foundation["store_identity"],
+        },
+        sort_keys=False,
+    ).encode("utf-8")
+
+    def unexpected_reload(cls, path: Path):
+        raise AssertionError(f"foundation was reloaded from {path}")
+
+    monkeypatch.setattr(ApprovedProjectBinding, "load", classmethod(unexpected_reload))
+    binding = ControlBinding.from_raw(binding_raw, approved=approved)
+
+    assert binding.project_id == approved.project_id
+    assert binding.control_root == approved.control_root
+    assert binding.store_identity == approved.store_identity

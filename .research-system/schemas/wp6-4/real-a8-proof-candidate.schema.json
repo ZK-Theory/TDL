@@ -72,9 +72,10 @@
     "git": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository_root", "commit", "parent_commits", "tree", "subject_resolution", "paths", "path_set_sha256", "working_bytes_match_head"],
+      "required": ["repository_root", "execution_root", "commit", "parent_commits", "tree", "subject_resolution", "paths", "path_set_sha256", "working_bytes_match_head", "execution_bytes_match_head"],
       "properties": {
         "repository_root": {"$ref": "#/$defs/absolutePath"},
+        "execution_root": {"$ref": "#/$defs/absolutePath"},
         "commit": {"$ref": "#/$defs/commit"},
         "parent_commits": {"type": "array", "items": {"$ref": "#/$defs/commit"}},
         "tree": {"$ref": "#/$defs/sha1"},
@@ -94,7 +95,8 @@
           }
         },
         "path_set_sha256": {"$ref": "#/$defs/sha256"},
-        "working_bytes_match_head": {"const": true}
+        "working_bytes_match_head": {"const": true},
+        "execution_bytes_match_head": {"const": true}
       }
     },
     "environment": {

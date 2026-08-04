@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import asdict, replace
@@ -412,3 +413,176 @@ def test_red_interrupted_publication_reconciles_partial_object_on_retry(
 
     result = store.write_once("interrupted-key", b"complete-payload")
     assert result[0].read_bytes() == b"complete-payload"
+
+
+def test_red_capture_rejects_runtime_receipt_with_stale_seal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    request, _foundation, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    runtime = json_load(request.runtime_inputs_path)
+    receipt_path = Path(str(runtime["receipt_path"]))
+    receipt = json_load(receipt_path)
+    retained_seal = receipt["receipt_hash"]
+    receipt["created_at"] = "2026-07-12T00:00:00Z"
+    receipt["receipt_hash"] = retained_seal
+    receipt_path.write_bytes(canonical_bytes(receipt))
+
+    with pytest.raises(EvidenceHarnessError, match="receipt.*(?:seal|hash)|(?:seal|hash).*receipt"):
+        capture_real_a8_candidate(request=request)
+    assert not request.output_root.exists()
+
+
+def test_red_capture_rejects_retained_source_identity_at_output_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, _foundation, source_root, _target = _synthetic_request(
+        tmp_path,
+        monkeypatch,
+        remove_source=False,
+    )
+    source_root.rename(request.output_root)
+    before = {
+        path.relative_to(request.output_root).as_posix(): _file_sha256(path)
+        for path in request.output_root.rglob("*")
+        if path.is_file()
+    }
+    claims_existed = (request.output_root / "claims").exists()
+    objects_existed = (request.output_root / "objects").exists()
+
+    with pytest.raises(EvidenceHarnessError, match="source.*(?:identity|output)|output.*(?:identity|source)"):
+        capture_real_a8_candidate(request=request)
+
+    after = {
+        path.relative_to(request.output_root).as_posix(): _file_sha256(path)
+        for path in request.output_root.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert (request.output_root / "claims").exists() is claims_existed
+    assert (request.output_root / "objects").exists() is objects_existed
+
+
+@pytest.mark.parametrize("consumed_loader", ["foundation", "binding"])
+def test_red_capture_binds_foundation_and_binding_to_single_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    consumed_loader: str,
+) -> None:
+    request, foundation_path, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    canonical_path = foundation_path if consumed_loader == "foundation" else request.binding_path
+    a_raw = canonical_path.read_bytes()
+    a_foundation = json_load(foundation_path)
+    if consumed_loader == "foundation":
+        b_value = dict(a_foundation)
+        b_value["canonical_uri"] = "local-cli://alternate-aba-snapshot"
+        b_unsigned = {key: value for key, value in b_value.items() if key != "foundation_sha256"}
+        b_value["foundation_sha256"] = sha256_hex(canonical_bytes(b_unsigned))
+        loader_type = harness_module.ApprovedProjectBinding
+    else:
+        b_value = json_load(request.binding_path)
+        b_value.update(
+            {
+                "origin_authority_root": a_foundation["origin_authority_root"],
+                "origin_witness_path": a_foundation["origin_witness_path"],
+                "origin_witness_sha256": a_foundation["origin_witness_sha256"],
+            }
+        )
+        loader_type = harness_module.ControlBinding
+    b_raw = yaml.safe_dump(b_value, sort_keys=False).encode("utf-8")
+    assert b_raw != a_raw
+    a_hold = canonical_path.with_name(f".{canonical_path.name}.aba-a")
+    b_hold = canonical_path.with_name(f".{canonical_path.name}.aba-b")
+    b_hold.write_bytes(b_raw)
+    original_load = loader_type.load
+    attack = {"consumed_b": False}
+
+    def aba_load(cls, path: Path):
+        attacked_path = Path(path)
+        if attacked_path.resolve(strict=False) != canonical_path.resolve(strict=False):
+            return original_load(attacked_path)
+        os.replace(canonical_path, a_hold)
+        os.replace(b_hold, canonical_path)
+        try:
+            loaded = original_load(canonical_path)
+            attack["consumed_b"] = True
+            return loaded
+        finally:
+            os.replace(canonical_path, b_hold)
+            os.replace(a_hold, canonical_path)
+
+    monkeypatch.setattr(loader_type, "load", classmethod(aba_load))
+    capture = None
+    rejected = None
+    try:
+        capture = capture_real_a8_candidate(request=request)
+    except EvidenceHarnessError as exc:
+        rejected = exc
+
+    if attack["consumed_b"]:
+        assert rejected is not None
+        assert any(
+            token in str(rejected).lower() for token in ("snapshot", "changed", "replacement", "foundation", "binding")
+        )
+        assert not (request.output_root / "claims").exists()
+        assert not (request.output_root / "objects").exists()
+        return
+
+    assert rejected is None
+    assert capture is not None
+    assert capture.candidate["foundation"]["foundation_sha256"] == a_foundation["foundation_sha256"]
+    binding_record = next(
+        record for record in capture.candidate["produced_files"] if record["role"] == "binding_config"
+    )
+    assert binding_record["raw_sha256"] == sha256_hex(request.binding_path.read_bytes())
+
+
+def test_red_capture_rejects_fresh_process_code_not_bound_to_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, foundation_path, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    foundation = json_load(foundation_path)
+    execution_root = Path(str(foundation["code_roots"][0]))
+    executed_config = execution_root / "research_system" / "config.py"
+    executed_config.write_bytes(executed_config.read_bytes() + b"\n# harmless F4 execution-root byte perturbation\n")
+
+    with pytest.raises(EvidenceHarnessError, match="execution.*(?:Git|HEAD|bytes)|(?:Git|HEAD).*execution"):
+        capture_real_a8_candidate(request=request)
+    assert not request.output_root.exists()
+
+
+def test_red_validator_rejects_registry_digest_join_with_recomputed_candidate_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, _foundation, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    candidate = copy.deepcopy(capture_real_a8_candidate(request=request).candidate)
+    candidate["registry"]["raw_sha256"] = "0" * 64
+    without_id = dict(candidate)
+    without_id.pop("candidate_id")
+    candidate["candidate_id"] = harness_module._candidate_id(without_id)
+
+    with pytest.raises(EvidenceHarnessError, match="registry.*(?:digest|raw_sha256)|raw_sha256.*registry"):
+        validate_real_a8_candidate(candidate)
+
+
+def test_red_new_store_root_fsyncs_parent_before_publication(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "new-evidence-root"
+    events: list[tuple[str, Path]] = []
+    original_fsync = harness_module.fsync_directory
+    original_write = harness_module._write_exclusive
+
+    def recording_fsync(path: Path) -> None:
+        events.append(("fsync", Path(path).resolve(strict=False)))
+        original_fsync(path)
+
+    def recording_write(path: Path, raw: bytes) -> None:
+        events.append(("write", Path(path).resolve(strict=False)))
+        original_write(path, raw)
+
+    monkeypatch.setattr(harness_module, "fsync_directory", recording_fsync)
+    monkeypatch.setattr(harness_module, "_write_exclusive", recording_write)
+    ContentAddressedEvidenceStore(root).write_once("new-root", b"durable-payload")
+
+    first_write = next(index for index, event in enumerate(events) if event[0] == "write")
+    parent_fsyncs = [
+        index for index, event in enumerate(events) if event == ("fsync", root.parent.resolve(strict=False))
+    ]
+    assert parent_fsyncs
+    assert parent_fsyncs[0] < first_write
