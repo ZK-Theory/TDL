@@ -278,20 +278,23 @@ def reduce_task(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         prior = dict(history.get(str(prior_revision), {}))
         prior["status"] = "amended"
         history[str(prior_revision)] = prior
+        next_status = "readiness_pending" if state["status"] in {"readiness_pending", "ready"} else state["status"]
         history[str(new_revision)] = {
-            "status": state["status"],
+            "status": next_status,
             "definition": replacement_definition,
             "changed_fields": list(payload["changed_fields"]),
             "rationale": payload["rationale"],
         }
-        return {
-            **state,
+        updated = {
+            **{key: value for key, value in state.items() if key not in {"readiness_request", "readiness_approval"}},
+            "status": next_status,
             "current_revision": new_revision,
             "definition": replacement_definition,
             "definition_schema_id": event["schema_id"],
             "revision_history": history,
             "version": state["version"] + 1,
         }
+        return updated
     if event_type == "TaskSuperseded":
         if not state or state.get("status") in _TASK_TERMINAL:
             raise ValueError("TaskSuperseded requires a nonterminal source revision")
@@ -378,12 +381,223 @@ def reduce_task(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             )
         return updated
     if event_type == "ReadinessRequested" and state.get("status") == "draft":
+        payload = event["payload"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("current_revision", 0))
+            or not payload["readiness_evidence_refs"]
+        ):
+            raise ValueError("ReadinessRequested subject binding mismatch")
         return {
             **state,
             "status": "readiness_pending",
+            "readiness_request": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "ReadinessApproved" and state.get("status") == "readiness_pending":
+        payload = event["payload"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("current_revision", 0))
+            or not payload["readiness_evidence_refs"]
+            or not payload["passed_check_ids"]
+        ):
+            raise ValueError("ReadinessApproved subject binding mismatch")
+        return {
+            **state,
+            "status": "ready",
+            "readiness_approval": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskClaimStarted" and state.get("status") == "ready":
+        payload = event["payload"]
+        if (
+            set(payload) != {"task_id", "task_revision"}
+            or payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("current_revision", 0))
+        ):
+            raise ValueError("TaskClaimStarted subject binding mismatch")
+        return {
+            **state,
+            "status": "in_progress",
             "version": state["version"] + 1,
         }
     raise ValueError(f"illegal task transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_dispatch(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce the C1 Dispatch state machine from its exact event payloads."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if event_type == "DispatchIssued":
+        definition = payload["definition"]
+        if state or payload["dispatch_id"] != event["stream_id"] or definition["dispatch_id"] != event["stream_id"]:
+            raise ValueError("DispatchIssued requires an empty bound Dispatch stream")
+        return {
+            "dispatch_id": event["stream_id"],
+            "status": "issued",
+            "task_id": definition["task_id"],
+            "task_revision": int(definition["task_revision"]),
+            "definition": definition,
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("dispatch_id") != state.get("dispatch_id"):
+        raise ValueError(f"{event_type} Dispatch subject binding mismatch")
+    if event_type == "DispatchDelivered":
+        if state.get("status") != "issued" or not payload["delivery_evidence_refs"]:
+            raise ValueError("DispatchDelivered requires issued Dispatch and delivery evidence")
+        return {**state, "status": "delivered", "delivery": payload, "version": event["stream_version"]}
+    if event_type == "DispatchAcknowledged":
+        if state.get("status") != "delivered":
+            raise ValueError("DispatchAcknowledged requires delivered Dispatch")
+        delivery = state.get("delivery", {})
+        if payload["recipient_actor_id"] != delivery.get("recipient_actor_id"):
+            raise ValueError("DispatchAcknowledged recipient mismatch")
+        return {**state, "status": "acknowledged", "acknowledgement": payload, "version": event["stream_version"]}
+    if event_type == "DispatchExpired":
+        if state.get("status") not in {"issued", "delivered", "acknowledged"}:
+            raise ValueError("DispatchExpired requires a claimable pre-claim Dispatch")
+        if payload["observed_prior_state"] != state.get("status"):
+            raise ValueError("DispatchExpired observed state mismatch")
+        return {**state, "status": "expired", "expiry": payload, "version": event["stream_version"]}
+    if event_type == "DispatchWithdrawn":
+        if state.get("status") != "issued" or payload["observed_prior_state"] != "issued":
+            raise ValueError("DispatchWithdrawn requires issued Dispatch in C1")
+        return {**state, "status": "withdrawn", "withdrawal": payload, "version": event["stream_version"]}
+    if event_type == "DispatchClaimed":
+        if state.get("status") != "acknowledged":
+            raise ValueError("DispatchClaimed requires acknowledged Dispatch")
+        if (
+            payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("task_revision", 0))
+            or payload["declared_write_set"] != ["dispatch", "task"]
+        ):
+            raise ValueError("DispatchClaimed relation or write-set mismatch")
+        return {
+            **state,
+            "status": "claimed",
+            "lease_id": payload["lease_id"],
+            "claim": payload,
+            "version": event["stream_version"],
+        }
+    raise ValueError(f"illegal dispatch transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_lease(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce C1 lease ownership and heartbeat facts."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if event_type == "LeaseGranted":
+        if state or payload["new_lease_id"] != event["stream_id"]:
+            raise ValueError("LeaseGranted requires an empty bound Lease stream")
+        return {
+            "lease_id": event["stream_id"],
+            "status": "active",
+            "task_id": payload["task_id"],
+            "task_revision": int(payload["task_revision"]),
+            "dispatch_id": payload["dispatch_id"],
+            "attempt_id": payload["attempt_id"],
+            "resource_grant_id": payload["resource_grant_id"],
+            "holder_actor_id": payload["holder_actor_id"],
+            "expires_at": payload["expires_at"],
+            "renewal_policy_ref": payload["renewal_policy_ref"],
+            "grant": payload,
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("lease_id") != state.get("lease_id"):
+        raise ValueError(f"{event_type} Lease subject binding mismatch")
+    if event_type == "LeaseRenewed":
+        if (
+            state.get("status") != "active"
+            or payload["holder_actor_id"] != state.get("holder_actor_id")
+            or payload["prior_expiry"] != state.get("expires_at")
+            or payload["renewal_policy_ref"] != state.get("renewal_policy_ref")
+        ):
+            raise ValueError("LeaseRenewed current-holder binding mismatch")
+        return {**state, "expires_at": payload["new_expiry"], "renewal": payload, "version": event["stream_version"]}
+    if event_type == "LeaseReleased":
+        if state.get("status") != "active" or payload["holder_actor_id"] != state.get("holder_actor_id"):
+            raise ValueError("LeaseReleased current-holder binding mismatch")
+        return {**state, "status": "released", "release": payload, "version": event["stream_version"]}
+    if event_type == "LeaseExpired":
+        if state.get("status") != "active":
+            raise ValueError("LeaseExpired requires active Lease")
+        return {**state, "status": "expired", "expiry": payload, "version": event["stream_version"]}
+    if event_type == "LeaseRevoked":
+        if state.get("status") != "active":
+            raise ValueError("LeaseRevoked requires active Lease")
+        return {**state, "status": "revoked", "revocation": payload, "version": event["stream_version"]}
+    if event_type == "HeartbeatRecorded":
+        if state.get("status") != "active":
+            raise ValueError("HeartbeatRecorded requires active Lease")
+        return {**state, "last_heartbeat": payload, "version": event["stream_version"]}
+    raise ValueError(f"illegal lease transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_attempt(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce C1 Attempt creation, claim, and running admission."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if event_type == "AttemptCreated":
+        if state or payload["new_attempt_id"] != event["stream_id"] or payload["creation_kind"] != "initial":
+            raise ValueError("AttemptCreated requires an empty initial Attempt stream")
+        return {
+            "attempt_id": event["stream_id"],
+            "status": "created",
+            "task_id": payload["task_id"],
+            "task_revision": int(payload["task_revision"]),
+            "dispatch_id": payload["dispatch_id"],
+            "attempt_ordinal": int(payload["attempt_ordinal"]),
+            "execution_epoch": int(payload["execution_epoch"]),
+            "creation": payload,
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("attempt_id") != state.get("attempt_id"):
+        raise ValueError(f"{event_type} Attempt subject binding mismatch")
+    if event_type == "AttemptClaimed":
+        if (
+            state.get("status") != "created"
+            or payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("task_revision", 0))
+            or payload["dispatch_id"] != state.get("dispatch_id")
+        ):
+            raise ValueError("AttemptClaimed relation mismatch")
+        return {
+            **state,
+            "status": "claimed",
+            "lease_id": payload["lease_id"],
+            "claim": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "AttemptStarted":
+        if state.get("status") != "claimed":
+            raise ValueError("AttemptStarted requires claimed Attempt")
+        return {**state, "status": "running", "start": payload, "version": event["stream_version"]}
+    raise ValueError(f"illegal attempt transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_resource(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce the bounded C1 resource-request and release records."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if event_type == "ResourceGrantRequested":
+        if state or payload["resource_id"] != event["stream_id"]:
+            raise ValueError("ResourceGrantRequested requires an empty bound Resource stream")
+        return {
+            "resource_id": event["stream_id"],
+            "status": "requested",
+            "request": payload["resource_request"],
+            "version": event["stream_version"],
+        }
+    if event_type == "ResourcesReleased":
+        if not state or state.get("status") != "requested" or payload["resource_id"] != state.get("resource_id"):
+            raise ValueError("ResourcesReleased requires requested Resource")
+        return {**state, "status": "released", "release": payload, "version": event["stream_version"]}
+    raise ValueError(f"illegal resource transition: {state.get('status')} -> {event_type}")
 
 
 def _materialize_scope_definition(
@@ -589,6 +803,9 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "TaskCreated",
             "TaskAmended",
             "TaskSuperseded",
+            "ReadinessRequested",
+            "ReadinessApproved",
+            "TaskClaimStarted",
         }:
             stream_id = event["stream_id"]
             validate_task_lifecycle_event(stream_states, event)
@@ -618,8 +835,41 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
                 stream_states.get(stream_id, {}),
                 event,
             )
-        elif event["event_type"] == "DispatchClaimed":
-            attempts.add(event["payload"]["attempt_id"])
+        elif event["event_type"] in {
+            "DispatchIssued",
+            "DispatchDelivered",
+            "DispatchAcknowledged",
+            "DispatchExpired",
+            "DispatchWithdrawn",
+            "DispatchClaimed",
+        }:
+            stream_states[event["stream_id"]] = reduce_dispatch(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] in {
+            "LeaseGranted",
+            "LeaseRenewed",
+            "LeaseReleased",
+            "LeaseExpired",
+            "LeaseRevoked",
+            "HeartbeatRecorded",
+        }:
+            stream_states[event["stream_id"]] = reduce_lease(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] in {"AttemptCreated", "AttemptClaimed", "AttemptStarted"}:
+            stream_states[event["stream_id"]] = reduce_attempt(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+            attempts.add(event["stream_id"])
+        elif event["event_type"] in {"ResourceGrantRequested", "ResourcesReleased"}:
+            stream_states[event["stream_id"]] = reduce_resource(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
         else:
             raise ValueError(f"unsupported event type: {event['event_type']}")
     return ControlPlaneState(frozenset(attempts), stream_states)

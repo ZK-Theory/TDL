@@ -209,7 +209,31 @@ def activate_lifecycle_grant(
         return grant_id
     command_types_by_subject = {
         "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
-        "task": ("CreateTask", "AmendTask", "SupersedeTask"),
+        "task": (
+            "CreateTask",
+            "AmendTask",
+            "SupersedeTask",
+            "RequestReadiness",
+            "ApproveReadiness",
+        ),
+        "dispatch": (
+            "IssueDispatch",
+            "RecordDispatchDelivery",
+            "AcknowledgeDispatch",
+            "ExpireDispatch",
+            "WithdrawDispatch",
+            "ClaimDispatch",
+        ),
+        "lease": (
+            "ClaimExecutionLease",
+            "RenewExecutionLease",
+            "ReleaseExecutionLease",
+            "ExpireLease",
+            "RevokeLease",
+            "RecordHeartbeat",
+        ),
+        "attempt": ("CreateAttempt", "ClaimAttempt", "StartAttempt"),
+        "resource": ("RequestResourceGrant", "ReleaseResources"),
         "message": (
             "PublishMessage",
             "RecordMessageDelivery",
@@ -435,6 +459,25 @@ class GovernedTestCommandService(CommandService):
                 "RecordMessageDelivery",
                 "AcknowledgeMessage",
                 "RecordMessageDeliveryFailure",
+                "RequestReadiness",
+                "ApproveReadiness",
+                "IssueDispatch",
+                "RecordDispatchDelivery",
+                "AcknowledgeDispatch",
+                "ExpireDispatch",
+                "WithdrawDispatch",
+                "ClaimDispatch",
+                "ClaimExecutionLease",
+                "RenewExecutionLease",
+                "ReleaseExecutionLease",
+                "ExpireLease",
+                "RevokeLease",
+                "CreateAttempt",
+                "ClaimAttempt",
+                "StartAttempt",
+                "RequestResourceGrant",
+                "RecordHeartbeat",
+                "ReleaseResources",
             }
             and command.actor_id == ACTORS["actor-a"]
         ):

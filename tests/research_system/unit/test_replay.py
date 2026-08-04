@@ -21,7 +21,6 @@ from research_system.store.identity import (
 from tests.research_system.factories import (
     PROJECT_ID,
     REPO_ROOT,
-    claim_dispatch_command,
     control_plane,
     create_task_command,
     write_authority_bootstrap_input,
@@ -185,15 +184,7 @@ def test_future_activation_does_not_reinterpret_generic_event_history(tmp_path):
 
 
 def test_replay_rejects_unbound_full_only_event_with_runtime_registry(tmp_path):
-    harness = control_plane(tmp_path)
-    command = claim_dispatch_command(
-        "cmd_01978abc-4004-7000-8000-000000004004",
-        "actor-a",
-        "dsp_01978abc-4005-7000-8000-000000004005",
-        expected_version=0,
-    )
-    assert harness.service.submit(command).status == "accepted"
-    events = list(harness.ledger.iter_events())
+    events, harness = _events(tmp_path)
     events[0]["schema_id"] = "ars://core/event/DispatchClaimed"
     events[0] = _rehash(events[0])
 

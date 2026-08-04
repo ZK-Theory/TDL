@@ -1459,14 +1459,14 @@ def test_activation_rejects_unresolved_inactive_or_wrong_subject_identity(
     }
     if identity_case == "inactive_command":
         identity = schemas.resolve_identity(
-            "ars://core/command/CreateAttempt",
+            "ars://core/command/CompleteAttempt",
             "1.0.0",
         )
         grant["subject_scope"]["subject"] = {
             "kind": "attempt",
             "id": "att_01978abc-6271-7000-8000-000000006271",
         }
-        command_type = "CreateAttempt"
+        command_type = "CompleteAttempt"
         schema_id = identity.schema_id
         schema_version = identity.schema_version
         schema_sha256 = identity.sha256
@@ -1535,13 +1535,13 @@ def test_later_binding_cannot_wake_rejected_inactive_identity(tmp_path) -> None:
     control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
     grant = _scoped_grant(schemas)
     inactive = schemas.resolve_identity(
-        "ars://core/command/CreateAttempt",
+        "ars://core/command/CompleteAttempt",
         "1.0.0",
     )
     grant["allowed_policy_actions"] = []
     grant["allowed_commands"] = [
         {
-            "command_type": "CreateAttempt",
+            "command_type": "CompleteAttempt",
             "schema_id": inactive.schema_id,
             "schema_version": inactive.schema_version,
             "schema_sha256": inactive.sha256,
@@ -1573,7 +1573,7 @@ def test_later_binding_cannot_wake_rejected_inactive_identity(tmp_path) -> None:
             SchemaBinding(
                 inactive.schema_id,
                 inactive.schema_version,
-                command_type="CreateAttempt",
+                command_type="CompleteAttempt",
             ),
         ),
     )

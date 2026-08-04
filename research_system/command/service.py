@@ -116,7 +116,39 @@ _MESSAGE_COMMAND_TYPES = frozenset(
     }
 )
 _MESSAGE_ADAPTER_COMMAND_TYPES = frozenset({"RecordMessageDelivery", "RecordMessageDeliveryFailure"})
-_LIFECYCLE_COMMAND_TYPES = _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES | _MESSAGE_COMMAND_TYPES
+_C1_TASK_COMMAND_TYPES = frozenset({"RequestReadiness", "ApproveReadiness"})
+_C1_DISPATCH_COMMAND_TYPES = frozenset(
+    {
+        "IssueDispatch",
+        "RecordDispatchDelivery",
+        "AcknowledgeDispatch",
+        "ExpireDispatch",
+        "WithdrawDispatch",
+        "ClaimDispatch",
+    }
+)
+_C1_LEASE_COMMAND_TYPES = frozenset(
+    {
+        "ClaimExecutionLease",
+        "RenewExecutionLease",
+        "ReleaseExecutionLease",
+        "ExpireLease",
+        "RevokeLease",
+        "RecordHeartbeat",
+    }
+)
+_C1_ATTEMPT_COMMAND_TYPES = frozenset({"CreateAttempt", "ClaimAttempt", "StartAttempt"})
+_C1_RESOURCE_COMMAND_TYPES = frozenset({"RequestResourceGrant", "ReleaseResources"})
+_C1_COMMAND_TYPES = (
+    _C1_TASK_COMMAND_TYPES
+    | _C1_DISPATCH_COMMAND_TYPES
+    | _C1_LEASE_COMMAND_TYPES
+    | _C1_ATTEMPT_COMMAND_TYPES
+    | _C1_RESOURCE_COMMAND_TYPES
+)
+_LIFECYCLE_COMMAND_TYPES = (
+    _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES | _MESSAGE_COMMAND_TYPES | _C1_COMMAND_TYPES
+)
 _COMMAND_EVENT_TYPES = {
     "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
     "ActivateAuthorityGrant": "AuthorityGrantActivated",
@@ -134,6 +166,25 @@ _COMMAND_EVENT_TYPES = {
     "RecordMessageDelivery": "MessageDelivered",
     "AcknowledgeMessage": "MessageAcknowledged",
     "RecordMessageDeliveryFailure": "MessageDeliveryFailed",
+    "RequestReadiness": "ReadinessRequested",
+    "ApproveReadiness": "ReadinessApproved",
+    "IssueDispatch": "DispatchIssued",
+    "RecordDispatchDelivery": "DispatchDelivered",
+    "AcknowledgeDispatch": "DispatchAcknowledged",
+    "ExpireDispatch": "DispatchExpired",
+    "WithdrawDispatch": "DispatchWithdrawn",
+    "ClaimDispatch": "DispatchClaimed",
+    "ClaimExecutionLease": "LeaseGranted",
+    "RenewExecutionLease": "LeaseRenewed",
+    "ReleaseExecutionLease": "LeaseReleased",
+    "ExpireLease": "LeaseExpired",
+    "RevokeLease": "LeaseRevoked",
+    "CreateAttempt": "AttemptCreated",
+    "ClaimAttempt": "AttemptClaimed",
+    "StartAttempt": "AttemptStarted",
+    "RequestResourceGrant": "ResourceGrantRequested",
+    "RecordHeartbeat": "HeartbeatRecorded",
+    "ReleaseResources": "ResourcesReleased",
 }
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
@@ -1305,6 +1356,15 @@ class CommandService:
                 if isinstance(prepared, Receipt):
                     return write_receipt(prepared)
                 prepared_payload = prepared
+            elif command.envelope["command_type"] in _C1_COMMAND_TYPES:
+                prepared = self._prepare_c1_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
             elif command.envelope["command_type"] == "RevokeAuthorityGrant":
                 try:
                     prepared_payload = self._prepare_authority_revocation(command, observed_version)
@@ -1383,11 +1443,12 @@ class CommandService:
                     )
                     return write_receipt(rejected)
             try:
-                event = self._build_event(
+                events = self._build_events(
                     command,
                     prepared_payload,
                     command_schema=command_schema,
                 )
+                event = events[0]
                 append_started = True
                 if isinstance(prepared_payload, VerifiedReleasePublication):
                     ledger_receipt = release_append(
@@ -1406,7 +1467,7 @@ class CommandService:
                         snapshot=snapshot,
                     )
                 else:
-                    ledger_receipt = self.ledger.append([event], snapshot=snapshot)
+                    ledger_receipt = self.ledger.append(events, snapshot=snapshot)
                 self._retire_moved_restore_preflight()
                 updated = self.ledger.snapshot()
                 view.extend(updated.events[len(snapshot.events) :], updated.fingerprint)
@@ -1741,15 +1802,20 @@ class CommandService:
                 expected_event_type = _COMMAND_EVENT_TYPES[command_type]
             except KeyError as exc:
                 raise IntegrityError(f"no canonical event type for {command_type}") from exc
+            event = (
+                self._claim_dispatch_receipt_event(command, matching)
+                if command_type == "ClaimDispatch"
+                else (matching[0] if len(matching) == 1 else None)
+            )
             if (
-                len(matching) != 1
-                or matching[0].get("event_type") != expected_event_type
-                or matching[0].get("command_id") != receipt.command_id
-                or matching[0].get("command_payload_hash") != receipt.payload_hash
-                or matching[0].get("stream_id") != command.target_stream_id
-                or matching[0].get("stream_version") != command.expected_stream_version + 1
-                or receipt.observed_stream_version != matching[0].get("stream_version")
-                or matching[0].get("project_id") != self.ledger.project_id
+                event is None
+                or event.get("event_type") != expected_event_type
+                or event.get("command_id") != receipt.command_id
+                or event.get("command_payload_hash") != receipt.payload_hash
+                or event.get("stream_id") != command.target_stream_id
+                or event.get("stream_version") != command.expected_stream_version + 1
+                or receipt.observed_stream_version != event.get("stream_version")
+                or event.get("project_id") != self.ledger.project_id
             ):
                 raise IntegrityError("scoped accepted receipt does not match canonical ledger")
             if lifecycle_resolution is not None:
@@ -1760,7 +1826,7 @@ class CommandService:
                     command_schema=command_schema,
                     receipt=receipt,
                     resolution=lifecycle_resolution,
-                    event=matching[0],
+                    event=event,
                     canonical_resolution=canonical_resolution,
                 )
         elif scoped_events:
@@ -1771,6 +1837,34 @@ class CommandService:
         self._validate_message_scoped_retry_identity(command, receipt)
         if stored is None:
             self.receipts.write(receipt)
+
+    @staticmethod
+    def _claim_dispatch_receipt_event(
+        command: Command,
+        events: tuple[dict[str, Any], ...],
+    ) -> dict[str, Any]:
+        """Return ClaimDispatch's Dispatch event after exact batch validation."""
+        payload = command.envelope["payload"]
+        if (
+            len(events) != 2
+            or [event.get("event_type") for event in events] != ["DispatchClaimed", "TaskClaimStarted"]
+            or [event.get("transaction_index") for event in events] != [1, 2]
+            or any(event.get("transaction_count") != 2 for event in events)
+            or events[0].get("stream_id") != command.target_stream_id
+            or events[1].get("stream_id") != payload.get("task_id")
+            or events[0].get("command_id") != command.command_id
+            or events[1].get("command_id") != command.command_id
+            or events[0].get("command_payload_hash") != command.payload_hash
+            or events[1].get("command_payload_hash") != command.payload_hash
+            or events[0].get("payload") != payload
+            or events[1].get("payload")
+            != {"task_id": payload.get("task_id"), "task_revision": payload.get("task_revision")}
+            or events[0].get("stream_version") != command.expected_stream_version + 1
+            or events[0].get("stream_version") != payload.get("expected_dispatch_stream_version", -1) + 1
+            or events[1].get("stream_version") != payload.get("expected_task_stream_version", -1) + 1
+        ):
+            raise IntegrityError("ClaimDispatch accepted receipt does not match exact two-event batch")
+        return events[0]
 
     def _validate_lifecycle_authority_history(
         self,
@@ -1834,15 +1928,16 @@ class CommandService:
                     schema_registry=self.schemas,
                     authority_state_validator=self._authority_state_validator(),
                 )
-                event = next(
-                    (
-                        event
-                        for event in snapshot.events
-                        if event.get("transaction_id") == receipt.event_batch_id
-                        and event.get("stream_id") == command.target_stream_id
-                    ),
-                    None,
+                batch = tuple(
+                    event for event in snapshot.events if event.get("transaction_id") == receipt.event_batch_id
                 )
+                if command_type == "ClaimDispatch":
+                    event = self._claim_dispatch_receipt_event(command, batch)
+                else:
+                    event = next(
+                        (event for event in batch if event.get("stream_id") == command.target_stream_id),
+                        None,
+                    )
                 if event is None:
                     raise IntegrityError("accepted lifecycle receipt has no canonical event")
                 self._validate_lifecycle_authority_history(
@@ -1934,6 +2029,19 @@ class CommandService:
                 )
             )
             return project_id, "message", subject_id, "R3"
+
+        if command_type in _C1_TASK_COMMAND_TYPES:
+            return project_id, "task", str(payload.get("task_id", "")), "R3"
+        if command_type in _C1_DISPATCH_COMMAND_TYPES:
+            return project_id, "dispatch", str(payload.get("dispatch_id", "")), "R3"
+        if command_type in _C1_LEASE_COMMAND_TYPES:
+            lease_id = payload.get("new_lease_id") if command_type == "ClaimExecutionLease" else payload.get("lease_id")
+            return project_id, "lease", str(lease_id or ""), "R3"
+        if command_type in _C1_ATTEMPT_COMMAND_TYPES:
+            attempt_id = payload.get("new_attempt_id") if command_type == "CreateAttempt" else payload.get("attempt_id")
+            return project_id, "attempt", str(attempt_id or ""), "R3"
+        if command_type in _C1_RESOURCE_COMMAND_TYPES:
+            return project_id, "resource", str(payload.get("resource_id", "")), "R3"
 
         subject_id = str(
             payload.get(
@@ -2144,6 +2252,284 @@ class CommandService:
         else:
             raise IntegrityError("unknown Message command")
         return payload
+
+    def _c1_streams(self, snapshot: LedgerSnapshot) -> dict[str, dict[str, Any]]:
+        projection = replay(
+            snapshot.events,
+            schema_registry=self.schemas,
+            authority_state_validator=self._authority_state_validator(),
+        )
+        streams = projection.get("streams", {})
+        if not isinstance(streams, dict):
+            raise IntegrityError("C1 projection streams are invalid")
+        return streams
+
+    def _prepare_c1_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate C1 relationships without materializing unaccepted records."""
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_project",
+                "C1 command project must match the control-store project.",
+            )
+
+        subject_id = (
+            payload.get("task_id")
+            if command_type in _C1_TASK_COMMAND_TYPES
+            else payload.get("dispatch_id")
+            if command_type in _C1_DISPATCH_COMMAND_TYPES
+            else payload.get("new_lease_id")
+            if command_type == "ClaimExecutionLease"
+            else payload.get("lease_id")
+            if command_type in _C1_LEASE_COMMAND_TYPES
+            else payload.get("new_attempt_id")
+            if command_type == "CreateAttempt"
+            else payload.get("attempt_id")
+            if command_type in _C1_ATTEMPT_COMMAND_TYPES
+            else payload.get("resource_id")
+        )
+        if subject_id != command.target_stream_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_subject_identity",
+                "C1 payload identity must equal the authority-bound target stream.",
+            )
+        streams = self._c1_streams(snapshot)
+
+        def rejected(code: str, explanation: str) -> Receipt:
+            return self._rejected(command, observed_version, code, explanation)
+
+        if command_type in _C1_TASK_COMMAND_TYPES:
+            task = streams.get(command.target_stream_id)
+            if not isinstance(task, dict) or int(payload["task_revision"]) != int(task.get("current_revision", 0)):
+                return rejected("stale_task_revision", "Readiness must bind the current Task revision.")
+            expected_status = "draft" if command_type == "RequestReadiness" else "readiness_pending"
+            if task.get("status") != expected_status:
+                return rejected("invalid_task_transition", "Readiness command is not valid for the current Task state.")
+            evidence = payload.get("readiness_evidence_refs")
+            if not isinstance(evidence, list) or not evidence:
+                return rejected("readiness_evidence_required", "Readiness requires immutable evidence references.")
+            if command_type == "ApproveReadiness" and not payload.get("passed_check_ids"):
+                return rejected("readiness_checks_required", "Readiness approval requires passing check identities.")
+            return payload
+
+        if command_type == "IssueDispatch":
+            definition = payload["definition"]
+            task = streams.get(definition["task_id"])
+            if (
+                payload["dispatch_id"] != definition["dispatch_id"]
+                or command.target_stream_id in streams
+                or not isinstance(task, dict)
+                or task.get("status") != "ready"
+                or int(definition["task_revision"]) != int(task.get("current_revision", 0))
+            ):
+                return rejected("dispatch_task_not_ready", "Dispatch must bind a ready current Task revision.")
+            if not definition.get("root_bindings") or not definition.get("context_packet_id"):
+                return rejected(
+                    "dispatch_context_or_roots_missing", "Dispatch requires exact context and root bindings."
+                )
+            return payload
+
+        if command_type in {
+            "RecordDispatchDelivery",
+            "AcknowledgeDispatch",
+            "ExpireDispatch",
+            "WithdrawDispatch",
+            "ClaimDispatch",
+        }:
+            dispatch = streams.get(command.target_stream_id)
+            if not isinstance(dispatch, dict):
+                return rejected("dispatch_missing", "Dispatch transition requires a committed Dispatch.")
+            if command_type == "RecordDispatchDelivery":
+                if dispatch.get("status") != "issued" or not payload.get("delivery_evidence_refs"):
+                    return rejected(
+                        "invalid_dispatch_transition", "Delivery requires issued Dispatch and delivery evidence."
+                    )
+                return payload
+            if command_type == "AcknowledgeDispatch":
+                delivery = dispatch.get("delivery", {})
+                if dispatch.get("status") != "delivered" or payload["recipient_actor_id"] != delivery.get(
+                    "recipient_actor_id"
+                ):
+                    return rejected("invalid_dispatch_transition", "Acknowledgement requires the delivered recipient.")
+                return payload
+            if command_type == "ExpireDispatch":
+                if dispatch.get("status") not in {"issued", "delivered", "acknowledged"} or payload[
+                    "observed_prior_state"
+                ] != dispatch.get("status"):
+                    return rejected(
+                        "invalid_dispatch_transition", "Expiry requires its exact observed pre-claim state."
+                    )
+                return payload
+            if command_type == "WithdrawDispatch":
+                if dispatch.get("status") != "issued" or payload["observed_prior_state"] != "issued":
+                    return rejected("invalid_dispatch_transition", "C1 withdrawal is limited to issued Dispatch.")
+                return payload
+            task = streams.get(payload["task_id"])
+            lease = streams.get(payload["lease_id"])
+            expected_tail_hash = snapshot.events[-1]["event_hash"] if snapshot.events else "0" * 64
+            if (
+                dispatch.get("status") != "acknowledged"
+                or not isinstance(task, dict)
+                or task.get("status") != "ready"
+                or payload["task_id"] != dispatch.get("task_id")
+                or int(payload["task_revision"]) != int(dispatch.get("task_revision", 0))
+                or int(payload["task_revision"]) != int(task.get("current_revision", 0))
+                or payload["declared_write_set"] != ["dispatch", "task"]
+                or payload["expected_dispatch_stream_version"] != observed_version
+                or payload["expected_task_stream_version"] != snapshot.stream_versions.get(payload["task_id"], 0)
+                or payload["expected_global_position"] != len(snapshot.events)
+                or payload["expected_tail_hash"] != expected_tail_hash
+                or not isinstance(lease, dict)
+                or lease.get("status") != "active"
+                or lease.get("task_id") != payload["task_id"]
+                or int(lease.get("task_revision", 0)) != int(payload["task_revision"])
+                or lease.get("dispatch_id") != command.target_stream_id
+            ):
+                return rejected(
+                    "claim_dispatch_precondition_failed",
+                    "Claim must bind the current ready Task, Dispatch, and active Lease.",
+                )
+            return payload
+
+        if command_type == "CreateAttempt":
+            dispatch = streams.get(payload["dispatch_id"])
+            task = streams.get(payload["task_id"])
+            existing = [
+                value
+                for value in streams.values()
+                if isinstance(value, dict)
+                and value.get("attempt_id")
+                and value.get("task_id") == payload["task_id"]
+                and value.get("dispatch_id") == payload["dispatch_id"]
+            ]
+            if (
+                command.target_stream_id in streams
+                or not isinstance(dispatch, dict)
+                or dispatch.get("status") not in {"acknowledged", "claimed"}
+                or not isinstance(task, dict)
+                or int(payload["task_revision"]) != int(dispatch.get("task_revision", 0))
+                or int(payload["task_revision"]) != int(task.get("current_revision", 0))
+                or payload["attempt_ordinal"] != 1
+                or payload["execution_epoch"] != 1
+                or existing
+            ):
+                return rejected(
+                    "attempt_creation_precondition_failed",
+                    "Initial Attempt requires one current acknowledged Dispatch relation.",
+                )
+            return payload
+
+        if command_type == "RequestResourceGrant":
+            if command.target_stream_id in streams:
+                return rejected(
+                    "resource_request_already_recorded", "Resource request requires an empty Resource stream."
+                )
+            return payload
+
+        if command_type == "ClaimExecutionLease":
+            resource = streams.get(payload["resource_grant_id"])
+            if not isinstance(resource, dict) or resource.get("status") != "requested":
+                return rejected(
+                    "resource_request_missing", "Lease claim requires the recorded ResourceGrantRequested request."
+                )
+            return rejected(
+                "resource_grant_unmaterialized",
+                "RequestResourceGrant records ResourceGrantRequested only; no accepted C1 grant materialization is active.",
+            )
+
+        if command_type in {
+            "RenewExecutionLease",
+            "ReleaseExecutionLease",
+            "ExpireLease",
+            "RevokeLease",
+            "RecordHeartbeat",
+        }:
+            lease = streams.get(command.target_stream_id)
+            if not isinstance(lease, dict) or lease.get("status") != "active":
+                return rejected("lease_not_active", "Lease transition requires an active LeaseGranted record.")
+            if command_type in {"RenewExecutionLease", "ReleaseExecutionLease"} and (
+                payload["holder_actor_id"] != lease.get("holder_actor_id")
+                or command.actor_id != lease.get("holder_actor_id")
+            ):
+                return rejected("lease_holder_mismatch", "Lease transition requires the current holder.")
+            if command_type == "RenewExecutionLease" and (
+                payload["prior_expiry"] != lease.get("expires_at")
+                or payload["renewal_policy_ref"] != lease.get("renewal_policy_ref")
+                or payload["new_expiry"] <= payload["prior_expiry"]
+            ):
+                return rejected("lease_renewal_mismatch", "Lease renewal must bind its current expiry and policy.")
+            if command_type == "RecordHeartbeat":
+                attempt = streams.get(lease.get("attempt_id"))
+                started = attempt.get("start") if isinstance(attempt, dict) else None
+                if (
+                    not isinstance(attempt, dict)
+                    or attempt.get("status") != "running"
+                    or not isinstance(started, dict)
+                    or payload["process_identity_id"] != started.get("process_identity_id")
+                ):
+                    return rejected(
+                        "heartbeat_process_mismatch", "Heartbeat requires the active Lease's running process identity."
+                    )
+            return payload
+
+        if command_type == "ClaimAttempt":
+            attempt = streams.get(command.target_stream_id)
+            dispatch = streams.get(payload["dispatch_id"])
+            lease = streams.get(payload["lease_id"])
+            if (
+                not isinstance(attempt, dict)
+                or attempt.get("status") != "created"
+                or not isinstance(dispatch, dict)
+                or dispatch.get("status") != "claimed"
+                or not isinstance(lease, dict)
+                or lease.get("status") != "active"
+                or dispatch.get("lease_id") != payload["lease_id"]
+                or any(payload[field] != attempt.get(field) for field in ("task_id", "dispatch_id"))
+                or int(payload["task_revision"]) != int(attempt.get("task_revision", 0))
+                or lease.get("attempt_id") != command.target_stream_id
+            ):
+                return rejected(
+                    "claim_attempt_precondition_failed",
+                    "Attempt claim requires matching claimed Dispatch and active Lease.",
+                )
+            return payload
+
+        if command_type == "StartAttempt":
+            attempt = streams.get(command.target_stream_id)
+            lease = streams.get(attempt.get("lease_id")) if isinstance(attempt, dict) else None
+            dispatch = streams.get(attempt.get("dispatch_id")) if isinstance(attempt, dict) else None
+            definition = dispatch.get("definition") if isinstance(dispatch, dict) else None
+            if (
+                not isinstance(attempt, dict)
+                or attempt.get("status") != "claimed"
+                or not isinstance(lease, dict)
+                or lease.get("status") != "active"
+                or not isinstance(definition, dict)
+                or payload["context_packet_id"] != definition.get("context_packet_id")
+                or payload["root_bindings"] != definition.get("root_bindings")
+            ):
+                return rejected(
+                    "start_attempt_precondition_failed",
+                    "Attempt start requires matching active Lease, context, and roots.",
+                )
+            return payload
+
+        if command_type == "ReleaseResources":
+            resource = streams.get(command.target_stream_id)
+            if not isinstance(resource, dict) or resource.get("status") != "requested":
+                return rejected("resource_request_missing", "Resource release requires ResourceGrantRequested history.")
+            return payload
+        raise IntegrityError(f"unsupported C1 command type: {command_type}")
 
     def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
         resolver = self.authority_resolver
@@ -3406,6 +3792,39 @@ class CommandService:
             return stored
         return self.receipts.write(receipt)
 
+    def _build_events(
+        self,
+        command: Command,
+        prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None,
+        *,
+        command_schema: SchemaIdentity,
+    ) -> list[dict[str, Any]]:
+        primary = self._build_event(
+            command,
+            prepared_payload,
+            command_schema=command_schema,
+        )
+        if command.envelope["command_type"] != "ClaimDispatch":
+            return [primary]
+        payload = command.envelope["payload"]
+        event_binding = self.schemas.event_binding("TaskClaimStarted", "ClaimDispatch")
+        if event_binding is None:
+            raise IntegrityError("ClaimDispatch Task event binding is inactive")
+        return [
+            primary,
+            {
+                **primary,
+                "event_type": "TaskClaimStarted",
+                "stream_id": payload["task_id"],
+                "schema_id": event_binding.schema_id,
+                "schema_version": event_binding.schema_version,
+                "payload": {
+                    "task_id": payload["task_id"],
+                    "task_revision": payload["task_revision"],
+                },
+            },
+        ]
+
     def _build_event(
         self,
         command: Command,
@@ -3461,9 +3880,13 @@ class CommandService:
             )
             event_type = "TaskAmended"
             payload = command.envelope["payload"]
-        elif command_type == "ClaimDispatch":
-            event_type = "DispatchClaimed"
-            payload = {"attempt_id": new_id("attempt")}
+        elif command_type in _C1_COMMAND_TYPES:
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(command.envelope["payload"])
+            if command_type == "ExpireLease":
+                payload.pop("scheduler_authority_ref")
+            elif command_type == "CreateAttempt":
+                payload["creation_kind"] = "initial"
         elif command_type == "SupersedeTask":
             if prepared_payload is None:
                 raise IntegrityError("SupersedeTask requires prepared graph payload")

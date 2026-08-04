@@ -361,8 +361,23 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
             binding.schema_version,
         )
     assert observed_events == expected_events
-    assert not registry.is_active("ars://core/command/ClaimDispatch", "1.0.0")
-    assert not registry.is_active("ars://core/event/DispatchClaimed", "1.0.0")
+    assert registry.command_binding("ClaimDispatch") == SchemaBinding(
+        "ars://core/command/ClaimDispatch",
+        "1.0.0",
+        command_type="ClaimDispatch",
+    )
+    assert registry.event_binding("DispatchClaimed", "ClaimDispatch") == SchemaBinding(
+        "ars://core/event/DispatchClaimed",
+        "1.0.0",
+        event_type="DispatchClaimed",
+        producer_command_type="ClaimDispatch",
+    )
+    assert registry.event_binding("TaskClaimStarted", "ClaimDispatch") == SchemaBinding(
+        "ars://core/event/TaskClaimStarted",
+        "1.0.0",
+        event_type="TaskClaimStarted",
+        producer_command_type="ClaimDispatch",
+    )
     assert registry.event_binding(
         "AuthorityGrantActivated",
         "ActivateAuthorityGrant",
