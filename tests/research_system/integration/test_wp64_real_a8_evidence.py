@@ -41,8 +41,50 @@ from tests.research_system.integration.test_gate5_release_tranche import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_public_harness_capture_surface_exists() -> None:
     assert callable(capture_real_a8_candidate)
+
+
+def test_fresh_process_records_the_interpreter_it_executed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding_path = tmp_path / "binding.yaml"
+    binding_path.write_text("binding", encoding="utf-8")
+    code_root = tmp_path / "code"
+    code_root.mkdir()
+    expected = SimpleNamespace(
+        control_root=(tmp_path / "control").resolve(),
+        project_id=PROJECT_ID,
+        store_identity="store-identity",
+    )
+    executed: dict[str, str] = {}
+
+    def fake_run(argv, **_kwargs):
+        executed["interpreter"] = argv[0]
+        monkeypatch.setattr(harness_module.sys, "executable", str(tmp_path / "different-python"))
+        stdout = json.dumps(
+            {
+                "control_root": str(expected.control_root),
+                "project_id": expected.project_id,
+                "store_identity": expected.store_identity,
+            }
+        ).encode("utf-8")
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr=b"")
+
+    monkeypatch.setattr(harness_module.subprocess, "run", fake_run)
+
+    restart = harness_module._fresh_process_binding_load(
+        binding_path=binding_path,
+        code_root=code_root,
+        expected=expected,
+    )
+
+    assert restart["interpreter"] == executed["interpreter"]
+    assert restart["interpreter"] != str(Path(harness_module.sys.executable).resolve(strict=False))
 
 
 def _write_json(path: Path, value: dict[str, object]) -> None:
@@ -301,6 +343,55 @@ def test_red_output_root_equal_source_is_rejected_before_publication(
     assert not source_root.exists()
 
 
+@pytest.mark.parametrize(
+    "case",
+    ("output_parent", "output_absolute", "artefact_parent", "artefact_malformed"),
+)
+def test_bound_artifact_paths_reject_operator_path_escape(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    output_path = "objects/result.json"
+    artefacts: list[dict[str, str]] = []
+    if case == "output_parent":
+        output_path = "../outside.json"
+    elif case == "output_absolute":
+        output_path = str((tmp_path / "outside.json").resolve())
+    elif case == "artefact_parent":
+        artefacts = [{"relative_path": "../outside.json"}]
+    else:
+        artefacts = [{}]
+    manifest_path = tmp_path / "artefact-manifest.json"
+    _write_json(manifest_path, {"artefacts": artefacts})
+    runtime = SimpleNamespace(artefact_manifest_path=manifest_path)
+
+    with pytest.raises(EvidenceHarnessError, match="escapes|lacks a relative path"):
+        harness_module._bound_artifact_paths(target_root, runtime, output_path)
+
+
+def test_exact_retry_uses_the_explicit_target_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _request, _foundation, _source, target_root = _synthetic_request(tmp_path, monkeypatch)
+    transaction_path = harness_module.restore_binding_transaction_path(target_root)
+    detached_transaction_path = tmp_path / "detached-transaction.json"
+    shutil.copyfile(transaction_path, detached_transaction_path)
+    transaction = harness_module.load_restore_binding_transaction(target_root)
+    assert transaction is not None
+
+    retry = harness_module._capture_exact_retry(
+        target_root=target_root,
+        transaction_path=detached_transaction_path,
+        transaction=transaction,
+        result_bundle={"pre_writer": {"request_identity_sha256": "request-identity"}},
+    )
+
+    assert retry["result"] == "converged"
+
+
 def test_red_single_snapshot_rejects_replacement_between_parse_and_hash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -327,6 +418,47 @@ def test_red_single_snapshot_rejects_replacement_between_parse_and_hash(
         capture_real_a8_candidate(request=request)
 
 
+def test_locked_runtime_preserves_specific_harness_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, foundation_path, _source, target_root = _synthetic_request(tmp_path, monkeypatch)
+    approved, _foundation_record = harness_module._load_approved_foundation(foundation_path)
+    runtime = harness_module._load_runtime_inputs(request.runtime_inputs_path)
+    manifest_path = target_root / "manifests" / "store-identity.json"
+    evidence_path = target_root / "manifests" / "restore-binding-evidence.json"
+    transaction_path = harness_module.restore_binding_transaction_path(target_root)
+    operation_evidence = harness_module.load_canonical_restore_binding_evidence(target_root)
+    transaction = harness_module.load_restore_binding_transaction(target_root)
+    assert operation_evidence is not None
+    assert transaction is not None
+    witness_path = Path(approved.origin_witness_path)
+    witness = harness_module.load_store_origin_witness(
+        witness_path,
+        expected_sha256=approved.origin_witness_sha256,
+    )
+
+    def reject_surface(*_args, **_kwargs) -> None:
+        raise EvidenceHarnessError("specific locked-surface failure")
+
+    monkeypatch.setattr(harness_module, "_assert_surface_unchanged", reject_surface)
+
+    with pytest.raises(EvidenceHarnessError, match="specific locked-surface failure"):
+        harness_module._capture_runtime_evidence(
+            runtime=runtime,
+            transaction=transaction,
+            transaction_record=harness_module._file_record(transaction_path, "restore_transaction"),
+            target_root=target_root,
+            manifest_path=manifest_path,
+            evidence_path=evidence_path,
+            transaction_path=transaction_path,
+            operation_evidence=operation_evidence,
+            witness=witness,
+            witness_path=witness_path,
+            approved=approved,
+        )
+
+
 def test_red_git_identity_requires_complete_governed_path_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The old capture accepted an arbitrary caller-selected one-file proof."""
 
@@ -334,6 +466,17 @@ def test_red_git_identity_requires_complete_governed_path_set(tmp_path: Path, mo
     incomplete = replace(request, git_paths=("research_system/config.py",))
     with pytest.raises(EvidenceHarnessError, match="governed|Git.*path|complete"):
         capture_real_a8_candidate(request=incomplete)
+
+
+def test_governed_repository_paths_normalizes_cached_module_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    cached = REPO_ROOT / "research_system" / "example" / "__pycache__" / "cached.cpython-313.pyc"
+    monkeypatch.setitem(
+        harness_module.sys.modules,
+        "research_system._wp64_cached_path_probe",
+        SimpleNamespace(__file__=str(cached)),
+    )
+
+    assert "research_system/example/cached.py" in harness_module.governed_repository_paths()
 
 
 def test_red_git_identity_rejects_dirty_schema_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -369,6 +512,7 @@ def test_red_git_identity_rejects_executed_harness_substitution(monkeypatch: pyt
         if Path(path).resolve() != target:
             return snapshot
         raw = snapshot.raw.replace(b"Fail-closed", b"Substituted", 1)
+        assert raw != snapshot.raw, "substitution marker is no longer present in the harness source"
         record = dict(snapshot.record)
         record["size"] = len(raw)
         record["raw_sha256"] = sha256_hex(raw)
@@ -604,7 +748,6 @@ def test_red_capture_binds_foundation_and_binding_to_single_snapshot(
         b_value["canonical_uri"] = "local-cli://alternate-aba-snapshot"
         b_unsigned = {key: value for key, value in b_value.items() if key != "foundation_sha256"}
         b_value["foundation_sha256"] = sha256_hex(canonical_bytes(b_unsigned))
-        loader_type = harness_module.ApprovedProjectBinding
     else:
         b_value = json_load(request.binding_path)
         b_value.update(
@@ -614,53 +757,32 @@ def test_red_capture_binds_foundation_and_binding_to_single_snapshot(
                 "origin_witness_sha256": a_foundation["origin_witness_sha256"],
             }
         )
-        loader_type = harness_module.ControlBinding
     b_raw = yaml.safe_dump(b_value, sort_keys=False).encode("utf-8")
     assert b_raw != a_raw
-    a_hold = canonical_path.with_name(f".{canonical_path.name}.aba-a")
     b_hold = canonical_path.with_name(f".{canonical_path.name}.aba-b")
     b_hold.write_bytes(b_raw)
-    original_load = loader_type.load
-    attack = {"consumed_b": False}
+    original_snapshot = harness_module._read_physical_file_snapshot
+    swapped = False
 
-    def aba_load(cls, path: Path):
-        attacked_path = Path(path)
-        if attacked_path.resolve(strict=False) != canonical_path.resolve(strict=False):
-            return original_load(attacked_path)
-        os.replace(canonical_path, a_hold)
-        os.replace(b_hold, canonical_path)
-        try:
-            loaded = original_load(canonical_path)
-            attack["consumed_b"] = True
-            return loaded
-        finally:
-            os.replace(canonical_path, b_hold)
-            os.replace(a_hold, canonical_path)
+    def swap_after_snapshot(path: Path, role: str):
+        nonlocal swapped
+        snapshot = original_snapshot(path, role)
+        if not swapped and Path(path).resolve(strict=False) == canonical_path.resolve(strict=False):
+            os.replace(b_hold, canonical_path)
+            swapped = True
+        return snapshot
 
-    monkeypatch.setattr(loader_type, "load", classmethod(aba_load))
-    capture = None
-    rejected = None
+    monkeypatch.setattr(harness_module, "_read_physical_file_snapshot", swap_after_snapshot)
     try:
-        capture = capture_real_a8_candidate(request=request)
-    except EvidenceHarnessError as exc:
-        rejected = exc
+        with pytest.raises(EvidenceHarnessError, match="snapshot|changed|replacement|foundation|binding"):
+            capture_real_a8_candidate(request=request)
+    finally:
+        canonical_path.write_bytes(a_raw)
+        b_hold.unlink(missing_ok=True)
 
-    if attack["consumed_b"]:
-        assert rejected is not None
-        assert any(
-            token in str(rejected).lower() for token in ("snapshot", "changed", "replacement", "foundation", "binding")
-        )
-        assert not (request.output_root / "claims").exists()
-        assert not (request.output_root / "objects").exists()
-        return
-
-    assert rejected is None
-    assert capture is not None
-    assert capture.candidate["foundation"]["foundation_sha256"] == a_foundation["foundation_sha256"]
-    binding_record = next(
-        record for record in capture.candidate["produced_files"] if record["role"] == "binding_config"
-    )
-    assert binding_record["raw_sha256"] == sha256_hex(request.binding_path.read_bytes())
+    assert swapped is True
+    assert not (request.output_root / "claims").exists()
+    assert not (request.output_root / "objects").exists()
 
 
 def test_red_capture_rejects_fresh_process_code_not_bound_to_git(

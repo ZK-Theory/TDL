@@ -10,6 +10,7 @@ published after all physical and runtime checks have completed.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -59,7 +60,6 @@ from research_system.store.identity import (
 from research_system.store.lock import CompositeWriterLock
 
 
-_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _SCHEMA_ID = "ars://wp6-4/real-a8-proof-candidate"
@@ -292,7 +292,12 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
         witness_path=witness_path,
         approved=approved,
     )
-    exact_retry = _capture_exact_retry(transaction_path, transaction, runtime_result)
+    exact_retry = _capture_exact_retry(
+        target_root=target_root,
+        transaction_path=transaction_path,
+        transaction=transaction,
+        result_bundle=runtime_result,
+    )
     rollback_recovery = _capture_rollback_recovery(
         target_root=target_root,
         witness=witness,
@@ -305,7 +310,7 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
     bound_artifact_paths = _bound_artifact_paths(
         target_root,
         runtime,
-        target_root / Path(str(operation_evidence["output_object_path"])),
+        str(operation_evidence["output_object_path"]),
     )
     bound_artifact_records = tuple(_file_record(path, "bound_artifact") for path in bound_artifact_paths)
     produced_files = _unique_file_records(
@@ -432,11 +437,8 @@ def validate_real_a8_candidate(candidate: Mapping[str, Any]) -> None:
         / "wp6-4"
         / "real-a8-proof-candidate.schema.json"
     )
-    try:
-        schema_snapshot = _read_json_snapshot(schema_path, "real-A8 candidate schema")
-        schema = schema_snapshot.value
-    except EvidenceHarnessError:
-        raise
+    schema_snapshot = _read_json_snapshot(schema_path, "real-A8 candidate schema")
+    schema = schema_snapshot.value
     if not isinstance(schema, dict):
         raise EvidenceHarnessError("real-A8 candidate schema is unavailable")
     errors = sorted(Draft202012Validator(schema).iter_errors(dict(candidate)), key=lambda item: list(item.path))
@@ -476,7 +478,10 @@ def governed_repository_paths(repo_root: Path | None = None) -> tuple[str, ...]:
             continue
         path = Path(module_path)
         if path.suffix == ".pyc":
-            path = path.with_suffix("").with_suffix(".py")
+            try:
+                path = Path(importlib.util.source_from_cache(str(path)))
+            except ValueError:
+                path = path.with_suffix(".py")
         try:
             relative = path.resolve(strict=False).relative_to(research_root)
         except ValueError:
@@ -924,7 +929,6 @@ def _capture_runtime_evidence(
         transaction_path=transaction_path,
         operation_evidence=operation_evidence,
         runtime=runtime,
-        result=result,
     )
     lock_identity = {
         "transaction_id": str(transaction["transaction_id"]),
@@ -968,6 +972,8 @@ def _capture_runtime_evidence(
                 protected_paths=protected_paths,
                 expected_transaction_id=str(transaction["transaction_id"]),
             )
+    except EvidenceHarnessError:
+        raise
     except (ArsError, OSError, ValueError, TypeError) as exc:
         raise EvidenceHarnessError("locked runtime admission revalidation could not be captured") from exc
     locked = {
@@ -1075,13 +1081,15 @@ def _run_conflicting_retry_probe(
 
 
 def _capture_exact_retry(
+    *,
+    target_root: Path,
     transaction_path: Path,
     transaction: Mapping[str, Any],
     result_bundle: Mapping[str, Any],
 ) -> dict[str, Any]:
     before = _file_record(transaction_path, "restore_transaction")
-    first = load_restore_binding_transaction(transaction_path.parent.parent)
-    second = load_restore_binding_transaction(transaction_path.parent.parent)
+    first = load_restore_binding_transaction(target_root)
+    second = load_restore_binding_transaction(target_root)
     after = _file_record(transaction_path, "restore_transaction")
     if first != second or first != dict(transaction) or before["raw_sha256"] != after["raw_sha256"]:
         raise EvidenceHarnessError("exact retry did not converge to one transaction record")
@@ -1145,18 +1153,40 @@ def _target_relative_path(target_root: Path, path: Path) -> str:
         raise EvidenceHarnessError("runtime admission input escapes the destination root") from exc
 
 
+def _contained_target_path(target_root: Path, value: str, role: str) -> Path:
+    relative = Path(value)
+    if (
+        not value
+        or relative.is_absolute()
+        or bool(relative.drive)
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        raise EvidenceHarnessError(f"{role} escapes the destination root")
+    root = target_root.resolve(strict=True)
+    candidate = root / relative
+    try:
+        candidate.resolve(strict=False).relative_to(root)
+    except ValueError as exc:
+        raise EvidenceHarnessError(f"{role} escapes the destination root") from exc
+    return candidate
+
+
 def _bound_artifact_paths(
     target_root: Path,
     runtime: _RuntimeInputs,
-    output_object_path: Path,
+    output_object_path: str,
 ) -> tuple[Path, ...]:
     manifest = _read_canonical_json(runtime.artefact_manifest_path, "runtime artefact manifest")
     paths: list[Path] = []
-    for row in manifest.get("artefacts", []):
+    artefacts = manifest.get("artefacts")
+    if not isinstance(artefacts, list):
+        raise EvidenceHarnessError("runtime artefact manifest artefacts must be a list")
+    for row in artefacts:
         relative = row.get("relative_path") if isinstance(row, dict) else None
-        if isinstance(relative, str) and relative:
-            paths.append(target_root / Path(relative))
-    paths.append(output_object_path)
+        if not isinstance(relative, str) or not relative:
+            raise EvidenceHarnessError("runtime artefact manifest row lacks a relative path")
+        paths.append(_contained_target_path(target_root, relative, "runtime artefact path"))
+    paths.append(_contained_target_path(target_root, output_object_path, "restore output object path"))
     result: list[Path] = []
     seen: set[str] = set()
     for path in paths:
@@ -1225,7 +1255,7 @@ def _fresh_process_binding_load(
         "store_identity": value["store_identity"],
         "stdout_sha256": sha256_hex(result.stdout),
         "stderr_sha256": sha256_hex(result.stderr),
-        "interpreter": str(Path(sys.executable).resolve(strict=False)),
+        "interpreter": str(interpreter),
     }
 
 
@@ -1614,9 +1644,7 @@ def _protected_surface_paths(
     transaction_path: Path,
     operation_evidence: Mapping[str, Any],
     runtime: _RuntimeInputs,
-    result: RestorePreflightResult,
 ) -> tuple[Path, ...]:
-    del result
     paths = [
         manifest_path,
         evidence_path,
@@ -1628,13 +1656,13 @@ def _protected_surface_paths(
         runtime.endpoint_record["path"],
         runtime.artefact_manifest_record["path"],
     ]
-    output_path = target_root / Path(str(operation_evidence["output_object_path"]))
-    paths.append(output_path)
-    manifest_value = _read_canonical_json(runtime.artefact_manifest_path, "runtime artefact manifest")
-    for row in manifest_value.get("artefacts", []):
-        relative = row.get("relative_path")
-        if isinstance(relative, str) and relative:
-            paths.append(target_root / Path(relative))
+    paths.extend(
+        _bound_artifact_paths(
+            target_root,
+            runtime,
+            str(operation_evidence["output_object_path"]),
+        )
+    )
     unique: list[Path] = []
     seen: set[str] = set()
     for path in paths:
@@ -1847,7 +1875,3 @@ def _validate_candidate_joins(candidate: Mapping[str, Any]) -> None:
     )
     if operation_value.get("transaction_id") not in {None, operation["transaction_id"]}:
         raise EvidenceHarnessError("candidate operation evidence transaction join is invalid")
-
-
-def _is_sha256(value: Any) -> bool:
-    return isinstance(value, str) and bool(_SHA256.fullmatch(value))
