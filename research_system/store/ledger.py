@@ -553,7 +553,37 @@ class EventLedger:
     def iter_batches(self) -> Iterator[tuple[dict[str, Any], ...]]:
         for path in self._batch_paths():
             with path.open(encoding="utf-8") as handle:
-                yield tuple(json.loads(line) for line in handle if line.strip())
+                batch = tuple(json.loads(line) for line in handle if line.strip())
+
+            if not batch:
+                raise ArsError(f"invalid event batch: empty file {path}")
+
+            try:
+                transaction_id = batch[0]["transaction_id"]
+                transaction_count = batch[0]["transaction_count"]
+            except KeyError as exc:
+                raise ArsError(f"event batch missing required field: {exc.args[0]}") from exc
+
+            if transaction_count != len(batch):
+                raise ArsError("invalid event batch envelope: transaction_count does not match physical line count")
+
+            transaction_indexes: list[int] = []
+            for event in batch:
+                try:
+                    if event["transaction_id"] != transaction_id:
+                        raise ArsError("invalid event batch envelope: batch contains multiple transaction_ids")
+                    if event["transaction_count"] != transaction_count:
+                        raise ArsError("invalid event batch envelope: transaction_count is not contiguous")
+                except KeyError as exc:
+                    raise ArsError(f"event batch missing required field: {exc.args[0]}") from exc
+                transaction_indexes.append(event["transaction_index"])
+
+            expected_zero = list(range(len(batch)))
+            expected_one = list(range(1, len(batch) + 1))
+            if sorted(transaction_indexes) not in (expected_zero, expected_one):
+                raise ArsError("invalid event batch envelope: invalid transaction_index sequence")
+
+            yield batch
 
     def _batch_paths(self) -> list[Path]:
         paths = list(self.events_root.rglob("*.jsonl"))
