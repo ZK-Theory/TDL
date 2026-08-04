@@ -1274,9 +1274,12 @@ class CommandService:
                 command_schema=command_schema,
             )
             if existing is not None:
+                reconstructed = self._return_or_reconstruct(existing)
+                if command.envelope["command_type"] in _C1_COMMAND_TYPES:
+                    self._return_scoped_receipt_or_raise(command, reconstructed)
                 if command.envelope["command_type"] == "RequestResourceGrant":
                     self._ensure_resource_grant_materialized(command)
-                receipt = write_receipt(self._return_or_reconstruct(existing))
+                receipt = write_receipt(reconstructed)
                 if activation_marker_status == "committed":
                     self._remove_scoped_activation_marker(command.command_id)
                 return receipt
@@ -2428,9 +2431,18 @@ class CommandService:
                 return payload
             task = streams.get(payload["task_id"])
             lease = streams.get(payload["lease_id"])
+            definition = dispatch.get("definition") if isinstance(dispatch, dict) else None
+            claim_deadline = self._resource_grant_expiry(
+                definition.get("claim_deadline") if isinstance(definition, dict) else None
+            )
+            trusted_now = self._c1_trusted_now()
             expected_tail_hash = snapshot.events[-1]["event_hash"] if snapshot.events else "0" * 64
             if (
                 dispatch.get("status") != "acknowledged"
+                or not isinstance(definition, dict)
+                or claim_deadline is None
+                or trusted_now is None
+                or trusted_now >= claim_deadline
                 or not isinstance(task, dict)
                 or task.get("status") != "ready"
                 or payload["task_id"] != dispatch.get("task_id")
@@ -2451,6 +2463,12 @@ class CommandService:
                 return rejected(
                     "claim_dispatch_precondition_failed",
                     "Claim must bind the current ready Task, Dispatch, and active Lease.",
+                )
+            _, grant_reason = self._current_c1_lease_resource_grant(streams=streams, lease=lease)
+            if grant_reason is not None:
+                return rejected(
+                    grant_reason,
+                    "Claim requires the current materialized Resource grant.",
                 )
             return payload
 
@@ -2493,6 +2511,12 @@ class CommandService:
                 return rejected(
                     "attempt_creation_precondition_failed",
                     "Initial Attempt requires the current Task, Dispatch, and active Lease relation.",
+                )
+            _, grant_reason = self._current_c1_lease_resource_grant(streams=streams, lease=lease)
+            if grant_reason is not None:
+                return rejected(
+                    grant_reason,
+                    "Attempt creation requires the current materialized Resource grant.",
                 )
             return payload
 
@@ -2537,11 +2561,15 @@ class CommandService:
             request = stored_grant["granted_claims"]
             dispatch = streams.get(payload["dispatch_id"])
             definition = dispatch.get("definition") if isinstance(dispatch, dict) else None
+            task = streams.get(payload["task_id"])
             dispatch_capabilities = definition.get("capabilities") if isinstance(definition, dict) else None
             dispatch_permissions = definition.get("permissions") if isinstance(definition, dict) else None
             capability_scope = payload.get("capability_scope")
             if (
                 payload["task_id"] != request.get("task_id")
+                or not isinstance(task, dict)
+                or task.get("task_id") != payload["task_id"]
+                or int(task.get("current_revision", 0)) != int(payload["task_revision"])
                 or payload["dispatch_id"] != request.get("dispatch_id")
                 or payload["attempt_id"] != request.get("attempt_id")
                 or command.actor_id != request.get("requesting_actor_id")
@@ -2556,6 +2584,8 @@ class CommandService:
                 )
                 or payload["holder_profile"] != request.get("requesting_profile")
                 or payload["holder_profile"] != definition.get("target_profile")
+                or definition.get("task_id") != payload["task_id"]
+                or int(definition.get("task_revision", 0)) != int(payload["task_revision"])
                 or set(capability_scope) != set(dispatch_capabilities) | set(dispatch_permissions)
             ):
                 return rejected(
@@ -2563,10 +2593,16 @@ class CommandService:
                     "Lease claim must bind the committed Resource grant request and referenced Dispatch.",
                 )
             grant_expiry = self._resource_grant_expiry(stored_grant["expires_at"])
+            granted_at = self._resource_grant_expiry(payload.get("granted_at"))
             lease_expiry = self._resource_grant_expiry(payload["expires_at"])
             now = self._c1_trusted_now()
             if grant_expiry is None or lease_expiry is None or now is None:
                 return rejected("resource_grant_invalid", "Resource grant expiry is invalid.")
+            if granted_at is None or granted_at > now or granted_at >= lease_expiry:
+                return rejected(
+                    "lease_granted_at_invalid",
+                    "Lease grant time must be within the current Resource grant and trusted lease interval.",
+                )
             if grant_expiry <= now:
                 return rejected("resource_grant_expired", "Resource grant is no longer current.")
             if lease_expiry > grant_expiry:
@@ -2851,6 +2887,12 @@ class CommandService:
                     "claim_attempt_precondition_failed",
                     "Attempt claim requires the current Task, Dispatch, and active Lease relation.",
                 )
+            _, grant_reason = self._current_c1_lease_resource_grant(streams=streams, lease=lease)
+            if grant_reason is not None:
+                return rejected(
+                    grant_reason,
+                    "Attempt claim requires the current materialized Resource grant.",
+                )
             return payload
 
         if command_type == "StartAttempt":
@@ -2889,6 +2931,12 @@ class CommandService:
                 return rejected(
                     "start_attempt_precondition_failed",
                     "Attempt start requires the current Task, Dispatch, active Lease, context, and roots.",
+                )
+            _, grant_reason = self._current_c1_lease_resource_grant(streams=streams, lease=lease)
+            if grant_reason is not None:
+                return rejected(
+                    grant_reason,
+                    "Attempt start requires the current materialized Resource grant.",
                 )
             return payload
 
@@ -3133,6 +3181,28 @@ class CommandService:
         if stored_grant != expected_grant:
             return None, "resource_grant_mismatch"
         return stored_grant, None
+
+    def _current_c1_lease_resource_grant(
+        self,
+        *,
+        streams: dict[str, dict[str, Any]],
+        lease: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Return a lease's current materialized Resource grant."""
+        resource_grant_id = lease.get("resource_grant_id")
+        if not isinstance(resource_grant_id, str):
+            return None, "resource_grant_mismatch"
+        try:
+            stored_grant, grant_reason = self._current_materialized_resource_grant(
+                resource_grant_id=resource_grant_id,
+                resource=streams.get(resource_grant_id),
+                trusted_authority=self._current_trusted_runtime_authority(),
+            )
+        except IntegrityError:
+            return None, "resource_grant_invalid"
+        if stored_grant is None:
+            return None, grant_reason or "resource_grant_invalid"
+        return stored_grant, grant_reason
 
     def _current_c1_lease_context(
         self,
@@ -3457,6 +3527,8 @@ class CommandService:
         )
         if receipt is None:
             return None
+        if command.envelope["command_type"] in _C1_COMMAND_TYPES:
+            self._return_scoped_receipt_or_raise(command, receipt)
         if command.envelope["command_type"] == "RequestResourceGrant" and receipt.status == "accepted":
             self._ensure_resource_grant_materialized(command)
         self._reconcile_scoped_authority_receipt(

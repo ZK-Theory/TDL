@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConflictError, IntegrityError
+from research_system.operations import resources as resource_operations
 from research_system.operations.profiles import CURRENT_OPERATIONAL_PROFILE_POLICY
 from research_system.operations.resources import (
     TrustedRuntimeAuthority,
@@ -93,6 +95,7 @@ C1_ROWS = (
     ("operator.record_heartbeat", "RecordHeartbeat", ("HeartbeatRecorded",)),
     ("operator.release_resources", "ReleaseResources", ("ResourcesReleased",)),
 )
+C1_UNIQUE_COMMAND_TYPES = tuple(dict.fromkeys(command_type for _, command_type, _ in C1_ROWS))
 
 COMMAND_SCHEMA_SHA256 = {
     "RequestReadiness": "caf2b31f2acc666c0395a7a671c33957dfb7efb8c4db65afc553069ab6e80c5c",
@@ -833,6 +836,18 @@ def _claim_dispatch_scoped_index_path(harness) -> Path:
     return matches[0]
 
 
+def _c1_scoped_index_path(harness, command: dict[str, Any]) -> Path:
+    matches = [
+        path
+        for path in harness.receipts.index_root.glob("*.json")
+        if (record := json.loads(path.read_text(encoding="utf-8"))).get("scope", [None, None, None])[2]
+        == command["command_type"]
+        and record.get("receipt", {}).get("command_id") == command["command_id"]
+    ]
+    assert len(matches) == 1
+    return matches[0]
+
+
 def _renewal_policy_ref(profile_name: str) -> str:
     return (
         "ars://operations/operational-profile-policy/"
@@ -1122,6 +1137,129 @@ def _expiry_consumer_command(harness, *, stage: str) -> tuple[dict[str, Any], st
     assert stage == "start-attempt"
     assert harness.service.submit(_claim_attempt_command(number=109)).status == "accepted"
     return _start_attempt_command(number=110), "start_attempt_precondition_failed"
+
+
+def _admission_consumer_command(harness, *, stage: str) -> dict[str, Any]:
+    if stage == "claim-dispatch":
+        _seed_lease(harness)
+        return _claim_dispatch_command(harness, number=105)
+    if stage == "create-attempt":
+        _seed_lease(harness)
+        assert harness.service.submit(_claim_dispatch_command(harness, number=105)).status == "accepted"
+        return _create_attempt_command(number=106)
+    if stage == "claim-attempt":
+        _seed_lease(harness)
+        assert harness.service.submit(_claim_dispatch_command(harness, number=105)).status == "accepted"
+        assert harness.service.submit(_create_attempt_command(number=106)).status == "accepted"
+        return _claim_attempt_command(number=107)
+    assert stage == "start-attempt"
+    _seed_claimed_attempt(harness)
+    return _start_attempt_command(number=108)
+
+
+def _accepted_c1_command_for_missing_index(tmp_path: Path, command_type: str):
+    if command_type == "RequestReadiness":
+        harness = _c1_control_plane(tmp_path)
+        _create_task(harness)
+        command = _request_readiness_command(number=700)
+    elif command_type == "ApproveReadiness":
+        harness = _c1_control_plane(tmp_path)
+        _create_task(harness)
+        assert harness.service.submit(_request_readiness_command(number=701)).status == "accepted"
+        command = _approve_readiness_command(number=702)
+    elif command_type == "IssueDispatch":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        command = _issue_dispatch_command(number=700)
+    elif command_type == "RecordDispatchDelivery":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        assert harness.service.submit(_issue_dispatch_command(number=700)).status == "accepted"
+        command = _record_dispatch_delivery_command(number=701)
+    elif command_type == "AcknowledgeDispatch":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        assert harness.service.submit(_issue_dispatch_command(number=700)).status == "accepted"
+        assert harness.service.submit(_record_dispatch_delivery_command(number=701)).status == "accepted"
+        command = _acknowledge_dispatch_command(number=702)
+    elif command_type == "ExpireDispatch":
+        harness, clock = _mutable_c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        assert harness.service.submit(_issue_dispatch_command(number=700)).status == "accepted"
+        clock["now"] = datetime(2026, 8, 1, 13, 0, tzinfo=UTC)
+        command = _expire_dispatch_command(
+            number=701,
+            expected_stream_version=1,
+            observed_prior_state="issued",
+            observed_deadline=INITIAL_EXPIRY,
+            observed_at=INITIAL_EXPIRY,
+        )
+    elif command_type == "WithdrawDispatch":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        assert harness.service.submit(_issue_dispatch_command(number=700)).status == "accepted"
+        command = _withdraw_dispatch_command(number=701, expected_stream_version=1)
+    elif command_type == "ClaimDispatch":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        command = _claim_dispatch_command(harness, number=700)
+    elif command_type == "ClaimExecutionLease":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_resource_request(harness)
+        command = _claim_execution_lease_command(number=700)
+    elif command_type == "RenewExecutionLease":
+        harness = _c1_control_plane(tmp_path)
+        _seed_running_attempt(harness)
+        assert harness.service.submit(_heartbeat_command(number=700)).status == "accepted"
+        command = _renew_lease_command(number=701, expected_stream_version=2)
+    elif command_type == "ReleaseExecutionLease":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        command = _release_lease_command(number=700, expected_stream_version=1)
+    elif command_type == "ExpireLease":
+        harness, clock = _mutable_c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        clock["now"] = datetime(2026, 8, 1, 13, 0, tzinfo=UTC)
+        command = _expire_lease_command(number=700, expected_stream_version=1, observed_at=INITIAL_EXPIRY)
+    elif command_type == "RevokeLease":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        command = _revoke_lease_command(number=700, expected_stream_version=1)
+    elif command_type == "RecordHeartbeat":
+        harness = _c1_control_plane(tmp_path)
+        _seed_running_attempt(harness)
+        command = _heartbeat_command(number=700)
+    elif command_type == "CreateAttempt":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        assert harness.service.submit(_claim_dispatch_command(harness, number=700)).status == "accepted"
+        command = _create_attempt_command(number=701)
+    elif command_type == "ClaimAttempt":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        assert harness.service.submit(_claim_dispatch_command(harness, number=700)).status == "accepted"
+        assert harness.service.submit(_create_attempt_command(number=701)).status == "accepted"
+        command = _claim_attempt_command(number=702)
+    elif command_type == "StartAttempt":
+        harness = _c1_control_plane(tmp_path)
+        _seed_claimed_attempt(harness)
+        command = _start_attempt_command(number=700)
+    elif command_type == "RequestResourceGrant":
+        harness = _c1_control_plane(tmp_path)
+        _seed_ready_task(harness)
+        _seed_acknowledged_dispatch(harness)
+        command = _request_resource_command(harness, number=700)
+    elif command_type == "ReleaseResources":
+        harness = _c1_control_plane(tmp_path)
+        _seed_lease(harness)
+        assert (
+            harness.service.submit(_release_lease_command(number=700, expected_stream_version=1)).status == "accepted"
+        )
+        command = _release_resources_command(number=701)
+    else:
+        raise AssertionError(f"unsupported C1 command type: {command_type}")
+    assert harness.service.submit(command).status == "accepted"
+    return harness, command
 
 
 @pytest.mark.parametrize(
@@ -1733,6 +1871,38 @@ def test_claim_execution_lease_requires_exact_profile_and_capability_bindings(tm
     assert harness.service.submit(_claim_execution_lease_command(number=6)).status == "accepted", case
 
 
+@pytest.mark.parametrize("case", ("foreign-task", "stale-revision"))
+def test_claim_execution_lease_binds_task_identity_and_revision_to_current_dispatch(tmp_path, case):
+    harness = _c1_control_plane(tmp_path)
+    if case == "foreign-task":
+        foreign_task = create_task_command(
+            _command_id(900),
+            "wp6-1-c1:foreign-task-for-lease-binding",
+            OTHER_TASK_ID,
+            {"title": "Foreign Task for lease binding"},
+        )
+        assert harness.service.submit(foreign_task).status == "accepted"
+        _seed_ready_task(harness)
+        _seed_acknowledged_dispatch(harness)
+        request = _request_resource_command(harness, number=4)
+        request["payload"]["resource_request"]["task_id"] = OTHER_TASK_ID
+        _rebind_resource_request_authority_ref(harness, request["payload"])
+        assert harness.service.submit(request).status == "accepted"
+        lease = _claim_execution_lease_command(number=5)
+        lease["payload"]["task_id"] = OTHER_TASK_ID
+    else:
+        _seed_ready_resource_request(harness)
+        lease = _claim_execution_lease_command(number=5)
+        lease["payload"]["task_revision"] = 2
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(lease)
+
+    assert rejected.status == "rejected", case
+    assert rejected.reason_code == "resource_grant_binding_mismatch", case
+    assert _rejection_snapshot(harness) == before, case
+
+
 def test_claim_execution_lease_rejects_missing_referenced_dispatch_without_mutation(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
@@ -1805,6 +1975,37 @@ def test_live_grant_rejects_an_already_expired_proposed_lease_without_mutation(t
     assert _rejection_snapshot(harness) == before
 
 
+@pytest.mark.parametrize(
+    ("case", "granted_at", "expires_at"),
+    (
+        ("future-trusted-now", "2026-08-01T12:31:00Z", INITIAL_EXPIRY),
+        ("equal-lease-expiry", INITIAL_EXPIRY, INITIAL_EXPIRY),
+        ("inverted-interval", "2026-08-01T13:01:00Z", INITIAL_EXPIRY),
+    ),
+)
+def test_claim_execution_lease_rejects_granted_at_outside_the_trusted_interval(
+    tmp_path,
+    case,
+    granted_at,
+    expires_at,
+):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    lease = _claim_execution_lease_command(number=5)
+    lease["payload"]["granted_at"] = granted_at
+    lease["payload"]["expires_at"] = expires_at
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(lease)
+
+    assert rejected.status == "rejected", case
+    assert rejected.reason_code == "lease_granted_at_invalid", case
+    assert _rejection_snapshot(harness) == before, case
+    boundary = _claim_execution_lease_command(number=6)
+    boundary["payload"]["granted_at"] = "2026-08-01T12:30:00Z"
+    assert harness.service.submit(boundary).status == "accepted", case
+
+
 @pytest.mark.parametrize("stage", ("claim-dispatch", "claim-attempt", "start-attempt"))
 def test_elapsed_lease_expiry_rejects_each_c1_consumer_without_mutation(tmp_path, stage):
     harness, clock = _mutable_c1_control_plane(tmp_path)
@@ -1817,6 +2018,65 @@ def test_elapsed_lease_expiry_rejects_each_c1_consumer_without_mutation(tmp_path
     assert rejected.status == "rejected", stage
     assert rejected.reason_code == expected_reason, stage
     assert _rejection_snapshot(harness) == before, stage
+
+
+@pytest.mark.parametrize(
+    "binding",
+    (
+        "host_identity",
+        "boot_identity",
+        "control_store_identity",
+        "store_manifest_sha256",
+        "operational-policy",
+    ),
+)
+@pytest.mark.parametrize("stage", ("claim-dispatch", "create-attempt", "claim-attempt", "start-attempt"))
+def test_c1_admission_consumers_revalidate_current_resource_grant(tmp_path, monkeypatch, binding, stage):
+    harness, authority = _mutable_c1_authority_control_plane(tmp_path)
+    command = _admission_consumer_command(harness, stage=stage)
+    if binding == "operational-policy":
+        monkeypatch.setattr(
+            resource_operations,
+            "CURRENT_OPERATIONAL_PROFILE_POLICY",
+            replace(resource_operations.CURRENT_OPERATIONAL_PROFILE_POLICY, raw_sha256="e" * 64),
+        )
+    else:
+        authority["current"] = _drifted_runtime_authority(binding)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(command)
+
+    assert rejected.status == "rejected", (binding, stage)
+    assert rejected.reason_code == "resource_grant_invalid", (binding, stage)
+    assert _rejection_snapshot(harness) == before, (binding, stage)
+
+
+@pytest.mark.parametrize(
+    ("case", "trusted_now"),
+    (
+        ("at-deadline", datetime(2026, 8, 1, 12, 45, tzinfo=UTC)),
+        ("after-deadline", datetime(2026, 8, 1, 12, 45, 0, 1000, tzinfo=UTC)),
+    ),
+)
+def test_claim_dispatch_rejects_at_or_beyond_its_exact_claim_deadline(tmp_path, case, trusted_now):
+    harness, clock = _mutable_c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    definition = _dispatch_definition()
+    definition["claim_deadline"] = "2026-08-01T12:45:00Z"
+    assert harness.service.submit(_issue_dispatch_command(number=100, definition=definition)).status == "accepted"
+    assert harness.service.submit(_record_dispatch_delivery_command(number=101)).status == "accepted"
+    assert harness.service.submit(_acknowledge_dispatch_command(number=102)).status == "accepted"
+    assert harness.service.submit(_request_resource_command(harness, number=103)).status == "accepted"
+    assert harness.service.submit(_claim_execution_lease_command(number=104)).status == "accepted"
+    clock["now"] = trusted_now
+    command = _claim_dispatch_command(harness, number=105)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(command)
+
+    assert rejected.status == "rejected", case
+    assert rejected.reason_code == "claim_dispatch_precondition_failed", case
+    assert _rejection_snapshot(harness) == before, case
 
 
 def test_claim_dispatch_fails_closed_for_a_non_aware_clock_without_mutation(tmp_path, monkeypatch):
@@ -2154,6 +2414,93 @@ def test_claim_dispatch_changed_command_id_cannot_repair_missing_receipt_or_inde
     assert _json_files(harness.receipts.index_root) == before_index
     assert not index_path.exists()
     assert not receipt_path.exists()
+
+
+@pytest.mark.parametrize("command_type", C1_UNIQUE_COMMAND_TYPES)
+def test_each_c1_lifecycle_changed_command_id_cannot_recover_a_missing_index(tmp_path, command_type):
+    harness, command = _accepted_c1_command_for_missing_index(tmp_path, command_type)
+    index_path = _c1_scoped_index_path(harness, command)
+    receipt_path = harness.receipts.receipts_root / f"{command['command_id']}.json"
+    expected_receipt = receipt_path.read_bytes()
+    index_path.unlink()
+    changed = deepcopy(command)
+    changed["command_id"] = _command_id(999)
+    before_domain = _domain_snapshot(harness)
+    before_receipts = _json_files(harness.receipts.receipts_root)
+    before_index = _json_files(harness.receipts.index_root)
+
+    with pytest.raises(ConflictError, match="idempotency key conflicts with committed command"):
+        harness.service.submit(changed)
+
+    assert _domain_snapshot(harness) == before_domain, command_type
+    assert _json_files(harness.receipts.receipts_root) == before_receipts, command_type
+    assert _json_files(harness.receipts.index_root) == before_index, command_type
+    assert not index_path.exists(), command_type
+    assert receipt_path.read_bytes() == expected_receipt, command_type
+    assert not (harness.receipts.receipts_root / f"{changed['command_id']}.json").exists(), command_type
+
+
+@pytest.mark.parametrize("command_type", C1_UNIQUE_COMMAND_TYPES)
+def test_each_c1_lifecycle_same_command_id_repairs_a_missing_index(tmp_path, command_type):
+    harness, command = _accepted_c1_command_for_missing_index(tmp_path, command_type)
+    index_path = _c1_scoped_index_path(harness, command)
+    receipt_path = harness.receipts.receipts_root / f"{command['command_id']}.json"
+    expected_index = index_path.read_bytes()
+    expected_receipt = receipt_path.read_bytes()
+    accepted = harness.receipts.load(command["command_id"])
+    assert accepted is not None
+    index_path.unlink()
+    before_domain = _domain_snapshot(harness)
+
+    retried = harness.service.submit(deepcopy(command))
+
+    assert retried == accepted, command_type
+    assert _domain_snapshot(harness) == before_domain, command_type
+    assert index_path.read_bytes() == expected_index, command_type
+    assert receipt_path.read_bytes() == expected_receipt, command_type
+
+
+@pytest.mark.parametrize("command_type", ("RequestReadiness", "RequestResourceGrant"))
+def test_c1_changed_command_id_cannot_repair_a_missing_receipt_with_index_present(tmp_path, command_type):
+    harness, command = _accepted_c1_command_for_missing_index(tmp_path, command_type)
+    index_path = _c1_scoped_index_path(harness, command)
+    receipt_path = harness.receipts.receipts_root / f"{command['command_id']}.json"
+    expected_index = index_path.read_bytes()
+    receipt_path.unlink()
+    changed = deepcopy(command)
+    changed["command_id"] = _command_id(999)
+    before_domain = _domain_snapshot(harness)
+    before_receipts = _json_files(harness.receipts.receipts_root)
+    before_index = _json_files(harness.receipts.index_root)
+
+    with pytest.raises(ConflictError, match="idempotency key conflicts with committed command"):
+        harness.service.submit(changed)
+
+    assert _domain_snapshot(harness) == before_domain, command_type
+    assert _json_files(harness.receipts.receipts_root) == before_receipts, command_type
+    assert _json_files(harness.receipts.index_root) == before_index, command_type
+    assert index_path.read_bytes() == expected_index, command_type
+    assert not receipt_path.exists(), command_type
+
+
+@pytest.mark.parametrize("command_type", ("RequestReadiness", "RequestResourceGrant"))
+def test_c1_same_command_id_repairs_a_missing_receipt_with_index_present(tmp_path, command_type):
+    harness, command = _accepted_c1_command_for_missing_index(tmp_path, command_type)
+    index_path = _c1_scoped_index_path(harness, command)
+    receipt_path = harness.receipts.receipts_root / f"{command['command_id']}.json"
+    expected_index = index_path.read_bytes()
+    expected_receipt = receipt_path.read_bytes()
+    accepted = harness.receipts.load(command["command_id"])
+    assert accepted is not None
+    receipt_path.unlink()
+    before_domain = _domain_snapshot(harness)
+
+    retried = harness.service.submit(deepcopy(command))
+
+    assert retried == accepted, command_type
+    assert _domain_snapshot(harness) == before_domain, command_type
+    assert index_path.read_bytes() == expected_index, command_type
+    assert receipt_path.read_bytes() == expected_receipt, command_type
 
 
 def test_same_snapshot_claim_dispatch_conflicts_once_without_creating_an_attempt(tmp_path):
