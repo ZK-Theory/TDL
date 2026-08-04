@@ -79,7 +79,7 @@ class OwnerAcceptanceEvidence:
     authority: ExternalEvidence
 
 
-def _validate_utc(value: str, label: str) -> None:
+def _validate_utc(value: str, label: str) -> datetime:
     if not isinstance(value, str) or _UTC.fullmatch(value) is None:
         raise SchemaError(f"{label} must be strict RFC3339 UTC")
     try:
@@ -88,6 +88,7 @@ def _validate_utc(value: str, label: str) -> None:
         raise SchemaError(f"{label} is not a valid timestamp") from exc
     if parsed.tzinfo != timezone.utc:
         raise SchemaError(f"{label} must be UTC")
+    return parsed
 
 
 def _validate_document(document: dict[str, Any], schema_name: str) -> None:
@@ -194,18 +195,68 @@ def _artifact_evidence_set(sources: tuple[EvidenceArtifact, ...], label: str) ->
     return evidence
 
 
-def _external_evidence(source: ExternalEvidence, label: str) -> dict[str, Any]:
+def _external_record(
+    source: ExternalEvidence,
+    label: str,
+    definition_name: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if source.media_type != "application/json":
+        raise SchemaError(f"{label} must use application/json")
     try:
         raw = Path(source.path).read_bytes()
     except (OSError, TypeError) as exc:
         raise SchemaError(f"{label} is unreadable: {source.record_locator}") from exc
     if not raw:
         raise SchemaError(f"{label} is empty: {source.record_locator}")
-    return {
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SchemaError(f"{label} must be UTF-8 JSON") from exc
+    if not isinstance(record, dict):
+        raise SchemaError(f"{label} must be a JSON object")
+    try:
+        expected_raw = canonical_bytes(record)
+    except (TypeError, ValueError) as exc:
+        raise SchemaError(f"{label} is outside canonical JSON") from exc
+    if raw != expected_raw:
+        raise SchemaError(f"{label} must be exact canonical JSON")
+    schema_path = _SCHEMA_ROOT / "owner-operated-session-evidence.schema.json"
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        record_schema = {
+            "$schema": schema["$schema"],
+            "$defs": schema["$defs"],
+            "$ref": f"#/$defs/{definition_name}",
+        }
+        Draft202012Validator.check_schema(record_schema)
+        Draft202012Validator(record_schema, format_checker=FormatChecker()).validate(record)
+    except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, JsonSchemaError, ValidationError) as exc:
+        raise SchemaError(f"invalid {label}") from exc
+    evidence = {
         "record_locator": source.record_locator,
         "media_type": source.media_type,
         "raw_sha256": sha256_hex(raw),
         "byte_length": len(raw),
+    }
+    return evidence, record
+
+
+def _session_subject(
+    brief: dict[str, Any],
+    brief_raw: bytes,
+    evidence_artifact_id: str,
+) -> dict[str, Any]:
+    return {
+        "handoff_id": brief["handoff_id"],
+        "session_id": brief["session_id"],
+        "attempt_id": brief["attempt_id"],
+        "task_id": brief["task_id"],
+        "brief_artifact_id": brief["brief_artifact_id"],
+        "brief_revision": brief["revision"],
+        "brief_document_raw_sha256": sha256_hex(brief_raw),
+        "brief_raw_sha256": brief["brief"]["raw_sha256"],
+        "evidence_artifact_id": evidence_artifact_id,
+        "git_subject": brief["git_subject"],
     }
 
 
@@ -230,7 +281,7 @@ def record_session_evidence(
     acceptance_evidence: OwnerAcceptanceEvidence | None = None,
 ) -> PublishedSessionDocument:
     """Record exact returned bytes and only externally supplied later evidence."""
-    _validate_utc(recorded_at, "recorded_at")
+    recorded_time = _validate_utc(recorded_at, "recorded_at")
     if len({producer_identity_locator, reviewer_identity_locator, acceptor_identity_locator}) != 3:
         raise SchemaError("producer, reviewer, and acceptor identity locators must be distinct")
     store = ObjectStore(control_root)
@@ -247,6 +298,11 @@ def record_session_evidence(
     mismatches = [field for field, expected in expected_join.items() if brief.get(field) != expected]
     if mismatches:
         raise ConflictError(f"evidence does not bind the prepared brief: {', '.join(mismatches)}")
+    brief_raw = canonical_bytes(brief)
+    expected_subject = _session_subject(brief, brief_raw, evidence_artifact_id)
+    prepared_time = _validate_utc(brief["prepared_at"], "brief prepared_at")
+    if recorded_time < prepared_time:
+        raise SchemaError("recorded_at cannot precede the prepared session brief")
     artifacts = _artifact_evidence_set(returned_artifacts, "returned artifacts")
     tests = _artifact_evidence_set(test_evidence, "test evidence")
     combined_ids = [item["artefact_id"] for item in artifacts + tests]
@@ -261,6 +317,8 @@ def record_session_evidence(
     acceptance: dict[str, Any]
     document_state: str
     external_locators: list[str] = []
+    review_time: datetime | None = None
+    review_record_raw_sha256: str | None = None
     if review_evidence is None:
         review = {
             "reviewer_identity_locator": reviewer_identity_locator,
@@ -272,11 +330,30 @@ def record_session_evidence(
     else:
         if review_evidence.reviewer_identity_locator != reviewer_identity_locator:
             raise ConflictError("independent review identity does not match the expected reviewer")
-        review_record = _external_evidence(review_evidence.record, "independent review evidence")
+        review_record, review_document = _external_record(
+            review_evidence.record,
+            "independent review evidence",
+            "independentReviewRecord",
+        )
+        if review_document["subject"] != expected_subject:
+            raise ConflictError("independent review record does not bind the exact session subject")
+        if review_document["reviewer_identity_locator"] != reviewer_identity_locator:
+            raise ConflictError("independent review record names the wrong reviewer")
+        if review_document["producer_identity_locator"] != producer_identity_locator:
+            raise ConflictError("independent review record names the wrong producer")
+        if review_document["verdict"] != review_evidence.verdict:
+            raise ConflictError("independent review caller verdict contradicts the record")
+        review_time = _validate_utc(review_document["reviewed_at"], "independent review reviewed_at")
+        if review_time < prepared_time:
+            raise SchemaError("independent review evidence is stale for the prepared session subject")
+        if review_time > recorded_time:
+            raise SchemaError("independent review evidence is from the future")
+        review_record_raw_sha256 = review_record["raw_sha256"]
         review = {
             "reviewer_identity_locator": reviewer_identity_locator,
             "status": "independent_review_recorded",
-            "verdict": review_evidence.verdict,
+            "verdict": review_document["verdict"],
+            "reviewed_at": review_document["reviewed_at"],
             "evidence": review_record,
         }
         external_locators.append(review_record["record_locator"])
@@ -291,22 +368,62 @@ def record_session_evidence(
             "evidence": None,
         }
     else:
-        if review_evidence is None or review_evidence.verdict != "accepted":
+        if review_evidence is None or review["verdict"] != "accepted":
             raise SchemaError("owner acceptance requires an accepted independent review record")
         if acceptance_evidence.acceptor_identity_locator != acceptor_identity_locator:
             raise ConflictError("owner acceptance identity does not match the expected acceptor")
         if acceptance_evidence.authority_locator != acceptance_authority_locator:
             raise ConflictError("owner acceptance authority does not match the expected authority")
-        if acceptance_evidence.authority_status != "active":
+        decision, decision_document = _external_record(
+            acceptance_evidence.decision,
+            "owner acceptance decision",
+            "ownerAcceptanceDecisionRecord",
+        )
+        authority, authority_document = _external_record(
+            acceptance_evidence.authority,
+            "owner acceptance authority",
+            "ownerAcceptanceAuthorityRecord",
+        )
+        for label, record in (
+            ("owner acceptance decision", decision_document),
+            ("owner acceptance authority", authority_document),
+        ):
+            if record["subject"] != expected_subject:
+                raise ConflictError(f"{label} does not bind the exact session subject")
+            if record["acceptor_identity_locator"] != acceptor_identity_locator:
+                raise ConflictError(f"{label} names the wrong acceptor")
+            if record["authority_locator"] != acceptance_authority_locator:
+                raise ConflictError(f"{label} names the wrong authority")
+        if acceptance_evidence.authority_status != authority_document["status"]:
+            raise ConflictError("owner acceptance caller authority status contradicts the record")
+        if authority_document["status"] != "active":
             raise SchemaError("owner acceptance requires active external authority evidence")
-        decision = _external_evidence(acceptance_evidence.decision, "owner acceptance decision")
-        authority = _external_evidence(acceptance_evidence.authority, "owner acceptance authority")
+        if decision_document["review_record_raw_sha256"] != review_record_raw_sha256:
+            raise ConflictError("owner acceptance decision does not bind the exact review record")
+        if decision_document["outcome"] != "accepted":
+            raise SchemaError("owner acceptance decision record does not accept the subject")
+        decision_time = _validate_utc(decision_document["decided_at"], "owner acceptance decided_at")
+        if review_time is None or decision_time <= review_time:
+            raise SchemaError("owner acceptance decision must be later than the independent review")
+        if decision_time > recorded_time:
+            raise SchemaError("owner acceptance decision is from the future")
+        valid_from = _validate_utc(authority_document["valid_from"], "owner authority valid_from")
+        valid_until = _validate_utc(authority_document["valid_until"], "owner authority valid_until")
+        if valid_until <= valid_from:
+            raise SchemaError("owner acceptance authority validity interval is empty")
+        if decision_time < valid_from:
+            raise SchemaError("owner acceptance authority is not yet effective")
+        if recorded_time >= valid_until:
+            raise SchemaError("owner acceptance authority is expired")
         acceptance = {
             "acceptor_identity_locator": acceptor_identity_locator,
             "authority_locator": acceptance_authority_locator,
             "authority_status": "active",
             "status": "owner_acceptance_recorded",
-            "outcome": "accepted",
+            "outcome": decision_document["outcome"],
+            "decided_at": decision_document["decided_at"],
+            "authority_valid_from": authority_document["valid_from"],
+            "authority_valid_until": authority_document["valid_until"],
             "evidence": {"decision": decision, "authority": authority},
         }
         external_locators.extend([decision["record_locator"], authority["record_locator"]])
@@ -326,7 +443,6 @@ def record_session_evidence(
     finding_ids = [finding["finding_id"] for finding in findings]
     if len(finding_ids) != len(set(finding_ids)):
         raise SchemaError("unresolved finding identities must be unique")
-    brief_raw = canonical_bytes(brief)
     document: dict[str, Any] = {
         "schema_id": "ars://wp6-4/owner-operated-session-evidence",
         "schema_version": "1.0.0",

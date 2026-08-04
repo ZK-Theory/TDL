@@ -128,6 +128,112 @@
       },
       "additionalProperties": false
     },
+    "sessionSubject": {
+      "type": "object",
+      "required": [
+        "handoff_id",
+        "session_id",
+        "attempt_id",
+        "task_id",
+        "brief_artifact_id",
+        "brief_revision",
+        "brief_document_raw_sha256",
+        "brief_raw_sha256",
+        "evidence_artifact_id",
+        "git_subject"
+      ],
+      "properties": {
+        "handoff_id": {"$ref": "#/$defs/handoffId"},
+        "session_id": {"$ref": "#/$defs/sessionId"},
+        "attempt_id": {"$ref": "#/$defs/attemptId"},
+        "task_id": {"$ref": "#/$defs/taskId"},
+        "brief_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "brief_revision": {"const": 1},
+        "brief_document_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "brief_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "git_subject": {"$ref": "#/$defs/gitSubject"}
+      },
+      "additionalProperties": false
+    },
+    "independentReviewRecord": {
+      "type": "object",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "record_type",
+        "subject",
+        "reviewer_identity_locator",
+        "producer_identity_locator",
+        "verdict",
+        "reviewed_at"
+      ],
+      "properties": {
+        "schema_id": {"const": "ars://wp6-4/independent-session-review-record"},
+        "schema_version": {"const": "1.0.0"},
+        "record_type": {"const": "independent_session_review"},
+        "subject": {"$ref": "#/$defs/sessionSubject"},
+        "reviewer_identity_locator": {"$ref": "#/$defs/locator"},
+        "producer_identity_locator": {"$ref": "#/$defs/locator"},
+        "verdict": {"enum": ["accepted", "rework_required", "rejected"]},
+        "reviewed_at": {"$ref": "#/$defs/utcTimestamp"}
+      },
+      "additionalProperties": false
+    },
+    "ownerAcceptanceDecisionRecord": {
+      "type": "object",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "record_type",
+        "subject",
+        "acceptor_identity_locator",
+        "authority_locator",
+        "review_record_raw_sha256",
+        "outcome",
+        "decided_at"
+      ],
+      "properties": {
+        "schema_id": {"const": "ars://wp6-4/owner-session-acceptance-decision-record"},
+        "schema_version": {"const": "1.0.0"},
+        "record_type": {"const": "owner_session_acceptance_decision"},
+        "subject": {"$ref": "#/$defs/sessionSubject"},
+        "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
+        "authority_locator": {"$ref": "#/$defs/locator"},
+        "review_record_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "outcome": {"enum": ["accepted", "rejected"]},
+        "decided_at": {"$ref": "#/$defs/utcTimestamp"}
+      },
+      "additionalProperties": false
+    },
+    "ownerAcceptanceAuthorityRecord": {
+      "type": "object",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "record_type",
+        "subject",
+        "acceptor_identity_locator",
+        "authority_locator",
+        "permitted_action",
+        "status",
+        "valid_from",
+        "valid_until"
+      ],
+      "properties": {
+        "schema_id": {"const": "ars://wp6-4/owner-session-acceptance-authority-record"},
+        "schema_version": {"const": "1.0.0"},
+        "record_type": {"const": "owner_session_acceptance_authority"},
+        "subject": {"$ref": "#/$defs/sessionSubject"},
+        "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
+        "authority_locator": {"$ref": "#/$defs/locator"},
+        "permitted_action": {"const": "accept_owner_operated_session_evidence"},
+        "status": {"enum": ["active", "inactive", "revoked"]},
+        "valid_from": {"$ref": "#/$defs/utcTimestamp"},
+        "valid_until": {"$ref": "#/$defs/utcTimestamp"}
+      },
+      "additionalProperties": false
+    },
     "artifactEvidence": {
       "type": "object",
       "required": ["artefact_id", "locator", "media_type", "raw_sha256", "byte_length"],
@@ -145,7 +251,7 @@
       "required": ["record_locator", "media_type", "raw_sha256", "byte_length"],
       "properties": {
         "record_locator": {"$ref": "#/$defs/locator"},
-        "media_type": {"type": "string", "minLength": 1, "maxLength": 255},
+        "media_type": {"const": "application/json"},
         "raw_sha256": {"$ref": "#/$defs/sha256"},
         "byte_length": {"type": "integer", "minimum": 1}
       },
@@ -164,11 +270,12 @@
     },
     "recordedReview": {
       "type": "object",
-      "required": ["reviewer_identity_locator", "status", "verdict", "evidence"],
+      "required": ["reviewer_identity_locator", "status", "verdict", "reviewed_at", "evidence"],
       "properties": {
         "reviewer_identity_locator": {"$ref": "#/$defs/locator"},
         "status": {"const": "independent_review_recorded"},
         "verdict": {"enum": ["accepted", "rework_required", "rejected"]},
+        "reviewed_at": {"$ref": "#/$defs/utcTimestamp"},
         "evidence": {"$ref": "#/$defs/externalEvidence"}
       },
       "additionalProperties": false
@@ -188,13 +295,26 @@
     },
     "recordedAcceptance": {
       "type": "object",
-      "required": ["acceptor_identity_locator", "authority_locator", "authority_status", "status", "outcome", "evidence"],
+      "required": [
+        "acceptor_identity_locator",
+        "authority_locator",
+        "authority_status",
+        "status",
+        "outcome",
+        "decided_at",
+        "authority_valid_from",
+        "authority_valid_until",
+        "evidence"
+      ],
       "properties": {
         "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
         "authority_locator": {"$ref": "#/$defs/locator"},
         "authority_status": {"const": "active"},
         "status": {"const": "owner_acceptance_recorded"},
         "outcome": {"const": "accepted"},
+        "decided_at": {"$ref": "#/$defs/utcTimestamp"},
+        "authority_valid_from": {"$ref": "#/$defs/utcTimestamp"},
+        "authority_valid_until": {"$ref": "#/$defs/utcTimestamp"},
         "evidence": {
           "type": "object",
           "required": ["decision", "authority"],

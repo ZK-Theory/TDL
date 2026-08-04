@@ -24,6 +24,130 @@ ACCEPTOR_LOCATOR = "ars://actors/acceptor-fixture"
 AUTHORITY_LOCATOR = "ars://authority/owner-acceptance-fixture"
 
 
+def _external_session_subject(brief):
+    return {
+        "handoff_id": brief.document["handoff_id"],
+        "session_id": brief.document["session_id"],
+        "attempt_id": brief.document["attempt_id"],
+        "task_id": brief.document["task_id"],
+        "brief_artifact_id": brief.document["brief_artifact_id"],
+        "brief_revision": brief.document["revision"],
+        "brief_document_raw_sha256": brief.raw_sha256,
+        "brief_raw_sha256": brief.document["brief"]["raw_sha256"],
+        "evidence_artifact_id": EVIDENCE_ARTIFACT_ID,
+        "git_subject": brief.document["git_subject"],
+    }
+
+
+def _set_nested(document, path, value):
+    cursor = document
+    for field in path[:-1]:
+        cursor = cursor[field]
+    cursor[path[-1]] = value
+
+
+def _accepted_external_fixture(
+    control_root,
+    brief,
+    *,
+    review_mutation=None,
+    decision_mutation=None,
+    authority_mutation=None,
+    noncanonical_record=None,
+    caller_verdict="accepted",
+    caller_authority_status="active",
+):
+    from research_system.session_exchange import ExternalEvidence, IndependentReviewEvidence, OwnerAcceptanceEvidence
+
+    subject = _external_session_subject(brief)
+    review_document = {
+        "schema_id": "ars://wp6-4/independent-session-review-record",
+        "schema_version": "1.0.0",
+        "record_type": "independent_session_review",
+        "subject": copy.deepcopy(subject),
+        "reviewer_identity_locator": REVIEWER_LOCATOR,
+        "producer_identity_locator": PRODUCER_LOCATOR,
+        "verdict": "accepted",
+        "reviewed_at": "2026-08-04T09:30:00Z",
+    }
+    if review_mutation is not None:
+        _set_nested(review_document, *review_mutation)
+    review_path = control_root / "independent-review.json"
+    review_raw = canonical_bytes(review_document)
+    if noncanonical_record == "review":
+        review_raw += b"\n"
+    review_path.write_bytes(review_raw)
+
+    decision_document = {
+        "schema_id": "ars://wp6-4/owner-session-acceptance-decision-record",
+        "schema_version": "1.0.0",
+        "record_type": "owner_session_acceptance_decision",
+        "subject": copy.deepcopy(subject),
+        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
+        "authority_locator": AUTHORITY_LOCATOR,
+        "review_record_raw_sha256": sha256_hex(review_raw),
+        "outcome": "accepted",
+        "decided_at": "2026-08-04T09:45:00Z",
+    }
+    if decision_mutation is not None:
+        _set_nested(decision_document, *decision_mutation)
+    decision_path = control_root / "owner-decision.json"
+    decision_raw = canonical_bytes(decision_document)
+    if noncanonical_record == "decision":
+        decision_raw += b"\n"
+    decision_path.write_bytes(decision_raw)
+
+    authority_document = {
+        "schema_id": "ars://wp6-4/owner-session-acceptance-authority-record",
+        "schema_version": "1.0.0",
+        "record_type": "owner_session_acceptance_authority",
+        "subject": copy.deepcopy(subject),
+        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
+        "authority_locator": AUTHORITY_LOCATOR,
+        "permitted_action": "accept_owner_operated_session_evidence",
+        "status": "active",
+        "valid_from": "2026-08-04T09:45:00Z",
+        "valid_until": "2026-08-04T11:00:00Z",
+    }
+    if authority_mutation is not None:
+        _set_nested(authority_document, *authority_mutation)
+    authority_path = control_root / "owner-authority.json"
+    authority_raw = canonical_bytes(authority_document)
+    if noncanonical_record == "authority":
+        authority_raw += b"\n"
+    authority_path.write_bytes(authority_raw)
+
+    return {
+        "review_evidence": IndependentReviewEvidence(
+            reviewer_identity_locator=REVIEWER_LOCATOR,
+            verdict=caller_verdict,
+            record=ExternalEvidence(
+                record_locator="repo://independent-review.json",
+                path=review_path,
+                media_type="application/json",
+            ),
+        ),
+        "acceptance_evidence": OwnerAcceptanceEvidence(
+            acceptor_identity_locator=ACCEPTOR_LOCATOR,
+            authority_locator=AUTHORITY_LOCATOR,
+            authority_status=caller_authority_status,
+            decision=ExternalEvidence(
+                record_locator="repo://owner-decision.json",
+                path=decision_path,
+                media_type="application/json",
+            ),
+            authority=ExternalEvidence(
+                record_locator="repo://owner-authority.json",
+                path=authority_path,
+                media_type="application/json",
+            ),
+        ),
+        "review_path": review_path,
+        "decision_path": decision_path,
+        "authority_path": authority_path,
+    }
+
+
 def test_prepare_session_brief_publishes_exact_provider_free_subject(tmp_path):
     from research_system.session_exchange import prepare_session_brief
 
@@ -164,14 +288,11 @@ def test_record_session_evidence_binds_exact_brief_artifacts_and_pending_authori
 def test_external_review_and_owner_records_are_required_before_recorded_acceptance(tmp_path):
     from research_system.session_exchange import (
         EvidenceArtifact,
-        ExternalEvidence,
-        IndependentReviewEvidence,
-        OwnerAcceptanceEvidence,
         prepare_session_brief,
         record_session_evidence,
     )
 
-    prepare_session_brief(
+    brief = prepare_session_brief(
         tmp_path,
         brief_artifact_id=BRIEF_ARTIFACT_ID,
         handoff_id=HANDOFF_ID,
@@ -192,12 +313,7 @@ def test_external_review_and_owner_records_are_required_before_recorded_acceptan
     returned_path.write_bytes(b"exact candidate bytes\n")
     tests_path = tmp_path / "focused-tests.txt"
     tests_path.write_bytes(b"2 passed\n")
-    review_path = tmp_path / "independent-review.json"
-    review_path.write_bytes(b'{"verdict":"accepted"}\n')
-    decision_path = tmp_path / "owner-decision.json"
-    decision_path.write_bytes(b'{"outcome":"accepted"}\n')
-    authority_path = tmp_path / "owner-authority.json"
-    authority_path.write_bytes(b'{"status":"active"}\n')
+    external = _accepted_external_fixture(tmp_path, brief)
 
     published = record_session_evidence(
         tmp_path,
@@ -228,44 +344,351 @@ def test_external_review_and_owner_records_are_required_before_recorded_acceptan
         ),
         producer_verdict="completed",
         unresolved_findings=(),
-        review_evidence=IndependentReviewEvidence(
-            reviewer_identity_locator=REVIEWER_LOCATOR,
-            verdict="accepted",
-            record=ExternalEvidence(
-                record_locator="repo://independent-review.json",
-                path=review_path,
-                media_type="application/json",
-            ),
-        ),
-        acceptance_evidence=OwnerAcceptanceEvidence(
-            acceptor_identity_locator=ACCEPTOR_LOCATOR,
-            authority_locator=AUTHORITY_LOCATOR,
-            authority_status="active",
-            decision=ExternalEvidence(
-                record_locator="repo://owner-decision.json",
-                path=decision_path,
-                media_type="application/json",
-            ),
-            authority=ExternalEvidence(
-                record_locator="repo://owner-authority.json",
-                path=authority_path,
-                media_type="application/json",
-            ),
-        ),
+        review_evidence=external["review_evidence"],
+        acceptance_evidence=external["acceptance_evidence"],
         recorded_at="2026-08-04T10:00:00Z",
     )
 
     assert published.document["document_state"] == "owner_accepted"
     assert published.document["review"]["verdict"] == "accepted"
-    assert published.document["review"]["evidence"]["raw_sha256"] == sha256_hex(review_path.read_bytes())
+    assert published.document["review"]["reviewed_at"] == "2026-08-04T09:30:00Z"
+    assert published.document["review"]["evidence"]["raw_sha256"] == sha256_hex(external["review_path"].read_bytes())
     assert published.document["acceptance"]["status"] == "owner_acceptance_recorded"
+    assert published.document["acceptance"]["decided_at"] == "2026-08-04T09:45:00Z"
+    assert published.document["acceptance"]["authority_valid_from"] == "2026-08-04T09:45:00Z"
+    assert published.document["acceptance"]["authority_valid_until"] == "2026-08-04T11:00:00Z"
     assert published.document["acceptance"]["evidence"]["decision"]["raw_sha256"] == sha256_hex(
-        decision_path.read_bytes()
+        external["decision_path"].read_bytes()
     )
     assert published.document["acceptance"]["evidence"]["authority"]["raw_sha256"] == sha256_hex(
-        authority_path.read_bytes()
+        external["authority_path"].read_bytes()
     )
     assert published.document["mechanics_scope"] == "fixture_or_operator_supplied_inputs_only"
+
+
+def test_caller_labels_cannot_promote_contradictory_wrong_subject_records(tmp_path):
+    from research_system.session_exchange import record_session_evidence
+
+    brief = _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    external = _accepted_external_fixture(
+        tmp_path,
+        brief,
+        review_mutation=(
+            ("subject", "session_id"),
+            "ses_01978abc-6400-7000-8000-000000000099",
+        ),
+        decision_mutation=(("outcome",), "rejected"),
+        authority_mutation=(("status",), "inactive"),
+    )
+    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
+
+    with pytest.raises(ConflictError, match="does not bind the exact session subject"):
+        record_session_evidence(tmp_path, **kwargs)
+
+    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
+
+
+@pytest.mark.parametrize(
+    ("record_name", "mutation", "caller_verdict", "caller_authority_status", "error_type", "error_match"),
+    [
+        (
+            "review",
+            (("subject", "attempt_id"), "att_01978abc-6400-7000-8000-000000000099"),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact session subject",
+        ),
+        (
+            "review",
+            (("reviewer_identity_locator",), "ars://actors/foreign-reviewer"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong reviewer",
+        ),
+        (
+            "review",
+            (("producer_identity_locator",), "ars://actors/foreign-producer"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong producer",
+        ),
+        (
+            "review",
+            (("subject", "git_subject", "commit_sha"), "c" * 40),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact session subject",
+        ),
+        (
+            "review",
+            (("subject", "evidence_artifact_id"), "art_01978abc-6400-7000-8000-000000000099"),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact session subject",
+        ),
+        (
+            "review",
+            (("verdict",), "rejected"),
+            "accepted",
+            "active",
+            ConflictError,
+            "caller verdict contradicts",
+        ),
+        (
+            "review",
+            (("reviewed_at",), "2026-08-04T08:59:59Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "stale",
+        ),
+        (
+            "review",
+            (("reviewed_at",), "2026-08-04T10:00:01Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "future",
+        ),
+        (
+            "review",
+            (("unexpected",), True),
+            "accepted",
+            "active",
+            SchemaError,
+            "invalid independent review evidence",
+        ),
+        (
+            "decision",
+            (("subject", "handoff_id"), "hnd_01978abc-6400-7000-8000-000000000099"),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact session subject",
+        ),
+        (
+            "decision",
+            (("acceptor_identity_locator",), "ars://actors/foreign-acceptor"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong acceptor",
+        ),
+        (
+            "decision",
+            (("authority_locator",), "ars://authority/foreign"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong authority",
+        ),
+        (
+            "decision",
+            (("review_record_raw_sha256",), "f" * 64),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact review record",
+        ),
+        (
+            "decision",
+            (("outcome",), "rejected"),
+            "accepted",
+            "active",
+            SchemaError,
+            "does not accept",
+        ),
+        (
+            "decision",
+            (("decided_at",), "2026-08-04T09:30:00Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "later than",
+        ),
+        (
+            "decision",
+            (("decided_at",), "2026-08-04T10:00:01Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "future",
+        ),
+        (
+            "decision",
+            (("unexpected",), True),
+            "accepted",
+            "active",
+            SchemaError,
+            "invalid owner acceptance decision",
+        ),
+        (
+            "authority",
+            (("subject", "brief_artifact_id"), "art_01978abc-6400-7000-8000-000000000099"),
+            "accepted",
+            "active",
+            ConflictError,
+            "exact session subject",
+        ),
+        (
+            "authority",
+            (("authority_locator",), "ars://authority/foreign"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong authority",
+        ),
+        (
+            "authority",
+            (("acceptor_identity_locator",), "ars://actors/foreign-acceptor"),
+            "accepted",
+            "active",
+            ConflictError,
+            "wrong acceptor",
+        ),
+        (
+            "authority",
+            (("status",), "inactive"),
+            "accepted",
+            "active",
+            ConflictError,
+            "caller authority status contradicts",
+        ),
+        (
+            "authority",
+            (("status",), "inactive"),
+            "accepted",
+            "inactive",
+            SchemaError,
+            "requires active",
+        ),
+        (
+            "authority",
+            (("valid_until",), "2026-08-04T10:00:00Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "expired",
+        ),
+        (
+            "authority",
+            (("valid_from",), "2026-08-04T09:45:01Z"),
+            "accepted",
+            "active",
+            SchemaError,
+            "not yet effective",
+        ),
+        (
+            "authority",
+            (("unexpected",), True),
+            "accepted",
+            "active",
+            SchemaError,
+            "invalid owner acceptance authority",
+        ),
+    ],
+    ids=[
+        "review-wrong-subject",
+        "review-wrong-actor",
+        "review-wrong-producer",
+        "review-wrong-git-subject",
+        "review-wrong-evidence-artifact",
+        "review-caller-relabel",
+        "review-stale-before-brief",
+        "review-future",
+        "review-open-record",
+        "decision-wrong-subject",
+        "decision-wrong-actor",
+        "decision-wrong-authority",
+        "decision-wrong-review",
+        "decision-rejected",
+        "decision-not-after-review",
+        "decision-future",
+        "decision-open-record",
+        "authority-wrong-subject",
+        "authority-wrong-locator",
+        "authority-wrong-acceptor",
+        "authority-caller-relabel",
+        "authority-inactive",
+        "authority-expired-at-boundary",
+        "authority-not-yet-effective",
+        "authority-open-record",
+    ],
+)
+def test_external_record_semantics_reject_before_publication(
+    tmp_path,
+    record_name,
+    mutation,
+    caller_verdict,
+    caller_authority_status,
+    error_type,
+    error_match,
+):
+    from research_system.session_exchange import record_session_evidence
+
+    brief = _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
+    external = _accepted_external_fixture(
+        tmp_path,
+        brief,
+        **{f"{record_name}_mutation": mutation},
+        caller_verdict=caller_verdict,
+        caller_authority_status=caller_authority_status,
+    )
+    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
+
+    with pytest.raises(error_type, match=error_match):
+        record_session_evidence(tmp_path, **kwargs)
+
+    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
+
+
+@pytest.mark.parametrize("record_name", ["review", "decision", "authority"])
+def test_noncanonical_external_record_rejects_before_publication(tmp_path, record_name):
+    from research_system.session_exchange import record_session_evidence
+
+    brief = _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
+    external = _accepted_external_fixture(tmp_path, brief, noncanonical_record=record_name)
+    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
+
+    with pytest.raises(SchemaError, match="must be exact canonical JSON"):
+        record_session_evidence(tmp_path, **kwargs)
+
+    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
+
+
+def test_json_record_relabelled_as_non_json_rejects_before_publication(tmp_path):
+    from research_system.session_exchange import ExternalEvidence, IndependentReviewEvidence, record_session_evidence
+
+    brief = _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
+    external = _accepted_external_fixture(tmp_path, brief)
+    review = external["review_evidence"]
+    kwargs["review_evidence"] = IndependentReviewEvidence(
+        reviewer_identity_locator=review.reviewer_identity_locator,
+        verdict=review.verdict,
+        record=ExternalEvidence(
+            record_locator=review.record.record_locator,
+            path=review.record.path,
+            media_type="text/plain",
+        ),
+    )
+    kwargs["acceptance_evidence"] = external["acceptance_evidence"]
+
+    with pytest.raises(SchemaError, match="must use application/json"):
+        record_session_evidence(tmp_path, **kwargs)
+
+    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
 
 def _prepare_fixture(control_root, **overrides):
@@ -460,35 +883,19 @@ def test_unresolved_finding_identities_are_unique_without_collapsing_their_order
 def test_owner_acceptance_without_readable_external_authority_rejects_without_publication(tmp_path):
     from research_system.session_exchange import (
         ExternalEvidence,
-        IndependentReviewEvidence,
         OwnerAcceptanceEvidence,
         record_session_evidence,
     )
 
-    _prepare_fixture(tmp_path)
+    brief = _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
-    review_path = tmp_path / "independent-review.json"
-    review_path.write_bytes(b'{"verdict":"accepted"}\n')
-    decision_path = tmp_path / "owner-decision.json"
-    decision_path.write_bytes(b'{"outcome":"accepted"}\n')
-    kwargs["review_evidence"] = IndependentReviewEvidence(
-        reviewer_identity_locator=REVIEWER_LOCATOR,
-        verdict="accepted",
-        record=ExternalEvidence(
-            record_locator="repo://independent-review.json",
-            path=review_path,
-            media_type="application/json",
-        ),
-    )
+    external = _accepted_external_fixture(tmp_path, brief)
+    kwargs["review_evidence"] = external["review_evidence"]
     kwargs["acceptance_evidence"] = OwnerAcceptanceEvidence(
         acceptor_identity_locator=ACCEPTOR_LOCATOR,
         authority_locator=AUTHORITY_LOCATOR,
         authority_status="active",
-        decision=ExternalEvidence(
-            record_locator="repo://owner-decision.json",
-            path=decision_path,
-            media_type="application/json",
-        ),
+        decision=external["acceptance_evidence"].decision,
         authority=ExternalEvidence(
             record_locator="repo://missing-owner-authority.json",
             path=tmp_path / "missing-owner-authority.json",
@@ -501,23 +908,13 @@ def test_owner_acceptance_without_readable_external_authority_rejects_without_pu
 
     assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
-    inactive_authority_path = tmp_path / "inactive-owner-authority.json"
-    inactive_authority_path.write_bytes(b'{"status":"inactive"}\n')
-    kwargs["acceptance_evidence"] = OwnerAcceptanceEvidence(
-        acceptor_identity_locator=ACCEPTOR_LOCATOR,
-        authority_locator=AUTHORITY_LOCATOR,
-        authority_status="inactive",
-        decision=ExternalEvidence(
-            record_locator="repo://owner-decision.json",
-            path=decision_path,
-            media_type="application/json",
-        ),
-        authority=ExternalEvidence(
-            record_locator="repo://inactive-owner-authority.json",
-            path=inactive_authority_path,
-            media_type="application/json",
-        ),
+    inactive = _accepted_external_fixture(
+        tmp_path,
+        brief,
+        authority_mutation=(("status",), "inactive"),
+        caller_authority_status="inactive",
     )
+    kwargs.update(review_evidence=inactive["review_evidence"], acceptance_evidence=inactive["acceptance_evidence"])
     with pytest.raises(SchemaError, match="requires active external authority"):
         record_session_evidence(tmp_path, **kwargs)
     assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
