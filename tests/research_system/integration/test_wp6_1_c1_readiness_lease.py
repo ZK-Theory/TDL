@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from copy import deepcopy
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -26,9 +28,12 @@ from tests.research_system.factories import (
 TASK_ID = "tsk_01978abc-7200-7000-8000-000000007200"
 OTHER_TASK_ID = "tsk_01978abc-7201-7000-8000-000000007201"
 DISPATCH_ID = "dsp_01978abc-7202-7000-8000-000000007202"
+OTHER_DISPATCH_ID = "dsp_01978abc-7213-7000-8000-000000007213"
 ATTEMPT_ID = "att_01978abc-7203-7000-8000-000000007203"
 RESOURCE_REQUEST_ID = "rsq_01978abc-7204-7000-8000-000000007204"
 RESOURCE_GRANT_ID = "rgr_01978abc-7205-7000-8000-000000007205"
+OTHER_RESOURCE_REQUEST_ID = "rsq_01978abc-7214-7000-8000-000000007214"
+OTHER_RESOURCE_GRANT_ID = "rgr_01978abc-7215-7000-8000-000000007215"
 LEASE_ID = "els_01978abc-7206-7000-8000-000000007206"
 OTHER_LEASE_ID = "els_01978abc-7207-7000-8000-000000007207"
 PROCESS_ID = "pid_01978abc-7208-7000-8000-000000007208"
@@ -40,7 +45,8 @@ POLICY_ID = "pol_01978abc-7212-7000-8000-000000007212"
 
 GRANTED_AT = "2026-08-01T12:00:00Z"
 INITIAL_EXPIRY = "2026-08-01T13:00:00Z"
-RENEWED_EXPIRY = "2026-08-01T14:00:00Z"
+GRANT_EXPIRY = "2026-08-01T13:30:00Z"
+RENEWED_EXPIRY = "2026-08-01T13:15:00Z"
 OBSERVED_AT = "2026-08-01T12:20:00Z"
 C1_NOW = datetime(2026, 8, 1, 12, 30, tzinfo=UTC)
 
@@ -205,8 +211,8 @@ def _dispatch_definition() -> dict[str, Any]:
     }
 
 
-def _issue_dispatch_command(*, number: int) -> dict[str, Any]:
-    definition = _dispatch_definition()
+def _issue_dispatch_command(*, number: int, definition: dict[str, Any] | None = None) -> dict[str, Any]:
+    definition = _dispatch_definition() if definition is None else definition
     return _c1_command(
         _command_id(number),
         "IssueDispatch",
@@ -319,7 +325,13 @@ def _start_attempt_command(*, number: int, expected_stream_version: int = 2) -> 
     )
 
 
-def _resource_request_payload() -> dict[str, Any]:
+def _resource_request_payload(
+    *,
+    expected_control_store_position: int,
+    resource_grant_id: str = RESOURCE_GRANT_ID,
+    resource_request_id: str = RESOURCE_REQUEST_ID,
+    dispatch_id: str = DISPATCH_ID,
+) -> dict[str, Any]:
     evidence = {
         "disposition": "required",
         "policy_id": POLICY_ID,
@@ -327,14 +339,14 @@ def _resource_request_payload() -> dict[str, Any]:
         "applicability_evidence_refs": ["evidence:resource-profile:bounded"],
     }
     return {
-        "resource_id": RESOURCE_GRANT_ID,
+        "resource_id": resource_grant_id,
         "resource_request": {
             "task_id": TASK_ID,
-            "dispatch_id": DISPATCH_ID,
+            "dispatch_id": dispatch_id,
             "attempt_id": ATTEMPT_ID,
             "operation_class": "bounded-analysis",
             "operational_profile": "bounded",
-            "resource_request_id": RESOURCE_REQUEST_ID,
+            "resource_request_id": resource_request_id,
             "route_id": "route:c1-synthetic",
             "provider_requirements": ["python"],
             "runtime_requirements": ["direct-venv"],
@@ -342,8 +354,8 @@ def _resource_request_payload() -> dict[str, Any]:
             "operational_profile_revision": "1.0.0",
             "requesting_actor_id": ACTORS["actor-a"],
             "requesting_profile": "luna-max",
-            "requesting_authority_grant_id": scoped_lifecycle_grant_id(RESOURCE_GRANT_ID),
-            "expected_control_store_position": 0,
+            "requesting_authority_grant_id": scoped_lifecycle_grant_id(resource_grant_id),
+            "expected_control_store_position": expected_control_store_position,
             "requested_host_pool": ["host:c1-synthetic"],
             "root_bindings": [
                 {
@@ -377,7 +389,7 @@ def _resource_request_payload() -> dict[str, Any]:
                 "maximum_seconds": 60,
                 "uncertainty_basis": "synthetic bounded fixture",
             },
-            "deadline": INITIAL_EXPIRY,
+            "deadline": GRANT_EXPIRY,
             "checkpoint_interval_seconds": 30,
             "benchmark_evidence_refs": ["evidence:benchmark:bounded"],
             "projection_evidence_refs": ["evidence:projection:bounded"],
@@ -411,13 +423,30 @@ def _expected_resource_grant_record(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _request_resource_command(*, number: int) -> dict[str, Any]:
+def _request_resource_command(
+    harness,
+    *,
+    number: int,
+    resource_grant_id: str = RESOURCE_GRANT_ID,
+    resource_request_id: str = RESOURCE_REQUEST_ID,
+    dispatch_id: str = DISPATCH_ID,
+    expected_control_store_position: int | None = None,
+) -> dict[str, Any]:
+    snapshot = harness.ledger.snapshot()
+    expected_control_store_position = (
+        snapshot.global_position if expected_control_store_position is None else expected_control_store_position
+    )
     return _c1_command(
         _command_id(number),
         "RequestResourceGrant",
-        RESOURCE_GRANT_ID,
+        resource_grant_id,
         0,
-        _resource_request_payload(),
+        _resource_request_payload(
+            expected_control_store_position=expected_control_store_position,
+            resource_grant_id=resource_grant_id,
+            resource_request_id=resource_request_id,
+            dispatch_id=dispatch_id,
+        ),
     )
 
 
@@ -426,6 +455,8 @@ def _claim_execution_lease_command(
     number: int,
     lease_id: str = LEASE_ID,
     expected_stream_version: int = 0,
+    resource_grant_id: str = RESOURCE_GRANT_ID,
+    dispatch_id: str = DISPATCH_ID,
 ) -> dict[str, Any]:
     return _c1_command(
         _command_id(number),
@@ -436,11 +467,11 @@ def _claim_execution_lease_command(
             "new_lease_id": lease_id,
             "task_id": TASK_ID,
             "task_revision": 1,
-            "dispatch_id": DISPATCH_ID,
+            "dispatch_id": dispatch_id,
             "attempt_id": ATTEMPT_ID,
             "expires_at": INITIAL_EXPIRY,
             "holder_actor_id": ACTORS["actor-a"],
-            "resource_grant_id": RESOURCE_GRANT_ID,
+            "resource_grant_id": resource_grant_id,
             "holder_profile": "luna-max",
             "holder_session": "session:c1-luna",
             "capability_scope": ["run:task", "write:workspace"],
@@ -490,6 +521,7 @@ def _renew_lease_command(
     expected_stream_version: int,
     holder_actor_id: str = ACTORS["actor-a"],
     prior_expiry: str = INITIAL_EXPIRY,
+    new_expiry: str = RENEWED_EXPIRY,
 ) -> dict[str, Any]:
     return _c1_command(
         _command_id(number),
@@ -500,7 +532,7 @@ def _renew_lease_command(
             "lease_id": LEASE_ID,
             "holder_actor_id": holder_actor_id,
             "prior_expiry": prior_expiry,
-            "new_expiry": RENEWED_EXPIRY,
+            "new_expiry": new_expiry,
             "renewal_policy_ref": "policy:lease:v1",
             "heartbeat_evidence_refs": [HEARTBEAT_ID],
         },
@@ -550,15 +582,21 @@ def _revoke_lease_command(*, number: int, expected_stream_version: int) -> dict[
     )
 
 
-def _release_resources_command(*, number: int, expected_stream_version: int = 1) -> dict[str, Any]:
+def _release_resources_command(
+    *,
+    number: int,
+    expected_stream_version: int = 1,
+    resource_grant_id: str = RESOURCE_GRANT_ID,
+    lease_id: str = LEASE_ID,
+) -> dict[str, Any]:
     return _c1_command(
         _command_id(number),
         "ReleaseResources",
-        RESOURCE_GRANT_ID,
+        resource_grant_id,
         expected_stream_version,
         {
-            "resource_id": RESOURCE_GRANT_ID,
-            "lease_id": LEASE_ID,
+            "resource_id": resource_grant_id,
+            "lease_id": lease_id,
             "consumption_reconciliation": ["cpu=1", "ram=1024", "io=256"],
             "cleanup_evidence_refs": ["evidence:cleanup:c1"],
         },
@@ -626,6 +664,11 @@ def _c1_control_plane(tmp_path: Path, *, now: datetime = C1_NOW):
     return control_plane(tmp_path, clock=lambda: now)
 
 
+def _mutable_c1_control_plane(tmp_path: Path):
+    clock = {"now": C1_NOW}
+    return control_plane(tmp_path, clock=lambda: clock["now"]), clock
+
+
 def _resource_grant_path(harness) -> Path:
     matches = sorted(
         (harness.objects.control_root / "objects" / "resource_grant" / RESOURCE_GRANT_ID).glob("00000001-*.json")
@@ -655,6 +698,18 @@ def _grant_admission_snapshot(harness) -> dict[str, Any]:
     return {
         **_domain_snapshot(harness),
         "receipts": _json_files(harness.objects.control_root / "receipts"),
+    }
+
+
+def _rejection_snapshot(harness) -> dict[str, Any]:
+    receipts = _json_files(harness.objects.control_root / "receipts")
+    return {
+        **_domain_snapshot(harness),
+        "accepted_receipts": {
+            path: value
+            for path, value in receipts.items()
+            if (record := json.loads(value)).get("receipt", record).get("status") == "accepted"
+        },
     }
 
 
@@ -699,11 +754,33 @@ def _seed_ready_task(harness) -> None:
     )
 
 
-def _seed_ready_resource_request(harness) -> None:
-    _seed_ready_task(harness)
+def _seed_acknowledged_dispatch(harness) -> None:
     _assert_event(
         harness,
-        _request_resource_command(number=4),
+        _issue_dispatch_command(number=100),
+        event_type="DispatchIssued",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _record_dispatch_delivery_command(number=101),
+        event_type="DispatchDelivered",
+        resulting_stream_version=2,
+    )
+    _assert_event(
+        harness,
+        _acknowledge_dispatch_command(number=102),
+        event_type="DispatchAcknowledged",
+        resulting_stream_version=3,
+    )
+
+
+def _seed_ready_resource_request(harness) -> None:
+    _seed_ready_task(harness)
+    _seed_acknowledged_dispatch(harness)
+    _assert_event(
+        harness,
+        _request_resource_command(harness, number=103),
         event_type="ResourceGrantRequested",
         resulting_stream_version=1,
     )
@@ -711,10 +788,38 @@ def _seed_ready_resource_request(harness) -> None:
 
 def _seed_lease(harness) -> None:
     _seed_ready_resource_request(harness)
-    receipt = harness.service.submit(_claim_execution_lease_command(number=5))
+    receipt = harness.service.submit(_claim_execution_lease_command(number=104))
     assert receipt.status == "accepted"
     event = tuple(harness.ledger.iter_events())[-1]
     assert event["event_type"] == "LeaseGranted"
+
+
+def _expiry_consumer_command(harness, *, stage: str) -> tuple[dict[str, Any], str]:
+    _seed_ready_task(harness)
+    _seed_acknowledged_dispatch(harness)
+    _assert_event(
+        harness,
+        _request_resource_command(harness, number=105),
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=106),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    if stage == "claim-dispatch":
+        return _claim_dispatch_command(harness, number=107), "claim_dispatch_precondition_failed"
+
+    assert harness.service.submit(_claim_dispatch_command(harness, number=107)).status == "accepted"
+    assert harness.service.submit(_create_attempt_command(number=108)).status == "accepted"
+    if stage == "claim-attempt":
+        return _claim_attempt_command(number=109), "claim_attempt_precondition_failed"
+
+    assert stage == "start-attempt"
+    assert harness.service.submit(_claim_attempt_command(number=109)).status == "accepted"
+    return _start_attempt_command(number=110), "start_attempt_precondition_failed"
 
 
 @pytest.mark.parametrize(
@@ -841,7 +946,8 @@ def test_readiness_requires_the_current_authority_subject(tmp_path):
 def test_resource_request_materializes_active_grant_and_admits_lease(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
-    request = _request_resource_command(number=4)
+    _seed_acknowledged_dispatch(harness)
+    request = _request_resource_command(harness, number=4)
 
     _assert_event(
         harness,
@@ -871,7 +977,7 @@ def test_resource_request_materializes_active_grant_and_admits_lease(tmp_path):
 def test_resource_grant_preexisting_conflict_blocks_request_without_event(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
-    request = _request_resource_command(number=4)
+    request = _request_resource_command(harness, number=4)
     conflicting = _expected_resource_grant_record(request["payload"])
     conflicting["expires_at"] = "2026-08-01T12:45:00Z"
     harness.objects.write("resource_grant", RESOURCE_GRANT_ID, 1, conflicting)
@@ -881,6 +987,37 @@ def test_resource_grant_preexisting_conflict_blocks_request_without_event(tmp_pa
         harness.service.submit(request)
 
     assert _domain_snapshot(harness) == before
+
+
+def test_resource_request_requires_the_exact_captured_control_store_position(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    captured = harness.ledger.snapshot().global_position
+    stale = _request_resource_command(harness, number=4)
+    assert stale["payload"]["resource_request"]["expected_control_store_position"] == captured
+    _assert_event(
+        harness,
+        _issue_dispatch_command(number=5),
+        event_type="DispatchIssued",
+        resulting_stream_version=1,
+    )
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(stale)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_request_stale_position"
+    assert _rejection_snapshot(harness) == before
+
+    exact = _request_resource_command(harness, number=6)
+    exact_position = exact["payload"]["resource_request"]["expected_control_store_position"]
+    event = _assert_event(
+        harness,
+        exact,
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    assert event["global_position"] == exact_position + 1
 
 
 def test_claim_execution_lease_rejects_missing_materialization_without_domain_mutation(tmp_path):
@@ -899,7 +1036,7 @@ def test_claim_execution_lease_rejects_missing_materialization_without_domain_mu
 def test_claim_execution_lease_rejects_mismatched_materialization_without_domain_mutation(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_resource_request(harness)
-    mismatched = _expected_resource_grant_record(_resource_request_payload())
+    mismatched = deepcopy(harness.objects.read("resource_grant", RESOURCE_GRANT_ID, 1))
     mismatched["expires_at"] = "2026-08-01T12:45:00Z"
     _replace_resource_grant_record(harness, mismatched)
     before = _domain_snapshot(harness)
@@ -914,7 +1051,8 @@ def test_claim_execution_lease_rejects_mismatched_materialization_without_domain
 def test_claim_execution_lease_rejects_expired_materialization_without_domain_mutation(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
-    request = _request_resource_command(number=4)
+    _seed_acknowledged_dispatch(harness)
+    request = _request_resource_command(harness, number=4)
     request["payload"]["resource_request"]["deadline"] = "2026-08-01T12:15:00Z"
     _assert_event(
         harness,
@@ -933,10 +1071,179 @@ def test_claim_execution_lease_rejects_expired_materialization_without_domain_mu
     assert _domain_snapshot(harness) == before
 
 
+def test_second_authorized_same_lease_claim_rejects_before_append_and_preserves_replay(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=5),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    second = _claim_execution_lease_command(number=6, expected_stream_version=1)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(second)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "lease_already_granted"
+    assert _rejection_snapshot(harness) == before
+
+
+@pytest.mark.parametrize(
+    ("case", "mutation"),
+    (
+        ("holder-profile", {"holder_profile": "unbound-profile"}),
+        (
+            "added-capability",
+            {"capability_scope": ["run:task", "write:workspace", "admin:anything"]},
+        ),
+        ("removed-capability", {"capability_scope": ["run:task"]}),
+        (
+            "substituted-capability",
+            {"capability_scope": ["run:task", "admin:anything"]},
+        ),
+    ),
+)
+def test_claim_execution_lease_requires_exact_profile_and_capability_bindings(tmp_path, case, mutation):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    substituted = _claim_execution_lease_command(number=5)
+    substituted["payload"].update(mutation)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(substituted)
+
+    assert rejected.status == "rejected", case
+    assert rejected.reason_code == "resource_grant_binding_mismatch", case
+    assert _rejection_snapshot(harness) == before, case
+    assert harness.service.submit(_claim_execution_lease_command(number=6)).status == "accepted", case
+
+
+def test_claim_execution_lease_rejects_missing_referenced_dispatch_without_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(harness, number=4, dispatch_id=OTHER_DISPATCH_ID)
+    _assert_event(
+        harness,
+        request,
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    lease = _claim_execution_lease_command(number=5, dispatch_id=OTHER_DISPATCH_ID)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(lease)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_binding_mismatch"
+    assert _rejection_snapshot(harness) == before
+
+
+def test_claim_execution_lease_rejects_mismatched_referenced_dispatch_without_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    definition = _dispatch_definition()
+    definition["target_profile"] = "unbound-profile"
+    _assert_event(
+        harness,
+        _issue_dispatch_command(number=4, definition=definition),
+        event_type="DispatchIssued",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _record_dispatch_delivery_command(number=5),
+        event_type="DispatchDelivered",
+        resulting_stream_version=2,
+    )
+    _assert_event(
+        harness,
+        _acknowledge_dispatch_command(number=6),
+        event_type="DispatchAcknowledged",
+        resulting_stream_version=3,
+    )
+    _assert_event(
+        harness,
+        _request_resource_command(harness, number=7),
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(_claim_execution_lease_command(number=8))
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_binding_mismatch"
+    assert _rejection_snapshot(harness) == before
+
+
+def test_live_grant_rejects_an_already_expired_proposed_lease_without_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    lease = _claim_execution_lease_command(number=5)
+    lease["payload"]["expires_at"] = "2026-08-01T12:15:00Z"
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(lease)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "lease_expired"
+    assert _rejection_snapshot(harness) == before
+
+
+@pytest.mark.parametrize("stage", ("claim-dispatch", "claim-attempt", "start-attempt"))
+def test_elapsed_lease_expiry_rejects_each_c1_consumer_without_mutation(tmp_path, stage):
+    harness, clock = _mutable_c1_control_plane(tmp_path)
+    command, expected_reason = _expiry_consumer_command(harness, stage=stage)
+    clock["now"] = datetime(2026, 8, 1, 13, 1, tzinfo=UTC)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(command)
+
+    assert rejected.status == "rejected", stage
+    assert rejected.reason_code == expected_reason, stage
+    assert _rejection_snapshot(harness) == before, stage
+
+
+def test_claim_dispatch_fails_closed_for_a_non_aware_clock_without_mutation(tmp_path, monkeypatch):
+    harness, clock = _mutable_c1_control_plane(tmp_path)
+    command, _ = _expiry_consumer_command(harness, stage="claim-dispatch")
+    clock["now"] = datetime(2026, 8, 1, 12, 45)
+    before = _rejection_snapshot(harness)
+
+    def resolver_must_not_run(**_kwargs):
+        raise AssertionError("C1 authority resolution must not run with an invalid trusted clock")
+
+    monkeypatch.setattr(harness.authority_resolver, "resolve_lifecycle_command", resolver_must_not_run)
+
+    rejected = harness.service.submit(command)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "lifecycle_authority_unauthorized"
+    assert _rejection_snapshot(harness) == before
+
+
+def test_c1_authority_resolver_value_error_is_not_downgraded_to_a_rejection(tmp_path, monkeypatch):
+    harness, _ = _mutable_c1_control_plane(tmp_path)
+    command, _ = _expiry_consumer_command(harness, stage="claim-dispatch")
+    before = _rejection_snapshot(harness)
+
+    def malformed_authority_evidence(**_kwargs):
+        raise ValueError("malformed authority evidence")
+
+    monkeypatch.setattr(harness.authority_resolver, "resolve_lifecycle_command", malformed_authority_evidence)
+
+    with pytest.raises(ValueError, match="malformed authority evidence"):
+        harness.service.submit(command)
+
+    assert _rejection_snapshot(harness) == before
+
+
 def test_request_resource_grant_retry_repairs_event_only_after_object_interruption(tmp_path, monkeypatch):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
-    request = _request_resource_command(number=4)
+    request = _request_resource_command(harness, number=4)
     original_write = harness.objects.write
     before_interruption = _grant_admission_snapshot(harness)
 
@@ -986,7 +1293,7 @@ def test_public_admission_chain_reaches_claimed_task_and_running_attempt(tmp_pat
     )
     _assert_event(
         harness,
-        _request_resource_command(number=13),
+        _request_resource_command(harness, number=13),
         event_type="ResourceGrantRequested",
         resulting_stream_version=1,
     )
@@ -1056,7 +1363,7 @@ def test_same_snapshot_claim_dispatch_conflicts_once_without_creating_an_attempt
     )
     _assert_event(
         harness,
-        _request_resource_command(number=13),
+        _request_resource_command(harness, number=13),
         event_type="ResourceGrantRequested",
         resulting_stream_version=1,
     )
@@ -1172,10 +1479,28 @@ def test_renewal_rejects_lexically_later_spelling_of_the_same_instant_without_mu
     assert _domain_snapshot(harness) == before
 
 
+def test_renewal_cannot_exceed_its_immutable_resource_grant_ceiling(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_lease(harness)
+    renewal = _renew_lease_command(
+        number=10,
+        expected_stream_version=1,
+        new_expiry="2026-08-01T14:00:00Z",
+    )
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(renewal)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_expiry_exceeded"
+    assert _rejection_snapshot(harness) == before
+
+
 def test_renewal_accepts_later_fractional_instant_below_deliberately_later_grant_ceiling(tmp_path):
     harness = _c1_control_plane(tmp_path)
     _seed_ready_task(harness)
-    request = _request_resource_command(number=4)
+    _seed_acknowledged_dispatch(harness)
+    request = _request_resource_command(harness, number=4)
     request["payload"]["resource_request"]["deadline"] = "2026-08-01T14:00:00Z"
     _assert_event(
         harness,
@@ -1199,6 +1524,57 @@ def test_renewal_accepts_later_fractional_instant_below_deliberately_later_grant
         replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][LEASE_ID]["expires_at"]
         == "2026-08-01T13:00:00.500Z"
     )
+
+
+def test_resource_release_requires_its_owning_lease_but_can_follow_lease_release(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=5),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _request_resource_command(
+            harness,
+            number=6,
+            resource_grant_id=OTHER_RESOURCE_GRANT_ID,
+            resource_request_id=OTHER_RESOURCE_REQUEST_ID,
+        ),
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(
+            number=7,
+            lease_id=OTHER_LEASE_ID,
+            resource_grant_id=OTHER_RESOURCE_GRANT_ID,
+        ),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    foreign = _release_resources_command(number=8, lease_id=OTHER_LEASE_ID)
+    before = _rejection_snapshot(harness)
+
+    rejected = harness.service.submit(foreign)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_lease_mismatch"
+    assert _rejection_snapshot(harness) == before
+    _assert_event(
+        harness,
+        _release_lease_command(number=9, expected_stream_version=1),
+        event_type="LeaseReleased",
+        resulting_stream_version=2,
+    )
+    receipt = harness.service.submit(_release_resources_command(number=10))
+    assert receipt.status == "accepted"
+    projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
+    assert projection["streams"][LEASE_ID]["status"] == "released"
+    assert projection["streams"][RESOURCE_GRANT_ID]["status"] == "released"
 
 
 @pytest.mark.parametrize(
