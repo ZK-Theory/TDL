@@ -30,9 +30,9 @@ from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pac
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACK_PATH = ".research-system/packs/tdl-private-assurance.yaml"
-FACTS_PRODUCER_SESSION_ID = "ctx_00000000-0000-7000-8000-000000000031"
-FACTS_REVIEW_SESSION_ID = "ctx_00000000-0000-7000-8000-000000000032"
-FACTS_HANDOFF_ID = "hnd_00000000-0000-7000-8000-000000000033"
+FACTS_PRODUCER_SESSION_ID = frozen.PRODUCER_SESSION_ID
+FACTS_REVIEW_SESSION_ID = frozen.REVIEW_SESSION_ID
+FACTS_HANDOFF_ID = frozen.REVIEW_HANDOFF_ID
 
 
 class _RecordResolver:
@@ -316,6 +316,12 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "independent_contract_review", frozen.CONTRACT_REVIEW_RECORD_ID
         ),
         "independent_schema_review": SemanticRecordLocator("independent_schema_review", frozen.SCHEMA_REVIEW_RECORD_ID),
+        "contract_review_relationship": SemanticRecordLocator(
+            "producer_relationship_evidence", frozen.CONTRACT_REVIEW_RELATIONSHIP_ID
+        ),
+        "schema_review_relationship": SemanticRecordLocator(
+            "producer_relationship_evidence", frozen.SCHEMA_REVIEW_RELATIONSHIP_ID
+        ),
         "stephen_contract_schema_acceptance": SemanticRecordLocator(
             "stephen_contract_schema_acceptance", frozen.CONTRACT_SCHEMA_ACCEPTANCE_ID
         ),
@@ -507,6 +513,98 @@ def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
             run_id=run_id,
             record_locators=locators,
         )
+
+
+def test_prepare_public_seam_rejects_mismatched_contract_review_relationship(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    locators["contract_review_relationship"] = SemanticRecordLocator(
+        "producer_relationship_evidence", frozen.SCHEMA_REVIEW_RELATIONSHIP_ID
+    )
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+
+    with pytest.raises(PackUnconsumable, match="contract review relationship is not semantically bound"):
+        prepare_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id="run_019fc96b-2ddc-7740-9d6c-425adf7fa3b0",
+            record_locators=prepare_locators,
+        )
+
+
+def test_acceptance_public_seam_rejects_unresolved_schema_review_relationship(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b1"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    locators["schema_review_relationship"] = SemanticRecordLocator(
+        "producer_relationship_evidence", "rel_00000000-0000-7000-8000-0000000000ff"
+    )
+
+    with pytest.raises(PackUnconsumable, match="record locator did not resolve"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("task_id", "tsk_00000000-0000-7000-8000-0000000000aa"),
+        ("session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
+        ("stable_handoff_or_run_id", "hnd_00000000-0000-7000-8000-0000000000ff"),
+    ),
+)
+def test_acceptance_public_seam_rejects_pack_review_fact_operator_mismatch_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b2"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    body = deepcopy(fact.record)
+    body["reviewer"][field] = value
+    facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
+        fact.record_id,
+        fact.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+
+    with pytest.raises(PackUnconsumable, match="operator provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
 
 
 def test_changed_retry_conflicts_without_mutating_immutable_preparation(

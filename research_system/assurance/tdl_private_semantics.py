@@ -10,7 +10,6 @@ from research_system.assurance.pack_loader import PackAcceptanceSubject, PackUnc
 from research_system.canonical import canonical_bytes, sha256_hex
 
 
-_EXPECTED_TOTAL_SOURCE_COUNT = 14
 _EXPECTED_OBLIGATION_COUNT = 69
 _EXPECTED_FIXTURE_COUNT = 53
 _EXPECTED_BOUNDARY_FIXTURE_COUNT = 3
@@ -35,7 +34,7 @@ def validate_tdl_private_semantics(
     evaluation_time = evaluation_time.astimezone(UTC)
     record_store, hash_manifest = _record_store(records)
     required = _required(contract)
-    expected_applicability = _validate_candidate_projection(required, pack, current_exact_reference_snapshot)
+    expected_applicability = _validate_candidate_projection(contract, required, pack, current_exact_reference_snapshot)
     contract_review_provenance, schema_review_provenance = _validate_contract_schema_lifecycle(
         required,
         pack,
@@ -149,10 +148,20 @@ def _record(
 
 
 def _validate_candidate_projection(
+    contract: Mapping[str, object],
     required: Mapping[str, object],
     pack: Mapping[str, object],
     current_exact_reference_snapshot: Mapping[str, Mapping[str, object]],
 ) -> set[tuple[str, str]]:
+    source_authority = _mapping(contract.get("source_authority"), "accepted contract source_authority")
+    expected_source_authority = {
+        "accepted_plan_revision": source_authority.get("accepted_plan_revision"),
+        "governing_sources": list(
+            _sequence(source_authority.get("governing_sources"), "accepted contract governing sources")
+        ),
+    }
+    if pack.get("source_authority") != expected_source_authority:
+        raise PackUnconsumable("candidate source_authority differs from accepted contract")
     references = _mapping(required.get("references"), "accepted contract references")
     exact_reference_rows = list(_sequence(references.get("exact_reference_rows"), "exact reference rows"))
     pack_references = _mapping(pack.get("references"), "candidate references")
@@ -163,12 +172,8 @@ def _validate_candidate_projection(
     if candidate_reference_rows != exact_reference_rows:
         raise PackUnconsumable("candidate exact reference projection differs from accepted contract")
     reference_ids = {str(_mapping(row, "reference row").get("reference_id")) for row in exact_reference_rows}
-    if (
-        len(exact_reference_rows) + 2 != _EXPECTED_TOTAL_SOURCE_COUNT
-        or len(reference_ids) != len(exact_reference_rows)
-        or set(current_exact_reference_snapshot) != reference_ids
-    ):
-        raise PackUnconsumable("candidate source projection does not close exactly 14 sources")
+    if len(reference_ids) != len(exact_reference_rows) or set(current_exact_reference_snapshot) != reference_ids:
+        raise PackUnconsumable("candidate exact reference snapshot does not match the accepted contract")
     contract_count = sum(
         1 for row in exact_reference_rows if _mapping(row, "reference row").get("reference_kind") == "contract"
     )

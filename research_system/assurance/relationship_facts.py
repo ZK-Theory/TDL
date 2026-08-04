@@ -147,7 +147,8 @@ class RelationshipEvidenceFactsStore:
         """Derive facts, authorize publication in-lock, and persist by CAS."""
 
         self._validate_revision_numbers(revision, expected_previous_revision)
-        self._validate_protected_relationship(protected_relationship, publication_context)
+        protected_record = self._validate_protected_relationship(protected_relationship, publication_context)
+        self._validate_relationship_participants(protected_record, producer=producer, reviewer=reviewer)
         record = self._build_record(
             relationship_evidence_facts_id=relationship_evidence_facts_id,
             relationship_scope=relationship_scope,
@@ -220,7 +221,7 @@ class RelationshipEvidenceFactsStore:
         self,
         protected_relationship: ProtectedRelationshipReference,
         publication_context: ExternalRecordPublicationContext,
-    ) -> None:
+    ) -> Mapping[str, object]:
         try:
             resolution = ControlStoreAuthorityResolver(self.binding).resolve_with_receipt(
                 record_id=protected_relationship.relationship_record_id,
@@ -240,6 +241,20 @@ class RelationshipEvidenceFactsStore:
             or record.get("expires_at") != protected_relationship.expires_at
         ):
             raise SchemaError("protected relationship reference differs from the external record")
+        return record
+
+    @staticmethod
+    def _validate_relationship_participants(
+        protected_record: Mapping[str, object],
+        *,
+        producer: RelationshipEvidenceParticipant,
+        reviewer: RelationshipEvidenceParticipant,
+    ) -> None:
+        if (
+            protected_record.get("subject_actor_id") != reviewer.actor_id
+            or protected_record.get("object_actor_id") != producer.actor_id
+        ):
+            raise SchemaError("protected relationship actors do not match supplied reviewer and producer")
 
     def _load_schema(self) -> Mapping[str, object]:
         path = self.binding.schema_root / "wp6-3-authority" / "relationship-evidence-facts.schema.json"
@@ -449,6 +464,11 @@ class RelationshipEvidenceFactsStore:
             raise SchemaError("facts publication context canonical body hash does not match the record")
         if context.caller_actor_id != record.get("evidence_author_actor_id"):
             raise SchemaError("facts publication caller is not the evidence author")
+        reviewer = record.get("reviewer")
+        if not isinstance(reviewer, Mapping):
+            raise SchemaError("relationship-evidence-facts reviewer provenance is malformed")
+        if context.task_id != reviewer.get("task_id") or context.session_id != reviewer.get("session_id"):
+            raise SchemaError("facts publication context does not match reviewer provenance")
         self._validate_context_id(context.caller_actor_id, "actor", "caller actor")
         if context.caller_actor_class not in _CALLER_ACTOR_CLASSES:
             raise SchemaError("facts publication caller actor class is not accepted")

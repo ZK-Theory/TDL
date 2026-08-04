@@ -1516,6 +1516,45 @@ def test_governed_relationship_facts_rejects_non_independent_or_visible_producer
 
 
 @pytest.mark.integration
+def test_governed_relationship_facts_rejects_protected_actor_mismatch_without_mutation(tmp_path: Path) -> None:
+    binding = _facts_fixture(tmp_path)
+    protected = _publish_protected_relationship(binding)
+    store = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW)
+    kwargs = _facts_publish_kwargs(binding, store, protected)
+    kwargs["producer"] = replace(kwargs["producer"], actor_id=frozen.ACT_PRODUCER)
+
+    with pytest.raises(SchemaError, match="protected relationship actors"):
+        store.publish(**kwargs)
+
+    assert not (binding.control_root / "runtime" / "relationship-evidence-facts" / FACTS_RELATIONSHIP_ID).exists()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("task_id", FACTS_PRODUCER_TASK_ID),
+        ("session_id", FACTS_PRODUCER_SESSION_ID),
+    ),
+)
+def test_governed_relationship_facts_rejects_publication_context_reviewer_mismatch_without_mutation(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    binding = _facts_fixture(tmp_path)
+    protected = _publish_protected_relationship(binding)
+    store = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW)
+    kwargs = _facts_publish_kwargs(binding, store, protected)
+    kwargs["publication_context"] = replace(kwargs["publication_context"], **{field: value})
+
+    with pytest.raises(SchemaError, match="reviewer provenance"):
+        store.publish(**kwargs)
+
+    assert not (binding.control_root / "runtime" / "relationship-evidence-facts" / FACTS_RELATIONSHIP_ID).exists()
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     ("record_class", "record_id"),
     (
