@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import research_system.config as config_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ApprovedProjectBinding, ControlBinding
 from research_system.errors import ConfigurationError
@@ -116,3 +117,32 @@ def test_control_binding_from_raw_uses_supplied_approved_snapshot(
     assert binding.project_id == approved.project_id
     assert binding.control_root == approved.control_root
     assert binding.store_identity == approved.store_identity
+
+
+def test_control_binding_load_rejects_foundation_root_omitted_from_approved_code_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+    unapproved_root = tmp_path / "unapproved-executing-root"
+    canonical_path = unapproved_root / ".research-system" / "config" / "foundation.yaml"
+    canonical_path.parent.mkdir(parents=True)
+    canonical_path.write_bytes(foundation_path.read_bytes())
+    binding_path = tmp_path / "binding.yaml"
+    binding_path.write_text(
+        yaml.safe_dump(
+            {
+                "code_roots": foundation["code_roots"],
+                "control_root": foundation["control_root"],
+                "project_id": foundation["project_id"],
+                "schema_root": foundation["schema_root"],
+                "store_identity": foundation["store_identity"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_module, "canonical_foundation_path", lambda: canonical_path)
+
+    with pytest.raises(ConfigurationError, match="canonical foundation root"):
+        ControlBinding.load(binding_path)

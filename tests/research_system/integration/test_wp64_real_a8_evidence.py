@@ -17,6 +17,7 @@ import shutil
 import subprocess
 from dataclasses import asdict, replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -184,7 +185,10 @@ def json_load(path: Path) -> dict[str, object]:
 
 
 def git_blob_sha1(raw: bytes) -> str:
-    return hashlib.sha1(f"blob {len(raw)}\0".encode() + raw, usedforsecurity=False).hexdigest()
+    return hashlib.sha1(  # nosemgrep: insecure-hash-algorithm-sha1  # nosec B324
+        f"blob {len(raw)}\0".encode() + raw,
+        usedforsecurity=False,
+    ).hexdigest()
 
 
 def test_mechanics_only_positive_capture_covers_restart_and_recovery(
@@ -392,6 +396,37 @@ def test_red_candidate_id_is_recomputed_after_direct_tamper(tmp_path: Path, monk
         validate_real_a8_candidate(joined_tamper)
 
 
+def test_red_validator_joins_every_probe_transaction_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _foundation, _source, _target = _synthetic_request(tmp_path, monkeypatch)
+    candidate = capture_real_a8_candidate(request=request).candidate
+    transaction_paths = (
+        ("admission", "pre_writer"),
+        ("admission", "locked_revalidation"),
+        ("admission", "locked_revalidation", "lock_identity"),
+        ("rejected_admission",),
+        ("retry_recovery", "conflicting_retry"),
+    )
+
+    for path in transaction_paths:
+        tampered = copy.deepcopy(candidate)
+        record = tampered
+        for key in path:
+            record = record[key]
+        record["transaction_id"] = "f" * 64
+        without_id = dict(tampered)
+        without_id.pop("candidate_id")
+        tampered["candidate_id"] = harness_module._candidate_id(without_id)
+        try:
+            validate_real_a8_candidate(tampered)
+        except EvidenceHarnessError as exc:
+            assert "transaction" in str(exc)
+        else:
+            pytest.fail(f"validator accepted a spliced transaction_id at {'.'.join(path)}")
+
+
 def test_red_interrupted_publication_reconciles_partial_object_on_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -460,6 +495,54 @@ def test_red_capture_rejects_retained_source_identity_at_output_root(
     assert after == before
     assert (request.output_root / "claims").exists() is claims_existed
     assert (request.output_root / "objects").exists() is objects_existed
+
+
+@pytest.mark.parametrize("protected_name", ["code", "target", "origin"])
+def test_red_existing_output_root_rejects_physical_alias_of_every_protected_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    protected_name: str,
+) -> None:
+    roots = {name: tmp_path / name for name in ("code", "target", "origin", "output")}
+    for root in roots.values():
+        root.mkdir()
+    resolved = {name: root.resolve() for name, root in roots.items()}
+    identities = {path: {"device": "1", "inode": str(index + 10)} for index, path in enumerate(resolved.values())}
+    identities[resolved["output"]] = identities[resolved[protected_name]]
+    monkeypatch.setattr(
+        harness_module,
+        "physical_root_identity",
+        lambda path: identities[Path(path).resolve(strict=True)],
+    )
+
+    with pytest.raises(EvidenceHarnessError, match="physical alias.*protected root"):
+        harness_module._validate_output_root(
+            roots["output"],
+            source_root=tmp_path / "unavailable-source",
+            code_roots=(roots["code"],),
+            target_root=roots["target"],
+            origin_root=roots["origin"],
+        )
+
+    assert not (roots["output"] / "claims").exists()
+    assert not (roots["output"] / "objects").exists()
+
+
+def test_execution_root_selection_uses_canonical_checkout_with_multiple_approved_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    decoy_root = tmp_path / "a-decoy-root"
+    executing_root = tmp_path / "z-executing-root"
+    decoy_root.mkdir()
+    executing_root.mkdir()
+    foundation_path = executing_root / ".research-system" / "config" / "foundation.yaml"
+    monkeypatch.setattr(harness_module, "canonical_foundation_path", lambda: foundation_path)
+    approved = SimpleNamespace(
+        code_roots=tuple(sorted((decoy_root.resolve(), executing_root.resolve()), key=str)),
+    )
+
+    assert harness_module._approved_execution_root(approved) == executing_root.resolve()
 
 
 @pytest.mark.parametrize("consumed_loader", ["foundation", "binding"])

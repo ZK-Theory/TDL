@@ -260,7 +260,14 @@ class ControlBinding:
             raw = path.read_bytes()
         except OSError as exc:
             raise ConfigurationError(f"invalid binding config: {path}") from exc
-        approved = ApprovedProjectBinding.load(canonical_foundation_path())
+        foundation_path = canonical_foundation_path()
+        approved = ApprovedProjectBinding.load(foundation_path)
+        try:
+            executing_root = foundation_path.parents[2].resolve(strict=True)
+        except (IndexError, OSError) as exc:
+            raise ConfigurationError("canonical foundation root is unavailable") from exc
+        if executing_root not in approved.code_roots:
+            raise ConfigurationError("binding code roots do not include the canonical foundation root")
         return cls.from_raw(raw, approved=approved)
 
     @classmethod

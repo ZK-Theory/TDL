@@ -14,8 +14,9 @@ import json
 import os
 import platform
 import re
+import shutil
 import stat
-import subprocess
+import subprocess  # nosec B404 - fixed interpreter and Git metadata probes
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -257,10 +258,11 @@ def capture_real_a8_candidate(*, request: A8ProofRequest) -> CandidateCapture:
     if source_state != "unavailable":
         raise EvidenceHarnessError("original root is still available at the restart checkpoint")
     destination_identity = physical_root_identity(target_root)
+    execution_root = _approved_execution_root(approved)
     git_identity = _capture_git_identity(
         request.expected_git_commit,
         request.git_paths,
-        execution_root=approved.code_roots[0],
+        execution_root=execution_root,
     )
     checked_execution_root = Path(git_identity["execution_root"])
     restart = _fresh_process_binding_load(
@@ -554,6 +556,12 @@ def _validate_output_root(
         _require_lexically_disjoint(output, Path(root), "candidate output root overlaps a protected root")
     if output.exists():
         _validate_no_follow_directory(output, "candidate output root")
+        for root in (*code_roots, target_root, origin_root):
+            _require_physical_root_disjoint_if_available(
+                output,
+                Path(root),
+                "candidate output root is a physical alias of a protected root",
+            )
     return output
 
 
@@ -1161,11 +1169,14 @@ def _fresh_process_binding_load(
         "'store_identity': binding.store_identity}, sort_keys=True, separators=(',', ':')))\n"
     )
     try:
+        interpreter = Path(sys.executable).resolve(strict=True)
+        if not interpreter.is_file():
+            raise EvidenceHarnessError("fresh-process interpreter is not a physical file")
         resolved_code_root = code_root.resolve(strict=True)
         with tempfile.TemporaryDirectory(prefix="wp64-a8-pycache-") as pycache_root:
-            result = subprocess.run(
+            result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit  # nosec B603
                 [
-                    sys.executable,
+                    str(interpreter),
                     "-I",
                     "-B",
                     "-X",
@@ -1278,14 +1289,30 @@ def _capture_git_identity(
     }
 
 
+def _approved_execution_root(approved: ApprovedProjectBinding) -> Path:
+    try:
+        execution_root = canonical_foundation_path().parents[2].resolve(strict=True)
+    except (IndexError, OSError) as exc:
+        raise EvidenceHarnessError("executing repository root is unavailable") from exc
+    if execution_root not in approved.code_roots:
+        raise EvidenceHarnessError("executing repository root is not an approved code root")
+    return execution_root
+
+
 def _git(repo_root: Path, *args: str) -> str:
     return _git_bytes(repo_root, *args).decode("utf-8").strip()
 
 
 def _git_bytes(repo_root: Path, *args: str) -> bytes:
     try:
-        result = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
+        git_executable = shutil.which("git")
+        if git_executable is None:
+            raise EvidenceHarnessError("Git executable is unavailable")
+        resolved_git = Path(git_executable).resolve(strict=True)
+        if not resolved_git.is_file():
+            raise EvidenceHarnessError("Git executable is not a physical file")
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit  # nosec B603
+            [str(resolved_git), "-C", str(repo_root), *args],
             capture_output=True,
             check=True,
         )
@@ -1636,7 +1663,10 @@ def _candidate_id(candidate_without_id: Mapping[str, Any]) -> str:
 
 def _git_blob_sha1(raw: bytes) -> str:
     header = f"blob {len(raw)}\0".encode("ascii")
-    return hashlib.sha1(header + raw, usedforsecurity=False).hexdigest()
+    return hashlib.sha1(  # nosemgrep: insecure-hash-algorithm-sha1  # nosec B324
+        header + raw,
+        usedforsecurity=False,
+    ).hexdigest()
 
 
 def _validate_claim(
@@ -1726,8 +1756,15 @@ def _validate_candidate_joins(candidate: Mapping[str, Any]) -> None:
         raise EvidenceHarnessError("candidate witness digest join is invalid")
     if restart["project_id"] != foundation["project_id"] or restart["store_identity"] != foundation["store_identity"]:
         raise EvidenceHarnessError("candidate restart identity join is invalid")
-    if admission["pre_writer"]["transaction_id"] != operation["transaction_id"]:
-        raise EvidenceHarnessError("candidate admission/transaction join is invalid")
+    transaction_records = (
+        admission["pre_writer"],
+        admission["locked_revalidation"],
+        admission["locked_revalidation"]["lock_identity"],
+        rejection,
+        retry["conflicting_retry"],
+    )
+    if any(record["transaction_id"] != operation["transaction_id"] for record in transaction_records):
+        raise EvidenceHarnessError("candidate probe/transaction join is invalid")
     if retry["exact_retry"]["before_generation"] != operation["final_transaction_generation"]:
         raise EvidenceHarnessError("candidate retry generation join is invalid")
     if retry["rollback_recovery"]["transaction_generation"] != operation["final_transaction_generation"]:
