@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
@@ -15,6 +16,11 @@ from research_system.assurance.external_records import (
     ExternalAssuranceRecordStore,
     ExternalRecordPublicationContext,
 )
+from research_system.assurance.relationship_facts import (
+    ProtectedRelationshipReference,
+    RelationshipEvidenceFactsStore,
+    RelationshipEvidenceParticipant,
+)
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
 from research_system.authority import (
     EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
@@ -25,7 +31,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.identity import (
@@ -41,9 +47,11 @@ from tests.research_system.integration.test_scoped_authority_grant_activation im
     ACTIVATE_COMMAND_ID,
     ACTIVATE_DECISION_ID,
     ACTOR_ID,
+    FOREIGN_ACTOR_ID,
     FOREIGN_PROJECT_ID,
     GRANT_ID,
     PROJECT_ID,
+    REQUIREMENT_ID,
     REVOKE_COMMAND_ID,
     REVOKE_DECISION_ID,
     ROOT_ID,
@@ -53,6 +61,7 @@ from tests.research_system.integration.test_scoped_authority_grant_activation im
     _scoped_grant as _authority_grant,
     _system,
 )
+from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pack_contract as frozen
 from tests.research_system.factories import REPO_ROOT
 
 
@@ -61,7 +70,14 @@ TASK_ID = "tsk_01978abc-6300-7000-8000-000000006300"
 SESSION_ID = "ctx_01978abc-6300-7000-8000-000000006301"
 
 
-def _external_grant(schemas: object) -> dict[str, object]:
+def _external_grant(
+    schemas: object,
+    *,
+    record_id: str = RECORD_ID,
+    actor_id: str = ACTOR_ID,
+    actor_classes: list[str] | None = None,
+    risk_ceiling: str = "R1",
+) -> dict[str, object]:
     policy = schemas.resolve_identity(
         "ars://core/policy-action/PublishExternalAssuranceRecord",
         "1.0.0",
@@ -70,8 +86,8 @@ def _external_grant(schemas: object) -> dict[str, object]:
         "schema_id": EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
         "schema_version": EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
         "authority_grant_id": GRANT_ID,
-        "actor_id": ACTOR_ID,
-        "allowed_actor_classes": ["human"],
+        "actor_id": actor_id,
+        "allowed_actor_classes": actor_classes or ["human"],
         "allowed_commands": [],
         "allowed_policy_actions": [
             {
@@ -83,9 +99,9 @@ def _external_grant(schemas: object) -> dict[str, object]:
         ],
         "subject_scope": {
             "project_id": PROJECT_ID,
-            "subject": {"kind": "external_assurance_record", "id": RECORD_ID},
+            "subject": {"kind": "external_assurance_record", "id": record_id},
         },
-        "risk_ceiling": "R1",
+        "risk_ceiling": risk_ceiling,
         "effective_at": "2026-07-12T00:00:00Z",
         "expires_at": "2026-07-13T00:00:00Z",
         "delegable": False,
@@ -153,7 +169,7 @@ def _activation_command(
         "actor_id": ACTOR_ID,
         "on_behalf_of_actor_id": None,
         "authority_grant_id": ROOT_ID,
-        "target_stream_id": GRANT_ID,
+        "target_stream_id": grant["authority_grant_id"],
         "expected_stream_version": 0,
         "idempotency_key": idempotency_key,
         "correlation_id": correlation_id,
@@ -336,6 +352,232 @@ def _fixture(tmp_path: Path):
         origin_witness=witness,
     )
     return binding, schemas, resolver, objects, service, grant
+
+
+FACTS_RELATIONSHIP_ID = "rel_01978abc-6300-7000-8000-0000000063a0"
+FACTS_PRODUCER_TASK_ID = "tsk_01978abc-6300-7000-8000-0000000063a1"
+FACTS_REVIEW_TASK_ID = "tsk_01978abc-6300-7000-8000-0000000063a2"
+FACTS_PRODUCER_SESSION_ID = "ctx_01978abc-6300-7000-8000-0000000063a3"
+FACTS_REVIEW_SESSION_ID = "ctx_01978abc-6300-7000-8000-0000000063a4"
+FACTS_HANDOFF_ID = "hnd_01978abc-6300-7000-8000-0000000063a5"
+
+
+def _facts_fixture(tmp_path: Path) -> ControlBinding:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas, record_id=FACTS_RELATIONSHIP_ID)
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+    witness = resolver.approved_witness
+    manifest = load_store_manifest(control_root, approved_witness=witness)
+    code_root = tmp_path / "repo"
+    shutil.copytree(
+        REPO_ROOT / ".research-system" / "contracts",
+        code_root / ".research-system" / "contracts",
+    )
+    return ControlBinding(
+        code_roots=(code_root.resolve(),),
+        control_root=control_root.resolve(),
+        project_id=PROJECT_ID,
+        schema_root=(code_root / ".research-system" / "schemas").resolve(),
+        store_identity=manifest["store_identity"],
+        origin_witness=witness,
+    )
+
+
+def _relationship_body() -> dict[str, object]:
+    return {
+        "record_type": "producer_relationship_evidence",
+        "relationship_record_id": FACTS_RELATIONSHIP_ID,
+        "relationship_context": "requirement_scope_review",
+        "subject_actor_id": ACTOR_ID,
+        "object_actor_id": FOREIGN_ACTOR_ID,
+        "grade": "I2",
+        "status": "active",
+        "effective_at": "2026-07-12T00:00:00Z",
+        "expires_at": "2026-07-13T00:00:00Z",
+    }
+
+
+def _facts_participants(
+    *,
+    same_task: bool = False,
+    same_session: bool = False,
+    same_context_hash: bool = False,
+    same_model_family: bool = False,
+) -> tuple[RelationshipEvidenceParticipant, RelationshipEvidenceParticipant]:
+    producer = RelationshipEvidenceParticipant(
+        actor_id=FOREIGN_ACTOR_ID,
+        task_id=FACTS_PRODUCER_TASK_ID,
+        session_id=FACTS_PRODUCER_SESSION_ID,
+        context_hash="1" * 64,
+        model_family="codex",
+        stable_handoff_or_run_id=FACTS_HANDOFF_ID,
+    )
+    reviewer = RelationshipEvidenceParticipant(
+        actor_id=ACTOR_ID,
+        task_id=FACTS_PRODUCER_TASK_ID if same_task else FACTS_REVIEW_TASK_ID,
+        session_id=FACTS_PRODUCER_SESSION_ID if same_session else FACTS_REVIEW_SESSION_ID,
+        context_hash="1" * 64 if same_context_hash else "2" * 64,
+        model_family="codex" if same_model_family else "claude",
+        stable_handoff_or_run_id=FACTS_HANDOFF_ID,
+    )
+    return producer, reviewer
+
+
+def _facts_publication_context(
+    binding: ControlBinding,
+    body: Mapping[str, object],
+    *,
+    revision: int = 1,
+    previous: int = 0,
+) -> ExternalRecordPublicationContext:
+    return ExternalRecordPublicationContext(
+        caller_actor_id=ACTOR_ID,
+        caller_actor_class="human",
+        authority_grant_id=GRANT_ID,
+        record_action="create" if revision == 1 else "revise",
+        record_class="producer_relationship_evidence",
+        record_id=FACTS_RELATIONSHIP_ID,
+        revision=revision,
+        expected_previous_revision=previous,
+        project_id=PROJECT_ID,
+        store_identity=binding.store_identity,
+        authority_root=ROOT_ID,
+        canonical_sha256=sha256_hex(canonical_bytes(body)),
+        task_id=FACTS_REVIEW_TASK_ID,
+        session_id=FACTS_REVIEW_SESSION_ID,
+        relationship_record_id=FACTS_RELATIONSHIP_ID,
+        required_risk="R1",
+        occurred_at="2026-07-12T12:00:00Z",
+    )
+
+
+def _publish_protected_relationship(binding: ControlBinding) -> ProtectedRelationshipReference:
+    relationship = _relationship_body()
+    ExternalAssuranceRecordStore(binding, clock=lambda: NOW).write(
+        record_class="producer_relationship_evidence",
+        record_id=FACTS_RELATIONSHIP_ID,
+        revision=1,
+        expected_previous_revision=0,
+        record=relationship,
+        publication_context=_facts_publication_context(binding, relationship),
+    )
+    return ProtectedRelationshipReference(
+        relationship_record_id=FACTS_RELATIONSHIP_ID,
+        revision=1,
+        canonical_sha256=sha256_hex(canonical_bytes(relationship)),
+        relationship_context="requirement_scope_review",
+        grade="I2",
+        effective_at="2026-07-12T00:00:00Z",
+        expires_at="2026-07-13T00:00:00Z",
+    )
+
+
+def _facts_publish_kwargs(
+    binding: ControlBinding,
+    store: RelationshipEvidenceFactsStore,
+    protected: ProtectedRelationshipReference,
+    *,
+    same_task: bool = False,
+    same_session: bool = False,
+    same_context_hash: bool = False,
+    same_model_family: bool = False,
+    visibility: str = "hidden_from_reviewer",
+) -> dict[str, object]:
+    producer, reviewer = _facts_participants(
+        same_task=same_task,
+        same_session=same_session,
+        same_context_hash=same_context_hash,
+        same_model_family=same_model_family,
+    )
+    base = {
+        "relationship_evidence_facts_id": FACTS_RELATIONSHIP_ID,
+        "relationship_scope": "requirement_scope",
+        "protected_relationship": protected,
+        "reviewed_subject": {
+            "subject_kind": "assurance_requirement",
+            "subject_id": REQUIREMENT_ID,
+            "subject_revision": 1,
+            "subject_sha256": "3" * 64,
+        },
+        "producer": producer,
+        "reviewer": reviewer,
+        "evidence_author_actor_id": ACTOR_ID,
+        "producer_conclusions_visibility": visibility,
+        "reviewed_at": "2026-07-12T11:55:00Z",
+    }
+    body = store.derive_record(**base)
+    return {
+        **base,
+        "revision": 1,
+        "expected_previous_revision": 0,
+        "publication_context": _facts_publication_context(binding, body),
+    }
+
+
+def _record_publication_binding(tmp_path: Path, *, record_id: str, actor_id: str) -> ControlBinding:
+    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    grant = _external_grant(schemas, record_id=record_id, actor_id=actor_id, risk_ceiling="R3")
+    decision = _owner_decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+    witness = resolver.approved_witness
+    manifest = load_store_manifest(control_root, approved_witness=witness)
+    code_root = tmp_path / "repo"
+    shutil.copytree(
+        REPO_ROOT / ".research-system" / "contracts",
+        code_root / ".research-system" / "contracts",
+    )
+    return ControlBinding(
+        code_roots=(code_root.resolve(),),
+        control_root=control_root.resolve(),
+        project_id=PROJECT_ID,
+        schema_root=(code_root / ".research-system" / "schemas").resolve(),
+        store_identity=manifest["store_identity"],
+        origin_witness=witness,
+    )
+
+
+def _external_record_context(
+    binding: ControlBinding,
+    *,
+    record_class: str,
+    record_id: str,
+    caller_actor_id: str,
+    body: Mapping[str, object],
+) -> ExternalRecordPublicationContext:
+    return ExternalRecordPublicationContext(
+        caller_actor_id=caller_actor_id,
+        caller_actor_class="human",
+        authority_grant_id=GRANT_ID,
+        record_action="create",
+        record_class=record_class,
+        record_id=record_id,
+        revision=1,
+        expected_previous_revision=0,
+        project_id=PROJECT_ID,
+        store_identity=binding.store_identity,
+        authority_root=ROOT_ID,
+        canonical_sha256=sha256_hex(canonical_bytes(body)),
+        task_id=TASK_ID,
+        session_id=SESSION_ID,
+        relationship_record_id=None,
+        required_risk="R3",
+        occurred_at="2026-07-12T12:00:00Z",
+    )
 
 
 def _durable_files(root: Path) -> dict[str, bytes]:
@@ -1218,6 +1460,98 @@ def test_failed_external_grant_activation_never_removes_preexisting_matching_obj
         authority_state_validator=resolver.validate_replayed_administration_state,
     )
     assert GRANT_ID not in projection["authority_grants"]
+
+
+@pytest.mark.integration
+def test_governed_relationship_facts_publish_authorized_round_trip(tmp_path: Path) -> None:
+    binding = _facts_fixture(tmp_path)
+    protected = _publish_protected_relationship(binding)
+    store = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW)
+    kwargs = _facts_publish_kwargs(binding, store, protected)
+
+    receipt = store.publish(**kwargs)
+
+    assert receipt.relationship_evidence_facts_id == FACTS_RELATIONSHIP_ID
+    path = next(
+        (binding.control_root / "runtime" / "relationship-evidence-facts" / FACTS_RELATIONSHIP_ID).glob("*.json")
+    )
+    body = json.loads(path.read_bytes())
+    assert body["relationship_evidence_facts_id"] == FACTS_RELATIONSHIP_ID
+    assert path.name == f"00000001-{sha256_hex(canonical_bytes(body))}.json"
+    retry = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW).publish(**kwargs)
+    assert retry == receipt
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("field", "message"),
+    (
+        ("same_task", "separate task provenance"),
+        ("same_session", "independence grade"),
+        ("same_context_hash", "independence grade"),
+        ("same_model_family", "independence grade"),
+        ("visible", "independence grade"),
+    ),
+)
+def test_governed_relationship_facts_rejects_non_independent_or_visible_producer_inputs(
+    tmp_path: Path,
+    field: str,
+    message: str,
+) -> None:
+    binding = _facts_fixture(tmp_path)
+    protected = _publish_protected_relationship(binding)
+    store = RelationshipEvidenceFactsStore(binding, clock=lambda: NOW)
+
+    with pytest.raises(SchemaError, match=message):
+        _facts_publish_kwargs(
+            binding,
+            store,
+            protected,
+            same_task=field == "same_task",
+            same_session=field == "same_session",
+            same_context_hash=field == "same_context_hash",
+            same_model_family=field == "same_model_family",
+            visibility="visible_to_reviewer" if field == "visible" else "hidden_from_reviewer",
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("record_class", "record_id"),
+    (
+        ("active_authority_grant", frozen.OWNER_GRANT_ID),
+        ("stephen_owner_acceptance", frozen.OWNER_DECISION_ID),
+    ),
+)
+def test_external_record_writer_keeps_publication_grant_distinct_from_body_r3_grant(
+    tmp_path: Path,
+    record_class: str,
+    record_id: str,
+) -> None:
+    contract = frozen._load_yaml(frozen.CONTRACT_PATH)
+    pack = frozen._proposed_pack(contract)
+    _, _, record_store, _ = frozen._external_records(pack, contract)
+    body = deepcopy(record_store[record_id])
+    binding = _record_publication_binding(tmp_path, record_id=record_id, actor_id=frozen.ACT_OWNER)
+
+    receipt = ExternalAssuranceRecordStore(binding, clock=lambda: NOW).write(
+        record_class=record_class,
+        record_id=record_id,
+        revision=1,
+        expected_previous_revision=0,
+        record=body,
+        publication_context=_external_record_context(
+            binding,
+            record_class=record_class,
+            record_id=record_id,
+            caller_actor_id=frozen.ACT_OWNER,
+            body=body,
+        ),
+    )
+
+    assert receipt.authority_grant_id == GRANT_ID
+    assert body["authority_grant_id"] == frozen.OWNER_GRANT_ID
+    assert GRANT_ID != frozen.OWNER_GRANT_ID
 
 
 @pytest.mark.integration

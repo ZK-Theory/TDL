@@ -24,13 +24,15 @@ from research_system.assurance.runner import (
 from research_system.assurance import runner as runner_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system import cli
 from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pack_contract as frozen
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACK_PATH = ".research-system/packs/tdl-private-assurance.yaml"
+FACTS_PRODUCER_SESSION_ID = "ctx_00000000-0000-7000-8000-000000000031"
+FACTS_REVIEW_SESSION_ID = "ctx_00000000-0000-7000-8000-000000000032"
+FACTS_HANDOFF_ID = "hnd_00000000-0000-7000-8000-000000000033"
 
 
 class _RecordResolver:
@@ -158,7 +160,6 @@ def _temporary_repository(tmp_path: Path, raw_candidate: bytes) -> tuple[Path, P
 
 def _facts_for(
     *,
-    facts_id: str,
     relationship: ExternalRecordResolution,
     subject: dict[str, object],
     reviewer: str,
@@ -168,15 +169,37 @@ def _facts_for(
 ) -> _FactsResolution:
     body = {
         "record_type": "relationship_evidence_facts",
-        "relationship_evidence_facts_id": facts_id,
+        "relationship_evidence_facts_id": relationship.record_id,
         "relationship_scope": scope,
-        "protected_relationship_record_id": relationship.record_id,
-        "protected_relationship_revision": relationship.revision,
-        "protected_relationship_sha256": relationship.canonical_sha256,
+        "protected_relationship": {
+            "relationship_record_id": relationship.record_id,
+            "revision": relationship.revision,
+            "canonical_sha256": relationship.canonical_sha256,
+            "relationship_context": relationship.record["relationship_context"],
+            "grade": relationship.record["grade"],
+            "effective_at": relationship.record["effective_at"],
+            "expires_at": relationship.record["expires_at"],
+        },
         "reviewed_subject": subject,
-        "reviewer_actor_id": reviewer,
-        "producer_actor_id": producer,
-        "evidence": {
+        "producer": {
+            "actor_id": producer,
+            "task_id": frozen.PRODUCER_TASK_ID,
+            "session_id": FACTS_PRODUCER_SESSION_ID,
+            "context_hash": "1" * 64,
+            "model_family": "codex",
+            "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
+        },
+        "reviewer": {
+            "actor_id": reviewer,
+            "task_id": frozen.REVIEW_TASK_ID,
+            "session_id": FACTS_REVIEW_SESSION_ID,
+            "context_hash": "2" * 64,
+            "model_family": "claude",
+            "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
+        },
+        "evidence_author_actor_id": reviewer,
+        "producer_conclusions_visibility": "hidden_from_reviewer",
+        "derived_comparisons": {
             "same_actor": False,
             "same_session": False,
             "same_context_hash": False,
@@ -187,7 +210,7 @@ def _facts_for(
         "review_state": "completed",
         "reviewed_at": reviewed_at,
     }
-    return _FactsResolution(facts_id, 1, sha256_hex(canonical_bytes(body)), body)
+    return _FactsResolution(relationship.record_id, 1, sha256_hex(canonical_bytes(body)), body)
 
 
 def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -204,7 +227,23 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     exact_subject = runner_module._candidate_subject(candidate, parsed_pack)
     exact_subject_dict = runner_module._pack_subject_dict(exact_subject)
     record_store[frozen.REVIEW_RECORD_ID]["subject"] = dict(exact_subject_dict)
+    record_store[frozen.REVIEW_RECORD_ID]["two_key_closure_sha256"] = sha256_hex(
+        canonical_bytes(
+            {
+                "obligation_evidence_rows": record_store[frozen.REVIEW_RECORD_ID]["obligation_evidence_rows"],
+                "boundary_fixture_execution_rows": record_store[frozen.REVIEW_RECORD_ID][
+                    "boundary_fixture_execution_rows"
+                ],
+            }
+        )
+    )
     record_store[frozen.OWNER_DECISION_ID]["subject"] = dict(exact_subject_dict)
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    record_store[frozen.OWNER_DECISION_ID]["two_key_closure_sha256"] = record_store[frozen.REVIEW_RECORD_ID][
+        "two_key_closure_sha256"
+    ]
 
     scope_record = ExternalRecordResolution(
         "producer_relationship_evidence",
@@ -230,7 +269,6 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     pack_subject = runner_module._candidate_subject(candidate, parsed_pack)
     facts = {
         "relationship_evidence_facts:requirement_scope": _facts_for(
-            facts_id="rel_00000000-0000-7000-8000-000000000021",
             relationship=scope_record,
             subject=requirement_subject,
             reviewer=frozen.ACT_SCOPE_REVIEWER,
@@ -239,7 +277,6 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             reviewed_at="2026-07-28T08:40:00Z",
         ),
         "relationship_evidence_facts:pack_review": _facts_for(
-            facts_id="rel_00000000-0000-7000-8000-000000000022",
             relationship=review_relationship,
             subject={
                 "subject_kind": "assurance_pack",
@@ -384,6 +421,94 @@ def test_prepare_then_acceptance_reloads_exact_subject_and_ignores_working_tree_
     assert {phase for _, phase in facts_reader.calls} == {"load", "acceptance", "consumption"}
 
 
+def test_acceptance_public_seam_rejects_incomplete_two_key_closure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    record_store[frozen.REVIEW_RECORD_ID]["obligation_evidence_rows"].pop()
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3ad"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    with pytest.raises(PackUnconsumable, match="two-key evidence does not close every required obligation"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+
+
+def test_acceptance_public_seam_rejects_reused_pack_review_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    provenance = record_store[frozen.REVIEW_RECORD_ID]["operator_provenance"]
+    provenance["review_task_id"] = provenance["producer_task_id"]
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3ae"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    with pytest.raises(PackUnconsumable, match="pack review task provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+
+
+def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    record_store[frozen.OWNER_DECISION_ID]["authority_grant_id"] = "agr_00000000-0000-7000-8000-0000000000ff"
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3af"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    with pytest.raises(PackUnconsumable, match="owner acceptance authority grant identity is foreign"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+
+
 def test_changed_retry_conflicts_without_mutating_immutable_preparation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -450,9 +575,9 @@ def test_replay_backed_policy_rejects_wrong_expired_revoked_or_corrupt_grants(
 
 @pytest.mark.parametrize(
     "dimension",
-    ("same_actor", "same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"),
+    ("same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"),
 )
-def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimension: str) -> None:
+def test_relationship_facts_recompute_grade_from_concrete_provenance(dimension: str) -> None:
     relationship_record = {
         "record_type": "producer_relationship_evidence",
         "relationship_record_id": frozen.SCOPE_RELATIONSHIP_ID,
@@ -472,7 +597,6 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
         relationship_record,
     )
     facts = _facts_for(
-        facts_id="rel_00000000-0000-7000-8000-000000000023",
         relationship=relationship,
         subject={
             "subject_kind": "assurance_requirement",
@@ -486,9 +610,16 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
         reviewed_at="2026-07-28T08:40:00Z",
     )
     body = deepcopy(facts.record)
-    body["evidence"][dimension] = True
+    if dimension == "same_session":
+        body["reviewer"]["session_id"] = body["producer"]["session_id"]
+    elif dimension == "same_context_hash":
+        body["reviewer"]["context_hash"] = body["producer"]["context_hash"]
+    elif dimension == "same_model_family":
+        body["reviewer"]["model_family"] = body["producer"]["model_family"]
+    else:
+        body["producer_conclusions_visibility"] = "visible_to_reviewer"
     changed = _FactsResolution(facts.record_id, 1, sha256_hex(canonical_bytes(body)), body)
-    with pytest.raises(PackUnconsumable, match="independence grade"):
+    with pytest.raises(PackUnconsumable, match="comparisons are not independently derived"):
         runner_module._check_fact(
             changed,
             relationship,
@@ -498,18 +629,6 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
             expected_producer=frozen.ACT_PRODUCER,
             evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
         )
-    assert (
-        independence_grade(
-            RelationshipEvidence(
-                same_actor=False,
-                same_session=False,
-                same_context_hash=False,
-                same_model_family=False,
-                producer_conclusions_visible=False,
-            )
-        )
-        == "I2"
-    )
 
 
 def test_relationship_facts_fail_closed_on_self_attestation() -> None:
@@ -532,7 +651,6 @@ def test_relationship_facts_fail_closed_on_self_attestation() -> None:
         relationship_record,
     )
     facts = _facts_for(
-        facts_id="rel_00000000-0000-7000-8000-000000000024",
         relationship=relationship,
         subject={
             "subject_kind": "assurance_requirement",
@@ -621,6 +739,17 @@ def test_cli_requires_bound_authority_inputs_and_exposes_both_phases() -> None:
         ]
     )
     assert parsed.phase == "prepare"
+    facts = cli._parser().parse_args(
+        [
+            "assurance-pack",
+            "publish-relationship-facts",
+            "--config",
+            "binding.yaml",
+            "--facts",
+            "relationship-facts.json",
+        ]
+    )
+    assert facts.assurance_pack_action == "publish-relationship-facts"
 
 
 def test_prepare_public_seam_rejects_without_future_review_or_owner_records(

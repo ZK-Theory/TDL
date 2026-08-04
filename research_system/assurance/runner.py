@@ -34,6 +34,7 @@ from research_system.assurance.pack_loader import (
 )
 from research_system.assurance.requirements import LedgerBackedAuthorityPolicy, validate_requirement
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
+from research_system.assurance.tdl_private_semantics import validate_tdl_private_semantics
 from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
@@ -872,21 +873,46 @@ def _check_fact(
     evaluation_time: datetime,
 ) -> None:
     record = facts.record
+    protected = _mapping(record.get("protected_relationship"), "relationship-evidence-facts protected relationship")
+    producer = _mapping(record.get("producer"), "relationship-evidence-facts producer")
+    reviewer = _mapping(record.get("reviewer"), "relationship-evidence-facts reviewer")
     if (
         record.get("relationship_scope") != relationship_scope
-        or record.get("protected_relationship_record_id") != relationship.record_id
-        or record.get("protected_relationship_revision") != relationship.revision
-        or record.get("protected_relationship_sha256") != relationship.canonical_sha256
+        or facts.record_id != relationship.record_id
+        or record.get("relationship_evidence_facts_id") != relationship.record_id
+        or protected.get("relationship_record_id") != relationship.record_id
+        or protected.get("revision") != relationship.revision
+        or protected.get("canonical_sha256") != relationship.canonical_sha256
+        or protected.get("grade") != relationship.record.get("grade")
+        or protected.get("relationship_context") != relationship.record.get("relationship_context")
+        or protected.get("effective_at") != relationship.record.get("effective_at")
+        or protected.get("expires_at") != relationship.record.get("expires_at")
         or record.get("reviewed_subject") != dict(expected_subject)
-        or record.get("reviewer_actor_id") != expected_reviewer
-        or record.get("producer_actor_id") != expected_producer
+        or reviewer.get("actor_id") != expected_reviewer
+        or producer.get("actor_id") != expected_producer
+        or record.get("evidence_author_actor_id") != expected_reviewer
         or expected_reviewer == expected_producer
     ):
         raise PackUnconsumable("relationship-evidence-facts are not bound to the protected relationship/subject")
     reviewed_at = _parse_time(record.get("reviewed_at"), "relationship-evidence-facts reviewed_at")
     if reviewed_at > evaluation_time:
         raise PackUnconsumable("relationship-evidence-facts are from the future")
-    evidence = _mapping(record.get("evidence"), "relationship-evidence-facts evidence")
+    effective_at = _parse_time(protected.get("effective_at"), "relationship-evidence-facts effective_at")
+    expires_at = _parse_time(protected.get("expires_at"), "relationship-evidence-facts expires_at")
+    if not effective_at <= reviewed_at <= evaluation_time < expires_at:
+        raise PackUnconsumable("relationship-evidence-facts are outside the protected relationship validity window")
+    if producer.get("task_id") == reviewer.get("task_id"):
+        raise PackUnconsumable("relationship-evidence-facts review task provenance is not separate")
+    evidence = _mapping(record.get("derived_comparisons"), "relationship-evidence-facts derived comparisons")
+    expected_comparisons = {
+        "same_actor": producer.get("actor_id") == reviewer.get("actor_id"),
+        "same_session": producer.get("session_id") == reviewer.get("session_id"),
+        "same_context_hash": producer.get("context_hash") == reviewer.get("context_hash"),
+        "same_model_family": producer.get("model_family") == reviewer.get("model_family"),
+        "producer_conclusions_visible": record.get("producer_conclusions_visibility") == "visible_to_reviewer",
+    }
+    if evidence != expected_comparisons:
+        raise PackUnconsumable("relationship-evidence-facts comparisons are not independently derived")
     try:
         derived = independence_grade(
             RelationshipEvidence(
@@ -1219,6 +1245,15 @@ def prepare_assurance_pack(
     _validate_actor_joins(records, locators, pack)
     _validate_relationship_facts(records, fact_records, pack, subject, evaluation_time)
     _validate_temporal_and_identity(records, pack, subject, evaluation_time)
+    validate_tdl_private_semantics(
+        contract=contract,
+        pack=pack,
+        records=records,
+        subject=subject,
+        current_exact_reference_snapshot=snapshot,
+        evaluation_time=evaluation_time,
+        phase="prepare",
+    )
     authority = _policy_and_requirement(
         config.binding, config.resolved_authority_root(), records, pack, evaluation_time
     )
@@ -1414,6 +1449,15 @@ def accept_assurance_pack(
         raise PackUnconsumable("acceptance exact subject differs from immutable preparation")
     _validate_subject_records(phase_records["consumption"], contract_subject, schema_subject)
     _validate_temporal_and_identity(phase_records["consumption"], pack, subject, evaluation_time)
+    validate_tdl_private_semantics(
+        contract=contract,
+        pack=pack,
+        records=phase_records["consumption"],
+        subject=subject,
+        current_exact_reference_snapshot=phase_refs["consumption"],
+        evaluation_time=evaluation_time,
+        phase="acceptance",
+    )
     previous = preparation.get("preparation_identity")
     if previous != preparation_identity:
         raise PackUnconsumable("acceptance preparation identity is corrupt")
