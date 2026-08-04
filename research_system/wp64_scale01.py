@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -819,12 +820,12 @@ def _assert_no_reparse_chain(root: Path, relative_path: PurePosixPath) -> Path:
 
 
 def _derive_root_write_capability(path: Path) -> bool:
-    """Derive the root's portable directory write capability from its mode bits."""
+    """Derive the root's effective directory write capability without mutation."""
 
     metadata = path.stat()
     if not stat.S_ISDIR(metadata.st_mode):
         raise Scale01VerificationError("fixture root is not a directory")
-    return bool(metadata.st_mode & _WRITE_BITS)
+    return os.access(path, os.W_OK)
 
 
 def _validate_alias_uniqueness(values: Sequence[str], label: str) -> None:

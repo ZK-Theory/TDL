@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -163,6 +164,18 @@ def synthetic_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     for path in fixture_paths:
         path.chmod(0o444)
     fixture_root.chmod(0o555)
+    real_access = os.access
+
+    def synthetic_access(candidate: object, mode: int, *args: Any, **kwargs: Any) -> bool:
+        if (
+            Path(candidate).resolve(strict=True) == fixture_root.resolve(strict=True)
+            and mode == os.W_OK
+            and not fixture_root.stat().st_mode & scale01._WRITE_BITS
+        ):
+            return False
+        return real_access(candidate, mode, *args, **kwargs)
+
+    monkeypatch.setattr(scale01.os, "access", synthetic_access)
 
     alignments = []
     for geometry_alias, binding in scale01.EXPECTED_ALIGNMENT_BINDINGS.items():
@@ -544,6 +557,31 @@ def test_writable_root_cannot_claim_false(synthetic_bundle: dict[str, Any]) -> N
             scale01.verify_fixture_observation(REPO_ROOT, fixture_root, synthetic_bundle["observation"])
     finally:
         fixture_root.chmod(0o555)
+
+
+def test_windows_effective_access_rejects_mode_bit_false_claim(tmp_path: Path) -> None:
+    if os.name != "nt":
+        pytest.skip("Windows effective-access disagreement control")
+
+    fixture_root = tmp_path / "windows-effective-root"
+    fixture_root.mkdir()
+    fixture_root.chmod(0o555)
+    mode_write_capable = bool(fixture_root.stat().st_mode & scale01._WRITE_BITS)
+    effective_write_capable = os.access(fixture_root, os.W_OK)
+    assert mode_write_capable is False
+    assert effective_write_capable is True
+
+    probe = fixture_root / "effective-access-probe"
+    try:
+        probe.write_bytes(b"probe")
+        actual_write_capable = scale01._derive_root_write_capability(fixture_root)
+        assert actual_write_capable is True
+        with pytest.raises(scale01.Scale01VerificationError, match="write capability"):
+            scale01._require_equal(False, actual_write_capable, "fixture root write capability")
+    finally:
+        if probe.exists():
+            probe.unlink()
+        fixture_root.chmod(0o777)
 
 
 def test_actual_write_capable_fixture_file_is_rejected(synthetic_bundle: dict[str, Any]) -> None:
