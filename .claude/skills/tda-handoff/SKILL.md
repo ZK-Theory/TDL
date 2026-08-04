@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   tier: core
   lanes: []
   roles:
@@ -19,6 +19,10 @@ duplicates their content. Not for APM Manager/Worker handoffs — those use the
 numbered APM handoff skills and the Memory Bank. Skip it when the session was
 trivial or its outcome is already fully captured in a commit, plan, or vault
 entry.
+
+A handoff preserves continuity; it is not capability-completion evidence. When
+the named capability is incomplete, say so first and carry the exact functional
+gap forward rather than presenting the completed slice as the deliverable.
 
 ## Where It Goes
 
@@ -43,8 +47,15 @@ vault daily note via `vault-sync`, not the handoff.
 ```markdown
 # TDL Handoff: <task>
 
+Capability status: <INCOMPLETE - exact functional gap | INTEGRATED>
+
 ## Purpose of next session
 ## Active paper / project
+## Named end-to-end capability
+## Capability state           (NOT RUNNABLE | RUNNABLE | PROVEN | INTEGRATED | OWNER-BLOCKED)
+## Completed production path  (real entry point through durable/public effect)
+## Exact remaining functional gap
+## Next production action
 ## Current state
 ## Workflow system            (standalone; otherwise use the owning workflow)
 ## Packet predecessor         (path plus content identity, when applicable)
@@ -55,7 +66,6 @@ vault daily note via `vault-sync`, not the handoff.
 ## Decisions made             (with vault entry references)
 ## Open risks
 ## Suggested skills
-## Next actions
 ## Rotation evidence          (actual compaction/owner stop, when applicable)
 ## Branch / integration state (roles, base, merge strategy, PR path count)
 ## Do-not-do list
@@ -83,6 +93,12 @@ resuming), it must additionally: bound scope with explicit hard stops
 ("continue X only; do NOT proceed to Y"); restate any user-decision gates as
 **blocking**, not advisory; and repeat the `results/` provenance rule above.
 An open-ended handoff is read maximally by an autonomous agent.
+
+Classify every discovered item as required capability work, owner-only,
+external, or unrelated. Required capability work must name the next production
+action and may not be disposed merely to the handoff, a PR comment, a plan, or
+an unnamed successor. `OWNER-BLOCKED` may be used only after safe authorized
+work is exhausted and the exact missing owner action is recorded.
 
 Before an autonomous successor acts on inherited deliverable, blocker,
 contract, input-root, or output-path claims, re-run the associated task-state
@@ -116,8 +132,11 @@ current checkout, reporting subject drift instead of reviewing.
 
 For a standalone large workflow, hand off when actual compaction or an owner stop
 makes another task the better continuation surface. Record one next vertical
-action, exact Git/worktree identities, unresolved findings, validation evidence,
-and hard stops; do not copy plans, reviews, or logs into the packet. Measure
+action, capability state, completed production path, exact remaining functional
+gap, exact Git/worktree identities, unresolved findings, validation evidence,
+and hard stops; do not copy plans, reviews, or logs into the packet. A PR-ready
+or reviewed slice may close its bounded task, but the handoff must retain
+`Capability status: INCOMPLETE` until the campaign reaches `INTEGRATED`. Measure
 token efficiency separately from session JSONL and billing/token telemetry;
 producer self-reporting is not required in this continuity artifact.
 Before a PR handoff, record the merge-base changed-path count and the external
@@ -126,6 +145,10 @@ review cap; CodeRabbit's hard limit is 100 files.
 ## Completion Checklist
 
 - [ ] Active paper / project identified.
+- [ ] Capability status is first, with the named end-to-end capability,
+      completed production path, exact remaining gap, and next production action.
+- [ ] Local slice, review, PR, or handoff completion is not reported as
+      capability completion.
 - [ ] Workflow system and neutral path are explicit; standalone state is not
       stored under `.apm`.
 - [ ] State summarized without duplicating artifacts — paths and commands

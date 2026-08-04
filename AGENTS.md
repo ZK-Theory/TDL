@@ -134,6 +134,126 @@ For every Codex worktree dispatch that will write:
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.
 - When a task prompt specifies an allowed prefix family, choose from that family and keep the subject within the same project convention.
 
+## Capability-first delivery
+
+For implementation and operational campaigns, the user's named end-to-end
+capability is the governing deliverable. A slice, foundation, mechanism, schema,
+test harness, review, PR, or handoff is an internal delivery unit; completing one
+does not make the capability complete.
+
+### Capability contract and status
+
+- Begin with one observable outcome through the real production or public seam.
+  Name the entry point, durable effects, returned result, and decisive failure
+  behavior. Build the thinnest real positive path before expanding assurance.
+- Use these campaign states: `NOT RUNNABLE`, `RUNNABLE`, `PROVEN`, `INTEGRATED`,
+  and `OWNER-BLOCKED`. `OWNER-BLOCKED` is not success; use it only after all
+  safe authorized work is exhausted and name the exact missing owner action.
+- Until the capability is `INTEGRATED`, every progress report and handoff must
+  lead with `Capability status: INCOMPLETE - <exact functional gap>`. If
+  integration is outside the authorized task boundary, `PROVEN` may close that
+  task, but the campaign remains incomplete and the handoff must say so.
+- Qualify local words such as "complete", "accepted", "ready", and "done" with
+  their object. For example, "schema slice accepted; capability NOT RUNNABLE" is
+  valid; an unqualified "complete" is not.
+
+### Execution and scope
+
+- Slices and PRs may bound edits or external review size, but the same campaign
+  continues across them until the named capability reaches its terminal state.
+- A dependency discovered to be necessary for the capability remains part of
+  the campaign. Classify discoveries as required capability work, owner-only,
+  external, or unrelated. Implement required work within the authorized scope;
+  a PR comment, plan, handoff, or unnamed successor is not its disposition.
+- Start a fresh semantic subject only when observable behavior materially
+  changes, accepted or protected bytes change, authority expands, the work is
+  genuinely outside the named capability, or final review independence requires
+  it. Do not manufacture a new subject merely because another construction step
+  or defect was found.
+- Missing code, mappings, producers, writers, reducers, projections, records,
+  tests, or recovery paths are implementation work, not owner stops. Stop only
+  for a missing owner decision, missing authority for destructive or external
+  action, required mutation of protected bytes, an unresolved writable-root or
+  exact-subject boundary, or a demonstrated contradiction in authoritative
+  contracts.
+- Existing accepted plans govern execution. Do not create another plan or
+  mechanics-only package when the next production action is known.
+
+### Review and validation
+
+- During construction, use direct tests and review proportionate to the changed
+  behavior. Do not require an independent acceptance review for every foundation
+  step. Form an integrated capability candidate, exercise the end-to-end path,
+  then perform the required final independent review and bounded remediation.
+- Multiple PRs are allowed when dependency boundaries or external-review caps
+  require them. PR acceptance is an integration milestone, not campaign
+  completion; verify the assembled capability after the final seam lands.
+- Synthetic harnesses and mechanics proofs may support assurance but cannot
+  substitute for a real positive path. Validate in this order: real positive
+  path, decisive no-corruption negatives, shared-seam regression, then any
+  explicitly mandated final gate suite once at candidate head.
+- Preserve exact-head review identity and owner-controlled external-review
+  operations. A later commit invalidates prior exact-head review evidence, but
+  that identity rule must not be used to force unrelated repeated reviews during
+  construction.
+
+### Delivery budget and anti-stall rule
+
+- Default at least 80% of campaign effort to production capability and direct
+  tests, at most 10% to orthogonal assurance without a concrete failure path,
+  and at most 10% to planning, handoff, and review administration. Audit actual
+  efficiency from session and billing telemetry; do not rely on producer
+  self-estimates.
+- If two hours pass without an observable production, integration, or real-
+  operation delta, stop meta-work and take the next production action. If that
+  action is truly blocked, report the exact blocker and the authority needed.
+- Plans, schemas without an active producer, mechanics-only harnesses, synthetic
+  evidence, green tests that do not exercise the named outcome, accepted
+  fragments, intermediate PRs, and handoffs receive no capability-completion
+  credit.
+- Progress reports must state, in order: capability state, completed end-to-end
+  path, exact remaining functional gap, and next production action.
+
+## Jira work control
+
+Jira is the live work-control surface, not a dumping ground or retrospective
+activity log. Repository contracts define the technical truth; the canonical
+Jira capability issue must translate that truth into current executable
+direction and be updated whenever evidence changes.
+
+- Organise delivery as campaign/program -> named capability -> bounded job.
+  Keep the capability issue open across all slices, PRs, reviews, and jobs.
+- Every open capability issue begins with: `Capability status`, observable
+  outcome through the real seam, completed production path, exact remaining
+  functional gap, next production action, authoritative repository sources,
+  required closure evidence, and owner-only actions.
+- `In Progress` means a named production or integration job is actively being
+  executed. If work is stopped or owner-paused, transition it out of
+  `In Progress` immediately, label the pause, and record the exact resume action.
+- `Done` on a capability means `INTEGRATED`: the real path and decisive
+  negatives passed, required review/owner evidence is linked, and no required
+  child or blocker remains open. A completed assessment, plan, schema, harness,
+  foundation, PR, or review is a typed milestone, not a completed capability.
+- Mark non-capability terminal work explicitly as `MILESTONE`, `SUPERSEDED`,
+  `NEGATIVE ASSESSMENT`, `DUPLICATE`, or `CANCELLED` in its summary/labels and
+  point to the live canonical capability. Never use an unqualified `Done` to
+  carry these different meanings.
+- Required work discovered during delivery becomes a visible bounded job under
+  the same capability. A comment, review finding, handoff, or "later subject"
+  does not dispose it; name an owner and next action or keep the capability gap
+  explicit.
+- Treat descriptions and structured parent/dependency fields as one authority.
+  Validate `Blocks` direction by reading both endpoints after writes. Do not
+  leave a parent terminal while required descendants remain open, and do not
+  preserve contradictory links as harmless history.
+- Jira comments are chronological evidence only. They cannot override the
+  current description, capability state, acceptance contract, or repository
+  authority. Fold decisions into the description and retain the comment as
+  provenance.
+- After Jira edits or transitions, read back every changed issue and its links.
+  Report exact failures; never claim a hierarchy, status, or dependency update
+  from an attempted write alone.
+
 ## Large-workflow context discipline
 
 Use `tda-large-workflow-supervision` as the single canonical operating procedure
@@ -146,4 +266,3 @@ billing/token telemetry.
 ## After editing
 
 If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed — the next `Grep` or `Read` picks up the change directly from disk.
-
