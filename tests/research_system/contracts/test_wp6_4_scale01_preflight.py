@@ -367,24 +367,52 @@ def test_candidate_local_changed_component_hash_is_recomputed() -> None:
         scale01.verify_scale01_documents(REPO_ROOT, package_index, blueprint, preflight)
 
 
-def test_positive_synthetic_evidence_still_ends_pending_and_non_dispatchable(
+def test_public_preflight_rejects_caller_selected_protected_surface_mapping(
     synthetic_bundle: dict[str, Any],
 ) -> None:
-    verified = scale01.verify_scale01_preflight_candidate(
-        REPO_ROOT,
-        synthetic_bundle["fixture_root"],
-        synthetic_bundle["scratch_root"],
-        synthetic_bundle["observation"],
-        synthetic_bundle["evidence"],
-        protected_surface_paths=synthetic_bundle["protected_surface_paths"],
-    )
+    alternate_root = synthetic_bundle["scratch_root"] / "coordinated-alternate"
+    alternate_root.mkdir()
+    alternate_paths = {}
+    for field in _SHA_FIELDS:
+        path = alternate_root / f"{field}.json"
+        path.write_bytes(f"alternate:{field}\n".encode())
+        alternate_paths[field] = path
 
-    assert verified == {
-        "admission_status": "pending_wp6_6",
-        "dispatchable": False,
-        "execution_authorized": False,
-        "lifecycle_status": "produced_unreviewed",
-    }
+    alternate_snapshot = scale01.snapshot_protected_state(
+        synthetic_bundle["fixture_root"],
+        protected_surface_paths=alternate_paths,
+    )
+    alternate_state = alternate_snapshot.evidence_state()
+    evidence = deepcopy(synthetic_bundle["evidence"])
+    evidence["pre_state"] = deepcopy(alternate_state)
+    evidence["post_state"] = deepcopy(alternate_state)
+    _refresh_evidence(evidence)
+
+    with pytest.raises(TypeError, match="protected_surface_paths"):
+        scale01.verify_scale01_preflight_candidate(
+            REPO_ROOT,
+            synthetic_bundle["fixture_root"],
+            synthetic_bundle["scratch_root"],
+            synthetic_bundle["observation"],
+            evidence,
+            protected_surface_paths=alternate_paths,
+        )
+
+
+def test_public_preflight_fails_closed_while_canonical_foundation_is_pending(
+    synthetic_bundle: dict[str, Any],
+) -> None:
+    with pytest.raises(
+        scale01.Scale01VerificationError,
+        match="canonical foundation dependency is pending",
+    ):
+        scale01.verify_scale01_preflight_candidate(
+            REPO_ROOT,
+            synthetic_bundle["fixture_root"],
+            synthetic_bundle["scratch_root"],
+            synthetic_bundle["observation"],
+            synthetic_bundle["evidence"],
+        )
 
 
 def test_fixture_tuple_rejects_coordinated_omission(synthetic_bundle: dict[str, Any]) -> None:
@@ -604,26 +632,34 @@ def test_no_write_evidence_rejects_a_legacy_write_record(synthetic_bundle: dict[
         )
 
 
-def test_failure_injection_has_zero_publication(synthetic_bundle: dict[str, Any]) -> None:
+def test_public_preflight_rejects_before_failure_injection_and_has_zero_publication(
+    synthetic_bundle: dict[str, Any],
+) -> None:
     observed_roots = (
         synthetic_bundle["fixture_root"],
         synthetic_bundle["scratch_root"],
         REPO_ROOT / scale01.PACKAGE_DIR,
     )
     before = tuple(_tree_snapshot(root) for root in observed_roots)
+    injection_called = False
 
     def fail_before_publication() -> None:
+        nonlocal injection_called
+        injection_called = True
         raise RuntimeError("synthetic failure")
 
-    with pytest.raises(scale01.Scale01VerificationError, match="before publication"):
+    with pytest.raises(
+        scale01.Scale01VerificationError,
+        match="canonical foundation dependency is pending",
+    ):
         scale01.verify_scale01_preflight_candidate(
             REPO_ROOT,
             synthetic_bundle["fixture_root"],
             synthetic_bundle["scratch_root"],
             synthetic_bundle["observation"],
             synthetic_bundle["evidence"],
-            protected_surface_paths=synthetic_bundle["protected_surface_paths"],
             failure_injector=fail_before_publication,
         )
 
+    assert not injection_called
     assert tuple(_tree_snapshot(root) for root in observed_roots) == before

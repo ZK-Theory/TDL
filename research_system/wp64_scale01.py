@@ -954,39 +954,30 @@ def verify_scale01_preflight_candidate(
     fixture_observation: Mapping[str, Any],
     no_write_evidence: Mapping[str, Any],
     *,
-    protected_surface_paths: Mapping[str, Path],
     package_index: Mapping[str, Any] | None = None,
     blueprint: Mapping[str, Any] | None = None,
     preflight: Mapping[str, Any] | None = None,
     w11_dossier_manifest: Mapping[str, Any] | None = None,
     failure_injector: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
-    """Verify a complete synthetic observation while preserving pending status."""
+    """Fail closed until the canonical foundation dependency is materialized."""
 
     root = repo_root.resolve(strict=True)
-    verified = verify_scale01_documents(
-        root,
-        package_index if package_index is not None else _read_json(root / PACKAGE_INDEX_PATH),
-        blueprint if blueprint is not None else _read_json(root / BLUEPRINT_PATH),
-        preflight if preflight is not None else _read_json(root / PREFLIGHT_PATH),
+    frozen_preflight = _read_json(root / PREFLIGHT_PATH)
+    foundation_dependencies = [row for row in frozen_preflight["dependencies"] if row["dependency_id"] == "foundation"]
+    _require_equal(
+        foundation_dependencies,
+        [
+            {
+                "dependency_id": "foundation",
+                "status": "pending",
+                "exact_ref": None,
+                "raw_sha256": None,
+                "git_blob_id": None,
+            }
+        ],
+        "canonical foundation dependency",
     )
-    if w11_dossier_manifest is not None:
-        verify_w11_dossier_manifest(root, w11_dossier_manifest)
-    verify_fixture_observation(root, fixture_root, fixture_observation)
-    pre_snapshot = snapshot_protected_state(
-        fixture_root,
-        protected_surface_paths=protected_surface_paths,
+    raise Scale01VerificationError(
+        "canonical foundation dependency is pending: exact_ref, raw_sha256, and git_blob_id are null"
     )
-    if failure_injector is not None:
-        try:
-            failure_injector()
-        except Exception as exc:
-            raise Scale01VerificationError("injected preflight failure before publication") from exc
-    verify_no_write_evidence(
-        root,
-        fixture_root,
-        scratch_root,
-        no_write_evidence,
-        pre_snapshot=pre_snapshot,
-    )
-    return verified
