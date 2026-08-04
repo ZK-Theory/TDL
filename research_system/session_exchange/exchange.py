@@ -20,6 +20,25 @@ from research_system.store.objects import ObjectStore
 
 _SCHEMA_ROOT = Path(__file__).resolve().parents[2] / ".research-system" / "schemas" / "wp6-4"
 _UTC = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$")
+_EVIDENCE_CORE_FIELDS = (
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "mechanics_scope",
+    "provider_control",
+    "evidence_artifact_id",
+    "revision",
+    "handoff_id",
+    "session_id",
+    "attempt_id",
+    "task_id",
+    "brief_subject",
+    "producer_identity_locator",
+    "producer_verdict",
+    "returned_artifacts",
+    "test_evidence",
+    "unresolved_findings",
+)
 
 
 @dataclass(frozen=True)
@@ -241,10 +260,19 @@ def _external_record(
     return evidence, record
 
 
+def _evidence_core(document: dict[str, Any]) -> dict[str, Any]:
+    return {field: document[field] for field in _EVIDENCE_CORE_FIELDS}
+
+
+def _evidence_subject_raw_sha256(document: dict[str, Any]) -> str:
+    return sha256_hex(canonical_bytes(_evidence_core(document)))
+
+
 def _session_subject(
     brief: dict[str, Any],
     brief_raw: bytes,
     evidence_artifact_id: str,
+    evidence_subject_raw_sha256: str,
 ) -> dict[str, Any]:
     return {
         "handoff_id": brief["handoff_id"],
@@ -256,6 +284,8 @@ def _session_subject(
         "brief_document_raw_sha256": sha256_hex(brief_raw),
         "brief_raw_sha256": brief["brief"]["raw_sha256"],
         "evidence_artifact_id": evidence_artifact_id,
+        "evidence_revision": 1,
+        "evidence_subject_raw_sha256": evidence_subject_raw_sha256,
         "git_subject": brief["git_subject"],
     }
 
@@ -299,7 +329,6 @@ def record_session_evidence(
     if mismatches:
         raise ConflictError(f"evidence does not bind the prepared brief: {', '.join(mismatches)}")
     brief_raw = canonical_bytes(brief)
-    expected_subject = _session_subject(brief, brief_raw, evidence_artifact_id)
     prepared_time = _validate_utc(brief["prepared_at"], "brief prepared_at")
     if recorded_time < prepared_time:
         raise SchemaError("recorded_at cannot precede the prepared session brief")
@@ -313,6 +342,51 @@ def record_session_evidence(
     document_ids = {brief_artifact_id, evidence_artifact_id}
     if len(document_ids) != 2 or document_ids.intersection(combined_ids):
         raise SchemaError("document and returned evidence identities must be disjoint")
+    findings = [
+        {
+            "finding_id": finding.finding_id,
+            "severity": finding.severity,
+            "status": "unresolved",
+            "summary": finding.summary,
+        }
+        for finding in unresolved_findings
+    ]
+    finding_ids = [finding["finding_id"] for finding in findings]
+    if len(finding_ids) != len(set(finding_ids)):
+        raise SchemaError("unresolved finding identities must be unique")
+    brief_subject = {
+        "brief_artifact_id": brief_artifact_id,
+        "revision": 1,
+        "document_raw_sha256": sha256_hex(brief_raw),
+        "brief_raw_sha256": brief["brief"]["raw_sha256"],
+        "git_subject": brief["git_subject"],
+    }
+    evidence_core: dict[str, Any] = {
+        "schema_id": "ars://wp6-4/owner-operated-session-evidence",
+        "schema_version": "1.0.0",
+        "document_type": "owner_operated_session_evidence",
+        "mechanics_scope": "fixture_or_operator_supplied_inputs_only",
+        "provider_control": "owner_operated_no_ars_transport",
+        "evidence_artifact_id": evidence_artifact_id,
+        "revision": 1,
+        "handoff_id": handoff_id,
+        "session_id": session_id,
+        "attempt_id": attempt_id,
+        "task_id": brief["task_id"],
+        "brief_subject": brief_subject,
+        "producer_identity_locator": producer_identity_locator,
+        "producer_verdict": producer_verdict,
+        "returned_artifacts": artifacts,
+        "test_evidence": tests,
+        "unresolved_findings": findings,
+    }
+    evidence_subject_raw_sha256 = _evidence_subject_raw_sha256(evidence_core)
+    expected_subject = _session_subject(
+        brief,
+        brief_raw,
+        evidence_artifact_id,
+        evidence_subject_raw_sha256,
+    )
     review: dict[str, Any]
     acceptance: dict[str, Any]
     document_state: str
@@ -431,48 +505,17 @@ def record_session_evidence(
     all_locators = combined_locators + external_locators
     if len(all_locators) != len(set(all_locators)):
         raise SchemaError("returned and external evidence locators must be disjoint")
-    findings = [
-        {
-            "finding_id": finding.finding_id,
-            "severity": finding.severity,
-            "status": "unresolved",
-            "summary": finding.summary,
-        }
-        for finding in unresolved_findings
-    ]
-    finding_ids = [finding["finding_id"] for finding in findings]
-    if len(finding_ids) != len(set(finding_ids)):
-        raise SchemaError("unresolved finding identities must be unique")
     document: dict[str, Any] = {
-        "schema_id": "ars://wp6-4/owner-operated-session-evidence",
-        "schema_version": "1.0.0",
-        "document_type": "owner_operated_session_evidence",
+        **evidence_core,
         "document_state": document_state,
-        "mechanics_scope": "fixture_or_operator_supplied_inputs_only",
-        "provider_control": "owner_operated_no_ars_transport",
-        "evidence_artifact_id": evidence_artifact_id,
-        "revision": 1,
-        "handoff_id": handoff_id,
-        "session_id": session_id,
-        "attempt_id": attempt_id,
-        "task_id": brief["task_id"],
-        "brief_subject": {
-            "brief_artifact_id": brief_artifact_id,
-            "revision": 1,
-            "document_raw_sha256": sha256_hex(brief_raw),
-            "brief_raw_sha256": brief["brief"]["raw_sha256"],
-            "git_subject": brief["git_subject"],
-        },
-        "producer_identity_locator": producer_identity_locator,
-        "producer_verdict": producer_verdict,
-        "returned_artifacts": artifacts,
-        "test_evidence": tests,
-        "unresolved_findings": findings,
+        "evidence_subject_raw_sha256": evidence_subject_raw_sha256,
         "review": review,
         "acceptance": acceptance,
         "recorded_at": recorded_at,
     }
     _validate_document(document, "owner-operated-session-evidence.schema.json")
+    if _evidence_subject_raw_sha256(document) != document["evidence_subject_raw_sha256"]:
+        raise ConflictError("session evidence document does not bind its exact evidence subject")
     path = store.write("artefact", evidence_artifact_id, 1, document)
     raw = path.read_bytes()
     return PublishedSessionDocument(path=path, raw_sha256=sha256_hex(raw), document=document)

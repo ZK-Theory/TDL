@@ -11,6 +11,7 @@
     "mechanics_scope",
     "provider_control",
     "evidence_artifact_id",
+    "evidence_subject_raw_sha256",
     "revision",
     "handoff_id",
     "session_id",
@@ -34,6 +35,7 @@
     "mechanics_scope": {"const": "fixture_or_operator_supplied_inputs_only"},
     "provider_control": {"const": "owner_operated_no_ars_transport"},
     "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
+    "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
     "revision": {"const": 1},
     "handoff_id": {"$ref": "#/$defs/handoffId"},
     "session_id": {"$ref": "#/$defs/sessionId"},
@@ -140,6 +142,8 @@
         "brief_document_raw_sha256",
         "brief_raw_sha256",
         "evidence_artifact_id",
+        "evidence_revision",
+        "evidence_subject_raw_sha256",
         "git_subject"
       ],
       "properties": {
@@ -152,6 +156,8 @@
         "brief_document_raw_sha256": {"$ref": "#/$defs/sha256"},
         "brief_raw_sha256": {"$ref": "#/$defs/sha256"},
         "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "evidence_revision": {"const": 1},
+        "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
         "git_subject": {"$ref": "#/$defs/gitSubject"}
       },
       "additionalProperties": false
