@@ -149,7 +149,7 @@ class RelationshipEvidenceFactsStore:
         """Derive facts, authorize publication in-lock, and persist by CAS."""
 
         self._validate_revision_numbers(revision, expected_previous_revision)
-        protected_record = self._validate_protected_relationship(protected_relationship, publication_context)
+        protected_record = self._validate_protected_relationship(protected_relationship)
         self._validate_relationship_participants(protected_record, producer=producer, reviewer=reviewer)
         record = self._build_record(
             relationship_evidence_facts_id=relationship_evidence_facts_id,
@@ -171,7 +171,7 @@ class RelationshipEvidenceFactsStore:
         published_at = self._trusted_now()
         self._validate_current_at_publication(record, published_at)
         with WriterLock(
-            self.binding.control_root / "runtime" / "writer.lock",
+            self.control_root / "runtime" / "writer.lock",
             {
                 "operation": "relationship_evidence_facts_publication",
                 "relationship_evidence_facts_id": relationship_evidence_facts_id,
@@ -222,7 +222,6 @@ class RelationshipEvidenceFactsStore:
     def _validate_protected_relationship(
         self,
         protected_relationship: ProtectedRelationshipReference,
-        publication_context: ExternalRecordPublicationContext,
     ) -> Mapping[str, object]:
         try:
             resolution = ControlStoreAuthorityResolver(self.binding).resolve_with_receipt(
@@ -522,7 +521,7 @@ class RelationshipEvidenceFactsStore:
         if self._authority_schemas is None or self._authority_resolver is None:
             self._authority_schemas = runtime_schema_registry(self.binding.schema_root)
             self._authority_resolver = LedgerAuthorityGrantResolver(
-                self.binding.control_root,
+                self.control_root,
                 self.binding.project_id,
                 self.binding.store_identity,
                 self._authority_schemas,
@@ -621,7 +620,8 @@ class RelationshipEvidenceFactsStore:
             raise ConflictError("relationship-evidence-facts revision already exists with different content")
         if observed != expected_previous_revision:
             raise ConflictError(
-                f"expected previous relationship-evidence-facts revision {expected_previous_revision}, observed {observed}"
+                "expected previous relationship-evidence-facts revision "
+                f"{expected_previous_revision}, observed {observed}"
             )
         data = canonical_bytes(record)
         directory = self.control_root / "runtime" / FACTS_ROOT / relationship_evidence_facts_id

@@ -728,7 +728,7 @@ class ExternalAssuranceRecordStore:
                 raise SchemaError("caller/body owner identity mismatch")
         elif record_class == "active_authority_grant":
             if record.get("actor_id") != caller_id:
-                raise SchemaError("caller/body authority-grant identity mismatch")
+                raise SchemaError("caller/body authority-grant actor identity mismatch")
 
     @staticmethod
     def _publication_action_payload(context: ExternalRecordPublicationContext) -> dict[str, Any]:

@@ -1501,7 +1501,7 @@ def test_governed_relationship_facts_publish_authorized_round_trip(tmp_path: Pat
         ("visible", "independence grade"),
     ),
 )
-def test_governed_relationship_facts_rejects_non_independent_or_visible_producer_inputs(
+def test_relationship_facts_derivation_rejects_non_independent_or_visible_producer_inputs(
     tmp_path: Path,
     field: str,
     message: str,

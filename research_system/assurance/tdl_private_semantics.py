@@ -118,6 +118,12 @@ def _canonical_sha256(value: object) -> str:
     return sha256_hex(canonical_bytes(value))
 
 
+def _nonempty_string(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise PackUnconsumable(f"{label} must be a nonempty string")
+    return value
+
+
 def _rows_by_id(rows: object, id_field: str, label: str) -> dict[str, Mapping[str, object]]:
     result: dict[str, Mapping[str, object]] = {}
     for row_value in _sequence(rows, label):
@@ -236,14 +242,20 @@ def _validate_candidate_projection(
         raise PackUnconsumable("candidate fixture ids differ from accepted contract")
     boundary = _mapping(required.get("fixture_execution_boundary"), "fixture execution boundary")
     evidence = _mapping(required.get("external_acceptance_evidence"), "external acceptance evidence")
-    boundary_sets = {
+    boundary_lists = (
         tuple(_sequence(evidence.get("required_executed_boundary_fixture_ids"), "required boundary fixtures")),
         tuple(_sequence(boundary.get("upstream_executable_fixture_ids"), "upstream boundary fixtures")),
         tuple(_sequence(boundary.get("downstream_scientific_execution_fixture_ids"), "downstream boundary fixtures")),
-    }
-    if len(boundary_sets) != 1 or len(next(iter(boundary_sets))) != _EXPECTED_BOUNDARY_FIXTURE_COUNT:
+    )
+    if len(set(boundary_lists)) != 1:
         raise PackUnconsumable("boundary fixture declarations do not agree exactly")
-    if set(next(iter(boundary_sets))) - observed_fixture_ids:
+    boundary_ids = set(boundary_lists[0])
+    if (
+        len(boundary_lists[0]) != _EXPECTED_BOUNDARY_FIXTURE_COUNT
+        or len(boundary_ids) != _EXPECTED_BOUNDARY_FIXTURE_COUNT
+    ):
+        raise PackUnconsumable("boundary fixture declarations do not agree exactly")
+    if boundary_ids - observed_fixture_ids:
         raise PackUnconsumable("candidate fixture projection lacks exact boundary fixtures")
     return expected_applicability
 
@@ -271,14 +283,19 @@ def _validate_review_operator_provenance(
     provenance = _mapping(review.get("operator_provenance"), f"{label} operator provenance")
     producer = _mapping(provenance.get("producer_operator"), f"{label} producer operator")
     reviewer = _mapping(provenance.get("reviewer_operator"), f"{label} reviewer operator")
+    producer_task_id = _nonempty_string(provenance.get("producer_task_id"), f"{label} producer task id")
+    review_task_id = _nonempty_string(provenance.get("review_task_id"), f"{label} review task id")
+    producer_session_id = _nonempty_string(provenance.get("producer_session_id"), f"{label} producer session id")
+    review_session_id = _nonempty_string(provenance.get("review_session_id"), f"{label} review session id")
+    _nonempty_string(provenance.get("handoff_id"), f"{label} handoff id")
     if (
         producer.get("actor_id") != producer_actor_id
         or reviewer.get("actor_id") != reviewer_actor_id
         or producer.get("operator_type") not in allowed_operator_types
         or reviewer.get("operator_type") not in allowed_operator_types
         or provenance.get("session_family") not in allowed_session_families
-        or provenance.get("producer_task_id") == provenance.get("review_task_id")
-        or provenance.get("producer_session_id") == provenance.get("review_session_id")
+        or producer_task_id == review_task_id
+        or producer_session_id == review_session_id
         or provenance.get("context_mode") != "fresh_task_no_parent_history"
         or provenance.get("fork_turns") != "none"
     ):
@@ -319,9 +336,10 @@ def _validate_contract_schema_lifecycle(
             raise PackUnconsumable("contract lifecycle does not bind the accepted contract subject")
         if record.get("pack_schema_subject") != accepted_pack_schema_subject:
             raise PackUnconsumable("contract lifecycle does not bind the accepted pack schema subject")
-    authorship_id = authorship.get("authorship_record_id")
-    contract_review_id = contract_review.get("review_record_id")
-    schema_review_id = schema_review.get("review_record_id")
+    authorship_id = _nonempty_string(authorship.get("authorship_record_id"), "contract/schema authorship id")
+    contract_review_id = _nonempty_string(contract_review.get("review_record_id"), "contract review id")
+    schema_review_id = _nonempty_string(schema_review.get("review_record_id"), "schema review id")
+    _nonempty_string(acceptance.get("owner_decision_id"), "contract/schema owner acceptance id")
     if (
         contract_review.get("authorship_record_id") != authorship_id
         or contract_review.get("authorship_record_sha256") != hash_manifest.get(str(authorship_id))
@@ -371,14 +389,17 @@ def _validate_contract_schema_lifecycle(
 
 
 def _requirement_content_preimage(requirement: Mapping[str, object]) -> dict[str, object]:
-    return {
-        "assurance_requirement_id": requirement["assurance_requirement_id"],
-        "revision": requirement["revision"],
-        "subject_contract": requirement["subject_contract"],
-        "canonical_requirement": requirement["canonical_requirement"],
-        "prospective_producer_actor_id": requirement["prospective_producer_actor_id"],
-        "obligation_applicability_rows": requirement["obligation_applicability_rows"],
-    }
+    try:
+        return {
+            "assurance_requirement_id": requirement["assurance_requirement_id"],
+            "revision": requirement["revision"],
+            "subject_contract": requirement["subject_contract"],
+            "canonical_requirement": requirement["canonical_requirement"],
+            "prospective_producer_actor_id": requirement["prospective_producer_actor_id"],
+            "obligation_applicability_rows": requirement["obligation_applicability_rows"],
+        }
+    except KeyError as exc:
+        raise PackUnconsumable(f"accepted requirement content preimage lacks {exc.args[0]}") from exc
 
 
 def _canonical_requirement_currency_hash(contract: Mapping[str, object], subject_contract: object) -> str:
@@ -508,14 +529,14 @@ def _validate_external_acceptance(
     schema_review_provenance: Mapping[str, object],
     evaluation_time: datetime,
 ) -> None:
-    pack_review = next(
-        (record for record in record_store.values() if record.get("record_type") == "independent_pack_review"), None
-    )
-    owner = next(
-        (record for record in record_store.values() if record.get("record_type") == "stephen_owner_acceptance"), None
-    )
-    if not isinstance(pack_review, Mapping) or not isinstance(owner, Mapping):
-        raise PackUnconsumable("acceptance requires independent review and owner acceptance records")
+    pack_reviews = [
+        record for record in record_store.values() if record.get("record_type") == "independent_pack_review"
+    ]
+    owners = [record for record in record_store.values() if record.get("record_type") == "stephen_owner_acceptance"]
+    if len(pack_reviews) != 1 or len(owners) != 1:
+        raise PackUnconsumable("acceptance requires exactly one independent review and owner acceptance record")
+    pack_review = pack_reviews[0]
+    owner = owners[0]
     review_id = pack_review.get("review_record_id")
     owner_id = owner.get("owner_decision_id")
     review = _record(record_store, hash_manifest, review_id, "independent_pack_review")
@@ -568,7 +589,7 @@ def _validate_external_acceptance(
     )
     canonical_requirement = _mapping(requirement.get("canonical_requirement"), "canonical requirement")
     if canonical_requirement.get("task_id") != provenance.get("producer_task_id"):
-        raise PackUnconsumable("pack review task provenance does not prove a separate fresh context")
+        raise PackUnconsumable("pack review producer task does not match the canonical requirement task")
     if (
         len(
             {

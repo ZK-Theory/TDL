@@ -24,6 +24,7 @@ from research_system.assurance.runner import (
 from research_system.assurance import runner as runner_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
+from research_system.errors import ConfigurationError
 from research_system import cli
 from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pack_contract as frozen
 
@@ -373,6 +374,44 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, productio
     return config, candidate_path, locators, record_resolver, facts_reader, authority
 
 
+def _semantic_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config, candidate_path, _, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    reader = _GitObjectReader(config.repository_root)
+    candidate = reader.candidate(candidate_path)
+    pack = runner_module._candidate_pack(candidate)
+    subject = runner_module._candidate_subject(candidate, pack)
+    contract = frozen._load_yaml(frozen.CONTRACT_PATH)
+    snapshot = runner_module.GitCurrentReferenceResolver(reader).resolve(contract, commit=candidate.commit)
+    records = {
+        record_id: ExternalRecordResolution(
+            record["record_type"],
+            record_id,
+            1,
+            sha256_hex(canonical_bytes(record)),
+            record,
+        )
+        for record_id, record in record_resolver.record_store.items()
+    }
+    return contract, pack, records, subject, snapshot
+
+
+def _replace_resolution(
+    records: dict[str, ExternalRecordResolution],
+    record_id: str,
+    body: dict[str, object],
+) -> dict[str, ExternalRecordResolution]:
+    updated = dict(records)
+    current = records[record_id]
+    updated[record_id] = ExternalRecordResolution(
+        current.record_class,
+        record_id,
+        current.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+    return updated
+
+
 def _policy_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str):
     contract = frozen._load_yaml(frozen.CONTRACT_PATH)
     pack = frozen._proposed_pack(contract)
@@ -522,6 +561,7 @@ def test_acceptance_public_seam_rejects_incomplete_two_key_closure(
             run_id=run_id,
             record_locators=locators,
         )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
 
 
 def test_acceptance_public_seam_rejects_reused_pack_review_task(
@@ -553,6 +593,7 @@ def test_acceptance_public_seam_rejects_reused_pack_review_task(
             run_id=run_id,
             record_locators=locators,
         )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
 
 
 def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
@@ -560,7 +601,15 @@ def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
 ) -> None:
     config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
     record_store = record_resolver.record_store
-    record_store[frozen.OWNER_DECISION_ID]["authority_grant_id"] = "agr_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant_id = "agr_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant = deepcopy(record_store[frozen.OWNER_GRANT_ID])
+    foreign_grant["authority_grant_id"] = foreign_grant_id
+    foreign_grant["actor_id"] = "act_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant["subject_assurance_pack_id"] = "asp_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant["grant_state"] = "active"
+    foreign_grant["revoked"] = False
+    record_store[foreign_grant_id] = foreign_grant
+    record_store[frozen.OWNER_DECISION_ID]["authority_grant_id"] = foreign_grant_id
     evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
     run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3af"
     prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
@@ -571,8 +620,9 @@ def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
         run_id=run_id,
         record_locators=prepare_locators,
     )
+    locators["active_authority_grant"] = SemanticRecordLocator("active_authority_grant", foreign_grant_id)
 
-    with pytest.raises(PackUnconsumable, match="owner acceptance authority grant identity is foreign"):
+    with pytest.raises(PackUnconsumable, match="active authority grant is foreign"):
         accept_assurance_pack(
             config=config,
             candidate_path=candidate_path,
@@ -580,6 +630,7 @@ def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
             run_id=run_id,
             record_locators=locators,
         )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
 
 
 def test_prepare_public_seam_rejects_mismatched_contract_review_relationship(
@@ -656,6 +707,51 @@ def test_acceptance_public_seam_rejects_pack_review_fact_operator_mismatch_witho
     fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
     body = deepcopy(fact.record)
     body["reviewer"][field] = value
+    facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
+        fact.record_id,
+        fact.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+
+    with pytest.raises(PackUnconsumable, match="operator provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("task_id", "tsk_00000000-0000-7000-8000-0000000000aa"),
+        ("operator_session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
+        ("stable_handoff_or_run_id", "hnd_00000000-0000-7000-8000-0000000000ff"),
+    ),
+)
+def test_acceptance_public_seam_rejects_pack_review_fact_producer_mismatch_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b3"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    body = deepcopy(fact.record)
+    body["producer"][field] = value
     facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
         fact.record_id,
         fact.revision,
@@ -911,14 +1007,67 @@ def test_cli_requires_bound_authority_inputs_and_exposes_both_phases() -> None:
             "--config",
             "binding.yaml",
             "--facts",
-            "relationship-facts.json",
+            "relationship-facts.yaml",
         ]
     )
     assert facts.assurance_pack_action == "publish-relationship-facts"
+    assert facts.handler is cli._assurance_relationship_facts_publish
+    assert facts.config == Path("binding.yaml")
+    assert facts.facts == Path("relationship-facts.yaml")
 
 
-def test_prepare_public_seam_rejects_without_future_review_or_owner_records(
+def test_relationship_facts_cli_rejects_malformed_input_without_publishing(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts_path = tmp_path / "relationship-facts.yaml"
+    facts_path.write_text(
+        "relationship_evidence_facts_id: rel_01978abc-6300-7000-8000-0000000063a0\n", encoding="utf-8"
+    )
+
+    class _Store:
+        def __init__(self, _binding: object) -> None:
+            pass
+
+        def publish(self, **_kwargs: object) -> object:
+            raise AssertionError("malformed input must not reach relationship-facts publication")
+
+    monkeypatch.setattr(cli.ControlBinding, "load", staticmethod(lambda _path: object()))
+    monkeypatch.setattr(cli, "RelationshipEvidenceFactsStore", _Store)
+
+    args = cli._parser().parse_args(
+        [
+            "assurance-pack",
+            "publish-relationship-facts",
+            "--config",
+            str(tmp_path / "binding.yaml"),
+            "--facts",
+            str(facts_path),
+        ]
+    )
+    with pytest.raises(ConfigurationError, match="malformed relationship-facts input"):
+        args.handler(args)
+
+
+@pytest.mark.parametrize(
+    ("future_key", "locator"),
+    (
+        ("independent_pack_review", SemanticRecordLocator("independent_pack_review", frozen.REVIEW_RECORD_ID)),
+        (
+            "pack_review_relationship",
+            SemanticRecordLocator("producer_relationship_evidence", frozen.REVIEW_RELATIONSHIP_ID),
+        ),
+        (
+            "relationship_evidence_facts:pack_review",
+            SemanticRecordLocator("relationship_evidence_facts", frozen.REVIEW_RELATIONSHIP_ID),
+        ),
+        ("stephen_owner_acceptance", SemanticRecordLocator("stephen_owner_acceptance", frozen.OWNER_DECISION_ID)),
+    ),
+)
+def test_prepare_public_seam_rejects_future_review_or_owner_records(
+    tmp_path: Path,
+    future_key: str,
+    locator: SemanticRecordLocator,
 ) -> None:
     """Prepare must be a real public phase, not a test-only loader shortcut."""
 
@@ -931,9 +1080,106 @@ def test_prepare_public_seam_rejects_without_future_review_or_owner_records(
             candidate_path=tmp_path / ".research-system" / "packs" / "tdl-private-assurance.yaml",
             evaluation_time=datetime(2026, 8, 3, 12, tzinfo=UTC),
             run_id="run_019fc96b-2ddc-7740-9d6c-425adf7fa3ab",
-            record_locators={
-                "independent_pack_review": SemanticRecordLocator(
-                    "independent_pack_review", "arv_019fc96b-2ddc-7740-9d6c-425adf7fa3ab"
-                )
-            },
+            record_locators={future_key: locator},
+        )
+
+
+def test_tdl_private_semantics_rejects_duplicate_boundary_fixture_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    required = contract["required_pack_contract"]
+    evidence = required["external_acceptance_evidence"]
+    boundary = required["fixture_execution_boundary"]
+    fixture_ids = list(evidence["required_executed_boundary_fixture_ids"])
+    duplicate_boundary = [fixture_ids[0], fixture_ids[0], fixture_ids[1]]
+    evidence["required_executed_boundary_fixture_ids"] = duplicate_boundary
+    boundary["upstream_executable_fixture_ids"] = duplicate_boundary
+    boundary["downstream_scientific_execution_fixture_ids"] = duplicate_boundary
+
+    with pytest.raises(PackUnconsumable, match="boundary fixture declarations"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+def test_tdl_private_semantics_wraps_missing_requirement_preimage_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    requirement = deepcopy(records[frozen.REQUIREMENT_RECORD_ID].record)
+    del requirement["obligation_applicability_rows"]
+    pack["assurance_requirement_reference"]["acceptance_record_sha256"] = sha256_hex(canonical_bytes(requirement))
+    records = _replace_resolution(records, frozen.REQUIREMENT_RECORD_ID, requirement)
+
+    with pytest.raises(PackUnconsumable, match="content preimage lacks obligation_applicability_rows"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+def test_tdl_private_semantics_rejects_empty_lifecycle_handoff_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    review = deepcopy(records[frozen.CONTRACT_REVIEW_RECORD_ID].record)
+    review["operator_provenance"]["handoff_id"] = ""
+    records = _replace_resolution(records, frozen.CONTRACT_REVIEW_RECORD_ID, review)
+
+    with pytest.raises(PackUnconsumable, match="contract handoff id"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+@pytest.mark.parametrize(
+    ("source_id", "duplicate_id"),
+    (
+        (frozen.REVIEW_RECORD_ID, "arv_00000000-0000-7000-8000-0000000000ee"),
+        (frozen.OWNER_DECISION_ID, "apr_00000000-0000-7000-8000-0000000000ee"),
+    ),
+)
+def test_tdl_private_semantics_rejects_duplicate_pack_review_or_owner_acceptance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_id: str,
+    duplicate_id: str,
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    duplicate = deepcopy(records[source_id].record)
+    records[duplicate_id] = ExternalRecordResolution(
+        duplicate["record_type"],
+        duplicate_id,
+        1,
+        sha256_hex(canonical_bytes(duplicate)),
+        duplicate,
+    )
+
+    with pytest.raises(PackUnconsumable, match="exactly one independent review and owner acceptance"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="acceptance",
         )
