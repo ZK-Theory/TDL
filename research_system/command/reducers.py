@@ -12,6 +12,7 @@ from research_system.command.lifecycle import (
     materialize_scope_member_changes,
     validate_exact_lifecycle_envelope,
 )
+from research_system.operations.resources import derive_resource_grant_record
 
 
 _TASK_TERMINAL = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
@@ -587,15 +588,17 @@ def reduce_resource(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
     if event_type == "ResourceGrantRequested":
         if state or payload["resource_id"] != event["stream_id"]:
             raise ValueError("ResourceGrantRequested requires an empty bound Resource stream")
+        grant = derive_resource_grant_record(payload)
         return {
             "resource_id": event["stream_id"],
-            "status": "requested",
-            "request": payload["resource_request"],
+            "status": "active",
+            "request": grant["granted_claims"],
+            "grant": grant,
             "version": event["stream_version"],
         }
     if event_type == "ResourcesReleased":
-        if not state or state.get("status") != "requested" or payload["resource_id"] != state.get("resource_id"):
-            raise ValueError("ResourcesReleased requires requested Resource")
+        if not state or state.get("status") != "active" or payload["resource_id"] != state.get("resource_id"):
+            raise ValueError("ResourcesReleased requires active Resource")
         return {**state, "status": "released", "release": payload, "version": event["stream_version"]}
     raise ValueError(f"illegal resource transition: {state.get('status')} -> {event_type}")
 

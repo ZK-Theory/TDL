@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from tests.research_system.factories import (
     activate_lifecycle_grant,
     control_plane,
     create_task_command,
+    scoped_lifecycle_grant_id,
 )
 
 
@@ -31,6 +33,7 @@ LEASE_ID = "els_01978abc-7206-7000-8000-000000007206"
 OTHER_LEASE_ID = "els_01978abc-7207-7000-8000-000000007207"
 PROCESS_ID = "pid_01978abc-7208-7000-8000-000000007208"
 OTHER_PROCESS_ID = "pid_01978abc-7209-7000-8000-000000007209"
+CONTEXT_ID = "ctx_01978abc-7212-7000-8000-000000007212"
 HEARTBEAT_ID = "hbt_01978abc-7210-7000-8000-000000007210"
 CHECKPOINT_ID = "cpm_01978abc-7211-7000-8000-000000007211"
 POLICY_ID = "pol_01978abc-7212-7000-8000-000000007212"
@@ -39,6 +42,7 @@ GRANTED_AT = "2026-08-01T12:00:00Z"
 INITIAL_EXPIRY = "2026-08-01T13:00:00Z"
 RENEWED_EXPIRY = "2026-08-01T14:00:00Z"
 OBSERVED_AT = "2026-08-01T12:20:00Z"
+C1_NOW = datetime(2026, 8, 1, 12, 30, tzinfo=UTC)
 
 
 C1_ROWS = (
@@ -162,6 +166,159 @@ def _approve_readiness_command(
     )
 
 
+def _dispatch_definition() -> dict[str, Any]:
+    return {
+        "dispatch_id": DISPATCH_ID,
+        "task_id": TASK_ID,
+        "task_revision": 1,
+        "target_role": "bounded-worker",
+        "target_profile": "luna-max",
+        "target_actor_id": ACTORS["actor-a"],
+        "model_eval_profile_ref": "model-eval:bounded:v1",
+        "context_packet_id": CONTEXT_ID,
+        "policy_version": POLICY_ID,
+        "assurance_plan_version": "1.0.0",
+        "root_bindings": [
+            {
+                "root_kind": "workspace",
+                "canonical_uri": "C:/workspace/c1",
+                "workspace_identity": "workspace:c1-synthetic",
+                "access_mode": "read_write",
+                "expected_branch": "codex/wp6-1-c1-resource-grant",
+                "expected_commit": "git:sha1:" + "a" * 40,
+                "provenance_authority": "owner:c1",
+            }
+        ],
+        "branch_identity": "codex/wp6-1-c1-resource-grant",
+        "worktree_identity": "worktree:c1-synthetic",
+        "expected_commit": "git:sha1:" + "a" * 40,
+        "capabilities": ["run:task"],
+        "permissions": ["write:workspace"],
+        "resource_request_id": RESOURCE_REQUEST_ID,
+        "output_namespace": "results:c1-synthetic",
+        "delivery_deadline": INITIAL_EXPIRY,
+        "claim_deadline": INITIAL_EXPIRY,
+        "concurrency_mode": "exclusive",
+        "stop_rules": ["stop on failed contract"],
+        "partial_rules": ["retain partial output"],
+        "escalation_rules": ["escalate to c1-owner"],
+    }
+
+
+def _issue_dispatch_command(*, number: int) -> dict[str, Any]:
+    definition = _dispatch_definition()
+    return _c1_command(
+        _command_id(number),
+        "IssueDispatch",
+        DISPATCH_ID,
+        0,
+        {"dispatch_id": DISPATCH_ID, "definition": definition},
+    )
+
+
+def _record_dispatch_delivery_command(*, number: int, expected_stream_version: int = 1) -> dict[str, Any]:
+    return _c1_command(
+        _command_id(number),
+        "RecordDispatchDelivery",
+        DISPATCH_ID,
+        expected_stream_version,
+        {
+            "dispatch_id": DISPATCH_ID,
+            "delivery_adapter_id": "adapter:c1-synthetic",
+            "recipient_actor_id": ACTORS["actor-a"],
+            "delivery_evidence_refs": ["evidence:dispatch-delivery:c1"],
+        },
+    )
+
+
+def _acknowledge_dispatch_command(*, number: int, expected_stream_version: int = 2) -> dict[str, Any]:
+    return _c1_command(
+        _command_id(number),
+        "AcknowledgeDispatch",
+        DISPATCH_ID,
+        expected_stream_version,
+        {
+            "dispatch_id": DISPATCH_ID,
+            "acknowledged_at": OBSERVED_AT,
+            "recipient_actor_id": ACTORS["actor-a"],
+            "delivery_identity": "delivery:c1-synthetic",
+        },
+    )
+
+
+def _claim_dispatch_command(harness, *, number: int) -> dict[str, Any]:
+    snapshot = harness.ledger.snapshot()
+    return _c1_command(
+        _command_id(number),
+        "ClaimDispatch",
+        DISPATCH_ID,
+        3,
+        {
+            "dispatch_id": DISPATCH_ID,
+            "task_id": TASK_ID,
+            "task_revision": 1,
+            "lease_id": LEASE_ID,
+            "expected_dispatch_stream_version": 3,
+            "expected_task_stream_version": snapshot.stream_versions[TASK_ID],
+            "declared_write_set": ["dispatch", "task"],
+            "expected_global_position": len(snapshot.events),
+            "expected_tail_hash": snapshot.events[-1]["event_hash"],
+        },
+    )
+
+
+def _create_attempt_command(*, number: int) -> dict[str, Any]:
+    return _c1_command(
+        _command_id(number),
+        "CreateAttempt",
+        ATTEMPT_ID,
+        0,
+        {
+            "new_attempt_id": ATTEMPT_ID,
+            "task_id": TASK_ID,
+            "task_revision": 1,
+            "dispatch_id": DISPATCH_ID,
+            "attempt_ordinal": 1,
+            "execution_epoch": 1,
+        },
+    )
+
+
+def _claim_attempt_command(*, number: int, expected_stream_version: int = 1) -> dict[str, Any]:
+    return _c1_command(
+        _command_id(number),
+        "ClaimAttempt",
+        ATTEMPT_ID,
+        expected_stream_version,
+        {
+            "attempt_id": ATTEMPT_ID,
+            "lease_id": LEASE_ID,
+            "task_id": TASK_ID,
+            "task_revision": 1,
+            "dispatch_id": DISPATCH_ID,
+        },
+    )
+
+
+def _start_attempt_command(*, number: int, expected_stream_version: int = 2) -> dict[str, Any]:
+    definition = _dispatch_definition()
+    return _c1_command(
+        _command_id(number),
+        "StartAttempt",
+        ATTEMPT_ID,
+        expected_stream_version,
+        {
+            "attempt_id": ATTEMPT_ID,
+            "process_identity_id": PROCESS_ID,
+            "session_identity": "session:c1-luna",
+            "context_packet_id": definition["context_packet_id"],
+            "root_bindings": definition["root_bindings"],
+            "code_identity": "git:sha1:" + "b" * 40,
+            "environment_fingerprint": "c" * 64,
+        },
+    )
+
+
 def _resource_request_payload() -> dict[str, Any]:
     evidence = {
         "disposition": "required",
@@ -185,7 +342,7 @@ def _resource_request_payload() -> dict[str, Any]:
             "operational_profile_revision": "1.0.0",
             "requesting_actor_id": ACTORS["actor-a"],
             "requesting_profile": "luna-max",
-            "requesting_authority_grant_id": AUTHORITY_GRANT_ID,
+            "requesting_authority_grant_id": scoped_lifecycle_grant_id(RESOURCE_GRANT_ID),
             "expected_control_store_position": 0,
             "requested_host_pool": ["host:c1-synthetic"],
             "root_bindings": [
@@ -237,6 +394,20 @@ def _resource_request_payload() -> dict[str, Any]:
                 "checkpoint": evidence,
             },
         },
+    }
+
+
+def _expected_resource_grant_record(payload: dict[str, Any]) -> dict[str, Any]:
+    request = payload["resource_request"]
+    return {
+        "schema_id": "ars://operations/resource-grant",
+        "schema_version": "1.0.0",
+        "resource_grant_id": payload["resource_id"],
+        "resource_request_id": request["resource_request_id"],
+        "attempt_id": request["attempt_id"],
+        "profile_id": request["operational_profile_policy_id"],
+        "granted_claims": deepcopy(request),
+        "expires_at": request["deadline"],
     }
 
 
@@ -451,6 +622,23 @@ def _json_files(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*.json")}
 
 
+def _c1_control_plane(tmp_path: Path, *, now: datetime = C1_NOW):
+    return control_plane(tmp_path, clock=lambda: now)
+
+
+def _resource_grant_path(harness) -> Path:
+    matches = sorted(
+        (harness.objects.control_root / "objects" / "resource_grant" / RESOURCE_GRANT_ID).glob("00000001-*.json")
+    )
+    assert len(matches) == 1
+    return matches[0]
+
+
+def _replace_resource_grant_record(harness, record: dict[str, Any]) -> None:
+    _resource_grant_path(harness).unlink()
+    harness.objects.write("resource_grant", RESOURCE_GRANT_ID, 1, record)
+
+
 def _domain_snapshot(harness) -> dict[str, Any]:
     events = tuple(harness.ledger.iter_events())
     ledger_snapshot = harness.ledger.snapshot()
@@ -463,12 +651,20 @@ def _domain_snapshot(harness) -> dict[str, Any]:
     }
 
 
+def _grant_admission_snapshot(harness) -> dict[str, Any]:
+    return {
+        **_domain_snapshot(harness),
+        "receipts": _json_files(harness.objects.control_root / "receipts"),
+    }
+
+
 def _assert_event(
     harness,
     command: dict[str, Any],
     *,
     event_type: str,
     resulting_stream_version: int,
+    event_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     receipt = harness.service.submit(command)
     assert isinstance(receipt, Receipt)
@@ -483,11 +679,11 @@ def _assert_event(
     assert event["command_type"] == command["command_type"]
     assert event["command_schema_id"] == command["schema_id"]
     assert event["command_schema_version"] == command["schema_version"]
-    assert event["payload"] == command["payload"]
+    assert event["payload"] == (command["payload"] if event_payload is None else event_payload)
     return event
 
 
-def _seed_ready_resource_request(harness) -> None:
+def _seed_ready_task(harness) -> None:
     _create_task(harness, command_number=1)
     _assert_event(
         harness,
@@ -501,6 +697,10 @@ def _seed_ready_resource_request(harness) -> None:
         event_type="ReadinessApproved",
         resulting_stream_version=3,
     )
+
+
+def _seed_ready_resource_request(harness) -> None:
+    _seed_ready_task(harness)
     _assert_event(
         harness,
         _request_resource_command(number=4),
@@ -512,8 +712,6 @@ def _seed_ready_resource_request(harness) -> None:
 def _seed_lease(harness) -> None:
     _seed_ready_resource_request(harness)
     receipt = harness.service.submit(_claim_execution_lease_command(number=5))
-    if receipt.reason_code == "resource_grant_unmaterialized":
-        pytest.skip("C1 has no accepted ResourceGrant materialization command or event")
     assert receipt.status == "accepted"
     event = tuple(harness.ledger.iter_events())[-1]
     assert event["event_type"] == "LeaseGranted"
@@ -640,9 +838,55 @@ def test_readiness_requires_the_current_authority_subject(tmp_path):
     assert _domain_snapshot(harness) == before
 
 
-def test_resource_request_records_only_request_and_blocks_unmaterialized_lease(tmp_path):
-    harness = control_plane(tmp_path)
+def test_resource_request_materializes_active_grant_and_admits_lease(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(number=4)
+
+    _assert_event(
+        harness,
+        request,
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+
+    expected_grant = _expected_resource_grant_record(request["payload"])
+    assert harness.objects.read("resource_grant", RESOURCE_GRANT_ID, 1) == expected_grant
+    projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
+    assert projection["streams"][RESOURCE_GRANT_ID] == {
+        "resource_id": RESOURCE_GRANT_ID,
+        "status": "active",
+        "request": expected_grant["granted_claims"],
+        "grant": expected_grant,
+        "version": 1,
+    }
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=5),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+
+
+def test_resource_grant_preexisting_conflict_blocks_request_without_event(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(number=4)
+    conflicting = _expected_resource_grant_record(request["payload"])
+    conflicting["expires_at"] = "2026-08-01T12:45:00Z"
+    harness.objects.write("resource_grant", RESOURCE_GRANT_ID, 1, conflicting)
+    before = _domain_snapshot(harness)
+
+    with pytest.raises(ConflictError, match="resource grant revision conflicts"):
+        harness.service.submit(request)
+
+    assert _domain_snapshot(harness) == before
+
+
+def test_claim_execution_lease_rejects_missing_materialization_without_domain_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
     _seed_ready_resource_request(harness)
+    _resource_grant_path(harness).unlink()
     before = _domain_snapshot(harness)
 
     rejected = harness.service.submit(_claim_execution_lease_command(number=5))
@@ -650,6 +894,143 @@ def test_resource_request_records_only_request_and_blocks_unmaterialized_lease(t
     assert rejected.status == "rejected"
     assert rejected.reason_code == "resource_grant_unmaterialized"
     assert _domain_snapshot(harness) == before
+
+
+def test_claim_execution_lease_rejects_mismatched_materialization_without_domain_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_resource_request(harness)
+    mismatched = _expected_resource_grant_record(_resource_request_payload())
+    mismatched["expires_at"] = "2026-08-01T12:45:00Z"
+    _replace_resource_grant_record(harness, mismatched)
+    before = _domain_snapshot(harness)
+
+    rejected = harness.service.submit(_claim_execution_lease_command(number=5))
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_mismatch"
+    assert _domain_snapshot(harness) == before
+
+
+def test_claim_execution_lease_rejects_expired_materialization_without_domain_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(number=4)
+    request["payload"]["resource_request"]["deadline"] = "2026-08-01T12:15:00Z"
+    _assert_event(
+        harness,
+        request,
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    lease = _claim_execution_lease_command(number=5)
+    lease["payload"]["expires_at"] = "2026-08-01T12:15:00Z"
+    before = _domain_snapshot(harness)
+
+    rejected = harness.service.submit(lease)
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "resource_grant_expired"
+    assert _domain_snapshot(harness) == before
+
+
+def test_request_resource_grant_retry_repairs_event_only_after_object_interruption(tmp_path, monkeypatch):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    request = _request_resource_command(number=4)
+    original_write = harness.objects.write
+    before_interruption = _grant_admission_snapshot(harness)
+
+    def interrupted_write(kind, object_id, revision, value):
+        if (kind, object_id, revision) == ("resource_grant", RESOURCE_GRANT_ID, 1):
+            raise OSError("interrupted after append")
+        return original_write(kind, object_id, revision, value)
+
+    monkeypatch.setattr(harness.objects, "write", interrupted_write)
+    with pytest.raises(OSError, match="interrupted after append"):
+        harness.service.submit(request)
+    committed = tuple(harness.ledger.iter_events())
+    assert committed[-1]["event_type"] == "ResourceGrantRequested"
+    assert not harness.objects.revision_exists("resource_grant", RESOURCE_GRANT_ID, 1)
+    assert _grant_admission_snapshot(harness)["receipts"] == before_interruption["receipts"]
+
+    monkeypatch.setattr(harness.objects, "write", original_write)
+    receipt = harness.service.submit(request)
+
+    assert receipt.status == "accepted"
+    assert tuple(harness.ledger.iter_events()) == committed
+    assert harness.objects.read("resource_grant", RESOURCE_GRANT_ID, 1) == _expected_resource_grant_record(
+        request["payload"]
+    )
+
+
+def test_public_admission_chain_reaches_claimed_task_and_running_attempt(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_ready_task(harness)
+    _assert_event(
+        harness,
+        _issue_dispatch_command(number=10),
+        event_type="DispatchIssued",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _record_dispatch_delivery_command(number=11),
+        event_type="DispatchDelivered",
+        resulting_stream_version=2,
+    )
+    _assert_event(
+        harness,
+        _acknowledge_dispatch_command(number=12),
+        event_type="DispatchAcknowledged",
+        resulting_stream_version=3,
+    )
+    _assert_event(
+        harness,
+        _request_resource_command(number=13),
+        event_type="ResourceGrantRequested",
+        resulting_stream_version=1,
+    )
+    _assert_event(
+        harness,
+        _claim_execution_lease_command(number=14),
+        event_type="LeaseGranted",
+        resulting_stream_version=1,
+    )
+    claim_dispatch = _claim_dispatch_command(harness, number=15)
+    claim_receipt = harness.service.submit(claim_dispatch)
+    assert claim_receipt.status == "accepted"
+    assert [event["event_type"] for event in tuple(harness.ledger.iter_events())[-2:]] == [
+        "DispatchClaimed",
+        "TaskClaimStarted",
+    ]
+    create_attempt = _create_attempt_command(number=16)
+    create_receipt = harness.service.submit(create_attempt)
+    assert create_receipt.status == "accepted"
+    created_event = tuple(harness.ledger.iter_events())[-1]
+    assert created_event["event_type"] == "AttemptCreated"
+    assert created_event["stream_id"] == ATTEMPT_ID
+    assert created_event["stream_version"] == 1
+    assert created_event["payload"] == {**create_attempt["payload"], "creation_kind": "initial"}
+    _assert_event(
+        harness,
+        _claim_attempt_command(number=17),
+        event_type="AttemptClaimed",
+        resulting_stream_version=2,
+    )
+    _assert_event(
+        harness,
+        _start_attempt_command(number=18),
+        event_type="AttemptStarted",
+        resulting_stream_version=3,
+    )
+
+    projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
+    assert any(
+        event["event_type"] == "TaskClaimStarted" and event["stream_id"] == TASK_ID
+        for event in harness.ledger.iter_events()
+    )
+    assert projection["streams"][TASK_ID]["status"] == "in_progress"
+    assert projection["streams"][ATTEMPT_ID]["status"] == "running"
 
 
 @pytest.mark.parametrize(
@@ -668,7 +1049,7 @@ def test_lease_terminal_rows_are_exact_and_close_the_live_lease(
     command_factory,
     expected_status,
 ):
-    harness = control_plane(tmp_path)
+    harness = _c1_control_plane(tmp_path)
     _seed_lease(harness)
 
     terminal = command_factory(number=8, expected_stream_version=1)
@@ -677,6 +1058,11 @@ def test_lease_terminal_rows_are_exact_and_close_the_live_lease(
         terminal,
         event_type=event_type,
         resulting_stream_version=2,
+        event_payload=(
+            {"lease_id": terminal["payload"]["lease_id"], "observed_at": terminal["payload"]["observed_at"]}
+            if command_type == "ExpireLease"
+            else None
+        ),
     )
     projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
     assert projection["streams"][LEASE_ID]["status"] == expected_status, (row_id, command_type)
@@ -697,7 +1083,7 @@ def test_lease_terminal_rows_are_exact_and_close_the_live_lease(
     ids=["wrong-holder", "substituted-expiry"],
 )
 def test_live_lease_holder_and_expiry_cannot_be_substituted(tmp_path, field, value):
-    harness = control_plane(tmp_path)
+    harness = _c1_control_plane(tmp_path)
     _seed_lease(harness)
     command = _renew_lease_command(number=10, expected_stream_version=1)
     command["payload"][field] = value
@@ -714,7 +1100,7 @@ def test_live_lease_holder_and_expiry_cannot_be_substituted(tmp_path, field, val
     ids=["wrong-host", "wrong-boot", "wrong-process"],
 )
 def test_heartbeat_requires_the_live_host_boot_and_process_identity(tmp_path, field):
-    harness = control_plane(tmp_path)
+    harness = _c1_control_plane(tmp_path)
     _seed_lease(harness)
     command = _heartbeat_command(number=11, expected_stream_version=1)
     command["payload"][field] = OTHER_PROCESS_ID if field == "process_identity_id" else f"{field}:other"

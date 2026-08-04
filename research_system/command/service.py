@@ -60,6 +60,11 @@ from research_system.operations.backups import (
     restore_admission_bundle_for_result,
     validate_restore_preflight_result,
 )
+from research_system.operations.resources import (
+    RESOURCE_GRANT_SCHEMA_ID,
+    RESOURCE_GRANT_SCHEMA_VERSION,
+    derive_resource_grant_record,
+)
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaIdentity, SchemaRegistry
 from research_system.store.ledger import (
@@ -1249,6 +1254,8 @@ class CommandService:
                 command_schema=command_schema,
             )
             if existing is not None:
+                if command.envelope["command_type"] == "RequestResourceGrant":
+                    self._ensure_resource_grant_materialized(command)
                 receipt = write_receipt(self._return_or_reconstruct(existing))
                 if activation_marker_status == "committed":
                     self._remove_scoped_activation_marker(command.command_id)
@@ -1365,6 +1372,8 @@ class CommandService:
                 if isinstance(prepared, Receipt):
                     return write_receipt(prepared)
                 prepared_payload = prepared
+                if command.envelope["command_type"] == "RequestResourceGrant":
+                    self._prepare_resource_grant_materialization(command)
             elif command.envelope["command_type"] == "RevokeAuthorityGrant":
                 try:
                     prepared_payload = self._prepare_authority_revocation(command, observed_version)
@@ -1948,6 +1957,8 @@ class CommandService:
                     event=event,
                     canonical_resolution=lifecycle_authority.canonical_resolution,
                 )
+                if command_type == "RequestResourceGrant":
+                    self._ensure_resource_grant_materialized(command)
             result = self.receipts.write_scoped(
                 self._authority_scope(command),
                 lifecycle_authority.authority_key,
@@ -2406,8 +2417,9 @@ class CommandService:
             task = streams.get(payload["task_id"])
             existing = [
                 value
-                for value in streams.values()
+                for stream_id, value in streams.items()
                 if isinstance(value, dict)
+                and value.get("attempt_id") == stream_id
                 and value.get("attempt_id")
                 and value.get("task_id") == payload["task_id"]
                 and value.get("dispatch_id") == payload["dispatch_id"]
@@ -2434,18 +2446,74 @@ class CommandService:
                 return rejected(
                     "resource_request_already_recorded", "Resource request requires an empty Resource stream."
                 )
+            request = payload["resource_request"]
+            if (
+                request["requesting_actor_id"] != command.actor_id
+                or request["requesting_authority_grant_id"] != command.envelope["authority_grant_id"]
+            ):
+                return rejected(
+                    "resource_request_authority_mismatch",
+                    "Resource request actor and authority must bind its committed request command.",
+                )
             return payload
 
         if command_type == "ClaimExecutionLease":
             resource = streams.get(payload["resource_grant_id"])
-            if not isinstance(resource, dict) or resource.get("status") != "requested":
+            if not isinstance(resource, dict) or resource.get("status") != "active":
                 return rejected(
                     "resource_request_missing", "Lease claim requires the recorded ResourceGrantRequested request."
                 )
-            return rejected(
-                "resource_grant_unmaterialized",
-                "RequestResourceGrant records ResourceGrantRequested only; no accepted C1 grant materialization is active.",
-            )
+            try:
+                expected_grant = derive_resource_grant_record(
+                    {
+                        "resource_id": resource["resource_id"],
+                        "resource_request": resource["request"],
+                    }
+                )
+                self.schemas.validate(
+                    RESOURCE_GRANT_SCHEMA_ID,
+                    expected_grant,
+                    schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
+                )
+            except (KeyError, SchemaError, TypeError, ValueError):
+                return rejected("resource_grant_invalid", "Projected Resource grant record is invalid.")
+            if resource.get("grant") != expected_grant:
+                return rejected("resource_grant_mismatch", "Projected Resource grant does not match its request.")
+            if not self.objects.revision_exists("resource_grant", payload["resource_grant_id"], 1):
+                return rejected(
+                    "resource_grant_unmaterialized",
+                    "Lease claim requires the committed ResourceGrantRequested grant object.",
+                )
+            try:
+                stored_grant = self._read_resource_grant_record(payload["resource_grant_id"])
+            except (IntegrityError, SchemaError, TypeError, ValueError):
+                return rejected("resource_grant_invalid", "Stored Resource grant record is invalid.")
+            if stored_grant != expected_grant:
+                return rejected(
+                    "resource_grant_mismatch", "Stored Resource grant does not match its committed request."
+                )
+            request = expected_grant["granted_claims"]
+            if (
+                payload["task_id"] != request.get("task_id")
+                or payload["dispatch_id"] != request.get("dispatch_id")
+                or payload["attempt_id"] != request.get("attempt_id")
+                or command.actor_id != request.get("requesting_actor_id")
+                or payload["holder_actor_id"] != command.actor_id
+                or payload["operational_profile"] != request.get("operational_profile")
+            ):
+                return rejected(
+                    "resource_grant_binding_mismatch", "Lease claim must bind the committed Resource grant request."
+                )
+            grant_expiry = self._resource_grant_expiry(expected_grant["expires_at"])
+            lease_expiry = self._resource_grant_expiry(payload["expires_at"])
+            now = self.clock()
+            if grant_expiry is None or lease_expiry is None or not isinstance(now, datetime) or now.tzinfo is None:
+                return rejected("resource_grant_invalid", "Resource grant expiry is invalid.")
+            if grant_expiry <= now.astimezone(UTC):
+                return rejected("resource_grant_expired", "Resource grant is no longer current.")
+            if lease_expiry > grant_expiry:
+                return rejected("resource_grant_expiry_exceeded", "Lease expiry exceeds the Resource grant expiry.")
+            return payload
 
         if command_type in {
             "RenewExecutionLease",
@@ -2526,10 +2594,78 @@ class CommandService:
 
         if command_type == "ReleaseResources":
             resource = streams.get(command.target_stream_id)
-            if not isinstance(resource, dict) or resource.get("status") != "requested":
+            if not isinstance(resource, dict) or resource.get("status") != "active":
                 return rejected("resource_request_missing", "Resource release requires ResourceGrantRequested history.")
             return payload
         raise IntegrityError(f"unsupported C1 command type: {command_type}")
+
+    def _prepare_resource_grant_materialization(self, command: Command) -> dict[str, Any]:
+        """Validate a deterministic grant and fail closed on a foreign revision before append."""
+        record = derive_resource_grant_record(command.envelope["payload"])
+        self.schemas.validate(
+            RESOURCE_GRANT_SCHEMA_ID,
+            record,
+            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
+        )
+        resource_grant_id = record["resource_grant_id"]
+        if self.objects.revision_exists("resource_grant", resource_grant_id, 1):
+            existing = self._read_resource_grant_record(resource_grant_id)
+            if existing != record:
+                raise ConflictError("resource grant revision conflicts")
+        return record
+
+    def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
+        """Materialize revision 1 only from the exact committed request event."""
+        events = [
+            event
+            for event in self.ledger.snapshot().events
+            if event.get("command_id") == command.command_id
+            and event.get("command_type") == "RequestResourceGrant"
+            and event.get("stream_id") == command.target_stream_id
+            and event.get("command_payload_hash") == command.payload_hash
+        ]
+        if len(events) != 1 or events[0].get("payload") != command.envelope["payload"]:
+            raise IntegrityError("resource grant materialization requires one exact committed request")
+        record = derive_resource_grant_record(events[0]["payload"])
+        self.schemas.validate(
+            RESOURCE_GRANT_SCHEMA_ID,
+            record,
+            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
+        )
+        resource_grant_id = record["resource_grant_id"]
+        if self.objects.revision_exists("resource_grant", resource_grant_id, 1):
+            existing = self._read_resource_grant_record(resource_grant_id)
+            if existing != record:
+                raise ConflictError("resource grant revision conflicts")
+            return record
+        self.objects.write("resource_grant", resource_grant_id, 1, record)
+        persisted = self._read_resource_grant_record(resource_grant_id)
+        if persisted != record:
+            raise ConflictError("resource grant revision conflicts")
+        return record
+
+    def _read_resource_grant_record(self, resource_grant_id: str) -> dict[str, Any]:
+        record = self.objects.read("resource_grant", resource_grant_id, 1)
+        if not isinstance(record, dict):
+            raise IntegrityError("resource grant revision must be an object")
+        self.schemas.validate(
+            RESOURCE_GRANT_SCHEMA_ID,
+            record,
+            schema_version=RESOURCE_GRANT_SCHEMA_VERSION,
+        )
+        return record
+
+    @staticmethod
+    def _resource_grant_expiry(value: object) -> datetime | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return None
+        return parsed.astimezone(UTC)
 
     def _canonical_authority_resolver(self) -> LedgerAuthorityGrantResolver | None:
         resolver = self.authority_resolver
@@ -2732,6 +2868,8 @@ class CommandService:
         )
         if receipt is None:
             return None
+        if command.envelope["command_type"] == "RequestResourceGrant" and receipt.status == "accepted":
+            self._ensure_resource_grant_materialized(command)
         self._reconcile_scoped_authority_receipt(
             command,
             receipt,
