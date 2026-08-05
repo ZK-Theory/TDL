@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
+import shutil
 
 import pytest
 
+from research_system.assurance.external_records import ExternalRecordResolution
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, SchemaError
@@ -20,8 +22,10 @@ from research_system.session_exchange.authority import (
     OWNER_SESSION_ACCEPTANCE_DECISION,
     SessionEvidenceRecordStore,
     SessionRecordLocator,
+    SessionRecordSchemaCatalogue,
     compact_record_receipt,
 )
+from tests.research_system.factories import REPO_ROOT
 from tests.research_system.integration.test_authority_grant_source import ACTOR_ID, PROJECT_ID
 from tests.research_system.integration.test_scoped_authority_grant_activation import (
     GRANT_ID,
@@ -127,6 +131,87 @@ def _owner_decision_record(
         "decision_state": "active",
         "decided_at": "2026-07-12T11:00:00Z",
     }
+
+
+def _review_resolution() -> ExternalRecordResolution:
+    review = _review_record()
+    return ExternalRecordResolution(
+        record_class=INDEPENDENT_SESSION_REVIEW,
+        record_id=REVIEW_RECORD_ID,
+        revision=1,
+        canonical_sha256=sha256_hex(canonical_bytes(review)),
+        record=review,
+    )
+
+
+def test_session_record_schemas_reject_cross_typed_subject_ids_and_loose_timestamps() -> None:
+    catalogue = SessionRecordSchemaCatalogue(REPO_ROOT / ".research-system" / "schemas")
+    records = (
+        (INDEPENDENT_SESSION_REVIEW, REVIEW_RECORD_ID, _review_record(), "reviewed_at"),
+        (
+            OWNER_SESSION_ACCEPTANCE_DECISION,
+            OWNER_DECISION_ID,
+            _owner_decision_record(_review_resolution()),
+            "decided_at",
+        ),
+    )
+    substitutions = {
+        "handoff_id": _subject()["session_id"],
+        "session_id": _subject()["attempt_id"],
+        "attempt_id": _subject()["task_id"],
+        "task_id": _subject()["handoff_id"],
+        "brief_artifact_id": _subject()["session_id"],
+        "evidence_artifact_id": _subject()["task_id"],
+    }
+
+    for record_class, record_id, record, timestamp_field in records:
+        catalogue.validate(record_class, record_id, record)
+        for field, invalid_value in substitutions.items():
+            invalid = deepcopy(record)
+            invalid["subject"][field] = invalid_value
+            with pytest.raises(SchemaError):
+                catalogue.validate(record_class, record_id, invalid)
+        invalid = deepcopy(record)
+        invalid[timestamp_field] = "2026-07-12T10:00:00.1234567Z"
+        with pytest.raises(SchemaError):
+            catalogue.validate(record_class, record_id, invalid)
+
+
+@pytest.mark.parametrize(
+    "schema_filename",
+    [
+        "independent-session-review-record.schema.json",
+        "owner-session-acceptance-decision-record.schema.json",
+    ],
+)
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ("content", "Git blob mismatch"),
+        ("crlf", "not exact UTF-8/LF"),
+        ("extra-newline", "not exact UTF-8/LF"),
+    ],
+)
+def test_session_record_catalogue_rejects_unpinned_or_non_lf_schema_bytes(
+    tmp_path,
+    schema_filename: str,
+    mutation: str,
+    error: str,
+) -> None:
+    schema_root = tmp_path / "schemas"
+    shutil.copytree(REPO_ROOT / ".research-system" / "schemas" / "wp6-4", schema_root / "wp6-4")
+    path = schema_root / "wp6-4" / schema_filename
+    raw = path.read_bytes()
+    if mutation == "content":
+        raw = raw.replace(b'  "$schema":', b'   "$schema":', 1)
+    elif mutation == "crlf":
+        raw = raw.replace(b"\n", b"\r\n")
+    else:
+        raw += b"\n"
+    path.write_bytes(raw)
+
+    with pytest.raises(SchemaError, match=error):
+        SessionRecordSchemaCatalogue(schema_root)
 
 
 def _policy_grant(
@@ -334,6 +419,25 @@ def test_session_records_require_governed_publication_and_block_actor_substituti
             expected_previous_revision=0,
             record=review,
             publication_context=substituted,
+        )
+    assert objects.latest_revision(INDEPENDENT_SESSION_REVIEW, REVIEW_RECORD_ID) is None
+
+    cross_typed_subject = deepcopy(review)
+    cross_typed_subject["subject"]["handoff_id"] = str(cross_typed_subject["subject"]["session_id"])
+    with pytest.raises(SchemaError):
+        records.write(
+            record_class=INDEPENDENT_SESSION_REVIEW,
+            record_id=REVIEW_RECORD_ID,
+            revision=1,
+            expected_previous_revision=0,
+            record=cross_typed_subject,
+            publication_context=_publication_context(
+                binding,
+                resolver,
+                cross_typed_subject,
+                record_class=INDEPENDENT_SESSION_REVIEW,
+                record_id=REVIEW_RECORD_ID,
+            ),
         )
     assert objects.latest_revision(INDEPENDENT_SESSION_REVIEW, REVIEW_RECORD_ID) is None
 

@@ -50,14 +50,15 @@
       "type": "string",
       "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
-    "typedId": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9]{2,3}_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-    },
+    "handoffId": {"type": "string", "pattern": "^hnd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "sessionId": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "attemptId": {"type": "string", "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "taskId": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "artifactId": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "gitSha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "locator": {"type": "string", "pattern": "^ars://", "minLength": 7},
-    "utcTimestamp": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "utcTimestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"},
     "gitSubject": {
       "type": "object",
       "required": ["commit_sha", "tree_sha"],
@@ -84,15 +85,15 @@
         "git_subject"
       ],
       "properties": {
-        "handoff_id": {"$ref": "#/$defs/typedId"},
-        "session_id": {"$ref": "#/$defs/typedId"},
-        "attempt_id": {"$ref": "#/$defs/typedId"},
-        "task_id": {"$ref": "#/$defs/typedId"},
-        "brief_artifact_id": {"$ref": "#/$defs/typedId"},
+        "handoff_id": {"$ref": "#/$defs/handoffId"},
+        "session_id": {"$ref": "#/$defs/sessionId"},
+        "attempt_id": {"$ref": "#/$defs/attemptId"},
+        "task_id": {"$ref": "#/$defs/taskId"},
+        "brief_artifact_id": {"$ref": "#/$defs/artifactId"},
         "brief_revision": {"const": 1},
         "brief_document_raw_sha256": {"$ref": "#/$defs/sha256"},
         "brief_raw_sha256": {"$ref": "#/$defs/sha256"},
-        "evidence_artifact_id": {"$ref": "#/$defs/typedId"},
+        "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
         "evidence_revision": {"const": 1},
         "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
         "git_subject": {"$ref": "#/$defs/gitSubject"}

@@ -33,7 +33,6 @@ from research_system.assurance.external_records import (
 )
 from research_system.authority import GrantedPolicyActionIdentity, ScopedAuthorityGrantResolution
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.ids import validate_id
 from research_system.schema_registry import runtime_schema_registry
@@ -63,6 +62,8 @@ _ROW_DEFINITIONS = (
         "completed",
         "ars://wp6-4/independent-session-review-record",
         "independent-session-review-record.schema.json",
+        "9bf27622c576deb3194c0823f12afe69dca16db1",
+        "16dc8aebd5dfb26efcf710343de3439a4d394beef6c6311eb578e3a87503cb70",
     ),
     (
         OWNER_SESSION_ACCEPTANCE_DECISION,
@@ -72,6 +73,8 @@ _ROW_DEFINITIONS = (
         "active",
         "ars://wp6-4/owner-session-acceptance-decision-record",
         "owner-session-acceptance-decision-record.schema.json",
+        "6e5427d5c93f39edc2e0285c3c645a481021238d",
+        "912a4b616288a293f39b27a07740ab4f185932e17bb8c6ee30154fcb623782ed",
     ),
 )
 
@@ -96,11 +99,20 @@ class SessionRecordSchemaCatalogue:
             active_state,
             schema_id,
             filename,
+            accepted_git_blob,
+            accepted_raw_sha256,
         ) in _ROW_DEFINITIONS:
             path = root / filename
             try:
                 raw = path.read_bytes()
-                schema = json.loads(raw.decode("utf-8"))
+                if b"\r" in raw or raw.rstrip() + b"\n" != raw:
+                    raise SchemaError(f"WP6.4 session-record schema is not exact UTF-8/LF: {filename}")
+                text = raw.decode("utf-8", "strict")
+                if git_blob_id(raw) != accepted_git_blob:
+                    raise SchemaError(f"WP6.4 session-record schema Git blob mismatch: {filename}")
+                if sha256_hex(raw) != accepted_raw_sha256:
+                    raise SchemaError(f"WP6.4 session-record schema SHA-256 mismatch: {filename}")
+                schema = json.loads(text)
                 Draft202012Validator.check_schema(schema)
             except (
                 OSError,
@@ -122,8 +134,8 @@ class SessionRecordSchemaCatalogue:
                 schema_version=_POLICY_SCHEMA_VERSION,
                 repository_path=f".research-system/schemas/wp6-4/{filename}",
                 schema_json_pointer="#",
-                schema_git_blob=git_blob_id(raw),
-                schema_canonical_sha256=sha256_hex(raw),
+                schema_git_blob=accepted_git_blob,
+                schema_canonical_sha256=accepted_raw_sha256,
                 identity_field=identity_field,
                 state_field=state_field,
                 active_state=active_state,
@@ -266,14 +278,6 @@ class SessionEvidenceRecordStore(ExternalAssuranceRecordStore):
 
     def _build_catalogue(self, schema_root: Path) -> SessionRecordSchemaCatalogue:
         return SessionRecordSchemaCatalogue(schema_root)
-
-    def __init__(
-        self,
-        binding: ControlBinding,
-        *,
-        clock: Any | None = None,
-    ) -> None:
-        super().__init__(binding, clock=clock)
 
     @property
     def control_root(self) -> Path:
