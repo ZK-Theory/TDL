@@ -1,14 +1,12 @@
-# RM-00: Research Methods Lane — Master Plan
+# RM-00: Integrated Research Methods Obligation and Gate Crosswalk
 
-**Status:** REVISED 2026-07-31 (revision 6; PR198-RR1 transitive caller
-inventory correction) after the PR #198 exact-subject `85f33e6` rereview returned
-`rework_required_before_merge`. P-043, P-044 and its accepted candidate-stage
-amendment remain accepted; G-RM-1 and G-RM-2 remain closed. **G-RM-3 is open against these revised
-bytes. An independent `accept` only makes the exact subject eligible for
-Stephen's separate explicit G-RM-3 decision; it does not close the gate,
-dispatch any stage, authorize merge, or satisfy a stage-specific owner gate.**
+**Status:** INTEGRATED 2026-08-05 under P-047. The exact revision-6 suite was
+independently accepted and G-RM-3 was closed for commit `0137d2c` by the owner
+record `../reviews/rm-lane-pr198-g-rm-3-owner-acceptance-2026-07-31.md`.
+This file remains the obligation/gate crosswalk; it is not a separate delivery
+lane or completion target. Future exact-candidate gates remain separately open.
 
-**Created:** 2026-07-28 · **Revised:** 2026-07-31
+**Created:** 2026-07-28 · **Revised:** 2026-08-05
 **Supersedes for execution:**
 `../proposals/research-methods-integration-plan-2026-07-28.md`
 **Latest review response:**
@@ -21,11 +19,12 @@ Stephen accepted the P-044 candidate-stage amendment against exact PR #198 head
 `fa7d8a6dec4f8d31b9a94747c33e137d4048c376`. It preserves historical G-RM-10,
 authorizes only the bounded inert 06i/06j Stage A candidate paths, and defines
 G-RM-12, G-RM-13 and G-RM-14. The amendment activates those definitions but
-satisfies none of the gates: G-RM-3 and every stage-specific owner gate remain
-separately open, and no Stage A is dispatchable before accepted 06h, an
-admissible independent suite review and Stephen's explicit G-RM-3 decision.
+satisfies none of the stage-specific gates. G-RM-3 was subsequently closed for
+the exact accepted suite by the 2026-07-31 owner record. No Stage A is
+dispatchable before its remaining named prerequisites; G-RM-12, G-RM-13 and
+G-RM-14 remain separate.
 
-## 1. Lane charter
+## 1. Integrated charter
 
 Import provider-neutral research-method patterns into ARS as typed, versioned,
 reviewable artefacts under P-042:
@@ -37,10 +36,20 @@ reviewable artefacts under P-042:
   only through replay-derived artefact authority; and
 - ARS executes none of the returned content.
 
-The lane is parallel to the WP6/Gate-6 critical path. Three main-path
-predecessors—06h, 06i and 06j—exist because RM must consume accepted core
-capabilities rather than implement substitutes inside lane code. Their
-completion is not RM completion, and RM completion is not a Gate-6 criterion.
+P-047 distributes delivery into the capability that consumes it. WP6.1 owns
+06h, 06i, 06j and RM-01. WP6.4 owns RM-02, RM-03 and the non-executing
+verification-record portion of RM-04. Gate 9 owns only RM-04's manuscript pilot.
+There is no later RM completion event to track separately. Gate 6 cannot close
+while its assigned WP6.1/WP6.4 obligations remain absent.
+
+### 1.1 Live ownership map
+
+| Work | Live owner | Jira control | Gate effect |
+|---|---|---|---|
+| 06h, 06i, 06j, RM-01 | WP6.1 | KAN-65 | Required before WP6.1 and Gate 6 integration |
+| RM-02, RM-03, RM-04 verification-return core | WP6.4 | KAN-57 | Required owner-operated-session path before WP6.4 and Gate 6 integration |
+| RM-04 manuscript pilot only | Gate 9 successor | KAN-22 | Post-Gate-6; does not block Gate 6 |
+| RM-05 execution | Deferred owner gate | G-RM-11 | Not part of an active capability |
 
 The Woodruff et al. paper is evidence lineage, not a provider dependency. No
 file, schema ID, field, flag, or production identifier in the lane names a
@@ -79,7 +88,7 @@ No child plan may contain an owner decision absent from this table.
 |---|---|---|---|
 | G-RM-1 | **CLOSED 2026-07-28:** P-043 recorded | 06h direction | decision register |
 | G-RM-2 | **CLOSED:** P-044 recorded 2026-07-28; bounded candidate-stage amendment accepted 2026-07-30 | RM lane direction and 06i/06j Stage A authority | decision register |
-| G-RM-3 | **OPEN:** after an admissible independent exact-subject review, Stephen separately accepts the exact reviewed suite bytes | every plan | owner record pins exact commit/blobs and cites the review; reviewer `accept` is evidence only; `reject` blocks and required changes need independent closure |
+| G-RM-3 | **CLOSED 2026-07-31:** Stephen accepted exact reviewed commit `0137d2c`, tree `ee7d510`, after zero-finding independent review | accepted suite plan bytes | owner record `reviews/rm-lane-pr198-g-rm-3-owner-acceptance-2026-07-31.md` |
 | G-RM-4 | Accept selected Methods Pack assets for exact consumer scope | RM-03 export of those assets | 06i production command; exact asset IDs/hashes; review set; replay-derived authority |
 | G-RM-5 | Choose the manuscript-review pilot subject | RM-04 pilot only | exact subject/scope record |
 | G-RM-6 | Choose smoke-gate location: quality-gate list or `.githooks` pre-push | RM-01 close-out | liveness negative control |

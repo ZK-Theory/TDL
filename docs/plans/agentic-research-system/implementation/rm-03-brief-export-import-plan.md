@@ -4,7 +4,13 @@
 > research-assurance-triage, and executing-plans-extras. Read P-042, accepted
 > 06i/06j interfaces, RM-02, and RR-C2/RR-M4/RR-M6 before starting.
 
-**Status:** REVISED 2026-07-30 (revision 3). Dispatch is blocked on G-RM-3,
+**Integrated owner:** WP6.4 / KAN-57 under P-047. This plan supplies the real
+P-042 owner-operated brief handoff and returned-material seam required before
+WP6.4/Gate 6 integration.
+
+**Status:** REVISED 2026-08-05. G-RM-3 is already closed for the accepted plan
+bytes. Implementation remains absent and depends on accepted 06i/06j production
+interfaces, RM-02 assets, and G-RM-4 where exact asset use is required. Dispatch is blocked on
 accepted 06i and 06j exact subjects, RM-02 candidate assets, and G-RM-4
 acceptance of every asset selected for export.
 

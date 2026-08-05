@@ -5,9 +5,15 @@
 > section 13.2 procedural memory. Verify every cited section in the pinned
 > Woodruff et al. source before writing it.
 
-**Status:** REVISED 2026-07-30 (revision 3). Candidate authorship is blocked on
-G-RM-3 only and remains file-level independent of 06h/06i. Canonical acceptance
-and export additionally require accepted 06i plus G-RM-4.
+**Integrated owner:** WP6.4 / KAN-57 under P-047. The pack is part of the
+owner-operated external-session capability, not a separately completed lane and
+not WP6.3 assurance-pack content.
+
+**Status:** REVISED 2026-08-05. G-RM-3 is already closed for the accepted plan
+bytes. Candidate implementation remains absent; canonical asset use still
+requires the accepted 06i path and exact-scope G-RM-4. Candidate authorship is
+file-level independent of 06h/06i and is no longer blocked by G-RM-3.
+Canonical acceptance and export require accepted 06i plus G-RM-4.
 
 **Goal:** deliver five provider-neutral candidate assets with stable external
 identity, complete W3 metadata, an independently Git-anchored append history,

@@ -5,7 +5,13 @@
 > propose; operators may report; ARS records. ARS executes nothing here. Read
 > PR198-F5 from the PR #198 pre-merge review before starting.
 
-**Status:** REVISED 2026-07-30 (suite revision 4). Dispatch is blocked on G-RM-3,
+**Integrated owners under P-047:** WP6.4 / KAN-57 owns the non-executing
+VerificationRequest, OperatorVerificationRun, review-authority and follow-up
+return path required for Gate 6. KAN-22/Gate 9 owns Task 5's manuscript pilot
+and manuscript-specific G-RM-5/G-RM-13 decision only.
+
+**Status:** REVISED 2026-08-05. G-RM-3 is already closed for the accepted plan
+bytes. Implementation remains absent. Dispatch is blocked on
 merged RM-03, and the accepted 06i/06j interfaces RM-03 binds. The pilot is
 separately blocked on G-RM-5; any follow-up export of an
 `OperatorVerificationRun` is blocked on G-RM-13 for that exact run and scope.

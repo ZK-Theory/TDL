@@ -31,7 +31,7 @@
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols
 9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **staged plan; non-dispatchable**. The accepted P-044 amendment preserves historical G-RM-10 and defines open G-RM-14. Stage A remains blocked on accepted 06h, an admissible suite review and explicit G-RM-3; Stage B additionally requires acceptance of the exact G-RM-14 candidate
-10. [W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **staged plan; non-dispatchable**. The accepted P-044 amendment defines open G-RM-12. Stage A remains blocked on accepted 06h, an admissible suite review and explicit G-RM-3; Stage B additionally requires acceptance of the exact nine-command candidate and preserves phase-qualified failures plus the sealed capability/template boundary
+10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **integrated WP6.1 obligation; not implemented**. G-RM-3 is closed for the plan suite. Stage A still requires accepted 06h; Stage B requires independent review and G-RM-12 acceptance of the exact nine-command candidate and preserves phase-qualified failures plus the sealed capability/template boundary
 11. [WP6.7 legacy consolidation sequencing](06l-wp6-7-legacy-consolidation-sequencing.md) — sequencing only; this is a distinct legacy-integration scope and path from 06i's artefact-authority and production-consumer firewall plan, not a collision or supersession.
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
@@ -51,25 +51,20 @@ therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
 authorized. ARS does not invoke Claude or Codex or handle their OAuth
 credentials.
 
-## Research Methods lane (RM) — accepted P-044 direction, revision 6, **no stage dispatchable**
+## Research Methods obligations — integrated by P-047, **capabilities not runnable**
 
-An independent lane parallel to the WP6.1+WP6.3 → WP6.4 → Gate 6 path and never
-on it (P-044, accepted 2026-07-28). The latest PR #198 exact-subject rereview at
-`85f33e6` found one remaining transitive caller-inventory blocker. Revision 6
-closes that plan defect by literally classifying the calibration, variant,
-registry, CLI and rederivation paths, removing the generic provider-wrapper
-exemption, and requiring a full transitive lifecycle-capability negative. It
-preserves the earlier producer, constructibility and authority corrections and
-keeps reviewer disposition separate from owner authority.
+P-047 retires separate-lane tracking. WP6.1 owns 06h, 06i, 06j and RM-01;
+WP6.4 owns RM-02, RM-03 and RM-04's governed non-executing verification-return
+path; Gate 9 owns only RM-04's manuscript pilot. RM-05 remains deferred behind
+G-RM-11. None of the RM-02/RM-03/RM-04 runtime, schemas, CLI or tests exists on
+current `main`, so those capabilities are NOT RUNNABLE.
 
-**G-RM-3 remains open.** A fresh independent `accept` only makes the exact
-subject eligible for Stephen's separate decision; it does not close G-RM-3 or
-authorize dispatch/merge. Stephen accepted the bounded P-044 candidate-stage
-amendment against exact PR #198 head `fa7d8a6`; it preserves G-RM-10 and defines
-G-RM-12/G-RM-13/G-RM-14, but satisfies none of them. No Stage A is dispatchable
-before accepted 06h, the admissible review and explicit G-RM-3.
+**G-RM-3 is closed** for exact commit `0137d2c` and tree `ee7d510` by the
+2026-07-31 owner record after zero-finding independent review. Do not repeat it.
+That acceptance does not satisfy G-RM-12/G-RM-13/G-RM-14 or make unimplemented
+capabilities runnable.
 
-1. [RM-00 — lane master plan, gate checklist, and obligation register](rm-00-research-methods-lane-master-plan.md) (governing; readiness verdict, not a dispatch verdict)
+1. [RM-00 — integrated obligation/gate crosswalk](rm-00-research-methods-lane-master-plan.md) (historical identities plus live ownership; not a separate campaign)
 2. [RM-01 — suite recovery and quality accounting](rm-01-unblock-and-suite-recovery-plan.md) (consumes the pre-06h baseline and compares the same post-change cohort)
 3. [RM-02 — Research Methods Pack v1](rm-02-research-methods-pack-plan.md) (independent Git history anchor plus 06i acceptance authority)
 4. [RM-03 — brief export/import on accepted artefact and context-packet paths](rm-03-brief-export-import-plan.md) (depends on accepted 06i, 06j, and RM-02)

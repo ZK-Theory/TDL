@@ -1004,6 +1004,46 @@ acceptance after review.<br>
 W5 R3 assurance acceptance; Handoff 32 scoped-grant and control-store
 sequencing.
 
+### P-047 - Integrate Research Methods obligations into WP6 and later gates
+
+**Date:** 2026-08-05<br>
+**Status:** Accepted by Stephen as programme-organisation direction.<br>
+**Supersedes:** P-044 only where it makes RM a separately tracked lane whose
+completion is disconnected from WP6/Gate completion. It does not alter P-042,
+G-RM-4 through G-RM-14, accepted exact-byte identities, or the no-provider,
+no-execution, no-result, no-claim boundaries.<br>
+**Decision:** There is no separately completed Research Methods lane. Its
+required capabilities are owned where they are consumed:
+
+1. WP6.1 owns 06h schema currency/closure, 06i artefact authority and consumer
+   firewall, 06j W3 context-packet lifecycle/resolution, and RM-01's current
+   append-path family completeness and quality gate.
+2. WP6.4 owns RM-02 provider-neutral methods assets, RM-03 real brief
+   export/import, and RM-04's non-executing verification-request and
+   operator-return record path. These form part of the owner-operated external
+   session capability and Gate 6 closure evidence.
+3. Gate 9 owns only RM-04's manuscript-review pilot and manuscript-specific
+   G-RM-5/G-RM-13 use decision after the Gate 6 return path exists.
+4. RM-05 remains deferred behind G-RM-11. It is not silently implied by any
+   WP6 or Gate completion claim.
+
+**Current evidence correction:** G-RM-3 is closed for exact accepted commit
+`0137d2caadd8b80d7c133bf63fe5f6bea065cf2d` and tree
+`ee7d5109719565d1911da7f9000798973859aedf`, as recorded in
+`reviews/rm-lane-pr198-g-rm-3-owner-acceptance-2026-07-31.md`. No repeat suite
+review or owner acceptance is required for those bytes. G-RM-12, G-RM-13 and
+G-RM-14 remain open for their future exact candidates/runs.<br>
+**Integration consequence:** RM-00 remains the obligation and gate crosswalk,
+not a live parallel campaign. Executable work is tracked beneath KAN-65,
+KAN-57 and KAN-22. Gate 6 cannot close while the WP6.1/WP6.4 obligations above
+remain absent; the Gate 9 manuscript pilot does not block Gate 6.<br>
+**Boundary:** This decision reorganises and makes already-required work
+visible. It does not accept an unbuilt runtime, satisfy a future exact-subject
+owner gate, authorize an external session, execute returned content, promote a
+result or claim, or authorize migration.<br>
+**Affected specifications:** RM-00 through RM-04; 06h, 06i, 06j; WP6.1; 06g
+WP6.4 owner-operated session amendment; Gate 6 control; Gate 9 successor plan.
+
 ## WP6.4 mechanics integration status (non-decision)
 
 PR #208 was merged at

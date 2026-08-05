@@ -6,13 +6,22 @@
 > measurement after 06h has merged. Read PR198-F3 from the PR #198 pre-merge
 > review before starting.
 
-**Status:** REVISED 2026-07-30 (suite revision 4). Dispatch is blocked on G-RM-3 and
+**Integrated owner:** WP6.1 / KAN-65 under P-047. This is not a separate RM
+delivery or completion lane.
+
+**Status:** REVISED 2026-08-05. G-RM-3 is closed for the accepted plan bytes.
+The historical pre-06h comparison cannot now be recreated because its mandated
+freeze was not recorded before implementation; that limb is superseded. The
+current-universe accounting, append-path family manifest, negative controls,
+quality configuration, and live smoke gate remain required WP6.1/Gate 6 work.
+Dispatch is blocked on
 merged/accepted 06h. Close-out is blocked on G-RM-7.
 
-**Goal:** run the exact post-06h suite against the independently reviewed
-pre-06h manifest and preserved 156-node cohort created by 06h Task 0, account
-for current-universe additions/removals/renames, bring `research_system` under
-quality accounting, and install a live append-path smoke control.
+**Goal:** account for the complete current universe without inventing a missing
+pre-change baseline, bring `research_system` under quality accounting, and
+install a live append-path family manifest and smoke control at the WP6.1 final
+candidate. The absent historical freeze is a non-reconstructible evidence gap,
+not something to repair with post-change evidence.
 
 ## Global constraints
 
@@ -66,31 +75,23 @@ docs/plans/agentic-research-system/implementation/README.md
 
 ## Research assurance
 
-- **Machine-checkable:** accepted baseline identity; exact pre/post commits;
-  preserved node IDs; explicit add/remove/rename accounting; smoke negative;
-  config-key presence.
-- **Human review:** whether the evidence supports a 06h delta rather than a
-  test-universe substitution.
-- **Partial:** missing/late pre-change record; cohort identity cannot be
-  reconstructed; accepted 06h subject differs; P0 invariant moves; smoke
-  exceeds the approved gate budget.
+- **Machine-checkable:** complete current node/family universe; explicit
+  producer-family ownership; smoke negative; config-key presence.
+- **Human review:** whether the final WP6.1 candidate accounts for every live
+  append path without claiming the missing historical comparison.
+- **Partial:** any reconstructed or relabelled pre-change evidence; an
+  unclassified current family; P0 invariant movement; smoke exceeding the
+  approved gate budget.
 
-## Task A: validate predecessor evidence
+## Task A: record the historical evidence gap and current subject
 
-Before any test execution:
+Before test execution, record that the required pre-06h freeze and 156-node
+cohort were not committed before the production change and therefore cannot be
+reconstructed. Bind the exact current WP6.1 candidate and the accepted P-043,
+P-045 and G-RM-3 records. Do not create a post-change collection and label it
+pre-change.
 
-1. Verify 06h Task 0 records are committed before the first 06h production
-   change and bind the exact accepted pre-change commit.
-2. Verify the records contain the full node list, the handoff-28 156-node
-   cohort, interpreter/command, clean-status evidence, and producer matrix.
-3. Verify the public `CommandService.submit` annotation and its guard agree at
-   both pre- and post-06h subjects. If not, stop Partial; do not repair history
-   inside RM-01.
-4. Record the exact 06h merge/acceptance identities in the delta report.
-
-No collection in this task may be labelled “pre-06h”.
-
-## Task B: exact post-06h run and delta
+## Task B: exact current-universe run and accounting
 
 Collect the post-06h node universe, then run the full tree once at the exact
 head:
@@ -100,10 +101,10 @@ uv run --no-sync python -m pytest tests/research_system --collect-only -q -o "ad
 uv run --no-sync python -m pytest tests/research_system -q -o "addopts=" -p no:cacheprovider -p no:cov --no-header -rf --durations=15
 ~~~
 
-Write `rm-01-post-06h-suite-delta-<date>.md` with:
+Write `rm-01-current-suite-accounting-<date>.md` with:
 
-- pre/post commits, commands, interpreters, node totals and outcomes;
-- every pre-universe addition, removal and rename;
+- current commit, commands, interpreters, node totals and outcomes;
+- every current producer and append-path family with its owning test/gate;
 - the exact 156-node cohort outcome at both subjects;
 - a separate account for every post-only test;
 - whether the handoff-28 “move together” prediction held; and
