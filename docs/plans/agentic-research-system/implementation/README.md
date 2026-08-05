@@ -27,6 +27,9 @@
 3. [WP6 owner-operated external-session amendment](06g-wp6-owner-operated-session-amendment.md) (effective status `accepted_for_governing_planning` via the [external acceptance record](../reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md); embedded pending status is the reviewed candidate snapshot)
 4. [WP6.2 — historical live-capability plan](06b-wp6-2-live-capability-plan.md) (direct-provider execution deferred by P-042)
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
+
+**Current WP6.1 execution control:** [06o capability-campaign plan](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md) records C1 integrated through PR #212. The fixed pre-C1 `104/19/85` baseline and `23/28/32/2` allocation remain authoritative; the current census is `104/42/62`. WP6.1 remains incomplete, and C2/KAN-73 requires an explicit owner start.
+
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols

@@ -2,22 +2,22 @@
 
 | Field | Value |
 |---|---|
-| Status | **Current WP6.1 execution-control plan; owner-paused 2026-08-05.** No work resumes merely because this plan is current. |
+| Status | **Current WP6.1 execution-control plan; C1 integrated 2026-08-05.** WP6.1 remains incomplete and this record does not start C2. |
 | Date | 2026-08-05 revision of the 2026-08-03 post-Message plan |
 | Original evidence base | `4f8b9b857bab1a7553af5e6ea3ef170608e7e18e` / tree `e765b75c458ebf194dd80cef6c66d11e5360e6a7` |
 | Integration revision base | `1a5d8c7514fafc5c28f8624bc60259ddd00e026f` (`main` when this revision began) |
 | Prior design authority | `0e842969c770811edf5c81dcd7e4f7a647e050ad:docs/plans/agentic-research-system/implementation/06m-wp6-lifecycle-family-pilot-design.md` |
-| Workflow | One capability campaign at a time; C1 is the current paused campaign, followed by C2, C3, and recovery-gated R1 |
+| Workflow | One capability campaign at a time; C1 is integrated, followed by owner-started C2, C3, and recovery-gated R1 |
 
 This document is the authoritative execution-control plan for the remaining WP6.1
-capability and incorporates P-047 Research Methods obligations. It directs Jira work
-decomposition and closure evidence, but does not by itself resume the owner pause or
-authorize runtime code, schemas, providers, merges, Gate 6, dispatch, or research
-execution. The
+capability and incorporates P-047 Research Methods obligations. It records C1's
+accepted integration and directs Jira work decomposition and closure evidence, but
+does not by itself start C2 or authorize later runtime code, schemas, providers,
+merges, Gate 6, dispatch, or research execution. The
 accepted 06a plan itself authorizes no implementation
 (`docs/plans/agentic-research-system/implementation/06a-wp6-1-runtime-task-lifecycle-plan.md:4-15`).
-Stephen's 2026-08-05 pause remains controlling. Resumption requires an explicit owner
-instruction naming the campaign to resume.
+Stephen's 2026-08-05 completion and merge instruction applied to C1. A later campaign
+still requires an explicit owner instruction naming that campaign.
 
 ## 1. Recommendation and exact pilot outcome
 
@@ -32,11 +32,13 @@ candidate-ready: its durable residue topology, retry ordering, dependency closur
 and derived-field contract were incomplete.
 
 The recommendation was subsequently used to start C1, the admission-to-running
-campaign. C1 is now the nearly finished but owner-paused strand represented by KAN-72
-and PR #212. At the 2026-08-05 reconciliation, PR #212 remained open at
-`f4dbfef6366ee5d77059c3b94177ad56de9f057c`; it is not merged and therefore changes
-none of the current-`main` row arithmetic below. The tracked KAN-65 handoff established
-that KAN-65 owns the remaining WP6.1 catalogue
+campaign represented by KAN-72 and PR #212. Stephen confirmed that CodeRabbit found
+no further issue at exact PR head
+`f4dbfef6366ee5d77059c3b94177ad56de9f057c` and authorized integration. GitHub merged
+that reviewed head without squash or rebase as
+`23dcfaaaf128b4f19f5afe423522e6712a732662` on 2026-08-05. The reviewed head is an
+ancestor of that merge. The tracked KAN-65 handoff established that KAN-65 owns the
+remaining WP6.1 catalogue
 (`docs/plans/agentic-research-system/handoffs/33-wp6-gate6-completion-manager-exact-state-2026-07-30.md:5`,
 `:27-29`).
 
@@ -75,6 +77,23 @@ schema hashes remain unchanged:
 
 The final raw-object evidence is recorded at
 `docs/plans/agentic-research-system/reviews/wp6-1-message-lifecycle-2c361819-review-2026-08-03.md:337-365`.
+
+### 1.3 C1 exact integration evidence
+
+PR #212 integrated the complete 23-row admission-to-running campaign at reviewed head
+`f4dbfef6366ee5d77059c3b94177ad56de9f057c`, merge
+`23dcfaaaf128b4f19f5afe423522e6712a732662`, and merge tree
+`5abb396a06f8b0d0f884d45e985d194b6c887619`. The exact-head CodeRabbit status was
+`success` (`Review completed`), after which Stephen explicitly authorized the merge.
+
+On the assembled merge head, four vertical proofs passed across ResourceGrant
+materialization, admission to running, heartbeat-backed renewal, and resource release;
+seven C1 CLI/census selections also passed. The reviewed head remains an ancestor of
+`origin/main`, and the protected command/event trees remain
+`9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea` and
+`154ffc4bdde82fe903718734687e7a62797b1f69`. Four unrelated CLI history cases exposed
+by a broader selection use a helper unchanged from merge first parent `525a595d`; they
+are a separately reported current-main baseline defect and did not prompt C1 rework.
 
 ## 2. Execution retrospective
 
@@ -286,12 +305,13 @@ labelled by producer assertion only.
 
 ## 7. Authoritative delivery campaigns and semantic coverage map
 
-The accepted catalogue contains 104 unique rows. On `main` at this revision, runtime
-bindings cover 19: the original six Scope/Task rows and the 13 Message rows. PR #212
-does not change that denominator until an exact accepted C1 candidate is integrated.
-The exact remaining semantic-family partition is therefore 85 rows:
+The accepted catalogue contains 104 unique rows. The fixed pre-C1 baseline was 19
+active rows (the original six Scope/Task rows and the 13 Message rows) and 85 allocated
+rows. C1 has now integrated all 23 rows in its coherent campaign, so the current
+executable census is `104 = 42 active + 62 remaining`. The remaining semantic-family
+partition is:
 
-`P2 17 + P3 9 + P4 11 + P5 19 + P6 9 + P7 18 + P8 2 = 85`.
+`P2 15 + P3 0 + P4 2 + P5 16 + P6 9 + P7 18 + P8 2 = 62`.
 
 The machine catalogue records 104 normalized rows and 182 expanded edges
 (`.research-system/contracts/wp6-1-owner-source-catalogue.yaml:4-17`, `:75-76`), and
@@ -299,9 +319,12 @@ the accepted row catalogue is the authority for identities
 (`docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md:215-335`).
 No row is duplicated below.
 
-The active delivery campaign uses a second, orthogonal partition of the same 85 rows:
+The fixed pre-C1 delivery allocation remains:
 
 `C1 23 + C2 28 + C3 32 + R1 2 = 85`.
+
+After C1 integration, the outstanding delivery campaigns are
+`C2 28 + C3 32 + R1 2 = 62`.
 
 These totals must never be added to the P2-P8 totals. P2-P8 describe *what semantic
 family owns each row*; C1/C2/C3/R1 describe *which coherent capability campaign
@@ -354,26 +377,26 @@ their own convenient totals.
 - **R1 (2):** `operator.create_backup`, `operator.verify_restore`.
 
 C1's literal 23-row set is the campaign boundary, not an assertion that all 23 rows
-are newly implemented by PR #212. It contains the complete public-path closure that
-must work together: readiness; resource grant and lease; dispatch issue, delivery,
+were newly implemented by PR #212. It contains the complete public-path closure that
+now works together: readiness; resource grant and lease; dispatch issue, delivery,
 acknowledgement and atomic claim; and Attempt create, claim and start. Its campaign
-census test must preserve the `23/28/32/2` allocation. Only the final accepted and
-integrated candidate may move rows from `remaining` to `active`, and the row-by-row
-census in KAN-71 must then recompute `104 = active + remaining` from executable public
-behavior rather than changed-file or passing-test counts.
+census test preserves the original `23/28/32/2` allocation. The accepted integration
+moves those 23 rows from `remaining` to `active`; KAN-71 records the resulting
+`104 = 42 active + 62 remaining` census from executable public behavior rather than
+changed-file or passing-test counts.
 
 ### 7.2 Jira and P-047 control mapping
 
 | Jira job | Plan responsibility | Effect on 104-row arithmetic |
 |---|---|---|
 | KAN-71 | Authoritative row-by-row executable census and arithmetic control | Counts every row once; closes no row by itself |
-| KAN-72 | C1's 23-row admission-to-running campaign | Moves only demonstrably active C1 rows after accepted integration |
+| KAN-72 | C1's integrated 23-row admission-to-running campaign | Done after accepted PR #212 integration and KAN-71 census reconciliation |
 | KAN-73 | C2's 28-row operating-lifecycle campaign | Same rule |
 | KAN-74 | C3's 32-row completion/evidence/review/decision campaign | Same rule |
 | KAN-102 | R1's two recovery-evidence rows | Same rule; owner/WP6.4 recovery gate applies |
 | KAN-95 | 06h schema currency plus RM-01 append-path completeness | Horizontal final-candidate gate; adds no catalogue row |
 | KAN-96 | 06i artefact authority and consumer firewall | Governs the nine P6 rows already counted across C2/C3; adds no second set of nine |
-| KAN-97 | 06j W3 context-packet lifecycle and resolver | Separate nine-command W3 obligation outside the 104-row catalogue; must not alter `104/19/85` |
+| KAN-97 | 06j W3 context-packet lifecycle and resolver | Separate nine-command W3 obligation outside the 104-row catalogue; must alter neither the fixed `104/19/85` baseline nor current `104/42/62` census |
 | KAN-75 | Final integrated WP6.1 capability proof | May close only after KAN-71–74, KAN-95–97 and KAN-102 are complete with exact evidence |
 
 ### 7.3 Common campaign rules
@@ -697,9 +720,9 @@ Jira, owner acceptance, Gate 6, dispatch, or research-result completion.
 |---|---|---|
 | Preserve all 173 accepted schema bytes and the exact 87-command/86-event trees | Hard invariant. No regeneration, normalization, or equivalent reserialization. | Every candidate and integration reviewer; Stephen decides any protected defect. |
 | No bulk activation | Runtime activation remains an explicit exact-binding decision per delivered vertical; materialized file presence is inert. | Slice owner plus fresh exact review; no plan-level activation authority. |
-| KAN-65 is broader than Message | Message closes 13 rows only. KAN-65's remaining catalogue is not accepted or Done by PR #209. | This revision is the Jira execution map; the owner pause still requires a separate explicit resume instruction naming C1, C2, C3, or R1. |
-| C1 is current but paused | KAN-72/PR #212 own one 23-row admission-to-running campaign. Neither a narrow ResourceGrant repair nor passing focused tests closes C1; all 23 rows and the complete public path must pass at the accepted exact head. | Stephen explicitly resumes C1; KAN-72 stays open until accepted integration and census reconciliation. |
-| Dual arithmetic | `P2..P8 = 85` and `C1+C2+C3+R1 = 85` are orthogonal partitions, not additive totals. | KAN-71 mechanically verifies both partitions and the intersections above. |
+| KAN-65 is broader than C1 | Message and C1 are integrated, but C2, C3, R1 and the horizontal obligations remain open. | KAN-65 remains incomplete; a later campaign needs its own explicit owner start. |
+| C1 integrated | KAN-72/PR #212 delivered one coherent 23-row admission-to-running campaign through the complete public path. | Keep KAN-72 Done and do not reopen its rows in later campaigns. |
+| Dual arithmetic | Fixed pre-C1 allocation `P2..P8 = 85` and `C1+C2+C3+R1 = 85` remains authoritative; current outstanding totals are 62 after C1. | KAN-71 mechanically verifies the fixed allocation, current census, and intersections above. |
 | Integrated RM obligations | KAN-95 is horizontal and row-neutral; KAN-96 governs the nine already-counted P6 rows; KAN-97's nine W3 commands are outside the 104-row catalogue. | All three remain required for WP6.1 completion under P-047 without inflating the catalogue denominator. |
 | Preserve SupersedeTask compatibility | P2 carries the three control groups and the separately named stale-classification manifestation without recounting `task.supersede`. | P2 candidate/reviewer. |
 | Provider automation | Deferred under P-042; no provider invocation, credential handling, or live adapter/profile automation inside P2-P8. | Separate owner decision outside this sequence (`docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md:13-55`, `:82-106`). |
@@ -714,12 +737,10 @@ Jira, owner acceptance, Gate 6, dispatch, or research-result completion.
 
 ## 11. Immediate next action
 
-**Keep KAN-65 and every child paused. On Stephen's explicit resume instruction,
-complete C1/KAN-72 at the exact live PR #212 head, close every still-valid review and
-CI finding, run the complete 23-row public-path and decisive-negative proof, obtain
-fresh exact-subject acceptance, integrate only with separate authority, and then have
-KAN-71 recompute the active/remaining census. Do not start C2 or treat a component fix
-as C1 completion.**
+**Do not reopen C1. Keep KAN-65 and WP6.1 incomplete. C2/KAN-73 is the next capability
+campaign, but this record does not authorize its start. On an explicit owner start,
+re-resolve C2 against exact live `main`, preserve the fixed catalogue and protected
+identities, and validate C2 as one end-to-end capability.**
 
-Until that instruction exists, C1, C2, C3, R1, 06h/RM-01, 06i and 06j remain planning
-or paused Jira work, not authorized implementation.
+C2, C3, R1, 06h/RM-01, 06i and 06j remain open Jira work rather than completed
+capabilities.
