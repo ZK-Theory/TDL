@@ -12,6 +12,7 @@ import yaml
 
 from research_system.cli import main
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.config import _canonical_local_cli_uri
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
 from research_system.errors import ArsError, ConfigurationError
 from research_system.authority import initialize_authority_control_store
@@ -78,7 +79,7 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path
         "store_identity": str(identity),
         "endpoint_scheme": "local-cli",
         "canonical_hash": "sha256",
-        "canonical_uri": "local-cli://control",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],
@@ -241,7 +242,7 @@ def test_assurance_record_write_cli_persists_activated_grant_receipt(
         "store_identity": manifest["store_identity"],
         "endpoint_scheme": "local-cli",
         "canonical_hash": "sha256",
-        "canonical_uri": "local-cli://control",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],

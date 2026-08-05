@@ -40,7 +40,11 @@ def require_control_root_disjoint_from_code_roots(code_roots: list[Path], contro
     try:
         controls_parent = control_root.parent.resolve(strict=True)
         control = (controls_parent / control_root.name).resolve(strict=False)
-        codes = [root.resolve(strict=True) for root in code_roots]
+        # Registered code roots are durable store provenance.  Resolve aliases
+        # that still exist, but retain retired absolute paths for the lexical
+        # disjointness check instead of making store validation depend on the
+        # lifetime of a disposable linked worktree.
+        codes = [root.resolve(strict=False) for root in code_roots]
     except OSError as exc:
         raise ArsError("control and code roots must be resolvable") from exc
     for code in codes:

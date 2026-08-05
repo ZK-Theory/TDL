@@ -64,6 +64,12 @@ def _foundation_digest(value: Any, field: str) -> str:
     return digest
 
 
+def _canonical_local_cli_uri(control_root: Path) -> str:
+    """Render the local endpoint from the approved physical root without an alias."""
+
+    return f"local-cli:{control_root.as_uri().removeprefix('file:')}"
+
+
 @dataclass(frozen=True)
 class ApprovedProjectBinding:
     """Owner-approved authority for one restore transaction.
@@ -137,13 +143,19 @@ class ApprovedProjectBinding:
         if any(not path_value.is_absolute() for path_value in all_paths):
             raise ConfigurationError("approved project binding paths must be absolute")
         try:
-            resolved_code_roots = tuple(sorted((root.resolve(strict=True) for root in code_roots), key=str))
+            # Store identities retain the complete registered-root set as durable
+            # provenance.  A linked worktree may legitimately be retired later;
+            # resolve existing aliases while preserving an unavailable absolute
+            # path for exact comparison with the immutable manifest.
+            resolved_code_roots = tuple(sorted((root.resolve(strict=False) for root in code_roots), key=str))
             resolved_control_root = control_root.resolve(strict=True)
             resolved_schema_root = schema_root.resolve(strict=True)
         except (FileNotFoundError, OSError) as exc:
             raise ConfigurationError("approved project binding path is unavailable") from exc
         if not resolved_control_root.is_dir():
             raise ConfigurationError("approved control_root must be an existing directory")
+        if endpoint_scheme == "local-cli" and canonical_uri != _canonical_local_cli_uri(resolved_control_root):
+            raise ConfigurationError("approved canonical_uri differs from the materialized control root")
         if not resolved_schema_root.is_dir():
             raise ConfigurationError("approved schema_root must be an existing directory")
         if len(set(resolved_code_roots)) != len(resolved_code_roots):
@@ -298,7 +310,7 @@ class ControlBinding:
         if any(not item.is_absolute() for item in all_paths):
             raise ConfigurationError("all binding paths must be absolute")
         project_id = validate_id(str(value["project_id"]), "project")
-        resolved_code_roots = tuple(root.resolve(strict=True) for root in code_roots)
+        resolved_code_roots = tuple(root.resolve(strict=False) for root in code_roots)
         control_root = require_existing_control_root(list(resolved_code_roots), control_root)
         if control_root != approved.control_root:
             raise ConfigurationError("binding control_root differs from canonical foundation")

@@ -1,10 +1,45 @@
 schema_version: '1.0.0'
 project_template_alias: ars-foundation-p0
-project_id: null
-control_root: null
+project_id: prj_01978abc-1000-7000-8000-000000001000
+control_root: 'C:\Users\steph\TDL-ARS-WP64-Source'
 control_root_required: true
-origin_authority_root: null
-origin_witness_path: null
-origin_witness_sha256: null
+store_identity: 2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a
+origin_authority_root: 'C:\Users\steph\TDL-ARS-WP64-Origin-Authority'
+origin_witness_path: 'C:\Users\steph\TDL-ARS-WP64-Origin-Authority\store-origins\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json'
+origin_witness_sha256: 1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa
 endpoint_scheme: local-cli
 canonical_hash: sha256
+canonical_uri: local-cli:///C:/Users/steph/TDL-ARS-WP64-Source
+canonical_tail_position: 2
+canonical_tail_hash: 948f2ed02aa7019af172f0910d362521330c95d99167b97352ce2ffaaca9add6
+code_roots:
+  - 'C:\Users\steph\.codex\review-worktrees\pr198-d6c9647-20260730'
+  - 'C:\Users\steph\.codex\worktrees\0f6c\TDL'
+  - 'C:\Users\steph\.codex\worktrees\1de3\TDL'
+  - 'C:\Users\steph\.codex\worktrees\547f\TDL'
+  - 'C:\Users\steph\.codex\worktrees\7219\TDL'
+  - 'C:\Users\steph\.codex\worktrees\9129\TDL'
+  - 'C:\Users\steph\.codex\worktrees\a7luna\TDL'
+  - 'C:\Users\steph\.codex\worktrees\b5a5\TDL'
+  - 'C:\Users\steph\.codex\worktrees\fc45\TDL'
+  - 'C:\Users\steph\.codex\worktrees\pr198-8e091a1-review\TDL'
+  - 'C:\Users\steph\.codex\worktrees\pr198-review-0137d2c\TDL'
+  - 'C:\Users\steph\.codex\worktrees\pr198-review-3577d20\TDL'
+  - 'C:\Users\steph\.codex\worktrees\rm-lane-rereview-remediation\TDL'
+  - 'C:\Users\steph\AppData\Local\Temp\claude\C--Users-steph-TDL\7f7b97af-4898-4460-b3ed-d424eebef22a\scratchpad\wt-baseline'
+  - 'C:\Users\steph\TDL'
+  - 'C:\Users\steph\TDL\.apm\worktrees\handoff-renumber'
+  - 'C:\Users\steph\TDL\.apm\worktrees\petls'
+  - 'C:\Users\steph\TDL\.apm\worktrees\recover-handoffs'
+  - 'C:\Users\steph\TDL\.apm\worktrees\resolver'
+  - 'C:\Users\steph\TDL\.apm\worktrees\rm-review-prompt'
+  - 'C:\Users\steph\TDL\.apm\worktrees\rm-revision'
+  - 'C:\Users\steph\TDL\.apm\worktrees\sigguard'
+  - 'C:\Users\steph\TDL\.apm\worktrees\system-review-d1-d4'
+  - 'C:\Users\steph\TDL\.apm\worktrees\system-review-remediation'
+  - 'C:\Users\steph\TDL\.apm\worktrees\wp6-3-pack'
+  - 'C:\Users\steph\TDL\.apm\worktrees\wp63-tskid'
+  - 'C:\Users\steph\TDL\.claude\worktrees\nervous-boyd-368c36'
+  - 'C:\tmp\tdl-gate5-merged-review'
+schema_root: 'C:\Users\steph\.codex\worktrees\547f\TDL\.research-system\schemas'
+foundation_sha256: 172ca1f248cfeba3e5a47593fca6aae34d45f8eca4d009262bc95aba92aade59

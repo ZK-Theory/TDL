@@ -9,7 +9,7 @@ import yaml
 
 from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.config import ApprovedProjectBinding, ControlBinding
+from research_system.config import ApprovedProjectBinding, ControlBinding, _canonical_local_cli_uri
 import research_system.config as config_module
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError
 from research_system.operations.backups import RestorePreflightResult, seal_restore_preflight_result
@@ -27,7 +27,7 @@ ACTOR_ID = "act_01978abc-1002-7000-8000-000000001002"
 AUTHORITY_GRANT_ID = "agr_01978abc-1001-7000-8000-000000001001"
 
 
-def _restored_fixture(tmp_path: Path):
+def _restored_fixture(tmp_path: Path, *, include_retired_code_root: bool = False):
     code_root = tmp_path / "repo"
     schema_root = code_root / ".research-system" / "schemas"
     shutil.copytree(REPO_ROOT / ".research-system" / "schemas", schema_root)
@@ -36,8 +36,13 @@ def _restored_fixture(tmp_path: Path):
     origin_root = tmp_path / "origin-authority"
     origin_root.mkdir()
     bootstrap = authority_bootstrap()
+    code_roots = [code_root]
+    retired_code_root = tmp_path / "retired-repo"
+    if include_retired_code_root:
+        retired_code_root.mkdir()
+        code_roots.append(retired_code_root)
     initialized = initialize_authority_control_store(
-        [code_root],
+        code_roots,
         source_root,
         PROJECT_ID,
         bootstrap,
@@ -46,6 +51,8 @@ def _restored_fixture(tmp_path: Path):
         origin_authority_root=origin_root,
     )
     shutil.copytree(source_root, target_root)
+    if include_retired_code_root:
+        retired_code_root.rmdir()
     witness = load_store_origin_witness(
         initialized.witness_path,
         expected_sha256=initialized.witness.raw_sha256,
@@ -55,7 +62,7 @@ def _restored_fixture(tmp_path: Path):
         target_root,
         PROJECT_ID,
         str(initialized),
-        [code_root],
+        code_roots,
         schema_root,
     )
     manifest_bytes = (target_root / "manifests" / "store-identity.json").read_bytes()
@@ -80,7 +87,7 @@ def _restored_fixture(tmp_path: Path):
             authority_grant_id=AUTHORITY_GRANT_ID,
             result_hash="",
             source_root=str(source_root.resolve()),
-            code_roots=[str(code_root.resolve())],
+            code_roots=sorted(str(root.resolve(strict=False)) for root in code_roots),
             schema_root=str(schema_root.resolve()),
             source_snapshot_hash=sha256_hex(canonical_bytes(snapshot)),
             target_manifest_bytes_sha256=sha256_hex(manifest_bytes),
@@ -96,7 +103,7 @@ def _restored_fixture(tmp_path: Path):
         source_root,
         expected_project_id=PROJECT_ID,
         expected_store_identity=str(initialized),
-        expected_code_roots=[code_root],
+        expected_code_roots=code_roots,
         expected_schema_root=schema_root,
         expected_restore_receipt_hash=preflight.receipt_hash,
         actor_id=ACTOR_ID,
@@ -110,6 +117,13 @@ def _restored_fixture(tmp_path: Path):
         approved_witness_path=initialized.witness_path,
     )
     return initialized, witness, target_root, rebound
+
+
+def test_rebind_preserves_unavailable_historical_code_root(tmp_path: Path):
+    _, _, _, rebound = _restored_fixture(tmp_path, include_retired_code_root=True)
+
+    assert not (tmp_path / "retired-repo").exists()
+    assert str((tmp_path / "retired-repo").resolve(strict=False)) in rebound["code_roots"]
 
 
 def test_cleared_restore_requires_witness_join_and_transaction_presence(tmp_path: Path):
@@ -146,7 +160,7 @@ def test_normal_bindings_use_restored_target_after_source_is_removed(tmp_path: P
         "store_identity": str(initialized),
         "endpoint_scheme": rebound["endpoint_scheme"],
         "canonical_hash": "sha256",
-        "canonical_uri": f"{rebound['endpoint_scheme']}://restored-control",
+        "canonical_uri": _canonical_local_cli_uri(target_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],
@@ -218,7 +232,7 @@ def test_approved_binding_joins_claimed_origin_authority_to_witness_slot(tmp_pat
         "store_identity": str(initialized),
         "endpoint_scheme": rebound["endpoint_scheme"],
         "canonical_hash": "sha256",
-        "canonical_uri": f"{rebound['endpoint_scheme']}://restored-control",
+        "canonical_uri": _canonical_local_cli_uri(target_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],
