@@ -91,9 +91,17 @@ class ApprovedProjectBinding:
     @classmethod
     def load(cls, path: Path) -> "ApprovedProjectBinding":
         try:
-            value: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as exc:
+            raw = path.read_bytes()
+        except OSError as exc:
             raise ConfigurationError(f"invalid approved project binding: {path}") from exc
+        return cls.from_raw(raw)
+
+    @classmethod
+    def from_raw(cls, raw: bytes) -> "ApprovedProjectBinding":
+        try:
+            value: Any = yaml.safe_load(raw.decode("utf-8"))
+        except (UnicodeError, yaml.YAMLError) as exc:
+            raise ConfigurationError("invalid approved project binding bytes") from exc
         if not isinstance(value, dict):
             raise ConfigurationError("approved project binding must be an object")
         missing = sorted(_FOUNDATION_REQUIRED_FIELDS.difference(value))
@@ -249,9 +257,25 @@ class ControlBinding:
     @classmethod
     def load(cls, path: Path) -> "ControlBinding":
         try:
-            value: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as exc:
+            raw = path.read_bytes()
+        except OSError as exc:
             raise ConfigurationError(f"invalid binding config: {path}") from exc
+        foundation_path = canonical_foundation_path()
+        approved = ApprovedProjectBinding.load(foundation_path)
+        try:
+            executing_root = foundation_path.parents[2].resolve(strict=True)
+        except (IndexError, OSError) as exc:
+            raise ConfigurationError("canonical foundation root is unavailable") from exc
+        if executing_root not in approved.code_roots:
+            raise ConfigurationError("binding code roots do not include the canonical foundation root")
+        return cls.from_raw(raw, approved=approved)
+
+    @classmethod
+    def from_raw(cls, raw: bytes, *, approved: ApprovedProjectBinding) -> "ControlBinding":
+        try:
+            value: Any = yaml.safe_load(raw.decode("utf-8"))
+        except (UnicodeError, yaml.YAMLError) as exc:
+            raise ConfigurationError("invalid binding config bytes") from exc
         if not isinstance(value, dict):
             raise ConfigurationError("binding config must be an object")
         required = {
@@ -276,13 +300,6 @@ class ControlBinding:
         project_id = validate_id(str(value["project_id"]), "project")
         resolved_code_roots = tuple(root.resolve(strict=True) for root in code_roots)
         control_root = require_existing_control_root(list(resolved_code_roots), control_root)
-        canonical_foundation = canonical_foundation_path()
-        if canonical_foundation.parents[2].resolve(strict=True) not in resolved_code_roots:
-            raise ConfigurationError("binding code roots do not include the canonical foundation root")
-        try:
-            approved = ApprovedProjectBinding.load(canonical_foundation)
-        except ConfigurationError:
-            raise
         if control_root != approved.control_root:
             raise ConfigurationError("binding control_root differs from canonical foundation")
         if project_id != approved.project_id or str(value["store_identity"]) != approved.store_identity:
