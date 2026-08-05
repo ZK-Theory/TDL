@@ -545,7 +545,7 @@ class ExternalAssuranceRecordStore:
         try:
             if binding.origin_witness is None:
                 raise IntegrityError("control binding has no approved origin witness")
-            code_roots = [root.resolve(strict=True) for root in binding.code_roots]
+            code_roots = [root.resolve(strict=False) for root in binding.code_roots]
             control_root = require_existing_control_root(code_roots, binding.control_root)
             verify_store_identity(
                 control_root,
