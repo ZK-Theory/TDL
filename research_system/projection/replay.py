@@ -15,7 +15,11 @@ from research_system.authority import (
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
+    reduce_attempt,
+    reduce_dispatch,
+    reduce_lease,
     reduce_message,
+    reduce_resource,
     reduce_scope,
     reduce_task,
     validate_scope_lifecycle_event,
@@ -197,6 +201,116 @@ def _validate_scope_completion(payload: dict[str, Any]) -> None:
     invalid = sorted(member for member, disposition in dispositions.items() if disposition not in _ALLOWED_DISPOSITIONS)
     if invalid:
         raise IntegrityError(f"invalid dispositions: {', '.join(invalid)}")
+
+
+def _validate_claim_dispatch_transaction(
+    events: tuple[dict[str, Any], ...],
+    schema_registry: SchemaRegistry | None,
+) -> None:
+    """Require ClaimDispatch's exact two-stream atomic transaction shape."""
+    claim_events = [event for event in events if event.get("event_type") in {"DispatchClaimed", "TaskClaimStarted"}]
+    if not claim_events:
+        return
+    if len(events) != 2 or [event.get("event_type") for event in events] != [
+        "DispatchClaimed",
+        "TaskClaimStarted",
+    ]:
+        raise IntegrityError("ClaimDispatch requires exact ordered Dispatch/Task event pair")
+    if schema_registry is None:
+        raise IntegrityError("ClaimDispatch schema registry unavailable")
+    dispatch_event, task_event = events
+    dispatch_payload = dispatch_event.get("payload")
+    task_payload = task_event.get("payload")
+    if not isinstance(dispatch_payload, dict) or not isinstance(task_payload, dict):
+        raise IntegrityError("ClaimDispatch payloads must be mappings")
+    expected_dispatch_stream_version = dispatch_payload.get("expected_dispatch_stream_version")
+    expected_task_stream_version = dispatch_payload.get("expected_task_stream_version")
+    expected_global_position = dispatch_payload.get("expected_global_position")
+    if any(
+        type(value) is not int
+        for value in (
+            expected_dispatch_stream_version,
+            expected_task_stream_version,
+            expected_global_position,
+        )
+    ):
+        raise IntegrityError("ClaimDispatch expected positions must be integers")
+    if (
+        dispatch_event.get("command_type") != "ClaimDispatch"
+        or task_event.get("command_type") != "ClaimDispatch"
+        or dispatch_event.get("stream_id") != dispatch_payload.get("dispatch_id")
+        or task_event.get("stream_id") != dispatch_payload.get("task_id")
+        or task_payload
+        != {
+            "task_id": dispatch_payload.get("task_id"),
+            "task_revision": dispatch_payload.get("task_revision"),
+        }
+        or dispatch_payload.get("declared_write_set") != ["dispatch", "task"]
+        or dispatch_event.get("stream_version") != expected_dispatch_stream_version + 1
+        or task_event.get("stream_version") != expected_task_stream_version + 1
+        or dispatch_event.get("global_position") != expected_global_position + 1
+        or dispatch_event.get("previous_event_hash") != dispatch_payload.get("expected_tail_hash")
+    ):
+        raise IntegrityError("ClaimDispatch stream, version, or tail binding mismatch")
+    common_fields = {
+        "transaction_id",
+        "transaction_count",
+        "command_id",
+        "command_type",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "command_payload_hash",
+        "actor_id",
+        "authority_grant_id",
+        "idempotency_key",
+        "correlation_id",
+        "causation_id",
+        "project_id",
+    }
+    if any(dispatch_event.get(field) != task_event.get(field) for field in common_fields):
+        raise IntegrityError("ClaimDispatch events do not share one command provenance")
+    command_binding = schema_registry.command_binding("ClaimDispatch")
+    if command_binding is None:
+        raise IntegrityError("ClaimDispatch command schema binding is unavailable")
+    try:
+        command_identity = schema_registry.resolve_identity(
+            command_binding.schema_id,
+            command_binding.schema_version,
+        )
+    except SchemaError as exc:
+        raise IntegrityError("ClaimDispatch command schema binding is unresolved") from exc
+    expected_command_identity = (
+        command_identity.schema_id,
+        command_identity.schema_version,
+        command_identity.sha256,
+    )
+    if any(
+        (
+            event.get("command_schema_id"),
+            event.get("command_schema_version"),
+            event.get("command_schema_sha256"),
+        )
+        != expected_command_identity
+        for event in events
+    ):
+        raise IntegrityError("ClaimDispatch command schema binding mismatch")
+    dispatch_binding = schema_registry.event_binding("DispatchClaimed", "ClaimDispatch")
+    task_binding = schema_registry.event_binding("TaskClaimStarted", "ClaimDispatch")
+    if dispatch_binding is None or task_binding is None:
+        raise IntegrityError("ClaimDispatch event schema bindings are unavailable")
+    exact_pair = (dispatch_event.get("schema_id"), dispatch_event.get("schema_version")) == (
+        dispatch_binding.schema_id,
+        dispatch_binding.schema_version,
+    ) and (task_event.get("schema_id"), task_event.get("schema_version")) == (
+        task_binding.schema_id,
+        task_binding.schema_version,
+    )
+    generic_pair = (
+        dispatch_event.get("schema_id") == "ars://core/event" and task_event.get("schema_id") == "ars://core/event"
+    )
+    if not exact_pair and not generic_pair:
+        raise IntegrityError("ClaimDispatch event schema representation mismatch")
 
 
 def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
@@ -492,7 +606,14 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
                 else {}
             ),
         }
-    elif event_type in {"TaskCreated", "TaskAmended", "TaskSuperseded"}:
+    elif event_type in {
+        "TaskCreated",
+        "TaskAmended",
+        "TaskSuperseded",
+        "ReadinessRequested",
+        "ReadinessApproved",
+        "TaskClaimStarted",
+    }:
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type in {
@@ -512,24 +633,40 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_message(streams.get(stream_id, {}), event)
         except ValueError as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type == "DispatchClaimed":
-        current = streams.get(
-            stream_id,
-            {
-                "dispatch_id": stream_id,
-                "status": "unclaimed",
-                "active_attempt_ids": [],
-                "version": 0,
-            },
-        )
-        if current["status"] != "unclaimed":
-            raise IntegrityError("dispatch already has an active attempt")
-        streams[stream_id] = {
-            **current,
-            "status": "claimed",
-            "active_attempt_ids": [event["payload"]["attempt_id"]],
-            "version": current["version"] + 1,
-        }
+    elif event_type in {
+        "DispatchIssued",
+        "DispatchDelivered",
+        "DispatchAcknowledged",
+        "DispatchExpired",
+        "DispatchWithdrawn",
+        "DispatchClaimed",
+    }:
+        try:
+            streams[stream_id] = reduce_dispatch(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type in {
+        "LeaseGranted",
+        "LeaseRenewed",
+        "LeaseReleased",
+        "LeaseExpired",
+        "LeaseRevoked",
+        "HeartbeatRecorded",
+    }:
+        try:
+            streams[stream_id] = reduce_lease(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type in {"AttemptCreated", "AttemptClaimed", "AttemptStarted"}:
+        try:
+            streams[stream_id] = reduce_attempt(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type in {"ResourceGrantRequested", "ResourcesReleased"}:
+        try:
+            streams[stream_id] = reduce_resource(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
     elif event_type == "ScopeCompleted":
         _validate_scope_completion(event["payload"])
         streams[stream_id] = {
@@ -670,6 +807,7 @@ def replay(
     transaction_count = 0
     transaction_seen = 0
     transaction_zero_based = False
+    transaction_events: list[dict[str, Any]] = []
     for source in events:
         event = deepcopy(source)
         position = event.get("global_position")
@@ -753,6 +891,7 @@ def replay(
             transaction_count = event.get("transaction_count")
             transaction_seen = 0
             transaction_zero_based = t2_event
+            transaction_events = []
         if event.get("transaction_count") != transaction_count:
             raise IntegrityError("event transaction count mismatch")
         if t2_event != transaction_zero_based:
@@ -761,6 +900,9 @@ def replay(
         if event.get("transaction_index") != expected_index:
             raise IntegrityError("event transaction index gap or overlap")
         transaction_seen += 1
+        transaction_events.append(event)
+        if transaction_seen == transaction_count:
+            _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
         state = apply_event(state, event)
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]

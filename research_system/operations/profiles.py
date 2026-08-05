@@ -2,7 +2,28 @@
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
 from typing import Protocol
+
+import yaml
+
+from research_system.canonical import canonical_bytes, sha256_hex
+
+
+_REQUIRED_PROFILE_FIELDS = frozenset(
+    {
+        "profile_id",
+        "max_runtime_s",
+        "allow_child_process",
+        "allow_durable_writer",
+        "require_benchmark",
+        "require_periodic_heartbeat",
+        "require_checkpoint",
+        "heartbeat",
+        "renewal",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +52,22 @@ class OperationalProfile:
     require_benchmark: bool
     require_periodic_heartbeat: bool
     require_checkpoint: bool
+    heartbeat_disposition: str = "not_applicable"
+    heartbeat_cadence_seconds: int | None = None
+    heartbeat_additional_grace_seconds: int | None = None
+    heartbeat_stale_threshold_seconds: int | None = None
+    renewal_allowed: bool = False
+
+
+@dataclass(frozen=True)
+class OperationalProfilePolicy:
+    """Immutable identity and content bindings for the current profile policy."""
+
+    policy_id: str
+    schema_version: str
+    policy_revision: str
+    raw_sha256: str
+    canonical_sha256: str
 
 
 class OperationalRiskRequest(Protocol):
@@ -45,16 +82,80 @@ class OperationalRiskRequest(Protocol):
 
 
 PROFILES = {
-    "trivial": OperationalProfile(
-        "trivial-v1", 120, False, False, False, False, False
-    ),
-    "bounded": OperationalProfile(
-        "bounded-v1", 3600, True, True, False, True, False
-    ),
-    "long_running": OperationalProfile(
-        "long-running-v1", 172800, True, True, True, True, True
-    ),
+    "trivial": OperationalProfile("trivial-v1", 120, False, False, False, False, False),
+    "bounded": OperationalProfile("bounded-v1", 3600, True, True, False, True, False),
+    "long_running": OperationalProfile("long-running-v1", 172800, True, True, True, True, True),
 }
+
+
+def _load_current_operational_profile_policy() -> tuple[OperationalProfilePolicy, Mapping[str, OperationalProfile]]:
+    """Load the accepted v1.1 profile policy with its exact byte bindings."""
+    path = Path(__file__).resolve().parents[2] / ".research-system" / "policies" / "operational-profiles.v1-1.yaml"
+    raw = path.read_bytes()
+    payload = yaml.safe_load(raw)
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema_version",
+        "policy_id",
+        "policy_revision",
+        "profiles",
+    }:
+        raise ValueError("operational_profile_policy_shape_invalid")
+    if (
+        payload["schema_version"] != "1.1.0"
+        or payload["policy_revision"] != "1.1.0"
+        or not isinstance(payload["policy_id"], str)
+        or not payload["policy_id"].startswith("pol_")
+    ):
+        raise ValueError("operational_profile_policy_identity_invalid")
+    raw_profiles = payload["profiles"]
+    if not isinstance(raw_profiles, dict) or set(raw_profiles) != {
+        "trivial",
+        "bounded",
+        "long_running",
+    }:
+        raise ValueError("operational_profile_policy_profiles_invalid")
+
+    profiles: dict[str, OperationalProfile] = {}
+    for name, raw_profile in raw_profiles.items():
+        if not isinstance(raw_profile, dict) or not _REQUIRED_PROFILE_FIELDS.issubset(raw_profile):
+            raise ValueError("operational_profile_invalid")
+        heartbeat = raw_profile.get("heartbeat")
+        renewal = raw_profile.get("renewal")
+        if not isinstance(heartbeat, dict) or not isinstance(renewal, dict):
+            raise ValueError("operational_profile_controls_invalid")
+        if "disposition" not in heartbeat or "allowed" not in renewal:
+            raise ValueError("operational_profile_controls_invalid")
+        profiles[name] = OperationalProfile(
+            profile_id=str(raw_profile["profile_id"]),
+            max_runtime_s=int(raw_profile["max_runtime_s"]),
+            allow_child_process=bool(raw_profile["allow_child_process"]),
+            allow_durable_writer=bool(raw_profile["allow_durable_writer"]),
+            require_benchmark=bool(raw_profile["require_benchmark"]),
+            require_periodic_heartbeat=bool(raw_profile["require_periodic_heartbeat"]),
+            require_checkpoint=bool(raw_profile["require_checkpoint"]),
+            heartbeat_disposition=str(heartbeat["disposition"]),
+            heartbeat_cadence_seconds=(int(heartbeat["cadence_seconds"]) if "cadence_seconds" in heartbeat else None),
+            heartbeat_additional_grace_seconds=(
+                int(heartbeat["additional_grace_seconds"]) if "additional_grace_seconds" in heartbeat else None
+            ),
+            heartbeat_stale_threshold_seconds=(
+                int(heartbeat["stale_threshold_seconds"]) if "stale_threshold_seconds" in heartbeat else None
+            ),
+            renewal_allowed=bool(renewal["allowed"]),
+        )
+    return (
+        OperationalProfilePolicy(
+            policy_id=payload["policy_id"],
+            schema_version=payload["schema_version"],
+            policy_revision=payload["policy_revision"],
+            raw_sha256=sha256_hex(raw),
+            canonical_sha256=sha256_hex(canonical_bytes(payload)),
+        ),
+        MappingProxyType(profiles),
+    )
+
+
+CURRENT_OPERATIONAL_PROFILE_POLICY, CURRENT_PROFILES = _load_current_operational_profile_policy()
 
 RISK_ORDER = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
 
@@ -114,9 +215,7 @@ def profile_evidence_dispositions(
     return {
         "benchmark": "required" if profile.require_benchmark else "not_applicable",
         "checkpoint": "required" if profile.require_checkpoint else "not_applicable",
-        "heartbeat": (
-            "required" if profile.require_periodic_heartbeat else "not_applicable"
-        ),
+        "heartbeat": ("required" if profile.require_periodic_heartbeat else "not_applicable"),
     }
 
 

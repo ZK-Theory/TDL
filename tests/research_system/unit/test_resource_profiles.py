@@ -1,10 +1,16 @@
+import hashlib
 from pathlib import Path
+import re
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.operations import profiles as profiles_module
 from research_system.operations.profiles import (
+    CURRENT_OPERATIONAL_PROFILE_POLICY,
+    CURRENT_PROFILES,
     PROFILES,
     OperationalProfile,
     ResourceClaim,
@@ -93,23 +99,13 @@ def test_operational_floor_raises_route_risk_before_selection():
     ],
 )
 def test_resource_conflict_matrix_is_symmetric(requested, held, capacity, expected):
-    assert (
-        has_resource_conflict(
-            {"gpu:0": requested}, {"gpu:0": held}, {"gpu:0": capacity}
-        )
-        is expected
-    )
+    assert has_resource_conflict({"gpu:0": requested}, {"gpu:0": held}, {"gpu:0": capacity}) is expected
 
 
 def test_operational_profile_yaml_is_authoritative():
     root = Path(__file__).resolve().parents[3]
     payload = yaml.safe_load(
-        (
-            root
-            / ".research-system"
-            / "policies"
-            / "operational-profiles.yaml"
-        ).read_text(encoding="utf-8")
+        (root / ".research-system" / "policies" / "operational-profiles.yaml").read_text(encoding="utf-8")
     )
     assert payload["profiles"] == {
         name: {
@@ -123,3 +119,76 @@ def test_operational_profile_yaml_is_authoritative():
         }
         for name, profile in PROFILES.items()
     }
+
+
+def test_operational_profile_v1_1_policy_freezes_heartbeat_and_renewal_controls():
+    root = Path(__file__).resolve().parents[3]
+    policies = root / ".research-system" / "policies"
+    legacy = yaml.safe_load((policies / "operational-profiles.yaml").read_text(encoding="utf-8"))
+    current_path = policies / "operational-profiles.v1-1.yaml"
+    current_raw = current_path.read_bytes()
+    current = yaml.safe_load(current_raw)
+
+    assert legacy["schema_version"] == "1.0.0"
+    assert current["schema_version"] == "1.1.0"
+    assert current["policy_id"] == "pol_0198825f-7a2b-7f11-8bc1-1c1a00000001"
+    assert re.fullmatch(
+        r"pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+        current["policy_id"],
+    )
+    assert current["policy_revision"] == "1.1.0"
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.policy_id == current["policy_id"]
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.schema_version == current["schema_version"]
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.policy_revision == current["policy_revision"]
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.raw_sha256 == (
+        "b456673fa7ba2d7125d6622373a74ac1f739bdc9259e316042035a48c014ffa2"
+    )
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.raw_sha256 == hashlib.sha256(current_raw).hexdigest()
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.canonical_sha256 == sha256_hex(canonical_bytes(current))
+    assert CURRENT_OPERATIONAL_PROFILE_POLICY.canonical_sha256 == (
+        "1d5b42adf4fd74ba5e4ba1a89af4e6cd7e38d7ad2ff7431501cd2f34f44be72b"
+    )
+    for profile_name in ("bounded", "long_running"):
+        profile = current["profiles"][profile_name]
+        assert profile["heartbeat"] == {
+            "disposition": "required",
+            "cadence_seconds": 300,
+            "additional_grace_seconds": 600,
+            "stale_threshold_seconds": 900,
+        }
+        assert profile["renewal"] == {"allowed": True}
+        assert CURRENT_PROFILES[profile_name].heartbeat_disposition == "required"
+        assert CURRENT_PROFILES[profile_name].heartbeat_cadence_seconds == 300
+        assert CURRENT_PROFILES[profile_name].heartbeat_additional_grace_seconds == 600
+        assert CURRENT_PROFILES[profile_name].heartbeat_stale_threshold_seconds == 900
+        assert CURRENT_PROFILES[profile_name].renewal_allowed is True
+    assert current["profiles"]["trivial"]["heartbeat"] == {"disposition": "not_applicable"}
+    assert current["profiles"]["trivial"]["renewal"] == {"allowed": False}
+    assert CURRENT_PROFILES["trivial"].heartbeat_disposition == "not_applicable"
+    assert CURRENT_PROFILES["trivial"].heartbeat_cadence_seconds is None
+    assert CURRENT_PROFILES["trivial"].renewal_allowed is False
+
+
+@pytest.mark.parametrize(
+    ("control", "field", "expected_error"),
+    (
+        (None, "profile_id", "operational_profile_invalid"),
+        ("heartbeat", "disposition", "operational_profile_controls_invalid"),
+        ("renewal", "allowed", "operational_profile_controls_invalid"),
+    ),
+    ids=["profile-field", "heartbeat-disposition", "renewal-allowed"],
+)
+def test_operational_profile_policy_missing_required_keys_raise_named_errors(
+    monkeypatch, control, field, expected_error
+):
+    root = Path(__file__).resolve().parents[3]
+    policy_path = root / ".research-system" / "policies" / "operational-profiles.v1-1.yaml"
+    payload = yaml.safe_load(policy_path.read_bytes())
+    bounded = payload["profiles"]["bounded"]
+    target = bounded if control is None else bounded[control]
+    target.pop(field)
+    malformed = yaml.safe_dump(payload, sort_keys=False).encode("utf-8")
+    monkeypatch.setattr(Path, "read_bytes", lambda _path: malformed)
+
+    with pytest.raises(ValueError, match=expected_error):
+        profiles_module._load_current_operational_profile_policy()

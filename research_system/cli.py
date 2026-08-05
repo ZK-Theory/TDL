@@ -8,7 +8,7 @@ import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
@@ -69,6 +69,7 @@ from research_system.operations.backups import (
     BackupReceipt,
     verify_restore_before_writer_lease,
 )
+from research_system.operations.resources import TrustedRuntimeAuthority
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import (
     SchemaRegistry,
@@ -315,8 +316,52 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
     return 0
 
 
+def _command_submit_runtime_authority_provider(
+    binding: ControlBinding,
+    host_identity: str | None,
+    boot_identity: str | None,
+) -> Callable[[], TrustedRuntimeAuthority] | None:
+    if host_identity is None and boot_identity is None:
+        return None
+    if host_identity is None or boot_identity is None:
+        raise ConfigurationError("command submit requires --host-identity and --boot-identity together")
+    try:
+        TrustedRuntimeAuthority(
+            host_identity=host_identity,
+            boot_identity=boot_identity,
+            control_store_identity=binding.store_identity,
+            store_manifest_sha256="0" * 64,
+        )
+    except ValueError as exc:
+        raise ConfigurationError("command submit runtime authority identities are invalid") from exc
+
+    def provider() -> TrustedRuntimeAuthority:
+        manifest = load_store_manifest(
+            binding.control_root,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
+        if manifest.get("project_id") != binding.project_id:
+            raise ConfigurationError("current store manifest project differs from the selected control binding")
+        if manifest.get("store_identity") != binding.store_identity:
+            raise ConfigurationError("current store manifest store identity differs from the selected control binding")
+        return TrustedRuntimeAuthority(
+            host_identity=host_identity,
+            boot_identity=boot_identity,
+            control_store_identity=binding.store_identity,
+            store_manifest_sha256=sha256_hex(canonical_bytes(manifest)),
+        )
+
+    return provider
+
+
 def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
+    trusted_runtime_authority_provider = _command_submit_runtime_authority_provider(
+        binding,
+        args.host_identity,
+        args.boot_identity,
+    )
     command = _read_json(args.command)
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
@@ -335,6 +380,7 @@ def _command_submit(args: argparse.Namespace) -> int:
             approved_witness_path=binding.origin_witness_path,
         ),
         clock=_authority_clock,
+        trusted_runtime_authority_provider=trusted_runtime_authority_provider,
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
@@ -952,6 +998,8 @@ def _parser() -> argparse.ArgumentParser:
     submit = command_actions.add_parser("submit")
     submit.add_argument("--config", type=Path, required=True)
     submit.add_argument("--command", type=Path, required=True)
+    submit.add_argument("--host-identity", default=None)
+    submit.add_argument("--boot-identity", default=None)
     submit.add_argument("--evidence-store-registry", type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
 

@@ -1,0 +1,46 @@
+schema_version: '1.1.0'
+policy_id: pol_0198825f-7a2b-7f11-8bc1-1c1a00000001
+policy_revision: '1.1.0'
+profiles:
+  trivial:
+    profile_id: trivial-v1
+    max_runtime_s: 120
+    allow_child_process: false
+    allow_durable_writer: false
+    require_benchmark: false
+    require_periodic_heartbeat: false
+    require_checkpoint: false
+    heartbeat:
+      disposition: not_applicable
+    renewal:
+      allowed: false
+  bounded:
+    profile_id: bounded-v1
+    max_runtime_s: 3600
+    allow_child_process: true
+    allow_durable_writer: true
+    require_benchmark: false
+    require_periodic_heartbeat: true
+    require_checkpoint: false
+    heartbeat:
+      disposition: required
+      cadence_seconds: 300
+      additional_grace_seconds: 600
+      stale_threshold_seconds: 900
+    renewal:
+      allowed: true
+  long_running:
+    profile_id: long-running-v1
+    max_runtime_s: 172800
+    allow_child_process: true
+    allow_durable_writer: true
+    require_benchmark: true
+    require_periodic_heartbeat: true
+    require_checkpoint: true
+    heartbeat:
+      disposition: required
+      cadence_seconds: 300
+      additional_grace_seconds: 600
+      stale_threshold_seconds: 900
+    renewal:
+      allowed: true

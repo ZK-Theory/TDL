@@ -172,6 +172,25 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "RecordMessageDelivery": "message",
     "AcknowledgeMessage": "message",
     "RecordMessageDeliveryFailure": "message",
+    "RequestReadiness": "task",
+    "ApproveReadiness": "task",
+    "IssueDispatch": "dispatch",
+    "RecordDispatchDelivery": "dispatch",
+    "AcknowledgeDispatch": "dispatch",
+    "ExpireDispatch": "dispatch",
+    "WithdrawDispatch": "dispatch",
+    "ClaimDispatch": "dispatch",
+    "ClaimExecutionLease": "lease",
+    "RenewExecutionLease": "lease",
+    "ReleaseExecutionLease": "lease",
+    "ExpireLease": "lease",
+    "RevokeLease": "lease",
+    "RecordHeartbeat": "lease",
+    "CreateAttempt": "attempt",
+    "ClaimAttempt": "attempt",
+    "StartAttempt": "attempt",
+    "RequestResourceGrant": "resource",
+    "ReleaseResources": "resource",
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",
@@ -797,7 +816,7 @@ class LifecycleCommandAuthorityEvidence:
 
     Attributes:
         administration_context: Bound store and bootstrap-owner context.
-        actor_class: Owner-derived actor class used for command resolution.
+        actor_class: Canonically derived actor class used for command resolution.
         command_resolution: Current command-specific authorization evidence.
         canonical_grant_identity: The same frozen grant-resolution evidence as
             ``command_resolution``, retained for bundle-consistency checks. It
@@ -2358,7 +2377,7 @@ class LedgerAuthorityGrantResolver:
         subject_id: str,
         now: datetime,
     ) -> LifecycleCommandAuthorityEvidence:
-        """Resolve owner-governed lifecycle authority from one fresh replay.
+        """Resolve lifecycle authority from one fresh replay.
 
         Args:
             grant_id: Activated scoped authority-grant identity.
@@ -2376,13 +2395,13 @@ class LedgerAuthorityGrantResolver:
             identity for bundle-consistency checks.
 
         Raises:
-            ArsError: If owner classification or any grant constraint fails.
+            ArsError: If actor classification or any grant constraint fails.
             IntegrityError: If canonical authority evidence is invalid.
             ValueError: If an identity, risk tier, scope, or time is malformed.
 
         Security:
             This operation invokes :meth:`_projection` exactly once and never
-            exposes its mutable mapping. Owner classification, current command
+            exposes its mutable mapping. Actor classification, current command
             authority, and canonical identity are all derived inside this
             resolver from that single lock-interval replay. The canonical
             identity field is not an independent authority read.
@@ -2390,7 +2409,15 @@ class LedgerAuthorityGrantResolver:
         projection = self._projection()
         context = self._administration_context_from_projection(projection)
         self._validate_granted_command_identity(command)
-        actor_class = "human" if actor_id == context.owner_actor_id else "unproven"
+        if command.command_type == "ReleaseExecutionLease" and actor_id != context.owner_actor_id:
+            resolution, grant, _ = self._scoped_resolution(grant_id, projection)
+            if resolution.actor_id != validate_id(actor_id, "actor"):
+                raise ArsError("authority actor mismatch")
+            if len(grant.allowed_actor_classes) != 1:
+                raise ArsError("lifecycle grant actor class is ambiguous")
+            actor_class = grant.allowed_actor_classes[0]
+        else:
+            actor_class = "human" if actor_id == context.owner_actor_id else "unproven"
         command_resolution = self._resolve_command_from_projection(
             grant_id=grant_id,
             actor_id=actor_id,
@@ -2403,7 +2430,7 @@ class LedgerAuthorityGrantResolver:
             now=now,
             projection=projection,
         )
-        if actor_class != "human":
+        if actor_class == "unproven":
             raise ArsError("authority actor class is not proven by the bootstrap owner")
         return LifecycleCommandAuthorityEvidence(
             administration_context=context,

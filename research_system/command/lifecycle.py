@@ -57,6 +57,106 @@ EXACT_LIFECYCLE_BINDINGS = {
         "RecordMessageDeliveryFailure",
         "ars://core/command/RecordMessageDeliveryFailure",
     ),
+    "ars://core/event/ReadinessRequested": (
+        "ReadinessRequested",
+        "RequestReadiness",
+        "ars://core/command/RequestReadiness",
+    ),
+    "ars://core/event/ReadinessApproved": (
+        "ReadinessApproved",
+        "ApproveReadiness",
+        "ars://core/command/ApproveReadiness",
+    ),
+    "ars://core/event/DispatchIssued": (
+        "DispatchIssued",
+        "IssueDispatch",
+        "ars://core/command/IssueDispatch",
+    ),
+    "ars://core/event/DispatchDelivered": (
+        "DispatchDelivered",
+        "RecordDispatchDelivery",
+        "ars://core/command/RecordDispatchDelivery",
+    ),
+    "ars://core/event/DispatchAcknowledged": (
+        "DispatchAcknowledged",
+        "AcknowledgeDispatch",
+        "ars://core/command/AcknowledgeDispatch",
+    ),
+    "ars://core/event/DispatchExpired": (
+        "DispatchExpired",
+        "ExpireDispatch",
+        "ars://core/command/ExpireDispatch",
+    ),
+    "ars://core/event/DispatchWithdrawn": (
+        "DispatchWithdrawn",
+        "WithdrawDispatch",
+        "ars://core/command/WithdrawDispatch",
+    ),
+    "ars://core/event/DispatchClaimed": (
+        "DispatchClaimed",
+        "ClaimDispatch",
+        "ars://core/command/ClaimDispatch",
+    ),
+    "ars://core/event/TaskClaimStarted": (
+        "TaskClaimStarted",
+        "ClaimDispatch",
+        "ars://core/command/ClaimDispatch",
+    ),
+    "ars://core/event/LeaseGranted": (
+        "LeaseGranted",
+        "ClaimExecutionLease",
+        "ars://core/command/ClaimExecutionLease",
+    ),
+    "ars://core/event/LeaseRenewed": (
+        "LeaseRenewed",
+        "RenewExecutionLease",
+        "ars://core/command/RenewExecutionLease",
+    ),
+    "ars://core/event/LeaseReleased": (
+        "LeaseReleased",
+        "ReleaseExecutionLease",
+        "ars://core/command/ReleaseExecutionLease",
+    ),
+    "ars://core/event/LeaseExpired": (
+        "LeaseExpired",
+        "ExpireLease",
+        "ars://core/command/ExpireLease",
+    ),
+    "ars://core/event/LeaseRevoked": (
+        "LeaseRevoked",
+        "RevokeLease",
+        "ars://core/command/RevokeLease",
+    ),
+    "ars://core/event/AttemptCreated": (
+        "AttemptCreated",
+        "CreateAttempt",
+        "ars://core/command/CreateAttempt",
+    ),
+    "ars://core/event/AttemptClaimed": (
+        "AttemptClaimed",
+        "ClaimAttempt",
+        "ars://core/command/ClaimAttempt",
+    ),
+    "ars://core/event/AttemptStarted": (
+        "AttemptStarted",
+        "StartAttempt",
+        "ars://core/command/StartAttempt",
+    ),
+    "ars://core/event/ResourceGrantRequested": (
+        "ResourceGrantRequested",
+        "RequestResourceGrant",
+        "ars://core/command/RequestResourceGrant",
+    ),
+    "ars://core/event/HeartbeatRecorded": (
+        "HeartbeatRecorded",
+        "RecordHeartbeat",
+        "ars://core/command/RecordHeartbeat",
+    ),
+    "ars://core/event/ResourcesReleased": (
+        "ResourcesReleased",
+        "ReleaseResources",
+        "ars://core/command/ReleaseResources",
+    ),
 }
 
 _MESSAGE_EVENT_SCHEMA_IDS = {
@@ -65,6 +165,9 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
     "MessageAcknowledged": "ars://core/event/MessageAcknowledged",
     "MessageDeliveryFailed": "ars://core/event/MessageDeliveryFailed",
 }
+
+# These payloads are derived from their command payloads rather than copied verbatim.
+_DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset({"TaskClaimStarted", "LeaseExpired", "AttemptCreated"})
 
 
 def validate_exact_lifecycle_envelope(
@@ -101,7 +204,10 @@ def validate_exact_lifecycle_envelope(
         or event.get("command_type") != command_type
         or event.get("command_schema_id") != command_schema_id
         or event.get("command_schema_version") != "1.0.0"
-        or event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
+        or (
+            event_type not in _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES
+            and event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
+        )
     ):
         raise ValueError("exact lifecycle event provenance mismatch")
     return command_type

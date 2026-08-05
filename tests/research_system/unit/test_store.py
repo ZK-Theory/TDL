@@ -1355,6 +1355,114 @@ def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
     assert ledger._persisted_tail() == (2, events[-1]["event_hash"])
 
 
+def test_replay_rejects_split_multi_event_batch_across_files(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            },
+            {
+                "event_type": "ReadinessRequested",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            },
+        ]
+    )
+
+    batch = next(ledger.events_root.rglob("*.jsonl"))
+    lines = [line for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(lines) == 2
+
+    batch.unlink()
+    left = batch.with_name(batch.name.replace(".jsonl", "-left.jsonl"))
+    right = batch.with_name(batch.name.replace(".jsonl", "-right.jsonl"))
+    left.write_text(lines[0] + "\n", encoding="utf-8")
+    right.write_text(lines[1] + "\n", encoding="utf-8")
+
+    with pytest.raises(ArsError, match="transaction_count does not match physical line count"):
+        list(ledger.iter_events())
+
+
+def test_iter_batches_rejects_reordered_physical_transaction_indexes(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {"event_type": "TaskCreated", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+            {"event_type": "ReadinessRequested", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+        ]
+    )
+    batch = next(ledger.events_root.rglob("*.jsonl"))
+    lines = [line for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
+    batch.write_text("\n".join(reversed(lines)) + "\n", encoding="utf-8")
+
+    with pytest.raises(ArsError, match="invalid transaction_index sequence"):
+        next(ledger.iter_batches())
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    (
+        ("transaction_index", True, "invalid transaction_index sequence"),
+        ("transaction_index", 1.0, "invalid transaction_index sequence"),
+        ("transaction_count", 2.0, "transaction_count does not match physical line count"),
+    ),
+    ids=["boolean-index", "float-index", "float-count"],
+)
+def test_iter_batches_rejects_non_integer_transaction_envelope_values(tmp_path, field, value, expected_error):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {"event_type": "TaskCreated", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+            {"event_type": "ReadinessRequested", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+        ]
+    )
+    batch = next(ledger.events_root.rglob("*.jsonl"))
+    events = [json.loads(line) for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events[0][field] = value
+    batch.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+
+    with pytest.raises(ArsError, match=expected_error):
+        next(ledger.iter_batches())
+
+
+def test_iter_batches_rejects_mixed_t2_and_core_transaction_conventions(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {"event_type": "TaskCreated", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+            {"event_type": "ReadinessRequested", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+        ]
+    )
+    batch = next(ledger.events_root.rglob("*.jsonl"))
+    events = [json.loads(line) for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events[0]["schema_id"] = "ars://wp6-2/t2/event/CostGrantIssued"
+    batch.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+
+    with pytest.raises(ArsError, match="mixed transaction_index conventions"):
+        next(ledger.iter_batches())
+
+
+def test_append_rejects_mixed_t2_and_core_transaction_conventions_before_publication(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+
+    with pytest.raises(ArsError, match="must not mix transaction_index conventions"):
+        ledger.append(
+            [
+                {"event_type": "TaskCreated", "stream_id": TASK_ID, "schema_id": "ars://core/event"},
+                {
+                    "event_type": "CostGrantIssued",
+                    "stream_id": TASK_ID,
+                    "schema_id": "ars://wp6-2/t2/event/CostGrantIssued",
+                },
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
 def test_caller_cannot_override_recorded_at(tmp_path):
     ledger = _catalogue_only_ledger(tmp_path)
     with pytest.raises(ArsError, match="protected event fields"):

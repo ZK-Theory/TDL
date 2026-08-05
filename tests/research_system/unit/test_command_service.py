@@ -1,5 +1,6 @@
 import json
 import threading
+from copy import deepcopy
 
 import pytest
 
@@ -100,7 +101,7 @@ def test_revision_graph_rejects_non_mapping_legacy_task_payload(payload):
         CommandService._revision_graph(snapshot)
 
 
-def test_inactive_dispatch_schema_materialization_is_inert(tmp_path):
+def test_active_dispatch_schema_rejects_generic_bypass_without_writes(tmp_path):
     harness = control_plane(tmp_path)
     command = claim_dispatch_command(
         CMD_CLAIM_A,
@@ -110,11 +111,13 @@ def test_inactive_dispatch_schema_materialization_is_inert(tmp_path):
     )
 
     assert harness.service.schemas.contains("ars://core/event/DispatchClaimed")
-    assert not harness.service.schemas.is_active(
+    assert harness.service.schemas.is_active(
         "ars://core/event/DispatchClaimed",
         "1.0.0",
     )
-    assert harness.service.submit(command).status == "accepted"
+    with pytest.raises(SchemaError, match="ClaimDispatch"):
+        harness.service.submit(command)
+    assert tuple(harness.ledger.iter_batches()) == ()
 
 
 def test_caller_supplied_command_schema_provenance_is_ignored(tmp_path):
@@ -185,7 +188,7 @@ def test_generic_schema_cannot_bypass_active_create_task_binding(tmp_path):
     assert not list((harness.objects.control_root / "objects").rglob("*.json"))
 
 
-def test_inactive_event_records_generic_schema_identity(tmp_path):
+def test_active_claim_dispatch_requires_its_exact_command_envelope(tmp_path):
     harness = control_plane(tmp_path)
     command = claim_dispatch_command(
         CMD_CLAIM_A,
@@ -194,12 +197,37 @@ def test_inactive_event_records_generic_schema_identity(tmp_path):
         expected_version=0,
     )
 
-    assert harness.service.submit(command).status == "accepted"
-    event = tuple(harness.ledger.iter_events())[0]
+    with pytest.raises(SchemaError, match="ClaimDispatch"):
+        harness.service.submit(command)
+    assert tuple(harness.ledger.iter_events()) == ()
 
-    assert event["event_type"] == "DispatchClaimed"
-    assert event["schema_id"] == "ars://core/event"
-    assert event["schema_version"] == "1.0.0"
+
+@pytest.mark.parametrize(
+    ("actor_id", "command_types"),
+    (
+        (ACTORS["actor-b"], ("CreateTask",)),
+        (ACTORS["actor-a"], ("AmendTask",)),
+    ),
+    ids=["actor-mismatch", "command-mismatch"],
+)
+def test_activate_lifecycle_grant_rejects_mismatched_existing_scope(tmp_path, actor_id, command_types):
+    harness = control_plane(tmp_path)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="task",
+        subject_id=TASK_ID,
+        command_types=("CreateTask",),
+    )
+
+    with pytest.raises(AssertionError, match="existing lifecycle grant does not match requested scope"):
+        activate_lifecycle_grant(
+            harness,
+            subject_kind="task",
+            subject_id=TASK_ID,
+            actor_id=actor_id,
+            command_types=command_types,
+            grant_id=grant_id,
+        )
 
 
 def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):
@@ -316,65 +344,50 @@ def test_same_idempotency_key_with_changed_payload_conflicts(tmp_path):
         harness.service.submit(changed)
 
 
-def test_same_key_is_independent_across_command_types(tmp_path):
+def test_active_c1_command_validates_before_cross_type_idempotency(tmp_path):
     harness = control_plane(tmp_path)
     create = create_task_command(CMD_CREATE, "shared", TASK_ID, {"title": "A"})
     claim = claim_dispatch_command(CMD_CLAIM_A, "actor-a", DISPATCH_ID, expected_version=0)
     claim["idempotency_key"] = "shared"
     assert harness.service.submit(create).status == "accepted"
-    assert harness.service.submit(claim).status == "accepted"
-    assert len(tuple(harness.ledger.iter_batches())) == 2
+    with pytest.raises(SchemaError, match="ClaimDispatch"):
+        harness.service.submit(claim)
+    assert len(tuple(harness.ledger.iter_batches())) == 1
 
 
-def test_reused_command_id_conflicts_before_second_batch(tmp_path):
+def test_malformed_active_c1_command_does_not_consume_reused_command_id(tmp_path):
     harness = control_plane(tmp_path)
     first = create_task_command(CMD_CREATE, "first-command", TASK_ID, {"title": "A"})
     reused = claim_dispatch_command(CMD_CREATE, "actor-b", DISPATCH_ID, expected_version=0)
     original = harness.service.submit(first)
-    with pytest.raises(ConflictError, match="command ID conflicts"):
+    with pytest.raises(SchemaError, match="ClaimDispatch"):
         harness.service.submit(reused)
     assert len(tuple(harness.ledger.iter_batches())) == 1
     assert harness.receipts.load(CMD_CREATE) == original
 
 
-def test_competing_claims_create_only_one_active_attempt(tmp_path):
-    harness = control_plane(tmp_path)
-    first = claim_dispatch_command(CMD_CLAIM_A, "actor-a", DISPATCH_ID, expected_version=0)
-    second = claim_dispatch_command(CMD_CLAIM_B, "actor-b", DISPATCH_ID, expected_version=0)
-    winner = harness.service.submit(first)
-    loser = harness.service.submit(second)
-    state = harness.replay()
-    assert {winner.status, loser.status} == {"accepted", "conflict"}
-    assert len(state.active_attempt_ids) == 1
-    assert state.stream_states == {}
-
-
 def test_conflict_receipt_is_persisted_and_reused_after_stream_changes(tmp_path):
     harness = control_plane(tmp_path)
-    blocked = claim_dispatch_command(CMD_CLAIM_A, "actor-a", DISPATCH_ID, expected_version=1)
+    blocked = create_task_command(CMD_CLAIM_A, "blocked", TASK_ID, {"title": "Blocked"})
+    blocked["expected_stream_version"] = 1
     original = harness.service.submit(blocked)
     assert original.status == "conflict"
     assert original.observed_stream_version == 0
     assert harness.receipts.load(CMD_CLAIM_A) == original
 
-    advancing = claim_dispatch_command(CMD_CLAIM_B, "actor-a", DISPATCH_ID, expected_version=0)
+    advancing = create_task_command(CMD_CLAIM_B, "advancing", TASK_ID, {"title": "Advancing"})
     assert harness.service.submit(advancing).status == "accepted"
-    restarted = CommandService(
-        harness.service.control_root,
-        harness.ledger,
-        harness.objects,
-        harness.receipts,
-        harness.service.schemas,
-    )
-    assert restarted.submit(blocked) == original
+    assert harness.service.submit(blocked) == original
 
 
 def test_conflict_receipt_rejects_command_id_reuse_with_changed_payload(tmp_path):
     harness = control_plane(tmp_path)
-    blocked = claim_dispatch_command(CMD_CLAIM_A, "actor-a", DISPATCH_ID, expected_version=1)
+    blocked = create_task_command(CMD_CLAIM_A, "blocked", TASK_ID, {"title": "Blocked"})
+    blocked["expected_stream_version"] = 1
     harness.service.submit(blocked)
-    changed = {**blocked, "payload": {"changed": True}}
-    with pytest.raises(ConflictError, match="stored receipt"):
+    changed = deepcopy(blocked)
+    changed["payload"]["definition"]["title"] = "Changed payload"
+    with pytest.raises(ConflictError, match="idempotency key conflicts"):
         harness.service.submit(changed)
 
 

@@ -18,6 +18,7 @@ from research_system.command.models import Command
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService, MessageAdapterRegistration
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
+from research_system.operations.resources import TrustedRuntimeAuthority
 from research_system.evals.harness import (
     build_release_decision,
     decision_document,
@@ -43,6 +44,44 @@ ACTORS = {
 }
 ROOT_AUTHORITY_GRANT_ID = "agr_01978abc-1004-7000-8000-000000001004"
 RELEASE_DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
+
+_LIFECYCLE_COMMAND_TYPES_BY_SUBJECT = {
+    "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
+    "task": (
+        "CreateTask",
+        "AmendTask",
+        "SupersedeTask",
+        "RequestReadiness",
+        "ApproveReadiness",
+    ),
+    "dispatch": (
+        "IssueDispatch",
+        "RecordDispatchDelivery",
+        "AcknowledgeDispatch",
+        "ExpireDispatch",
+        "WithdrawDispatch",
+        "ClaimDispatch",
+    ),
+    "lease": (
+        "ClaimExecutionLease",
+        "RenewExecutionLease",
+        "ReleaseExecutionLease",
+        "ExpireLease",
+        "RevokeLease",
+        "RecordHeartbeat",
+    ),
+    "attempt": ("CreateAttempt", "ClaimAttempt", "StartAttempt"),
+    "resource": ("RequestResourceGrant", "ReleaseResources"),
+    "message": (
+        "PublishMessage",
+        "RecordMessageDelivery",
+        "AcknowledgeMessage",
+        "RecordMessageDeliveryFailure",
+    ),
+}
+_LIFECYCLE_COMMAND_TYPES = frozenset(
+    command_type for command_types in _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.values() for command_type in command_types
+)
 
 
 def authority_bootstrap(
@@ -182,6 +221,7 @@ def activate_lifecycle_grant(
     subject_id: str,
     actor_id: str = ACTORS["actor-a"],
     command_types: tuple[str, ...] | None = None,
+    grant_id: str | None = None,
     effective_at: str = "2026-01-01T00:00:00Z",
     expires_at: str = "2030-01-01T00:00:00Z",
 ) -> str:
@@ -192,6 +232,12 @@ def activate_lifecycle_grant(
         subject_kind: Governed subject kind for the grant scope.
         subject_id: Governed subject identity for the grant scope.
         actor_id: Actor recorded on the issued grant.
+        command_types: Exact commands allowed by the grant, or the centralized
+            defaults for ``subject_kind`` when omitted.
+        grant_id: Explicit grant identity, or the deterministic identity derived
+            from ``subject_id`` when omitted.
+        effective_at: Grant activation instant.
+        expires_at: Grant expiry instant.
 
     Returns:
         The deterministic authority-grant identity.
@@ -200,26 +246,28 @@ def activate_lifecycle_grant(
         AssertionError: If an expected active command binding is missing or
             the authority service rejects activation.
     """
-    grant_id = scoped_lifecycle_grant_id(subject_id)
+    grant_id = scoped_lifecycle_grant_id(subject_id) if grant_id is None else grant_id
+    resolved_command_types = command_types or _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT.get(subject_kind)
+    if resolved_command_types is None:
+        raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
+    subject_scope = {
+        "project_id": PROJECT_ID,
+        "subject": {"kind": subject_kind, "id": subject_id},
+    }
     try:
         existing = harness.authority_resolver.scoped_grant_identity(grant_id)
     except ArsError:
         existing = None
     if existing is not None:
+        stored_grant = harness.authority_objects.read("authority_grant", grant_id, 1)
+        stored_command_types = tuple(command["command_type"] for command in stored_grant["allowed_commands"])
+        if (
+            existing.actor_id != actor_id
+            or existing.subject_scope.to_dict() != subject_scope
+            or stored_command_types != tuple(resolved_command_types)
+        ):
+            raise AssertionError("existing lifecycle grant does not match requested scope")
         return grant_id
-    command_types_by_subject = {
-        "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
-        "task": ("CreateTask", "AmendTask", "SupersedeTask"),
-        "message": (
-            "PublishMessage",
-            "RecordMessageDelivery",
-            "AcknowledgeMessage",
-            "RecordMessageDeliveryFailure",
-        ),
-    }
-    resolved_command_types = command_types or command_types_by_subject.get(subject_kind)
-    if resolved_command_types is None:
-        raise ValueError(f"unsupported lifecycle grant subject kind: {subject_kind}")
     command_identities = []
     for command_type in resolved_command_types:
         binding = harness.schemas.command_binding(command_type)
@@ -239,10 +287,6 @@ def activate_lifecycle_grant(
         "ars://core/scoped-authority-grant",
         "2.0.0",
     )
-    subject_scope = {
-        "project_id": PROJECT_ID,
-        "subject": {"kind": subject_kind, "id": subject_id},
-    }
     grant = {
         "schema_id": "ars://core/scoped-authority-grant",
         "schema_version": "2.0.0",
@@ -422,22 +466,7 @@ class GovernedTestCommandService(CommandService):
         super().__init__(*args, **kwargs)
 
     def _before_submission_lock(self, command: Command) -> None:
-        if (
-            command.envelope.get("command_type")
-            in {
-                "CreateScopeDefinition",
-                "AmendScopeDefinition",
-                "SupersedeScopeDefinition",
-                "CreateTask",
-                "AmendTask",
-                "SupersedeTask",
-                "PublishMessage",
-                "RecordMessageDelivery",
-                "AcknowledgeMessage",
-                "RecordMessageDeliveryFailure",
-            }
-            and command.actor_id == ACTORS["actor-a"]
-        ):
+        if command.envelope.get("command_type") in _LIFECYCLE_COMMAND_TYPES and command.actor_id == ACTORS["actor-a"]:
             _, subject_kind, subject_id, _ = self._lifecycle_authority_inputs(
                 command,
                 self.ledger.snapshot(),
@@ -464,6 +493,7 @@ def control_plane(
     *,
     auto_authority: bool = True,
     clock: Callable[[], datetime] | None = None,
+    trusted_runtime_authority_provider: Callable[[], TrustedRuntimeAuthority] | None = None,
     message_adapter_registry: tuple[MessageAdapterRegistration, ...] | None = None,
 ) -> ControlPlaneHarness:
     root = tmp_path / "control"
@@ -514,6 +544,7 @@ def control_plane(
         schemas,
         authority_resolver=authority_resolver,
         clock=clock,
+        trusted_runtime_authority_provider=trusted_runtime_authority_provider,
         message_adapter_registry=message_adapter_registry,
     )
     harness = ControlPlaneHarness(
@@ -540,6 +571,7 @@ def control_plane(
                 schemas,
                 authority_resolver=authority_resolver,
                 clock=clock,
+                trusted_runtime_authority_provider=trusted_runtime_authority_provider,
                 authority_harness=harness,
                 message_adapter_registry=message_adapter_registry,
             ),
