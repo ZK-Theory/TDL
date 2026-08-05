@@ -34,6 +34,7 @@ from research_system.assurance.pack_loader import (
 )
 from research_system.assurance.requirements import LedgerBackedAuthorityPolicy, validate_requirement
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
+from research_system.assurance.tdl_private_semantics import validate_tdl_private_semantics
 from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
@@ -64,6 +65,7 @@ _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _FACT_ID = re.compile(r"^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _REVISION_FILE = re.compile(r"^(?P<revision>[0-9]{8})-(?P<sha>[0-9a-f]{64})\.json$")
+_INDEPENDENCE_ORDER = {"I0": 0, "I1": 1, "I2": 2, "I3": 3}
 _FUTURE_PREPARE_KEYS = frozenset(
     {
         "independent_pack_review",
@@ -83,6 +85,12 @@ _STANDARD_LOCATOR_CLASSES = {
     "independent_pack_review": "independent_pack_review",
     "stephen_owner_acceptance": "stephen_owner_acceptance",
     "obligation_applicability_confirmation": "obligation_applicability_confirmation",
+}
+_RELATIONSHIP_LOCATOR_KEYS = {
+    "contract_review_relationship": "producer_relationship_evidence:contract_review",
+    "schema_review_relationship": "producer_relationship_evidence:schema_review",
+    "requirement_scope_relationship": "producer_relationship_evidence:requirement_scope",
+    "pack_review_relationship": "producer_relationship_evidence:pack_review",
 }
 
 
@@ -407,7 +415,7 @@ def _normalise_locators(value: Mapping[str, object]) -> dict[str, SemanticRecord
         if not locator_value.record_class or not locator_value.record_id:
             raise PackUnconsumable(f"record locator is incomplete: {semantic}")
         expected = _STANDARD_LOCATOR_CLASSES.get(semantic)
-        if semantic == "requirement_scope_relationship" or semantic == "pack_review_relationship":
+        if semantic in _RELATIONSHIP_LOCATOR_KEYS:
             expected = "producer_relationship_evidence"
         elif semantic.startswith("relationship_evidence_facts:"):
             expected = "relationship_evidence_facts"
@@ -424,10 +432,8 @@ def _normalise_locators(value: Mapping[str, object]) -> dict[str, SemanticRecord
 def _external_key_for_class(semantic: str) -> str | None:
     if semantic.startswith("canonical_actor:"):
         return semantic
-    if semantic == "requirement_scope_relationship":
-        return "producer_relationship_evidence:requirement_scope"
-    if semantic == "pack_review_relationship":
-        return "producer_relationship_evidence:pack_review"
+    if semantic in _RELATIONSHIP_LOCATOR_KEYS:
+        return _RELATIONSHIP_LOCATOR_KEYS[semantic]
     if semantic.startswith("relationship_evidence_facts:"):
         return None
     return semantic
@@ -680,8 +686,13 @@ def _validate_required_locator_set(
                 raise PackUnconsumable("canonical actor semantic locators are required")
             continue
         if record_class == "producer_relationship_evidence":
-            if "requirement_scope_relationship" not in locators:
-                raise PackUnconsumable("requirement-scope relationship locator is required")
+            for key in (
+                "contract_review_relationship",
+                "schema_review_relationship",
+                "requirement_scope_relationship",
+            ):
+                if key not in locators:
+                    raise PackUnconsumable(f"semantic locator is required for {key}")
             if phase == "acceptance" and "pack_review_relationship" not in locators:
                 raise PackUnconsumable("pack-review relationship locator is required")
             continue
@@ -787,6 +798,51 @@ def _validate_actor_joins(
     return roles
 
 
+def _relationship_grade_at_least(relationship: Mapping[str, object], minimum_grade: object, label: str) -> None:
+    observed = relationship.get("grade")
+    if observed not in _INDEPENDENCE_ORDER or minimum_grade not in _INDEPENDENCE_ORDER:
+        raise PackUnconsumable(f"{label} relationship grade is not recognised")
+    if _INDEPENDENCE_ORDER[str(observed)] < _INDEPENDENCE_ORDER[str(minimum_grade)]:
+        raise PackUnconsumable(f"{label} relationship does not meet the declared independence floor")
+
+
+def _validate_contract_schema_review_relationships(
+    records: Mapping[str, ExternalRecordResolution],
+    evaluation_time: datetime,
+) -> None:
+    for review_key, relationship_key, expected_context, label in (
+        (
+            "independent_contract_review",
+            "producer_relationship_evidence:contract_review",
+            "contract_review",
+            "contract review",
+        ),
+        (
+            "independent_schema_review",
+            "producer_relationship_evidence:schema_review",
+            "schema_review",
+            "schema review",
+        ),
+    ):
+        review = _record(records, review_key)
+        relationship_resolution = _scope_relation(records, relationship_key)
+        relationship = relationship_resolution.record
+        reviewed_at = _parse_time(review.get("reviewed_at"), f"{label} reviewed_at")
+        effective_at = _parse_time(relationship.get("effective_at"), f"{label} relationship effective_at")
+        expires_at = _parse_time(relationship.get("expires_at"), f"{label} relationship expires_at")
+        if (
+            relationship_resolution.record_id != review.get("relationship_record_id")
+            or relationship.get("relationship_record_id") != review.get("relationship_record_id")
+            or relationship.get("relationship_context") != expected_context
+            or relationship.get("subject_actor_id") != review.get("reviewer_actor_id")
+            or relationship.get("object_actor_id") != review.get("author_actor_id")
+        ):
+            raise PackUnconsumable(f"{label} relationship is not semantically bound")
+        _relationship_grade_at_least(relationship, review.get("minimum_independence_grade"), label)
+        if not effective_at <= reviewed_at <= evaluation_time < expires_at:
+            raise PackUnconsumable(f"{label} relationship is outside its review or evaluation window")
+
+
 def _validate_relationship_facts(
     records: Mapping[str, ExternalRecordResolution],
     fact_records: Mapping[str, _FactsResolution],
@@ -845,8 +901,9 @@ def _validate_relationship_facts(
         raise PackUnconsumable("pack-review relationship is not current at the evaluation time")
     if "relationship_evidence_facts:pack_review" not in fact_records:
         raise PackUnconsumable("pack-review relationship facts are required")
+    pack_review_facts = fact_records["relationship_evidence_facts:pack_review"]
     _check_fact(
-        fact_records["relationship_evidence_facts:pack_review"],
+        pack_review_facts,
         review_resolution,
         relationship_scope="pack_review",
         expected_subject={
@@ -861,6 +918,32 @@ def _validate_relationship_facts(
     )
 
 
+def _check_pack_review_fact_provenance(facts: _FactsResolution, provenance: Mapping[str, object]) -> None:
+    record = facts.record
+    producer = _mapping(record.get("producer"), "pack-review relationship-evidence-facts producer")
+    reviewer = _mapping(record.get("reviewer"), "pack-review relationship-evidence-facts reviewer")
+    if (
+        producer.get("task_id") != provenance.get("producer_task_id")
+        or producer.get("operator_session_id") != provenance.get("producer_session_id")
+        or producer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
+        or reviewer.get("task_id") != provenance.get("review_task_id")
+        or reviewer.get("operator_session_id") != provenance.get("review_session_id")
+        or reviewer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
+    ):
+        raise PackUnconsumable("pack-review relationship facts do not bind independent review operator provenance")
+
+
+def _validate_pack_review_fact_operator_provenance(
+    records: Mapping[str, ExternalRecordResolution],
+    fact_records: Mapping[str, _FactsResolution],
+) -> None:
+    review = _record(records, "independent_pack_review")
+    facts = fact_records.get("relationship_evidence_facts:pack_review")
+    if facts is None:
+        raise PackUnconsumable("pack-review relationship facts are required")
+    _check_pack_review_fact_provenance(facts, _mapping(review.get("operator_provenance"), "pack review"))
+
+
 def _check_fact(
     facts: _FactsResolution,
     relationship: ExternalRecordResolution,
@@ -872,21 +955,46 @@ def _check_fact(
     evaluation_time: datetime,
 ) -> None:
     record = facts.record
+    protected = _mapping(record.get("protected_relationship"), "relationship-evidence-facts protected relationship")
+    producer = _mapping(record.get("producer"), "relationship-evidence-facts producer")
+    reviewer = _mapping(record.get("reviewer"), "relationship-evidence-facts reviewer")
     if (
         record.get("relationship_scope") != relationship_scope
-        or record.get("protected_relationship_record_id") != relationship.record_id
-        or record.get("protected_relationship_revision") != relationship.revision
-        or record.get("protected_relationship_sha256") != relationship.canonical_sha256
+        or facts.record_id != relationship.record_id
+        or record.get("relationship_evidence_facts_id") != relationship.record_id
+        or protected.get("relationship_record_id") != relationship.record_id
+        or protected.get("revision") != relationship.revision
+        or protected.get("canonical_sha256") != relationship.canonical_sha256
+        or protected.get("grade") != relationship.record.get("grade")
+        or protected.get("relationship_context") != relationship.record.get("relationship_context")
+        or protected.get("effective_at") != relationship.record.get("effective_at")
+        or protected.get("expires_at") != relationship.record.get("expires_at")
         or record.get("reviewed_subject") != dict(expected_subject)
-        or record.get("reviewer_actor_id") != expected_reviewer
-        or record.get("producer_actor_id") != expected_producer
+        or reviewer.get("actor_id") != expected_reviewer
+        or producer.get("actor_id") != expected_producer
+        or record.get("evidence_author_actor_id") != expected_reviewer
         or expected_reviewer == expected_producer
     ):
         raise PackUnconsumable("relationship-evidence-facts are not bound to the protected relationship/subject")
     reviewed_at = _parse_time(record.get("reviewed_at"), "relationship-evidence-facts reviewed_at")
     if reviewed_at > evaluation_time:
         raise PackUnconsumable("relationship-evidence-facts are from the future")
-    evidence = _mapping(record.get("evidence"), "relationship-evidence-facts evidence")
+    effective_at = _parse_time(protected.get("effective_at"), "relationship-evidence-facts effective_at")
+    expires_at = _parse_time(protected.get("expires_at"), "relationship-evidence-facts expires_at")
+    if not effective_at <= reviewed_at <= evaluation_time < expires_at:
+        raise PackUnconsumable("relationship-evidence-facts are outside the protected relationship validity window")
+    if producer.get("task_id") == reviewer.get("task_id"):
+        raise PackUnconsumable("relationship-evidence-facts review task provenance is not separate")
+    evidence = _mapping(record.get("derived_comparisons"), "relationship-evidence-facts derived comparisons")
+    expected_comparisons = {
+        "same_actor": producer.get("actor_id") == reviewer.get("actor_id"),
+        "same_session": producer.get("operator_session_id") == reviewer.get("operator_session_id"),
+        "same_context_hash": producer.get("context_hash") == reviewer.get("context_hash"),
+        "same_model_family": producer.get("model_family") == reviewer.get("model_family"),
+        "producer_conclusions_visible": record.get("producer_conclusions_visibility") == "visible_to_reviewer",
+    }
+    if evidence != expected_comparisons:
+        raise PackUnconsumable("relationship-evidence-facts comparisons are not independently derived")
     try:
         derived = independence_grade(
             RelationshipEvidence(
@@ -1217,8 +1325,18 @@ def prepare_assurance_pack(
     )
     _validate_subject_records(records, contract_subject, schema_subject)
     _validate_actor_joins(records, locators, pack)
+    _validate_contract_schema_review_relationships(records, evaluation_time)
     _validate_relationship_facts(records, fact_records, pack, subject, evaluation_time)
     _validate_temporal_and_identity(records, pack, subject, evaluation_time)
+    validate_tdl_private_semantics(
+        contract=contract,
+        pack=pack,
+        records=records,
+        subject=subject,
+        current_exact_reference_snapshot=snapshot,
+        evaluation_time=evaluation_time,
+        phase="prepare",
+    )
     authority = _policy_and_requirement(
         config.binding, config.resolved_authority_root(), records, pack, evaluation_time
     )
@@ -1256,10 +1374,20 @@ def _opaque_ids(
                 raise PackUnconsumable("canonical actor locators are required")
             result[record_class] = actor_locators
         elif record_class == "producer_relationship_evidence":
+            contract_review = locators.get("contract_review_relationship")
+            if contract_review is None:
+                raise PackUnconsumable("contract review relationship locator is required")
+            schema_review = locators.get("schema_review_relationship")
+            if schema_review is None:
+                raise PackUnconsumable("schema review relationship locator is required")
             scope = locators.get("requirement_scope_relationship")
             if scope is None:
                 raise PackUnconsumable("requirement-scope relationship locator is required")
-            relationships: dict[str, str] = {"requirement_scope": scope.record_id}
+            relationships: dict[str, str] = {
+                "contract_review": contract_review.record_id,
+                "schema_review": schema_review.record_id,
+                "requirement_scope": scope.record_id,
+            }
             pack_review = locators.get("pack_review_relationship")
             if phase == "acceptance":
                 if pack_review is None:
@@ -1362,6 +1490,7 @@ def accept_assurance_pack(
             config.binding, config.resolved_authority_root(), records, pack, evaluation_time
         )
         _validate_actor_joins(records, locators, pack)
+        _validate_contract_schema_review_relationships(records, evaluation_time)
         _validate_relationship_facts(
             records,
             fact_records,
@@ -1414,6 +1543,16 @@ def accept_assurance_pack(
         raise PackUnconsumable("acceptance exact subject differs from immutable preparation")
     _validate_subject_records(phase_records["consumption"], contract_subject, schema_subject)
     _validate_temporal_and_identity(phase_records["consumption"], pack, subject, evaluation_time)
+    validate_tdl_private_semantics(
+        contract=contract,
+        pack=pack,
+        records=phase_records["consumption"],
+        subject=subject,
+        current_exact_reference_snapshot=phase_refs["consumption"],
+        evaluation_time=evaluation_time,
+        phase="acceptance",
+    )
+    _validate_pack_review_fact_operator_provenance(phase_records["consumption"], phase_facts["consumption"])
     previous = preparation.get("preparation_identity")
     if previous != preparation_identity:
         raise PackUnconsumable("acceptance preparation identity is corrupt")

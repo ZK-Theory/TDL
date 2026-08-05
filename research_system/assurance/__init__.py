@@ -17,6 +17,12 @@ from research_system.assurance.external_records import (
     ExternalRecordPublicationContext,
     ExternalRecordResolution,
 )
+from research_system.assurance.relationship_facts import (
+    ProtectedRelationshipReference,
+    RelationshipEvidenceFactsReceipt,
+    RelationshipEvidenceFactsStore,
+    RelationshipEvidenceParticipant,
+)
 from research_system.assurance.runner import (
     AssurancePackRunResult,
     AssurancePackRunnerConfig,
@@ -33,6 +39,10 @@ __all__ = [
     "ControlStoreAuthorityResolver",
     "ExternalRecordPublicationContext",
     "ExternalRecordResolution",
+    "ProtectedRelationshipReference",
+    "RelationshipEvidenceFactsReceipt",
+    "RelationshipEvidenceFactsStore",
+    "RelationshipEvidenceParticipant",
     "PackAcceptanceSubject",
     "PackUnconsumable",
     "AssurancePackRunResult",

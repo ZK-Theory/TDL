@@ -19,6 +19,11 @@ from research_system.assurance.external_records import (
     ExternalAssuranceRecordStore,
     ExternalRecordPublicationContext,
 )
+from research_system.assurance.relationship_facts import (
+    ProtectedRelationshipReference,
+    RelationshipEvidenceFactsStore,
+    RelationshipEvidenceParticipant,
+)
 from research_system.assurance.runner import (
     AssurancePackRunnerConfig,
     SemanticRecordLocator,
@@ -121,6 +126,25 @@ def _read_json(path: Path) -> dict[str, Any]:
         raise ConfigurationError(f"invalid JSON file: {path}") from exc
     if not isinstance(value, dict):
         raise ConfigurationError(f"JSON file must contain an object: {path}")
+    return value
+
+
+def _read_yaml_or_json(path: Path, label: str) -> dict[str, Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ConfigurationError(f"invalid {label} file: {path}") from exc
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            import yaml
+
+            value = yaml.safe_load(text)
+        except (yaml.YAMLError, TypeError) as exc:
+            raise ConfigurationError(f"invalid YAML or JSON file: {path}") from exc
+    if not isinstance(value, dict):
+        raise ConfigurationError(f"{label} file must contain an object: {path}")
     return value
 
 
@@ -352,6 +376,41 @@ def _assurance_record_write(args: argparse.Namespace) -> int:
             occurred_at=args.occurred_at,
         ),
     )
+    _print_json(asdict(receipt))
+    return 0
+
+
+def _assurance_relationship_facts_publish(args: argparse.Namespace) -> int:
+    binding = ControlBinding.load(args.config)
+    source = _read_yaml_or_json(args.facts, "relationship-facts input")
+    try:
+        protected = source["protected_relationship"]
+        publication = source["publication_context"]
+        publish_kwargs = {
+            "relationship_evidence_facts_id": source["relationship_evidence_facts_id"],
+            "revision": source["revision"],
+            "expected_previous_revision": source["expected_previous_revision"],
+            "relationship_scope": source["relationship_scope"],
+            "protected_relationship": ProtectedRelationshipReference(
+                relationship_record_id=protected["relationship_record_id"],
+                revision=protected["revision"],
+                canonical_sha256=protected["canonical_sha256"],
+                relationship_context=protected["relationship_context"],
+                grade=protected["grade"],
+                effective_at=protected["effective_at"],
+                expires_at=protected["expires_at"],
+            ),
+            "reviewed_subject": source["reviewed_subject"],
+            "producer": RelationshipEvidenceParticipant(**source["producer"]),
+            "reviewer": RelationshipEvidenceParticipant(**source["reviewer"]),
+            "evidence_author_actor_id": source["evidence_author_actor_id"],
+            "producer_conclusions_visibility": source["producer_conclusions_visibility"],
+            "reviewed_at": source["reviewed_at"],
+            "publication_context": ExternalRecordPublicationContext(**publication),
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ConfigurationError("malformed relationship-facts input") from exc
+    receipt = RelationshipEvidenceFactsStore(binding).publish(**publish_kwargs)
     _print_json(asdict(receipt))
     return 0
 
@@ -951,6 +1010,18 @@ def _parser() -> argparse.ArgumentParser:
         help="opaque semantic record locator; repeat for every required authority record",
     )
     assurance_pack_run.set_defaults(handler=_assurance_pack_run)
+    relationship_facts = assurance_pack_actions.add_parser(
+        "publish-relationship-facts",
+        help="publish governed YAML or JSON relationship-evidence facts consumed by the assurance-pack runner",
+    )
+    relationship_facts.add_argument("--config", type=Path, required=True, help="verified ControlBinding JSON")
+    relationship_facts.add_argument(
+        "--facts",
+        type=Path,
+        required=True,
+        help="YAML or JSON input containing protected relationship, concrete provenance, and publication context",
+    )
+    relationship_facts.set_defaults(handler=_assurance_relationship_facts_publish)
 
     replay_parser = groups.add_parser("replay")
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)

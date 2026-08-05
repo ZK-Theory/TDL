@@ -7,24 +7,43 @@
     "record_type",
     "relationship_evidence_facts_id",
     "relationship_scope",
-    "protected_relationship_record_id",
-    "protected_relationship_revision",
-    "protected_relationship_sha256",
+    "protected_relationship",
     "reviewed_subject",
-    "reviewer_actor_id",
-    "producer_actor_id",
-    "evidence",
+    "producer",
+    "reviewer",
+    "evidence_author_actor_id",
+    "producer_conclusions_visibility",
+    "derived_comparisons",
     "independence_grade",
     "review_state",
     "reviewed_at"
   ],
   "properties": {
     "record_type": {"const": "relationship_evidence_facts"},
-    "relationship_evidence_facts_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "relationship_evidence_facts_id": {"$ref": "#/$defs/relationshipId"},
     "relationship_scope": {"enum": ["requirement_scope", "pack_review"]},
-    "protected_relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "protected_relationship_revision": {"type": "integer", "minimum": 1},
-    "protected_relationship_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "protected_relationship": {
+      "type": "object",
+      "required": [
+        "relationship_record_id",
+        "revision",
+        "canonical_sha256",
+        "relationship_context",
+        "grade",
+        "effective_at",
+        "expires_at"
+      ],
+      "properties": {
+        "relationship_record_id": {"$ref": "#/$defs/relationshipId"},
+        "revision": {"type": "integer", "minimum": 1},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "relationship_context": {"enum": ["requirement_scope_review", "pack_scientific_review"]},
+        "grade": {"enum": ["I2", "I3"]},
+        "effective_at": {"$ref": "#/$defs/dateTime"},
+        "expires_at": {"$ref": "#/$defs/dateTime"}
+      },
+      "additionalProperties": false
+    },
     "reviewed_subject": {
       "type": "object",
       "required": ["subject_kind", "subject_id", "subject_revision", "subject_sha256"],
@@ -32,15 +51,23 @@
         "subject_kind": {"enum": ["assurance_requirement", "assurance_pack"]},
         "subject_id": {"type": "string", "minLength": 1},
         "subject_revision": {"type": "integer", "minimum": 1},
-        "subject_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "subject_sha256": {"$ref": "#/$defs/sha256"}
       },
       "additionalProperties": false
     },
-    "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "evidence": {
+    "producer": {"$ref": "#/$defs/participant"},
+    "reviewer": {"$ref": "#/$defs/participant"},
+    "evidence_author_actor_id": {"$ref": "#/$defs/actorId"},
+    "producer_conclusions_visibility": {"enum": ["hidden_from_reviewer", "visible_to_reviewer"]},
+    "derived_comparisons": {
       "type": "object",
-      "required": ["same_actor", "same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"],
+      "required": [
+        "same_actor",
+        "same_session",
+        "same_context_hash",
+        "same_model_family",
+        "producer_conclusions_visible"
+      ],
       "properties": {
         "same_actor": {"type": "boolean"},
         "same_session": {"type": "boolean"},
@@ -52,7 +79,57 @@
     },
     "independence_grade": {"enum": ["I0", "I1", "I2", "I3"]},
     "review_state": {"const": "completed"},
-    "reviewed_at": {"type": "string", "format": "date-time"}
+    "reviewed_at": {"$ref": "#/$defs/dateTime"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "actorId": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "relationshipId": {
+      "type": "string",
+      "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "contextId": {
+      "type": "string",
+      "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "operatorSessionId": {
+      "type": "string",
+      "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "stableHandoffOrRunId": {
+      "type": "string",
+      "pattern": "^(?:run|hnd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "dateTime": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "participant": {
+      "type": "object",
+      "required": [
+        "actor_id",
+        "task_id",
+        "session_id",
+        "operator_session_id",
+        "context_hash",
+        "model_family",
+        "stable_handoff_or_run_id"
+      ],
+      "properties": {
+        "actor_id": {"$ref": "#/$defs/actorId"},
+        "task_id": {"$ref": "#/$defs/taskId"},
+        "session_id": {"$ref": "#/$defs/contextId"},
+        "operator_session_id": {"$ref": "#/$defs/operatorSessionId"},
+        "context_hash": {"$ref": "#/$defs/sha256"},
+        "model_family": {"type": "string", "minLength": 1},
+        "stable_handoff_or_run_id": {"$ref": "#/$defs/stableHandoffOrRunId"}
+      },
+      "additionalProperties": false
+    }
+  }
 }

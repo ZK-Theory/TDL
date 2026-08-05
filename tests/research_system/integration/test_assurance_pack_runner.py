@@ -24,13 +24,18 @@ from research_system.assurance.runner import (
 from research_system.assurance import runner as runner_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.routing.independence import RelationshipEvidence, independence_grade
+from research_system.errors import ConfigurationError
 from research_system import cli
 from tests.research_system.contracts import test_wp6_3_tdl_private_assurance_pack_contract as frozen
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PACK_PATH = ".research-system/packs/tdl-private-assurance.yaml"
+FACTS_PRODUCER_CONTEXT_ID = "ctx_019fc96b-2ddc-7740-9d6c-425adf7fa3a1"
+FACTS_REVIEW_CONTEXT_ID = "ctx_019fc96b-2ddc-7740-9d6c-425adf7fa3a2"
+FACTS_PRODUCER_SESSION_ID = frozen.PRODUCER_SESSION_ID
+FACTS_REVIEW_SESSION_ID = frozen.REVIEW_SESSION_ID
+FACTS_HANDOFF_ID = frozen.REVIEW_HANDOFF_ID
 
 
 class _RecordResolver:
@@ -135,6 +140,7 @@ def _temporary_repository(tmp_path: Path, raw_candidate: bytes) -> tuple[Path, P
     repository_paths = {
         ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml",
         ".research-system/schemas/assurance/assurance-pack.schema.json",
+        ".research-system/schemas/wp6-3-authority/relationship-evidence-facts.schema.json",
     }
     reference_rows = source_contract["required_pack_contract"]["references"]["exact_reference_rows"]
     repository_paths.update(row["repository_path"] for row in reference_rows)
@@ -158,7 +164,6 @@ def _temporary_repository(tmp_path: Path, raw_candidate: bytes) -> tuple[Path, P
 
 def _facts_for(
     *,
-    facts_id: str,
     relationship: ExternalRecordResolution,
     subject: dict[str, object],
     reviewer: str,
@@ -168,15 +173,39 @@ def _facts_for(
 ) -> _FactsResolution:
     body = {
         "record_type": "relationship_evidence_facts",
-        "relationship_evidence_facts_id": facts_id,
+        "relationship_evidence_facts_id": relationship.record_id,
         "relationship_scope": scope,
-        "protected_relationship_record_id": relationship.record_id,
-        "protected_relationship_revision": relationship.revision,
-        "protected_relationship_sha256": relationship.canonical_sha256,
+        "protected_relationship": {
+            "relationship_record_id": relationship.record_id,
+            "revision": relationship.revision,
+            "canonical_sha256": relationship.canonical_sha256,
+            "relationship_context": relationship.record["relationship_context"],
+            "grade": relationship.record["grade"],
+            "effective_at": relationship.record["effective_at"],
+            "expires_at": relationship.record["expires_at"],
+        },
         "reviewed_subject": subject,
-        "reviewer_actor_id": reviewer,
-        "producer_actor_id": producer,
-        "evidence": {
+        "producer": {
+            "actor_id": producer,
+            "task_id": frozen.PRODUCER_TASK_ID,
+            "session_id": FACTS_PRODUCER_CONTEXT_ID,
+            "operator_session_id": FACTS_PRODUCER_SESSION_ID,
+            "context_hash": "1" * 64,
+            "model_family": "codex",
+            "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
+        },
+        "reviewer": {
+            "actor_id": reviewer,
+            "task_id": frozen.REVIEW_TASK_ID,
+            "session_id": FACTS_REVIEW_CONTEXT_ID,
+            "operator_session_id": FACTS_REVIEW_SESSION_ID,
+            "context_hash": "2" * 64,
+            "model_family": "claude",
+            "stable_handoff_or_run_id": FACTS_HANDOFF_ID,
+        },
+        "evidence_author_actor_id": reviewer,
+        "producer_conclusions_visibility": "hidden_from_reviewer",
+        "derived_comparisons": {
             "same_actor": False,
             "same_session": False,
             "same_context_hash": False,
@@ -187,10 +216,18 @@ def _facts_for(
         "review_state": "completed",
         "reviewed_at": reviewed_at,
     }
-    return _FactsResolution(facts_id, 1, sha256_hex(canonical_bytes(body)), body)
+    return _FactsResolution(relationship.record_id, 1, sha256_hex(canonical_bytes(body)), body)
 
 
-def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _write_facts(binding: ControlBinding, facts: dict[str, _FactsResolution]) -> None:
+    for fact in facts.values():
+        data = canonical_bytes(fact.record)
+        directory = binding.control_root / "runtime" / runner_module.FACTS_ROOT / fact.record_id
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{fact.revision:08d}-{sha256_hex(data)}.json").write_bytes(data)
+
+
+def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, production_facts_reader: bool = False):
     contract = frozen._load_yaml(frozen.CONTRACT_PATH)
     pack = frozen._proposed_pack(contract)
     pack, raw_candidate, record_store, _ = frozen._external_records(pack, contract)
@@ -204,7 +241,23 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     exact_subject = runner_module._candidate_subject(candidate, parsed_pack)
     exact_subject_dict = runner_module._pack_subject_dict(exact_subject)
     record_store[frozen.REVIEW_RECORD_ID]["subject"] = dict(exact_subject_dict)
+    record_store[frozen.REVIEW_RECORD_ID]["two_key_closure_sha256"] = sha256_hex(
+        canonical_bytes(
+            {
+                "obligation_evidence_rows": record_store[frozen.REVIEW_RECORD_ID]["obligation_evidence_rows"],
+                "boundary_fixture_execution_rows": record_store[frozen.REVIEW_RECORD_ID][
+                    "boundary_fixture_execution_rows"
+                ],
+            }
+        )
+    )
     record_store[frozen.OWNER_DECISION_ID]["subject"] = dict(exact_subject_dict)
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    record_store[frozen.OWNER_DECISION_ID]["two_key_closure_sha256"] = record_store[frozen.REVIEW_RECORD_ID][
+        "two_key_closure_sha256"
+    ]
 
     scope_record = ExternalRecordResolution(
         "producer_relationship_evidence",
@@ -230,7 +283,6 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     pack_subject = runner_module._candidate_subject(candidate, parsed_pack)
     facts = {
         "relationship_evidence_facts:requirement_scope": _facts_for(
-            facts_id="rel_00000000-0000-7000-8000-000000000021",
             relationship=scope_record,
             subject=requirement_subject,
             reviewer=frozen.ACT_SCOPE_REVIEWER,
@@ -239,7 +291,6 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             reviewed_at="2026-07-28T08:40:00Z",
         ),
         "relationship_evidence_facts:pack_review": _facts_for(
-            facts_id="rel_00000000-0000-7000-8000-000000000022",
             relationship=review_relationship,
             subject={
                 "subject_kind": "assurance_pack",
@@ -253,7 +304,10 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             reviewed_at="2026-07-28T10:30:00Z",
         ),
     }
-    facts_reader = _FactsReader({value.record_id: value for value in facts.values()})
+    facts_by_id = {value.record_id: value for value in facts.values()}
+    facts_reader = _FactsReader(facts_by_id)
+    if production_facts_reader:
+        _write_facts(binding, facts_by_id)
     authority = _GrantAuthority(
         project_id=binding.project_id,
         requirement_id=requirement["assurance_requirement_id"],
@@ -264,7 +318,8 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             return SimpleNamespace(schema_id=schema_id, schema_version=schema_version, sha256="b" * 64)
 
     monkeypatch.setattr(runner_module, "ControlStoreAuthorityResolver", lambda _: record_resolver)
-    monkeypatch.setattr(runner_module, "_FactsReader", lambda *_: facts_reader)
+    if not production_facts_reader:
+        monkeypatch.setattr(runner_module, "_FactsReader", lambda *_: facts_reader)
     monkeypatch.setattr(runner_module, "LedgerAuthorityGrantResolver", lambda *_, **__: authority)
     monkeypatch.setattr(runner_module, "runtime_schema_registry", lambda *_: _Registry())
 
@@ -279,6 +334,12 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "independent_contract_review", frozen.CONTRACT_REVIEW_RECORD_ID
         ),
         "independent_schema_review": SemanticRecordLocator("independent_schema_review", frozen.SCHEMA_REVIEW_RECORD_ID),
+        "contract_review_relationship": SemanticRecordLocator(
+            "producer_relationship_evidence", frozen.CONTRACT_REVIEW_RELATIONSHIP_ID
+        ),
+        "schema_review_relationship": SemanticRecordLocator(
+            "producer_relationship_evidence", frozen.SCHEMA_REVIEW_RELATIONSHIP_ID
+        ),
         "stephen_contract_schema_acceptance": SemanticRecordLocator(
             "stephen_contract_schema_acceptance", frozen.CONTRACT_SCHEMA_ACCEPTANCE_ID
         ),
@@ -311,6 +372,44 @@ def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     ):
         locators[f"canonical_actor:{actor_id}"] = SemanticRecordLocator("canonical_actor", actor_id)
     return config, candidate_path, locators, record_resolver, facts_reader, authority
+
+
+def _semantic_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config, candidate_path, _, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    reader = _GitObjectReader(config.repository_root)
+    candidate = reader.candidate(candidate_path)
+    pack = runner_module._candidate_pack(candidate)
+    subject = runner_module._candidate_subject(candidate, pack)
+    contract = frozen._load_yaml(frozen.CONTRACT_PATH)
+    snapshot = runner_module.GitCurrentReferenceResolver(reader).resolve(contract, commit=candidate.commit)
+    records = {
+        record_id: ExternalRecordResolution(
+            record["record_type"],
+            record_id,
+            1,
+            sha256_hex(canonical_bytes(record)),
+            record,
+        )
+        for record_id, record in record_resolver.record_store.items()
+    }
+    return contract, pack, records, subject, snapshot
+
+
+def _replace_resolution(
+    records: dict[str, ExternalRecordResolution],
+    record_id: str,
+    body: dict[str, object],
+) -> dict[str, ExternalRecordResolution]:
+    updated = dict(records)
+    current = records[record_id]
+    updated[record_id] = ExternalRecordResolution(
+        current.record_class,
+        record_id,
+        current.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+    return updated
 
 
 def _policy_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str):
@@ -384,6 +483,293 @@ def test_prepare_then_acceptance_reloads_exact_subject_and_ignores_working_tree_
     assert {phase for _, phase in facts_reader.calls} == {"load", "acceptance", "consumption"}
 
 
+def test_prepare_then_acceptance_uses_production_facts_reader_with_schema_valid_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(
+        tmp_path, monkeypatch, production_facts_reader=True
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3a3"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+
+    prepared = prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    accepted = accept_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=locators,
+    )
+
+    assert prepared.state == "prepared"
+    assert accepted.state == "consumption_authorized"
+    assert facts_reader.calls == []
+    assert (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+def test_production_facts_reader_rejects_schema_invalid_operator_session_in_context_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _, _, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch, production_facts_reader=True)
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    directory = config.binding.control_root / "runtime" / runner_module.FACTS_ROOT / fact.record_id
+    for path in directory.glob("*.json"):
+        path.unlink()
+    body = deepcopy(fact.record)
+    body["reviewer"]["session_id"] = FACTS_REVIEW_SESSION_ID
+    data = canonical_bytes(body)
+    (directory / f"{fact.revision:08d}-{sha256_hex(data)}.json").write_bytes(data)
+
+    with pytest.raises(PackUnconsumable, match="schema validation failed"):
+        runner_module._FactsReader(config.binding, _GitObjectReader(config.repository_root)).resolve(
+            fact.record_id, phase="load"
+        )
+
+
+def test_acceptance_public_seam_rejects_incomplete_two_key_closure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    record_store[frozen.REVIEW_RECORD_ID]["obligation_evidence_rows"].pop()
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3ad"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    with pytest.raises(PackUnconsumable, match="two-key evidence does not close every required obligation"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+def test_acceptance_public_seam_rejects_reused_pack_review_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    provenance = record_store[frozen.REVIEW_RECORD_ID]["operator_provenance"]
+    provenance["review_task_id"] = provenance["producer_task_id"]
+    record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(
+        canonical_bytes(record_store[frozen.REVIEW_RECORD_ID])
+    )
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3ae"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    with pytest.raises(PackUnconsumable, match="pack review task provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+def test_acceptance_public_seam_rejects_foreign_body_r3_owner_grant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    record_store = record_resolver.record_store
+    foreign_grant_id = "agr_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant = deepcopy(record_store[frozen.OWNER_GRANT_ID])
+    foreign_grant["authority_grant_id"] = foreign_grant_id
+    foreign_grant["actor_id"] = "act_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant["subject_assurance_pack_id"] = "asp_00000000-0000-7000-8000-0000000000ff"
+    foreign_grant["grant_state"] = "active"
+    foreign_grant["revoked"] = False
+    record_store[foreign_grant_id] = foreign_grant
+    record_store[frozen.OWNER_DECISION_ID]["authority_grant_id"] = foreign_grant_id
+    evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3af"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=evaluation_time,
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    locators["active_authority_grant"] = SemanticRecordLocator("active_authority_grant", foreign_grant_id)
+
+    with pytest.raises(PackUnconsumable, match="active authority grant is foreign"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=evaluation_time,
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+def test_prepare_public_seam_rejects_mismatched_contract_review_relationship(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    locators["contract_review_relationship"] = SemanticRecordLocator(
+        "producer_relationship_evidence", frozen.SCHEMA_REVIEW_RELATIONSHIP_ID
+    )
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+
+    with pytest.raises(PackUnconsumable, match="contract review relationship is not semantically bound"):
+        prepare_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id="run_019fc96b-2ddc-7740-9d6c-425adf7fa3b0",
+            record_locators=prepare_locators,
+        )
+
+
+def test_acceptance_public_seam_rejects_unresolved_schema_review_relationship(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, _, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b1"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    locators["schema_review_relationship"] = SemanticRecordLocator(
+        "producer_relationship_evidence", "rel_00000000-0000-7000-8000-0000000000ff"
+    )
+
+    with pytest.raises(PackUnconsumable, match="record locator did not resolve"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("task_id", "tsk_00000000-0000-7000-8000-0000000000aa"),
+        ("operator_session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
+        ("stable_handoff_or_run_id", "hnd_00000000-0000-7000-8000-0000000000ff"),
+    ),
+)
+def test_acceptance_public_seam_rejects_pack_review_fact_operator_mismatch_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b2"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    body = deepcopy(fact.record)
+    body["reviewer"][field] = value
+    facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
+        fact.record_id,
+        fact.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+
+    with pytest.raises(PackUnconsumable, match="operator provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("task_id", "tsk_00000000-0000-7000-8000-0000000000aa"),
+        ("operator_session_id", "ses_00000000-0000-7000-8000-0000000000aa"),
+        ("stable_handoff_or_run_id", "hnd_00000000-0000-7000-8000-0000000000ff"),
+    ),
+)
+def test_acceptance_public_seam_rejects_pack_review_fact_producer_mismatch_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    config, candidate_path, locators, _, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b3"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+    fact = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    body = deepcopy(fact.record)
+    body["producer"][field] = value
+    facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
+        fact.record_id,
+        fact.revision,
+        sha256_hex(canonical_bytes(body)),
+        body,
+    )
+
+    with pytest.raises(PackUnconsumable, match="operator provenance"):
+        accept_assurance_pack(
+            config=config,
+            candidate_path=candidate_path,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            run_id=run_id,
+            record_locators=locators,
+        )
+    assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
+
+
 def test_changed_retry_conflicts_without_mutating_immutable_preparation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -450,9 +836,9 @@ def test_replay_backed_policy_rejects_wrong_expired_revoked_or_corrupt_grants(
 
 @pytest.mark.parametrize(
     "dimension",
-    ("same_actor", "same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"),
+    ("same_session", "same_context_hash", "same_model_family", "producer_conclusions_visible"),
 )
-def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimension: str) -> None:
+def test_relationship_facts_recompute_grade_from_concrete_provenance(dimension: str) -> None:
     relationship_record = {
         "record_type": "producer_relationship_evidence",
         "relationship_record_id": frozen.SCOPE_RELATIONSHIP_ID,
@@ -472,7 +858,6 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
         relationship_record,
     )
     facts = _facts_for(
-        facts_id="rel_00000000-0000-7000-8000-000000000023",
         relationship=relationship,
         subject={
             "subject_kind": "assurance_requirement",
@@ -486,9 +871,16 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
         reviewed_at="2026-07-28T08:40:00Z",
     )
     body = deepcopy(facts.record)
-    body["evidence"][dimension] = True
+    if dimension == "same_session":
+        body["reviewer"]["operator_session_id"] = body["producer"]["operator_session_id"]
+    elif dimension == "same_context_hash":
+        body["reviewer"]["context_hash"] = body["producer"]["context_hash"]
+    elif dimension == "same_model_family":
+        body["reviewer"]["model_family"] = body["producer"]["model_family"]
+    else:
+        body["producer_conclusions_visibility"] = "visible_to_reviewer"
     changed = _FactsResolution(facts.record_id, 1, sha256_hex(canonical_bytes(body)), body)
-    with pytest.raises(PackUnconsumable, match="independence grade"):
+    with pytest.raises(PackUnconsumable, match="comparisons are not independently derived"):
         runner_module._check_fact(
             changed,
             relationship,
@@ -498,18 +890,6 @@ def test_relationship_facts_derive_i2_from_all_five_consumed_dimensions(dimensio
             expected_producer=frozen.ACT_PRODUCER,
             evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
         )
-    assert (
-        independence_grade(
-            RelationshipEvidence(
-                same_actor=False,
-                same_session=False,
-                same_context_hash=False,
-                same_model_family=False,
-                producer_conclusions_visible=False,
-            )
-        )
-        == "I2"
-    )
 
 
 def test_relationship_facts_fail_closed_on_self_attestation() -> None:
@@ -532,7 +912,6 @@ def test_relationship_facts_fail_closed_on_self_attestation() -> None:
         relationship_record,
     )
     facts = _facts_for(
-        facts_id="rel_00000000-0000-7000-8000-000000000024",
         relationship=relationship,
         subject={
             "subject_kind": "assurance_requirement",
@@ -621,10 +1000,74 @@ def test_cli_requires_bound_authority_inputs_and_exposes_both_phases() -> None:
         ]
     )
     assert parsed.phase == "prepare"
+    facts = cli._parser().parse_args(
+        [
+            "assurance-pack",
+            "publish-relationship-facts",
+            "--config",
+            "binding.yaml",
+            "--facts",
+            "relationship-facts.yaml",
+        ]
+    )
+    assert facts.assurance_pack_action == "publish-relationship-facts"
+    assert facts.handler is cli._assurance_relationship_facts_publish
+    assert facts.config == Path("binding.yaml")
+    assert facts.facts == Path("relationship-facts.yaml")
 
 
-def test_prepare_public_seam_rejects_without_future_review_or_owner_records(
+def test_relationship_facts_cli_rejects_malformed_input_without_publishing(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts_path = tmp_path / "relationship-facts.yaml"
+    facts_path.write_text(
+        "relationship_evidence_facts_id: rel_01978abc-6300-7000-8000-0000000063a0\n", encoding="utf-8"
+    )
+
+    class _Store:
+        def __init__(self, _binding: object) -> None:
+            pass
+
+        def publish(self, **_kwargs: object) -> object:
+            raise AssertionError("malformed input must not reach relationship-facts publication")
+
+    monkeypatch.setattr(cli.ControlBinding, "load", staticmethod(lambda _path: object()))
+    monkeypatch.setattr(cli, "RelationshipEvidenceFactsStore", _Store)
+
+    args = cli._parser().parse_args(
+        [
+            "assurance-pack",
+            "publish-relationship-facts",
+            "--config",
+            str(tmp_path / "binding.yaml"),
+            "--facts",
+            str(facts_path),
+        ]
+    )
+    with pytest.raises(ConfigurationError, match="malformed relationship-facts input"):
+        args.handler(args)
+
+
+@pytest.mark.parametrize(
+    ("future_key", "locator"),
+    (
+        ("independent_pack_review", SemanticRecordLocator("independent_pack_review", frozen.REVIEW_RECORD_ID)),
+        (
+            "pack_review_relationship",
+            SemanticRecordLocator("producer_relationship_evidence", frozen.REVIEW_RELATIONSHIP_ID),
+        ),
+        (
+            "relationship_evidence_facts:pack_review",
+            SemanticRecordLocator("relationship_evidence_facts", frozen.REVIEW_RELATIONSHIP_ID),
+        ),
+        ("stephen_owner_acceptance", SemanticRecordLocator("stephen_owner_acceptance", frozen.OWNER_DECISION_ID)),
+    ),
+)
+def test_prepare_public_seam_rejects_future_review_or_owner_records(
+    tmp_path: Path,
+    future_key: str,
+    locator: SemanticRecordLocator,
 ) -> None:
     """Prepare must be a real public phase, not a test-only loader shortcut."""
 
@@ -637,9 +1080,106 @@ def test_prepare_public_seam_rejects_without_future_review_or_owner_records(
             candidate_path=tmp_path / ".research-system" / "packs" / "tdl-private-assurance.yaml",
             evaluation_time=datetime(2026, 8, 3, 12, tzinfo=UTC),
             run_id="run_019fc96b-2ddc-7740-9d6c-425adf7fa3ab",
-            record_locators={
-                "independent_pack_review": SemanticRecordLocator(
-                    "independent_pack_review", "arv_019fc96b-2ddc-7740-9d6c-425adf7fa3ab"
-                )
-            },
+            record_locators={future_key: locator},
+        )
+
+
+def test_tdl_private_semantics_rejects_duplicate_boundary_fixture_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    required = contract["required_pack_contract"]
+    evidence = required["external_acceptance_evidence"]
+    boundary = required["fixture_execution_boundary"]
+    fixture_ids = list(evidence["required_executed_boundary_fixture_ids"])
+    duplicate_boundary = [fixture_ids[0], fixture_ids[0], fixture_ids[1]]
+    evidence["required_executed_boundary_fixture_ids"] = duplicate_boundary
+    boundary["upstream_executable_fixture_ids"] = duplicate_boundary
+    boundary["downstream_scientific_execution_fixture_ids"] = duplicate_boundary
+
+    with pytest.raises(PackUnconsumable, match="boundary fixture declarations"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+def test_tdl_private_semantics_wraps_missing_requirement_preimage_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    requirement = deepcopy(records[frozen.REQUIREMENT_RECORD_ID].record)
+    del requirement["obligation_applicability_rows"]
+    pack["assurance_requirement_reference"]["acceptance_record_sha256"] = sha256_hex(canonical_bytes(requirement))
+    records = _replace_resolution(records, frozen.REQUIREMENT_RECORD_ID, requirement)
+
+    with pytest.raises(PackUnconsumable, match="content preimage lacks obligation_applicability_rows"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+def test_tdl_private_semantics_rejects_empty_lifecycle_handoff_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    review = deepcopy(records[frozen.CONTRACT_REVIEW_RECORD_ID].record)
+    review["operator_provenance"]["handoff_id"] = ""
+    records = _replace_resolution(records, frozen.CONTRACT_REVIEW_RECORD_ID, review)
+
+    with pytest.raises(PackUnconsumable, match="contract handoff id"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="prepare",
+        )
+
+
+@pytest.mark.parametrize(
+    ("source_id", "duplicate_id"),
+    (
+        (frozen.REVIEW_RECORD_ID, "arv_00000000-0000-7000-8000-0000000000ee"),
+        (frozen.OWNER_DECISION_ID, "apr_00000000-0000-7000-8000-0000000000ee"),
+    ),
+)
+def test_tdl_private_semantics_rejects_duplicate_pack_review_or_owner_acceptance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_id: str,
+    duplicate_id: str,
+) -> None:
+    contract, pack, records, subject, snapshot = _semantic_inputs(tmp_path, monkeypatch)
+    duplicate = deepcopy(records[source_id].record)
+    records[duplicate_id] = ExternalRecordResolution(
+        duplicate["record_type"],
+        duplicate_id,
+        1,
+        sha256_hex(canonical_bytes(duplicate)),
+        duplicate,
+    )
+
+    with pytest.raises(PackUnconsumable, match="exactly one independent review and owner acceptance"):
+        runner_module.validate_tdl_private_semantics(
+            contract=contract,
+            pack=pack,
+            records=records,
+            subject=subject,
+            current_exact_reference_snapshot=snapshot,
+            evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+            phase="acceptance",
         )

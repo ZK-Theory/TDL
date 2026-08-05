@@ -30,6 +30,7 @@ from research_system.assurance import (
     PackUnconsumable,
     git_blob_id,
     validate_tdl_private_pack_for_acceptance,
+    validate_tdl_private_pack_for_preparation,
 )
 from research_system.assurance.external_records import ExternalRecordResolution
 from research_system.assurance.pack_loader import _RECORD_ENVELOPE, _require_key
@@ -634,17 +635,17 @@ def test_every_required_record_identity_is_allocated_or_declared_pending():
     pending = {row["field"]: row["id_prefix"] for row in allocations["pending_allocations"]}
 
     unaccounted = set(required_identity_fields) - allocated_fields - set(pending)
-    assert (
-        not unaccounted
-    ), f"record schemas require identity fields that are neither allocated nor declared pending: {sorted(unaccounted)}"
+    assert not unaccounted, (
+        f"record schemas require identity fields that are neither allocated nor declared pending: {sorted(unaccounted)}"
+    )
 
     stale = set(pending) - set(required_identity_fields)
     assert not stale, f"pending_allocations lists fields no record schema requires: {sorted(stale)}"
 
     for field, prefix in pending.items():
-        assert (
-            prefix == required_identity_fields[field]
-        ), f"{field} declared as {prefix}_ but the schema requires {required_identity_fields[field]}_"
+        assert prefix == required_identity_fields[field], (
+            f"{field} declared as {prefix}_ but the schema requires {required_identity_fields[field]}_"
+        )
 
     # Non-empty is the current, correct state. When W1 allocates the rest this fails, which is
     # the signal that the acceptance record can be authored — and this test is retired then.
@@ -756,6 +757,21 @@ def test_loader_rejects_a_candidate_claiming_a_foreign_accepted_subject(contract
     raw = render_candidate_bytes(swapped)
     with pytest.raises(PackUnconsumable, match="upstream contract reference"):
         validate_tdl_private_pack_for_acceptance(**_loader_kwargs(swapped, raw, contract))
+
+
+@pytest.mark.parametrize(
+    "validator",
+    (validate_tdl_private_pack_for_preparation, validate_tdl_private_pack_for_acceptance),
+    ids=("prepare", "accept"),
+)
+def test_public_prepare_and_accept_reject_changed_source_authority(contract, candidate, validator):
+    pack, _ = candidate
+    changed = deepcopy(pack)
+    changed["source_authority"]["governing_sources"][0]["canonical_sha256"] = "f" * 64
+    raw = render_candidate_bytes(changed)
+
+    with pytest.raises(PackUnconsumable, match="candidate source_authority differs from accepted contract"):
+        validator(**_loader_kwargs(changed, raw, contract))
 
 
 def test_loader_revalidates_every_reference_against_the_current_snapshot(contract, candidate):

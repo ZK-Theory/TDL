@@ -726,11 +726,9 @@ class ExternalAssuranceRecordStore:
         elif record_class == "stephen_owner_acceptance":
             if record.get("acceptor_actor_id") != caller_id:
                 raise SchemaError("caller/body owner identity mismatch")
-            if record.get("authority_grant_id") != context.authority_grant_id:
-                raise SchemaError("publication context authority grant does not match owner evidence")
         elif record_class == "active_authority_grant":
-            if record.get("actor_id") != caller_id or record.get("authority_grant_id") != context.authority_grant_id:
-                raise SchemaError("caller/body authority-grant identity mismatch")
+            if record.get("actor_id") != caller_id:
+                raise SchemaError("caller/body authority-grant actor identity mismatch")
 
     @staticmethod
     def _publication_action_payload(context: ExternalRecordPublicationContext) -> dict[str, Any]:

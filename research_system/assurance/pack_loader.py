@@ -285,6 +285,19 @@ def _require_matching_subject(observed: object, accepted: Mapping[str, object], 
         raise PackUnconsumable(f"candidate {label} is stale or foreign to the accepted subject")
 
 
+def _require_source_authority_projection(contract: Mapping[str, object], pack: Mapping[str, object]) -> None:
+    source_authority = _require_key(contract, "source_authority", "upstream contract")
+    governing_sources = _require_key(source_authority, "governing_sources", "contract source_authority")
+    if not isinstance(governing_sources, Sequence) or isinstance(governing_sources, (str, bytes, bytearray)):
+        raise PackUnconsumable("contract source_authority governing_sources is not a sequence")
+    expected = {
+        "accepted_plan_revision": _require_key(source_authority, "accepted_plan_revision", "contract source_authority"),
+        "governing_sources": list(governing_sources),
+    }
+    if pack.get("source_authority") != expected:
+        raise PackUnconsumable("candidate source_authority differs from accepted contract")
+
+
 def _revalidate_references(pack: Mapping[str, object], snapshot: Mapping[str, Mapping[str, object]]) -> None:
     """Re-resolve every exact reference against the current snapshot.
 
@@ -693,6 +706,7 @@ def validate_tdl_private_pack_for_acceptance(
         pack["upstream_contract_reference"], accepted_upstream_contract_subject, "upstream contract reference"
     )
     _require_matching_subject(pack["schema_reference"], accepted_schema_subject, "pack schema reference")
+    _require_source_authority_projection(contract, pack)
 
     _revalidate_references(pack, current_exact_reference_snapshot)
 
@@ -775,6 +789,7 @@ def validate_tdl_private_pack_for_preparation(
         pack["upstream_contract_reference"], accepted_upstream_contract_subject, "upstream contract reference"
     )
     _require_matching_subject(pack["schema_reference"], accepted_schema_subject, "pack schema reference")
+    _require_source_authority_projection(contract, pack)
     _revalidate_references(pack, current_exact_reference_snapshot)
     evidence = _require_key(required, "external_acceptance_evidence", "upstream contract")
     required_record_types = _require_key(evidence, "required_record_types", "external acceptance evidence")
