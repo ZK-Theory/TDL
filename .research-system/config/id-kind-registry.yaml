@@ -42,3 +42,5 @@ kinds:
   stephen_owner_acceptance: apr
   active_authority_grant: agr
   registered_pack_object: asp
+  independent_session_review: isr
+  owner_session_acceptance_decision: osd

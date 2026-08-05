@@ -194,9 +194,12 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",
+    "accept_owner_operated_session_evidence": "artefact",
+    "publish_owner_operated_session_review": "artefact",
     "publish_external_assurance_record": "external_assurance_record",
 }
 _R3_ASSURANCE_POLICY_ACTION = "accept_r3_assurance_requirement"
+_OWNER_SESSION_EVIDENCE_POLICY_ACTION = "accept_owner_operated_session_evidence"
 _EXTERNAL_RECORD_POLICY_ACTION = "publish_external_assurance_record"
 _SCOPED_GRANT_SCHEMA_IDENTITIES = frozenset(
     {
@@ -606,6 +609,12 @@ def validate_scoped_grant_activation(
         or grant.subject_scope.subject_kind != "assurance_requirement"
     ):
         raise ArsError("R3 assurance acceptance requires the bound human owner")
+    if _OWNER_SESSION_EVIDENCE_POLICY_ACTION in action_types and (
+        grant.actor_id != owner
+        or grant.allowed_actor_classes != ("human",)
+        or grant.subject_scope.subject_kind != "artefact"
+    ):
+        raise ArsError("owner-operated session evidence acceptance requires the bound human owner")
 
 
 @dataclass(frozen=True)
@@ -2453,11 +2462,16 @@ class LedgerAuthorityGrantResolver:
     ) -> ScopedAuthorityGrantResolution:
         """Resolve one exact policy action against an active scoped grant."""
         projection: dict[str, Any] | None = None
-        if policy_action.policy_action_type == _R3_ASSURANCE_POLICY_ACTION:
+        if policy_action.policy_action_type in {
+            _R3_ASSURANCE_POLICY_ACTION,
+            _OWNER_SESSION_EVIDENCE_POLICY_ACTION,
+        }:
             projection = self._projection()
             context = self._administration_context_from_projection(projection)
             if actor_class != "human" or validate_id(actor_id, "actor") != context.owner_actor_id:
-                raise ArsError("R3 assurance acceptance requires the bound human owner")
+                if policy_action.policy_action_type == _R3_ASSURANCE_POLICY_ACTION:
+                    raise ArsError("R3 assurance acceptance requires the bound human owner")
+                raise ArsError("owner-operated session evidence acceptance requires the bound human owner")
         binding = self.schema_registry.policy_action_binding(
             policy_action.policy_action_type,
         )

@@ -534,6 +534,11 @@ class ExternalRecordResolution(Mapping[str, object]):
 class ExternalAssuranceRecordStore:
     """Write schema-valid external records through an authority-bound CAS seam."""
 
+    def _build_catalogue(self, schema_root: Path) -> ExternalRecordSchemaCatalogue:
+        """Build this store's closed schema profile after binding validation."""
+
+        return ExternalRecordSchemaCatalogue(schema_root)
+
     def __init__(self, binding: ControlBinding, *, clock: Callable[[], datetime] | None = None) -> None:
         if not isinstance(binding, ControlBinding):
             raise TypeError("external assurance records require a validated ControlBinding")
@@ -565,11 +570,29 @@ class ExternalAssuranceRecordStore:
         except (OSError, KeyError, ValueError) as exc:
             raise IntegrityError("control binding is not valid for external assurance records") from exc
         self.binding = binding
-        self.catalogue = ExternalRecordSchemaCatalogue(binding.schema_root)
+        self.catalogue = self._build_catalogue(binding.schema_root)
         self.objects = ObjectStore(control_root)
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._authority_schemas: SchemaRegistry | None = None
         self._authority_resolver: LedgerAuthorityGrantResolver | None = None
+
+    def _storage_object_key(
+        self,
+        record_class: str,
+        record_id: str,
+        *,
+        record: Mapping[str, Any] | None = None,
+    ) -> tuple[str, str]:
+        """Resolve the storage key for this store's record profile.
+
+        The accepted WP6.3 profile keeps its exact class-specific key mapping.
+        A separately governed profile may override this hook while reusing the
+        binding, history, locking, CAS, receipt, and resolution substrate.  The
+        body is supplied on write paths and omitted when resolving by identity.
+        """
+
+        del record
+        return storage_object_key(record_class, record_id)
 
     def _receipt(
         self,
@@ -670,7 +693,7 @@ class ExternalAssuranceRecordStore:
             raise SchemaError("publication context occurred_at is not a valid timestamp") from exc
         if occurred_at.tzinfo != timezone.utc:
             raise SchemaError("publication context occurred_at must be UTC")
-        storage_object_key(record_class, record_id)
+        self._storage_object_key(record_class, record_id, record=record)
 
         relationship_field = _RELATIONSHIP_FIELD_BY_CLASS.get(record_class)
         if relationship_field is None:
@@ -764,20 +787,48 @@ class ExternalAssuranceRecordStore:
         *,
         record_class: str,
         record_id: str,
-        object_id: str,
-    ) -> dict[int, Any]:
+        record: Mapping[str, Any] | None = None,
+        resolution_errors: bool = False,
+    ) -> tuple[str, str, dict[int, Any]]:
         row = self.catalogue.row(record_class)
-        kind = storage_object_kind(record_class)
+        kind, object_id = self._storage_object_key(record_class, record_id, record=record)
         history = load_complete_revision_history(self.objects, kind, object_id)
         for existing in history.values():
-            if (
-                not isinstance(existing, Mapping)
-                or existing.get("record_type") != row.record_type
-                or existing.get(row.identity_field) != record_id
+            if not isinstance(existing, Mapping):
+                if resolution_errors:
+                    raise IntegrityError(f"external record is not a record body: {record_id}")
+                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
+            if existing.get("record_type") != row.record_type or (
+                not resolution_errors and existing.get(row.identity_field) != record_id
             ):
                 raise IntegrityError("external record revision history contains a foreign or mismatched identity")
             self.catalogue.validate(record_class, record_id, existing)
-        return history
+        return kind, object_id, history
+
+    def resolve_from_storage(
+        self,
+        *,
+        record_class: str,
+        record_id: str,
+    ) -> ExternalRecordResolution:
+        """Resolve the latest schema-valid body using storage-derived metadata."""
+
+        _kind, _object_id, history = self._validated_history(
+            record_class=record_class,
+            record_id=record_id,
+            resolution_errors=True,
+        )
+        if not history:
+            raise ArsError(f"external record has no persisted revision: {record_id}")
+        revision = max(history)
+        selected_record = history[revision]
+        return ExternalRecordResolution(
+            record_class=record_class,
+            record_id=record_id,
+            revision=revision,
+            canonical_sha256=sha256_hex(canonical_bytes(selected_record)),
+            record=dict(selected_record),
+        )
 
     def _check_revision_policy(
         self,
@@ -825,8 +876,11 @@ class ExternalAssuranceRecordStore:
 
         self._validate_revision_numbers(revision, expected_previous_revision)
         row = self.catalogue.validate(record_class, record_id, record)
-        kind, object_id = storage_object_key(record_class, record_id)
-        history = self._validated_history(record_class=record_class, record_id=record_id, object_id=object_id)
+        kind, object_id, history = self._validated_history(
+            record_class=record_class,
+            record_id=record_id,
+            record=record,
+        )
         latest = max(history) if history else None
         observed = 0 if latest is None else latest
         self._check_revision_policy(
@@ -849,8 +903,12 @@ class ExternalAssuranceRecordStore:
     def _resolve_current_publication_authority(
         self,
         context: ExternalRecordPublicationContext,
+        *,
+        record: Mapping[str, Any],
     ) -> None:
         """Resolve the exact publication action from replayed authority in-lock."""
+
+        del record
 
         if self._authority_schemas is None or self._authority_resolver is None:
             self._authority_schemas = runtime_schema_registry(self.binding.schema_root)
@@ -943,7 +1001,7 @@ class ExternalAssuranceRecordStore:
                 "canonical_sha256": publication_context.canonical_sha256,
             },
         ):
-            self._resolve_current_publication_authority(publication_context)
+            self._resolve_current_publication_authority(publication_context, record=record)
             return self._write_storage(
                 record_class=record_class,
                 record_id=record_id,

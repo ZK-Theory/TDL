@@ -25,20 +25,15 @@ contract demands of an external record:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
 
 from research_system.assurance.pack_loader import AUTHORITY_RESOLUTION_PHASES
-from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.assurance.external_records import (
     EXTERNAL_RECORD_KIND,
     ExternalAssuranceRecordStore,
     ExternalRecordResolution,
-    ExternalRecordSchemaCatalogue,
-    load_complete_revision_history,
-    storage_object_key,
 )
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, IntegrityError
+from research_system.errors import ArsError
 
 
 __all__ = ["EXTERNAL_RECORD_KIND", "ControlStoreAuthorityResolver"]
@@ -83,8 +78,7 @@ class ControlStoreAuthorityResolver:
         self.binding = binding
         self.control_root = binding.control_root
         self.authority_root = binding.store_identity
-        self._catalogue: ExternalRecordSchemaCatalogue = writer.catalogue
-        self._objects = writer.objects
+        self._store = writer
 
     def _validate_phase_and_root(self, *, authority_root: str, phase: str) -> None:
         if phase not in AUTHORITY_RESOLUTION_PHASES:
@@ -131,26 +125,7 @@ class ControlStoreAuthorityResolver:
         self._validate_phase_and_root(authority_root=authority_root, phase=phase)
         if not isinstance(record_class, str) or not record_class:
             raise ArsError("record class must be a non-empty string")
-        kind, object_id = storage_object_key(record_class, record_id)
-        history = load_complete_revision_history(self._objects, kind, object_id)
-        if not history:
-            raise ArsError(f"external record has no persisted revision: {record_id}")
-        row = self._catalogue.row(record_class)
-        for record in history.values():
-            if not isinstance(record, dict):
-                raise IntegrityError(f"external record is not a record body: {record_id}")
-            if record.get("record_type") != row.record_type:
-                raise IntegrityError("external record revision history contains a foreign or mismatched identity")
-            self._catalogue.validate(record_class, record_id, record)
-        revision = max(history)
-        selected_record: Any = history[revision]
-        return ExternalRecordResolution(
-            record_class=record_class,
-            record_id=record_id,
-            revision=revision,
-            canonical_sha256=sha256_hex(canonical_bytes(selected_record)),
-            record=dict(selected_record),
-        )
+        return self._store.resolve_from_storage(record_class=record_class, record_id=record_id)
 
     def resolve(self, *, record_id: str, record_class: str, authority_root: str, phase: str) -> Mapping[str, object]:
         """Return only the current body for legacy read-side callers."""

@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-4/owner-operated-session-evidence",
+  "title": "WP6.4 owner-operated session evidence-back document",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "document_state",
+    "mechanics_scope",
+    "provider_control",
+    "evidence_artifact_id",
+    "evidence_subject_raw_sha256",
+    "revision",
+    "supersedes_revision",
+    "supersedes_document_raw_sha256",
+    "handoff_id",
+    "session_id",
+    "attempt_id",
+    "task_id",
+    "brief_subject",
+    "producer_identity_locator",
+    "producer_verdict",
+    "returned_artifacts",
+    "test_evidence",
+    "unresolved_findings",
+    "review",
+    "acceptance",
+    "recorded_at"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-4/owner-operated-session-evidence"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "owner_operated_session_evidence"},
+    "document_state": {"enum": ["produced_unreviewed", "independently_reviewed_pending_owner_acceptance", "owner_accepted"]},
+    "mechanics_scope": {"const": "fixture_or_operator_supplied_inputs_only"},
+    "provider_control": {"const": "owner_operated_no_ars_transport"},
+    "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
+    "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
+    "revision": {"enum": [1, 2, 3]},
+    "supersedes_revision": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "integer", "minimum": 1, "maximum": 2}
+      ]
+    },
+    "supersedes_document_raw_sha256": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/sha256"}
+      ]
+    },
+    "handoff_id": {"$ref": "#/$defs/handoffId"},
+    "session_id": {"$ref": "#/$defs/sessionId"},
+    "attempt_id": {"$ref": "#/$defs/attemptId"},
+    "task_id": {"$ref": "#/$defs/taskId"},
+    "brief_subject": {
+      "type": "object",
+      "required": ["brief_artifact_id", "revision", "document_raw_sha256", "brief_raw_sha256", "git_subject"],
+      "properties": {
+        "brief_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "revision": {"const": 1},
+        "document_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "brief_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_subject": {"$ref": "#/$defs/gitSubject"}
+      },
+      "additionalProperties": false
+    },
+    "producer_identity_locator": {"$ref": "#/$defs/locator"},
+    "producer_verdict": {"enum": ["completed", "partial", "failed"]},
+    "returned_artifacts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/artifactEvidence"}},
+    "test_evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/artifactEvidence"}},
+    "unresolved_findings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "severity", "status", "summary"],
+        "properties": {
+          "finding_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "severity": {"enum": ["critical", "major", "minor", "note"]},
+          "status": {"const": "unresolved"},
+          "summary": {"type": "string", "minLength": 1, "maxLength": 2048}
+        },
+        "additionalProperties": false
+      }
+    },
+    "review": {"oneOf": [{"$ref": "#/$defs/pendingReview"}, {"$ref": "#/$defs/recordedReview"}]},
+    "acceptance": {"oneOf": [{"$ref": "#/$defs/pendingAcceptance"}, {"$ref": "#/$defs/recordedAcceptance"}]},
+    "recorded_at": {"$ref": "#/$defs/utcTimestamp"}
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"document_state": {"const": "produced_unreviewed"}}, "required": ["document_state"]},
+      "then": {
+        "properties": {
+          "revision": {"const": 1},
+          "supersedes_revision": {"type": "null"},
+          "supersedes_document_raw_sha256": {"type": "null"},
+          "review": {"$ref": "#/$defs/pendingReview"},
+          "acceptance": {"$ref": "#/$defs/pendingAcceptance"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"document_state": {"const": "independently_reviewed_pending_owner_acceptance"}}, "required": ["document_state"]},
+      "then": {
+        "properties": {
+          "revision": {"const": 2},
+          "supersedes_revision": {"const": 1},
+          "supersedes_document_raw_sha256": {"$ref": "#/$defs/sha256"},
+          "review": {"$ref": "#/$defs/recordedReview"},
+          "acceptance": {"$ref": "#/$defs/pendingAcceptance"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"document_state": {"const": "owner_accepted"}}, "required": ["document_state"]},
+      "then": {
+        "properties": {
+          "revision": {"const": 3},
+          "supersedes_revision": {"const": 2},
+          "supersedes_document_raw_sha256": {"$ref": "#/$defs/sha256"},
+          "review": {
+            "allOf": [
+              {"$ref": "#/$defs/recordedReview"},
+              {"properties": {"verdict": {"const": "accepted"}}}
+            ]
+          },
+          "acceptance": {"$ref": "#/$defs/recordedAcceptance"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifactId": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "handoffId": {"type": "string", "pattern": "^hnd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "sessionId": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "attemptId": {"type": "string", "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "taskId": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "gitSha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "locator": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$", "maxLength": 2048},
+    "utcTimestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"},
+    "gitSubject": {
+      "type": "object",
+      "required": ["commit_sha", "tree_sha"],
+      "properties": {
+        "commit_sha": {"$ref": "#/$defs/gitSha"},
+        "tree_sha": {"$ref": "#/$defs/gitSha"}
+      },
+      "additionalProperties": false
+    },
+    "artifactEvidence": {
+      "type": "object",
+      "required": ["artefact_id", "locator", "media_type", "raw_sha256", "byte_length"],
+      "properties": {
+        "artefact_id": {"$ref": "#/$defs/artifactId"},
+        "locator": {"$ref": "#/$defs/locator"},
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 255},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "byte_length": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "trustedSessionRecordReceipt": {
+      "type": "object",
+      "required": [
+        "record_class",
+        "record_id",
+        "revision",
+        "canonical_sha256",
+        "schema_id",
+        "schema_version",
+        "schema_sha256",
+        "store_identity",
+        "control_root"
+      ],
+      "properties": {
+        "record_class": {"enum": ["independent_session_review", "owner_session_acceptance_decision"]},
+        "record_id": {
+          "type": "string",
+          "pattern": "^(?:isr|osd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "revision": {"const": 1},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "schema_id": {
+          "enum": [
+            "ars://wp6-4/independent-session-review-record",
+            "ars://wp6-4/owner-session-acceptance-decision-record"
+          ]
+        },
+        "schema_version": {"const": "1.0.0"},
+        "schema_sha256": {"$ref": "#/$defs/sha256"},
+        "store_identity": {"$ref": "#/$defs/sha256"},
+        "control_root": {"type": "string", "minLength": 1, "maxLength": 4096}
+      },
+      "additionalProperties": false
+    },
+    "authorityReplayReceipt": {
+      "type": "object",
+      "required": [
+        "policy_action_schema_id",
+        "policy_action_schema_version",
+        "policy_action_schema_sha256",
+        "policy_action_raw_sha256",
+        "authority_grant_id",
+        "authority_grant_sha256",
+        "actor_id",
+        "actor_class",
+        "subject_scope",
+        "effective_at",
+        "expires_at",
+        "activation_event_id",
+        "activation_position",
+        "administration_decision_id",
+        "administration_decision_sha256",
+        "status",
+        "revocation_event_id",
+        "resolved_at"
+      ],
+      "properties": {
+        "policy_action_schema_id": {
+          "enum": [
+            "ars://core/policy-action/PublishOwnerOperatedSessionReview",
+            "ars://core/policy-action/AcceptOwnerOperatedSessionEvidence"
+          ]
+        },
+        "policy_action_schema_version": {"const": "1.0.0"},
+        "policy_action_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "policy_action_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "authority_grant_id": {
+          "type": "string",
+          "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "authority_grant_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {
+          "type": "string",
+          "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "actor_class": {"enum": ["human", "agent", "service"]},
+        "subject_scope": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {"const": "artefact"},
+            "id": {"$ref": "#/$defs/artifactId"}
+          },
+          "additionalProperties": false
+        },
+        "effective_at": {"$ref": "#/$defs/utcTimestamp"},
+        "expires_at": {"$ref": "#/$defs/utcTimestamp"},
+        "activation_event_id": {
+          "type": "string",
+          "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "activation_position": {"type": "integer", "minimum": 1},
+        "administration_decision_id": {
+          "type": "string",
+          "pattern": "^arec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "administration_decision_sha256": {"$ref": "#/$defs/sha256"},
+        "status": {"const": "active"},
+        "revocation_event_id": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "string",
+              "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          ]
+        },
+        "resolved_at": {"$ref": "#/$defs/utcTimestamp"}
+      },
+      "additionalProperties": false
+    },
+    "pendingReview": {
+      "type": "object",
+      "required": ["reviewer_identity_locator", "status", "verdict", "evidence"],
+      "properties": {
+        "reviewer_identity_locator": {"$ref": "#/$defs/locator"},
+        "status": {"const": "pending_independent_review"},
+        "verdict": {"type": "null"},
+        "evidence": {"type": "null"}
+      },
+      "additionalProperties": false
+    },
+    "recordedReview": {
+      "type": "object",
+      "required": ["reviewer_identity_locator", "status", "verdict", "reviewed_at", "evidence"],
+      "properties": {
+        "reviewer_identity_locator": {"$ref": "#/$defs/locator"},
+        "status": {"const": "independent_review_recorded"},
+        "verdict": {"enum": ["accepted", "rework_required", "rejected"]},
+        "reviewed_at": {"$ref": "#/$defs/utcTimestamp"},
+        "evidence": {
+          "type": "object",
+          "required": ["record", "authority"],
+          "properties": {
+            "record": {
+              "allOf": [
+                {"$ref": "#/$defs/trustedSessionRecordReceipt"},
+                {
+                  "properties": {
+                    "record_class": {"const": "independent_session_review"},
+                    "record_id": {
+                      "type": "string",
+                      "pattern": "^isr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "schema_id": {"const": "ars://wp6-4/independent-session-review-record"}
+                  }
+                }
+              ]
+            },
+            "authority": {
+              "allOf": [
+                {"$ref": "#/$defs/authorityReplayReceipt"},
+                {
+                  "properties": {
+                    "policy_action_schema_id": {
+                      "const": "ars://core/policy-action/PublishOwnerOperatedSessionReview"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "pendingAcceptance": {
+      "type": "object",
+      "required": ["acceptor_identity_locator", "authority_grant_id", "authority_status", "status", "outcome", "evidence"],
+      "properties": {
+        "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
+        "authority_grant_id": {"type": "null"},
+        "authority_status": {"const": "unverified"},
+        "status": {"const": "pending_owner_acceptance"},
+        "outcome": {"type": "null"},
+        "evidence": {"type": "null"}
+      },
+      "additionalProperties": false
+    },
+    "recordedAcceptance": {
+      "type": "object",
+      "required": [
+        "acceptor_identity_locator",
+        "authority_grant_id",
+        "authority_status",
+        "status",
+        "outcome",
+        "decided_at",
+        "authority_effective_at",
+        "authority_expires_at",
+        "evidence"
+      ],
+      "properties": {
+        "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
+        "authority_grant_id": {
+          "type": "string",
+          "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "authority_status": {"const": "active"},
+        "status": {"const": "owner_acceptance_recorded"},
+        "outcome": {"const": "accepted"},
+        "decided_at": {"$ref": "#/$defs/utcTimestamp"},
+        "authority_effective_at": {"$ref": "#/$defs/utcTimestamp"},
+        "authority_expires_at": {"$ref": "#/$defs/utcTimestamp"},
+        "evidence": {
+          "type": "object",
+          "required": ["decision", "authority"],
+          "properties": {
+            "decision": {
+              "allOf": [
+                {"$ref": "#/$defs/trustedSessionRecordReceipt"},
+                {
+                  "properties": {
+                    "record_class": {"const": "owner_session_acceptance_decision"},
+                    "record_id": {
+                      "type": "string",
+                      "pattern": "^osd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "schema_id": {"const": "ars://wp6-4/owner-session-acceptance-decision-record"}
+                  }
+                }
+              ]
+            },
+            "authority": {
+              "allOf": [
+                {"$ref": "#/$defs/authorityReplayReceipt"},
+                {
+                  "properties": {
+                    "policy_action_schema_id": {
+                      "const": "ars://core/policy-action/AcceptOwnerOperatedSessionEvidence"
+                    },
+                    "actor_class": {"const": "human"}
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

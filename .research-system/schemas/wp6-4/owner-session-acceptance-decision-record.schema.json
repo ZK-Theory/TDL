@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-4/owner-session-acceptance-decision-record",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_type",
+    "owner_decision_id",
+    "revision",
+    "subject",
+    "acceptor_actor_id",
+    "acceptor_actor_class",
+    "acceptor_identity_locator",
+    "authority_grant_id",
+    "review_receipt",
+    "outcome",
+    "decision_state",
+    "decided_at"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-4/owner-session-acceptance-decision-record"},
+    "schema_version": {"const": "1.0.0"},
+    "record_type": {"const": "owner_session_acceptance_decision"},
+    "owner_decision_id": {"$ref": "#/$defs/ownerDecisionId"},
+    "revision": {"const": 1},
+    "subject": {"$ref": "#/$defs/sessionSubject"},
+    "acceptor_actor_id": {"$ref": "#/$defs/actorId"},
+    "acceptor_actor_class": {"const": "human"},
+    "acceptor_identity_locator": {"$ref": "#/$defs/locator"},
+    "authority_grant_id": {"$ref": "#/$defs/authorityGrantId"},
+    "review_receipt": {"$ref": "#/$defs/reviewReceipt"},
+    "outcome": {"enum": ["accepted", "rejected"]},
+    "decision_state": {"const": "active"},
+    "decided_at": {"$ref": "#/$defs/utcTimestamp"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ownerDecisionId": {
+      "type": "string",
+      "pattern": "^osd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authorityGrantId": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "actorId": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "handoffId": {"type": "string", "pattern": "^hnd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "sessionId": {"type": "string", "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "attemptId": {"type": "string", "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "taskId": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "artifactId": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitSha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "locator": {"type": "string", "pattern": "^ars://", "minLength": 7},
+    "utcTimestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"},
+    "reviewReceipt": {
+      "type": "object",
+      "required": ["record_class", "record_id", "revision", "canonical_sha256"],
+      "properties": {
+        "record_class": {"const": "independent_session_review"},
+        "record_id": {
+          "type": "string",
+          "pattern": "^isr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "revision": {"const": 1},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "gitSubject": {
+      "type": "object",
+      "required": ["commit_sha", "tree_sha"],
+      "properties": {
+        "commit_sha": {"$ref": "#/$defs/gitSha1"},
+        "tree_sha": {"$ref": "#/$defs/gitSha1"}
+      },
+      "additionalProperties": false
+    },
+    "sessionSubject": {
+      "type": "object",
+      "required": [
+        "handoff_id",
+        "session_id",
+        "attempt_id",
+        "task_id",
+        "brief_artifact_id",
+        "brief_revision",
+        "brief_document_raw_sha256",
+        "brief_raw_sha256",
+        "evidence_artifact_id",
+        "evidence_revision",
+        "evidence_subject_raw_sha256",
+        "git_subject"
+      ],
+      "properties": {
+        "handoff_id": {"$ref": "#/$defs/handoffId"},
+        "session_id": {"$ref": "#/$defs/sessionId"},
+        "attempt_id": {"$ref": "#/$defs/attemptId"},
+        "task_id": {"$ref": "#/$defs/taskId"},
+        "brief_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "brief_revision": {"const": 1},
+        "brief_document_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "brief_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_artifact_id": {"$ref": "#/$defs/artifactId"},
+        "evidence_revision": {"const": 1},
+        "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_subject": {"$ref": "#/$defs/gitSubject"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
