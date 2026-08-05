@@ -7,7 +7,7 @@ import yaml
 
 import research_system.config as config_module
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.config import ApprovedProjectBinding, ControlBinding
+from research_system.config import ApprovedProjectBinding, ControlBinding, _canonical_local_cli_uri
 from research_system.errors import ConfigurationError
 from research_system.store.identity import (
     build_store_origin_witness,
@@ -19,7 +19,11 @@ from research_system.store.layout import require_external_control_root
 PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
 
 
-def _materialized_foundation(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+def _materialized_foundation(
+    tmp_path: Path,
+    *,
+    include_retired_code_root: bool = False,
+) -> tuple[Path, dict[str, object]]:
     code_root = tmp_path / "code"
     schema_root = code_root / ".research-system" / "schemas"
     schema_root.mkdir(parents=True)
@@ -27,13 +31,19 @@ def _materialized_foundation(tmp_path: Path) -> tuple[Path, dict[str, object]]:
     origin_root.mkdir()
     control_root = tmp_path / "control"
     require_external_control_root([code_root], control_root)
+    code_roots = [str(code_root.resolve())]
+    retired_code_root = tmp_path / "retired-code-root"
+    if include_retired_code_root:
+        retired_code_root.mkdir()
+        code_roots.append(str(retired_code_root.resolve()))
+    code_roots.sort()
     manifest = {
         "schema_id": "ars://core/store-identity",
         "schema_version": "1.0.0",
         "project_id": PROJECT_ID,
         "store_identity": "a" * 64,
         "control_root": str(control_root.resolve()),
-        "code_roots": [str(code_root.resolve())],
+        "code_roots": code_roots,
         "schema_root": str(schema_root.resolve()),
         "schema_binding_version": "1.0.0",
         "endpoint_scheme": "local-cli",
@@ -42,6 +52,8 @@ def _materialized_foundation(tmp_path: Path) -> tuple[Path, dict[str, object]]:
     (control_root / "manifests" / "store-identity.json").write_bytes(canonical_bytes(manifest))
     witness = build_store_origin_witness(manifest, initial_control_root=control_root)
     witness_path = persist_store_origin_witness(witness, origin_root)
+    if include_retired_code_root:
+        retired_code_root.rmdir()
     foundation = {
         "schema_version": "1.0.0",
         "project_id": PROJECT_ID,
@@ -50,10 +62,10 @@ def _materialized_foundation(tmp_path: Path) -> tuple[Path, dict[str, object]]:
         "store_identity": manifest["store_identity"],
         "endpoint_scheme": "local-cli",
         "canonical_hash": "sha256",
-        "canonical_uri": "local-cli://control",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
-        "code_roots": [str(code_root.resolve())],
+        "code_roots": code_roots,
         "schema_root": str(schema_root.resolve()),
         "origin_authority_root": str(origin_root.resolve()),
         "origin_witness_path": str(witness_path.resolve()),
@@ -71,6 +83,58 @@ def test_approved_binding_loads_foundation_pinned_witness_before_store(tmp_path:
     binding = ApprovedProjectBinding.load(foundation_path)
     assert binding.origin_witness_sha256 == foundation["origin_witness_sha256"]
     assert binding.origin_witness.initial_control_root == str(binding.control_root)
+
+
+def test_approved_binding_preserves_unavailable_historical_code_root(tmp_path: Path):
+    foundation_path, foundation = _materialized_foundation(tmp_path, include_retired_code_root=True)
+
+    binding = ApprovedProjectBinding.load(foundation_path)
+    control_binding = ControlBinding.from_raw(
+        yaml.safe_dump(
+            {
+                "code_roots": foundation["code_roots"],
+                "control_root": foundation["control_root"],
+                "project_id": foundation["project_id"],
+                "schema_root": foundation["schema_root"],
+                "store_identity": foundation["store_identity"],
+            },
+            sort_keys=False,
+        ).encode("utf-8"),
+        approved=binding,
+    )
+
+    assert [str(root) for root in binding.code_roots] == foundation["code_roots"]
+    assert control_binding.code_roots == binding.code_roots
+
+
+def test_approved_binding_rejects_substituted_unavailable_historical_code_root(tmp_path: Path):
+    foundation_path, foundation = _materialized_foundation(tmp_path, include_retired_code_root=True)
+    value = dict(foundation)
+    value["code_roots"] = [
+        str((tmp_path / "foreign-retired-code-root").resolve(strict=False))
+        if root.endswith("retired-code-root")
+        else root
+        for root in foundation["code_roots"]
+    ]
+    value["code_roots"].sort()
+    value.pop("foundation_sha256")
+    value["foundation_sha256"] = sha256_hex(canonical_bytes(value))
+    foundation_path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="materialized store code roots"):
+        ApprovedProjectBinding.load(foundation_path)
+
+
+def test_approved_binding_rejects_unbound_local_cli_alias(tmp_path: Path):
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+    value = dict(foundation)
+    value["canonical_uri"] = "local-cli://control"
+    value.pop("foundation_sha256")
+    value["foundation_sha256"] = sha256_hex(canonical_bytes(value))
+    foundation_path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="materialized control root"):
+        ApprovedProjectBinding.load(foundation_path)
 
 
 @pytest.mark.parametrize("mutation", ["path", "digest", "foundation"])

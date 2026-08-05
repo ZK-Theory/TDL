@@ -298,7 +298,7 @@ def _validate_origin_authority_root(
     reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse_attribute:
         raise ArsError("origin authority root must be a physical directory")
-    candidates = [root_path.resolve(strict=True) for root_path in code_roots]
+    candidates = [root_path.resolve(strict=False) for root_path in code_roots]
     candidates.extend(root_path.resolve(strict=False) for root_path in control_roots)
     if any(root == candidate or root in candidate.parents or candidate in root.parents for candidate in candidates):
         raise ArsError("origin authority root must be physically disjoint from every store/code root")
@@ -750,13 +750,17 @@ def initialize_control_store(
     project_id = validate_id(project_id, "project")
     if origin_authority_root is None:
         raise ArsError("origin authority root is required for new stores")
+    try:
+        resolved_code_roots = [root.resolve(strict=True) for root in code_roots]
+    except OSError as exc:
+        raise ArsError("new store code roots must be available") from exc
     requested_control = control_root.resolve(strict=False)
     origin_root = _validate_origin_authority_root(
         origin_authority_root,
-        code_roots=code_roots,
+        code_roots=resolved_code_roots,
         control_roots=[requested_control],
     )
-    control = require_external_control_root(code_roots, requested_control)
+    control = require_external_control_root(resolved_code_roots, requested_control)
     manifest_path = _manifest_path(control)
     witness_path = origin_witness_path(
         origin_root,
@@ -787,7 +791,7 @@ def initialize_control_store(
             raise ConflictError("control store conflicts with its origin witness")
     else:
         if witness is None:
-            resolved_codes = sorted(str(root.resolve(strict=True)) for root in code_roots)
+            resolved_codes = sorted(str(root) for root in resolved_code_roots)
             manifest = {
                 "schema_id": "ars://core/store-identity",
                 "schema_version": "1.0.0",
@@ -922,7 +926,7 @@ def canonical_restore_binding_output(
 ) -> bytes:
     """Derive the only canonical binding bytes admitted by a restore transaction."""
     target = target_root.resolve(strict=False)
-    codes = sorted(str(root.resolve(strict=True)) for root in code_roots)
+    codes = sorted(str(root.resolve(strict=False)) for root in code_roots)
     schema = schema_root.resolve(strict=True)
     return canonical_bytes(
         {
@@ -2732,7 +2736,7 @@ def rebind_restored_store(
     witness_path_value = str(resolved_witness_path)
     if sha256_hex(approved_witness.raw_bytes) != approved_witness.raw_sha256:
         raise IntegrityError("approved origin witness bytes are invalid")
-    code_paths = [root.resolve(strict=True) for root in expected_code_roots]
+    code_paths = [root.resolve(strict=False) for root in expected_code_roots]
     target = require_existing_control_root(code_paths, target_root)
     source = require_existing_control_root(code_paths, source_root)
     if source == target:
@@ -3199,7 +3203,7 @@ def verify_store_identity(
     if manifest["store_identity"] != expected_store_identity:
         raise ArsError("store identity mismatch")
     if expected_code_roots is not None:
-        resolved = sorted(str(root.resolve(strict=True)) for root in expected_code_roots)
+        resolved = sorted(str(root.resolve(strict=False)) for root in expected_code_roots)
         if manifest.get("code_roots") != resolved:
             raise ArsError("code root binding mismatch")
     return str(manifest["store_identity"])

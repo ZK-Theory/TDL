@@ -1,8 +1,8 @@
 """Mechanics-only synthetic tests for the later WP6.4 real-A8 proof.
 
-These tests never materialize or accept owner foundation values and never claim
-that a real A8 operation occurred.  Temporary values are fixtures for harness
-mechanics only; the repository foundation remains null and owner-blocked.
+These tests never accept their temporary foundation values as owner evidence and
+never claim that a real A8 operation occurred. Temporary values remain fixtures
+for harness mechanics only.
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ def _synthetic_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, remov
         "store_identity": case["receipt"].store_identity,
         "endpoint_scheme": case["receipt"].source_endpoint_scheme,
         "canonical_hash": "sha256",
-        "canonical_uri": f"{case['receipt'].source_endpoint_scheme}://restored-control",
+        "canonical_uri": config_module._canonical_local_cli_uri(target_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],

@@ -13,6 +13,8 @@ import yaml
 from research_system.cli import main
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.assurance.external_records import ExternalAssuranceRecordStore
+from research_system.assurance.relationship_facts import RelationshipEvidenceFactsStore
+from research_system.config import ControlBinding, _canonical_local_cli_uri
 from research_system.errors import ArsError, ConfigurationError
 from research_system.authority import initialize_authority_control_store
 from research_system.store.identity import load_store_manifest
@@ -41,7 +43,12 @@ def _record() -> dict[str, str]:
     }
 
 
-def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path, str]:
+def _config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    retire_registered_code_root: bool = False,
+) -> tuple[Path, Path, str]:
     code_root = tmp_path / "code"
     schema_root = code_root / ".research-system" / "schemas"
     schema_root.mkdir(parents=True)
@@ -58,9 +65,14 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path
     control_root = tmp_path / "control"
     origin_authority_root = tmp_path / "origin-authority"
     origin_authority_root.mkdir()
+    code_roots = [code_root]
+    retired_code_root = tmp_path / "retired-code"
+    if retire_registered_code_root:
+        retired_code_root.mkdir()
+        code_roots.append(retired_code_root)
     bootstrap = authority_bootstrap()
     identity = initialize_authority_control_store(
-        [code_root],
+        code_roots,
         control_root,
         PROJECT_ID,
         bootstrap,
@@ -78,10 +90,10 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path
         "store_identity": str(identity),
         "endpoint_scheme": "local-cli",
         "canonical_hash": "sha256",
-        "canonical_uri": "local-cli://control",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
-        "code_roots": [str(code_root.resolve())],
+        "code_roots": sorted(str(root.resolve()) for root in code_roots),
         "schema_root": str(schema_root.resolve()),
         "origin_authority_root": str(origin_authority_root.resolve()),
         "origin_witness_path": str(identity.witness_path.resolve()),
@@ -94,7 +106,7 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path
     config.write_text(
         json.dumps(
             {
-                "code_roots": [str(code_root.resolve())],
+                "code_roots": sorted(str(root.resolve()) for root in code_roots),
                 "control_root": str(control_root.resolve()),
                 "project_id": PROJECT_ID,
                 "schema_root": str(schema_root.resolve()),
@@ -103,6 +115,8 @@ def _config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path
         ),
         encoding="utf-8",
     )
+    if retire_registered_code_root:
+        retired_code_root.rmdir()
     return config, control_root, identity
 
 
@@ -177,6 +191,43 @@ def test_assurance_record_write_cli_requires_current_publication_authority(
 
 
 @pytest.mark.integration
+def test_publication_stores_and_cli_preserve_retired_registered_code_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, control_root, store_identity = _config(
+        tmp_path,
+        monkeypatch,
+        retire_registered_code_root=True,
+    )
+    binding = ControlBinding.load(config)
+
+    ExternalAssuranceRecordStore(binding)
+    RelationshipEvidenceFactsStore(binding)
+
+    record_path = tmp_path / "record.json"
+    record_path.write_text(json.dumps(_record()), encoding="utf-8")
+    with pytest.raises(ArsError, match="scoped authority grant is not activated"):
+        main(
+            [
+                "assurance-record",
+                "write",
+                "--config",
+                str(config),
+                "--record-class",
+                "canonical_actor",
+                "--record-id",
+                RECORD_ID,
+                "--revision",
+                "1",
+                "--expected-previous-revision",
+                "0",
+                *_publication_args(store_identity, record_path),
+            ]
+        )
+    assert not (control_root / "objects" / "canonical_actor" / RECORD_ID).exists()
+
+
+@pytest.mark.integration
 def test_assurance_record_write_cli_requires_json_object(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config, _, authority_root = _config(tmp_path, monkeypatch)
     record_path = tmp_path / "record.json"
@@ -241,7 +292,7 @@ def test_assurance_record_write_cli_persists_activated_grant_receipt(
         "store_identity": manifest["store_identity"],
         "endpoint_scheme": "local-cli",
         "canonical_hash": "sha256",
-        "canonical_uri": "local-cli://control",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
         "canonical_tail_position": 0,
         "canonical_tail_hash": "0" * 64,
         "code_roots": [str(code_root.resolve())],

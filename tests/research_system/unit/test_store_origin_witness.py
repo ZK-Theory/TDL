@@ -111,6 +111,23 @@ def test_origin_authority_root_must_preexist_and_be_disjoint(tmp_path: Path):
     assert not control_root.exists()
 
 
+def test_new_store_rejects_unavailable_code_root_before_mutation(tmp_path: Path):
+    control_root = tmp_path / "control"
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+
+    with pytest.raises(ArsError, match="new store code roots must be available"):
+        initialize_control_store(
+            [tmp_path / "retired-code-root"],
+            control_root,
+            PROJECT_ID,
+            origin_authority_root=origin_root,
+        )
+
+    assert not control_root.exists()
+    assert tuple(origin_root.iterdir()) == ()
+
+
 def test_witness_is_write_once_and_exact_retry_is_idempotent(tmp_path: Path):
     _, control_root, origin_root, first, witness = _initialized(tmp_path)
     retry = initialize_control_store(
