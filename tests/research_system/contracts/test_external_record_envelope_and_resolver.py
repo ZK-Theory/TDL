@@ -930,3 +930,55 @@ def test_attributed_writer_requires_replayed_authority_and_writes_nothing(tmp_pa
         )
     assert not (binding.control_root / "objects" / "canonical_actor" / RECORD_ID).exists()
     assert not (binding.control_root / "runtime" / "writer.lock").exists()
+
+
+def test_store_profile_hooks_receive_the_body_and_reuse_storage_resolution(tmp_path: Path) -> None:
+    class ProfileStore(ExternalAssuranceRecordStore):
+        def __init__(self, binding: ControlBinding) -> None:
+            self.storage_key_records: list[Mapping[str, Any] | None] = []
+            self.authority_record: Mapping[str, Any] | None = None
+            super().__init__(binding)
+
+        def _storage_object_key(
+            self,
+            record_class: str,
+            record_id: str,
+            *,
+            record: Mapping[str, Any] | None = None,
+        ) -> tuple[str, str]:
+            self.storage_key_records.append(record)
+            return super()._storage_object_key(record_class, record_id, record=record)
+
+        def _resolve_current_publication_authority(
+            self,
+            context: ExternalRecordPublicationContext,
+            *,
+            record: Mapping[str, Any],
+        ) -> None:
+            self.authority_record = record
+
+    binding = _binding(tmp_path)
+    body = _valid_actor_body()
+    store = ProfileStore(binding)
+
+    receipt = store.write(
+        record_class="canonical_actor",
+        record_id=RECORD_ID,
+        revision=1,
+        expected_previous_revision=0,
+        record=body,
+        publication_context=_publication_context(
+            binding,
+            record=body,
+            store_identity=str(binding.store_identity),
+        ),
+    )
+    resolution = store.resolve_from_storage(record_class="canonical_actor", record_id=RECORD_ID)
+
+    assert receipt.canonical_sha256 == sha256_hex(canonical_bytes(body))
+    assert store.authority_record is body
+    assert any(record is body for record in store.storage_key_records)
+    assert store.storage_key_records[-1] is None
+    assert resolution.record == body
+    assert resolution.revision == 1
+    assert resolution.canonical_sha256 == receipt.canonical_sha256

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import json
 from pathlib import Path
 
@@ -10,6 +11,14 @@ from jsonschema.exceptions import ValidationError
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, SchemaError
+from research_system.session_exchange import (
+    EvidenceArtifact,
+    SessionRecordLocator,
+    UnresolvedFinding,
+    prepare_session_brief,
+    record_session_evidence,
+)
+from research_system.store.objects import ObjectStore
 
 
 BRIEF_ARTIFACT_ID = "art_01978abc-6400-7000-8000-000000000001"
@@ -21,749 +30,29 @@ TASK_ID = "tsk_01978abc-6400-7000-8000-000000000005"
 PRODUCER_LOCATOR = "ars://actors/producer-fixture"
 REVIEWER_LOCATOR = "ars://actors/reviewer-fixture"
 ACCEPTOR_LOCATOR = "ars://actors/acceptor-fixture"
-AUTHORITY_LOCATOR = "ars://authority/owner-acceptance-fixture"
+REVIEW_RECORD_ID = "isr_01978abc-6401-7000-8000-000000000010"
 
-
-def _external_session_subject(brief, evidence_kwargs):
-    def artifact_evidence(source):
-        raw = source.path.read_bytes()
-        return {
-            "artefact_id": source.artefact_id,
-            "locator": source.locator,
-            "media_type": source.media_type,
-            "raw_sha256": sha256_hex(raw),
-            "byte_length": len(raw),
-        }
-
-    brief_subject = {
-        "brief_artifact_id": evidence_kwargs["brief_artifact_id"],
-        "revision": brief.document["revision"],
-        "document_raw_sha256": brief.raw_sha256,
-        "brief_raw_sha256": brief.document["brief"]["raw_sha256"],
-        "git_subject": brief.document["git_subject"],
-    }
-    evidence_core = {
-        "schema_id": "ars://wp6-4/owner-operated-session-evidence",
-        "schema_version": "1.0.0",
-        "document_type": "owner_operated_session_evidence",
-        "mechanics_scope": "fixture_or_operator_supplied_inputs_only",
-        "provider_control": "owner_operated_no_ars_transport",
-        "evidence_artifact_id": evidence_kwargs["evidence_artifact_id"],
-        "revision": 1,
-        "handoff_id": evidence_kwargs["handoff_id"],
-        "session_id": evidence_kwargs["session_id"],
-        "attempt_id": evidence_kwargs["attempt_id"],
-        "task_id": brief.document["task_id"],
-        "brief_subject": brief_subject,
-        "producer_identity_locator": evidence_kwargs["producer_identity_locator"],
-        "producer_verdict": evidence_kwargs["producer_verdict"],
-        "returned_artifacts": [artifact_evidence(source) for source in evidence_kwargs["returned_artifacts"]],
-        "test_evidence": [artifact_evidence(source) for source in evidence_kwargs["test_evidence"]],
-        "unresolved_findings": [
-            {
-                "finding_id": finding.finding_id,
-                "severity": finding.severity,
-                "status": "unresolved",
-                "summary": finding.summary,
-            }
-            for finding in evidence_kwargs["unresolved_findings"]
-        ],
-    }
-    return {
-        "handoff_id": brief.document["handoff_id"],
-        "session_id": brief.document["session_id"],
-        "attempt_id": brief.document["attempt_id"],
-        "task_id": brief.document["task_id"],
-        "brief_artifact_id": brief.document["brief_artifact_id"],
-        "brief_revision": brief.document["revision"],
-        "brief_document_raw_sha256": brief.raw_sha256,
-        "brief_raw_sha256": brief.document["brief"]["raw_sha256"],
-        "evidence_artifact_id": evidence_kwargs["evidence_artifact_id"],
-        "evidence_revision": 1,
-        "evidence_subject_raw_sha256": sha256_hex(canonical_bytes(evidence_core)),
-        "git_subject": brief.document["git_subject"],
-    }
-
-
-def _set_nested(document, path, value):
-    cursor = document
-    for field in path[:-1]:
-        cursor = cursor[field]
-    cursor[path[-1]] = value
-
-
-def _accepted_external_fixture(
-    control_root,
-    brief,
-    evidence_kwargs,
-    *,
-    review_mutation=None,
-    decision_mutation=None,
-    authority_mutation=None,
-    noncanonical_record=None,
-    caller_verdict="accepted",
-    caller_authority_status="active",
-):
-    from research_system.session_exchange import ExternalEvidence, IndependentReviewEvidence, OwnerAcceptanceEvidence
-
-    subject = _external_session_subject(brief, evidence_kwargs)
-    review_document = {
-        "schema_id": "ars://wp6-4/independent-session-review-record",
-        "schema_version": "1.0.0",
-        "record_type": "independent_session_review",
-        "subject": copy.deepcopy(subject),
-        "reviewer_identity_locator": REVIEWER_LOCATOR,
-        "producer_identity_locator": PRODUCER_LOCATOR,
-        "verdict": "accepted",
-        "reviewed_at": "2026-08-04T09:30:00Z",
-    }
-    if review_mutation is not None:
-        _set_nested(review_document, *review_mutation)
-    review_path = control_root / "independent-review.json"
-    review_raw = canonical_bytes(review_document)
-    if noncanonical_record == "review":
-        review_raw += b"\n"
-    review_path.write_bytes(review_raw)
-
-    decision_document = {
-        "schema_id": "ars://wp6-4/owner-session-acceptance-decision-record",
-        "schema_version": "1.0.0",
-        "record_type": "owner_session_acceptance_decision",
-        "subject": copy.deepcopy(subject),
-        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
-        "authority_locator": AUTHORITY_LOCATOR,
-        "review_record_raw_sha256": sha256_hex(review_raw),
-        "outcome": "accepted",
-        "decided_at": "2026-08-04T09:45:00Z",
-    }
-    if decision_mutation is not None:
-        _set_nested(decision_document, *decision_mutation)
-    decision_path = control_root / "owner-decision.json"
-    decision_raw = canonical_bytes(decision_document)
-    if noncanonical_record == "decision":
-        decision_raw += b"\n"
-    decision_path.write_bytes(decision_raw)
-
-    authority_document = {
-        "schema_id": "ars://wp6-4/owner-session-acceptance-authority-record",
-        "schema_version": "1.0.0",
-        "record_type": "owner_session_acceptance_authority",
-        "subject": copy.deepcopy(subject),
-        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
-        "authority_locator": AUTHORITY_LOCATOR,
-        "permitted_action": "accept_owner_operated_session_evidence",
-        "status": "active",
-        "valid_from": "2026-08-04T09:45:00Z",
-        "valid_until": "2026-08-04T11:00:00Z",
-    }
-    if authority_mutation is not None:
-        _set_nested(authority_document, *authority_mutation)
-    authority_path = control_root / "owner-authority.json"
-    authority_raw = canonical_bytes(authority_document)
-    if noncanonical_record == "authority":
-        authority_raw += b"\n"
-    authority_path.write_bytes(authority_raw)
-
-    return {
-        "review_evidence": IndependentReviewEvidence(
-            reviewer_identity_locator=REVIEWER_LOCATOR,
-            verdict=caller_verdict,
-            record=ExternalEvidence(
-                record_locator="repo://independent-review.json",
-                path=review_path,
-                media_type="application/json",
-            ),
-        ),
-        "acceptance_evidence": OwnerAcceptanceEvidence(
-            acceptor_identity_locator=ACCEPTOR_LOCATOR,
-            authority_locator=AUTHORITY_LOCATOR,
-            authority_status=caller_authority_status,
-            decision=ExternalEvidence(
-                record_locator="repo://owner-decision.json",
-                path=decision_path,
-                media_type="application/json",
-            ),
-            authority=ExternalEvidence(
-                record_locator="repo://owner-authority.json",
-                path=authority_path,
-                media_type="application/json",
-            ),
-        ),
-        "review_path": review_path,
-        "decision_path": decision_path,
-        "authority_path": authority_path,
-    }
-
-
-def test_prepare_session_brief_publishes_exact_provider_free_subject(tmp_path):
-    from research_system.session_exchange import prepare_session_brief
-
-    brief_bytes = b"Review the exact candidate without invoking a provider.\n"
-    published = prepare_session_brief(
-        tmp_path,
-        brief_artifact_id=BRIEF_ARTIFACT_ID,
-        handoff_id=HANDOFF_ID,
-        session_id=SESSION_ID,
-        attempt_id=ATTEMPT_ID,
-        task_id=TASK_ID,
-        requested_role="independent_exact_subject_review",
-        assurance_requirement="output_provenance_and_independent_review",
-        operator_identity_locator="ars://actors/operator-fixture",
-        producer_identity_locator=PRODUCER_LOCATOR,
-        session_family="codex_standalone",
-        git_commit_sha="a" * 40,
-        git_tree_sha="b" * 40,
-        brief_bytes=brief_bytes,
-        prepared_at="2026-08-04T09:00:00Z",
-    )
-
-    assert published.document["document_state"] == "prepared_for_owner_operated_session"
-    assert published.document["brief"]["raw_sha256"] == sha256_hex(brief_bytes)
-    assert published.document["git_subject"] == {
-        "commit_sha": "a" * 40,
-        "tree_sha": "b" * 40,
-    }
-    assert "review" not in published.document
-    assert "acceptance" not in published.document
-    assert published.path.read_bytes() == canonical_bytes(published.document)
-    assert published.raw_sha256 == sha256_hex(published.path.read_bytes())
-
-
-def test_record_session_evidence_binds_exact_brief_artifacts_and_pending_authorities(tmp_path):
-    from research_system.session_exchange import (
-        EvidenceArtifact,
-        UnresolvedFinding,
-        prepare_session_brief,
-        record_session_evidence,
-    )
-
-    brief = prepare_session_brief(
-        tmp_path,
-        brief_artifact_id=BRIEF_ARTIFACT_ID,
-        handoff_id=HANDOFF_ID,
-        session_id=SESSION_ID,
-        attempt_id=ATTEMPT_ID,
-        task_id=TASK_ID,
-        requested_role="independent_exact_subject_review",
-        assurance_requirement="output_provenance_and_independent_review",
-        operator_identity_locator="ars://actors/operator-fixture",
-        producer_identity_locator=PRODUCER_LOCATOR,
-        session_family="codex_standalone",
-        git_commit_sha="a" * 40,
-        git_tree_sha="b" * 40,
-        brief_bytes=b"Review the exact candidate without invoking a provider.\n",
-        prepared_at="2026-08-04T09:00:00Z",
-    )
-    returned_path = tmp_path / "candidate.patch"
-    returned_path.write_bytes(b"exact candidate bytes\n")
-    tests_path = tmp_path / "focused-tests.txt"
-    tests_path.write_bytes(b"2 passed\n")
-
-    published = record_session_evidence(
-        tmp_path,
-        evidence_artifact_id=EVIDENCE_ARTIFACT_ID,
-        brief_artifact_id=BRIEF_ARTIFACT_ID,
-        handoff_id=HANDOFF_ID,
-        session_id=SESSION_ID,
-        attempt_id=ATTEMPT_ID,
-        producer_identity_locator=PRODUCER_LOCATOR,
-        reviewer_identity_locator=REVIEWER_LOCATOR,
-        acceptor_identity_locator=ACCEPTOR_LOCATOR,
-        acceptance_authority_locator=AUTHORITY_LOCATOR,
-        returned_artifacts=(
-            EvidenceArtifact(
-                artefact_id="art_01978abc-6400-7000-8000-000000000007",
-                locator="repo://candidate.patch",
-                path=returned_path,
-                media_type="text/x-diff",
-            ),
-        ),
-        test_evidence=(
-            EvidenceArtifact(
-                artefact_id="art_01978abc-6400-7000-8000-000000000008",
-                locator="repo://focused-tests.txt",
-                path=tests_path,
-                media_type="text/plain",
-            ),
-        ),
-        producer_verdict="completed",
-        unresolved_findings=(
-            UnresolvedFinding(finding_id="MECH-1", severity="minor", summary="Owner acceptance remains pending."),
-        ),
-        recorded_at="2026-08-04T09:30:00Z",
-    )
-
-    assert published.document["document_state"] == "produced_unreviewed"
-    assert published.document["handoff_id"] == HANDOFF_ID
-    assert published.document["session_id"] == SESSION_ID
-    assert published.document["attempt_id"] == ATTEMPT_ID
-    assert published.document["brief_subject"] == {
-        "brief_artifact_id": BRIEF_ARTIFACT_ID,
-        "revision": 1,
-        "document_raw_sha256": brief.raw_sha256,
-        "brief_raw_sha256": brief.document["brief"]["raw_sha256"],
-        "git_subject": {"commit_sha": "a" * 40, "tree_sha": "b" * 40},
-    }
-    assert published.document["returned_artifacts"][0]["raw_sha256"] == sha256_hex(returned_path.read_bytes())
-    assert published.document["test_evidence"][0]["raw_sha256"] == sha256_hex(tests_path.read_bytes())
-    assert published.document["review"] == {
-        "reviewer_identity_locator": REVIEWER_LOCATOR,
-        "status": "pending_independent_review",
-        "verdict": None,
-        "evidence": None,
-    }
-    assert published.document["acceptance"] == {
-        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
-        "authority_locator": AUTHORITY_LOCATOR,
-        "authority_status": "unverified",
-        "status": "pending_owner_acceptance",
-        "outcome": None,
-        "evidence": None,
-    }
-    assert published.document["unresolved_findings"] == [
-        {
-            "finding_id": "MECH-1",
-            "severity": "minor",
-            "status": "unresolved",
-            "summary": "Owner acceptance remains pending.",
-        }
-    ]
-    assert published.path.read_bytes() == canonical_bytes(published.document)
-    assert published.raw_sha256 == sha256_hex(published.path.read_bytes())
-
-
-def test_external_review_and_owner_records_are_required_before_recorded_acceptance(tmp_path):
-    from research_system.session_exchange import (
-        EvidenceArtifact,
-        prepare_session_brief,
-        record_session_evidence,
-    )
-
-    brief = prepare_session_brief(
-        tmp_path,
-        brief_artifact_id=BRIEF_ARTIFACT_ID,
-        handoff_id=HANDOFF_ID,
-        session_id=SESSION_ID,
-        attempt_id=ATTEMPT_ID,
-        task_id=TASK_ID,
-        requested_role="independent_exact_subject_review",
-        assurance_requirement="output_provenance_and_independent_review",
-        operator_identity_locator="ars://actors/operator-fixture",
-        producer_identity_locator=PRODUCER_LOCATOR,
-        session_family="codex_standalone",
-        git_commit_sha="a" * 40,
-        git_tree_sha="b" * 40,
-        brief_bytes=b"Review the exact candidate without invoking a provider.\n",
-        prepared_at="2026-08-04T09:00:00Z",
-    )
-    returned_path = tmp_path / "candidate.patch"
-    returned_path.write_bytes(b"exact candidate bytes\n")
-    tests_path = tmp_path / "focused-tests.txt"
-    tests_path.write_bytes(b"2 passed\n")
-    kwargs = {
-        "evidence_artifact_id": EVIDENCE_ARTIFACT_ID,
-        "brief_artifact_id": BRIEF_ARTIFACT_ID,
-        "handoff_id": HANDOFF_ID,
-        "session_id": SESSION_ID,
-        "attempt_id": ATTEMPT_ID,
-        "producer_identity_locator": PRODUCER_LOCATOR,
-        "reviewer_identity_locator": REVIEWER_LOCATOR,
-        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
-        "acceptance_authority_locator": AUTHORITY_LOCATOR,
-        "returned_artifacts": (
-            EvidenceArtifact(
-                artefact_id="art_01978abc-6400-7000-8000-000000000007",
-                locator="repo://candidate.patch",
-                path=returned_path,
-                media_type="text/x-diff",
-            ),
-        ),
-        "test_evidence": (
-            EvidenceArtifact(
-                artefact_id="art_01978abc-6400-7000-8000-000000000008",
-                locator="repo://focused-tests.txt",
-                path=tests_path,
-                media_type="text/plain",
-            ),
-        ),
-        "producer_verdict": "completed",
-        "unresolved_findings": (),
-        "recorded_at": "2026-08-04T10:00:00Z",
-    }
-    external = _accepted_external_fixture(tmp_path, brief, kwargs)
-    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
-
-    published = record_session_evidence(tmp_path, **kwargs)
-
-    assert published.document["document_state"] == "owner_accepted"
-    assert published.document["review"]["verdict"] == "accepted"
-    assert published.document["review"]["reviewed_at"] == "2026-08-04T09:30:00Z"
-    assert published.document["review"]["evidence"]["raw_sha256"] == sha256_hex(external["review_path"].read_bytes())
-    assert published.document["acceptance"]["status"] == "owner_acceptance_recorded"
-    assert published.document["acceptance"]["decided_at"] == "2026-08-04T09:45:00Z"
-    assert published.document["acceptance"]["authority_valid_from"] == "2026-08-04T09:45:00Z"
-    assert published.document["acceptance"]["authority_valid_until"] == "2026-08-04T11:00:00Z"
-    assert published.document["acceptance"]["evidence"]["decision"]["raw_sha256"] == sha256_hex(
-        external["decision_path"].read_bytes()
-    )
-    assert published.document["acceptance"]["evidence"]["authority"]["raw_sha256"] == sha256_hex(
-        external["authority_path"].read_bytes()
-    )
-    assert published.document["mechanics_scope"] == "fixture_or_operator_supplied_inputs_only"
-
-
-def test_caller_labels_cannot_promote_contradictory_wrong_subject_records(tmp_path):
-    from research_system.session_exchange import record_session_evidence
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    external = _accepted_external_fixture(
-        tmp_path,
-        brief,
-        kwargs,
-        review_mutation=(
-            ("subject", "session_id"),
-            "ses_01978abc-6400-7000-8000-000000000099",
-        ),
-        decision_mutation=(("outcome",), "rejected"),
-        authority_mutation=(("status",), "inactive"),
-    )
-    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
-
-    with pytest.raises(ConflictError, match="does not bind the exact session subject"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-
-@pytest.mark.parametrize(
-    "evidence_group",
-    ["returned_artifacts", "test_evidence"],
-    ids=["returned-artifact-bytes", "test-evidence-bytes"],
+_EVIDENCE_CORE_FIELDS = (
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "mechanics_scope",
+    "provider_control",
+    "evidence_artifact_id",
+    "handoff_id",
+    "session_id",
+    "attempt_id",
+    "task_id",
+    "brief_subject",
+    "producer_identity_locator",
+    "producer_verdict",
+    "returned_artifacts",
+    "test_evidence",
+    "unresolved_findings",
 )
-def test_external_records_bind_the_exact_consumed_evidence_bytes(tmp_path, evidence_group):
-    from research_system.session_exchange import record_session_evidence
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
-    external = _accepted_external_fixture(tmp_path, brief, kwargs)
-    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
-
-    kwargs[evidence_group][0].path.write_bytes(b"substituted after external records were created\n")
-
-    with pytest.raises(ConflictError, match="does not bind the exact session subject"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
 
-@pytest.mark.parametrize(
-    ("record_name", "mutation", "caller_verdict", "caller_authority_status", "error_type", "error_match"),
-    [
-        (
-            "review",
-            (("subject", "attempt_id"), "att_01978abc-6400-7000-8000-000000000099"),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact session subject",
-        ),
-        (
-            "review",
-            (("reviewer_identity_locator",), "ars://actors/foreign-reviewer"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong reviewer",
-        ),
-        (
-            "review",
-            (("producer_identity_locator",), "ars://actors/foreign-producer"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong producer",
-        ),
-        (
-            "review",
-            (("subject", "git_subject", "commit_sha"), "c" * 40),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact session subject",
-        ),
-        (
-            "review",
-            (("subject", "evidence_artifact_id"), "art_01978abc-6400-7000-8000-000000000099"),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact session subject",
-        ),
-        (
-            "review",
-            (("verdict",), "rejected"),
-            "accepted",
-            "active",
-            ConflictError,
-            "caller verdict contradicts",
-        ),
-        (
-            "review",
-            (("reviewed_at",), "2026-08-04T08:59:59Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "stale",
-        ),
-        (
-            "review",
-            (("reviewed_at",), "2026-08-04T10:00:01Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "future",
-        ),
-        (
-            "review",
-            (("unexpected",), True),
-            "accepted",
-            "active",
-            SchemaError,
-            "invalid independent review evidence",
-        ),
-        (
-            "decision",
-            (("subject", "handoff_id"), "hnd_01978abc-6400-7000-8000-000000000099"),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact session subject",
-        ),
-        (
-            "decision",
-            (("acceptor_identity_locator",), "ars://actors/foreign-acceptor"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong acceptor",
-        ),
-        (
-            "decision",
-            (("authority_locator",), "ars://authority/foreign"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong authority",
-        ),
-        (
-            "decision",
-            (("review_record_raw_sha256",), "f" * 64),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact review record",
-        ),
-        (
-            "decision",
-            (("outcome",), "rejected"),
-            "accepted",
-            "active",
-            SchemaError,
-            "does not accept",
-        ),
-        (
-            "decision",
-            (("decided_at",), "2026-08-04T09:30:00Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "later than",
-        ),
-        (
-            "decision",
-            (("decided_at",), "2026-08-04T10:00:01Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "future",
-        ),
-        (
-            "decision",
-            (("unexpected",), True),
-            "accepted",
-            "active",
-            SchemaError,
-            "invalid owner acceptance decision",
-        ),
-        (
-            "authority",
-            (("subject", "brief_artifact_id"), "art_01978abc-6400-7000-8000-000000000099"),
-            "accepted",
-            "active",
-            ConflictError,
-            "exact session subject",
-        ),
-        (
-            "authority",
-            (("authority_locator",), "ars://authority/foreign"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong authority",
-        ),
-        (
-            "authority",
-            (("acceptor_identity_locator",), "ars://actors/foreign-acceptor"),
-            "accepted",
-            "active",
-            ConflictError,
-            "wrong acceptor",
-        ),
-        (
-            "authority",
-            (("status",), "inactive"),
-            "accepted",
-            "active",
-            ConflictError,
-            "caller authority status contradicts",
-        ),
-        (
-            "authority",
-            (("status",), "inactive"),
-            "accepted",
-            "inactive",
-            SchemaError,
-            "requires active",
-        ),
-        (
-            "authority",
-            (("valid_until",), "2026-08-04T10:00:00Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "expired",
-        ),
-        (
-            "authority",
-            (("valid_from",), "2026-08-04T09:45:01Z"),
-            "accepted",
-            "active",
-            SchemaError,
-            "not yet effective",
-        ),
-        (
-            "authority",
-            (("unexpected",), True),
-            "accepted",
-            "active",
-            SchemaError,
-            "invalid owner acceptance authority",
-        ),
-    ],
-    ids=[
-        "review-wrong-subject",
-        "review-wrong-actor",
-        "review-wrong-producer",
-        "review-wrong-git-subject",
-        "review-wrong-evidence-artifact",
-        "review-caller-relabel",
-        "review-stale-before-brief",
-        "review-future",
-        "review-open-record",
-        "decision-wrong-subject",
-        "decision-wrong-actor",
-        "decision-wrong-authority",
-        "decision-wrong-review",
-        "decision-rejected",
-        "decision-not-after-review",
-        "decision-future",
-        "decision-open-record",
-        "authority-wrong-subject",
-        "authority-wrong-locator",
-        "authority-wrong-acceptor",
-        "authority-caller-relabel",
-        "authority-inactive",
-        "authority-expired-at-boundary",
-        "authority-not-yet-effective",
-        "authority-open-record",
-    ],
-)
-def test_external_record_semantics_reject_before_publication(
-    tmp_path,
-    record_name,
-    mutation,
-    caller_verdict,
-    caller_authority_status,
-    error_type,
-    error_match,
-):
-    from research_system.session_exchange import record_session_evidence
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
-    external = _accepted_external_fixture(
-        tmp_path,
-        brief,
-        kwargs,
-        **{f"{record_name}_mutation": mutation},
-        caller_verdict=caller_verdict,
-        caller_authority_status=caller_authority_status,
-    )
-    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
-
-    with pytest.raises(error_type, match=error_match):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-
-@pytest.mark.parametrize("record_name", ["review", "decision", "authority"])
-def test_noncanonical_external_record_rejects_before_publication(tmp_path, record_name):
-    from research_system.session_exchange import record_session_evidence
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
-    external = _accepted_external_fixture(tmp_path, brief, kwargs, noncanonical_record=record_name)
-    kwargs.update(review_evidence=external["review_evidence"], acceptance_evidence=external["acceptance_evidence"])
-
-    with pytest.raises(SchemaError, match="must be exact canonical JSON"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-
-def test_json_record_relabelled_as_non_json_rejects_before_publication(tmp_path):
-    from research_system.session_exchange import ExternalEvidence, IndependentReviewEvidence, record_session_evidence
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["recorded_at"] = "2026-08-04T10:00:00Z"
-    external = _accepted_external_fixture(tmp_path, brief, kwargs)
-    review = external["review_evidence"]
-    kwargs["review_evidence"] = IndependentReviewEvidence(
-        reviewer_identity_locator=review.reviewer_identity_locator,
-        verdict=review.verdict,
-        record=ExternalEvidence(
-            record_locator=review.record.record_locator,
-            path=review.record.path,
-            media_type="text/plain",
-        ),
-    )
-    kwargs["acceptance_evidence"] = external["acceptance_evidence"]
-
-    with pytest.raises(SchemaError, match="must use application/json"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-
-def _prepare_fixture(control_root, **overrides):
-    from research_system.session_exchange import prepare_session_brief
-
+def _prepare_fixture(control_root: Path, **overrides):
     values = {
         "brief_artifact_id": BRIEF_ARTIFACT_ID,
         "handoff_id": HANDOFF_ID,
@@ -784,14 +73,13 @@ def _prepare_fixture(control_root, **overrides):
     return prepare_session_brief(control_root, **values)
 
 
-def _evidence_kwargs(control_root):
-    from research_system.session_exchange import EvidenceArtifact, UnresolvedFinding
-
+def _evidence_kwargs(control_root: Path) -> dict[str, object]:
     returned_path = control_root / "candidate.patch"
     returned_path.write_bytes(b"exact candidate bytes\n")
     tests_path = control_root / "focused-tests.txt"
     tests_path.write_bytes(b"2 passed\n")
     return {
+        "expected_previous_revision": 0,
         "evidence_artifact_id": EVIDENCE_ARTIFACT_ID,
         "brief_artifact_id": BRIEF_ARTIFACT_ID,
         "handoff_id": HANDOFF_ID,
@@ -800,7 +88,6 @@ def _evidence_kwargs(control_root):
         "producer_identity_locator": PRODUCER_LOCATOR,
         "reviewer_identity_locator": REVIEWER_LOCATOR,
         "acceptor_identity_locator": ACCEPTOR_LOCATOR,
-        "acceptance_authority_locator": AUTHORITY_LOCATOR,
         "returned_artifacts": (
             EvidenceArtifact(
                 artefact_id="art_01978abc-6400-7000-8000-000000000007",
@@ -819,20 +106,169 @@ def _evidence_kwargs(control_root):
         ),
         "producer_verdict": "partial",
         "unresolved_findings": (
-            UnresolvedFinding(finding_id="F-2", severity="major", summary="Second unresolved fixture finding."),
-            UnresolvedFinding(finding_id="F-1", severity="minor", summary="First unresolved fixture finding."),
+            UnresolvedFinding(
+                finding_id="F-2",
+                severity="major",
+                summary="Second unresolved fixture finding.",
+            ),
+            UnresolvedFinding(
+                finding_id="F-1",
+                severity="minor",
+                summary="First unresolved fixture finding.",
+            ),
         ),
         "recorded_at": "2026-08-04T09:30:00Z",
     }
 
 
-def _artifact_revision_directory(control_root, artefact_id):
+def _artifact_revision_directory(control_root: Path, artefact_id: str) -> Path:
     return control_root / "objects" / "artefact" / artefact_id
 
 
-def test_identical_retry_converges_and_changed_brief_or_artifact_conflicts_without_mutation(tmp_path):
-    from research_system.session_exchange import record_session_evidence
+def _revision_snapshot(control_root: Path) -> dict[str, bytes]:
+    directory = _artifact_revision_directory(control_root, EVIDENCE_ARTIFACT_ID)
+    if not directory.exists():
+        return {}
+    return {path.name: path.read_bytes() for path in sorted(directory.iterdir()) if path.is_file()}
 
+
+def test_prepare_session_brief_publishes_exact_provider_free_subject(tmp_path: Path) -> None:
+    brief_bytes = b"Review the exact candidate without invoking a provider.\n"
+
+    published = _prepare_fixture(tmp_path, brief_bytes=brief_bytes)
+
+    assert published.document["document_state"] == "prepared_for_owner_operated_session"
+    assert published.document["brief"]["raw_sha256"] == sha256_hex(brief_bytes)
+    assert published.document["git_subject"] == {
+        "commit_sha": "a" * 40,
+        "tree_sha": "b" * 40,
+    }
+    assert "review" not in published.document
+    assert "acceptance" not in published.document
+    assert published.path.read_bytes() == canonical_bytes(published.document)
+    assert published.raw_sha256 == sha256_hex(published.path.read_bytes())
+
+
+def test_r1_evidence_binds_exact_brief_artifacts_and_pending_authority(tmp_path: Path) -> None:
+    brief = _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+
+    published = record_session_evidence(tmp_path, **kwargs)
+
+    assert published.document["revision"] == 1
+    assert published.document["document_state"] == "produced_unreviewed"
+    assert published.document["supersedes_revision"] is None
+    assert published.document["supersedes_document_raw_sha256"] is None
+    assert published.document["brief_subject"] == {
+        "brief_artifact_id": BRIEF_ARTIFACT_ID,
+        "revision": 1,
+        "document_raw_sha256": brief.raw_sha256,
+        "brief_raw_sha256": brief.document["brief"]["raw_sha256"],
+        "git_subject": {"commit_sha": "a" * 40, "tree_sha": "b" * 40},
+    }
+    returned_path = kwargs["returned_artifacts"][0].path
+    tests_path = kwargs["test_evidence"][0].path
+    assert published.document["returned_artifacts"][0]["raw_sha256"] == sha256_hex(returned_path.read_bytes())
+    assert published.document["test_evidence"][0]["raw_sha256"] == sha256_hex(tests_path.read_bytes())
+    assert published.document["review"] == {
+        "reviewer_identity_locator": REVIEWER_LOCATOR,
+        "status": "pending_independent_review",
+        "verdict": None,
+        "evidence": None,
+    }
+    assert published.document["acceptance"] == {
+        "acceptor_identity_locator": ACCEPTOR_LOCATOR,
+        "authority_grant_id": None,
+        "authority_status": "unverified",
+        "status": "pending_owner_acceptance",
+        "outcome": None,
+        "evidence": None,
+    }
+    evidence_core = {field: published.document[field] for field in _EVIDENCE_CORE_FIELDS}
+    assert "revision" not in evidence_core
+    assert published.document["evidence_subject_raw_sha256"] == sha256_hex(canonical_bytes(evidence_core))
+    assert published.path.read_bytes() == canonical_bytes(published.document)
+    assert published.raw_sha256 == sha256_hex(published.path.read_bytes())
+
+
+@pytest.mark.parametrize(
+    "legacy_keyword",
+    [
+        "review_evidence",
+        "acceptance_evidence",
+        "authority_grant_id",
+        "acceptor_actor_id",
+    ],
+)
+def test_caller_json_keywords_cannot_publish_later_revisions(
+    tmp_path: Path,
+    legacy_keyword: str,
+) -> None:
+    _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    published = record_session_evidence(tmp_path, **kwargs)
+    before = _revision_snapshot(tmp_path)
+    caller_path = tmp_path / f"caller-{legacy_keyword}.json"
+    caller_path.write_bytes(
+        canonical_bytes(
+            {
+                "status": "active",
+                "verdict": "accepted",
+                "authority_grant_id": "agr_01978abc-6402-7000-8000-000000000020",
+            }
+        )
+    )
+    legacy_value = {
+        "record_locator": f"repo://{caller_path.name}",
+        "path": caller_path,
+        "media_type": "application/json",
+        "verdict": "accepted",
+        "authority_status": "active",
+    }
+    later = {
+        **kwargs,
+        "expected_previous_revision": 1,
+        legacy_keyword: legacy_value,
+    }
+
+    assert legacy_keyword not in inspect.signature(record_session_evidence).parameters
+    with pytest.raises(TypeError, match=f"unexpected keyword argument '{legacy_keyword}'"):
+        record_session_evidence(tmp_path, **later)
+
+    assert ObjectStore(tmp_path).latest_revision("artefact", EVIDENCE_ARTIFACT_ID) == 1
+    assert _revision_snapshot(tmp_path) == before
+    assert published.path.read_bytes() == before[published.path.name]
+
+
+@pytest.mark.parametrize("expected_previous_revision", [0, 2])
+def test_review_transition_requires_the_adjacent_r1_predecessor_without_mutation(
+    tmp_path: Path,
+    expected_previous_revision: int,
+) -> None:
+    _prepare_fixture(tmp_path)
+    kwargs = _evidence_kwargs(tmp_path)
+    record_session_evidence(tmp_path, **kwargs)
+    before = _revision_snapshot(tmp_path)
+    review_locator = SessionRecordLocator(
+        "independent_session_review",
+        REVIEW_RECORD_ID,
+    )
+
+    with pytest.raises(ConflictError, match="advance exactly one immutable revision"):
+        record_session_evidence(
+            tmp_path,
+            **{
+                **kwargs,
+                "expected_previous_revision": expected_previous_revision,
+                "review_record": review_locator,
+            },
+        )
+
+    assert ObjectStore(tmp_path).latest_revision("artefact", EVIDENCE_ARTIFACT_ID) == 1
+    assert _revision_snapshot(tmp_path) == before
+
+
+def test_identical_retry_converges_and_changed_inputs_conflict_without_mutation(tmp_path: Path) -> None:
     brief = _prepare_fixture(tmp_path)
     brief_bytes = brief.path.read_bytes()
     assert _prepare_fixture(tmp_path).path == brief.path
@@ -843,23 +279,9 @@ def test_identical_retry_converges_and_changed_brief_or_artifact_conflicts_witho
     kwargs = _evidence_kwargs(tmp_path)
     evidence = record_session_evidence(tmp_path, **kwargs)
     evidence_bytes = evidence.path.read_bytes()
-    assert evidence.document["unresolved_findings"] == [
-        {
-            "finding_id": "F-2",
-            "severity": "major",
-            "status": "unresolved",
-            "summary": "Second unresolved fixture finding.",
-        },
-        {
-            "finding_id": "F-1",
-            "severity": "minor",
-            "status": "unresolved",
-            "summary": "First unresolved fixture finding.",
-        },
-    ]
     assert record_session_evidence(tmp_path, **kwargs).path == evidence.path
     kwargs["returned_artifacts"][0].path.write_bytes(b"changed candidate bytes\n")
-    with pytest.raises(ConflictError, match="object revision already exists"):
+    with pytest.raises(ConflictError, match="retry changes the immutable document"):
         record_session_evidence(tmp_path, **kwargs)
     assert evidence.path.read_bytes() == evidence_bytes
     kwargs["returned_artifacts"][0].path.write_bytes(b"exact candidate bytes\n")
@@ -877,9 +299,11 @@ def test_identical_retry_converges_and_changed_brief_or_artifact_conflicts_witho
         ("attempt_id", "att_01978abc-6400-7000-8000-000000000099"),
     ],
 )
-def test_foreign_handoff_session_or_attempt_identity_rejects_without_publication(tmp_path, field, foreign_identity):
-    from research_system.session_exchange import record_session_evidence
-
+def test_foreign_brief_identity_rejects_without_publication(
+    tmp_path: Path,
+    field: str,
+    foreign_identity: str,
+) -> None:
     _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
     kwargs[field] = foreign_identity
@@ -890,9 +314,7 @@ def test_foreign_handoff_session_or_attempt_identity_rejects_without_publication
     assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
 
-def test_missing_artifact_and_producer_self_review_reject_without_publication(tmp_path):
-    from research_system.session_exchange import EvidenceArtifact, record_session_evidence
-
+def test_missing_artifact_and_self_review_reject_without_publication(tmp_path: Path) -> None:
     _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
     kwargs["returned_artifacts"] = (
@@ -907,22 +329,15 @@ def test_missing_artifact_and_producer_self_review_reject_without_publication(tm
         record_session_evidence(tmp_path, **kwargs)
     assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["reviewer_identity_locator"] = PRODUCER_LOCATOR
-    with pytest.raises(SchemaError, match="must be distinct"):
-        record_session_evidence(tmp_path, **kwargs)
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-    kwargs = _evidence_kwargs(tmp_path)
-    kwargs["acceptor_identity_locator"] = PRODUCER_LOCATOR
-    with pytest.raises(SchemaError, match="must be distinct"):
-        record_session_evidence(tmp_path, **kwargs)
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
+    for identity_field in ("reviewer_identity_locator", "acceptor_identity_locator"):
+        kwargs = _evidence_kwargs(tmp_path)
+        kwargs[identity_field] = PRODUCER_LOCATOR
+        with pytest.raises(SchemaError, match="must be distinct"):
+            record_session_evidence(tmp_path, **kwargs)
+        assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
 
-def test_brief_evidence_returned_and_test_artifact_identities_must_be_disjoint(tmp_path):
-    from research_system.session_exchange import record_session_evidence
-
+def test_document_returned_and_test_artifact_identities_must_be_disjoint(tmp_path: Path) -> None:
     _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
     colliding_id = kwargs["returned_artifacts"][0].artefact_id
@@ -933,62 +348,33 @@ def test_brief_evidence_returned_and_test_artifact_identities_must_be_disjoint(t
 
     assert not _artifact_revision_directory(tmp_path, colliding_id).exists()
 
+    kwargs = _evidence_kwargs(tmp_path)
+    kwargs["test_evidence"] = kwargs["returned_artifacts"]
+    with pytest.raises(SchemaError, match="identities must be disjoint"):
+        record_session_evidence(tmp_path, **kwargs)
+    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
 
-def test_unresolved_finding_identities_are_unique_without_collapsing_their_order(tmp_path):
-    from research_system.session_exchange import UnresolvedFinding, record_session_evidence
 
+def test_unresolved_finding_identities_are_unique_without_reordering(tmp_path: Path) -> None:
     _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
-    kwargs["unresolved_findings"] = (
+    evidence = record_session_evidence(tmp_path, **kwargs)
+    assert [finding["finding_id"] for finding in evidence.document["unresolved_findings"]] == [
+        "F-2",
+        "F-1",
+    ]
+
+    second_root = tmp_path / "duplicate-findings"
+    second_root.mkdir()
+    _prepare_fixture(second_root)
+    duplicate_kwargs = _evidence_kwargs(second_root)
+    duplicate_kwargs["unresolved_findings"] = (
         UnresolvedFinding(finding_id="F-1", severity="major", summary="First version."),
         UnresolvedFinding(finding_id="F-1", severity="minor", summary="Conflicting duplicate."),
     )
-
     with pytest.raises(SchemaError, match="unresolved finding identities must be unique"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-
-def test_owner_acceptance_without_readable_external_authority_rejects_without_publication(tmp_path):
-    from research_system.session_exchange import (
-        ExternalEvidence,
-        OwnerAcceptanceEvidence,
-        record_session_evidence,
-    )
-
-    brief = _prepare_fixture(tmp_path)
-    kwargs = _evidence_kwargs(tmp_path)
-    external = _accepted_external_fixture(tmp_path, brief, kwargs)
-    kwargs["review_evidence"] = external["review_evidence"]
-    kwargs["acceptance_evidence"] = OwnerAcceptanceEvidence(
-        acceptor_identity_locator=ACCEPTOR_LOCATOR,
-        authority_locator=AUTHORITY_LOCATOR,
-        authority_status="active",
-        decision=external["acceptance_evidence"].decision,
-        authority=ExternalEvidence(
-            record_locator="repo://missing-owner-authority.json",
-            path=tmp_path / "missing-owner-authority.json",
-            media_type="application/json",
-        ),
-    )
-
-    with pytest.raises(SchemaError, match="owner acceptance authority is unreadable"):
-        record_session_evidence(tmp_path, **kwargs)
-
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
-
-    inactive = _accepted_external_fixture(
-        tmp_path,
-        brief,
-        kwargs,
-        authority_mutation=(("status",), "inactive"),
-        caller_authority_status="inactive",
-    )
-    kwargs.update(review_evidence=inactive["review_evidence"], acceptance_evidence=inactive["acceptance_evidence"])
-    with pytest.raises(SchemaError, match="requires active external authority"):
-        record_session_evidence(tmp_path, **kwargs)
-    assert not _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID).exists()
+        record_session_evidence(second_root, **duplicate_kwargs)
+    assert not _artifact_revision_directory(second_root, EVIDENCE_ARTIFACT_ID).exists()
 
 
 @pytest.mark.parametrize(
@@ -1001,16 +387,18 @@ def test_owner_acceptance_without_readable_external_authority_rejects_without_pu
         ("brief_bytes", b"\xef\xbb\xbfnot BOM-free"),
     ],
 )
-def test_malformed_utc_git_subject_or_brief_encoding_rejects_without_publication(tmp_path, field, invalid_value):
+def test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication(
+    tmp_path: Path,
+    field: str,
+    invalid_value: object,
+) -> None:
     with pytest.raises(SchemaError):
         _prepare_fixture(tmp_path, **{field: invalid_value})
 
     assert not _artifact_revision_directory(tmp_path, BRIEF_ARTIFACT_ID).exists()
 
 
-def test_closed_schemas_reject_malformed_hashes_and_future_evidence_in_the_brief(tmp_path):
-    from research_system.session_exchange import record_session_evidence
-
+def test_closed_schemas_reject_malformed_hashes_and_future_fields(tmp_path: Path) -> None:
     brief = _prepare_fixture(tmp_path)
     evidence = record_session_evidence(tmp_path, **_evidence_kwargs(tmp_path))
     repository_root = Path(__file__).resolve().parents[3]
@@ -1045,14 +433,16 @@ def test_closed_schemas_reject_malformed_hashes_and_future_evidence_in_the_brief
         Draft202012Validator(evidence_schema).validate(open_nested_acceptance)
 
 
-def test_interruption_before_evidence_publication_allows_only_identical_retry(tmp_path, monkeypatch):
+def test_interruption_before_r1_publication_allows_only_identical_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import research_system.store.objects as object_module
-    from research_system.session_exchange import record_session_evidence
 
     _prepare_fixture(tmp_path)
     kwargs = _evidence_kwargs(tmp_path)
 
-    def interrupt_before_publication(_temporary):
+    def interrupt_before_publication(_temporary: Path) -> None:
         raise OSError("synthetic mechanics-only interruption")
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", interrupt_before_publication)

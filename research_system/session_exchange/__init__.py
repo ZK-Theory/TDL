@@ -2,21 +2,23 @@
 
 from research_system.session_exchange.exchange import (
     EvidenceArtifact,
-    ExternalEvidence,
-    IndependentReviewEvidence,
-    OwnerAcceptanceEvidence,
     PublishedSessionDocument,
     UnresolvedFinding,
     prepare_session_brief,
     record_session_evidence,
 )
+from research_system.session_exchange.authority import (
+    SessionEvidenceRecordStore,
+    SessionRecordLocator,
+    SessionRecordPublicationContext,
+)
 
 __all__ = [
     "EvidenceArtifact",
-    "ExternalEvidence",
-    "IndependentReviewEvidence",
-    "OwnerAcceptanceEvidence",
     "PublishedSessionDocument",
+    "SessionEvidenceRecordStore",
+    "SessionRecordLocator",
+    "SessionRecordPublicationContext",
     "UnresolvedFinding",
     "prepare_session_brief",
     "record_session_evidence",

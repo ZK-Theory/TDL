@@ -208,6 +208,16 @@ _RUNTIME_BINDINGS = (
         policy_action_type="accept_r3_assurance_requirement",
     ),
     SchemaBinding(
+        "ars://core/policy-action/AcceptOwnerOperatedSessionEvidence",
+        "1.0.0",
+        policy_action_type="accept_owner_operated_session_evidence",
+    ),
+    SchemaBinding(
+        "ars://core/policy-action/PublishOwnerOperatedSessionReview",
+        "1.0.0",
+        policy_action_type="publish_owner_operated_session_review",
+    ),
+    SchemaBinding(
         "ars://core/policy-action/PublishExternalAssuranceRecord",
         "1.0.0",
         policy_action_type="publish_external_assurance_record",

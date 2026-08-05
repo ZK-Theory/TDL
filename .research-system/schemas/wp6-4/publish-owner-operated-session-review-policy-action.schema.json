@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/policy-action/PublishOwnerOperatedSessionReview",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_action_type",
+    "policy_action_schema_sha256",
+    "project_id",
+    "actor_id",
+    "actor_class",
+    "authority_grant_id",
+    "subject_scope",
+    "evidence_subject_raw_sha256",
+    "review_receipt",
+    "required_risk"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://core/policy-action/PublishOwnerOperatedSessionReview"},
+    "schema_version": {"const": "1.0.0"},
+    "policy_action_type": {"const": "publish_owner_operated_session_review"},
+    "policy_action_schema_sha256": {"$ref": "#/$defs/sha256"},
+    "project_id": {"$ref": "#/$defs/projectId"},
+    "actor_id": {"$ref": "#/$defs/actorId"},
+    "actor_class": {"enum": ["human", "agent", "service"]},
+    "authority_grant_id": {"$ref": "#/$defs/authorityGrantId"},
+    "subject_scope": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"const": "artefact"},
+        "id": {"$ref": "#/$defs/artefactId"}
+      },
+      "additionalProperties": false
+    },
+    "evidence_subject_raw_sha256": {"$ref": "#/$defs/sha256"},
+    "review_receipt": {"$ref": "#/$defs/reviewReceipt"},
+    "required_risk": {"const": "R2"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "actorId": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authorityGrantId": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "artefactId": {
+      "type": "string",
+      "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reviewReceipt": {
+      "type": "object",
+      "required": ["record_class", "record_id", "revision", "canonical_sha256"],
+      "properties": {
+        "record_class": {"const": "independent_session_review"},
+        "record_id": {
+          "type": "string",
+          "pattern": "^isr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "revision": {"const": 1},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
