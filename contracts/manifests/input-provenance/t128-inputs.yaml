@@ -43,7 +43,7 @@ inputs:
     role: USoc pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
     root: worktree
     expected:
-      blob_sha: "5fc06e8d196df3faa3121c0f6f901c57386b69e8"
+      blob_sha: "26dfde5dae01abd38ec20b6e13674f153c0efd94"
   - path: results/trajectory_tda_bhps/embeddings.npy
     role: BHPS §6.1 substrate — locked analytical-sample PCA-20 embeddings (8,509), subgroup row-subsets
     root: proj_root           # gitignored intermediate -> lives only at PROJ_ROOT
@@ -53,4 +53,4 @@ inputs:
     role: BHPS pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
     root: worktree
     expected:
-      blob_sha: "93f3b036d1a3a09bde319c6555cd764e28809ac1"
+      blob_sha: "3a39bbb3c899b15e122e22ddab6aa1855c734f5c"

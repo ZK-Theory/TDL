@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.3.0"
+  version: "1.3.1"
   tier: core
   lanes: []
   roles:
@@ -142,6 +142,16 @@ producer self-reporting is not required in this continuity artifact.
 Before a PR handoff, record the merge-base changed-path count and the external
 review cap; CodeRabbit's hard limit is 100 files.
 
+Clickable local-file links must use forward slashes, not native Windows
+backslashes. A backslash is a Markdown escape character, so
+`[report](C:\Users\steph\.codex\report.md)` can render with the separator
+before `.codex` consumed, producing a broken target
+(`C:\Users\steph.codex\report.md`) that no longer opens. Write
+`[report](C:/Users/steph/.codex/worktrees/95f9/TDL/docs/report.md)` instead;
+show a native-spelled path separately as inline code if it is also useful.
+Visual inspection of the source string does not prove the rendered target
+survives — the backslash form is the failure to check for.
+
 ## Completion Checklist
 
 - [ ] Active paper / project identified.
@@ -162,6 +172,7 @@ review cap; CodeRabbit's hard limit is 100 files.
 - [ ] Large-workflow closeout includes the required branch/integration state
       and PR file count.
 - [ ] Sensitive details redacted (no UKDA data excerpts, no credentials).
+- [ ] Local-file links use forward slashes, not native Windows backslashes.
 
 ## Escalate Or Stop When
 
