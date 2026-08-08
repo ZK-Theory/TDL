@@ -47,6 +47,61 @@ def _rehash(event):
     return changed
 
 
+def _backup_created_event(template, harness, *, position, previous_hash, snapshot_id):
+    command_binding = harness.schemas.command_binding("CreateBackup")
+    assert command_binding is not None
+    command_identity = harness.schemas.resolve_identity(
+        command_binding.schema_id,
+        command_binding.schema_version,
+    )
+    payload = {
+        "project_id": PROJECT_ID,
+        "store_identity": "2" * 64,
+        "canonical_tail_position": position - 1,
+        "canonical_tail_sha256": previous_hash,
+        "snapshot_id": snapshot_id,
+        "snapshot_sha256": f"{position}" * 64,
+        "replay_start_position": 0,
+        "replay_end_position": position - 1,
+        "schema_versions": ["ars-core@1.0.0"],
+        "tool_versions": ["tdl@1.0.0"],
+        "encryption_class": "owner-approved",
+        "redaction_class": "owner-approved",
+        "external_artefacts": [
+            {
+                "artefact_id": "art_01978abc-4201-7000-8000-000000004201",
+                "content_sha256": "3" * 64,
+                "availability": "available",
+                "availability_evidence_refs": ["evidence:availability"],
+            }
+        ],
+        "destination_class": "owner-approved",
+    }
+    event = {
+        **template,
+        "event_id": f"evt_01978abc-{4100 + position:04x}-7000-8000-{4100 + position:012x}",
+        "event_type": "BackupCreated",
+        "schema_id": "ars://core/event/BackupCreated",
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "stream_id": PROJECT_ID,
+        "stream_version": position,
+        "global_position": position,
+        "transaction_id": f"txb_01978abc-{4200 + position:04x}-7000-8000-{4200 + position:012x}",
+        "transaction_index": 1,
+        "transaction_count": 1,
+        "command_id": f"cmd_01978abc-{4300 + position:04x}-7000-8000-{4300 + position:012x}",
+        "command_type": "CreateBackup",
+        "command_schema_id": command_identity.schema_id,
+        "command_schema_version": command_identity.schema_version,
+        "command_schema_sha256": command_identity.sha256,
+        "command_payload_hash": sha256_hex(canonical_bytes(payload)),
+        "previous_event_hash": previous_hash,
+        "payload": payload,
+    }
+    return _rehash(event)
+
+
 def _generic_lease_granted_event(template, harness):
     event = deepcopy(template)
     binding = harness.schemas.command_binding("ClaimExecutionLease")
@@ -294,6 +349,102 @@ def test_broken_event_hash_fails_closed(tmp_path):
     events[0]["payload"]["title"] = "tampered"
     with pytest.raises(IntegrityError, match="event hash mismatch at 1"):
         replay(events)
+
+
+def test_replay_projects_immutable_backup_snapshots_with_event_identity(tmp_path):
+    events, harness = _events(tmp_path)
+    first = _backup_created_event(
+        events[0],
+        harness,
+        position=1,
+        previous_hash="0" * 64,
+        snapshot_id="snapshot-1",
+    )
+    second = _backup_created_event(
+        events[0],
+        harness,
+        position=2,
+        previous_hash=first["event_hash"],
+        snapshot_id="snapshot-2",
+    )
+
+    projection = replay([first, second], schema_registry=harness.schemas)
+    backup = projection["streams"][PROJECT_ID]
+
+    assert backup["project_id"] == PROJECT_ID
+    assert backup["store_identity"] == "2" * 64
+    assert backup["latest_snapshot_id"] == "snapshot-2"
+    assert backup["version"] == 2
+    assert set(backup["snapshots"]) == {"snapshot-1", "snapshot-2"}
+    assert backup["snapshots"]["snapshot-1"]["event_id"] == first["event_id"]
+    assert backup["snapshots"]["snapshot-1"]["event_hash"] == first["event_hash"]
+    assert backup["snapshots"]["snapshot-1"]["event_position"] == 1
+    assert backup["snapshots"]["snapshot-1"]["stream_version"] == 1
+    assert backup["snapshots"]["snapshot-1"]["snapshot_sha256"] == "1" * 64
+    assert backup["snapshots"]["snapshot-2"]["event_id"] == second["event_id"]
+
+
+@pytest.mark.parametrize(
+    "mutation, message",
+    [
+        ("wrong_project_stream", "project stream identity"),
+        ("wrong_tail_position", "pre-event tail"),
+        ("wrong_tail_hash", "pre-event tail"),
+        ("wrong_replay_end", "replay range"),
+        ("duplicate_artefact", "unique external artefacts"),
+        ("unavailable_artefact", "available external artefacts"),
+    ],
+)
+def test_replay_rejects_invalid_backup_projection_inputs(tmp_path, mutation, message):
+    events, harness = _events(tmp_path)
+    event = _backup_created_event(
+        events[0],
+        harness,
+        position=1,
+        previous_hash="0" * 64,
+        snapshot_id="snapshot-1",
+    )
+    if mutation == "wrong_project_stream":
+        event["stream_id"] = TASK_ID
+    elif mutation == "wrong_tail_position":
+        event["payload"]["canonical_tail_position"] = 1
+    elif mutation == "wrong_tail_hash":
+        event["payload"]["canonical_tail_sha256"] = "f" * 64
+    elif mutation == "wrong_replay_end":
+        event["payload"]["replay_end_position"] = 1
+    elif mutation == "duplicate_artefact":
+        duplicate = deepcopy(event["payload"]["external_artefacts"][0])
+        duplicate["content_sha256"] = "4" * 64
+        duplicate["availability_evidence_refs"] = ["evidence:other"]
+        event["payload"]["external_artefacts"].append(duplicate)
+    else:
+        event["payload"]["external_artefacts"][0]["availability"] = "missing"
+    event["command_payload_hash"] = sha256_hex(canonical_bytes(event["payload"]))
+    event = _rehash(event)
+
+    with pytest.raises(IntegrityError, match=message):
+        replay([event], schema_registry=harness.schemas)
+
+
+def test_replay_rejects_backup_snapshot_identity_reuse(tmp_path):
+    events, harness = _events(tmp_path)
+    first = _backup_created_event(
+        events[0],
+        harness,
+        position=1,
+        previous_hash="0" * 64,
+        snapshot_id="snapshot-1",
+    )
+    second = _backup_created_event(
+        events[0],
+        harness,
+        position=2,
+        previous_hash=first["event_hash"],
+        snapshot_id="snapshot-1",
+    )
+
+    with pytest.raises(IntegrityError, match="snapshot identity is already projected"):
+        replay([first, second], schema_registry=harness.schemas)
 
 
 def test_replay_rejects_wrong_recorded_command_schema_hash(tmp_path):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from collections.abc import Iterable
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -809,6 +810,76 @@ def reduce_message(state: dict[str, Any], event: dict[str, Any]) -> dict[str, An
     raise ValueError(f"illegal message transition: {state.get('status')} -> {event_type}")
 
 
+def reduce_backup(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Project one immutable ``BackupCreated`` snapshot on its project stream."""
+    validate_exact_lifecycle_envelope(event)
+    if event.get("event_type") != "BackupCreated" or event.get("schema_id") != "ars://core/event/BackupCreated":
+        raise ValueError("reduce_backup requires the exact BackupCreated event")
+
+    payload = event["payload"]
+    project_id = payload["project_id"]
+    if event.get("project_id") != project_id or event.get("stream_id") != project_id:
+        raise ValueError("BackupCreated project stream identity mismatch")
+
+    tail_position = payload["canonical_tail_position"]
+    tail_hash = payload["canonical_tail_sha256"]
+    if (
+        type(tail_position) is not int
+        or event.get("global_position") != tail_position + 1
+        or event.get("previous_event_hash") != tail_hash
+    ):
+        raise ValueError("BackupCreated pre-event tail mismatch")
+
+    replay_start = payload["replay_start_position"]
+    replay_end = payload["replay_end_position"]
+    if (
+        type(replay_start) is not int
+        or type(replay_end) is not int
+        or replay_start < 0
+        or replay_start > replay_end
+        or replay_end != tail_position
+    ):
+        raise ValueError("BackupCreated replay range must end at the pre-event tail")
+
+    external_artefacts = payload["external_artefacts"]
+    if not isinstance(external_artefacts, list) or any(not isinstance(item, dict) for item in external_artefacts):
+        raise ValueError("BackupCreated external artefacts must be records")
+    artefact_ids = [item.get("artefact_id") for item in external_artefacts]
+    if any(not isinstance(artefact_id, str) for artefact_id in artefact_ids) or len(artefact_ids) != len(
+        set(artefact_ids)
+    ):
+        raise ValueError("BackupCreated requires unique external artefacts")
+    if any(item.get("availability") != "available" for item in external_artefacts):
+        raise ValueError("BackupCreated requires available external artefacts")
+
+    store_identity = payload["store_identity"]
+    if state and (
+        state.get("project_id") != project_id
+        or state.get("store_identity") != store_identity
+        or not isinstance(state.get("snapshots"), dict)
+    ):
+        raise ValueError("BackupCreated immutable project-store binding mismatch")
+    snapshots = deepcopy(state.get("snapshots", {}))
+    snapshot_id = payload["snapshot_id"]
+    if snapshot_id in snapshots:
+        raise ValueError("BackupCreated snapshot identity is already projected")
+    snapshots[snapshot_id] = {
+        **deepcopy(payload),
+        "event_id": event["event_id"],
+        "event_hash": event["event_hash"],
+        "event_position": event["global_position"],
+        "stream_version": event["stream_version"],
+        "command_id": event["command_id"],
+    }
+    return {
+        "project_id": project_id,
+        "store_identity": store_identity,
+        "snapshots": snapshots,
+        "latest_snapshot_id": snapshot_id,
+        "version": event["stream_version"],
+    }
+
+
 def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
     attempts: set[str] = set()
     stream_states: dict[str, dict[str, Any]] = {}
@@ -881,6 +952,11 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             attempts.add(event["stream_id"])
         elif event["event_type"] in {"ResourceGrantRequested", "ResourcesReleased"}:
             stream_states[event["stream_id"]] = reduce_resource(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "BackupCreated":
+            stream_states[event["stream_id"]] = reduce_backup(
                 stream_states.get(event["stream_id"], {}),
                 event,
             )

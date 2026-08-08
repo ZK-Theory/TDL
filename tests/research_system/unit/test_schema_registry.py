@@ -308,6 +308,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "CreateTask": ("ars://core/command/CreateTask", "1.0.0"),
         "AmendTask": ("ars://core/command/AmendTask", "1.0.0"),
         "SupersedeTask": ("ars://core/command/SupersedeTask", "1.0.0"),
+        "CreateBackup": ("ars://core/command/CreateBackup", "1.0.0"),
         "ActivateAuthorityGrant": (
             "ars://core/command/ActivateAuthorityGrant",
             "1.0.0",
@@ -389,6 +390,23 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
     assert registry.event_binding("TaskClaimStarted", "WrongProducer") is None
     assert registry.event_binding("TaskClaimStarted", None) is None
     assert registry.has_producer_bindings("TaskClaimStarted")
+    assert registry.event_binding("BackupCreated", "CreateBackup") == SchemaBinding(
+        "ars://core/event/BackupCreated",
+        "1.0.0",
+        event_type="BackupCreated",
+        producer_command_type="CreateBackup",
+    )
+    assert registry.event_binding("BackupCreated", "WrongProducer") is None
+    assert registry.event_binding("BackupCreated", None) is None
+    assert registry.has_producer_bindings("BackupCreated")
+    assert (
+        registry.resolve_identity("ars://core/command/CreateBackup", "1.0.0").sha256
+        == "16fe11c88fbfce48185fa666be93978f02416013addf83a4c2c3634884292a24"
+    )
+    assert (
+        registry.resolve_identity("ars://core/event/BackupCreated", "1.0.0").sha256
+        == "78741041eaa8ec5de1dbadfb0a5d549b222ccf2873aa579c9f2a0db4f432fa40"
+    )
     assert registry.event_binding(
         "AuthorityGrantActivated",
         "ActivateAuthorityGrant",

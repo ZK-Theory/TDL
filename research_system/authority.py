@@ -191,6 +191,7 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "StartAttempt": "attempt",
     "RequestResourceGrant": "resource",
     "ReleaseResources": "resource",
+    "CreateBackup": "project_store",
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",

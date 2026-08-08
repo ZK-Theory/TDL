@@ -66,6 +66,8 @@ from research_system.evals.retention_authorizer import (
 )
 from research_system.operations.backups import (
     ArtefactBinding,
+    BackupArtefactInput,
+    BackupMaterializer,
     BackupReceipt,
     verify_restore_before_writer_lease,
 )
@@ -207,6 +209,203 @@ def _backup_receipt_from_json(value: dict[str, Any]) -> BackupReceipt:
         return BackupReceipt(**payload)
     except (KeyError, TypeError, ValueError) as exc:
         raise ConfigurationError("invalid backup receipt") from exc
+
+
+_BACKUP_REQUEST_FIELDS = frozenset(
+    {
+        "command_id",
+        "receipt_id",
+        "receipt_revision",
+        "submitted_at",
+        "actor_id",
+        "on_behalf_of_actor_id",
+        "authority_grant_id",
+        "idempotency_key",
+        "correlation_id",
+        "causation_id",
+        "reason",
+        "evidence_refs",
+        "snapshot_id",
+        "schema_versions",
+        "tool_versions",
+        "encryption_class",
+        "redaction_class",
+        "destination_class",
+        "verified_at",
+        "verified_by_actor_id",
+        "verification_authority_grant_id",
+        "external_artefacts",
+    }
+)
+_BACKUP_ARTEFACT_FIELDS = frozenset(
+    {
+        "artefact_id",
+        "source_path",
+        "content_sha256",
+        "availability",
+        "availability_evidence_refs",
+        "observed_at",
+    }
+)
+
+
+def _store_backup(args: argparse.Namespace) -> int:
+    """Create one governed event-first backup through the public CLI."""
+    binding = ControlBinding.load(args.config)
+    request = _read_json(args.request)
+    if set(request) != _BACKUP_REQUEST_FIELDS:
+        missing = sorted(_BACKUP_REQUEST_FIELDS - set(request))
+        unexpected = sorted(set(request) - _BACKUP_REQUEST_FIELDS)
+        details = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if unexpected:
+            details.append(f"unexpected: {', '.join(unexpected)}")
+        raise ConfigurationError(f"invalid backup request fields ({'; '.join(details)})")
+    raw_artefacts = request["external_artefacts"]
+    if not isinstance(raw_artefacts, list) or not raw_artefacts:
+        raise ConfigurationError("backup request external_artefacts must be a non-empty list")
+    for field in ("evidence_refs", "schema_versions", "tool_versions"):
+        if not isinstance(request[field], list):
+            raise ConfigurationError(f"backup request {field} must be a list")
+    for index, item in enumerate(raw_artefacts):
+        if not isinstance(item, dict):
+            raise ConfigurationError(f"backup request external_artefacts[{index}] must be an object")
+        if set(item) != _BACKUP_ARTEFACT_FIELDS:
+            missing = sorted(_BACKUP_ARTEFACT_FIELDS - set(item))
+            unexpected = sorted(set(item) - _BACKUP_ARTEFACT_FIELDS)
+            details = []
+            if missing:
+                details.append(f"missing: {', '.join(missing)}")
+            if unexpected:
+                details.append(f"unexpected: {', '.join(unexpected)}")
+            raise ConfigurationError(
+                f"invalid backup request external_artefacts[{index}] fields ({'; '.join(details)})"
+            )
+        if not isinstance(item["availability_evidence_refs"], list):
+            raise ConfigurationError(
+                f"backup request external_artefacts[{index}].availability_evidence_refs must be a list"
+            )
+    try:
+        artefacts = tuple(
+            BackupArtefactInput(
+                artefact_id=item["artefact_id"],
+                source_path=Path(item["source_path"]),
+                content_sha256=item["content_sha256"],
+                availability=item["availability"],
+                availability_evidence_refs=tuple(item["availability_evidence_refs"]),
+                observed_at=item["observed_at"],
+            )
+            for item in raw_artefacts
+        )
+        schema_versions = tuple(request["schema_versions"])
+        tool_versions = tuple(request["tool_versions"])
+        evidence_refs = list(request["evidence_refs"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ConfigurationError("invalid backup request") from exc
+
+    source_root = binding.control_root.resolve(strict=True)
+    destination_root = args.destination_root
+    if not destination_root.is_absolute():
+        raise ConfigurationError("backup destination root must be absolute")
+    destination_root = destination_root.resolve(strict=False)
+    stage_root = destination_root.parent / f".{destination_root.name}.{request['command_id']}.stage"
+    schemas = runtime_schema_registry(binding.schema_root)
+    registry = load_evidence_store_registry(args.registry, schemas)
+    materializer = BackupMaterializer(
+        command_id=request["command_id"],
+        source_root=source_root,
+        destination_root=destination_root,
+        stage_root=stage_root,
+        receipt_id=request["receipt_id"],
+        receipt_revision=request["receipt_revision"],
+        registry=registry,
+        artefacts=artefacts,
+        verified_at=request["verified_at"],
+        verified_by_actor_id=request["verified_by_actor_id"],
+        verification_authority_grant_id=request["verification_authority_grant_id"],
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    ledger = EventLedger(source_root, binding.project_id, schemas)
+    snapshot = ledger.snapshot()
+    payload = materializer.derive_event_payload(
+        snapshot_id=request["snapshot_id"],
+        destination_class=request["destination_class"],
+        schema_versions=schema_versions,
+        tool_versions=tool_versions,
+        encryption_class=request["encryption_class"],
+        redaction_class=request["redaction_class"],
+        ledger_snapshot=snapshot,
+    )
+    committed = [
+        event
+        for event in snapshot.events
+        if event.get("command_id") == request["command_id"] and event.get("command_type") == "CreateBackup"
+    ]
+    if len(committed) > 1:
+        raise IntegrityError("backup command has multiple committed events")
+    expected_stream_version = (
+        int(committed[0]["stream_version"]) - 1 if committed else snapshot.stream_versions.get(binding.project_id, 0)
+    )
+    command = {
+        "command_id": request["command_id"],
+        "command_type": "CreateBackup",
+        "schema_id": "ars://core/command/CreateBackup",
+        "schema_version": "1.0.0",
+        "submitted_at": request["submitted_at"],
+        "actor_id": request["actor_id"],
+        "on_behalf_of_actor_id": request["on_behalf_of_actor_id"],
+        "authority_grant_id": request["authority_grant_id"],
+        "target_stream_id": binding.project_id,
+        "expected_stream_version": expected_stream_version,
+        "idempotency_key": request["idempotency_key"],
+        "correlation_id": request["correlation_id"],
+        "causation_id": request["causation_id"],
+        "reason": request["reason"],
+        "evidence_refs": evidence_refs,
+        "payload": payload,
+        "project_id": binding.project_id,
+    }
+    receipt = CommandService(
+        source_root,
+        ledger,
+        ObjectStore(source_root),
+        ReceiptStore(source_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            source_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        ),
+        clock=_authority_clock,
+        backup_materializer=materializer,
+    ).submit(command)
+    if receipt.status != "accepted":
+        _print_json(
+            {
+                "status": receipt.status,
+                "command_receipt": asdict(receipt),
+                "destination_root": str(destination_root),
+            }
+        )
+        return 0
+    backup_receipt_path = destination_root / "manifests" / "backup-receipt.json"
+    backup_receipt = _backup_receipt_from_json(_read_json(backup_receipt_path))
+    _print_json(
+        {
+            "status": receipt.status,
+            "command_receipt": asdict(receipt),
+            "backup_receipt": asdict(backup_receipt),
+            "destination_root": str(destination_root),
+            "backup_receipt_path": str(backup_receipt_path),
+            "snapshot_path": str(destination_root / "snapshots" / f"{backup_receipt.snapshot_id}.json"),
+        }
+    )
+    return 0
 
 
 def _load_canonical_approved_binding(path: Path) -> ApprovedProjectBinding:
@@ -977,6 +1176,13 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--project-id", required=True)
     init.add_argument("--authority-bootstrap", type=Path, required=True)
     init.set_defaults(handler=_store_init)
+
+    backup = store_commands.add_parser("backup")
+    backup.add_argument("--config", type=Path, required=True)
+    backup.add_argument("--request", type=Path, required=True)
+    backup.add_argument("--registry", type=Path, required=True)
+    backup.add_argument("--destination-root", type=Path, required=True)
+    backup.set_defaults(handler=_store_backup)
 
     restore_bind = store_commands.add_parser("restore-bind")
     restore_bind.add_argument("--control-root", type=Path, required=True)

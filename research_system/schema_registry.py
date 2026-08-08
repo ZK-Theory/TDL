@@ -521,6 +521,17 @@ _RUNTIME_BINDINGS = (
         event_type="ResourcesReleased",
         producer_command_type="ReleaseResources",
     ),
+    SchemaBinding(
+        "ars://core/command/CreateBackup",
+        "1.0.0",
+        command_type="CreateBackup",
+    ),
+    SchemaBinding(
+        "ars://core/event/BackupCreated",
+        "1.0.0",
+        event_type="BackupCreated",
+        producer_command_type="CreateBackup",
+    ),
 )
 
 
