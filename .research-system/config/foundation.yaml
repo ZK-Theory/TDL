@@ -1,7 +1,7 @@
 schema_version: '1.0.0'
 project_template_alias: ars-foundation-p0
 project_id: prj_01978abc-1000-7000-8000-000000001000
-control_root: 'C:\Users\steph\TDL-ARS-WP64-Source'
+control_root: 'C:\Users\steph\TDL-ARS-WP64-Control'
 control_root_required: true
 store_identity: 2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a
 origin_authority_root: 'C:\Users\steph\TDL-ARS-WP64-Origin-Authority'
@@ -9,9 +9,9 @@ origin_witness_path: 'C:\Users\steph\TDL-ARS-WP64-Origin-Authority\store-origins
 origin_witness_sha256: 1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa
 endpoint_scheme: local-cli
 canonical_hash: sha256
-canonical_uri: local-cli:///C:/Users/steph/TDL-ARS-WP64-Source
-canonical_tail_position: 2
-canonical_tail_hash: 948f2ed02aa7019af172f0910d362521330c95d99167b97352ce2ffaaca9add6
+canonical_uri: local-cli:///C:/Users/steph/TDL-ARS-WP64-Control
+canonical_tail_position: 4
+canonical_tail_hash: 9ec10ef25e329775e37556093fdcf3f744f977eab78997a88a201973f324de80
 code_roots:
   - 'C:\Users\steph\.codex\review-worktrees\pr198-d6c9647-20260730'
   - 'C:\Users\steph\.codex\worktrees\0f6c\TDL'
@@ -42,4 +42,4 @@ code_roots:
   - 'C:\Users\steph\TDL\.claude\worktrees\nervous-boyd-368c36'
   - 'C:\tmp\tdl-gate5-merged-review'
 schema_root: 'C:\Users\steph\.codex\worktrees\547f\TDL\.research-system\schemas'
-foundation_sha256: 172ca1f248cfeba3e5a47593fca6aae34d45f8eca4d009262bc95aba92aade59
+foundation_sha256: 0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22
