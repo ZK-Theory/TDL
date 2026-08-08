@@ -30,7 +30,7 @@ inputs:
     role: GMM k=7 labels (gmm_labels)
     root: worktree           # committed file -> Git blob signature is checkout-invariant
     expected:
-      blob_sha: "3146a1ef8dad3974e31ce63a1a45387d73d3b9a0"
+      blob_sha: "90b7f36c887991ee57fd97df2e4b0d34cdefc254"
   - path: results/trajectory_tda_integration/01_trajectories_sequences.json
     role: OM input trajectory sequences (drives DHD -> ward -> fcluster k=7)
     root: proj_root          # gitignored intermediate -> lives at PROJ_ROOT
