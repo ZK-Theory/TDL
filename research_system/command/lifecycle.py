@@ -157,6 +157,11 @@ EXACT_LIFECYCLE_BINDINGS = {
         "ReleaseResources",
         "ars://core/command/ReleaseResources",
     ),
+    "ars://core/event/BackupCreated": (
+        "BackupCreated",
+        "CreateBackup",
+        "ars://core/command/CreateBackup",
+    ),
 }
 
 _MESSAGE_EVENT_SCHEMA_IDS = {

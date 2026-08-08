@@ -16,6 +16,7 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_attempt,
+    reduce_backup,
     reduce_dispatch,
     reduce_lease,
     reduce_message,
@@ -665,6 +666,11 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     elif event_type in {"ResourceGrantRequested", "ResourcesReleased"}:
         try:
             streams[stream_id] = reduce_resource(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type == "BackupCreated":
+        try:
+            streams[stream_id] = reduce_backup(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type == "ScopeCompleted":

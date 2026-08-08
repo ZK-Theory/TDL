@@ -22,6 +22,7 @@ kinds:
   execution_lease: els
   provider_command: pcmd
   provider_receipt: prcp
+  backup_receipt: bkr
   trace: trc
   grader_result: grr
   evaluation_run: run

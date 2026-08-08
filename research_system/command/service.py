@@ -54,6 +54,8 @@ from research_system.evals.release_publication import (
 )
 from research_system.ids import new_id, validate_id
 from research_system.operations.backups import (
+    BackupMaterializer,
+    BackupReceipt,
     RestoreAdmissionBundle,
     RestorePreflightResult,
     revalidate_restore_admission_closure,
@@ -154,8 +156,13 @@ _C1_COMMAND_TYPES = (
     | _C1_ATTEMPT_COMMAND_TYPES
     | _C1_RESOURCE_COMMAND_TYPES
 )
+_BACKUP_COMMAND_TYPES = frozenset({"CreateBackup"})
 _LIFECYCLE_COMMAND_TYPES = (
-    _SCOPE_COMMAND_TYPES | _TASK_REVISION_COMMAND_TYPES | _MESSAGE_COMMAND_TYPES | _C1_COMMAND_TYPES
+    _SCOPE_COMMAND_TYPES
+    | _TASK_REVISION_COMMAND_TYPES
+    | _MESSAGE_COMMAND_TYPES
+    | _C1_COMMAND_TYPES
+    | _BACKUP_COMMAND_TYPES
 )
 _COMMAND_EVENT_TYPES = {
     "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
@@ -193,6 +200,7 @@ _COMMAND_EVENT_TYPES = {
     "RequestResourceGrant": "ResourceGrantRequested",
     "RecordHeartbeat": "HeartbeatRecorded",
     "ReleaseResources": "ResourcesReleased",
+    "CreateBackup": "BackupCreated",
 }
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
@@ -482,6 +490,7 @@ class CommandService:
         lock_wait: Callable[[float], None] | None = None,
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
         message_adapter_registry: Iterable[MessageAdapterRegistration] | None = None,
+        backup_materializer: BackupMaterializer | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
             raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
@@ -505,6 +514,9 @@ class CommandService:
         self._monotonic = monotonic or time.monotonic
         self._lock_wait = lock_wait or time.sleep
         self.t2_authority_resolver = t2_authority_resolver
+        if backup_materializer is not None and not isinstance(backup_materializer, BackupMaterializer):
+            raise TypeError("backup_materializer must be BackupMaterializer")
+        self.backup_materializer = backup_materializer
         if message_adapter_registry is None:
             self._message_adapter_registry: tuple[MessageAdapterRegistration, ...] = ()
         else:
@@ -1279,6 +1291,8 @@ class CommandService:
                     self._return_scoped_receipt_or_raise(command, reconstructed)
                 if command.envelope["command_type"] == "RequestResourceGrant":
                     self._ensure_resource_grant_materialized(command)
+                if command.envelope["command_type"] == "CreateBackup":
+                    self._ensure_backup_materialized(command)
                 receipt = write_receipt(reconstructed)
                 if activation_marker_status == "committed":
                     self._remove_scoped_activation_marker(command.command_id)
@@ -1397,6 +1411,15 @@ class CommandService:
                 prepared_payload = prepared
                 if command.envelope["command_type"] == "RequestResourceGrant":
                     self._prepare_resource_grant_materialization(command)
+            elif command.envelope["command_type"] in _BACKUP_COMMAND_TYPES:
+                prepared = self._prepare_backup_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
             elif command.envelope["command_type"] == "RevokeAuthorityGrant":
                 try:
                     prepared_payload = self._prepare_authority_revocation(command, observed_version)
@@ -1983,6 +2006,8 @@ class CommandService:
                 )
                 if command_type == "RequestResourceGrant":
                     self._ensure_resource_grant_materialized(command)
+                if command_type == "CreateBackup":
+                    self._ensure_backup_materialized(command)
             result = self.receipts.write_scoped(
                 self._authority_scope(command),
                 lifecycle_authority.authority_key,
@@ -2077,6 +2102,8 @@ class CommandService:
             return project_id, "attempt", str(attempt_id or ""), "R3"
         if command_type in _C1_RESOURCE_COMMAND_TYPES:
             return project_id, "resource", str(payload.get("resource_id", "")), "R3"
+        if command_type in _BACKUP_COMMAND_TYPES:
+            return project_id, "project_store", str(payload.get("project_id", "")), "R3"
 
         subject_id = str(
             payload.get(
@@ -3009,6 +3036,76 @@ class CommandService:
             raise ConflictError("resource grant revision conflicts")
         return {"authority_preimage_ref": expected_ref}
 
+    def _prepare_backup_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate and stage one exact backup without publishing it pre-event."""
+        payload = command.envelope["payload"]
+        if (
+            command.envelope.get("project_id") != self.ledger.project_id
+            or command.target_stream_id != self.ledger.project_id
+            or payload.get("project_id") != self.ledger.project_id
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_backup_project",
+                "CreateBackup must target the selected control-store project.",
+            )
+        if (
+            payload.get("canonical_tail_position") != snapshot.global_position
+            or payload.get("canonical_tail_sha256") != snapshot.event_hash
+            or payload.get("replay_end_position") != snapshot.global_position
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "backup_source_drift",
+                "CreateBackup must bind the exact locked source tail.",
+            )
+        snapshot_id = payload.get("snapshot_id")
+        if any(
+            event.get("event_type") == "BackupCreated"
+            and event.get("stream_id") == self.ledger.project_id
+            and isinstance(event.get("payload"), dict)
+            and event["payload"].get("snapshot_id") == snapshot_id
+            for event in snapshot.events
+        ):
+            return self._rejected(
+                command,
+                observed_version,
+                "backup_snapshot_identity_conflict",
+                "CreateBackup snapshot identity is already committed.",
+            )
+        materializer = self.backup_materializer
+        if materializer is None:
+            raise ArsError("CreateBackup requires the governed backup materializer")
+        prepared = materializer.prepare(command, snapshot)
+        if prepared.event_payload != payload:
+            raise IntegrityError("backup preparation payload differs from the accepted command")
+        return deepcopy(prepared.event_payload)
+
+    def _ensure_backup_materialized(self, command: Command) -> BackupReceipt:
+        """Publish or repair a backup only from one exact committed event."""
+        materializer = self.backup_materializer
+        if materializer is None:
+            raise ArsError("CreateBackup requires the governed backup materializer")
+        events = [
+            event
+            for event in self.ledger.snapshot().events
+            if event.get("command_id") == command.command_id
+            and event.get("command_type") == "CreateBackup"
+            and event.get("event_type") == "BackupCreated"
+            and event.get("stream_id") == command.target_stream_id
+            and event.get("command_payload_hash") == command.payload_hash
+        ]
+        if len(events) != 1 or events[0].get("payload") != command.envelope["payload"]:
+            raise IntegrityError("backup materialization requires one exact committed event")
+        return materializer.materialize(command, events[0])
+
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed request event."""
         events = [
@@ -3532,6 +3629,8 @@ class CommandService:
             self._return_scoped_receipt_or_raise(command, receipt)
         if command.envelope["command_type"] == "RequestResourceGrant" and receipt.status == "accepted":
             self._ensure_resource_grant_materialized(command)
+        if command.envelope["command_type"] == "CreateBackup" and receipt.status == "accepted":
+            self._ensure_backup_materialized(command)
         self._reconcile_scoped_authority_receipt(
             command,
             receipt,
@@ -4687,6 +4786,11 @@ class CommandService:
                 payload.pop("scheduler_authority_ref")
             elif command_type == "CreateAttempt":
                 payload["creation_kind"] = "initial"
+        elif command_type in _BACKUP_COMMAND_TYPES:
+            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+                raise IntegrityError("CreateBackup requires its exact prepared payload")
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(prepared_payload)
         elif command_type == "SupersedeTask":
             if prepared_payload is None:
                 raise IntegrityError("SupersedeTask requires prepared graph payload")

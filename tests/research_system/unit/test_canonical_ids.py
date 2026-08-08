@@ -73,3 +73,9 @@ def test_resource_request_uses_distinct_w8_owner_prefix():
     resource_request_id = new_id("resource_request")
     assert resource_request_id.startswith("rsq_")
     assert validate_id(resource_request_id, "resource_request") == resource_request_id
+
+
+def test_backup_receipt_uses_w8_owner_prefix():
+    receipt_id = new_id("backup_receipt")
+    assert receipt_id.startswith("bkr_")
+    assert validate_id(receipt_id, "backup_receipt") == receipt_id
