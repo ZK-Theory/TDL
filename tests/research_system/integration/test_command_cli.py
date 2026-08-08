@@ -62,6 +62,18 @@ def _external_v1_store(tmp_path, *, schema_bound):
     return code_root, control_root, projection_root
 
 
+def test_restore_bind_runtime_inputs_require_exact_canonical_json(tmp_path):
+    path = tmp_path / "operator-input.json"
+    value = {"target_root": str(tmp_path), "status": "verified"}
+
+    path.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="not canonical"):
+        cli._read_canonical_json(path)
+
+    path.write_bytes(canonical_bytes(value))
+    assert cli._read_canonical_json(path) == value
+
+
 @pytest.mark.parametrize("command", ["replay", "projection"])
 def test_history_commands_reject_v1_store_without_runtime_schema_authority(
     tmp_path,

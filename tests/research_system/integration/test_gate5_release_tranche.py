@@ -484,6 +484,17 @@ def _prepare_restore_admission(case, **changes):
     return prepare_restore_admission_before_writer_lease(**values)
 
 
+def test_restore_preflight_accepts_governed_retired_source(tmp_path):
+    import shutil
+
+    case = _build_restore_case(tmp_path)
+    shutil.rmtree(case["source"])
+
+    result = _verify_restore(case)
+
+    assert result.status == "verified"
+    assert result.failed_predicates == ()
+
 def _rebind_restore_case(case, preflight, *, witness_path=None):
     from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
 

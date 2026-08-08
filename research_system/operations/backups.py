@@ -1731,15 +1731,22 @@ def verify_restore_before_writer_lease(
     if approved_witness is not None and validated_witness_path is not None:
         if source_root is not None and source_root != Path(approved_witness.initial_control_root):
             failed.append("origin_witness_source_mismatch")
-        if origin_root is not None:
+        if origin_root is not None and source_root is not None:
             try:
-                _require_physical_disjoint(
-                    origin_root,
-                    source_root or target,
-                    message="origin authority root must be physically disjoint from the restore source",
-                )
-            except (ArsError, OSError):
+                os.lstat(source_root)
+            except FileNotFoundError:
+                pass
+            except OSError:
                 failed.append("origin_witness_source_overlap")
+            else:
+                try:
+                    _require_physical_disjoint(
+                        origin_root,
+                        source_root,
+                        message="origin authority root must be physically disjoint from the restore source",
+                    )
+                except (ArsError, OSError):
+                    failed.append("origin_witness_source_overlap")
 
     if code_roots and schema_root:
         try:
