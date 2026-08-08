@@ -132,6 +132,17 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _read_canonical_json(path: Path) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+        value = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ConfigurationError(f"invalid canonical JSON file: {path}") from exc
+    if not isinstance(value, dict) or raw != canonical_bytes(value):
+        raise ConfigurationError(f"JSON file is not canonical: {path}")
+    return value
+
+
 def _read_yaml_or_json(path: Path, label: str) -> dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -448,14 +459,17 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
     if schema_root != approved.schema_root:
         raise ConfigurationError("caller schema root differs from approved project binding")
     schemas = require_authority_schemas(runtime_schema_registry(approved.schema_root))
-    receipt = _backup_receipt_from_json(_read_json(args.receipt))
+    receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     if receipt.project_id != approved.project_id:
         raise ConfigurationError("backup receipt project differs from approved project binding")
     if receipt.store_identity != approved.store_identity:
         raise ArsError("restored store identity differs from backup receipt")
     if receipt.source_endpoint_scheme != approved.endpoint_scheme:
         raise ConfigurationError("backup receipt endpoint differs from approved project binding")
-    snapshot = _read_json(args.snapshot)
+    snapshot = _read_canonical_json(args.snapshot)
+    _read_canonical_json(args.endpoint_ownership)
+    _read_canonical_json(args.artefact_manifest)
+    _read_canonical_json(args.registry)
     expected_output = canonical_restore_binding_output(
         target_root,
         approved.project_id,
