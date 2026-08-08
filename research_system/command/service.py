@@ -127,6 +127,38 @@ _MESSAGE_COMMAND_TYPES = frozenset(
 )
 _MESSAGE_ADAPTER_COMMAND_TYPES = frozenset({"RecordMessageDelivery", "RecordMessageDeliveryFailure"})
 _C1_TASK_COMMAND_TYPES = frozenset({"RequestReadiness", "ApproveReadiness"})
+_C2_TASK_COMMAND_TYPES = frozenset(
+    {"BlockTask", "RequestInput", "PauseTask", "SubmitForReview", "ResumeTask", "CancelTask"}
+)
+_C2_BLOCKER_COMMAND_TYPES = frozenset({"RecordBlocker", "ResolveBlocker"})
+_C2_DISPATCH_COMMAND_TYPES = frozenset({"FulfilDispatch"})
+_C2_ATTEMPT_COMMAND_TYPES = frozenset(
+    {
+        "CompleteAttempt",
+        "FailAttempt",
+        "RecordAttemptPartial",
+        "PauseAttempt",
+        "ResumeAttempt",
+        "RequestAttemptStop",
+        "ConfirmAttemptStopped",
+        "SupersedeAttempt",
+        "RetryAttempt",
+    }
+)
+_C2_CHECKPOINT_COMMAND_TYPES = frozenset({"RecordCheckpoint"})
+_C2_OPERATOR_COMMAND_TYPES = frozenset({"RequestPause", "ConfirmPause", "RequestStop", "ConfirmStop", "RequestResume"})
+_C2_RECOVERY_COMMAND_TYPES = frozenset({"QuarantineOrphan"})
+_C2_REVIEW_COMMAND_TYPES = frozenset({"RequestReview"})
+_C2_COMMAND_TYPES = (
+    _C2_TASK_COMMAND_TYPES
+    | _C2_BLOCKER_COMMAND_TYPES
+    | _C2_DISPATCH_COMMAND_TYPES
+    | _C2_ATTEMPT_COMMAND_TYPES
+    | _C2_CHECKPOINT_COMMAND_TYPES
+    | _C2_OPERATOR_COMMAND_TYPES
+    | _C2_RECOVERY_COMMAND_TYPES
+    | _C2_REVIEW_COMMAND_TYPES
+)
 _C1_DISPATCH_COMMAND_TYPES = frozenset(
     {
         "IssueDispatch",
@@ -162,6 +194,7 @@ _LIFECYCLE_COMMAND_TYPES = (
     | _TASK_REVISION_COMMAND_TYPES
     | _MESSAGE_COMMAND_TYPES
     | _C1_COMMAND_TYPES
+    | _C2_COMMAND_TYPES
     | _BACKUP_COMMAND_TYPES
 )
 _COMMAND_EVENT_TYPES = {
@@ -183,6 +216,32 @@ _COMMAND_EVENT_TYPES = {
     "RecordMessageDeliveryFailure": "MessageDeliveryFailed",
     "RequestReadiness": "ReadinessRequested",
     "ApproveReadiness": "ReadinessApproved",
+    "BlockTask": "TaskBlocked",
+    "RequestInput": "InputRequested",
+    "PauseTask": "TaskPaused",
+    "SubmitForReview": "TaskSubmittedForReview",
+    "ResumeTask": "TaskResumed",
+    "CancelTask": "TaskCancelled",
+    "RecordBlocker": "BlockerRecorded",
+    "ResolveBlocker": "BlockerResolved",
+    "FulfilDispatch": "DispatchFulfilled",
+    "CompleteAttempt": "AttemptCompleted",
+    "FailAttempt": "AttemptFailed",
+    "RecordAttemptPartial": "PartialOutcomeRecorded",
+    "PauseAttempt": "AttemptPaused",
+    "ResumeAttempt": "AttemptResumed",
+    "RequestAttemptStop": "AttemptStopRequested",
+    "ConfirmAttemptStopped": "AttemptAbandoned",
+    "SupersedeAttempt": "AttemptSuperseded",
+    "RetryAttempt": "AttemptCreated",
+    "RecordCheckpoint": "CheckpointRecorded",
+    "RequestPause": "PauseRequested",
+    "ConfirmPause": "PauseConfirmed",
+    "RequestStop": "StopRequested",
+    "ConfirmStop": "StopConfirmed",
+    "RequestResume": "ResumeRequested",
+    "QuarantineOrphan": "OrphanQuarantined",
+    "RequestReview": "ReviewRequested",
     "IssueDispatch": "DispatchIssued",
     "RecordDispatchDelivery": "DispatchDelivered",
     "AcknowledgeDispatch": "DispatchAcknowledged",
@@ -1411,6 +1470,15 @@ class CommandService:
                 prepared_payload = prepared
                 if command.envelope["command_type"] == "RequestResourceGrant":
                     self._prepare_resource_grant_materialization(command)
+            elif command.envelope["command_type"] in _C2_COMMAND_TYPES:
+                prepared = self._prepare_c2_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
             elif command.envelope["command_type"] in _BACKUP_COMMAND_TYPES:
                 prepared = self._prepare_backup_command(
                     command,
@@ -2092,6 +2160,20 @@ class CommandService:
 
         if command_type in _C1_TASK_COMMAND_TYPES:
             return project_id, "task", str(payload.get("task_id", "")), "R3"
+        if command_type in _C2_TASK_COMMAND_TYPES:
+            return project_id, "task", str(payload.get("task_id", "")), "R3"
+        if command_type in _C2_BLOCKER_COMMAND_TYPES:
+            blocker_id = payload.get("new_blocker_id") if command_type == "RecordBlocker" else payload.get("blocker_id")
+            return project_id, "blocker", str(blocker_id or ""), "R3"
+        if command_type in _C2_DISPATCH_COMMAND_TYPES:
+            return project_id, "dispatch", str(payload.get("dispatch_id", "")), "R3"
+        if command_type in _C2_ATTEMPT_COMMAND_TYPES:
+            attempt_id = payload.get("new_attempt_id") if command_type == "RetryAttempt" else payload.get("attempt_id")
+            return project_id, "attempt", str(attempt_id or ""), "R3"
+        if command_type in _C2_CHECKPOINT_COMMAND_TYPES | _C2_OPERATOR_COMMAND_TYPES | _C2_RECOVERY_COMMAND_TYPES:
+            return project_id, "attempt", str(payload.get("attempt_id", "")), "R3"
+        if command_type in _C2_REVIEW_COMMAND_TYPES:
+            return project_id, "review", str(payload.get("new_review_id", "")), "R3"
         if command_type in _C1_DISPATCH_COMMAND_TYPES:
             return project_id, "dispatch", str(payload.get("dispatch_id", "")), "R3"
         if command_type in _C1_LEASE_COMMAND_TYPES:
@@ -2453,8 +2535,30 @@ class CommandService:
                     )
                 return payload
             if command_type == "WithdrawDispatch":
-                if dispatch.get("status") != "issued" or payload["observed_prior_state"] != "issued":
-                    return rejected("invalid_dispatch_transition", "C1 withdrawal is limited to issued Dispatch.")
+                prior_state = dispatch.get("status")
+                if prior_state == "issued" and payload["observed_prior_state"] == "issued":
+                    return payload
+                stop = payload.get("attempt_stop_disposition")
+                attempts = [
+                    value
+                    for stream_id, value in streams.items()
+                    if isinstance(value, dict)
+                    and value.get("dispatch_id") == command.target_stream_id
+                    and value.get("attempt_id") == stream_id
+                ]
+                if (
+                    prior_state != "claimed"
+                    or payload.get("observed_prior_state") != "claimed"
+                    or len(attempts) != 1
+                    or attempts[0].get("status") not in {"completed", "failed", "partial", "abandoned", "superseded"}
+                    or not isinstance(stop, dict)
+                    or not stop.get("children_closed")
+                    or not stop.get("writers_closed")
+                ):
+                    return rejected(
+                        "invalid_dispatch_transition",
+                        "Claimed withdrawal requires its terminal Attempt and closed stop disposition.",
+                    )
                 return payload
             task = streams.get(payload["task_id"])
             lease = streams.get(payload["lease_id"])
@@ -3015,6 +3119,574 @@ class CommandService:
                 )
             return payload
         raise IntegrityError(f"unsupported C1 command type: {command_type}")
+
+    def _prepare_c2_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate an active C2 transition against replayed state."""
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_project",
+                "C2 command project must match the control-store project.",
+            )
+        streams = self._c1_streams(snapshot)
+        if command_type in _C2_BLOCKER_COMMAND_TYPES:
+            blocker_id = payload.get("new_blocker_id") if command_type == "RecordBlocker" else payload.get("blocker_id")
+            if blocker_id != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "C2 Blocker payload identity must equal the authority-bound target stream.",
+                )
+            blocker = streams.get(command.target_stream_id)
+            if command_type == "RecordBlocker":
+                if blocker is not None or not payload.get("blocker_evidence_refs"):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "invalid_blocker_transition",
+                        "RecordBlocker requires an empty stream and evidence.",
+                    )
+                return payload
+            if (
+                not isinstance(blocker, dict)
+                or blocker.get("status") != "open"
+                or not payload.get("resolution_evidence_refs")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_blocker_transition",
+                    "ResolveBlocker requires an open Blocker and resolution evidence.",
+                )
+            return payload
+        if command_type in _C2_ATTEMPT_COMMAND_TYPES:
+            attempt_id = payload.get("new_attempt_id") if command_type == "RetryAttempt" else payload.get("attempt_id")
+            if attempt_id != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "C2 Attempt payload identity must equal the authority-bound target stream.",
+                )
+            if command_type == "RetryAttempt":
+                prior = streams.get(payload.get("prior_attempt_id"))
+                successors = [
+                    value
+                    for stream_id, value in streams.items()
+                    if isinstance(value, dict)
+                    and value.get("attempt_id") == stream_id
+                    and value.get("prior_attempt_id") == payload.get("prior_attempt_id")
+                ]
+                if successors:
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "attempt_already_retried",
+                        "RetryAttempt prior outcome already has a committed successor.",
+                    )
+                if (
+                    command.target_stream_id in streams
+                    or not isinstance(prior, dict)
+                    or prior.get("status") not in {"completed", "failed", "partial", "abandoned"}
+                    or payload.get("prior_outcome") != prior.get("status")
+                    or int(payload.get("attempt_ordinal", 0)) != int(prior.get("attempt_ordinal", 0)) + 1
+                    or int(payload.get("execution_epoch", 0)) <= int(prior.get("execution_epoch", 0))
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "attempt_retry_precondition_failed",
+                        "RetryAttempt requires an empty new stream and the exact retryable prior outcome and lineage.",
+                    )
+                return payload
+            attempt = streams.get(command.target_stream_id)
+            if not isinstance(attempt, dict):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "attempt_missing",
+                    "C2 Attempt transition requires a committed Attempt.",
+                )
+            status = attempt.get("status")
+            if command_type in {"CompleteAttempt", "FailAttempt", "RecordAttemptPartial"}:
+                if status != "running":
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "invalid_attempt_transition",
+                        "Attempt outcome requires a running Attempt.",
+                    )
+                if command_type == "RecordAttemptPartial":
+                    return {
+                        "task_id": attempt["task_id"],
+                        "completed_obligations": payload["completed_obligations"],
+                        "unmet_obligations": payload["unmet_obligations"],
+                        "accepted_artefact_ids": payload["candidate_artefact_ids"],
+                        "claim_restrictions": payload["restrictions"],
+                        "resume_policy": payload["stop_cause"],
+                        "subject_kind": "task",
+                    }
+                return payload
+            if command_type == "PauseAttempt":
+                if status != "running":
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "invalid_attempt_transition",
+                        "PauseAttempt requires a running Attempt.",
+                    )
+                return payload
+            if command_type == "ResumeAttempt":
+                lease = streams.get(payload.get("lease_id"))
+                checkpoint = payload.get("checkpoint_disposition")
+                if (
+                    status != "paused"
+                    or payload.get("compatibility") != "compatible"
+                    or not isinstance(checkpoint, dict)
+                    or checkpoint.get("compatibility") != "compatible"
+                    or not isinstance(lease, dict)
+                    or lease.get("status") != "active"
+                    or lease.get("attempt_id") != command.target_stream_id
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "attempt_resume_precondition_failed",
+                        "ResumeAttempt requires confirmed compatible checkpoint state and its active Lease.",
+                    )
+                return payload
+            if command_type == "RequestAttemptStop":
+                if status != "running":
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "invalid_attempt_transition",
+                        "RequestAttemptStop requires a running Attempt.",
+                    )
+                return payload
+            if command_type == "ConfirmAttemptStopped":
+                process = payload.get("process_disposition")
+                if (
+                    status != "stopping"
+                    or not isinstance(process, dict)
+                    or not process.get("children_closed")
+                    or not process.get("writers_closed")
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "attempt_stop_not_confirmed",
+                        "ConfirmAttemptStopped requires a requested stop and closed process writers and children.",
+                    )
+                return payload
+            if command_type == "SupersedeAttempt":
+                if (
+                    status not in {"created", "claimed", "running", "paused", "stopping"}
+                    or payload.get("replacement_attempt_id") == command.target_stream_id
+                    or int(payload.get("execution_epoch", 0)) <= int(attempt.get("execution_epoch", 0))
+                    or not payload.get("retained_evidence_refs")
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "attempt_supersession_precondition_failed",
+                        "SupersedeAttempt requires nonterminal state, a distinct replacement, a later epoch, and evidence.",
+                    )
+                return payload
+        if command_type in _C2_CHECKPOINT_COMMAND_TYPES:
+            if payload.get("attempt_id") != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "Checkpoint authority must bind the payload Attempt and target stream.",
+                )
+            attempt = streams.get(command.target_stream_id)
+            lease = streams.get(attempt.get("lease_id")) if isinstance(attempt, dict) else None
+            task = streams.get(payload.get("task_id"))
+            latest = attempt.get("latest_checkpoint") if isinstance(attempt, dict) else None
+            if (
+                not isinstance(attempt, dict)
+                or attempt.get("status") not in {"running", "paused", "stopping"}
+                or payload.get("task_id") != attempt.get("task_id")
+                or int(payload.get("task_revision", 0)) != int(attempt.get("task_revision", 0))
+                or not isinstance(task, dict)
+                or int(task.get("current_revision", 0)) != int(payload.get("task_revision", 0))
+                or not isinstance(lease, dict)
+                or lease.get("status") != "active"
+                or lease.get("attempt_id") != command.target_stream_id
+                or payload.get("integrity_status") != "verified"
+                or payload.get("validation_status") != "passed"
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "checkpoint_precondition_failed",
+                    "Checkpoint requires the current Attempt, Task revision, active Lease, and verified validation.",
+                )
+            if isinstance(latest, dict) and (
+                payload.get("checkpoint_manifest_id") == latest.get("checkpoint_manifest_id")
+                or int(payload.get("completed_units", -1)) < int(latest.get("completed_units", 0))
+                or int(payload.get("remaining_units", -1)) > int(latest.get("remaining_units", 0))
+                or payload.get("compatibility_fingerprint") != latest.get("compatibility_fingerprint")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "checkpoint_progression_invalid",
+                    "Checkpoint must preserve its fingerprint and monotonically advance units with a new manifest.",
+                )
+            return payload
+        if command_type in _C2_OPERATOR_COMMAND_TYPES:
+            if payload.get("attempt_id") != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "Operator command must bind its payload Attempt and target stream.",
+                )
+            attempt = streams.get(command.target_stream_id)
+            lease = streams.get(payload.get("lease_id"))
+            if (
+                not isinstance(attempt, dict)
+                or not isinstance(lease, dict)
+                or lease.get("status") != "active"
+                or lease.get("attempt_id") != command.target_stream_id
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "operator_lease_precondition_failed",
+                    "Operator command requires its Attempt's active Lease.",
+                )
+            status = attempt.get("status")
+            operation_state = attempt.get("operation_state")
+            if command_type == "RequestPause":
+                if status != "running" or operation_state in {"pause_requested", "stop_requested"}:
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "operator_pause_precondition_failed",
+                        "RequestPause requires a running Attempt without a pending control request.",
+                    )
+                return payload
+            if command_type == "ConfirmPause":
+                process = payload.get("process_disposition")
+                if (
+                    status != "running"
+                    or operation_state != "pause_requested"
+                    or not isinstance(process, dict)
+                    or not process.get("children_closed")
+                    or not process.get("writers_closed")
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "operator_pause_not_confirmed",
+                        "ConfirmPause requires the pending request and quiesced process writers and children.",
+                    )
+                return payload
+            if command_type == "RequestResume":
+                pause = attempt.get("pause_confirmation")
+                if (
+                    status != "paused"
+                    or operation_state != "pause_confirmed"
+                    or payload.get("compatibility") != "compatible"
+                    or int(payload.get("new_execution_epoch", 0)) <= int(attempt.get("execution_epoch", 0))
+                    or not isinstance(pause, dict)
+                    or payload.get("checkpoint_manifest_id")
+                    != pause.get("checkpoint_disposition", {}).get("checkpoint_manifest_id")
+                    or not payload.get("compatibility_evidence_refs")
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "operator_resume_precondition_failed",
+                        "RequestResume requires a confirmed pause and its exact compatible checkpoint.",
+                    )
+                return payload
+            if command_type == "RequestStop":
+                if status not in {"running", "paused"} or operation_state == "stop_requested":
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "operator_stop_precondition_failed",
+                        "RequestStop requires active or confirmed-paused execution without a pending stop.",
+                    )
+                return payload
+            if command_type == "ConfirmStop":
+                process = payload.get("process_disposition")
+                stop_request = attempt.get("stop_request")
+                if (
+                    status != "stopping"
+                    or operation_state != "stop_requested"
+                    or not isinstance(stop_request, dict)
+                    or payload.get("stop_record_id") != stop_request.get("stop_record_id")
+                    or not isinstance(process, dict)
+                    or not process.get("children_closed")
+                    or not process.get("writers_closed")
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "operator_stop_not_confirmed",
+                        "ConfirmStop requires its pending stop record and closed process writers and children.",
+                    )
+                return payload
+        if command_type in _C2_RECOVERY_COMMAND_TYPES:
+            if payload.get("attempt_id") != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "Recovery command must bind its payload Attempt and target stream.",
+                )
+            attempt = streams.get(command.target_stream_id)
+            lease = streams.get(attempt.get("lease_id")) if isinstance(attempt, dict) else None
+            if not isinstance(attempt, dict):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "attempt_missing",
+                    "QuarantineOrphan requires a committed Attempt.",
+                )
+            if isinstance(lease, dict) and lease.get("status") == "active":
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "live_attempt_owner",
+                    "QuarantineOrphan cannot displace the Attempt's active Lease owner.",
+                )
+            if not payload.get("quarantine_actions") or not payload.get("consumer_restrictions"):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "quarantine_evidence_incomplete",
+                    "QuarantineOrphan requires actions and consumer restrictions.",
+                )
+            return payload
+        if command_type in _C2_DISPATCH_COMMAND_TYPES:
+            if payload.get("dispatch_id") != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "C2 Dispatch payload identity must equal the authority-bound target stream.",
+                )
+            dispatch = streams.get(command.target_stream_id)
+            attempt = streams.get(payload.get("attempt_id"))
+            if (
+                not isinstance(dispatch, dict)
+                or dispatch.get("status") != "claimed"
+                or not isinstance(attempt, dict)
+                or attempt.get("dispatch_id") != command.target_stream_id
+                or attempt.get("status") not in {"completed", "failed", "partial", "abandoned"}
+                or payload.get("terminal_attempt_status") != attempt.get("status")
+                or not payload.get("attempt_evidence_refs")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "dispatch_fulfilment_precondition_failed",
+                    "FulfilDispatch requires its exact claimed Dispatch and terminal producing Attempt evidence.",
+                )
+            return payload
+        if command_type in _C2_REVIEW_COMMAND_TYPES:
+            if payload.get("new_review_id") != command.target_stream_id:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_command_subject_identity",
+                    "Review payload identity must equal the authority-bound target stream.",
+                )
+            subject_ids = payload.get("subject_ids", [])
+            subject_hashes = payload.get("subject_hashes", [])
+            if command.target_stream_id in streams or not subject_ids or len(subject_ids) != len(subject_hashes):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "review_subject_binding_invalid",
+                    "RequestReview requires an empty review stream and paired subject identities and hashes.",
+                )
+            for subject_id, subject_hash in zip(subject_ids, subject_hashes, strict=True):
+                subject = streams.get(subject_id)
+                if not isinstance(subject, dict) or subject_hash != sha256_hex(canonical_bytes(subject)):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "stale_subject_hash",
+                        "RequestReview must bind each exact current replayed subject hash.",
+                    )
+            if (
+                not payload.get("review_questions")
+                or not payload.get("required_evidence_refs")
+                or not payload.get("required_lanes")
+                or not payload.get("reviewer_capability")
+                or not payload.get("allowed_verdicts")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "review_requirements_incomplete",
+                    "RequestReview requires questions, evidence, lanes, reviewer capability and verdicts.",
+                )
+            return payload
+        if command_type not in _C2_TASK_COMMAND_TYPES:
+            raise IntegrityError(f"unsupported C2 command type: {command_type}")
+        if payload.get("task_id") != command.target_stream_id:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_command_subject_identity",
+                "C2 Task payload identity must equal the authority-bound target stream.",
+            )
+        task = streams.get(command.target_stream_id)
+        if not isinstance(task, dict):
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_task_transition",
+                "C2 Task transition requires a current Task.",
+            )
+        status = task.get("status")
+        blockable = {
+            "draft",
+            "readiness_pending",
+            "ready",
+            "in_progress",
+            "review_pending",
+            "input_required",
+            "paused",
+        }
+        if command_type == "BlockTask" and status not in blockable:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_task_transition",
+                "BlockTask requires a current blockable Task.",
+            )
+        if command_type == "RequestInput" and status not in {
+            "draft",
+            "readiness_pending",
+            "ready",
+            "in_progress",
+            "review_pending",
+            "blocked",
+            "paused",
+        }:
+            return self._rejected(
+                command,
+                observed_version,
+                "invalid_task_transition",
+                "RequestInput requires an active Task.",
+            )
+        if command_type == "PauseTask":
+            expected_prior = task.get("prior_active_status") if status in {"blocked", "input_required"} else status
+            if (
+                status
+                not in {
+                    "draft",
+                    "readiness_pending",
+                    "ready",
+                    "in_progress",
+                    "review_pending",
+                    "blocked",
+                    "input_required",
+                }
+                or payload.get("prior_active_status") != expected_prior
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_task_transition",
+                    "PauseTask must bind the exact current active Task status.",
+                )
+        if command_type == "ResumeTask":
+            if status not in {"blocked", "input_required", "paused"}:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_task_transition",
+                    "ResumeTask requires a suspended Task.",
+                )
+            prior = task.get("prior_active_status")
+            if payload.get("suspended_status") != status or payload.get("prior_active_status") != prior:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "invalid_task_resume_binding",
+                    "ResumeTask must bind the exact suspended and prior active states.",
+                )
+            if not payload.get("resolution_evidence_refs") or not payload.get("authority_evidence_refs"):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "task_resume_evidence_required",
+                    "ResumeTask requires resolution and authority evidence.",
+                )
+        if command_type in {"SubmitForReview", "CancelTask"}:
+            attempts = [
+                value
+                for stream_id, value in streams.items()
+                if isinstance(value, dict)
+                and value.get("attempt_id") == stream_id
+                and value.get("task_id") == command.target_stream_id
+            ]
+            terminal = {"completed", "failed", "partial", "abandoned", "superseded"}
+            if not attempts or any(attempt.get("status") not in terminal for attempt in attempts):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "c2_dependency_not_terminal",
+                    f"{command_type} requires terminal Attempt evidence.",
+                )
+            if command_type == "CancelTask":
+                process = payload.get("process_disposition")
+                attempt_ids = {str(attempt["attempt_id"]) for attempt in attempts}
+                if (
+                    status in {"accepted", "rejected", "partial", "cancelled", "superseded"}
+                    or not isinstance(process, dict)
+                    or not process.get("children_closed")
+                    or not process.get("writers_closed")
+                    or set(payload.get("active_attempt_dispositions", [])) != attempt_ids
+                ):
+                    return self._rejected(
+                        command,
+                        observed_version,
+                        "task_cancellation_precondition_failed",
+                        "CancelTask requires all exact Attempt dispositions and closed process writers and children.",
+                    )
+                return payload
+            attempt = streams.get(payload.get("attempt_id"))
+            outcome = attempt.get("outcome") if isinstance(attempt, dict) else None
+            candidate_ids = outcome.get("candidate_artefact_ids") if isinstance(outcome, dict) else None
+            if (
+                status != "in_progress"
+                or not isinstance(attempt, dict)
+                or attempt.get("task_id") != command.target_stream_id
+                or attempt.get("status") not in {"completed", "failed", "partial"}
+                or payload.get("attempt_outcome") != attempt.get("status")
+                or payload.get("candidate_artefact_ids") != (candidate_ids or [])
+                or len(payload.get("candidate_artefact_hashes", [])) != len(payload.get("candidate_artefact_ids", []))
+                or not payload.get("requested_review_ids")
+            ):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "task_review_precondition_failed",
+                    "SubmitForReview must bind the exact terminal Attempt outcome, candidate IDs and requested reviews.",
+                )
+            return payload
+        return payload
 
     def _prepare_resource_grant_materialization(self, command: Command) -> dict[str, Any]:
         """Validate the exact authority preimage without writing before append."""
@@ -4786,6 +5458,13 @@ class CommandService:
                 payload.pop("scheduler_authority_ref")
             elif command_type == "CreateAttempt":
                 payload["creation_kind"] = "initial"
+        elif command_type in _C2_COMMAND_TYPES:
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(
+                prepared_payload if command_type == "RecordAttemptPartial" else command.envelope["payload"]
+            )
+            if command_type == "RetryAttempt":
+                payload["creation_kind"] = "retry"
         elif command_type in _BACKUP_COMMAND_TYPES:
             if prepared_payload is None or prepared_payload != command.envelope["payload"]:
                 raise IntegrityError("CreateBackup requires its exact prepared payload")

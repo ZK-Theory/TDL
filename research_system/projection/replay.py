@@ -17,9 +17,14 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_attempt,
     reduce_backup,
+    reduce_blocker,
+    reduce_checkpoint,
     reduce_dispatch,
     reduce_lease,
     reduce_message,
+    reduce_operation,
+    reduce_recovery,
+    reduce_review,
     reduce_resource,
     reduce_scope,
     reduce_task,
@@ -614,6 +619,12 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         "ReadinessRequested",
         "ReadinessApproved",
         "TaskClaimStarted",
+        "TaskBlocked",
+        "InputRequested",
+        "TaskPaused",
+        "TaskSubmittedForReview",
+        "TaskResumed",
+        "TaskCancelled",
     }:
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
@@ -634,6 +645,11 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_message(streams.get(stream_id, {}), event)
         except ValueError as exc:
             raise IntegrityError(str(exc)) from exc
+    elif event_type in {"BlockerRecorded", "BlockerResolved"}:
+        try:
+            streams[stream_id] = reduce_blocker(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
     elif event_type in {
         "DispatchIssued",
         "DispatchDelivered",
@@ -641,6 +657,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         "DispatchExpired",
         "DispatchWithdrawn",
         "DispatchClaimed",
+        "DispatchFulfilled",
     }:
         try:
             streams[stream_id] = reduce_dispatch(streams.get(stream_id, {}), event)
@@ -658,9 +675,41 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_lease(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type in {"AttemptCreated", "AttemptClaimed", "AttemptStarted"}:
+    elif event_type in {
+        "AttemptCreated",
+        "AttemptClaimed",
+        "AttemptStarted",
+        "AttemptCompleted",
+        "AttemptFailed",
+        "PartialOutcomeRecorded",
+        "AttemptPaused",
+        "AttemptResumed",
+        "AttemptStopRequested",
+        "AttemptAbandoned",
+        "AttemptSuperseded",
+    }:
         try:
             streams[stream_id] = reduce_attempt(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type == "CheckpointRecorded":
+        try:
+            streams[stream_id] = reduce_checkpoint(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type in {"PauseRequested", "PauseConfirmed", "StopRequested", "StopConfirmed", "ResumeRequested"}:
+        try:
+            streams[stream_id] = reduce_operation(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type == "OrphanQuarantined":
+        try:
+            streams[stream_id] = reduce_recovery(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type == "ReviewRequested":
+        try:
+            streams[stream_id] = reduce_review(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type in {"ResourceGrantRequested", "ResourcesReleased"}:

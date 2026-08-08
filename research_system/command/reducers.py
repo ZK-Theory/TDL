@@ -425,6 +425,104 @@ def reduce_task(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "status": "in_progress",
             "version": state["version"] + 1,
         }
+    if event_type == "TaskBlocked" and state.get("status") in {
+        "draft",
+        "readiness_pending",
+        "ready",
+        "in_progress",
+        "review_pending",
+        "input_required",
+        "paused",
+    }:
+        payload = event["payload"]
+        if payload["task_id"] != state.get("task_id"):
+            raise ValueError("TaskBlocked subject binding mismatch")
+        return {
+            **state,
+            "status": "blocked",
+            "prior_active_status": state.get("prior_active_status", state["status"]),
+            "suspension": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "InputRequested" and state.get("status") in {
+        "draft",
+        "readiness_pending",
+        "ready",
+        "in_progress",
+        "review_pending",
+        "blocked",
+        "paused",
+    }:
+        payload = event["payload"]
+        if payload["task_id"] != state.get("task_id"):
+            raise ValueError("InputRequested subject binding mismatch")
+        return {
+            **state,
+            "status": "input_required",
+            "prior_active_status": state.get("prior_active_status", state["status"]),
+            "suspension": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskPaused" and state.get("status") in {
+        "draft",
+        "readiness_pending",
+        "ready",
+        "in_progress",
+        "review_pending",
+        "blocked",
+        "input_required",
+    }:
+        payload = event["payload"]
+        expected_prior = (
+            state.get("prior_active_status")
+            if state.get("status") in {"blocked", "input_required"}
+            else state.get("status")
+        )
+        if payload["task_id"] != state.get("task_id") or payload["prior_active_status"] != expected_prior:
+            raise ValueError("TaskPaused subject binding mismatch")
+        return {
+            **state,
+            "status": "paused",
+            "prior_active_status": payload["prior_active_status"],
+            "suspension": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskResumed" and state.get("status") in {"blocked", "input_required", "paused"}:
+        payload = event["payload"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or payload["suspended_status"] != state.get("status")
+            or payload["prior_active_status"] != state.get("prior_active_status")
+            or not payload["resolution_evidence_refs"]
+            or not payload["authority_evidence_refs"]
+        ):
+            raise ValueError("TaskResumed suspension binding mismatch")
+        return {
+            **state,
+            "status": payload["prior_active_status"],
+            "last_resume": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskSubmittedForReview" and state.get("status") == "in_progress":
+        payload = event["payload"]
+        if payload["task_id"] != state.get("task_id"):
+            raise ValueError("TaskSubmittedForReview subject binding mismatch")
+        return {
+            **state,
+            "status": "review_pending",
+            "review_submission": payload,
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskCancelled" and state.get("status") not in _TASK_TERMINAL:
+        payload = event["payload"]
+        if payload["task_id"] != state.get("task_id"):
+            raise ValueError("TaskCancelled subject binding mismatch")
+        return {
+            **state,
+            "status": "cancelled",
+            "cancellation": payload,
+            "version": state["version"] + 1,
+        }
     raise ValueError(f"illegal task transition: {state.get('status')} -> {event_type}")
 
 
@@ -465,8 +563,12 @@ def reduce_dispatch(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
             raise ValueError("DispatchExpired observed state mismatch")
         return {**state, "status": "expired", "expiry": payload, "version": event["stream_version"]}
     if event_type == "DispatchWithdrawn":
-        if state.get("status") != "issued" or payload["observed_prior_state"] != "issued":
-            raise ValueError("DispatchWithdrawn requires issued Dispatch in C1")
+        if state.get("status") not in {"issued", "claimed"} or payload["observed_prior_state"] != state.get("status"):
+            raise ValueError("DispatchWithdrawn observed state mismatch")
+        if state.get("status") == "claimed":
+            stop = payload.get("attempt_stop_disposition")
+            if not isinstance(stop, dict) or not stop.get("children_closed") or not stop.get("writers_closed"):
+                raise ValueError("Claimed Dispatch withdrawal requires closed Attempt disposition")
         return {**state, "status": "withdrawn", "withdrawal": payload, "version": event["stream_version"]}
     if event_type == "DispatchClaimed":
         if state.get("status") != "acknowledged":
@@ -484,7 +586,42 @@ def reduce_dispatch(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
             "claim": payload,
             "version": event["stream_version"],
         }
+    if event_type == "DispatchFulfilled":
+        if state.get("status") != "claimed":
+            raise ValueError("DispatchFulfilled requires claimed Dispatch")
+        return {**state, "status": "fulfilled", "fulfilment": payload, "version": event["stream_version"]}
     raise ValueError(f"illegal dispatch transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_blocker(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce the C2 Blocker record and exact resolution evidence."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if event_type == "BlockerRecorded":
+        if state or payload["new_blocker_id"] != event["stream_id"] or not payload["blocker_evidence_refs"]:
+            raise ValueError("BlockerRecorded requires an empty bound stream and evidence")
+        return {
+            "blocker_id": event["stream_id"],
+            "status": "open",
+            "record": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "BlockerResolved":
+        if (
+            not state
+            or state.get("status") != "open"
+            or payload["blocker_id"] != state.get("blocker_id")
+            or not payload["resolution_evidence_refs"]
+        ):
+            raise ValueError("BlockerResolved requires an open bound Blocker and evidence")
+        return {
+            **state,
+            "status": "resolved",
+            "resolution": payload,
+            "version": event["stream_version"],
+        }
+    raise ValueError(f"illegal blocker transition: {state.get('status')} -> {event_type}")
 
 
 def reduce_lease(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
@@ -545,20 +682,33 @@ def reduce_attempt(state: dict[str, Any], event: dict[str, Any]) -> dict[str, An
     event_type = event["event_type"]
     payload = event["payload"]
     if event_type == "AttemptCreated":
-        if state or payload["new_attempt_id"] != event["stream_id"] or payload["creation_kind"] != "initial":
-            raise ValueError("AttemptCreated requires an empty initial Attempt stream")
+        if state or payload["new_attempt_id"] != event["stream_id"]:
+            raise ValueError("AttemptCreated requires an empty bound Attempt stream")
+        if payload["creation_kind"] == "initial":
+            return {
+                "attempt_id": event["stream_id"],
+                "status": "created",
+                "task_id": payload["task_id"],
+                "task_revision": int(payload["task_revision"]),
+                "dispatch_id": payload["dispatch_id"],
+                "attempt_ordinal": int(payload["attempt_ordinal"]),
+                "execution_epoch": int(payload["execution_epoch"]),
+                "creation": payload,
+                "version": event["stream_version"],
+            }
+        if payload["creation_kind"] != "retry":
+            raise ValueError("AttemptCreated creation kind is invalid")
         return {
             "attempt_id": event["stream_id"],
             "status": "created",
-            "task_id": payload["task_id"],
-            "task_revision": int(payload["task_revision"]),
-            "dispatch_id": payload["dispatch_id"],
             "attempt_ordinal": int(payload["attempt_ordinal"]),
             "execution_epoch": int(payload["execution_epoch"]),
+            "prior_attempt_id": payload["prior_attempt_id"],
+            "prior_outcome": payload["prior_outcome"],
             "creation": payload,
             "version": event["stream_version"],
         }
-    if not state or payload.get("attempt_id") != state.get("attempt_id"):
+    if not state or (event_type != "PartialOutcomeRecorded" and payload.get("attempt_id") != state.get("attempt_id")):
         raise ValueError(f"{event_type} Attempt subject binding mismatch")
     if event_type == "AttemptClaimed":
         if (
@@ -579,6 +729,51 @@ def reduce_attempt(state: dict[str, Any], event: dict[str, Any]) -> dict[str, An
         if state.get("status") != "claimed":
             raise ValueError("AttemptStarted requires claimed Attempt")
         return {**state, "status": "running", "start": payload, "version": event["stream_version"]}
+    if event_type in {"AttemptCompleted", "AttemptFailed", "PartialOutcomeRecorded"}:
+        if state.get("status") != "running":
+            raise ValueError(f"{event_type} requires running Attempt")
+        if event_type == "PartialOutcomeRecorded" and (
+            payload.get("subject_kind") != "task" or payload.get("task_id") != state.get("task_id")
+        ):
+            raise ValueError("PartialOutcomeRecorded task relation mismatch")
+        status = {
+            "AttemptCompleted": "completed",
+            "AttemptFailed": "failed",
+            "PartialOutcomeRecorded": "partial",
+        }[event_type]
+        return {**state, "status": status, "outcome": payload, "version": event["stream_version"]}
+    if event_type == "AttemptPaused":
+        if state.get("status") != "running":
+            raise ValueError("AttemptPaused requires running Attempt")
+        return {**state, "status": "paused", "pause": payload, "version": event["stream_version"]}
+    if event_type == "AttemptResumed":
+        checkpoint = payload.get("checkpoint_disposition")
+        if (
+            state.get("status") != "paused"
+            or payload.get("compatibility") != "compatible"
+            or not isinstance(checkpoint, dict)
+            or checkpoint.get("compatibility") != "compatible"
+        ):
+            raise ValueError("AttemptResumed requires paused compatible checkpoint state")
+        return {**state, "status": "running", "resume": payload, "version": event["stream_version"]}
+    if event_type == "AttemptStopRequested":
+        if state.get("status") != "running":
+            raise ValueError("AttemptStopRequested requires running Attempt")
+        return {**state, "status": "stopping", "stop_request": payload, "version": event["stream_version"]}
+    if event_type == "AttemptAbandoned":
+        process = payload.get("process_disposition")
+        if (
+            state.get("status") != "stopping"
+            or not isinstance(process, dict)
+            or not process.get("children_closed")
+            or not process.get("writers_closed")
+        ):
+            raise ValueError("AttemptAbandoned requires confirmed stopped process")
+        return {**state, "status": "abandoned", "abandonment": payload, "version": event["stream_version"]}
+    if event_type == "AttemptSuperseded":
+        if state.get("status") not in {"created", "claimed", "running", "paused", "stopping"}:
+            raise ValueError("AttemptSuperseded requires nonterminal Attempt")
+        return {**state, "status": "superseded", "supersession": payload, "version": event["stream_version"]}
     raise ValueError(f"illegal attempt transition: {state.get('status')} -> {event_type}")
 
 
@@ -613,6 +808,130 @@ def reduce_resource(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
             raise ValueError("ResourcesReleased requires active Resource")
         return {**state, "status": "released", "release": payload, "version": event["stream_version"]}
     raise ValueError(f"illegal resource transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_checkpoint(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Attach a state-neutral, monotonic checkpoint fact to its Attempt."""
+    validate_exact_lifecycle_envelope(event)
+    payload = event["payload"]
+    if (
+        event["event_type"] != "CheckpointRecorded"
+        or not state
+        or payload["attempt_id"] != state.get("attempt_id")
+        or payload["task_id"] != state.get("task_id")
+        or int(payload["task_revision"]) != int(state.get("task_revision", 0))
+    ):
+        raise ValueError("CheckpointRecorded Attempt relation mismatch")
+    latest = state.get("latest_checkpoint")
+    if isinstance(latest, dict) and (
+        payload["checkpoint_manifest_id"] == latest.get("checkpoint_manifest_id")
+        or int(payload["completed_units"]) < int(latest.get("completed_units", 0))
+        or int(payload["remaining_units"]) > int(latest.get("remaining_units", 0))
+        or payload["compatibility_fingerprint"] != latest.get("compatibility_fingerprint")
+    ):
+        raise ValueError("CheckpointRecorded progression mismatch")
+    return {
+        **state,
+        "latest_checkpoint": payload,
+        "checkpoints": [*state.get("checkpoints", []), payload],
+        "version": event["stream_version"],
+    }
+
+
+def reduce_operation(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce ordered C2 operator request and confirmation facts on an Attempt."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    if not state or payload.get("attempt_id") != state.get("attempt_id"):
+        raise ValueError(f"{event_type} Attempt relation mismatch")
+    if event_type == "PauseRequested":
+        if state.get("status") != "running" or state.get("operation_state") in {
+            "pause_requested",
+            "stop_requested",
+        }:
+            raise ValueError("PauseRequested requires running Attempt without pending control")
+        return {
+            **state,
+            "operation_state": "pause_requested",
+            "pause_request": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "PauseConfirmed":
+        if state.get("status") != "running" or state.get("operation_state") != "pause_requested":
+            raise ValueError("PauseConfirmed requires pending pause request")
+        return {
+            **state,
+            "status": "paused",
+            "operation_state": "pause_confirmed",
+            "pause_confirmation": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "ResumeRequested":
+        if (
+            state.get("status") != "paused"
+            or state.get("operation_state") != "pause_confirmed"
+            or payload.get("compatibility") != "compatible"
+        ):
+            raise ValueError("ResumeRequested requires confirmed compatible pause")
+        return {
+            **state,
+            "operation_state": "resume_requested",
+            "resume_request": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "StopRequested":
+        if state.get("status") not in {"running", "paused"}:
+            raise ValueError("StopRequested requires active or paused Attempt")
+        return {
+            **state,
+            "status": "stopping",
+            "operation_state": "stop_requested",
+            "stop_request": payload,
+            "version": event["stream_version"],
+        }
+    if event_type == "StopConfirmed":
+        if state.get("status") != "stopping" or state.get("operation_state") != "stop_requested":
+            raise ValueError("StopConfirmed requires pending stop request")
+        if payload.get("stop_record_id") != state.get("stop_request", {}).get("stop_record_id"):
+            raise ValueError("StopConfirmed record mismatch")
+        return {
+            **state,
+            "operation_state": "stop_confirmed",
+            "stop_confirmation": payload,
+            "version": event["stream_version"],
+        }
+    raise ValueError(f"illegal operator transition: {state.get('status')} -> {event_type}")
+
+
+def reduce_recovery(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Attach a durable orphan-quarantine record without rewriting Attempt history."""
+    validate_exact_lifecycle_envelope(event)
+    payload = event["payload"]
+    if event["event_type"] != "OrphanQuarantined" or payload.get("attempt_id") != state.get("attempt_id"):
+        raise ValueError("OrphanQuarantined Attempt relation mismatch")
+    return {
+        **state,
+        "recovery_status": "quarantined",
+        "quarantine": payload,
+        "version": event["stream_version"],
+    }
+
+
+def reduce_review(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Create one immutable C2 Review request from its exact subject bindings."""
+    validate_exact_lifecycle_envelope(event)
+    payload = event["payload"]
+    if event["event_type"] != "ReviewRequested" or state or payload["new_review_id"] != event["stream_id"]:
+        raise ValueError("ReviewRequested requires an empty bound Review stream")
+    if not payload["subject_ids"] or len(payload["subject_ids"]) != len(payload["subject_hashes"]):
+        raise ValueError("ReviewRequested subject identities and hashes mismatch")
+    return {
+        "review_id": event["stream_id"],
+        "status": "requested",
+        "request": payload,
+        "version": event["stream_version"],
+    }
 
 
 def _materialize_scope_definition(
@@ -891,6 +1210,12 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "ReadinessRequested",
             "ReadinessApproved",
             "TaskClaimStarted",
+            "TaskBlocked",
+            "InputRequested",
+            "TaskPaused",
+            "TaskSubmittedForReview",
+            "TaskResumed",
+            "TaskCancelled",
         }:
             stream_id = event["stream_id"]
             validate_task_lifecycle_event(stream_states, event)
@@ -920,6 +1245,12 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
                 stream_states.get(stream_id, {}),
                 event,
             )
+        elif event["event_type"] in {"BlockerRecorded", "BlockerResolved"}:
+            stream_id = event["stream_id"]
+            stream_states[stream_id] = reduce_blocker(
+                stream_states.get(stream_id, {}),
+                event,
+            )
         elif event["event_type"] in {
             "DispatchIssued",
             "DispatchDelivered",
@@ -927,6 +1258,7 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "DispatchExpired",
             "DispatchWithdrawn",
             "DispatchClaimed",
+            "DispatchFulfilled",
         }:
             stream_states[event["stream_id"]] = reduce_dispatch(
                 stream_states.get(event["stream_id"], {}),
@@ -944,8 +1276,46 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
-        elif event["event_type"] in {"AttemptCreated", "AttemptClaimed", "AttemptStarted"}:
+        elif event["event_type"] in {
+            "AttemptCreated",
+            "AttemptClaimed",
+            "AttemptStarted",
+            "AttemptCompleted",
+            "AttemptFailed",
+            "PartialOutcomeRecorded",
+            "AttemptPaused",
+            "AttemptResumed",
+            "AttemptStopRequested",
+            "AttemptAbandoned",
+            "AttemptSuperseded",
+        }:
             stream_states[event["stream_id"]] = reduce_attempt(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "CheckpointRecorded":
+            stream_states[event["stream_id"]] = reduce_checkpoint(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] in {
+            "PauseRequested",
+            "PauseConfirmed",
+            "StopRequested",
+            "StopConfirmed",
+            "ResumeRequested",
+        }:
+            stream_states[event["stream_id"]] = reduce_operation(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "OrphanQuarantined":
+            stream_states[event["stream_id"]] = reduce_recovery(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "ReviewRequested":
+            stream_states[event["stream_id"]] = reduce_review(
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
