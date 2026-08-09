@@ -8,6 +8,10 @@
 
 **Branch:** `codex/wp6-1-kan95-06h-reconcile-9736c90`
 
+**Candidate commit:** `3c75d3d102d8fe14746b19662005e88c4b776ffa`
+
+**Candidate tree:** `01625ae2e64a90981f0721c9bb7b35bf7d3abe25`
+
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
 **Status:** exact live-main 06h candidate construction; G-RM-8, independent review,
@@ -108,10 +112,14 @@ provider disabled, coverage plugin disabled, and bytecode writes disabled.
 - Exact identity, immutable nested JSON, duplicate identity, deterministic
   112-binding inventory, complete append census, manifest-node resolution,
   generic/T2 missing-triple rejection, and planted-unmanifested-site controls:
-  **9 passed in 7.28 seconds**.
-- Final targeted 06h gate: the complete schema-registry module, executable
+  **9 passed in 7.28 seconds before commit** and **9 passed in 16.15 seconds at
+  exact candidate head `3c75d3d`**.
+- The complete schema-registry module, executable
   manifest/smoke module, and exact generic-command, T2, and ledger provenance
-  controls: **55 passed in 185.70 seconds**.
+  controls passed **55 tests in 185.70 seconds before commit** on the content
+  committed as `3c75d3d`. The one exact-head repeat exceeded its 300-second
+  bound without emitting a terminal pytest summary; no child process survived.
+  That aggregate repeat is **unresolved**, not reported green.
 - PR #222 shared-schema public positives for real artefact authority and W3
   context lifecycle: **2 passed in 15.28 seconds**.
 
