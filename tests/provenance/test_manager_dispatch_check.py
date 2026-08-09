@@ -15,6 +15,7 @@ from shared.manager_dispatch_check import (
     check_report_bus,
     check_state_manifest,
     check_worktree,
+    check_workspace_binding,
     render,
 )
 
@@ -77,6 +78,21 @@ def test_check_worktree_mode(tmp_path: Path) -> None:
     par = check_worktree(tmp_path, "run/x", "parallel")
     assert not par[0].ok
     assert "no worktree" in par[0].detail
+
+
+def test_parallel_workspace_must_equal_branch_owned_worktree(tmp_path: Path) -> None:
+    """A detached duplicate workspace cannot impersonate the branch owner."""
+    owner = (tmp_path / "owner").resolve()
+    duplicate = (tmp_path / "duplicate").resolve()
+    owner.mkdir()
+    duplicate.mkdir()
+    mapping = {"run/x": str(owner)}
+
+    assert check_workspace_binding("run/x", "parallel", owner, mapping).ok
+    mismatch = check_workspace_binding("run/x", "parallel", duplicate, mapping)
+    assert not mismatch.ok
+    assert str(owner) in mismatch.detail
+    assert str(duplicate) in mismatch.detail
 
 
 def test_state_manifest_fully_valid_and_existing_deliverable_warns(tmp_path: Path) -> None:
@@ -241,3 +257,97 @@ outputs:
     )
     assert next(c for c in checks if c.name == "state:contract:escaped").advisory
     assert next(c for c in checks if c.name == "state:output:../outside.json").advisory
+
+
+def test_state_manifest_closes_lanes_registries_and_derived_field_sources(tmp_path: Path) -> None:
+    """Prompt-ready means every lane and production dependency is resolved."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "registry.py").write_text("REQUIRED_REGISTRY = {}\n", encoding="utf-8")
+    manifest = tmp_path / "state.yaml"
+    manifest.write_text(
+        """
+task_id: task-a
+deliverables: []
+blockers: []
+planned_contracts: []
+inputs: []
+outputs: []
+lanes:
+  - id: author
+    completion_predicate: [python, -c, "raise SystemExit(0)"]
+    next_gate: independent-review
+  - id: integration
+    completion_predicate: [python, -c, "raise SystemExit(1)"]
+    next_gate: merge
+registries:
+  - id: lifecycle-bindings
+    path: registry.py
+    root: worktree
+    symbol: REQUIRED_REGISTRY
+    disposition: writable
+derived_fields:
+  - name: content_sha256
+    preimage: canonical message content bytes
+    semantics: lowercase SHA-256 over the exact preimage
+required_fields:
+  - name: assurance_pack_id
+    source: accepted allocation record
+    resolution_check: [python, -c, "raise SystemExit(0)"]
+""",
+        encoding="utf-8",
+    )
+
+    checks = check_state_manifest(manifest, tmp_path, tmp_path)
+    author = next(c for c in checks if c.name == "state:lane:author")
+    integration = next(c for c in checks if c.name == "state:lane:integration")
+    assert author.advisory and "advance to independent-review" in author.detail
+    assert not integration.advisory and integration.detail == "lane remains active"
+    assert next(c for c in checks if c.name == "state:registry:lifecycle-bindings").detail == (
+        "registry dependency resolved (writable)"
+    )
+    assert next(c for c in checks if c.name == "state:derived-field:content_sha256").detail == (
+        "derived-field preimage and semantics declared"
+    )
+    assert next(c for c in checks if c.name == "state:required-field:assurance_pack_id").detail == (
+        "required-field source resolved"
+    )
+
+
+def test_state_manifest_dependency_closure_near_misses_warn(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "registry.py").write_text("OTHER = {}\n", encoding="utf-8")
+    manifest = tmp_path / "state.yaml"
+    manifest.write_text(
+        """
+task_id: task-a
+lanes:
+  - id: author
+    completion_predicate: not-an-argv
+    next_gate: ""
+registries:
+  - id: lifecycle-bindings
+    path: registry.py
+    root: worktree
+    symbol: REQUIRED_REGISTRY
+    disposition: guessed
+derived_fields:
+  - name: content_sha256
+    preimage: ""
+    semantics: ""
+required_fields:
+  - name: assurance_pack_id
+    source: accepted allocation record
+    resolution_check: [python, -c, "raise SystemExit(1)"]
+""",
+        encoding="utf-8",
+    )
+
+    checks = check_state_manifest(manifest, tmp_path, tmp_path)
+    for name in (
+        "state:lane:author",
+        "state:registry:lifecycle-bindings",
+        "state:derived-field:content_sha256",
+        "state:required-field:assurance_pack_id",
+    ):
+        check = next(c for c in checks if c.name == name)
+        assert check.ok and check.advisory and "WARNING:" in check.detail

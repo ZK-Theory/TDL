@@ -125,6 +125,39 @@ def check_worktree(proj_root: Path, branch: str, mode: str) -> list[Check]:
     return checks
 
 
+def check_workspace_binding(
+    branch: str,
+    mode: str,
+    workspace: Path,
+    worktrees: dict[str, str],
+) -> Check:
+    """Require a parallel dispatch to execute in the branch-owning worktree.
+
+    A platform-created task may start detached at the right commit while the
+    required branch is already attached elsewhere. Commit equality does not
+    make that detached checkout the branch owner, so an explicit ``--workspace``
+    must not silently route validation or writes into it.
+    """
+    if mode != "parallel":
+        return Check("workspace-binding", True, "sequential dispatch uses the declared workspace")
+    owner_raw = worktrees.get(branch)
+    if owner_raw is None:
+        return Check("workspace-binding", False, f"branch '{branch}' has no owning worktree")
+    owner = Path(owner_raw).resolve()
+    actual = workspace.resolve()
+    try:
+        same = os.path.samefile(owner, actual)
+    except (FileNotFoundError, OSError):
+        same = os.path.normcase(str(owner)) == os.path.normcase(str(actual))
+    if not same:
+        return Check(
+            "workspace-binding",
+            False,
+            f"workspace {actual} does not own branch '{branch}'; branch owner is {owner}",
+        )
+    return Check("workspace-binding", True, f"workspace owns branch '{branch}' ({owner})")
+
+
 def _resolve_workspace(
     workspace_arg: str | None,
     branch: str,
@@ -331,7 +364,17 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         return [Check("state-manifest", True, "WARNING: required task_id is absent", advisory=True)]
 
     checks: list[Check] = []
-    for kind in ("deliverables", "blockers", "planned_contracts", "inputs", "outputs"):
+    for kind in (
+        "deliverables",
+        "blockers",
+        "planned_contracts",
+        "inputs",
+        "outputs",
+        "lanes",
+        "registries",
+        "derived_fields",
+        "required_fields",
+    ):
         if not isinstance(payload.get(kind, []), list):
             checks.append(Check(f"state:{kind}", True, f"WARNING: {kind} must be a list", advisory=True))
             payload[kind] = []
@@ -426,6 +469,75 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
                 advisory=not ok,
             )
         )
+
+    for item in payload.get("lanes", []):
+        if not isinstance(item, dict) or not item.get("id"):
+            checks.append(Check("state:lane", True, "WARNING: lane requires id", advisory=True))
+            continue
+        lane_id = item["id"]
+        next_gate = item.get("next_gate")
+        complete, diagnostic = _run_state_predicate(item.get("completion_predicate"), workspace)
+        if complete and isinstance(next_gate, str) and next_gate:
+            detail = f"WARNING: lane is complete; skip author dispatch and advance to {next_gate}"
+            advisory = True
+        elif complete:
+            detail = "WARNING: completed lane requires a non-empty next_gate"
+            advisory = True
+        elif diagnostic == "predicate must be a non-empty argv list":
+            detail = f"WARNING: {diagnostic}"
+            advisory = True
+        else:
+            detail = "lane remains active"
+            advisory = False
+        checks.append(Check(f"state:lane:{lane_id}", True, detail, advisory=advisory))
+
+    for item in payload.get("registries", []):
+        if not isinstance(item, dict):
+            checks.append(Check("state:registry", True, "WARNING: malformed entry", advisory=True))
+            continue
+        registry_id = item.get("id", "?")
+        root = _state_root(item.get("root", ""), workspace, proj_root)
+        target = _scoped_state_path(root, item.get("path"))
+        symbol = item.get("symbol")
+        disposition = item.get("disposition")
+        allowed_dispositions = {"writable", "certified_unchanged"}
+        try:
+            source = target.read_text(encoding="utf-8") if target and target.is_file() else ""
+        except OSError:
+            source = ""
+        ok = isinstance(symbol, str) and bool(symbol) and symbol in source and disposition in allowed_dispositions
+        detail = (
+            f"registry dependency resolved ({disposition})"
+            if ok
+            else "WARNING: registry path, symbol, or disposition is unresolved"
+        )
+        checks.append(Check(f"state:registry:{registry_id}", True, detail, advisory=not ok))
+
+    for item in payload.get("derived_fields", []):
+        if not isinstance(item, dict):
+            checks.append(Check("state:derived-field", True, "WARNING: malformed entry", advisory=True))
+            continue
+        name = item.get("name", "?")
+        ok = all(
+            isinstance(item.get(field), str) and item[field].strip() for field in ("name", "preimage", "semantics")
+        )
+        detail = (
+            "derived-field preimage and semantics declared"
+            if ok
+            else "WARNING: derived field requires name, preimage, and semantics"
+        )
+        checks.append(Check(f"state:derived-field:{name}", True, detail, advisory=not ok))
+
+    for item in payload.get("required_fields", []):
+        if not isinstance(item, dict):
+            checks.append(Check("state:required-field", True, "WARNING: malformed entry", advisory=True))
+            continue
+        name = item.get("name", "?")
+        source = item.get("source")
+        resolved, diagnostic = _run_state_predicate(item.get("resolution_check"), workspace)
+        ok = isinstance(name, str) and bool(name) and isinstance(source, str) and bool(source.strip()) and resolved
+        detail = "required-field source resolved" if ok else f"WARNING: required-field source unresolved ({diagnostic})"
+        checks.append(Check(f"state:required-field:{name}", True, detail, advisory=not ok))
     return checks or [Check("state-manifest", True, "manifest has no state claims")]
 
 
@@ -487,6 +599,7 @@ def main(argv: list[str] | None = None) -> int:
 
     wt_map = _worktree_paths(proj_root)
     workspace = _resolve_workspace(args.workspace, args.branch, wt_map, proj_root)
+    checks.append(check_workspace_binding(args.branch, args.mode, workspace, wt_map))
     checks.append(check_contracts(workspace))
     checks.append(check_hook_gate(workspace))
 
