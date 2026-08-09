@@ -147,7 +147,7 @@ exit 0
     invocations = invocation_log.read_text(encoding="utf-8").splitlines()
     assert invocations == [
         f"{_msys_path(worktree)}/tools/sync_agent_skills.py --check",
-        f"{_msys_path(worktree)}/.claude/hooks/contract_binding_check.py",
+        f"{_msys_path(worktree)}/.claude/hooks/run_staged_contract_gate.py --repo-root {_msys_path(worktree)} --",
     ]
 
 
@@ -179,6 +179,9 @@ case "$*" in
   "diff --name-only")
     if [ -f "$HOOK_TEST_MARKER" ]; then printf 'uv.lock\n'; fi
     ;;
+  "diff --no-ext-diff --binary")
+    if [ -f "$HOOK_TEST_MARKER" ]; then printf 'synthetic-diff\n'; fi
+    ;;
   *) exit 0 ;;
 esac
 """,
@@ -188,7 +191,7 @@ esac
         main_root / ".venv" / "Scripts" / "python.exe",
         """#!/bin/sh
 case "$*" in
-  *contract_binding_check.py*) touch "$HOOK_TEST_MARKER" ;;
+  *run_staged_contract_gate.py*) touch "$HOOK_TEST_MARKER" ;;
 esac
 exit 0
 """,

@@ -77,6 +77,12 @@ history-bearing temporary clone with `core.autocrlf=false` and
 `core.longpaths=true`; use a verified external interpreter and check ignored
 residue after hooks.
 
+After a real merge, validate the composed merge result rather than reusing the
+PR-head verdict. Re-run tests affected by manually resolved or overlapping
+symbols, and re-resolve every exact-reference pin against the merge `HEAD`.
+Treat the push-to-main CI receipt as the positive execution signal; a stale pin
+or affected-test failure keeps the campaign incomplete.
+
 ## Dispatch Envelope
 
 Every implementer or reviewer dispatch records:

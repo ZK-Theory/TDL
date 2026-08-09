@@ -45,24 +45,29 @@ internals, so they survive refactors.
    provenance-related? (`research-assurance-triage`)
 4. If yes: require the upstream contract, or record an explicit
    "contract not applicable because …" note. Never proceed on "probably fine".
-5. Write ONE failing test for ONE behaviour. Watch it fail.
-6. Implement the minimal code to green.
-7. Next behaviour slice. Refactor only while green.
-8. Where a value is contract-pinned, assert the **exact value and type** —
+5. Classify each new control before parent execution: `remediation-red` when it
+   demonstrates behavior this candidate changes, or `preservation-green` when
+   it characterizes behavior that must remain true. Bind the label to the
+   public seam and source ordering it exercises. Only remediation controls are
+   required to fail on the parent; preservation controls must pass on both.
+6. Write ONE failing test for ONE behaviour. Watch it fail.
+7. Implement the minimal code to green.
+8. Next behaviour slice. Refactor only while green.
+9. Where a value is contract-pinned, assert the **exact value and type** —
    `n == 711`, `family == "quasibinomial"`, `level` is `str` or `null` never
    `{}` — not key presence, not "> 0". Add a negative case for each
    `must_assert` clause.
-9. Run the contract binding check, integration checks, and the result-schema /
+10. Run the contract binding check, integration checks, and the result-schema /
    provenance checks if outputs changed.
-10. If the designated independent oracle is not on the base branch, make the
+11. If the designated independent oracle is not on the base branch, make the
     enforcing test self-contained (for example, brute-force tiny-input
     re-derivation). An optional cross-check may skip when a production solver is
     absent; the only enforcing oracle may not.
-11. When a fixture pins a file hash, length, or byte diff, derive the expected
+12. When a fixture pins a file hash, length, or byte diff, derive the expected
     value from the on-disk bytes after writing (`path.read_bytes()`), or write
     with explicit newline control. Do not hash the in-memory string and assume
     Windows text-mode output preserved it byte-for-byte.
-12. State which object namespace an immutable-byte proof reads: working tree,
+13. State which object namespace an immutable-byte proof reads: working tree,
     index, explicit revision, or committed `HEAD`. A pre-commit test that reads
     `HEAD` cannot certify a staged restoration; label that run non-certifying
     and require a post-commit run against the frozen candidate.
@@ -82,6 +87,7 @@ internals, so they survive refactors.
 - [ ] Contract requirement resolved BEFORE implementation (existing /
       requested upstream / documented N/A).
 - [ ] One behaviour per cycle; each test seen red before green.
+- [ ] Parent controls classified: remediation-red or preservation-green.
 - [ ] Tests cross the public/scientific interface, not private internals.
 - [ ] Exact value/type assertions for contract-pinned fields, with negative
       cases.

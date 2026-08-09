@@ -95,8 +95,11 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.
   fi
 fi
 
-# Gate 2 — math-correctness contract validator.
-if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
+# Gate 2 — math-correctness contract validator. Materialize the Git index in a
+# disposable directory so unrelated unstaged files cannot change commit
+# admissibility. The runner reuses MAIN_PYTHON and exposes the current Git
+# object database to provenance tests without exposing working-copy bytes.
+if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/run_staged_contract_gate.py" --repo-root "$REPO_ROOT" -- "$@"; then
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
   exit 1

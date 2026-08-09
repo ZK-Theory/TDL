@@ -9,6 +9,7 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -33,6 +34,9 @@ jobs:
           source .venv/bin/activate
           ruff check . --output-format=github
 
+      # This unfiltered suite is also the post-merge composition and exact-
+      # reference currency signal on pushes to main. A stale pinned blob or a
+      # producer/schema composition failure must therefore turn the merge red.
       - name: Run pytest with coverage
         run: |
           source .venv/bin/activate
