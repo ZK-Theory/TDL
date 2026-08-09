@@ -89,3 +89,19 @@ def test_cli_reports_malformed_jsonl_without_hiding_valid_usage(tmp_path, capsys
     output = json.loads(capsys.readouterr().out)
     assert output["malformed_records"] == 1
     assert output["usage"]["total_tokens"] == 6
+
+
+def test_cli_counts_structurally_malformed_telemetry_without_hiding_usage(tmp_path, capsys):
+    path = tmp_path / "session.jsonl"
+    valid = _token(_usage(5, 1), _usage(5, 1))
+    malformed_payload = {"type": "event_msg", "payload": "not-an-object"}
+    malformed_counter = _token({"total_tokens": "not-an-integer"}, None)
+    path.write_text(
+        "\n".join(json.dumps(record) for record in (valid, malformed_payload, malformed_counter)) + "\n",
+        encoding="utf-8",
+    )
+
+    assert main([str(path)]) == 1
+    output = json.loads(capsys.readouterr().out)
+    assert output["malformed_records"] == 2
+    assert output["usage"]["total_tokens"] == 6

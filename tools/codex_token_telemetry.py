@@ -28,7 +28,10 @@ COMPONENT_FIELDS = FIELDS[:-1]
 def _usage(value: Any) -> dict[str, int | None] | None:
     if not isinstance(value, dict) or not any(field in value for field in FIELDS):
         return None
-    result = {field: int(value.get(field, 0) or 0) if field in value else None for field in FIELDS}
+    try:
+        result = {field: int(value.get(field, 0) or 0) if field in value else None for field in FIELDS}
+    except (TypeError, ValueError) as exc:
+        raise ValueError("token usage fields must be integer-compatible") from exc
     if int(result.get("total_tokens") or 0) > 0 and all(int(result.get(field) or 0) == 0 for field in COMPONENT_FIELDS):
         for field in COMPONENT_FIELDS:
             result[field] = None
@@ -36,14 +39,24 @@ def _usage(value: Any) -> dict[str, int | None] | None:
 
 
 def token_snapshot(record: dict[str, Any]) -> tuple[dict[str, int | None], dict[str, int | None] | None] | None:
-    payload = record.get("payload") or {}
-    if record.get("type") != "event_msg" or payload.get("type") != "token_count":
+    if record.get("type") != "event_msg":
         return None
-    info = payload.get("info") or {}
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("event_msg payload must be an object")
+    if payload.get("type") != "token_count":
+        return None
+    info = payload.get("info")
+    if not isinstance(info, dict):
+        raise ValueError("token_count info must be an object")
     total = _usage(info.get("total_token_usage"))
     if total is None:
-        return None
-    return total, _usage(info.get("last_token_usage"))
+        raise ValueError("token_count total_token_usage must contain token fields")
+    last_raw = info.get("last_token_usage")
+    last = _usage(last_raw)
+    if last_raw is not None and last is None:
+        raise ValueError("last_token_usage must be an object containing token fields")
+    return total, last
 
 
 def _delta(
@@ -79,9 +92,15 @@ def audit_records(records: Iterable[dict[str, Any]], *, boundary_seq: int = 0) -
     local_token_records = 0
     repeated_last_records = 0
     reset_records = 0
+    malformed_records = 0
 
     for seq, record in enumerate(records):
-        snapshot = token_snapshot(record)
+        try:
+            snapshot = token_snapshot(record)
+        except ValueError as exc:
+            malformed_records += 1
+            warnings.append({"seq": seq, "code": "malformed_token_telemetry", "detail": str(exc)})
+            continue
         if snapshot is None:
             continue
         token_records += 1
@@ -146,6 +165,7 @@ def audit_records(records: Iterable[dict[str, Any]], *, boundary_seq: int = 0) -
         "local_token_records": local_token_records,
         "repeated_last_records": repeated_last_records,
         "counter_reset_records": reset_records,
+        "malformed_records": malformed_records,
         "boundary_seq": boundary_seq,
         "warnings": warnings,
         "semantics": {
@@ -181,9 +201,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     records, malformed = load_jsonl(args.jsonl)
     result = audit_records(records, boundary_seq=args.boundary_seq)
-    result["malformed_records"] = malformed
+    result["malformed_records"] += malformed
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 1 if malformed else 0
+    return 1 if result["malformed_records"] else 0
 
 
 if __name__ == "__main__":
