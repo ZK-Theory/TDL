@@ -36,9 +36,10 @@ def _git_bash() -> str:
     pytest.skip("Git Bash is not available")
 
 
-def _run_prepare(msg_file: Path, source: str) -> subprocess.CompletedProcess[str]:
+def _run_prepare(msg_file: Path, source: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [_git_bash(), str(PREPARE_HOOK), str(msg_file), source],
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
@@ -81,6 +82,19 @@ def test_prepare_commit_msg_still_injects_template_for_real_editor_commits(tmp_p
     result = _run_prepare(msg, "")
     assert result.returncode == 0
     assert "Suggested prefix" in msg.read_text(encoding="utf-8")
+
+
+def test_prepare_commit_msg_empty_index_is_single_valued_and_quiet(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    msg = tmp_path / "msg.txt"
+    msg.write_text("no prefix supplied\n", encoding="utf-8")
+
+    result = _run_prepare(msg, "", cwd=tmp_path)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    rendered = msg.read_text(encoding="utf-8")
+    assert rendered.count("# Staged files (0):") == 1
 
 
 def test_commit_msg_rejects_bom(tmp_path: Path) -> None:

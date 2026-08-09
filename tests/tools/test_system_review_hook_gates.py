@@ -55,12 +55,12 @@ def _hook_repo(tmp_path: Path) -> Path:
     _git(repo, "config", "core.hooksPath", ".githooks")
     hooks = repo / ".githooks"
     hooks.mkdir()
-    for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
+    for name in ("pre-commit", "pre-push", "commit-msg", "prepare-commit-msg"):
         hook = hooks / name
         hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
     _git(repo, "add", ".githooks")
-    for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
+    for name in ("pre-commit", "pre-push", "commit-msg", "prepare-commit-msg"):
         _git(repo, "update-index", "--chmod=+x", f".githooks/{name}")
     return repo
 
@@ -82,6 +82,14 @@ def test_install_git_hooks_rejects_non_executable_index_mode(tmp_path: Path, mon
     repo = _hook_repo(tmp_path)
     monkeypatch.setattr(module, "REPO_ROOT", repo)
     _git(repo, "update-index", "--chmod=-x", ".githooks/pre-commit")
+    assert module.verify() == 1
+
+
+def test_install_git_hooks_requires_pre_push_main_boundary(tmp_path: Path, monkeypatch) -> None:
+    module = _installer_module()
+    repo = _hook_repo(tmp_path)
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+    (repo / ".githooks" / "pre-push").unlink()
     assert module.verify() == 1
 
 

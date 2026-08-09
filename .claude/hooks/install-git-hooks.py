@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # .claude/hooks/ -> .claude/ ->
 # copy in the active directory is the only source of truth.
 REQUIRED_HOOKS: dict[str, str | None] = {
     "pre-commit": None,
+    "pre-push": None,
     "commit-msg": None,
     "prepare-commit-msg": None,
 }
