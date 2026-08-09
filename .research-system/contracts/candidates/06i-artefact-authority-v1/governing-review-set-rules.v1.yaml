@@ -2,6 +2,52 @@ schema_id: ars://policy/governing-review-set-rules
 schema_version: 1.0.0
 candidate_state: proposed
 independence_order: [I0, I1, I2, I3]
+governing_review_resolution:
+  authoritative_source: verified_replay_at_evaluation_snapshot
+  universe_selector:
+    - project_id
+    - exact_subject_sha256
+    - consumer_kind
+    - effective_at_or_before_evaluation_time
+  snapshot_binding:
+    store_identity: required
+    ledger_position: exact
+    raw_prefix_sha256: required
+    later_events: excluded_by_position
+  membership_rule:
+    include: every review selected by the universe selector
+    active_revision: latest effective revision at or before evaluation_time
+    withdrawn_review: retained in ordered history and excluded from active satisfaction count
+    superseded_review: retained in ordered history and replaced only by its exact linked successor
+    caller_supplied_subset: prohibited
+  no_omission_proof:
+    - store_identity
+    - ledger_position
+    - raw_prefix_sha256
+    - ordered_governing_review_ids
+    - ordered_governing_review_record_sha256s
+    - governing_review_set_sha256
+  satisfaction_gate:
+    evaluate_every_governing_review: true
+    approved_status: active
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+    blocking_states:
+      - changes_requested
+      - rejected
+      - unsatisfied
+      - ineligible
+      - related
+      - insufficient_independence
+    minimum_count_applies_after_all_reviews_evaluated: true
+  accepted_event_binding:
+    - ordered_governing_review_ids
+    - ordered_governing_review_record_sha256s
+    - governing_review_set_sha256
+    - store_identity
+    - ledger_position
+    - raw_prefix_sha256
 rules:
   result_evidence:
     minimum_approved_reviews: 1
@@ -35,9 +81,32 @@ rules:
     prohibit_producer_reviewer: true
 decision_rules:
   claim_promotion:
+    authoritative_source: verified_decision_replay_at_evaluation_snapshot
+    decision_kind: claim_promotion
+    required_status: resolved
     selected_option: approve
-    deciding_actor: authority_owner_actor
+    deciding_actor_binding:
+      required_owner_role: Stephen
+      actor_id_source: current_accepted_owner_authority.actor_id
+      prohibit_caller_supplied_actor: true
     required_permitted_command: SetArtefactUseAuthority
     effective_scope_format: claim_promotion:<scope_id>
     require_exact_scope: true
-    require_effective_at_or_before_evaluation: true
+    currentness:
+      effective_at_or_before_evaluation_time: true
+      not_expired: true
+      not_rejected: true
+      not_superseded: true
+      no_later_effective_amendment_changes_approval: true
+    snapshot_binding:
+      store_identity: required
+      ledger_position: same_as_governing_review_snapshot
+      raw_prefix_sha256: same_as_governing_review_snapshot
+    event_binding:
+      - decision_id
+      - decision_event_id
+      - decision_event_hash
+      - decision_subject_sha256
+      - decision_projection_sha256
+      - authority_grant_id
+    caller_supplied_decision_or_actor: prohibited
