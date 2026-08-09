@@ -38,6 +38,16 @@ APPEND_SITE_CLASSIFICATIONS = {
     ): "system_bootstrap_command_producer",
     ("research_system/command/service.py", "submit", "self.ledger"): "generic_and_guarded_command_producer",
     ("research_system/command/t2.py", "submit_t2", "service.ledger"): "t2_command_producer",
+    (
+        "research_system/store/ledger.py",
+        "_append_release_from_validated_submit",
+        "self",
+    ): "guarded_release_command_producer",
+    (
+        "research_system/store/ledger.py",
+        "_append_scoped_authority_from_validated_submit",
+        "self",
+    ): "guarded_scoped_authority_command_producer",
     ("research_system/evals/executors/control_store.py", "execute_s009", "ledger"): "commandless_evaluation_fixture",
     ("research_system/evals/executors/control_store.py", "execute_s011", "ledger"): "commandless_evaluation_fixture",
     ("research_system/evals/scenarios.py", "recover_writer", "ledger"): "commandless_evaluation_fixture",
@@ -130,10 +140,16 @@ def _validate_manifest_authority(document: dict) -> None:
 def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, str, str]]:
     found: set[tuple[str, str, str, str]] = set()
     stack: list[str] = []
+    classes: list[str] = []
     aliases: list[set[str]] = [set()]
     append_aliases: list[dict[str, str]] = [{}]
 
     class Visitor(ast.NodeVisitor):
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            classes.append(node.name)
+            self.generic_visit(node)
+            classes.pop()
+
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             stack.append(node.name)
             aliases.append(set())
@@ -171,7 +187,12 @@ def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, s
         def visit_Call(self, node: ast.Call) -> None:
             if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
                 receiver = ast.unparse(node.func.value)
-                if "ledger" in receiver.lower() or receiver in aliases[-1]:
+                proven_ledger_receiver = (
+                    "ledger" in receiver.lower()
+                    or receiver in aliases[-1]
+                    or (receiver == "self" and classes and classes[-1] == "EventLedger")
+                )
+                if proven_ledger_receiver or receiver == "self":
                     site = (relative, stack[-1] if stack else "<module>", receiver)
                     found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
             elif isinstance(node.func, ast.Name) and node.func.id in append_aliases[-1]:
@@ -374,10 +395,58 @@ def test_ledger_alias_append_fails_reconciliation() -> None:
 
 def test_bound_method_alias_append_fails_reconciliation() -> None:
     expected = _manifest_append_sites(_manifest())
-    planted = _append_sites() | _append_sites_in_source(
+    alias_site = _append_sites_in_source(
         "research_system/command/bound_alias.py",
         "def submit_alias(service):\n    emit = service.ledger.append\n    emit([])\n",
     )
+    assert alias_site == {
+        (
+            "research_system/command/bound_alias.py",
+            "submit_alias",
+            "service.ledger",
+            "unclassified",
+        )
+    }
+    planted = _append_sites() | alias_site
 
     with pytest.raises(AssertionError, match="submit_alias"):
         _reconcile_append_sites(expected, planted)
+
+
+def test_event_ledger_guarded_self_append_sites_are_discovered() -> None:
+    expected = {
+        (
+            "research_system/store/ledger.py",
+            "_append_release_from_validated_submit",
+            "self",
+            "guarded_release_command_producer",
+        ),
+        (
+            "research_system/store/ledger.py",
+            "_append_scoped_authority_from_validated_submit",
+            "self",
+            "guarded_scoped_authority_command_producer",
+        ),
+    }
+
+    observed = {row for row in _append_sites() if row[0] == "research_system/store/ledger.py"}
+
+    assert observed == expected
+
+
+def test_unproved_direct_self_append_receiver_fails_closed() -> None:
+    observed = _append_sites_in_source(
+        "research_system/command/unproved_writer.py",
+        "class UnprovedWriter:\n    def emit(self):\n        self.append([])\n",
+    )
+
+    assert observed == {
+        (
+            "research_system/command/unproved_writer.py",
+            "emit",
+            "self",
+            "unclassified",
+        )
+    }
+    with pytest.raises(AssertionError, match="unproved_writer"):
+        _reconcile_append_sites(set(), observed)

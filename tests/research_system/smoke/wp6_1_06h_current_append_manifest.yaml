@@ -34,6 +34,14 @@ append_sites:
     symbol: submit_t2
     receiver: service.ledger
     classification: t2_command_producer
+  - path: research_system/store/ledger.py
+    symbol: _append_release_from_validated_submit
+    receiver: self
+    classification: guarded_release_command_producer
+  - path: research_system/store/ledger.py
+    symbol: _append_scoped_authority_from_validated_submit
+    receiver: self
+    classification: guarded_scoped_authority_command_producer
   - path: research_system/evals/executors/control_store.py
     symbol: execute_s009
     receiver: ledger
@@ -61,4 +69,7 @@ controls:
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_changed_append_site_classification_fails_reconciliation
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unmanifested_append_site_fails_reconciliation
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_ledger_alias_append_fails_reconciliation
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_bound_method_alias_append_fails_reconciliation
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_event_ledger_guarded_self_append_sites_are_discovered
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unproved_direct_self_append_receiver_fails_closed
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_binding_row_format_decodes_to_exact_lf_bytes
