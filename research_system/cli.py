@@ -690,7 +690,7 @@ def brief_export(args: argparse.Namespace) -> int:
     result = export_brief(
         request=request,
         context_resolver=resolve_context_packet_for_consumer,
-        context_events=ledger.snapshot().events,
+        context_events=lambda: ledger.snapshot().events,
         context_objects=objects,
         artefact_consumers=build_artefact_consumers(binding),
         methods_pack=load_methods_pack(binding.schema_root.parent.parent),
@@ -1071,9 +1071,9 @@ def _publication_evidence(
         schema_registry=schemas,
         authority_state_validator=authority.validate_replayed_administration_state,
     )
-    existing = existing_projection.get("release_decisions", {}).get(source["release_gate_decision_id"])
-    if isinstance(existing, dict):
-        evidence_resolver = StoredReleasePublicationEvidence(
+
+    def stored_evidence_resolver() -> StoredReleasePublicationEvidence:
+        return StoredReleasePublicationEvidence(
             consumers=build_artefact_consumers(binding),
             context_for_reference=_publication_context_for_reference(
                 binding,
@@ -1083,8 +1083,12 @@ def _publication_evidence(
             expected_store_identity=binding.store_identity,
             rederive=rederive_release_from_snapshot,
         )
-        manifest_ref = existing["evaluation_runs_manifest_ref"]
-        control_ref = existing["control_binding_ref"]
+
+    def stored_evidence_matches(
+        evidence_resolver: StoredReleasePublicationEvidence,
+        manifest_ref: str,
+        control_ref: str,
+    ) -> bool:
         manifest = evidence_resolver.resolve_evaluation_runs(manifest_ref)
         control = evidence_resolver.resolve_control_binding(control_ref)
         schemas.validate("ars://evals/release-publication-evidence", manifest)
@@ -1095,7 +1099,14 @@ def _publication_evidence(
         )
         if gate5_authorized is not False:
             raise ArsError("stored publication evidence differs from source")
-        if derived == source:
+        return derived == source
+
+    existing = existing_projection.get("release_decisions", {}).get(source["release_gate_decision_id"])
+    if isinstance(existing, dict):
+        evidence_resolver = stored_evidence_resolver()
+        manifest_ref = existing["evaluation_runs_manifest_ref"]
+        control_ref = existing["control_binding_ref"]
+        if stored_evidence_matches(evidence_resolver, manifest_ref, control_ref):
             return evidence_resolver, manifest_ref, control_ref, False
     coverage_path = binding.schema_root.parent / "evals" / "p0-coverage.yaml"
     fixtures, schemas_root = _eval_roots(coverage_path)
@@ -1124,6 +1135,24 @@ def _publication_evidence(
     schemas.validate("ars://evals/release-control-binding", control)
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
+    streams = existing_projection.get("streams", {})
+    registered_streams = tuple(streams.get(reference) for reference in (manifest_ref, control_ref))
+    if all(isinstance(stream, dict) for stream in registered_streams):
+        expected_hashes = (
+            sha256_hex(canonical_bytes(manifest)),
+            sha256_hex(canonical_bytes(control)),
+        )
+        if any(
+            stream.get("content_sha256") != expected_hash
+            for stream, expected_hash in zip(registered_streams, expected_hashes, strict=True)
+        ):
+            raise ArsError("registered publication evidence differs from source")
+        if all(stream.get("use_authority") == "accepted_for_scope" for stream in registered_streams):
+            evidence_resolver = stored_evidence_resolver()
+            if not stored_evidence_matches(evidence_resolver, manifest_ref, control_ref):
+                raise ArsError("stored publication evidence differs from source")
+            return evidence_resolver, manifest_ref, control_ref, False
+        return None, manifest_ref, control_ref, True
     if registration_context is None:
         raise ArsError("new release evidence requires --artefact-registration-context")
     required = {

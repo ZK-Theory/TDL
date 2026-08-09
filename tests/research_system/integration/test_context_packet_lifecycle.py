@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from contextlib import contextmanager
 from datetime import UTC, datetime
 
 import pytest
 
 from research_system.canonical import sha256_hex
+from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.registry import (
     rebuild_context_lifecycle,
@@ -17,6 +19,7 @@ from research_system.errors import ArsError
 from research_system.ids import new_id
 from research_system.schema_registry import bundled_schema_registry
 from research_system.store.objects import ObjectStore
+from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
 
 
 EVENT_TYPES = {
@@ -137,6 +140,116 @@ def compile_valid(service: ContextLifecycleService, context_id: str):
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "lost_after",
+    ("RequestContextPacket", "BeginContextCompilation", "CompleteContextCompilation"),
+)
+def test_production_context_compilation_recovers_committed_response_loss(tmp_path, lost_after) -> None:
+    harness = control_plane(tmp_path)
+    context_id = new_id("context")
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="context",
+        subject_id=context_id,
+        command_types=(
+            "RequestContextPacket",
+            "BeginContextCompilation",
+            "CompleteContextCompilation",
+            "FailContextPacket",
+        ),
+    )
+
+    def clock() -> datetime:
+        return datetime(2026, 8, 9, tzinfo=UTC)
+
+    base_writer = CommandServiceContextWriter(
+        harness.service,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant_id,
+        clock=clock,
+    )
+
+    class LoseResponseOnce:
+        lost = False
+
+        def stream_version(self, selected_context_id):
+            return base_writer.stream_version(selected_context_id)
+
+        def lifecycle_lock(self, selected_context_id):
+            return base_writer.lifecycle_lock(selected_context_id)
+
+        def iter_events(self, selected_context_id):
+            return base_writer.iter_events(selected_context_id)
+
+        def submit_context(self, **kwargs):
+            receipt = base_writer.submit_context(**kwargs)
+            if kwargs["command_type"] == lost_after and not self.lost:
+                self.lost = True
+                raise ConnectionError("accepted context response was lost")
+            return receipt
+
+    writer = LoseResponseOnce()
+    request = request_payload(context_id)
+    request.update({"project_id": PROJECT_ID, "actor_id": ACTORS["actor-a"]})
+    content = "governing method and exact source"
+    fragments = [
+        SourceFragment(
+            source_id="method-source",
+            revision="1",
+            authority_rank=10,
+            mandatory=True,
+            content=content,
+            content_hash=sha256_hex(content.encode("utf-8")),
+        )
+    ]
+
+    def compile_with(service, selected_request):
+        return service.compile_packet(
+            request=selected_request,
+            fragments=fragments,
+            profile=ContextProfile("bounded-r2", 100),
+            reference_counter=ReferenceRegexV1(),
+            required_source_ids={"method-source"},
+        )
+
+    initial = ContextLifecycleService(harness.objects, writer, writer_id="writer-1", clock=clock)
+    try:
+        first = compile_with(initial, request)
+    except ConnectionError:
+        first = None
+    restarted = ContextLifecycleService(harness.objects, writer, writer_id="writer-1", clock=clock)
+    recovered = compile_with(restarted, request)
+    exact_retry = compile_with(restarted, request)
+
+    def compilation_identity(compiled):
+        return (
+            compiled.context_id,
+            compiled.request_id,
+            compiled.revision,
+            compiled.packet_object_id,
+            compiled.packet_sha256,
+            compiled.manifest_object_id,
+            compiled.manifest_sha256,
+        )
+
+    if first is not None:
+        assert compilation_identity(first) == compilation_identity(recovered)
+    assert compilation_identity(recovered) == compilation_identity(exact_retry)
+    events = tuple(base_writer.iter_events(context_id))
+    assert [event["event_type"] for event in events] == [
+        "ContextPacketRequested",
+        "ContextCompilationStarted",
+        "ContextPacketCompiled",
+    ]
+    before_changed_retry = harness.ledger.snapshot()
+    changed_request = deepcopy(request)
+    changed_request["purpose"] = "changed-purpose"
+    with pytest.raises(ArsError, match="changed the original request"):
+        compile_with(restarted, changed_request)
+    assert harness.ledger.snapshot() == before_changed_retry
 
 
 def test_context_packet_runs_requested_through_delivered_and_resolves(tmp_path) -> None:

@@ -139,7 +139,7 @@ These schema decisions passed the W2 review gate and are accepted under P-027.
 **Status:** Accepted under P-027<br>
 **Decision:** Record message publication, delivery, and acknowledgement as immutable events; treat clearing a generated APM task/report file as acknowledgement of a projection, never deletion of history.  
 **Rationale:** Communication must remain distinguishable from lifecycle mutation and must survive single-slot reuse.  
-**Evidence:** W0 fixtures F-001/F-002, evidence register §4.3, and the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.Codex\skill-observations\log.md`).  
+**Evidence:** W0 fixtures F-001/F-002, evidence register §4.3, and the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.claude\skill-observations\log.md`).<br>
 **Affected specifications:** W2, W6, W7, W9.  
 **Migration consequence:** Compatibility writes require matching Task, agent, message, source-position, and content-hash ownership markers and fail closed on collision.
 

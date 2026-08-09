@@ -125,6 +125,10 @@ inflating a Minor into a Major.
    creating temporal inversion). The document that promises the pieces fit is the one
    most likely not to — it restates every identity, field, and ordering it touches, so it
    carries the highest drift risk in the set. Also:
+   - for locks and filesystem authorities, attack physical identity and replacement races rather than caller path spelling alone; include alias, ABA reclamation, and fresh-owner controls;
+   - for durable recovery, require complete operation identity plus exact ownership of every rollback target; absence of the original event is not proof that a later generation is disposable;
+   - for moved-store claims, exercise the public retry from every post-mutation phase, remove or retire the source, reload the target through the normal binding path, and prove durability for every source and destination directory whose entries changed;
+   - treat initialization origin and approval provenance as required inputs. Local consistency after independent witnesses are absent cannot reconstruct historical authority;
    - check dimensional consistency across counters and limits; do not compare values
      produced by different tokenizers or units without separate gates or a validated
      conversion / conservative bound;

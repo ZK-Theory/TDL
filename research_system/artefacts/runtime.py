@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.artefacts.authority import (
     AcceptedContractSubject,
     ArtefactAuthorityContractLoader,
@@ -95,13 +96,23 @@ def build_artefact_consumers(binding: ControlBinding) -> ArtefactEvidenceConsume
     """Construct the accepted 06i consumer port from one verified binding."""
     schemas = runtime_schema_registry(binding.schema_root)
     objects = ObjectStore(binding.control_root)
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
     resolver = ArtefactUseResolver(
-        ledger=EventLedger(binding.control_root, binding.project_id, schemas),
+        ledger=ledger,
         objects=objects,
         schemas=schemas,
         contract_loader=ArtefactAuthorityContractLoader(ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT),
         governing_evidence=GoverningScientificReviewStore(objects, schemas),
         content_reader=ControlRootArtefactContentReader(binding.control_root),
+        authority_state_validator=authority.validate_replayed_administration_state,
     )
     return ArtefactEvidenceConsumers(resolver)
 
