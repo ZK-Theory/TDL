@@ -41,8 +41,14 @@ before any dispatch.
    Task Prompt.
 
 6. **Emit and verify the task-state manifest.** Add a YAML manifest with
-   `task_id`, `deliverables`, `blockers`, `planned_contracts`, `inputs`, and
-   `outputs`; declare `worktree` or `proj_root` on every rooted path. Run
+   `task_id`, `deliverables`, `blockers`, `planned_contracts`, `inputs`,
+   `outputs`, independently resolvable `lanes`, production `registries`,
+   `derived_fields`, and schema `required_fields`; declare `worktree` or
+   `proj_root` on every rooted path. Each lane names its completion predicate
+   and next gate; each registry names its source symbol and whether it is
+   writable or certified unchanged; each derived field names its exact preimage
+   and semantics; each required field names its authoritative source and a
+   resolution check. Run
    `python -m shared.manager_dispatch_check ... --state-manifest <yaml>`.
    Findings are warning-only during the approved calibration period: preserve
    and disposition each warning rather than treating prompt prose as fact.
