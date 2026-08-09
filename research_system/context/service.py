@@ -17,6 +17,8 @@ from research_system.ids import new_id
 
 
 class ContextObjectWriter(Protocol):
+    def read(self, kind: str, object_id: str, revision: int) -> Any: ...
+
     def write(self, kind: str, object_id: str, revision: int, value: Any) -> Any: ...
 
 
@@ -26,6 +28,8 @@ class ContextCommandWriter(Protocol):
     def stream_version(self, context_id: str) -> int: ...
 
     def lifecycle_lock(self, context_id: str) -> AbstractContextManager[None]: ...
+
+    def iter_events(self, context_id: str) -> Iterable[Mapping[str, Any]]: ...
 
     def submit_context(
         self,
@@ -110,6 +114,19 @@ class PrevalidatedProviderCommandTemplate:
         value = json.loads(self.canonical_json)
         assert isinstance(value, dict)
         return value
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedContextPacket:
+    """Replay-recoverable authority needed to issue one validated packet."""
+
+    context_id: str
+    request_id: str
+    revision: int
+    packet_sha256: str
+    manifest_sha256: str
+    capability_digest: str
+    template: PrevalidatedProviderCommandTemplate
 
 
 _CAPABILITY_MINT_KEY = object()
@@ -344,38 +361,130 @@ class ContextLifecycleService:
             context_id=compiled.context_id,
             packet_sha256=compiled.packet_sha256,
         )
-        template = PrevalidatedProviderCommandTemplate.freeze(provider_template)
+        validated = self._validated_packet(compiled, capability, provider_template)
         with self.commands.lifecycle_lock(compiled.context_id):
-            self._submit(
-                "ValidateContextPacket",
-                compiled.context_id,
-                compiled.request_id,
-                {
-                    "context_id": compiled.context_id,
-                    "request_id": compiled.request_id,
-                    "packet_revision": compiled.revision,
-                    "packet_sha256": compiled.packet_sha256,
-                    "capability_digest": capability.digest,
-                    "provider_template": dict(template.content),
-                    "provider_template_sha256": template.sha256,
-                    **dict(validation_evidence),
-                },
-            )
-            self._submit(
-                "IssueContextPacket",
-                compiled.context_id,
-                compiled.request_id,
-                {
-                    "context_id": compiled.context_id,
-                    "request_id": compiled.request_id,
-                    "packet_revision": compiled.revision,
-                    "packet_sha256": compiled.packet_sha256,
-                    "manifest_sha256": compiled.manifest_sha256,
-                    "capability_digest": capability.digest,
-                    "provider_template_sha256": template.sha256,
-                },
-            )
-        return template
+            self._submit_validation(validated, validation_evidence)
+            self._submit_issue(validated)
+        return validated.template
+
+    def _validated_packet(
+        self,
+        compiled: CompiledContextPacket,
+        capability: ContextLifecycleCapability,
+        provider_template: Mapping[str, Any],
+    ) -> ValidatedContextPacket:
+        return ValidatedContextPacket(
+            context_id=compiled.context_id,
+            request_id=compiled.request_id,
+            revision=compiled.revision,
+            packet_sha256=compiled.packet_sha256,
+            manifest_sha256=compiled.manifest_sha256,
+            capability_digest=capability.digest,
+            template=PrevalidatedProviderCommandTemplate.freeze(provider_template),
+        )
+
+    def _submit_validation(
+        self,
+        validated: ValidatedContextPacket,
+        evidence: Mapping[str, Any],
+    ) -> Any:
+        return self._submit(
+            "ValidateContextPacket",
+            validated.context_id,
+            validated.request_id,
+            {
+                "context_id": validated.context_id,
+                "request_id": validated.request_id,
+                "packet_revision": validated.revision,
+                "packet_sha256": validated.packet_sha256,
+                "capability_digest": validated.capability_digest,
+                "provider_template": dict(validated.template.content),
+                "provider_template_sha256": validated.template.sha256,
+                **dict(evidence),
+            },
+        )
+
+    def _submit_issue(self, validated: ValidatedContextPacket) -> Any:
+        return self._submit(
+            "IssueContextPacket",
+            validated.context_id,
+            validated.request_id,
+            {
+                "context_id": validated.context_id,
+                "request_id": validated.request_id,
+                "packet_revision": validated.revision,
+                "packet_sha256": validated.packet_sha256,
+                "manifest_sha256": validated.manifest_sha256,
+                "capability_digest": validated.capability_digest,
+                "provider_template_sha256": validated.template.sha256,
+            },
+        )
+
+    def validate(
+        self,
+        compiled: CompiledContextPacket,
+        *,
+        capability: ContextLifecycleCapability,
+        validation_evidence: Mapping[str, Any],
+        provider_template: Mapping[str, Any],
+    ) -> ValidatedContextPacket:
+        """Persist validation separately so issue can recover after restart."""
+        self.verify_capability(
+            capability,
+            context_id=compiled.context_id,
+            packet_sha256=compiled.packet_sha256,
+        )
+        validated = self._validated_packet(compiled, capability, provider_template)
+        with self.commands.lifecycle_lock(compiled.context_id):
+            self._submit_validation(validated, validation_evidence)
+        return validated
+
+    def recover_validated(self, context_id: str) -> ValidatedContextPacket:
+        """Rebuild exact issue authority from verified lifecycle and object bytes."""
+        from research_system.context.registry import rebuild_context_lifecycle
+
+        state = rebuild_context_lifecycle(self.commands.iter_events(context_id), context_id)
+        if state.state != "validated" or state.compilation is None or state.validation is None:
+            raise ArsError("context packet is not recoverable from validated state")
+        compilation = state.compilation
+        validation = state.validation
+        packet = self.objects.read(
+            "context",
+            str(compilation["packet_object_id"]),
+            int(compilation["packet_revision"]),
+        )
+        manifest = self.objects.read(
+            "context",
+            str(compilation["manifest_object_id"]),
+            int(compilation["manifest_revision"]),
+        )
+        if sha256_hex(canonical_bytes(packet)) != compilation.get("packet_sha256") or sha256_hex(
+            canonical_bytes(manifest)
+        ) != compilation.get("manifest_sha256"):
+            raise ArsError("validated context packet object bytes changed")
+        template_value = validation.get("provider_template")
+        if not isinstance(template_value, Mapping):
+            raise ArsError("validated provider template is missing")
+        template = PrevalidatedProviderCommandTemplate.freeze(template_value)
+        if template.sha256 != validation.get("provider_template_sha256"):
+            raise ArsError("validated provider template bytes changed")
+        return ValidatedContextPacket(
+            context_id=context_id,
+            request_id=str(state.request["request_id"]),
+            revision=int(compilation["packet_revision"]),
+            packet_sha256=str(compilation["packet_sha256"]),
+            manifest_sha256=str(compilation["manifest_sha256"]),
+            capability_digest=str(validation["capability_digest"]),
+            template=template,
+        )
+
+    def issue(self, validated: ValidatedContextPacket) -> PrevalidatedProviderCommandTemplate:
+        """Issue only the exact replay-recovered validated packet."""
+        with self.commands.lifecycle_lock(validated.context_id):
+            if self.recover_validated(validated.context_id) != validated:
+                raise ArsError("validated context recovery identity changed")
+            self._submit_issue(validated)
+        return validated.template
 
     def record_delivery(
         self,

@@ -6,7 +6,7 @@ import hashlib
 import uuid
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from research_system.command.service import CommandService
 from research_system.store.lock import WriterLock
@@ -61,6 +61,9 @@ class CommandServiceContextWriter:
                 "actor_id": self.actor_id,
             },
         )
+
+    def iter_events(self, context_id: str) -> Iterable[Mapping[str, Any]]:
+        return (event for event in self.service.ledger.iter_events() if event.get("stream_id") == context_id)
 
     def submit_context(
         self,

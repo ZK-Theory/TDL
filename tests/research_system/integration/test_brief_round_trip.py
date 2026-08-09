@@ -187,7 +187,7 @@ def _deliver_real_context(harness):
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},
     )
-    lifecycle.validate_and_issue(
+    validated = lifecycle.validate(
         compiled,
         capability=compiled.capability,
         validation_evidence={
@@ -197,7 +197,11 @@ def _deliver_real_context(harness):
         },
         provider_template={"operation": "compile_brief"},
     )
-    lifecycle.record_delivery(
+    restarted = ContextLifecycleService(harness.objects, writer, writer_id="rm03-production")
+    recovered = restarted.recover_validated(compiled.context_id)
+    assert recovered == validated
+    restarted.issue(recovered)
+    restarted.record_delivery(
         compiled,
         recipient_id="operator",
         recipient_session_id="operator-session",

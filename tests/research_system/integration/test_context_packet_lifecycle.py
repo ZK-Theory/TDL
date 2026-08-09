@@ -49,6 +49,9 @@ class RecordingContextWriter:
         finally:
             self._lock_depth -= 1
 
+    def iter_events(self, context_id: str):
+        return (event for event in self.events if event["stream_id"] == context_id)
+
     def submit_context(
         self,
         *,
@@ -242,3 +245,50 @@ def test_delivery_hash_mismatch_has_no_delivery_write(tmp_path) -> None:
             delivered_sha256="0" * 64,
         )
     assert writer.events == before
+
+
+def test_validation_to_issue_recovers_after_process_restart(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    objects = ObjectStore(tmp_path)
+    initial = ContextLifecycleService(objects, writer, writer_id="writer-1")
+    compiled = compile_valid(initial, new_id("context"))
+    template = {
+        "operation": "compile_brief",
+        "provider": "provider-1",
+        "model": "model-1",
+        "rendered_sha256": "e" * 64,
+    }
+    validation = {
+        "route_decision_id": "route-1",
+        "route_witness_sha256": "c" * 64,
+        "selected_route_evidence_sha256": "d" * 64,
+    }
+    validated = initial.validate(
+        compiled,
+        capability=compiled.capability,
+        validation_evidence=validation,
+        provider_template=template,
+    )
+
+    restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")
+    recovered = restarted.recover_validated(compiled.context_id)
+    assert restarted.issue(recovered) == validated.template
+    assert rebuild_context_lifecycle(writer.events, compiled.context_id).state == "issued"
+
+
+def test_validated_recovery_rejects_template_substitution(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    objects = ObjectStore(tmp_path)
+    service = ContextLifecycleService(objects, writer, writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    service.validate(
+        compiled,
+        capability=compiled.capability,
+        validation_evidence={"route_decision_id": "route-1"},
+        provider_template={"operation": "compile_brief"},
+    )
+    writer.events[-1]["payload"]["provider_template"] = {"operation": "substituted"}
+
+    restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")
+    with pytest.raises(ArsError, match="template bytes changed"):
+        restarted.recover_validated(compiled.context_id)

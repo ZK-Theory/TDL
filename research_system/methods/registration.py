@@ -57,8 +57,12 @@ class CandidateDocumentStore:
             raise ValueError("candidate document directory must be control-relative")
         self.relative_directory = relative_directory
 
+    def relative_path(self, artefact_id: str) -> str:
+        """Return the final control-relative path without publishing bytes."""
+        return (self.relative_directory / f"{artefact_id}.json").as_posix()
+
     def write(self, artefact_id: str, raw_bytes: bytes) -> str:
-        relative = self.relative_directory / f"{artefact_id}.json"
+        relative = Path(self.relative_path(artefact_id))
         target = self.control_root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -85,7 +89,7 @@ def register_candidate_document(
     """Persist and register exact bytes, always forcing initial candidate authority."""
     raw = canonical_bytes(value)
     digest = sha256_hex(raw)
-    relative_path = document_store.write(registration.artefact_id, raw)
+    relative_path = document_store.relative_path(registration.artefact_id)
     manifest = deepcopy(registration.manifest)
     if manifest.get("artefact_id") != registration.artefact_id:
         raise ArsError("registration manifest does not bind the document artefact")
@@ -122,11 +126,12 @@ def register_candidate_document(
         "project_id": registration.project_id,
     }
     receipt = command_service.submit(command)
-    if getattr(receipt, "status", None) != "accepted":
+    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
         reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
         explanation = getattr(receipt, "explanation", None)
         detail = f": {explanation}" if explanation else ""
         raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
+    document_store.write(registration.artefact_id, raw)
     return RegisteredCandidate(registration.artefact_id, digest, raw, relative_path, receipt)
 
 
