@@ -14,6 +14,7 @@ from research_system.command.lifecycle import (
     has_unique_member_ids,
     materialize_scope_member_changes,
     validate_exact_lifecycle_envelope,
+    validate_scope_completion_members,
 )
 from research_system.operations.resources import RESOURCE_GRANT_V1_1_SCHEMA_VERSION
 
@@ -168,6 +169,15 @@ def validate_scope_lifecycle_event(
     streams: dict[str, dict[str, Any]],
     event: dict[str, Any],
 ) -> None:
+    if event.get("event_type") == "ScopeCompleted":
+        source_state = streams.get(event["stream_id"])
+        if isinstance(source_state, dict):
+            validate_scope_completion_members(
+                source_state.get("definition", {}),
+                event["payload"].get("member_dispositions", ()),
+                streams,
+            )
+        return
     if event.get("event_type") != "ScopeDefinitionSuperseded":
         return
     payload = event["payload"]
@@ -521,6 +531,79 @@ def reduce_task(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             **state,
             "status": "cancelled",
             "cancellation": payload,
+            "terminal_record": {"event_id": event["event_id"], "event_hash": event["event_hash"]},
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskAccepted" and state.get("status") == "review_pending":
+        payload = event["payload"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or int(payload["task_revision"]) != int(state.get("current_revision", 1))
+            or not payload["satisfied_review_ids"]
+            or not payload["satisfied_acceptance_criteria"]
+        ):
+            raise ValueError("TaskAccepted subject or evidence binding mismatch")
+        return {
+            **state,
+            "status": "accepted",
+            "acceptance": deepcopy(payload),
+            "terminal_record": {"event_id": event["event_id"], "event_hash": event["event_hash"]},
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskRejected" and state.get("status") == "review_pending":
+        payload = event["payload"]
+        if payload["task_id"] != state.get("task_id") or int(payload["task_revision"]) != int(
+            state.get("current_revision", 1)
+        ):
+            raise ValueError("TaskRejected subject or revision binding mismatch")
+        return {
+            **state,
+            "status": "rejected",
+            "rejection": deepcopy(payload),
+            "terminal_record": {"event_id": event["event_id"], "event_hash": event["event_hash"]},
+            "version": state["version"] + 1,
+        }
+    if (
+        event_type == "PartialOutcomeRecorded"
+        and event.get("command_type") == "ClosePartial"
+        and state.get("status") not in _TASK_TERMINAL
+    ):
+        payload = event["payload"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or not payload["unmet_obligations"]
+            or not payload["claim_restrictions"]
+        ):
+            raise ValueError("PartialOutcomeRecorded Task binding mismatch")
+        return {
+            **state,
+            "status": "partial",
+            "partial_outcome": deepcopy(payload),
+            "terminal_record": {"event_id": event["event_id"], "event_hash": event["event_hash"]},
+            "version": state["version"] + 1,
+        }
+    if event_type == "TaskReopened" and state.get("status") in {"partial", "rejected", "cancelled"}:
+        payload = event["payload"]
+        terminal = state.get("terminal_record")
+        preserved = payload["preserved_terminal_record_ref"]
+        if (
+            payload["task_id"] != state.get("task_id")
+            or payload["prior_terminal_status"] != state.get("status")
+            or int(payload["new_execution_epoch"]) != int(state.get("execution_epoch", 1)) + 1
+            or not isinstance(terminal, dict)
+            or preserved.get("record_id") != terminal.get("event_id")
+            or preserved.get("content_sha256") != terminal.get("event_hash")
+        ):
+            raise ValueError("TaskReopened terminal history binding mismatch")
+        return {
+            **state,
+            "status": "readiness_pending",
+            "execution_epoch": int(payload["new_execution_epoch"]),
+            "last_reopen": deepcopy(payload),
+            "preserved_terminal_records": [
+                *state.get("preserved_terminal_records", []),
+                deepcopy(terminal),
+            ],
             "version": state["version"] + 1,
         }
     raise ValueError(f"illegal task transition: {state.get('status')} -> {event_type}")
@@ -919,17 +1002,195 @@ def reduce_recovery(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
 
 
 def reduce_review(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
-    """Create one immutable C2 Review request from its exact subject bindings."""
+    """Project the exact Review lifecycle without conferring Decision authority."""
     validate_exact_lifecycle_envelope(event)
     payload = event["payload"]
-    if event["event_type"] != "ReviewRequested" or state or payload["new_review_id"] != event["stream_id"]:
-        raise ValueError("ReviewRequested requires an empty bound Review stream")
-    if not payload["subject_ids"] or len(payload["subject_ids"]) != len(payload["subject_hashes"]):
-        raise ValueError("ReviewRequested subject identities and hashes mismatch")
+    event_type = event["event_type"]
+    if event_type == "ReviewRequested":
+        if state or payload["new_review_id"] != event["stream_id"]:
+            raise ValueError("ReviewRequested requires an empty bound Review stream")
+        if not payload["subject_ids"] or len(payload["subject_ids"]) != len(payload["subject_hashes"]):
+            raise ValueError("ReviewRequested subject identities and hashes mismatch")
+        return {
+            "review_id": event["stream_id"],
+            "status": "requested",
+            "request": deepcopy(payload),
+            "requester_actor_id": event["actor_id"],
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("review_id") != state.get("review_id"):
+        raise ValueError(f"{event_type} requires its exact current Review")
+    status = state.get("status")
+    if event_type == "ReviewAssigned" and status == "requested":
+        if payload["reviewer_actor_id"] == state.get("requester_actor_id") or not payload["independence_evidence_refs"]:
+            raise ValueError("ReviewAssigned independence binding mismatch")
+        return {
+            **state,
+            "status": "assigned",
+            "assignment": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewStarted" and status == "assigned":
+        if (
+            event["actor_id"] != state["assignment"]["reviewer_actor_id"]
+            or payload["unchanged_subject_sha256"] not in state["request"]["subject_hashes"]
+        ):
+            raise ValueError("ReviewStarted subject hash mismatch")
+        return {
+            **state,
+            "status": "in_review",
+            "subject_sha256": payload["unchanged_subject_sha256"],
+            "start": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewVerdictRecorded" and status == "in_review":
+        assignment = state["assignment"]
+        if (
+            payload["reviewer_actor_id"] != event["actor_id"]
+            or payload["reviewer_actor_id"] != assignment["reviewer_actor_id"]
+            or payload["unchanged_subject_sha256"] != state["subject_sha256"]
+            or payload["computed_independence_grade"] != assignment["computed_independence_grade"]
+        ):
+            raise ValueError("ReviewVerdictRecorded reviewer or subject binding mismatch")
+        return {
+            **state,
+            "status": "verdict_recorded",
+            "verdict": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewChangesRequested" and status == "verdict_recorded":
+        if not payload["policy_evaluation_refs"] or not payload["conditions"]:
+            raise ValueError("ReviewChangesRequested policy evidence is incomplete")
+        return {
+            **state,
+            "status": "changes_requested",
+            "changes_request": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewSatisfied" and status in {"verdict_recorded", "changes_requested"}:
+        if payload["prior_review_state"] != status or not payload["policy_evaluation_refs"]:
+            raise ValueError("ReviewSatisfied prior-state binding mismatch")
+        if status == "changes_requested" and not payload.get("unchanged_subject_sha256"):
+            raise ValueError("ReviewSatisfied changed subject hash is absent")
+        return {
+            **state,
+            "status": "satisfied",
+            "satisfaction": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewWithdrawn" and status not in {"satisfied", "withdrawn", "superseded"}:
+        return {
+            **state,
+            "status": "withdrawn",
+            "withdrawal": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "ReviewSuperseded" and status not in {"satisfied", "withdrawn", "superseded"}:
+        if payload["unchanged_subject_sha256"] != (
+            state.get("subject_sha256")
+            or (state["request"]["subject_hashes"][0] if len(state["request"]["subject_hashes"]) == 1 else None)
+        ):
+            raise ValueError("ReviewSuperseded subject hash mismatch")
+        return {
+            **state,
+            "status": "superseded",
+            "supersession": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    raise ValueError(f"illegal review transition: {status} -> {event_type}")
+
+
+def reduce_decision(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Project Decision history while keeping Review evidence non-authoritative."""
+    validate_exact_lifecycle_envelope(event)
+    payload = event["payload"]
+    event_type = event["event_type"]
+    if event_type == "DecisionProposed":
+        if state or payload["new_decision_id"] != event["stream_id"] or payload["decision_revision"] != 1:
+            raise ValueError("DecisionProposed requires an empty revision-1 Decision stream")
+        return {
+            **deepcopy(payload),
+            "decision_id": event["stream_id"],
+            "proposer_actor_id": event["actor_id"],
+            "status": "proposed",
+            "history": [{"event_id": event["event_id"], "event_type": event_type, "revision": 1}],
+            "version": event["stream_version"],
+        }
+    if event_type == "DecisionResolved" and not state:
+        if payload["decision_id"] != event["stream_id"]:
+            raise ValueError("DecisionResolved direct compatibility subject mismatch")
+        return {
+            **deepcopy(payload),
+            "status": "resolved",
+            "history": [
+                {
+                    "event_id": event["event_id"],
+                    "event_type": event_type,
+                    "revision": payload["decision_revision"],
+                }
+            ],
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("decision_id") != state.get("decision_id"):
+        raise ValueError(f"{event_type} requires its exact current Decision")
+    status = state.get("status")
+    revision = int(state.get("decision_revision", 1))
+    updated = deepcopy(state)
+    if event_type == "DecisionReviewRequested" and status == "proposed":
+        if payload["decision_revision"] != revision:
+            raise ValueError("DecisionReviewRequested revision mismatch")
+        updated.update({"status": "under_review", "review_request": deepcopy(payload)})
+    elif event_type == "DecisionResolved" and status == "under_review":
+        if payload["decision_revision"] != revision:
+            raise ValueError("DecisionResolved revision mismatch")
+        updated.update({**deepcopy(payload), "status": "resolved"})
+    elif event_type == "DecisionRejected" and status in {"proposed", "under_review"}:
+        if payload["decision_revision"] != revision:
+            raise ValueError("DecisionRejected revision mismatch")
+        updated.update({"status": "rejected", "rejection": deepcopy(payload)})
+    elif event_type == "DecisionExpired" and status in {"proposed", "under_review"}:
+        if payload["decision_revision"] != revision:
+            raise ValueError("DecisionExpired revision mismatch")
+        updated.update({"status": "expired", "expiry": deepcopy(payload)})
+    elif event_type == "DecisionSuperseded" and status in {"proposed", "under_review"}:
+        if payload["decision_revision"] != revision:
+            raise ValueError("DecisionSuperseded revision mismatch")
+        updated.update({"status": "superseded", "supersession": deepcopy(payload)})
+    elif event_type == "DecisionAmendmentProposed" and status == "resolved":
+        if payload["decision_revision"] != revision + 1:
+            raise ValueError("DecisionAmendmentProposed revision mismatch")
+        updated.update(
+            {
+                "status": "proposed",
+                "decision_revision": payload["decision_revision"],
+                "amendment": deepcopy(payload),
+            }
+        )
+    else:
+        raise ValueError(f"illegal decision transition: {status} -> {event_type}")
+    updated["history"] = [
+        *state.get("history", []),
+        {"event_id": event["event_id"], "event_type": event_type, "revision": updated["decision_revision"]},
+    ]
+    updated["version"] = event["stream_version"]
+    return updated
+
+
+def reduce_rule_evaluation(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Project one immutable rule evaluation without converting it to a Decision."""
+    validate_exact_lifecycle_envelope(event)
+    payload = event["payload"]
+    if (
+        state
+        or event["event_type"] != "RuleEvaluationRecorded"
+        or payload["new_rule_evaluation_id"] != event["stream_id"]
+        or len(payload["input_ids"]) != len(payload["input_hashes"])
+    ):
+        raise ValueError("RuleEvaluationRecorded requires one empty stream and paired exact inputs")
     return {
-        "review_id": event["stream_id"],
-        "status": "requested",
-        "request": payload,
+        **deepcopy(payload),
+        "rule_evaluation_id": event["stream_id"],
+        "status": "recorded",
         "version": event["stream_version"],
     }
 
@@ -1046,6 +1307,38 @@ def reduce_scope(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]
             "replacement": replacement,
             "member_dispositions": list(payload["member_dispositions"]),
             "lineage_reason": payload["lineage_reason"],
+            "revision_history": history,
+            "version": state["version"] + 1,
+        }
+    if event_type == "ScopeCompleted":
+        if not state or state.get("status") != "open":
+            raise ValueError("ScopeCompleted requires an open scope")
+        revision = int(payload["revision"])
+        if (
+            payload["scope_definition_id"] != state["scope_definition_id"]
+            or revision != state["current_revision"]
+            or payload["completion_predicate"] != state["definition"].get("completion_predicate")
+        ):
+            raise ValueError("ScopeCompleted revision or predicate binding mismatch")
+        if not has_unique_member_ids(payload["member_dispositions"]):
+            raise ValueError("ScopeCompleted duplicate member disposition")
+        expected_members = {
+            str(member["member_id"]): str(member["member_kind"]) for member in state["definition"]["members"]
+        }
+        observed_members = {
+            str(member["member_id"]): str(member["member_kind"]) for member in payload["member_dispositions"]
+        }
+        if observed_members != expected_members:
+            raise ValueError("ScopeCompleted member disposition mismatch")
+        completion = deepcopy(payload)
+        history = dict(state["revision_history"])
+        current = dict(history[str(revision)])
+        current.update({"status": "complete", "completion": completion})
+        history[str(revision)] = current
+        return {
+            **state,
+            "status": "complete",
+            "completion": completion,
             "revision_history": history,
             "version": state["version"] + 1,
         }
@@ -1216,7 +1509,10 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "TaskSubmittedForReview",
             "TaskResumed",
             "TaskCancelled",
-        }:
+            "TaskAccepted",
+            "TaskRejected",
+            "TaskReopened",
+        } or (event["event_type"] == "PartialOutcomeRecorded" and event.get("command_type") == "ClosePartial"):
             stream_id = event["stream_id"]
             validate_task_lifecycle_event(stream_states, event)
             stream_states[stream_id] = reduce_task(
@@ -1227,6 +1523,7 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "ScopeDefinitionCreated",
             "ScopeDefinitionAmended",
             "ScopeDefinitionSuperseded",
+            "ScopeCompleted",
         }:
             stream_id = event["stream_id"]
             validate_scope_lifecycle_event(stream_states, event)
@@ -1314,8 +1611,35 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
-        elif event["event_type"] == "ReviewRequested":
+        elif event["event_type"] in {
+            "ReviewRequested",
+            "ReviewAssigned",
+            "ReviewStarted",
+            "ReviewVerdictRecorded",
+            "ReviewChangesRequested",
+            "ReviewSatisfied",
+            "ReviewWithdrawn",
+            "ReviewSuperseded",
+        }:
             stream_states[event["stream_id"]] = reduce_review(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] in {
+            "DecisionProposed",
+            "DecisionReviewRequested",
+            "DecisionResolved",
+            "DecisionRejected",
+            "DecisionExpired",
+            "DecisionSuperseded",
+            "DecisionAmendmentProposed",
+        }:
+            stream_states[event["stream_id"]] = reduce_decision(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "RuleEvaluationRecorded":
+            stream_states[event["stream_id"]] = reduce_rule_evaluation(
                 stream_states.get(event["stream_id"], {}),
                 event,
             )

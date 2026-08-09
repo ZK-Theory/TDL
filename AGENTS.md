@@ -75,22 +75,33 @@ when its path is lexically inside an allowed checkout such as
 `C:\Users\steph\TDL\.apm\worktrees\...`. Parent-directory containment does
 not prove edit authority.
 
-Before any worktree write:
+Before any worktree write, resolve authority from the complete runtime permission
+model and the user's exact instruction:
 
-An explicit user instruction to create a named worktree is authority for that
-requested `git worktree add` and environment bootstrap only. Code, test, and
-result writes inside the new worktree remain subject to the exact-root
-authorization checks below.
+- A runtime permission profile that explicitly disables filesystem sandboxing or
+  declares unrestricted filesystem access authorizes writes in a resolved linked
+  worktree. In that runtime, `workspace_roots` / `writable_roots` describe the
+  task's primary context; absence from those lists is not an edit denial.
+- When sandbox/root enforcement is active, the exact linked-worktree root must be
+  present in the enforced writable roots (or be separately granted by the
+  runtime) before code, test, or result writes.
+- An instruction merely to create a named worktree authorizes `git worktree add`
+  and environment bootstrap only. An owner instruction that explicitly calls the
+  named linked worktree **writable**, directs implementation in it, or says to
+  create or use it for the assigned delivery also authorizes the requested code,
+  test, and result writes there, subject to the stated branch, scope, protected-
+  path, and owner-gate constraints.
 
-1. Compare the resolved target worktree with the runtime's declared
-   `workspace_roots` / `writable_roots`. If the exact worktree is not an
-   authorized root, do **not** call `Edit`, `Write`, `apply_patch`, or perform
-   a disposable write probe; that failure is predictable and is not useful
-   diagnostics.
-2. Route code or test remediation to a task whose workspace is that exact
-   worktree. The owning task must verify cwd, branch, and edit readiness before
-   changing files. A Manager may inspect a foreign worktree read-only, but must
-   send fixes back to its owner or start a correctly rooted task.
+1. Verify the resolved cwd, symbolic branch, HEAD, required ancestry, status,
+   runtime permission profile, and the exact wording of the owner instruction.
+   Do not infer a denial from contextual root lists when sandbox enforcement is
+   explicitly disabled or unrestricted access is declared.
+2. If enforced roots genuinely exclude the worktree and no explicit runtime or
+   owner grant covers implementation there, route code or test remediation to a
+   task whose workspace is that exact worktree. The owning task must verify cwd,
+   branch, and edit readiness before changing files. A Manager may inspect a
+   genuinely foreign, non-writable worktree read-only, but must send fixes back
+   to its owner or start a correctly rooted task.
 3. For a bounded text-only change on an existing remote branch, when remote
    mutation is already authorized, the Manager may use an exact-SHA GitHub
    Contents transaction: fetch branch/file SHA, update that one path, refetch,

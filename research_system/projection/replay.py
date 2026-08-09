@@ -21,12 +21,14 @@ from research_system.command.reducers import (
     reduce_blocker,
     reduce_checkpoint,
     reduce_dispatch,
+    reduce_decision,
     reduce_lease,
     reduce_message,
     reduce_operation,
     reduce_recovery,
     reduce_review,
     reduce_resource,
+    reduce_rule_evaluation,
     reduce_scope,
     reduce_task,
     validate_scope_lifecycle_event,
@@ -720,13 +722,17 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         "TaskSubmittedForReview",
         "TaskResumed",
         "TaskCancelled",
-    }:
+        "TaskAccepted",
+        "TaskRejected",
+        "TaskReopened",
+    } or (event_type == "PartialOutcomeRecorded" and event.get("command_type") == "ClosePartial"):
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type in {
         "ScopeDefinitionCreated",
         "ScopeDefinitionAmended",
         "ScopeDefinitionSuperseded",
+        "ScopeCompleted",
     }:
         validate_scope_lifecycle_event(streams, event)
         streams[stream_id] = reduce_scope(streams.get(stream_id, {}), event)
@@ -802,7 +808,16 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_recovery(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type == "ReviewRequested":
+    elif event_type in {
+        "ReviewRequested",
+        "ReviewAssigned",
+        "ReviewStarted",
+        "ReviewVerdictRecorded",
+        "ReviewChangesRequested",
+        "ReviewSatisfied",
+        "ReviewWithdrawn",
+        "ReviewSuperseded",
+    }:
         try:
             streams[stream_id] = reduce_review(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
@@ -887,19 +902,47 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "authority_event_hash": event["event_hash"],
             "version": event["stream_version"],
         }
-    elif event_type == "DecisionResolved":
-        payload = event["payload"]
-        if stream_id in streams or not isinstance(payload, dict) or payload.get("decision_id") != stream_id:
-            raise IntegrityError("invalid decision resolution transition")
-        projection = {
-            **deepcopy(payload),
-            "status": "resolved",
-            "event_id": event["event_id"],
-            "event_hash": event["event_hash"],
-            "version": event["stream_version"],
-        }
+    elif event_type in {
+        "DecisionProposed",
+        "DecisionReviewRequested",
+        "DecisionResolved",
+        "DecisionRejected",
+        "DecisionExpired",
+        "DecisionSuperseded",
+        "DecisionAmendmentProposed",
+    }:
+        try:
+            projection = reduce_decision(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
         updated.setdefault("decisions", {})[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "RuleEvaluationRecorded":
+        try:
+            projection = reduce_rule_evaluation(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+        updated.setdefault("rule_evaluations", {})[stream_id] = projection
+        streams[stream_id] = projection
+    elif event_type == "RecordCorrected":
+        payload = event["payload"]
+        correction_index = payload.get("governance_correction_index") if isinstance(payload, dict) else None
+        corrections = updated.setdefault("governance_correction_index", {})
+        if (
+            not isinstance(payload, dict)
+            or payload.get("erroneous_record_id") != stream_id
+            or stream_id not in streams
+            or not isinstance(correction_index, str)
+            or not correction_index
+            or correction_index in corrections
+        ):
+            raise IntegrityError("invalid governance correction transition")
+        corrections[correction_index] = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "stream_version": event["stream_version"],
+        }
     elif event_type in {
         "ContextPacketRequested",
         "ContextCompilationStarted",

@@ -48,7 +48,12 @@ ROOT_AUTHORITY_GRANT_ID = "agr_01978abc-1004-7000-8000-000000001004"
 RELEASE_DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 
 _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT = {
-    "scope_definition": ("CreateScopeDefinition", "AmendScopeDefinition", "SupersedeScopeDefinition"),
+    "scope_definition": (
+        "CreateScopeDefinition",
+        "AmendScopeDefinition",
+        "SupersedeScopeDefinition",
+        "CompleteScope",
+    ),
     "task": (
         "CreateTask",
         "AmendTask",
@@ -61,6 +66,10 @@ _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT = {
         "SubmitForReview",
         "ResumeTask",
         "CancelTask",
+        "AcceptTask",
+        "RejectTask",
+        "ClosePartial",
+        "ReopenTask",
     ),
     "dispatch": (
         "IssueDispatch",
@@ -101,7 +110,27 @@ _LIFECYCLE_COMMAND_TYPES_BY_SUBJECT = {
         "QuarantineOrphan",
     ),
     "blocker": ("RecordBlocker", "ResolveBlocker"),
-    "review": ("RequestReview",),
+    "review": (
+        "RequestReview",
+        "AssignReview",
+        "StartReview",
+        "RecordReviewVerdict",
+        "RequestReviewChanges",
+        "SatisfyReview",
+        "WithdrawReview",
+        "SupersedeReview",
+    ),
+    "decision": (
+        "ProposeDecision",
+        "RequestDecisionReview",
+        "ResolveDecision",
+        "RejectDecision",
+        "ExpireDecision",
+        "SupersedeDecision",
+        "AmendDecision",
+    ),
+    "rule_evaluation": ("RecordRuleEvaluation",),
+    "corrected_record": ("RecordCorrection",),
     "resource": ("RequestResourceGrant", "ReleaseResources"),
     "message": (
         "PublishMessage",
