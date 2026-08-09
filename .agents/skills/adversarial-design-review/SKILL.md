@@ -72,6 +72,15 @@ inflating a Minor into a Major.
    Separately, for every strict validator/comparison, trace where both the expected
    side and the observed side get their values — if the same function populates both,
    the check certifies the producer against itself regardless of how strict it looks.
+   **Closure of the governed set:** when a finding applies through a common
+   clause, enumerate every artifact that clause governs and record fixed,
+   already compliant, or exempt with a reason for each one. Derive the set from
+   its registry/contract when possible; prove the validator reads that set and
+   that its declared enforcement surface equals the discovered durable surface.
+   A hand-written subset, an unread list, or `declared <= discovered` is not
+   closure. Trace remediation through the first downstream domain consumer and
+   attack every field it reads with missing, wrong-scalar, wrong-container,
+   empty, and valid-but-incompatible shapes.
 2. **Per-component / per-section attack.** For each component or claim: does it have one
    responsibility; is the chosen mechanism actually simpler than the alternative it
    rejects; what are the concurrency, platform (Windows/filesystem), multi-worktree, and
@@ -98,6 +107,11 @@ inflating a Minor into a Major.
      (statement authorship, bar-setting, or owner approval). Under an authorship
      split, every fallback deliverable must already contain the exact reviewed
      statement and constants; "use a weaker result" is not executable authority.
+   - **Derived constants.** For every anti-anchoring claim, require a
+     kernel-checked equality whose left side is genuinely derived and whose
+     right side is the recorded constant. Machine-diff the contract's complete
+     pin list against these equalities; an inequality or a literal-only
+     arithmetic example cannot pin the value or prove set coverage.
 3. **Cross-spec consistency matrix.** Build *invariant → enforcement point → test*. Flag
    any invariant with no enforcement, any critical mechanism with no test, any test
    requiring a record the schema does not define, and inconsistent terms / identifiers /

@@ -70,6 +70,24 @@ check into a binding contract.
      `if PATH.exists(): ... else: pytest.skip(...)` — mirroring the skip pattern
      already used for committed-results tests. A binding test must be runnable
      from a bare checkout with only committed files present.
+   - **Make governed sets executable.** A contract key that names record types,
+     schema classes, fixtures, transitions, or test functions must drive the
+     validator's iteration. Discover the implementation surface independently
+     and assert equality with the declared durable set; keep task-local stops
+     outside that equality or give them an explicit expiry. Add a mutation that
+     inserts one declared member and proves the check fails until coverage is
+     added.
+   - **Prove semantic boundaries.** Every enum/`oneOf` branch that changes
+     numeric or lifecycle meaning needs a complete positive witness through all
+     coupled representations and a decisive type/range negative. A provider,
+     host, model, or environment literal narrower than its authority requires a
+     contract rationale plus an allowed set, with a positive fixture outside
+     the former constraint and a negative outside the authority.
+   - **Separate catalogue from activation.** Materialized or proposed schemas
+     may be discoverable for review, but runtime validation uses only exact
+     accepted bindings. Add a public append/producer canary proving an unbound
+     proposed sibling stays inert and each activated family emits a schema-valid
+     event.
 6. **Pending lifecycle.** If the binding test is not yet on the base branch, set
    `pending: true`; gate 1 (meta-schema) still runs, while gates 2-4 are skipped.
    Remove `pending` as soon as the test lands. The pending-debt gate warns when
