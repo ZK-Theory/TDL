@@ -52,6 +52,15 @@ before any dispatch.
    `python -m shared.manager_dispatch_check ... --state-manifest <yaml>`.
    Findings are warning-only during the approved calibration period: preserve
    and disposition each warning rather than treating prompt prose as fact.
+7. **Probe external specialist liveness before dispatch.** When execution depends
+   on a hosted prover, paid model, or other owner-configured API, run exactly one
+   cheapest harmless smoke test before creating the Worker task. Give it a finite
+   timeout, no retries, and an explicit request/token or monetary-cost ceiling;
+   record those bounds with the command, date, and result. Put the same bounded
+   one-shot probe first in the Task Prompt. Authentication, entitlement, timeout,
+   budget exhaustion, or upstream-availability failure is a hard stop: preserve
+   the error and return it to the owner without dispatch; do not hunt credentials,
+   edit environment files, retry, or substitute a provider.
 
 ## Output Format
 
@@ -136,6 +145,9 @@ date-stamped synthetic file in `results/` is a landmine by review time.
 - The task changes the decision rule or a parameter but no amendment is on file.
 - The outcome-to-prose mapping is missing, so a result could not be interpreted
   without a post-hoc choice.
+- An external specialist's first-step smoke test fails for authentication,
+  entitlement, or availability; stop before dispatch or substantive execution
+  and surface the exact provider error without self-remediation.
 - A dispatch delegates contract-YAML authorship to the Worker (the Manager authors them
   at dispatch; the Worker writes only the binding test).
 - A confirmatory/bug-fix dispatch restates full compute parameters (B, n) for a fix that
