@@ -171,13 +171,25 @@ class ContextLifecycleService:
         self._issuer_nonce = secrets.token_hex(32)
 
     def _submit(self, command_type: str, context_id: str, request_id: str, payload: Mapping[str, Any]) -> Any:
-        expected = self.commands.stream_version(context_id)
+        idempotency_key = _stable_key(request_id, command_type)
+        committed = tuple(
+            event for event in self.commands.iter_events(context_id) if event.get("idempotency_key") == idempotency_key
+        )
+        if len(committed) > 1:
+            raise ArsError("context transition idempotency key is not unique")
+        if committed:
+            stream_version = committed[0].get("stream_version")
+            if not isinstance(stream_version, int) or isinstance(stream_version, bool) or stream_version < 1:
+                raise ArsError("committed context transition stream version is invalid")
+            expected = stream_version - 1
+        else:
+            expected = self.commands.stream_version(context_id)
         return _require_accepted(
             self.commands.submit_context(
                 command_type=command_type,
                 context_id=context_id,
                 expected_stream_version=expected,
-                idempotency_key=_stable_key(request_id, command_type),
+                idempotency_key=idempotency_key,
                 payload=dict(payload),
             ),
             command_type,
@@ -244,6 +256,17 @@ class ContextLifecycleService:
                 "required_source_ids": sorted(required_source_ids),
             }
         )
+        prior_events = tuple(self.commands.iter_events(context_id))
+        if prior_events:
+            from research_system.context.registry import rebuild_context_lifecycle
+
+            prior = rebuild_context_lifecycle(prior_events, context_id)
+            if dict(prior.request) != request_payload:
+                raise ArsError("context compilation retry changed the original request")
+            if prior.compilation is not None:
+                if prior.state not in {"compiled", "validated", "issued", "delivered"}:
+                    raise ArsError(f"context compilation is terminal in state {prior.state}")
+                return self.recover_compiled(context_id)
         self._submit("RequestContextPacket", context_id, request_id, request_payload)
         self._submit(
             "BeginContextCompilation",
@@ -320,6 +343,10 @@ class ContextLifecycleService:
                 },
             )
         except Exception:
+            try:
+                return self.recover_compiled(context_id)
+            except ArsError:
+                pass
             self._submit(
                 "FailContextPacket",
                 context_id,
@@ -340,6 +367,54 @@ class ContextLifecycleService:
             context_id=context_id,
             request_id=request_id,
             revision=revision,
+            packet_object_id=packet_object_id,
+            packet_sha256=packet_sha256,
+            manifest_object_id=manifest_object_id,
+            manifest_sha256=manifest_sha256,
+            capability=capability,
+        )
+
+    def recover_compiled(self, context_id: str) -> CompiledContextPacket:
+        """Rebuild exact compilation authority after a lost accepted response."""
+        from research_system.context.registry import rebuild_context_lifecycle
+
+        state = rebuild_context_lifecycle(self.commands.iter_events(context_id), context_id)
+        if state.compilation is None or state.state not in {"compiled", "validated", "issued", "delivered"}:
+            raise ArsError("context packet is not recoverable from compiled state")
+        compilation = state.compilation
+        packet_object_id = str(compilation["packet_object_id"])
+        packet_revision = int(compilation["packet_revision"])
+        packet_sha256 = str(compilation["packet_sha256"])
+        manifest_object_id = str(compilation["manifest_object_id"])
+        manifest_revision = int(compilation["manifest_revision"])
+        manifest_sha256 = str(compilation["manifest_sha256"])
+        packet = self.objects.read("context", packet_object_id, packet_revision)
+        manifest = self.objects.read("context", manifest_object_id, manifest_revision)
+        if not isinstance(packet, Mapping) or not isinstance(manifest, Mapping):
+            raise ArsError("compiled context packet objects are unavailable")
+        if (
+            sha256_hex(canonical_bytes(dict(packet))) != packet_sha256
+            or sha256_hex(canonical_bytes(dict(manifest))) != manifest_sha256
+        ):
+            raise ArsError("compiled context packet object bytes changed")
+        request_id = str(state.request["request_id"])
+        if (
+            packet.get("context_id") != context_id
+            or packet.get("request_id") != request_id
+            or packet.get("revision") != packet_revision
+            or packet.get("manifest_id") != manifest_object_id
+            or manifest.get("context_id") != context_id
+            or manifest.get("request_id") != request_id
+            or manifest.get("packet_object_id") != packet_object_id
+            or manifest.get("packet_revision") != packet_revision
+            or manifest.get("rendered_packet_sha256") != packet.get("rendered_sha256")
+        ):
+            raise ArsError("compiled context packet object identities changed")
+        capability = self._mint(context_id, request_id, packet_revision, packet_sha256)
+        return CompiledContextPacket(
+            context_id=context_id,
+            request_id=request_id,
+            revision=packet_revision,
             packet_object_id=packet_object_id,
             packet_sha256=packet_sha256,
             manifest_object_id=manifest_object_id,

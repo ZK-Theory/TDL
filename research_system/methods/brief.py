@@ -83,7 +83,7 @@ def export_brief(
     *,
     request: dict[str, Any],
     context_resolver: Callable[..., Any],
-    context_events: Iterable[dict[str, Any]],
+    context_events: Callable[[], Iterable[dict[str, Any]]],
     context_objects: Any,
     artefact_consumers: ArtefactEvidenceConsumers,
     methods_pack: MethodsPack,
@@ -94,7 +94,7 @@ def export_brief(
 ) -> BriefExportResult:
     """Export and register one exact brief through the 06j and 06i public seams."""
     context_args = deepcopy(request["context"])
-    context_args["events"] = context_events
+    context_args["events"] = tuple(context_events())
     context_args["objects"] = context_objects
     first_context = context_resolver(**context_args)
     purpose = str(request["brief_purpose"])
@@ -209,15 +209,16 @@ def export_brief(
         },
         schema_registry=schema_registry,
     )
+    context_args["events"] = tuple(context_events())
+    final_context = context_resolver(**context_args)
+    if final_context != first_context:
+        raise ArsError("context packet changed during brief export")
     registered = register_candidate_document(
         value=manifest,
         registration=registration,
         document_store=document_store,
         command_service=command_service,
     )
-    final_context = context_resolver(**context_args)
-    if final_context != first_context:
-        raise ArsError("context packet changed during brief export")
     return BriefExportResult(manifest, registered, final_context, tuple(resolved), rendered_verification)
 
 

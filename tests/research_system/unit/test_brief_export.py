@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from research_system.errors import ArsError
-from research_system.methods.brief import _resolve_methods_asset, finalize_brief_manifest
+from research_system.methods.brief import _resolve_methods_asset, export_brief, finalize_brief_manifest
 from research_system.methods.pack import load_methods_pack
 from research_system.schema_registry import SchemaRegistry
 
@@ -91,3 +93,69 @@ def test_methods_asset_binding_rejects_unknown_or_stale_identity() -> None:
         _resolve_methods_asset(pack, {**exact, "asset_id": "mth_unknown"})
     with pytest.raises(ArsError, match="current RM-02 identity"):
         _resolve_methods_asset(pack, {**exact, "identity": "0" * 40})
+
+
+def test_export_refreshes_context_before_durable_registration(monkeypatch) -> None:
+    first_context = SimpleNamespace(
+        context_id=CTX,
+        revision=1,
+        packet_sha256="1" * 64,
+        delivery={"delivery_receipt_id": "delivery-1"},
+    )
+    changed_context = SimpleNamespace(
+        context_id=CTX,
+        revision=1,
+        packet_sha256="2" * 64,
+        delivery={"delivery_receipt_id": "delivery-2"},
+    )
+    snapshots = iter((("delivered",), ("delivered", "expired")))
+    resolved_events: list[tuple[str, ...]] = []
+    registrations: list[object] = []
+
+    def context_events() -> tuple[str, ...]:
+        return next(snapshots)
+
+    def context_resolver(**kwargs):
+        resolved_events.append(kwargs["events"])
+        return first_context if len(resolved_events) == 1 else changed_context
+
+    monkeypatch.setattr(
+        "research_system.methods.brief.finalize_brief_manifest",
+        lambda manifest, **_kwargs: manifest,
+    )
+    monkeypatch.setattr(
+        "research_system.methods.brief.register_candidate_document",
+        lambda **kwargs: registrations.append(kwargs),
+    )
+
+    with pytest.raises(ArsError, match="context packet changed"):
+        export_brief(
+            request={
+                "brief_purpose": "independent_review",
+                "context": {
+                    "scope": "rm-03-export",
+                    "evaluation_time": datetime(2026, 8, 9, tzinfo=UTC),
+                },
+                "created_at": "2026-08-09T00:00:00Z",
+                "subjects": [],
+                "assets": [],
+                "expected_import_types": ["ReviewFindingSet"],
+                "prohibitions": [],
+                "required_session_fields": [],
+            },
+            context_resolver=context_resolver,
+            context_events=context_events,
+            context_objects=object(),
+            artefact_consumers=object(),
+            methods_pack=object(),
+            schema_registry=object(),
+            registration=SimpleNamespace(
+                artefact_id=ART,
+                project_id="prj_01978abc-1000-7000-8000-000000001000",
+            ),
+            document_store=object(),
+            command_service=object(),
+        )
+
+    assert resolved_events == [("delivered",), ("delivered", "expired")]
+    assert registrations == []

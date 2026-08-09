@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from research_system import cli
+from research_system.canonical import canonical_bytes, sha256_hex
 
 
 def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkeypatch, tmp_path) -> None:
@@ -91,3 +92,61 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
     )
     assert len(registrations) == 2
     assert all(item["registration"].manifest["authority"]["use_authority"] == "candidate" for item in registrations)
+
+    manifest_document = {"kind": "manifest"}
+    control_document = {"kind": "control"}
+    streams = {
+        manifest_ref: {
+            "content_sha256": sha256_hex(canonical_bytes(manifest_document)),
+            "use_authority": "candidate",
+        },
+        control_ref: {
+            "content_sha256": sha256_hex(canonical_bytes(control_document)),
+            "use_authority": "candidate",
+        },
+    }
+    monkeypatch.setattr(cli, "replay", lambda *args, **kwargs: {"release_decisions": {}, "streams": streams})
+
+    resolver, _, _, pending = cli._publication_evidence(
+        binding,
+        source,
+        actor_id="act_01978abc-1002-7000-8000-000000001002",
+        authority_grant_id="agr_01978abc-1003-7000-8000-000000001003",
+        registration_context=None,
+    )
+
+    assert resolver is None and pending is True
+    assert len(registrations) == 2
+
+    class StoredEvidence:
+        def __init__(self, **kwargs):
+            pass
+
+        def resolve_evaluation_runs(self, reference):
+            assert reference == manifest_ref
+            return manifest_document
+
+        def resolve_control_binding(self, reference):
+            assert reference == control_ref
+            return control_document
+
+        def rederive_release_decision(self, manifest, control):
+            assert (manifest, control) == (manifest_document, control_document)
+            return source, False
+
+    for stream in streams.values():
+        stream["use_authority"] = "accepted_for_scope"
+    monkeypatch.setattr(cli, "StoredReleasePublicationEvidence", StoredEvidence)
+    monkeypatch.setattr(cli, "build_artefact_consumers", lambda binding: object())
+
+    resolver, resumed_manifest_ref, resumed_control_ref, pending = cli._publication_evidence(
+        binding,
+        source,
+        actor_id="act_01978abc-1002-7000-8000-000000001002",
+        authority_grant_id="agr_01978abc-1003-7000-8000-000000001003",
+        registration_context=None,
+    )
+
+    assert isinstance(resolver, StoredEvidence) and pending is False
+    assert (resumed_manifest_ref, resumed_control_ref) == (manifest_ref, control_ref)
+    assert len(registrations) == 2

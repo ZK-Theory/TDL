@@ -9,8 +9,11 @@ from types import SimpleNamespace
 import pytest
 
 from research_system.artefacts.authority import ArtefactAuthorityContractLoader
-from research_system.artefacts.runtime import GoverningScientificReviewStore
-from research_system.artefacts.use_resolver import predicate_reference
+from research_system.artefacts.runtime import (
+    ControlRootArtefactContentReader,
+    GoverningScientificReviewStore,
+)
+from research_system.artefacts.use_resolver import ArtefactUseResolver, predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
 from research_system.context.command_adapter import CommandServiceContextWriter
@@ -18,6 +21,7 @@ from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
 from research_system.context.tokenizers import ReferenceRegexV1
 from research_system.errors import SchemaError
+from research_system.evidence.consumers import ArtefactEvidenceConsumers
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -539,6 +543,18 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
         "research_system.cli._brief_runtime",
         lambda args: (binding, harness.schemas, harness.ledger, harness.objects, harness.service),
     )
+    consumers = ArtefactEvidenceConsumers(
+        ArtefactUseResolver(
+            ledger=harness.ledger,
+            objects=harness.objects,
+            schemas=harness.schemas,
+            contract_loader=ArtefactAuthorityContractLoader(SUBJECT),
+            governing_evidence=GoverningScientificReviewStore(harness.objects, harness.schemas),
+            content_reader=ControlRootArtefactContentReader(harness.objects.control_root),
+            authority_state_validator=harness.authority_resolver.validate_replayed_administration_state,
+        )
+    )
+    monkeypatch.setattr("research_system.cli.build_artefact_consumers", lambda binding: consumers)
     request_path = tmp_path / "export.json"
     request_path.write_text(
         json.dumps(
