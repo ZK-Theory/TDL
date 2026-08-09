@@ -114,6 +114,16 @@ Stephen triggers and monitors CodeRabbit unless he explicitly delegates that
 operation in the current task. Do not poll, wait, schedule, or create review
 automations inside a substantive supervision, author, or reviewer task.
 
+An owner-controlled external review wait is a task boundary. Once the candidate
+has a durable PR-ready handoff containing the exact accepted subject, integration
+head, tests, review record, PR, Jira progress evidence, and one explicit unblock
+condition, close the substantive supervision task with the campaign still marked
+`OWNER-BLOCKED` or `INCOMPLETE` as appropriate. After Stephen reports the external
+review complete, use a fresh lightweight integration-closer task to reverify the
+current PR head and, only with the required authority, merge, record the merge SHA,
+and update Jira. Do not keep rehydrating the implementation campaign merely to
+observe unchanged external state.
+
 ## Integration And PR Packaging
 
 Keep management/governance, candidate, review, and integration roles explicit.
@@ -156,7 +166,8 @@ equivalent billing telemetry), using stable task/session identifiers.
 - *A standalone supervisor is called a Manager and finds a populated `.apm`
   bus.* -> Leave it untouched; role-name similarity does not confer APM state.
 - *CodeRabbit is still running.* -> Return control to Stephen; do not poll or
-  wait in the substantive task.
+  wait in the substantive task. Persist the PR-ready handoff and close that task;
+  resume from a fresh integration closer after Stephen reports completion.
 - *A construction test exposes another required missing producer.* -> Keep it
   in the capability campaign and implement it within scope; do not call the
   preceding slice complete and abandon the dependency to a handoff.

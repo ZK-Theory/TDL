@@ -64,7 +64,7 @@ Perform the following actions:
 ### 3.2 Task Report Delivery
 
 Perform the following actions:
-1. Clear the incoming Task Bus: truncate `.apm/bus/<agent-slug>/task.md` via terminal (e.g., `truncate -s 0` or shell redirection).
+1. After the durable Task Log has been written, read the incoming Task Bus and verify it still contains the assignment just completed. Clear `.apm/bus/<agent-slug>/task.md` by writing an empty file through the normal file-edit/write tool; do not use terminal truncation or shell redirection. If the permission layer denies the clear, preserve the slot, report the exact path and denial to the User or Manager, and stop rather than retrying through another write mechanism.
 2. Read the Report Bus, then write the Task Report to it: `.apm/bus/<agent-slug>/report.md`. The report is a concise summary - key outcome, status, log path, and any flags. Detail belongs in the Task Log.
 3. Direct the User to deliver the report to the Manager per `.claude/skills/apm-communication/SKILL.md` §2.1 Direct Communication - provide both `/apm-5-check-reports <agent-id>` for targeted retrieval and `/apm-5-check-reports` as the general command, since multiple Workers may finish concurrently.
 
