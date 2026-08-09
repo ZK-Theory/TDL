@@ -311,7 +311,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "CreateBackup": ("ars://core/command/CreateBackup", "1.0.0"),
         "ActivateAuthorityGrant": (
             "ars://core/command/ActivateAuthorityGrant",
-            "1.0.0",
+            "1.1.0",
         ),
         "RevokeIssuedAuthorityGrant": (
             "ars://core/command/RevokeIssuedAuthorityGrant",
@@ -412,7 +412,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "ActivateAuthorityGrant",
     ) == SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
     )
@@ -421,14 +421,14 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "RevokeIssuedAuthorityGrant",
     ) == SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
     )
     assert registry.event_binding("AuthorityGrantActivated", "WrongProducer") is None
     assert registry.event_binding("AuthorityGrantActivated", None) is None
     assert registry.has_producer_bindings("AuthorityGrantActivated")
-    assert registry.is_active("ars://core/scoped-authority-grant", "2.0.0")
+    assert registry.is_active("ars://core/scoped-authority-grant", "2.1.0")
     assert registry.is_active(
         "ars://core/policy-action/AcceptR3AssuranceRequirement",
         "1.0.0",
@@ -625,7 +625,7 @@ def test_every_core_schema_declares_closed_object_contract():
 
 def test_every_command_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / "core" / "commands").glob("*.schema.json"))
-    assert len(paths) == 87
+    assert len(paths) == 96
     for path in paths:
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"

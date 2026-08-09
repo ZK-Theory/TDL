@@ -25,7 +25,7 @@
     "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "command_type": {"const": "ActivateAuthorityGrant"},
     "schema_id": {"const": "ars://core/command/ActivateAuthorityGrant"},
-    "schema_version": {"const": "1.0.0"},
+    "schema_version": {"const": "1.1.0"},
     "submitted_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "on_behalf_of_actor_id": {"const": null},
@@ -98,8 +98,8 @@
           "type": "object",
           "required": ["kind", "id"],
           "properties": {
-            "kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "message", "blocker", "artefact", "review", "decision", "rule_evaluation", "corrected_record", "resource", "project_store", "assurance_requirement", "assurance_pack"]},
-            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+            "kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "message", "context", "blocker", "artefact", "review", "decision", "rule_evaluation", "corrected_record", "resource", "project_store", "assurance_requirement", "assurance_pack"]},
+            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|ctx|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
           },
           "oneOf": [
             {"properties": {"kind": {"const": "scope_definition"}, "id": {"pattern": "^obj_"}}},
@@ -108,6 +108,7 @@
             {"properties": {"kind": {"const": "lease"}, "id": {"pattern": "^els_"}}},
             {"properties": {"kind": {"const": "attempt"}, "id": {"pattern": "^att_"}}},
             {"properties": {"kind": {"const": "message"}, "id": {"pattern": "^msg_"}}},
+            {"properties": {"kind": {"const": "context"}, "id": {"pattern": "^ctx_"}}},
             {"properties": {"kind": {"const": "blocker"}, "id": {"pattern": "^blk_"}}},
             {"properties": {"kind": {"const": "artefact"}, "id": {"pattern": "^art_"}}},
             {"properties": {"kind": {"const": "review"}, "id": {"pattern": "^rev_"}}},
@@ -143,7 +144,7 @@
       ],
       "properties": {
         "schema_id": {"const": "ars://core/scoped-authority-grant"},
-        "schema_version": {"const": "2.0.0"},
+        "schema_version": {"const": "2.1.0"},
         "authority_grant_id": {"type": "string", "pattern": "^agr_"},
         "actor_id": {"type": "string", "pattern": "^act_"},
         "allowed_actor_classes": {"type": "array", "items": {"enum": ["human", "agent", "service"]}, "minItems": 1, "uniqueItems": true},

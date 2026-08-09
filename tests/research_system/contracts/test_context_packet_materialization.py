@@ -100,11 +100,89 @@ def test_context_packet_catalogue_and_transition_family_are_complete() -> None:
     for command, filename in COMMANDS.items():
         schema = json.loads((SCHEMAS / "core/commands" / filename).read_text(encoding="utf-8"))
         assert schema["$id"] == f"ars://core/command/{command}"
+        assert schema["additionalProperties"] is False
         assert schema["properties"]["payload"]["additionalProperties"] is False
     for event, filename in EVENTS.items():
         schema = json.loads((SCHEMAS / "core/events" / filename).read_text(encoding="utf-8"))
         assert schema["$id"] == f"ars://core/event/{event}"
+        assert schema["additionalProperties"] is False
         assert schema["properties"]["payload"]["additionalProperties"] is False
+
+
+def test_context_command_schema_rejects_unknown_top_level_field() -> None:
+    schema = json.loads((SCHEMAS / "core/commands/begin_context_compilation.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema)
+    envelope = {
+        "command_id": "cmd_01978abc-1000-7000-8000-000000001000",
+        "command_type": "BeginContextCompilation",
+        "schema_id": "ars://core/command/BeginContextCompilation",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-08T12:00:00Z",
+        "actor_id": "act_01978abc-1001-7000-8000-000000001001",
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": "agr_01978abc-1002-7000-8000-000000001002",
+        "target_stream_id": "ctx_01978abc-1003-7000-8000-000000001003",
+        "expected_stream_version": 1,
+        "idempotency_key": "context:compile",
+        "correlation_id": "context:ctx_01978abc-1003-7000-8000-000000001003",
+        "causation_id": None,
+        "reason": "W3 context lifecycle transition BeginContextCompilation",
+        "evidence_refs": [],
+        "payload": {
+            "context_id": "ctx_01978abc-1003-7000-8000-000000001003",
+            "request_id": "request-one",
+            "revision": 1,
+            "compiler_version": "1.0.0",
+            "policy_version": "1.0.0",
+        },
+        "project_id": "prj_01978abc-1004-7000-8000-000000001004",
+    }
+    assert not list(validator.iter_errors(envelope))
+    envelope["unknown_top_level_field"] = "rejected"
+    assert any(error.validator == "additionalProperties" for error in validator.iter_errors(envelope))
+
+
+def test_context_event_schema_rejects_unknown_top_level_field() -> None:
+    schema = json.loads((SCHEMAS / "core/events/context_compilation_started.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema)
+    envelope = {
+        "event_id": "evt_01978abc-1000-7000-8000-000000001000",
+        "event_type": "ContextCompilationStarted",
+        "schema_id": "ars://core/event/ContextCompilationStarted",
+        "schema_version": "1.0.0",
+        "project_id": "prj_01978abc-1001-7000-8000-000000001001",
+        "stream_id": "ctx_01978abc-1002-7000-8000-000000001002",
+        "stream_version": 2,
+        "global_position": 2,
+        "transaction_id": "txb_01978abc-1003-7000-8000-000000001003",
+        "transaction_index": 1,
+        "transaction_count": 1,
+        "command_id": "cmd_01978abc-1004-7000-8000-000000001004",
+        "command_type": "BeginContextCompilation",
+        "command_schema_id": "ars://core/command/BeginContextCompilation",
+        "command_schema_version": "1.0.0",
+        "command_schema_sha256": "5384a2b46a98dd4a534e9103d7cb313ac12109fb54712cff608e2277d86e65f9",
+        "idempotency_key": "context:compile",
+        "command_payload_hash": "b" * 64,
+        "correlation_id": "context:ctx_01978abc-1002-7000-8000-000000001002",
+        "causation_id": None,
+        "actor_id": "act_01978abc-1005-7000-8000-000000001005",
+        "authority_grant_id": "agr_01978abc-1006-7000-8000-000000001006",
+        "occurred_at": None,
+        "recorded_at": "2026-08-08T12:00:00Z",
+        "payload": {
+            "context_id": "ctx_01978abc-1002-7000-8000-000000001002",
+            "request_id": "request-one",
+            "revision": 1,
+            "compiler_version": "1.0.0",
+            "policy_version": "1.0.0",
+        },
+        "previous_event_hash": "c" * 64,
+        "event_hash": "d" * 64,
+    }
+    assert not list(validator.iter_errors(envelope))
+    envelope["unknown_top_level_field"] = "rejected"
+    assert any(error.validator == "additionalProperties" for error in validator.iter_errors(envelope))
 
 
 def test_failed_packet_schema_rejects_phase_evidence_contradictions() -> None:

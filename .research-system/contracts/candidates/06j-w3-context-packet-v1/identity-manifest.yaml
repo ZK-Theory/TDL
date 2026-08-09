@@ -4,24 +4,24 @@ identity_rule: every other candidate leaf is bound by raw SHA-256 and Git blob
 leaves:
   - {path: authority-scopes.yaml, sha256: a6868b44f4f92473e26be108f414c7063a6128f8b3320a4faed66ce4b1890471, git_blob: 843f968016ff4723446437b64b72bc6720482477}
   - {path: catalogue-addendum.yaml, sha256: 3885d931acf71b06891a76f48651ebf85901caaae561ac50c88e82de46d070db, git_blob: b61a53764d6e228e7b7bb8429503dacf7ff443eb}
-  - {path: commands/begin_context_compilation.schema.json, sha256: df4a6962fa5edcf09319b321abe7297216183d54d221594669d101fe44fa212c, git_blob: 6ba5d199b6673a1560c115b9aeca80dd3eb11ec7}
-  - {path: commands/complete_context_compilation.schema.json, sha256: c9b21da38226d3abe3b708d948e95ad0bb8e4dc22990567f80f059c77ca55c39, git_blob: 3ae0aeb84253cc8a8a86f852df8a4820fdb0b86a}
-  - {path: commands/expire_context_packet.schema.json, sha256: a2225292366c329e5101136bfc38c2694899b6fc4bd3372866d7f2d1bca2e38f, git_blob: 93ef0c6f5bed1f105b6ea16648083d1e901b14fd}
-  - {path: commands/fail_context_packet.schema.json, sha256: 925f27128919e4c143f97a428041ee50f2a8ebbac84391ff41c23869bfecf0f8, git_blob: 56e76b053902dc2e02d62332ea4988e6b140c731}
-  - {path: commands/issue_context_packet.schema.json, sha256: 565a975278ad31a5b7ffd760a0267b336f39f63fbb146051e5e9087b653ed959, git_blob: 48d009511b8057927b09f69cce37329470c85508}
-  - {path: commands/record_context_delivery.schema.json, sha256: a2ced3d0c9f82ddee49866744a782687233698cde8e46095a7136a4fc3b907e9, git_blob: 402751eb9fb344026e7ef22b95f9fce8b083861d}
-  - {path: commands/request_context_packet.schema.json, sha256: dd4dae77e4965be5db05177fbd9914e650093419d17fd95007feeb914c00b287, git_blob: 6d808891299a9588e3d520b0a73f161625ee102d}
-  - {path: commands/supersede_context_packet.schema.json, sha256: 44ce91e26ca0cd066c97c2fb8e43c845a82eb3e1397a1fd638dc132a114af0ee, git_blob: 013b5fec4922803bea7d28c3b232f23ce80b4630}
-  - {path: commands/validate_context_packet.schema.json, sha256: 8f55d4057b5653035b97526257af828e6e91d31dbb5aa7252429fc1e19abe439, git_blob: ccec2a8f6d832e92c9ba2bcc2ad0be7f1c4d313c}
-  - {path: events/context_compilation_started.schema.json, sha256: 609b01b6b62baf1fd46e8d6a42c3d7d51826faeb73af62026075628c11cb8920, git_blob: 0626565b50e5701263202ccd15133007a8c53a62}
-  - {path: events/context_packet_compiled.schema.json, sha256: f0b1e8280e3d763808ceda076b3ace1a55df4f425dee9ca012140184c5ea0b8e, git_blob: f10e8bede89bda3dc85f9bcf188497c65b70c5c9}
-  - {path: events/context_packet_delivered.schema.json, sha256: 7ad572e920f7bedb19fc7adb77c37b1940e3edca2ba0e58931ce464dbf52ee4b, git_blob: 19c76f3436d073639fabc99d2f29614861bfb9fb}
-  - {path: events/context_packet_expired.schema.json, sha256: 5c48b847bc15786b21a76cd72330458fb1a677fde9d1458fb2ec265c7f9b7ccc, git_blob: 7a7a42be718225f185f4c1ff5f752454101cb337}
-  - {path: events/context_packet_failed.schema.json, sha256: 0a40ee84b52f06e95f4a162b61da199037c2606e4f85fb3bb4f0afce9cfe24ce, git_blob: 5204f8abc9aba458a716dbe3f93bac1a8ed3a178}
-  - {path: events/context_packet_issued.schema.json, sha256: 8ff0a845ac3f5a00d65f9ce4a2b2d8f40e4d51359a5ae9c9f61db87813f67fcc, git_blob: 831077a4fdcf96a86f70e8775a77f60485b28aa2}
-  - {path: events/context_packet_requested.schema.json, sha256: a27fcd8657b165f40c47491305b2f58626e48078458ada35b8296af7c112d8af, git_blob: d51a57f580c4e5876b80d3a19b4f41f915dc315e}
-  - {path: events/context_packet_superseded.schema.json, sha256: 790129ab479d780b5f3d2bb370f5787b2db412befc9a270a4c0ac029a349f982, git_blob: 2fad8627987836b552f5ff2ba04d1b40eaaf3258}
-  - {path: events/context_packet_validated.schema.json, sha256: e8a4243e5e46f43c6c76be51a0fd0170911ad0db953972ec5c7016f64f919c0b, git_blob: e5be281151d5c4f03f99076108f648216d5cb020}
+  - {path: commands/begin_context_compilation.schema.json, sha256: 5384a2b46a98dd4a534e9103d7cb313ac12109fb54712cff608e2277d86e65f9, git_blob: 0ac8eee4713f6865af86e9fb48f15b1d5988656f}
+  - {path: commands/complete_context_compilation.schema.json, sha256: 0a4941144460940ddcdabfcbd811394733ab6d0187cddba9c6ea6d36815b1b75, git_blob: a447301ff0f143289dd572a972919a4274ee6d35}
+  - {path: commands/expire_context_packet.schema.json, sha256: 892375e79328f115310c2e10b0e5b20cf4d716cd858d4ae480398d32e10b156a, git_blob: 96bb0a7d4d77195987c23ed0d8c6017b7079f894}
+  - {path: commands/fail_context_packet.schema.json, sha256: 9b91ed2f57ba0b034e02c6e5d42e4cff476b962f0b902fc50cfaaeb926b84b8d, git_blob: a398e787fe0955a7e1bac88d8d2d47ece2fb2e56}
+  - {path: commands/issue_context_packet.schema.json, sha256: c836de190de8836c430511877e74f429e85f50d29ebe9668577e3c4edf677bf0, git_blob: a6addb3f0379fbab3669f12887fa2d803e380b39}
+  - {path: commands/record_context_delivery.schema.json, sha256: be90e7db4adf975380df1473602cfdccef6361014cb9cd59ffbb2ba6ee2241b1, git_blob: 29a1fed4617613720fc973f29a44a9241041f473}
+  - {path: commands/request_context_packet.schema.json, sha256: 438398854e9e5d89872d62dc59e30e07785fb02befd9368a88e7441f52c4fb74, git_blob: d4cf8b032719436c5caecd2fc85eb897fac8f84e}
+  - {path: commands/supersede_context_packet.schema.json, sha256: b04878d69363cc62f9aba2da9116ddb1efb66cc24d261f433bd8802b303c0648, git_blob: 1b7bdf22e35be2f5276ef6779e63404f844caaa1}
+  - {path: commands/validate_context_packet.schema.json, sha256: 0433d99f99c65772af5deafaea6959db29bcae0dd8286eda37030466d4d26e0d, git_blob: 4116e430782940db9595c5fbe888ddd4d75415aa}
+  - {path: events/context_compilation_started.schema.json, sha256: 470c906ab1687a102066e1ef010df9d7645e274282f926c925ee675bbf822bbb, git_blob: ff75d8468b3eaa76a4fefa5edae0e89140fc7b1f}
+  - {path: events/context_packet_compiled.schema.json, sha256: 7c6d6068d69fe5aa60fdcb408f9a3fa5bd9e10d74b568b69f8be7f46aa99a066, git_blob: a94f6a13760c31a342a67d63e1dfe61cd215cb0d}
+  - {path: events/context_packet_delivered.schema.json, sha256: b907fbf3571a79629b191393ad12259bc0bc1c5b972269899c81cb7d36135462, git_blob: 0bc8fdee97dde209767eddf17287686c7f9768e2}
+  - {path: events/context_packet_expired.schema.json, sha256: aac205f6470a28ba719afb174bffc626f381fbbd43ef229815340a9eb29f3b42, git_blob: dbe60de8ee1a8819bdf87f632c950f2e944bdd20}
+  - {path: events/context_packet_failed.schema.json, sha256: f2f2879b93f5894fa4bc75e6adface434e47364f4dfc3382fbf8f64debc2c7fc, git_blob: 36e332a97216289a52b80e922478e57bf64e68b0}
+  - {path: events/context_packet_issued.schema.json, sha256: ec1e8887478b62683de1353aab405106d600e269358ffab9c214d4b74f89c3f8, git_blob: 043758ba035b7e66158e88259511cf22cc720781}
+  - {path: events/context_packet_requested.schema.json, sha256: d7caffbb8d6f842b1b178fa5bfd95dbbe69f2b1acd88a04ef2660aa334270c4a, git_blob: 9fadce663b22cd0f579cffb94c18b3375a093802}
+  - {path: events/context_packet_superseded.schema.json, sha256: 16f34b9b2655ea786443bddb33df3e77b00c32e1d063ee78103c37a1a1fab0a8, git_blob: 077fee72bec01fe12eb284488a33f9c13dc7829c}
+  - {path: events/context_packet_validated.schema.json, sha256: 72d403df74a15200858b49633fed02ca05c7a115af6f6740d10d4171daf9d3d8, git_blob: d8a40f32d8705f92be6ac40cd8b555fddd5ab765}
   - {path: objects/context-delivery-receipt.schema.json, sha256: 7a119c0114d84413c1204a0c3f583293e9997208ff474e980de9f3d735df0904, git_blob: e5ddaffb53b5edaa3137f3f50fdd7c8e4a6b0b06}
   - {path: objects/context-manifest.schema.json, sha256: e19f789915c228d3566c6a52c248b282be0c47b1aa18eb22b2585935e59b71a2, git_blob: 1845166d601a9c3b045408a11eb6987a195f2128}
   - {path: objects/context-packet.schema.json, sha256: a0acefcbebc072b9eda24c031d91c6fa3fc645a1656c0b5bdacef881c025349d, git_blob: 4f71b7b1379a4abc6593a37ec38777494104f3a2}

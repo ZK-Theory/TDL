@@ -188,7 +188,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        "2.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-scoped-authority-grant",
@@ -196,7 +196,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/owner-authority-administration-decision",
-        "1.0.0",
+        "1.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-owner-authority-administration-decision",
@@ -224,7 +224,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/command/ActivateAuthorityGrant",
-        "1.0.0",
+        "1.1.0",
         command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
@@ -244,7 +244,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
     ),
@@ -256,7 +256,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
     ),

@@ -17,6 +17,7 @@ from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
 from research_system.context.tokenizers import ReferenceRegexV1
+from research_system.errors import SchemaError
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -53,6 +54,43 @@ RETRY_ID = "art_019fe47a-2005-7000-8000-000000002005"
 METHODS_ASSET_ARTEFACT_ID = "art_019fe47a-2006-7000-8000-000000002006"
 METHODS_ASSET_REVIEW_ID = "rev_019fe47a-2007-7000-8000-000000002007"
 METHODS_ASSET_REVIEW_EVIDENCE_ID = "arec_019fe47a-2008-7000-8000-000000002008"
+
+
+def test_context_event_rejects_wrong_registered_command_identity_without_append(tmp_path) -> None:
+    harness = control_plane(tmp_path)
+    wrong = harness.schemas.resolve_identity("ars://core/command/CreateTask", "1.0.0")
+    payload = {
+        "context_id": CONTEXT_ID,
+        "request_id": "rm03-context-request",
+        "revision": 1,
+        "compiler_version": "1.0.0",
+        "policy_version": "1.0.0",
+    }
+    proposed = {
+        "event_type": "ContextCompilationStarted",
+        "stream_id": CONTEXT_ID,
+        "command_id": "cmd_019fe47a-2010-7000-8000-000000002010",
+        "command_type": "BeginContextCompilation",
+        "command_schema_id": wrong.schema_id,
+        "command_schema_version": wrong.schema_version,
+        "command_schema_sha256": wrong.sha256,
+        "actor_id": ACTORS["actor-a"],
+        "authority_grant_id": "agr_019fe47a-2011-7000-8000-000000002011",
+        "idempotency_key": "wrong-context-producer-identity",
+        "command_payload_hash": sha256_hex(canonical_bytes(payload)),
+        "correlation_id": f"context:{CONTEXT_ID}",
+        "causation_id": None,
+        "schema_id": "ars://core/event/ContextCompilationStarted",
+        "schema_version": "1.0.0",
+        "occurred_at": None,
+        "payload": payload,
+    }
+    before = tuple(harness.ledger.iter_events())
+    with pytest.raises(SchemaError, match="command_schema_id"):
+        harness.ledger.append([proposed])
+    assert tuple(harness.ledger.iter_events()) == before
+
+
 VERIFICATION_REQUEST_ID = "art_019fe47a-2013-7000-8000-000000002013"
 VERIFICATION_RUN_ID = "art_019fe47a-2014-7000-8000-000000002014"
 FOLLOWUP_BRIEF_ID = "art_019fe47a-2015-7000-8000-000000002015"

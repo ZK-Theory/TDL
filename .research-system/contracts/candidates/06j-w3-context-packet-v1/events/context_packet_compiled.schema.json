@@ -4,6 +4,97 @@
   "title": "W3 context lifecycle event: ContextPacketCompiled",
   "type": "object",
   "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "stream_id": {
+      "type": "string",
+      "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "stream_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "global_position": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "transaction_index": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "transaction_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "command_schema_id": {
+      "const": "ars://core/command/CompleteContextCompilation"
+    },
+    "command_schema_version": {
+      "const": "1.0.0"
+    },
+    "command_schema_sha256": {
+      "const": "0a4941144460940ddcdabfcbd811394733ab6d0187cddba9c6ea6d36815b1b75"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "command_payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "occurred_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "previous_event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "event_type": {
       "const": "ContextPacketCompiled"
     },
@@ -71,10 +162,33 @@
     }
   },
   "required": [
+    "event_id",
     "event_type",
     "schema_id",
     "schema_version",
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
     "command_type",
-    "payload"
-  ]
+    "command_schema_id",
+    "command_schema_version",
+    "command_schema_sha256",
+    "idempotency_key",
+    "command_payload_hash",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "occurred_at",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash"
+  ],
+  "additionalProperties": false
 }

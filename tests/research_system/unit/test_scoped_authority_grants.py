@@ -233,10 +233,11 @@ def test_corrected_record_scope_accepts_complete_closed_selector_prefixes(
     assert ScopedAuthorityGrant.from_dict(value).subject_scope.subject_id == subject_id
 
 
-def test_v2_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() -> None:
+def test_active_v2_1_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() -> None:
     schemas = bundled_runtime_schema_registry()
     for subject_kind, subject_id in SUBJECT_IDS.items():
         value = _grant_value()
+        value["schema_version"] = "2.1.0"
         value["subject_scope"] = {
             "project_id": PROJECT_ID,
             "subject": {"kind": subject_kind, "id": subject_id},
@@ -244,10 +245,11 @@ def test_v2_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() ->
         schemas.validate_active(
             "ars://core/scoped-authority-grant",
             value,
-            schema_version="2.0.0",
+            schema_version="2.1.0",
         )
 
     context_mismatch = _grant_value()
+    context_mismatch["schema_version"] = "2.1.0"
     context_mismatch["subject_scope"] = {
         "project_id": PROJECT_ID,
         "subject": {"kind": "context", "id": SUBJECT_IDS["artefact"]},
@@ -256,10 +258,11 @@ def test_v2_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() ->
         schemas.validate_active(
             "ars://core/scoped-authority-grant",
             context_mismatch,
-            schema_version="2.0.0",
+            schema_version="2.1.0",
         )
 
     mismatch = _grant_value()
+    mismatch["schema_version"] = "2.1.0"
     mismatch["subject_scope"] = {
         "project_id": PROJECT_ID,
         "subject": {"kind": "message", "id": TASK_ID},
@@ -268,5 +271,5 @@ def test_v2_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() ->
         schemas.validate_active(
             "ars://core/scoped-authority-grant",
             mismatch,
-            schema_version="2.0.0",
+            schema_version="2.1.0",
         )
