@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 from pathlib import Path
 
 import yaml
@@ -53,6 +54,10 @@ def _owner_rows() -> dict[str, dict[str, object]]:
 
 def _interface() -> dict[str, object]:
     return _yaml(CANDIDATE / "artefact-authority-interface.v1.yaml")
+
+
+def _git_blob(data: bytes) -> str:
+    return hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()  # noqa: S324
 
 
 def _policy_pairs() -> set[tuple[str, str]]:
@@ -148,6 +153,17 @@ def _artefact_storage_boundary_calls() -> set[tuple[str, str, str, str | None]]:
 def test_candidate_is_exactly_the_five_file_inert_stage_a_subject():
     assert {path.name for path in CANDIDATE.iterdir() if path.is_file()} == EXPECTED_FILES
     assert _interface()["candidate_state"] == "proposed"
+
+
+def test_identity_manifest_binds_every_leaf_by_raw_sha256_and_git_blob():
+    manifest = _yaml(CANDIDATE / "identity-manifest.yaml")
+    rows = manifest["components"]
+    assert {Path(row["candidate_path"]).name for row in rows} == EXPECTED_FILES - {"identity-manifest.yaml"}
+    for row in rows:
+        candidate_path = REPO_ROOT / row["candidate_path"]
+        raw = candidate_path.read_bytes()
+        assert row["git_blob"] == _git_blob(raw)
+        assert row["canonical_sha256"] == hashlib.sha256(raw).hexdigest()
 
 
 def test_command_families_bind_exact_owner_catalogue_authority_and_controls():
