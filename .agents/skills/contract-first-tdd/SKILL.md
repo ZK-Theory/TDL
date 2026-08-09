@@ -75,6 +75,20 @@ internals, so they survive refactors.
 - Result files are date-suffixed and never overwrite an existing file.
 - No speculative generalisation; implement the slice the test demands.
 - Seeds specified and recorded for anything stochastic.
+- Derive lifecycle coverage from the accepted adjacency matrix. Compose every
+  new edge with each active adjacent edge in every reachable order, asserting
+  the aggregate after each step or atomic rejection with events, objects,
+  projections, receipts, and indexes unchanged.
+- Derive command/event rows from the accepted catalogue, including many-to-one
+  and one-to-many atomic bindings. Compare complete ordered records and mutate
+  command origin, event order, stream facet, and shared-event discriminator.
+- Bind recovery to the committed command identity before repairing a missing
+  receipt or index. A changed command under the same scope conflicts without
+  repair; an exact retry may reconstruct only from canonical history.
+- Materialize derived authority event-first: preflight an existing object for
+  exact equality, append the authorizing event, write the object, then publish
+  the accepted receipt. Prove an object without its event is unusable and an
+  event-only interruption repairs without a second event.
 
 ## Completion Checklist
 
