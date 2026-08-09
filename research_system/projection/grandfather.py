@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -235,20 +236,19 @@ def _derive_prefix_evidence(
 ) -> GrandfatherPrefixEvidence:
     if snapshot.global_position < max_global_position:
         raise IntegrityError("grandfather ledger is shorter than the bound prefix")
-    prefix_events = tuple(
+    snapshot_prefix_events = tuple(
         event
         for event in snapshot.events
         if event.get("global_position", max_global_position + 1) <= max_global_position
     )
-    positions = [event.get("global_position") for event in prefix_events]
-    if positions != list(range(1, max_global_position + 1)):
-        raise IntegrityError("grandfather prefix positions are not exact and contiguous")
 
     prefix_digest = hashlib.sha256()
     batch_count = 0
+    captured_events: list[Mapping[str, Any]] = []
     for path in ledger._batch_paths():
         try:
-            batch = tuple(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+            raw = path.read_bytes()
+            batch = tuple(json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip())
             batch_positions = [event["global_position"] for event in batch]
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
             raise IntegrityError("grandfather prefix batch is unreadable") from exc
@@ -258,13 +258,20 @@ def _derive_prefix_evidence(
             raise IntegrityError("grandfather prefix boundary splits an event batch")
         if max(batch_positions) > max_global_position:
             continue
-        raw = path.read_bytes()
+        captured_events.extend(batch)
         relative = path.relative_to(ledger.events_root).as_posix().encode("utf-8")
         prefix_digest.update(len(relative).to_bytes(8, "big"))
         prefix_digest.update(relative)
         prefix_digest.update(len(raw).to_bytes(8, "big"))
         prefix_digest.update(raw)
         batch_count += 1
+
+    prefix_events = tuple(captured_events)
+    positions = [event.get("global_position") for event in prefix_events]
+    if positions != list(range(1, max_global_position + 1)):
+        raise IntegrityError("grandfather prefix positions are not exact and contiguous")
+    if prefix_events != snapshot_prefix_events:
+        raise ConflictError("grandfather prefix content changed during capture")
 
     event_set = [
         {
@@ -409,7 +416,7 @@ def materialize_grandfather_decision(
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
         return decision.sha256
-    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary = destination.with_name(f".{destination.name}.{os.getpid()}-{secrets.token_hex(8)}.tmp")
     try:
         with temporary.open("xb") as handle:
             handle.write(data)
@@ -417,12 +424,17 @@ def materialize_grandfather_decision(
             os.fsync(handle.fileno())
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
-        os.replace(temporary, destination)
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if destination.read_bytes() != data:
+                raise ConflictError("grandfather decision destination conflicts")
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+    temporary.unlink(missing_ok=True)
     return decision.sha256
 
 

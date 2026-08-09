@@ -24,7 +24,7 @@ append_sites:
   - path: research_system/authority.py
     symbol: initialize_authority_control_store
     receiver: ledger
-    classification: commandless_system_bootstrap
+    classification: system_bootstrap_command_producer
   - path: research_system/command/service.py
     symbol: submit
     receiver: self.ledger
@@ -46,7 +46,9 @@ append_sites:
     receiver: ledger
     classification: commandless_evaluation_fixture
 controls:
+  - tests/research_system/integration/test_authority_grant_source.py::test_genesis_records_validated_generic_command_identity_and_replays_at_default_cutoff
   - tests/research_system/unit/test_schema_registry.py::test_validation_and_resolution_share_one_frozen_registered_schema
+  - tests/research_system/unit/test_schema_registry.py::test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap
   - tests/research_system/unit/test_schema_registry.py::test_registry_rejects_duplicate_exact_schema_identity
   - tests/research_system/unit/test_schema_registry.py::test_runtime_binding_inventory_is_public_and_stably_ordered
   - tests/research_system/unit/test_command_service.py::test_create_task_vertical_uses_exact_activated_schema_identity
@@ -54,4 +56,6 @@ controls:
   - tests/research_system/unit/test_store.py::test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_public_generic_append_uses_registered_schema_record
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_runtime_ledger_rejects_missing_triple_for_generic_and_t2
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_commandless_fixture_classification_matches_public_append_behavior
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_changed_append_site_classification_fails_reconciliation
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unmanifested_append_site_fails_reconciliation

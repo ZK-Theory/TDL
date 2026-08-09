@@ -578,6 +578,47 @@ def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
     assert identity.sha256 == sha256(source.read_bytes()).hexdigest()
 
 
+def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_path, monkeypatch):
+    root = tmp_path / "schemas"
+    targets = tmp_path / "targets"
+    root.mkdir()
+    targets.mkdir()
+    first = targets / "first.schema.json"
+    second = targets / "second.schema.json"
+    first.write_text(
+        json.dumps({"$id": "ars://test/path-race", "title": "first", "type": "object"}),
+        encoding="utf-8",
+    )
+    second.write_text(
+        json.dumps({"$id": "ars://test/path-race", "title": "second", "type": "object"}),
+        encoding="utf-8",
+    )
+    alias = root / "active.schema.json"
+    try:
+        alias.symlink_to(first)
+    except OSError as exc:
+        pytest.skip(f"file symlink unavailable: {exc}")
+
+    real_read_bytes = Path.read_bytes
+    swapped = False
+
+    def swap_after_alias_read(path: Path) -> bytes:
+        nonlocal swapped
+        raw = real_read_bytes(path)
+        if path == alias and not swapped:
+            alias.unlink()
+            alias.symlink_to(second)
+            swapped = True
+        return raw
+
+    monkeypatch.setattr(Path, "read_bytes", swap_after_alias_read)
+
+    identity = SchemaRegistry(root).resolve_identity("ars://test/path-race", None)
+
+    assert identity.raw_bytes == real_read_bytes(identity.source_path)
+    assert identity.raw_bytes_sha256 == sha256(identity.raw_bytes).hexdigest()
+
+
 def test_resource_grant_versions_coexist_and_require_explicit_version():
     registry = SchemaRegistry(SCHEMAS)
     schema_id = RESOURCE_GRANT_V1_1_SCHEMA_ID

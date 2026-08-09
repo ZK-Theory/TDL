@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from research_system.projection.grandfather import (
     materialize_grandfather_decision,
     replay_grandfathered,
 )
+import research_system.projection.grandfather as grandfather_module
 from tests.research_system.factories import PROJECT_ID, control_plane, create_task_command
 
 
@@ -129,6 +131,67 @@ def test_public_grandfather_materialization_rejects_a_changed_expected_tail(tmp_
         )
 
     assert not output.exists()
+
+
+def test_public_grandfather_capture_rejects_same_size_restored_mtime_prefix_aba(tmp_path, monkeypatch):
+    harness, snapshot, _ = _decision(tmp_path)
+    batch_path = harness.ledger._batch_paths()[0]
+    original_raw = batch_path.read_bytes()
+    original_stat = batch_path.stat()
+    rewritten_raw = original_raw.replace(b"Frozen prefix", b"Mutant prefix")
+    assert rewritten_raw != original_raw
+    assert len(rewritten_raw) == len(original_raw)
+    real_read_bytes = Path.read_bytes
+    rewritten = False
+
+    def rewrite_on_digest_read(path: Path) -> bytes:
+        nonlocal rewritten
+        if path == batch_path and not rewritten:
+            batch_path.write_bytes(rewritten_raw)
+            os.utime(batch_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+            rewritten = True
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", rewrite_on_digest_read)
+
+    with pytest.raises((ConflictError, IntegrityError), match="grandfather prefix"):
+        capture_grandfather_prefix(
+            harness.ledger,
+            expected_snapshot=snapshot,
+            store_identity=STORE_IDENTITY,
+            max_global_position=1,
+            expected_tail_hash=snapshot.event_hash,
+        )
+
+
+def test_public_grandfather_materialization_never_overwrites_competing_decision(tmp_path, monkeypatch):
+    harness, snapshot, decision = _decision(tmp_path)
+    output = tmp_path / "evidence" / "grandfather-decision.json"
+    output.parent.mkdir()
+    competing = b"competing decision\n"
+    real_verify = grandfather_module._verify_decision
+    planted = False
+
+    def plant_competing_decision(ledger, candidate):
+        nonlocal planted
+        result = real_verify(ledger, candidate)
+        if not planted:
+            output.write_bytes(competing)
+            planted = True
+        return result
+
+    monkeypatch.setattr(grandfather_module, "_verify_decision", plant_competing_decision)
+
+    with pytest.raises(ConflictError, match="destination conflicts"):
+        materialize_grandfather_decision(
+            harness.ledger,
+            decision,
+            output,
+            expected_snapshot=snapshot,
+        )
+
+    assert output.read_bytes() == competing
+    assert list(output.parent.glob(f".{output.name}.*.tmp")) == []
 
 
 def test_public_grandfather_replay_admits_exact_prefix_and_later_complete_event(tmp_path):

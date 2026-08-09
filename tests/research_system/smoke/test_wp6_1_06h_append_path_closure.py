@@ -9,6 +9,8 @@ import pytest
 import yaml
 
 from research_system.errors import ArsError
+from research_system.evals.executors.control_store import execute_s009, execute_s011
+from research_system.evals.scenarios import FoundationPorts
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from tests.research_system.factories import PROJECT_ID, REPO_ROOT, control_plane, create_task_command
@@ -16,6 +18,18 @@ from tests.research_system.factories import PROJECT_ID, REPO_ROOT, control_plane
 
 MANIFEST_PATH = Path(__file__).with_name("wp6_1_06h_current_append_manifest.yaml")
 SCHEMAS = REPO_ROOT / ".research-system" / "schemas"
+APPEND_SITE_CLASSIFICATIONS = {
+    (
+        "research_system/authority.py",
+        "initialize_authority_control_store",
+        "ledger",
+    ): "system_bootstrap_command_producer",
+    ("research_system/command/service.py", "submit", "self.ledger"): "generic_and_guarded_command_producer",
+    ("research_system/command/t2.py", "submit_t2", "service.ledger"): "t2_command_producer",
+    ("research_system/evals/executors/control_store.py", "execute_s009", "ledger"): "commandless_evaluation_fixture",
+    ("research_system/evals/executors/control_store.py", "execute_s011", "ledger"): "commandless_evaluation_fixture",
+    ("research_system/evals/scenarios.py", "recover_writer", "ledger"): "commandless_evaluation_fixture",
+}
 
 
 def _manifest() -> dict:
@@ -49,8 +63,8 @@ def _git_object(path: str) -> str:
     return completed.stdout.strip()
 
 
-def _append_sites() -> set[tuple[str, str, str]]:
-    found: set[tuple[str, str, str]] = set()
+def _append_sites() -> set[tuple[str, str, str, str]]:
+    found: set[tuple[str, str, str, str]] = set()
     for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
         relative = path.relative_to(REPO_ROOT).as_posix()
         stack: list[str] = []
@@ -67,20 +81,21 @@ def _append_sites() -> set[tuple[str, str, str]]:
                 if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
                     receiver = ast.unparse(node.func.value)
                     if "ledger" in receiver.lower():
-                        found.add((relative, stack[-1] if stack else "<module>", receiver))
+                        site = (relative, stack[-1] if stack else "<module>", receiver)
+                        found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
                 self.generic_visit(node)
 
         Visitor().visit(ast.parse(path.read_text(encoding="utf-8")))
     return found
 
 
-def _manifest_append_sites(document: dict) -> set[tuple[str, str, str]]:
-    return {(row["path"], row["symbol"], row["receiver"]) for row in document["append_sites"]}
+def _manifest_append_sites(document: dict) -> set[tuple[str, str, str, str]]:
+    return {(row["path"], row["symbol"], row["receiver"], row["classification"]) for row in document["append_sites"]}
 
 
 def _reconcile_append_sites(
-    expected: set[tuple[str, str, str]],
-    observed: set[tuple[str, str, str]],
+    expected: set[tuple[str, str, str, str]],
+    observed: set[tuple[str, str, str, str]],
 ) -> None:
     missing = sorted(observed - expected)
     stale = sorted(expected - observed)
@@ -169,9 +184,44 @@ def test_runtime_ledger_rejects_missing_triple_for_generic_and_t2(
     assert tuple(ledger.iter_batches()) == ()
 
 
+def test_commandless_fixture_classification_matches_public_append_behavior(tmp_path: Path, monkeypatch) -> None:
+    observed: list[dict] = []
+    real_append = EventLedger.append
+
+    def record_append(ledger, events, *args, **kwargs):
+        rows = [dict(event) for event in events]
+        observed.extend(rows)
+        return real_append(ledger, rows, *args, **kwargs)
+
+    monkeypatch.setattr(EventLedger, "append", record_append)
+
+    assert execute_s009("candidate", {})["checksum_match"] is True
+    assert (
+        execute_s011("candidate", {"action": {"windows": ["after-fsync"]}})["receipt_matches_committed_batch"] is True
+    )
+    assert FoundationPorts().recover_writer().replay_integrity == "pass"
+    assert len(observed) == 3
+    assert all(
+        not {"command_schema_id", "command_schema_version", "command_schema_sha256"}.intersection(event)
+        for event in observed
+    )
+
+
+def test_changed_append_site_classification_fails_reconciliation() -> None:
+    expected = _manifest_append_sites(_manifest())
+    observed = _append_sites()
+    authority = next(row for row in observed if row[0] == "research_system/authority.py")
+    changed = (authority[0], authority[1], authority[2], "commandless_system_bootstrap")
+
+    with pytest.raises(AssertionError, match="commandless_system_bootstrap"):
+        _reconcile_append_sites(expected, (observed - {authority}) | {changed})
+
+
 def test_unmanifested_append_site_fails_reconciliation() -> None:
     expected = _manifest_append_sites(_manifest())
-    planted = _append_sites() | {("research_system/command/new_family.py", "submit_new_family", "service.ledger")}
+    planted = _append_sites() | {
+        ("research_system/command/new_family.py", "submit_new_family", "service.ledger", "unclassified")
+    }
 
     with pytest.raises(AssertionError, match="new_family"):
         _reconcile_append_sites(expected, planted)

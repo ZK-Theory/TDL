@@ -21,9 +21,11 @@
 Capability status is **INCOMPLETE**. The real current-producer path, immutable
 `RegisteredSchema` identity, complete append-site accounting, owner-selected
 G-RM-8 exact-prefix protocol, and final post-PR #229 binding census are
-constructed and proven. The exact remaining 06h gap is one fresh no-history
-review of the complete exact subject, followed by Stephen's separate acceptance
-of that reviewed subject.
+constructed and proven. The one authorized no-history review returned
+`rework_required` at `b7d6a6e`; its four findings are remediated in the subject
+containing this record. The exact remaining 06h gap is read-only verification
+of that bounded remediation by the same reviewer, followed by Stephen's
+separate acceptance of the exact verified subject.
 
 No canonical Control mutation, PR creation, merge to main, CodeRabbit action,
 06i, G-RM-14, C2 mutation, provider action, Gate 6 closure, C3, or R1 action was
@@ -60,8 +62,40 @@ retain SHA-256
 
 The source-derived append census remains exactly six sites: the generic command
 service, T2 producer, authority bootstrap, two Control evaluation fixtures, and
-the recovery fixture. The executable AST reconciliation found no unmanifested
-or stale append site after PR #229 and the intervening live-main merges.
+the recovery fixture. Authority bootstrap is a system-bootstrap command
+producer: its public initializer validates `InitializeAuthorityRoot` and writes
+the complete command-schema triple. Only the three evaluation/recovery fixtures
+are commandless. The executable AST reconciliation now compares classification
+as well as path, symbol, and receiver, and found no unmanifested, stale, or
+misclassified append site after PR #229 and the intervening live-main merges.
+
+## Independent review and bounded remediation
+
+The single fresh no-history review assessed exact head
+`b7d6a6ecdfce9414966b3a4862d8d725d7047a24`, tree
+`7266c49918cd9a88fe703bad7e6eb3b98db15709`, and returned
+`rework_required`. The bounded remediation addresses every required finding:
+
+1. schema registration resolves the canonical path before the one bytes read,
+   so source identity, frozen bytes, and SHA-256 cannot straddle a symlink swap;
+2. prefix capture parses events and computes the raw prefix digest from the
+   same single-read batch buffers, then compares them with the witnessed
+   snapshot, rejecting same-size/restored-mtime ABA rewrites;
+3. decision materialization publishes through atomic no-replace hard-link
+   creation and admits an existing destination only when canonical bytes are
+   identical; and
+4. append-site classification is executable evidence, with direct public
+   controls for the command-producing authority bootstrap and the genuinely
+   commandless evaluation fixtures.
+
+The three critical negatives were watched red together (**3 failed**) before
+production changes and green afterward (**6 passed**, including the new
+classification gates). The complete grandfather module then passed **14 tests
+in 12.32 seconds**. The bounded schema identity, manifest, public fixture, and
+authority-bootstrap set passed **14 tests in 37.02 seconds**. A combined module
+tier exceeded its 180-second bound without a terminal summary; its exact pytest
+child was terminated and that aggregate attempt remains **unresolved**, not
+green.
 
 ## Frozen Control prefix revalidation
 
@@ -103,8 +137,9 @@ proven-clean `HEAD` bytes before this evidence record was written.
 
 ## Next action
 
-Freeze and push the evidence packet head, then commission exactly one fresh
-no-history independent reviewer against that exact subject. If the reviewer
-returns no required findings, present the exact reviewed subject to Stephen for
-the separate G-RM-9/06h acceptance decision. `artefact.register`, 06i Stage A,
-and G-RM-14 remain blocked until that acceptance.
+Freeze and push the bounded-remediation packet, then return that exact subject
+to the same reviewer for read-only disposition of the four findings. No second
+independent reviewer is commissioned. If the reviewer accepts the remediated
+exact subject, present it to Stephen for the separate G-RM-9/06h acceptance
+decision. `artefact.register`, 06i Stage A, and G-RM-14 remain blocked until
+that acceptance.

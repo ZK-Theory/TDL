@@ -721,7 +721,8 @@ class SchemaRegistry:
         self._schemas_by_id: dict[str, dict[str | None, RegisteredSchema]] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
-                raw_bytes = path.read_bytes()
+                source_path = path.resolve(strict=True)
+                raw_bytes = source_path.read_bytes()
                 schema = json.loads(raw_bytes)
                 Draft202012Validator.check_schema(schema)
                 schema_id = schema["$id"]
@@ -745,7 +746,7 @@ class SchemaRegistry:
                 schema_version=schema_version,
                 raw_bytes_sha256=sha256(raw_bytes).hexdigest(),
                 raw_bytes=raw_bytes,
-                source_path=path.resolve(),
+                source_path=source_path,
                 parsed=_freeze_json(schema),
             )
             self._schemas[key] = registered

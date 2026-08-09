@@ -19,8 +19,9 @@
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
 **Status:** current-producer and G-RM-8 `GRANDFATHER` construction preserved;
-the final post-PR #229 census is reconciled; independent review and owner
-acceptance remain open
+the final post-PR #229 census is reconciled; the single independent review's
+four findings are remediated; same-reviewer verification and owner acceptance
+remain open
 
 ## Capability truth
 
@@ -29,9 +30,9 @@ binding, complete append-path accounting, and selected G-RM-8 exact-prefix
 protocol are implemented. The post-PR #229 census is reconciled at production
 candidate `2f005f1`. 06h cannot be accepted until:
 
-1. one fresh no-history independent reviewer assesses the complete exact
-   subject; and
-2. Stephen separately accepts the exact reviewed 06h subject.
+1. the same independent reviewer verifies the bounded remediation of its exact
+   `b7d6a6e` findings; and
+2. Stephen separately accepts the exact verified 06h subject.
 
 This record does not authorize 06i Stage A, author G-RM-14 bytes, authorize
 `artefact.register`, commission premature review, or claim acceptance.
@@ -58,7 +59,7 @@ reconciliation gate fails on an unmanifested or stale ledger append site. PR
 
 | Path and symbol | Receiver | Disposition |
 |---|---|---|
-| `research_system/authority.py::initialize_authority_control_store` | `ledger` | commandless system bootstrap |
+| `research_system/authority.py::initialize_authority_control_store` | `ledger` | system-bootstrap command producer |
 | `research_system/command/service.py::submit` | `self.ledger` | generic and guarded command producer |
 | `research_system/command/t2.py::submit_t2` | `service.ledger` | T2 command producer |
 | `research_system/evals/executors/control_store.py::execute_s009` | `ledger` | commandless evaluation fixture |
@@ -76,6 +77,11 @@ After PR #229 and all intervening live-main merges were integrated at
 and the AST reconciliation still found exactly the same six append sites. The
 exact evidence is recorded in
 `06h-final-live-main-reconciliation-evidence-2f005f1-2026-08-09.md`.
+
+The executable reconciliation now includes each site's classification. Direct
+public controls prove that authority initialization emits the complete
+`InitializeAuthorityRoot` command-schema triple and that only the three
+evaluation/recovery fixture sites are commandless.
 
 ## Current candidate behavior
 
@@ -157,7 +163,9 @@ a process-RSS or production-load claim.
 
 Stephen selected G-RM-8 `GRANDFATHER` for lineage `3c75d3d`. The attributed
 decision, exact prefix evidence, implementation, and fail-closed controls are
-preserved in reachable ancestors and the linked evidence records. The remaining
-06h gates are one fresh no-history review of the complete exact subject and
-Stephen's separate acceptance of that reviewed subject. Until that acceptance,
+preserved in reachable ancestors and the linked evidence records. The one fresh
+no-history review returned `rework_required` at exact head `b7d6a6e`; all four
+findings are addressed in the bounded remediation recorded in the final
+reconciliation evidence. The remaining 06h gates are same-reviewer verification
+and Stephen's separate acceptance of the exact verified subject. Until that acceptance,
 `artefact.register`, 06i Stage A, and G-RM-14 remain blocked.
