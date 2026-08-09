@@ -14,7 +14,8 @@
 
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
-**Status:** exact live-main 06h candidate construction; G-RM-8, independent review,
+**Status:** current-producer candidate preserved; G-RM-8 `GRANDFATHER` selected
+and under bounded construction; final post-PR #229 census, independent review,
 and owner acceptance remain open
 
 ## Capability truth
@@ -23,16 +24,15 @@ C2 remains **INCOMPLETE**. The G-RM-9/current-schema identity, current producer
 binding, and complete append-path accounting candidate is implemented against
 the PR #222 merge, but 06h cannot be accepted until:
 
-1. Stephen selects one G-RM-8 historical protocol using the independent
-   evidence required by the governing 06h plan;
-2. the selected protocol is implemented with the required positive,
+1. the selected `GRANDFATHER` protocol is implemented with the required positive,
    new-malformed, repeat, genesis, incremental, and rollback/stop controls;
-3. one fresh no-history independent reviewer accepts that complete exact
+2. the final binding census is reconciled after PR #229 integration;
+3. one fresh no-history independent reviewer assesses that complete exact
    subject; and
 4. Stephen separately accepts the exact reviewed 06h subject.
 
-This record does not activate G-RM-8 or 06i Stage A, author G-RM-14 bytes,
-authorize `artefact.register`, commission review, or claim acceptance.
+This record does not authorize 06i Stage A, author G-RM-14 bytes, authorize
+`artefact.register`, commission premature review, or claim acceptance.
 
 ## Exact live-main authorities preserved
 
@@ -94,10 +94,11 @@ this reconciliation fabricates a substitute baseline. The earlier candidate
 `6cc5571` remains immutable evidence for its authorized base and was not
 rewritten or rebased.
 
-The runtime remains fail-closed by default for missing provenance. No G-RM-8
-branch is activated. The dormant position-only replay parameter is not an
+The runtime remains fail-closed by default for missing provenance. Stephen has
+selected G-RM-8 `GRANDFATHER`, whose exact-prefix construction is recorded in
+the later decision/evidence files. The position-only replay parameter is not an
 admissible grandfather protocol because it is not bound to `store_identity`,
-`ledger_fingerprint`, and `max_global_position`.
+the exact prefix fingerprint and event set, and `max_global_position`.
 
 ## Validation
 

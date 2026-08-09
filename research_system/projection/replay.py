@@ -1050,6 +1050,11 @@ def replay(
 ) -> dict[str, Any]:
     if legacy_command_provenance_through_position < 0:
         raise ValueError("legacy command provenance position must be non-negative")
+    if legacy_command_provenance_through_position:
+        raise IntegrityError(
+            "position-only legacy command provenance admission is insufficient; "
+            "use the exact grandfather prefix protocol"
+        )
     state: dict[str, Any] = {
         "streams": {},
         "last_position": 0,
@@ -1079,11 +1084,7 @@ def replay(
         recorded_provenance = provenance_fields.intersection(event)
         if recorded_provenance and recorded_provenance != provenance_fields:
             raise IntegrityError(f"incomplete command schema identity at {position}")
-        if (
-            schema_registry is not None
-            and not recorded_provenance
-            and (not isinstance(position, int) or position > legacy_command_provenance_through_position)
-        ):
+        if schema_registry is not None and not recorded_provenance:
             raise IntegrityError(f"missing command schema identity at {position}")
         if schema_registry is not None:
             if recorded_provenance:

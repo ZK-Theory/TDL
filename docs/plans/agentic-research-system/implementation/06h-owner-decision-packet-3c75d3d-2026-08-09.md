@@ -12,16 +12,18 @@
 
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
-**Decision status:** pending Stephen; this is not a 06h acceptance record
+**Decision status:** Stephen selected G-RM-8 `GRANDFATHER`; bounded construction
+is active, and this remains distinct from later exact-subject acceptance
 
 ## Capability status
 
 C2 remains **INCOMPLETE**. Candidate `3c75d3d` proves the reconciled live-main
 G-RM-9/current-schema identity, current producer, and append-accounting subject.
-The exact remaining 06h functional gap is an owner-selected, independently
-evidenced G-RM-8 historical-event protocol. Until that branch is implemented,
-independently reviewed, and separately accepted by Stephen,
-`artefact.register` remains blocked and 06i Stage A must not be authored.
+Stephen selected G-RM-8 `GRANDFATHER`; construction and exact-prefix evidence
+are now active. The remaining 06h gap is the final post-PR #229 binding census,
+one fresh no-history review of the complete exact subject, and Stephen's later
+exact-subject acceptance. `artefact.register` remains blocked and 06i Stage A
+must not be authored.
 
 ## Candidate evidence
 
@@ -99,3 +101,15 @@ After the selected branch is implemented and all mandated controls pass,
 exactly one fresh no-history independent reviewer may assess that complete exact
 subject. Stephen's separate exact-subject acceptance follows that review;
 neither this packet nor candidate `3c75d3d` constitutes acceptance.
+
+## Recorded response
+
+Stephen recorded exactly:
+
+`SELECT G-RM-8 GRANDFATHER for candidate lineage 3c75d3d; authorize bounded construction and required evidence capture.`
+
+The attributed, content-addressed decision is
+`06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json`, decision SHA-256
+`07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74`.
+The bounded construction and real-Control proof are recorded in
+`06h-g-rm-8-grandfather-evidence-3c75d3d-2026-08-09.md`.

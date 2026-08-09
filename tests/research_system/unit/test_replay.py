@@ -465,7 +465,7 @@ def test_replay_rejects_wrong_recorded_command_schema_version(tmp_path):
         replay(events, schema_registry=harness.service.schemas)
 
 
-def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
+def test_replay_rejects_position_only_legacy_provenance_admission(tmp_path):
     events, harness = _events(tmp_path)
     legacy = events[0]
     for field in (
@@ -478,13 +478,12 @@ def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
     legacy["payload"] = {"title": "Legacy task"}
     events[0] = _rehash(legacy)
 
-    projection = replay(
-        events,
-        schema_registry=harness.service.schemas,
-        legacy_command_provenance_through_position=1,
-    )
-
-    assert projection["streams"][TASK_ID]["status"] == "draft"
+    with pytest.raises(IntegrityError, match="position-only legacy command provenance admission is insufficient"):
+        replay(
+            events,
+            schema_registry=harness.service.schemas,
+            legacy_command_provenance_through_position=1,
+        )
 
 
 def test_replay_keeps_valid_generic_lease_granted_history_readable(tmp_path):
