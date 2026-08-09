@@ -80,6 +80,20 @@ internals, so they survive refactors.
 - Result files are date-suffixed and never overwrite an existing file.
 - No speculative generalisation; implement the slice the test demands.
 - Seeds specified and recorded for anything stochastic.
+- Derive lifecycle coverage from the accepted adjacency matrix. Compose every
+  new edge with each active adjacent edge in every reachable order, asserting
+  the aggregate after each step or atomic rejection with events, objects,
+  projections, receipts, and indexes unchanged.
+- Derive command/event rows from the accepted catalogue, including many-to-one
+  and one-to-many atomic bindings. Compare complete ordered records and mutate
+  command origin, event order, stream facet, and shared-event discriminator.
+- Bind recovery to the committed command identity before repairing a missing
+  receipt or index. A changed command under the same scope conflicts without
+  repair; an exact retry may reconstruct only from canonical history.
+- Materialize derived authority event-first: preflight an existing object for
+  exact equality, append the authorizing event, write the object, then publish
+  the accepted receipt. Prove an object without its event is unusable and an
+  event-only interruption repairs without a second event.
 
 ## Completion Checklist
 
@@ -120,6 +134,7 @@ internals, so they survive refactors.
 - Attack capabilities after normal binding, across instances, and under replay/reuse; validate instance ownership and consumption at the protected seam.
 - Capture long test partitions independently so one timeout cannot erase completed evidence.
 - For decorated public APIs, test both runtime signatures and source-visible defaults/annotations; hidden parameters must be optional yet fail closed.
+- When parsed JSON is frozen for validator use, preserve the validator's ordinary `dict`/`list` type semantics or explicitly extend its type checker. Pair nested object/array mutation negatives with a watched positive through the real validator and public producer; a top-level immutability assertion alone is not acceptance evidence.
 - For existing durable stores, run layout and identity validation before any constructor or helper that can create directories, defaults, or metadata; rejection tests must prove the missing or partial layout is byte-for-byte unchanged.
 - Bind recovery markers to the complete validated command and resolved schema identity, and bind rollback to the exact object generation owned by that attempt. A different command committing the same target is a mandatory no-delete control.
 - Treat visible filesystem generations as untrusted after a failed directory flush. A retry must re-establish durability before interpreting or advancing them, including on native Windows.
