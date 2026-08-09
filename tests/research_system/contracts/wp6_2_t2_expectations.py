@@ -401,8 +401,39 @@ NEGATIVE_CASES: Final = {
 }
 
 PROTECTED_TREE_IDENTITIES: Final = {
-    ".research-system/schemas/core/commands": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea",
-    ".research-system/schemas/core/events": "154ffc4bdde82fe903718734687e7a62797b1f69",
+    ".research-system/schemas/core/commands": "08ed2da41015d0a081cce6ace94281baf7af4bc7",
+    ".research-system/schemas/core/events": "2b0c97bd6daac5c0f8184c0966c2b8a45a948dd0",
+}
+
+AUTHORIZED_PROTECTED_SUCCESSOR_PATHS: Final = {
+    *{
+        f".research-system/schemas/core/commands/{name}.schema.json"
+        for name in (
+            "begin_context_compilation",
+            "complete_context_compilation",
+            "expire_context_packet",
+            "fail_context_packet",
+            "issue_context_packet",
+            "record_context_delivery",
+            "request_context_packet",
+            "supersede_context_packet",
+            "validate_context_packet",
+        )
+    },
+    *{
+        f".research-system/schemas/core/events/{name}.schema.json"
+        for name in (
+            "context_compilation_started",
+            "context_packet_compiled",
+            "context_packet_delivered",
+            "context_packet_expired",
+            "context_packet_failed",
+            "context_packet_issued",
+            "context_packet_requested",
+            "context_packet_superseded",
+            "context_packet_validated",
+        )
+    },
 }
 
 PROTECTED_PROVIDER_BLOBS: Final = {

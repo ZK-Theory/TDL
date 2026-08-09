@@ -5,7 +5,7 @@ revisions:
   - asset_id: mth_adversarial_review_protocol
     version: 1.0.0
     identity_scheme: git_blob_sha1
-    identity: 426dafc2bc200a341f07b488107c7a804fd83c5e
+    identity: 4b5421c9d7b9a1c48ba97ff08c44e1cc7543d2c5
     recorded_at: "2026-08-08"
     revision_reason: Initial provider-neutral candidate authored from verified source lineage.
     supersedes_identity: null
@@ -13,7 +13,7 @@ revisions:
   - asset_id: mth_counterexample_search_brief
     version: 1.0.0
     identity_scheme: git_blob_sha1
-    identity: b17404e8953c644ca54a6be9f5fbade6c904cb1a
+    identity: 98b3edfbc937b61a62bc60b66ae066fe5f6d5073
     recorded_at: "2026-08-08"
     revision_reason: Initial provider-neutral candidate authored from verified source lineage.
     supersedes_identity: null
@@ -21,7 +21,7 @@ revisions:
   - asset_id: mth_context_deidentification_transform
     version: 1.0.0
     identity_scheme: git_blob_sha1
-    identity: 58a37830600076ddf71bc20c127108234e15eff9
+    identity: 08fb50ebe2627659d417328975466af6e8822e07
     recorded_at: "2026-08-08"
     revision_reason: Initial provider-neutral candidate authored from verified source lineage.
     supersedes_identity: null
@@ -29,7 +29,7 @@ revisions:
   - asset_id: mth_theorem_retrieval_brief
     version: 1.0.0
     identity_scheme: git_blob_sha1
-    identity: 8ca3d5e25114feb2d1ff64389cf045f7a19c50f1
+    identity: b726755821263b1a571f1547e2b1d86576843643
     recorded_at: "2026-08-08"
     revision_reason: Initial provider-neutral candidate authored from verified source lineage.
     supersedes_identity: null
@@ -37,7 +37,7 @@ revisions:
   - asset_id: mth_decomposition_scaffolding_template
     version: 1.0.0
     identity_scheme: git_blob_sha1
-    identity: a21f725460af817335decd8162b27ca724fae211
+    identity: 5d095ea35efc0a48c4612831ac4e31bc8b260af4
     recorded_at: "2026-08-08"
     revision_reason: Initial provider-neutral candidate authored from verified source lineage.
     supersedes_identity: null
