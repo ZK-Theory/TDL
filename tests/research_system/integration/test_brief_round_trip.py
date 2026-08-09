@@ -639,7 +639,9 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
         "document_type": "ReviewFindingSet",
         "responds_to_brief_manifest_sha256": brief_hash,
         "status": "imported",
+        "review_subject": exported["brief"]["subjects"][0],
         "findings": [],
+        "candidate_dispositions": [],
     }
     document_path = tmp_path / "document.json"
     document_path.write_bytes(canonical_bytes(document))

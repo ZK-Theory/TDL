@@ -71,12 +71,26 @@ def _findings(brief_hash: str) -> dict[str, object]:
         "document_type": "ReviewFindingSet",
         "responds_to_brief_manifest_sha256": brief_hash,
         "status": "imported",
+        "review_subject": _manifest()["subjects"][0],
         "findings": [
             {
                 "finding_id": "finding-1",
+                "candidate_id": "candidate-1",
                 "severity": "medium",
+                "location": "candidate.json",
                 "summary": "The returned observation is bounded.",
                 "evidence": "candidate.json",
+                "consequence": "The candidate needs correction before acceptance.",
+                "required_disposition": "correct before acceptance",
+                "self_critique_result": "confirmed",
+            }
+        ],
+        "candidate_dispositions": [
+            {
+                "candidate_id": "candidate-1",
+                "summary": "The returned observation may be too broad.",
+                "disposition": "retained",
+                "rationale": "The cited bytes reproduce the issue after self-critique.",
             }
         ],
     }
@@ -97,6 +111,24 @@ def test_validate_return_bundle_binds_exact_brief_and_raw_bytes() -> None:
     assert returned.use_authority == "candidate"
 
 
+def test_validate_return_bundle_accepts_clean_review_with_no_candidates() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    brief = finalize_brief_manifest(_manifest(), schema_registry=registry)
+    document = _findings(brief["brief_sha256"])
+    document["findings"] = []
+    document["candidate_dispositions"] = []
+
+    returned = validate_return_bundle(
+        brief=brief,
+        session=_session(brief["brief_sha256"]),
+        document=document,
+        schema_registry=registry,
+    )
+
+    assert returned.value["findings"] == []
+    assert returned.value["candidate_dispositions"] == []
+
+
 def test_validate_return_bundle_rejects_cross_brief_and_hidden_reasoning() -> None:
     registry = SchemaRegistry(SCHEMAS)
     brief = finalize_brief_manifest(_manifest(), schema_registry=registry)
@@ -112,5 +144,55 @@ def test_validate_return_bundle_rejects_cross_brief_and_hidden_reasoning() -> No
             brief=brief,
             session=_session(brief["brief_sha256"]),
             document={**_findings(brief["brief_sha256"]), "hidden_reasoning": "forbidden"},
+            schema_registry=registry,
+        )
+
+
+def test_validate_return_bundle_rejects_review_subject_or_disposition_substitution() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    brief = finalize_brief_manifest(_manifest(), schema_registry=registry)
+    wrong_subject = _findings(brief["brief_sha256"])
+    wrong_subject["review_subject"] = {
+        **wrong_subject["review_subject"],
+        "sha256": "f" * 64,
+    }
+    with pytest.raises(ArsError, match="exact brief review subject"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=wrong_subject,
+            schema_registry=registry,
+        )
+
+    missing_finding = _findings(brief["brief_sha256"])
+    missing_finding["findings"] = []
+    with pytest.raises(ArsError, match="retained candidates do not match findings"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=missing_finding,
+            schema_registry=registry,
+        )
+
+
+def test_validate_return_bundle_rejects_ambiguous_brief_review_subject() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    manifest = _manifest()
+    first_subject = manifest["subjects"][0]
+    manifest["subjects"].append(
+        {
+            **first_subject,
+            "subject_id": "art_019fe35c-2a75-7650-b2cd-7d8bdef1fe6c",
+            "path_or_name": "other-candidate.json",
+            "sha256": "7" * 64,
+        }
+    )
+    brief = finalize_brief_manifest(manifest, schema_registry=registry)
+
+    with pytest.raises(ArsError, match="requires exactly one brief review_subject"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=_findings(brief["brief_sha256"]),
             schema_registry=registry,
         )
