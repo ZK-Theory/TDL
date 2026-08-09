@@ -48,21 +48,63 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
 
 
-def _hook_repo(tmp_path: Path) -> Path:
+def _hook_repo(tmp_path: Path, *, configure: bool = True) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
-    _git(repo, "config", "core.hooksPath", ".githooks")
+    if configure:
+        _git(repo, "config", "core.hooksPath", ".githooks")
     hooks = repo / ".githooks"
     hooks.mkdir()
-    for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
+    for name in ("pre-commit", "pre-push", "commit-msg", "prepare-commit-msg"):
         hook = hooks / name
         hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         hook.chmod(0o755)
     _git(repo, "add", ".githooks")
-    for name in ("pre-commit", "commit-msg", "prepare-commit-msg"):
+    for name in ("pre-commit", "pre-push", "commit-msg", "prepare-commit-msg"):
         _git(repo, "update-index", "--chmod=+x", f".githooks/{name}")
     return repo
+
+
+def test_install_activates_tracked_hooks_and_real_push_boundary(tmp_path: Path, monkeypatch) -> None:
+    module = _installer_module()
+    repo = _hook_repo(tmp_path, configure=False)
+    (repo / ".githooks" / "pre-push").write_bytes((ROOT / ".githooks" / "pre-push").read_bytes())
+    _git(repo, "add", ".githooks/pre-push")
+    _git(repo, "update-index", "--chmod=+x", ".githooks/pre-push")
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+
+    assert module.verify(install=True) == 0
+    configured = subprocess.run(
+        ["git", "config", "--local", "--get", "core.hooksPath"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert configured == ".githooks"
+
+    _git(repo, "-c", "user.name=test", "-c", "user.email=test@example.invalid", "commit", "-qm", "hooks")
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    _git(repo, "remote", "add", "origin", str(remote))
+    feature = subprocess.run(
+        ["git", "push", "origin", "HEAD:refs/heads/topic"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert feature.returncode == 0
+    main = subprocess.run(
+        ["git", "push", "origin", "HEAD:refs/heads/main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert main.returncode != 0
+    assert "reviewed remote PR seam" in main.stderr
 
 
 def test_install_git_hooks_missing_directory_and_hook(tmp_path: Path, monkeypatch) -> None:
@@ -82,6 +124,14 @@ def test_install_git_hooks_rejects_non_executable_index_mode(tmp_path: Path, mon
     repo = _hook_repo(tmp_path)
     monkeypatch.setattr(module, "REPO_ROOT", repo)
     _git(repo, "update-index", "--chmod=-x", ".githooks/pre-commit")
+    assert module.verify() == 1
+
+
+def test_install_git_hooks_requires_pre_push_main_boundary(tmp_path: Path, monkeypatch) -> None:
+    module = _installer_module()
+    repo = _hook_repo(tmp_path)
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+    (repo / ".githooks" / "pre-push").unlink()
     assert module.verify() == 1
 
 

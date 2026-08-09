@@ -1,0 +1,12 @@
+#!/bin/sh
+# Local main is read-only: integration must occur through the reviewed remote PR seam.
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "pre-push: direct updates to main are prohibited; integrate through the reviewed remote PR seam." >&2
+    echo "pre-push: rejected $local_ref ($local_sha) -> $remote_ref ($remote_sha)" >&2
+    exit 1
+  fi
+done
+
+exit 0

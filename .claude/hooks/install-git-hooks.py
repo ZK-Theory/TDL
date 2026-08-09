@@ -18,7 +18,7 @@ missing.
 
 Usage:
     python .claude/hooks/install-git-hooks.py            # verify (exit 1 on problems)
-    python .claude/hooks/install-git-hooks.py --install  # copy any missing hook into the active dir
+    python .claude/hooks/install-git-hooks.py --install  # activate .githooks for this clone, then verify
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # .claude/hooks/ -> .claude/ ->
 # copy in the active directory is the only source of truth.
 REQUIRED_HOOKS: dict[str, str | None] = {
     "pre-commit": None,
+    "pre-push": None,
     "commit-msg": None,
     "prepare-commit-msg": None,
 }
@@ -76,6 +77,24 @@ def make_executable(path: Path) -> None:
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def activate_tracked_hooks() -> tuple[str, Path]:
+    """Bind this clone to the tracked hook directory and return the active path."""
+    tracked = REPO_ROOT / ".githooks"
+    if not tracked.is_dir():
+        raise RuntimeError(f"tracked hook directory does not exist: {tracked}")
+    proc = subprocess.run(
+        ["git", "config", "--local", "core.hooksPath", ".githooks"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        diagnostic = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(f"could not activate tracked hooks: {diagnostic or 'git config failed'}")
+    return ".githooks", tracked
+
+
 def index_mode(path: Path) -> str | None:
     """Return the git index mode for a tracked file (e.g. '100755'), else None.
 
@@ -111,6 +130,14 @@ def executable_problem(path: Path, name: str) -> str | None:
 
 def verify(install: bool = False) -> int:
     configured, hooks_dir = active_hooks_dir()
+
+    if install and not configured:
+        try:
+            configured, hooks_dir = activate_tracked_hooks()
+        except RuntimeError as exc:
+            print(f"FAIL - {exc}", file=sys.stderr)
+            return 1
+        print("activated clone-local core.hooksPath=.githooks")
 
     print(f"core.hooksPath : {configured or '(unset)'}")
     print(f"active hooks   : {hooks_dir}")

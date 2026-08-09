@@ -52,6 +52,30 @@ def _validate_brief_identity(brief: dict[str, Any]) -> str:
     return brief_hash
 
 
+def _validate_review_finding_set(document: dict[str, Any], brief: dict[str, Any]) -> None:
+    review_subject = document["review_subject"]
+    brief_review_subjects = [subject for subject in brief["subjects"] if subject.get("role") == "review_subject"]
+    if len(brief_review_subjects) != 1:
+        raise ArsError("ReviewFindingSet brief requires exactly one brief review_subject")
+    if review_subject != brief_review_subjects[0]:
+        raise ArsError("review finding set does not bind an exact brief review subject")
+
+    dispositions = document["candidate_dispositions"]
+    candidate_ids = [item["candidate_id"] for item in dispositions]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ArsError("review finding set candidate dispositions are not unique")
+
+    findings = document["findings"]
+    finding_ids = [item["finding_id"] for item in findings]
+    finding_candidate_ids = [item["candidate_id"] for item in findings]
+    if len(finding_ids) != len(set(finding_ids)) or len(finding_candidate_ids) != len(set(finding_candidate_ids)):
+        raise ArsError("review finding set retained findings are not unique")
+
+    retained_candidate_ids = {item["candidate_id"] for item in dispositions if item["disposition"] == "retained"}
+    if retained_candidate_ids != set(finding_candidate_ids):
+        raise ArsError("review finding set retained candidates do not match findings")
+
+
 def validate_return_bundle(
     *,
     brief: dict[str, Any],
@@ -82,6 +106,8 @@ def validate_return_bundle(
         schema_registry.validate(schema_id, document)
     except SchemaError as exc:
         raise ArsError(f"returned document schema rejected the document: {exc}") from exc
+    if document_type == "ReviewFindingSet":
+        _validate_review_finding_set(document, brief)
     raw = canonical_bytes(document)
     return ReturnedDocument(
         document_type=document_type,
