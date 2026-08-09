@@ -286,22 +286,26 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
     output.parent.mkdir()
     replacement = b"post-link replacement\n"
     real_link = os.link
+    real_fsync = grandfather_module._PublicationDirectory.fsync
     fsynced: list[Path] = []
     swapped = False
 
     def link_then_swap(source, destination, *args, **kwargs):
         nonlocal swapped
         real_link(source, destination, *args, **kwargs)
-        Path(destination).unlink()
-        Path(destination).write_bytes(replacement)
+        output.unlink()
+        output.write_bytes(replacement)
         swapped = True
+
+    def record_fsync(self):
+        fsynced.append(self.path)
+        real_fsync(self)
 
     monkeypatch.setattr(os, "link", link_then_swap)
     monkeypatch.setattr(
-        grandfather_module,
-        "fsync_directory",
-        lambda path: fsynced.append(path),
-        raising=False,
+        grandfather_module._PublicationDirectory,
+        "fsync",
+        record_fsync,
     )
 
     with pytest.raises((ConflictError, IntegrityError), match="published|destination"):
@@ -324,11 +328,14 @@ def test_public_grandfather_materialization_reports_post_link_cleanup_race(tmp_p
     replacement = b"post-link replacement\n"
     real_link = os.link
     real_unlink = grandfather_module._PublicationDirectory.unlink
+    swapped = False
 
     def link_then_swap(source, destination, *args, **kwargs):
+        nonlocal swapped
         real_link(source, destination, *args, **kwargs)
-        Path(destination).unlink()
-        Path(destination).write_bytes(replacement)
+        output.unlink()
+        output.write_bytes(replacement)
+        swapped = True
 
     def unlink_then_replant(self, name, *, missing_ok):
         real_unlink(self, name, missing_ok=missing_ok)
@@ -346,6 +353,7 @@ def test_public_grandfather_materialization_reports_post_link_cleanup_race(tmp_p
             expected_snapshot=snapshot,
         )
 
+    assert swapped
     assert output.read_bytes() == replacement
 
 
@@ -356,11 +364,14 @@ def test_public_grandfather_materialization_reports_post_link_cleanup_failure(tm
     replacement = b"post-link replacement\n"
     real_link = os.link
     real_unlink = grandfather_module._PublicationDirectory.unlink
+    swapped = False
 
     def link_then_swap(source, destination, *args, **kwargs):
+        nonlocal swapped
         real_link(source, destination, *args, **kwargs)
-        Path(destination).unlink()
-        Path(destination).write_bytes(replacement)
+        output.unlink()
+        output.write_bytes(replacement)
+        swapped = True
 
     def reject_destination_unlink(self, name, *, missing_ok):
         if name == output.name:
@@ -378,6 +389,7 @@ def test_public_grandfather_materialization_reports_post_link_cleanup_failure(tm
             expected_snapshot=snapshot,
         )
 
+    assert swapped
     assert output.read_bytes() == replacement
 
 
