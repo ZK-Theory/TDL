@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.artefacts.runtime import (
     ControlRootArtefactContentReader,
     GoverningScientificReviewStore,
@@ -78,7 +79,8 @@ def test_control_content_reader_rejects_escape_and_foreign_root(tmp_path):
         reader.read(root_id="control", relative_path="../outside.json")
 
 
-def test_production_consumers_validate_scoped_authority_replay_before_resolution(tmp_path):
+@pytest.mark.integration
+def test_production_consumers_validate_scoped_authority_replay_before_resolution(tmp_path, monkeypatch):
     harness = control_plane(tmp_path)
     artefact_id = "art_019fe47a-1020-7000-8000-000000001020"
     activate_lifecycle_grant(
@@ -97,6 +99,18 @@ def test_production_consumers_validate_scoped_authority_replay_before_resolution
         origin_witness_path=authority.approved_witness_path,
         origin_witness=authority.approved_witness,
     )
+    validated_states: list[dict[str, object]] = []
+    original_validator = LedgerAuthorityGrantResolver.validate_replayed_administration_state
+
+    def record_validation(self, state):
+        validated_states.append(state)
+        original_validator(self, state)
+
+    monkeypatch.setattr(
+        LedgerAuthorityGrantResolver,
+        "validate_replayed_administration_state",
+        record_validation,
+    )
     consumers = build_artefact_consumers(binding)
 
     with pytest.raises(ArsError, match="no current replay-derived registration"):
@@ -111,3 +125,4 @@ def test_production_consumers_validate_scoped_authority_replay_before_resolution
             ),
             consumer_id="rm03_brief_review",
         )
+    assert len(validated_states) == 1
