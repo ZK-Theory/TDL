@@ -128,3 +128,4 @@ internals, so they survive refactors.
 - Attack capabilities after normal binding, across instances, and under replay/reuse; validate instance ownership and consumption at the protected seam.
 - Capture long test partitions independently so one timeout cannot erase completed evidence.
 - For decorated public APIs, test both runtime signatures and source-visible defaults/annotations; hidden parameters must be optional yet fail closed.
+- When parsed JSON is frozen for validator use, preserve the validator's ordinary `dict`/`list` type semantics or explicitly extend its type checker. Pair nested object/array mutation negatives with a watched positive through the real validator and public producer; a top-level immutability assertion alone is not acceptance evidence.

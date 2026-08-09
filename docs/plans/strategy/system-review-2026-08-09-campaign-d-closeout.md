@@ -81,3 +81,13 @@ No second runtime registry, lifecycle harness, or contract catalogue was added.
 Two stale hand-maintained schema counts were removed, and the general rules were
 consolidated into three existing skills that already own design, review, and
 implementation behavior.
+
+## Post-census addendum
+
+Observation `2026-08-09-frozen-schema-must-preserve-validator-json-types` was
+logged after the seven-campaign census while this review was still active. It is
+ACTIONED in this Campaign D branch: `contract-first-tdd` now requires frozen
+parsed JSON to preserve validator-recognized object/array semantics (or an
+explicitly extended type checker), with nested mutation negatives and a real
+validator/public-producer positive. This is a skill-lane correction and does not
+expand the runtime or contract design.
