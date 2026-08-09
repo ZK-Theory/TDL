@@ -71,12 +71,26 @@ def _findings(brief_hash: str) -> dict[str, object]:
         "document_type": "ReviewFindingSet",
         "responds_to_brief_manifest_sha256": brief_hash,
         "status": "imported",
+        "review_subject": _manifest()["subjects"][0],
         "findings": [
             {
                 "finding_id": "finding-1",
+                "candidate_id": "candidate-1",
                 "severity": "medium",
+                "location": "candidate.json",
                 "summary": "The returned observation is bounded.",
                 "evidence": "candidate.json",
+                "consequence": "The candidate needs correction before acceptance.",
+                "required_disposition": "correct before acceptance",
+                "self_critique_result": "confirmed",
+            }
+        ],
+        "candidate_dispositions": [
+            {
+                "candidate_id": "candidate-1",
+                "summary": "The returned observation may be too broad.",
+                "disposition": "retained",
+                "rationale": "The cited bytes reproduce the issue after self-critique.",
             }
         ],
     }
@@ -112,5 +126,32 @@ def test_validate_return_bundle_rejects_cross_brief_and_hidden_reasoning() -> No
             brief=brief,
             session=_session(brief["brief_sha256"]),
             document={**_findings(brief["brief_sha256"]), "hidden_reasoning": "forbidden"},
+            schema_registry=registry,
+        )
+
+
+def test_validate_return_bundle_rejects_review_subject_or_disposition_substitution() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    brief = finalize_brief_manifest(_manifest(), schema_registry=registry)
+    wrong_subject = _findings(brief["brief_sha256"])
+    wrong_subject["review_subject"] = {
+        **wrong_subject["review_subject"],
+        "sha256": "f" * 64,
+    }
+    with pytest.raises(ArsError, match="exact brief review subject"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=wrong_subject,
+            schema_registry=registry,
+        )
+
+    missing_finding = _findings(brief["brief_sha256"])
+    missing_finding["findings"] = []
+    with pytest.raises(ArsError, match="retained candidates do not match findings"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=missing_finding,
             schema_registry=registry,
         )
