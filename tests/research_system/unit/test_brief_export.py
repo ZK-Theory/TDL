@@ -139,7 +139,7 @@ def test_export_refreshes_context_before_durable_registration(monkeypatch) -> No
                 "created_at": "2026-08-09T00:00:00Z",
                 "subjects": [],
                 "assets": [],
-                "expected_import_types": ["ReviewFindingSet"],
+                "expected_import_types": ["ExploratoryMemo"],
                 "prohibitions": [],
                 "required_session_fields": [],
             },
@@ -159,3 +159,30 @@ def test_export_refreshes_context_before_durable_registration(monkeypatch) -> No
 
     assert resolved_events == [("delivered",), ("delivered", "expired")]
     assert registrations == []
+
+
+def test_export_rejects_review_without_review_subject_before_resolution() -> None:
+    resolutions: list[object] = []
+
+    def context_resolver(**kwargs):
+        resolutions.append(kwargs)
+        raise AssertionError("context resolution must not run")
+
+    with pytest.raises(ArsError, match="requires a review_subject"):
+        export_brief(
+            request={
+                "expected_import_types": ["ReviewFindingSet"],
+                "subjects": [{"role": "supporting_evidence"}],
+            },
+            context_resolver=context_resolver,
+            context_events=lambda: (),
+            context_objects=object(),
+            artefact_consumers=object(),
+            methods_pack=object(),
+            schema_registry=object(),
+            registration=object(),
+            document_store=object(),
+            command_service=object(),
+        )
+
+    assert resolutions == []

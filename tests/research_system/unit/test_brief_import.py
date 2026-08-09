@@ -111,6 +111,24 @@ def test_validate_return_bundle_binds_exact_brief_and_raw_bytes() -> None:
     assert returned.use_authority == "candidate"
 
 
+def test_validate_return_bundle_accepts_clean_review_with_no_candidates() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    brief = finalize_brief_manifest(_manifest(), schema_registry=registry)
+    document = _findings(brief["brief_sha256"])
+    document["findings"] = []
+    document["candidate_dispositions"] = []
+
+    returned = validate_return_bundle(
+        brief=brief,
+        session=_session(brief["brief_sha256"]),
+        document=document,
+        schema_registry=registry,
+    )
+
+    assert returned.value["findings"] == []
+    assert returned.value["candidate_dispositions"] == []
+
+
 def test_validate_return_bundle_rejects_cross_brief_and_hidden_reasoning() -> None:
     registry = SchemaRegistry(SCHEMAS)
     brief = finalize_brief_manifest(_manifest(), schema_registry=registry)

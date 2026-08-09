@@ -641,14 +641,7 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
         "status": "imported",
         "review_subject": exported["brief"]["subjects"][0],
         "findings": [],
-        "candidate_dispositions": [
-            {
-                "candidate_id": "candidate-content-identity",
-                "summary": "The subject content identity might not reproduce.",
-                "disposition": "rejected",
-                "rationale": "The canonical preimage reproduces the declared identity.",
-            }
-        ],
+        "candidate_dispositions": [],
     }
     document_path = tmp_path / "document.json"
     document_path.write_bytes(canonical_bytes(document))
