@@ -28,6 +28,7 @@ from research_system.assurance.runner import (
     AssurancePackRunnerConfig,
     SemanticRecordLocator,
     accept_assurance_pack,
+    load_assurance_pack,
     prepare_assurance_pack,
 )
 from research_system.artefacts.runtime import GoverningScientificReviewStore, build_artefact_consumers
@@ -826,7 +827,12 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
     except ValueError as exc:
         raise ConfigurationError("--evaluation-time must be an RFC 3339 timestamp") from exc
     config = AssurancePackRunnerConfig.load(args.config, repository_root=Path.cwd())
-    runner = prepare_assurance_pack if args.phase == "prepare" else accept_assurance_pack
+    runners = {
+        "prepare": prepare_assurance_pack,
+        "acceptance": accept_assurance_pack,
+        "consumption": load_assurance_pack,
+    }
+    runner = runners[args.phase]
     result = runner(
         config=config,
         candidate_path=args.candidate,
@@ -835,6 +841,9 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
         record_locators=locators,
     )
     output = asdict(result)
+    raw_pack = output.pop("raw_pack_bytes", None)
+    if raw_pack is not None:
+        output["raw_pack_sha256"] = sha256_hex(raw_pack)
     output["evidence_path"] = str(result.evidence_path)
     _print_json(output)
     return 0
@@ -1587,12 +1596,12 @@ def _parser() -> argparse.ArgumentParser:
 
     assurance_pack = groups.add_parser(
         "assurance-pack",
-        help="prepare or authorize consumption of the TDL_private assurance pack",
+        help="prepare, authorize, or consume the TDL_private assurance pack",
     )
     assurance_pack_actions = assurance_pack.add_subparsers(dest="assurance_pack_action", required=True)
     assurance_pack_run = assurance_pack_actions.add_parser(
         "run",
-        help="run the read-only two-phase assurance-pack coordinator",
+        help="run the three-phase assurance-pack coordinator",
     )
     assurance_pack_run.add_argument("--config", type=Path, required=True, help="verified ControlBinding JSON")
     assurance_pack_run.add_argument("--candidate", type=Path, required=True, help="candidate pack path")
@@ -1604,9 +1613,9 @@ def _parser() -> argparse.ArgumentParser:
     assurance_pack_run.add_argument("--run-id", required=True, help="immutable evaluation-run identity")
     assurance_pack_run.add_argument(
         "--phase",
-        choices=("prepare", "acceptance"),
+        choices=("prepare", "acceptance", "consumption"),
         required=True,
-        help="phase to execute; acceptance reloads preparation and authorizes consumption",
+        help="phase to execute; consumption reloads acceptance and revalidates at point of use",
     )
     assurance_pack_run.add_argument(
         "--record-locator",
