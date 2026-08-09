@@ -1,8 +1,8 @@
 schema_id: ars://tests/wp6-1/06h-current-append-manifest
 schema_version: 1.0.0
-accounted_base: 35f20340a026aafdd4eb17a594eff8a079f6a493
+accounted_base: 5832f0ab9712bb0dc4ad2b4d4e3a73795eaf60ce
 integrated_pr229_merge: a1c917f7e313d9636509795c525d12f97b695be3
-production_candidate: 4ad065464c5e51f4cc0e4e633af910a548f2c697
+production_candidate: 2f005f11754761ee81e56ef0f9da497ea2544feb
 assurance_lane: output_provenance
 accepted_authorities:
   owner_source_catalogue:

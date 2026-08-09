@@ -1,18 +1,20 @@
-# WP6.1 06h post-PR #229 reconciliation evidence
+# WP6.1 06h final live-main reconciliation evidence
 
 **Evidence date:** 2026-08-09
 
 **Branch:** `codex/wp6-1-kan95-06h-reconcile-9736c90`
 
-**Integrated live main:** `35f20340a026aafdd4eb17a594eff8a079f6a493`
+**Integrated live main:** `5832f0ab9712bb0dc4ad2b4d4e3a73795eaf60ce`
 
 **PR #229 merge ancestor:** `a1c917f7e313d9636509795c525d12f97b695be3`
 
 **Preserved G-RM-8 candidate ancestor:** `3ec6a5fdd002443456488e65ba21b124a8df1a97`
 
-**Production candidate:** `4ad065464c5e51f4cc0e4e633af910a548f2c697`
+**Intermediate post-PR #229 candidate ancestor:** `4ad065464c5e51f4cc0e4e633af910a548f2c697`
 
-**Production candidate tree:** `e919f54b3e49fe511f9266581099829b166ab46f`
+**Production candidate:** `2f005f11754761ee81e56ef0f9da497ea2544feb`
+
+**Production candidate tree:** `1958596b244d2706d4bc213db1e3e3fa60e2cf39`
 
 ## Capability status
 
@@ -29,9 +31,11 @@ performed by this reconciliation.
 
 ## Integrated subject and protected authority
 
-Merge candidate `4ad0654` has first parent `3ec6a5f` and second parent
-`35f2034`. It therefore preserves the owner-selected G-RM-8 implementation and
-the exact current live-main lineage without rebasing or rewriting either one.
+Final merge candidate `2f005f1` has first parent `1a9d313` and second parent
+`5832f0a`. The first-parent lineage contains intermediate merge candidate
+`4ad0654` and G-RM-8 candidate `3ec6a5f`. The final subject therefore preserves
+the owner-selected implementation, its evidence packet, and the exact current
+live-main lineage without rebasing or rewriting any of them.
 
 The following protected identities are byte-for-byte unchanged on the
 candidate and live main:
@@ -48,7 +52,7 @@ candidate through the real brief round trip and methods-pack contract.
 
 ## Final G-RM-9 census
 
-The public runtime inventory at `4ad0654` contains exactly 112 active bindings.
+The public runtime inventory at `2f005f1` contains exactly 112 active bindings.
 The deterministic rows
 `schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type`
 retain SHA-256
@@ -83,16 +87,16 @@ Interpreter: `C:\Users\steph\TDL\.venv\Scripts\python.exe`.
 Pytest plugin autoload, bytecode, cache, and coverage were disabled for the
 focused commands.
 
-- Real public generic append first: **1 passed in 6.47 seconds**.
+- Real public generic append first: **1 passed in 5.18 seconds**.
 - Exact immutable identity, 112-binding census, six-site reconciliation,
   generic/T2 missing-triple rejection, and planted unmanifested-site controls:
-  **12 passed in 17.71 seconds**.
+  **12 passed in 22.19 seconds**.
 - Mandated G-RM-8 candidate-head modules (`schema_registry`, `command_service`,
-  T2 runtime, replay, and grandfather prefix): **168 passed in 283.19 seconds**.
+  T2 runtime, replay, and grandfather prefix): **168 passed in 322.09 seconds**.
 - PR #229 export/import unit modules, real brief round trip, and methods-pack
-  contract: **27 passed in 82.26 seconds**.
+  contract: **27 passed in 83.01 seconds**.
 
-The validation ran against committed production candidate `4ad0654`. A delayed
+The validation ran against committed production candidate `2f005f1`. A delayed
 Repowise index refresh rewrote only `.claude/CLAUDE.md` and
 `.repowise-workspace.yaml`; both generated setup files were restored to their
 proven-clean `HEAD` bytes before this evidence record was written.

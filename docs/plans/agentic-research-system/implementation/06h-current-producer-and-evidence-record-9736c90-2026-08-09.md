@@ -12,9 +12,9 @@
 
 **Candidate tree:** `01625ae2e64a90981f0721c9bb7b35bf7d3abe25`
 
-**Post-PR #229 integrated main:** `35f20340a026aafdd4eb17a594eff8a079f6a493`
+**Post-PR #229 final integrated main:** `5832f0ab9712bb0dc4ad2b4d4e3a73795eaf60ce`
 
-**Post-PR #229 production candidate:** `4ad065464c5e51f4cc0e4e633af910a548f2c697`
+**Post-PR #229 production candidate:** `2f005f11754761ee81e56ef0f9da497ea2544feb`
 
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
@@ -27,7 +27,7 @@ acceptance remain open
 C2 remains **INCOMPLETE**. The G-RM-9/current-schema identity, current producer
 binding, complete append-path accounting, and selected G-RM-8 exact-prefix
 protocol are implemented. The post-PR #229 census is reconciled at production
-candidate `4ad0654`. 06h cannot be accepted until:
+candidate `2f005f1`. 06h cannot be accepted until:
 
 1. one fresh no-history independent reviewer assesses the complete exact
    subject; and
@@ -71,11 +71,11 @@ bindings. The canonical rows
 have SHA-256
 `4b7a5b1813415f360e12d40341320444fc13334a6cb78690effd0695eb4b2b6a`.
 
-After PR #229 and the intervening live-main merges were integrated at
-`35f2034`, the final census remained exactly 112 bindings with the same digest,
+After PR #229 and all intervening live-main merges were integrated at
+`5832f0a`, the final census remained exactly 112 bindings with the same digest,
 and the AST reconciliation still found exactly the same six append sites. The
 exact evidence is recorded in
-`06h-post-pr229-reconciliation-evidence-4ad0654-2026-08-09.md`.
+`06h-final-live-main-reconciliation-evidence-2f005f1-2026-08-09.md`.
 
 ## Current candidate behavior
 
