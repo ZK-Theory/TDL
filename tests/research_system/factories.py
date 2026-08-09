@@ -10,6 +10,8 @@ from typing import Any, Callable
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
+    OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
@@ -314,11 +316,11 @@ def activate_lifecycle_grant(
     context = harness.authority_resolver.administration_context()
     grant_schema = harness.schemas.resolve_identity(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
     )
     grant = {
         "schema_id": "ars://core/scoped-authority-grant",
-        "schema_version": "2.0.0",
+        "schema_version": SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         "authority_grant_id": grant_id,
         "actor_id": actor_id,
         "allowed_actor_classes": ["human"],
@@ -334,7 +336,7 @@ def activate_lifecycle_grant(
     decision_id = _prefixed_identity("arec", grant_id)
     decision = {
         "schema_id": "ars://core/owner-authority-administration-decision",
-        "schema_version": "1.0.0",
+        "schema_version": OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
         "record_id": decision_id,
         "revision": 1,
         "project_id": context.project_id,
@@ -361,7 +363,7 @@ def activate_lifecycle_grant(
         "command_id": _prefixed_identity("cmd", grant_id),
         "command_type": "ActivateAuthorityGrant",
         "schema_id": "ars://core/command/ActivateAuthorityGrant",
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "submitted_at": "2026-08-01T00:00:00Z",
         "actor_id": context.owner_actor_id,
         "on_behalf_of_actor_id": None,

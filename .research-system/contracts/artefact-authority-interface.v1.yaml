@@ -1,0 +1,118 @@
+schema_id: ars://contracts/artefact-authority-interface
+schema_version: 1.0.0
+candidate_state: proposed
+command_families:
+  - command_type: RegisterArtefact
+    event_type: ArtefactRegistered
+    initial_use_authority: candidate
+    target_kind: artefact
+  - command_type: RecordScientificReview
+    event_type: ScientificReviewRecorded
+    target_kind: artefact
+  - command_type: SetArtefactUseAuthority
+    event_type: ArtefactUseAuthoritySet
+    target_kind: artefact
+  - command_type: ResolveDecision
+    event_type: DecisionResolved
+    target_kind: decision
+public_resolver:
+  type: ArtefactUseResolver
+  request_fields:
+    - artefact_id
+    - exact_content_sha256
+    - consumer_id
+    - consumer_kind
+    - project_id
+    - task_id
+    - scope_id
+    - predicate_id
+    - predicate_version
+    - predicate_sha256
+    - evaluation_time
+    - required_decision_kind
+  result_fields:
+    - artefact_id
+    - exact_content_sha256
+    - consumer_id
+    - consumer_kind
+    - project_id
+    - task_id
+    - scope_id
+    - predicate_id
+    - predicate_version
+    - predicate_sha256
+    - manifest_sha256
+    - authority_event_id
+    - authority_event_hash
+    - governing_review_ids
+    - decision_id
+    - canonical_manifest_bytes
+  consumer_kinds:
+    - result_evidence
+    - review_evidence
+    - manuscript_evidence
+    - claim_evidence
+    - sensitive_sidecar
+  replay_state_root: streams
+  predicate_reference_format: <predicate_id>@<predicate_version>#sha256:<predicate_sha256>
+  governing_review_evidence:
+    resolution_fields:
+      - reference_id
+      - canonical_sha256
+      - record
+    record_fields:
+      - schema_id
+      - schema_version
+      - project_id
+      - review_id
+      - subject_sha256
+      - reviewer_actor_id
+      - eligible
+      - related
+      - independence_grade
+      - status
+    accepted_status: active
+    identity_rule: canonical_sha256 is resolver-derived from exact record bytes
+  failure_contract:
+    exception: ArtefactUseDenied
+    side_effects: none
+    receipt: none
+    event: none
+    object_revision: none
+    projection_mutation: none
+consumer_inventory:
+  - method: resolve_for_result
+    consumer_kind: result_evidence
+    callers:
+      - research_system.evals.release_publication.StoredReleasePublicationEvidence
+      - research_system.cli._publication_evidence
+      - research_system.cli._eval_release
+      - research_system.methods.brief.result_assessment
+  - method: resolve_for_review
+    consumer_kind: review_evidence
+    callers:
+      - research_system.methods.brief.review_assessment
+      - research_system.methods.manuscript_review.follow_up_review
+  - method: resolve_for_manuscript
+    consumer_kind: manuscript_evidence
+    callers:
+      - research_system.methods.brief.manuscript_assessment
+      - research_system.methods.manuscript_review.manuscript_pilot
+  - method: resolve_for_claim
+    consumer_kind: claim_evidence
+    callers:
+      - research_system.methods.brief.claim_assessment
+  - method: resolve_sensitive_sidecar
+    consumer_kind: sensitive_sidecar
+    callers:
+      - research_system.methods.brief.sensitive_sidecar
+      - research_system.methods.importer.sensitive_sidecar
+invariants:
+  - canonical consumption rebuilds current state from verified replay
+  - direct object reads never establish use authority
+  - registration forces candidate regardless of caller manifest state
+  - accepted predicates are identified by id, version, and canonical SHA-256
+  - every accepted_for_scope transition binds the complete governing review set
+  - claim evidence additionally binds a current Stephen-attributed claim_promotion decision
+  - supersession changes authority and never deletes prior evidence
+  - all failures occur before any event, receipt, object, or projection mutation

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://methods/review-finding-set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "document_type",
+    "responds_to_brief_manifest_sha256",
+    "status",
+    "review_subject",
+    "findings",
+    "candidate_dispositions"
+  ],
+  "properties": {
+    "document_type": {"const": "ReviewFindingSet"},
+    "responds_to_brief_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {"enum": ["imported"]},
+    "review_subject": {"$ref": "#/$defs/review_subject"},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "candidate_dispositions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/candidate_disposition"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "review_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_id",
+        "subject_kind",
+        "path_or_name",
+        "sha256",
+        "role",
+        "use_predicate_id",
+        "use_predicate_version",
+        "use_predicate_sha256"
+      ],
+      "properties": {
+        "subject_id": {"type": "string", "minLength": 1},
+        "subject_kind": {"type": "string", "minLength": 1},
+        "path_or_name": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "role": {"const": "review_subject"},
+        "use_predicate_id": {"type": "string", "minLength": 1},
+        "use_predicate_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "use_predicate_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "candidate_id",
+        "severity",
+        "location",
+        "summary",
+        "evidence",
+        "consequence",
+        "required_disposition",
+        "self_critique_result"
+      ],
+      "properties": {
+        "finding_id": {"type": "string", "minLength": 1},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "severity": {
+          "enum": ["critical", "high", "medium", "low", "nitpick"]
+        },
+        "location": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "evidence": {"type": "string", "minLength": 1},
+        "consequence": {"type": "string", "minLength": 1},
+        "required_disposition": {"type": "string", "minLength": 1},
+        "self_critique_result": {
+          "enum": ["confirmed", "revised"]
+        }
+      }
+    },
+    "candidate_disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "summary", "disposition", "rationale"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "disposition": {"enum": ["retained", "rejected"]},
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

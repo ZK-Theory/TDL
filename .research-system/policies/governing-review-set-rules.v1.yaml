@@ -1,0 +1,43 @@
+schema_id: ars://policy/governing-review-set-rules
+schema_version: 1.0.0
+candidate_state: proposed
+independence_order: [I0, I1, I2, I3]
+rules:
+  result_evidence:
+    minimum_approved_reviews: 1
+    minimum_independence_grade: I1
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+  review_evidence:
+    minimum_approved_reviews: 1
+    minimum_independence_grade: I1
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+  manuscript_evidence:
+    minimum_approved_reviews: 1
+    minimum_independence_grade: I2
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+  claim_evidence:
+    minimum_approved_reviews: 1
+    minimum_independence_grade: I2
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+  sensitive_sidecar:
+    minimum_approved_reviews: 1
+    minimum_independence_grade: I1
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+decision_rules:
+  claim_promotion:
+    selected_option: approve
+    deciding_actor: authority_owner_actor
+    required_permitted_command: SetArtefactUseAuthority
+    effective_scope_format: claim_promotion:<scope_id>
+    require_exact_scope: true
+    require_effective_at_or_before_evaluation: true

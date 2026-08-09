@@ -1,0 +1,9 @@
+schema_id: ars://tests/wp6-1/06h-current-append-manifest
+schema_version: 1.0.0
+historical_evidence:
+  pre_06h_freeze: non_reconstructible_not_recorded_before_existing_runtime_changes
+  candidate_default: require_complete_command_schema_identity_except_exact_bound_prefix
+  protocol_activation: G-RM-8-GRANDFATHER/1.0.0
+  owner_protocol_decision: 07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74
+  decision_record: research_system/projection/data/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json
+  selected_lineage: 3c75d3d102d8fe14746b19662005e88c4b776ffa

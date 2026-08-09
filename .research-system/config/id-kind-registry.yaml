@@ -5,6 +5,8 @@ kinds:
   scope_definition: obj
   task: tsk
   artefact: art
+  review: rev
+  decision: dec
   command: cmd
   event_batch: txb
   event: evt

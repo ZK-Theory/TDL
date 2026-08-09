@@ -30,6 +30,7 @@ from research_system.assurance.runner import (
     accept_assurance_pack,
     prepare_assurance_pack,
 )
+from research_system.artefacts.runtime import GoverningScientificReviewStore, build_artefact_consumers
 from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.command.service import CommandService
 from research_system.config import (
@@ -59,11 +60,21 @@ from research_system.evals.release_snapshot import (
     rederive_release_from_snapshot,
 )
 from research_system.ids import new_id
+from research_system.context.registry import resolve_context_packet_for_consumer
+from research_system.methods.brief import export_brief
+from research_system.methods.importer import import_return_bundle
+from research_system.methods.pack import load_methods_pack
+from research_system.methods.registration import (
+    CandidateDocumentStore,
+    CandidateRegistration,
+    register_candidate_document,
+)
 from research_system.evals.retention import validate_retention_policy
 from research_system.evals.retention_authorizer import (
     build_deletion_manifest_authorizer,
     load_evidence_store_registry,
 )
+from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.operations.backups import (
     ArtefactBinding,
     BackupArtefactInput,
@@ -606,6 +617,125 @@ def _command_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _brief_runtime(
+    args: argparse.Namespace,
+) -> tuple[
+    ControlBinding,
+    SchemaRegistry,
+    EventLedger,
+    ObjectStore,
+    CommandService,
+]:
+    """Construct the real 06i/06j/command dependencies for a brief operation."""
+    binding = ControlBinding.load(args.config)
+    schemas = runtime_schema_registry(binding.schema_root)
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    objects = ObjectStore(binding.control_root)
+    service = CommandService(
+        binding.control_root,
+        ledger,
+        objects,
+        ReceiptStore(binding.control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        ),
+        governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
+        clock=_authority_clock,
+    )
+    return binding, schemas, ledger, objects, service
+
+
+def _candidate_registration(value: dict[str, Any]) -> CandidateRegistration:
+    required = {
+        "artefact_id",
+        "project_id",
+        "actor_id",
+        "authority_grant_id",
+        "submitted_at",
+        "correlation_id",
+        "reason",
+        "manifest",
+    }
+    if set(value) != required or not isinstance(value.get("manifest"), dict):
+        raise ConfigurationError("brief registration fields are not exact")
+    return CandidateRegistration(**value)
+
+
+def brief_export(args: argparse.Namespace) -> int:
+    """Run `ars brief export` through current 06j and 06i authority."""
+    binding, schemas, ledger, objects, service = _brief_runtime(args)
+    source = _read_json(args.request)
+    request = source.get("brief")
+    registration_value = source.get("registration")
+    if not isinstance(request, dict) or not isinstance(registration_value, dict):
+        raise ConfigurationError("brief export request must contain brief and registration objects")
+    context = request.get("context")
+    if not isinstance(context, dict):
+        raise ConfigurationError("brief export context is missing")
+    attach_result = getattr(args, "attach_result", None)
+    if attach_result is not None:
+        attachment = request.get("attach_result")
+        if not isinstance(attachment, dict) or attachment.get("artefact_id") != attach_result:
+            raise ConfigurationError("--attach-result must bind the exact request attachment artefact")
+    try:
+        context["evaluation_time"] = datetime.fromisoformat(str(context["evaluation_time"]).replace("Z", "+00:00"))
+    except (KeyError, ValueError) as exc:
+        raise ConfigurationError("brief evaluation time is invalid") from exc
+    result = export_brief(
+        request=request,
+        context_resolver=resolve_context_packet_for_consumer,
+        context_events=lambda: ledger.snapshot().events,
+        context_objects=objects,
+        artefact_consumers=build_artefact_consumers(binding),
+        methods_pack=load_methods_pack(binding.schema_root.parent.parent),
+        schema_registry=schemas,
+        registration=_candidate_registration(registration_value),
+        document_store=CandidateDocumentStore(binding.control_root),
+        command_service=service,
+    )
+    _print_json(
+        {
+            "brief": result.manifest,
+            "artefact_id": result.registered.artefact_id,
+            "content_sha256": result.registered.content_sha256,
+            "relative_path": result.registered.relative_path,
+            "rendered_verification": result.rendered_verification,
+        }
+    )
+    return 0
+
+
+def brief_import(args: argparse.Namespace) -> int:
+    """Run `ars brief import` and register exact returned bytes as candidate."""
+    binding, schemas, _ledger, _objects, service = _brief_runtime(args)
+    registration_value = _read_json(args.registration)
+    returned, registered = import_return_bundle(
+        brief=_read_canonical_json(args.brief),
+        session=_read_canonical_json(args.session),
+        document=_read_canonical_json(args.document),
+        schema_registry=schemas,
+        registration=_candidate_registration(registration_value),
+        document_store=CandidateDocumentStore(binding.control_root),
+        command_service=service,
+    )
+    _print_json(
+        {
+            "document_type": returned.document_type,
+            "artefact_id": registered.artefact_id,
+            "content_sha256": registered.content_sha256,
+            "use_authority": returned.use_authority,
+            "relative_path": registered.relative_path,
+        }
+    )
+    return 0
+
+
 def _assurance_record_write(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     record = _read_json(args.record)
@@ -922,9 +1052,13 @@ def _rederive_bound_decision(
 def _publication_evidence(
     binding: ControlBinding,
     source: dict[str, Any],
-) -> tuple[StoredReleasePublicationEvidence, str, str]:
+    *,
+    actor_id: str,
+    authority_grant_id: str,
+    registration_context: dict[str, Any] | None,
+) -> tuple[StoredReleasePublicationEvidence | None, str, str, bool]:
     schemas = runtime_schema_registry(binding.schema_root)
-    resolver = LedgerAuthorityGrantResolver(
+    authority = LedgerAuthorityGrantResolver(
         binding.control_root,
         binding.project_id,
         binding.store_identity,
@@ -935,29 +1069,45 @@ def _publication_evidence(
     existing_projection = replay(
         EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
         schema_registry=schemas,
-        authority_state_validator=resolver.validate_replayed_administration_state,
+        authority_state_validator=authority.validate_replayed_administration_state,
     )
-    existing = existing_projection.get("release_decisions", {}).get(source["release_gate_decision_id"])
-    if isinstance(existing, dict):
-        resolver = StoredReleasePublicationEvidence(
-            objects=ObjectStore(binding.control_root),
+
+    def stored_evidence_resolver() -> StoredReleasePublicationEvidence:
+        return StoredReleasePublicationEvidence(
+            consumers=build_artefact_consumers(binding),
+            context_for_reference=_publication_context_for_reference(
+                binding,
+                schemas,
+                datetime.fromisoformat(str(source["decided_at"]).replace("Z", "+00:00")),
+            ),
             expected_store_identity=binding.store_identity,
             rederive=rederive_release_from_snapshot,
         )
-        manifest_ref = existing["evaluation_runs_manifest_ref"]
-        control_ref = existing["control_binding_ref"]
-        manifest = resolver.resolve_evaluation_runs(manifest_ref)
-        control = resolver.resolve_control_binding(control_ref)
+
+    def stored_evidence_matches(
+        evidence_resolver: StoredReleasePublicationEvidence,
+        manifest_ref: str,
+        control_ref: str,
+    ) -> bool:
+        manifest = evidence_resolver.resolve_evaluation_runs(manifest_ref)
+        control = evidence_resolver.resolve_control_binding(control_ref)
         schemas.validate("ars://evals/release-publication-evidence", manifest)
         schemas.validate("ars://evals/release-control-binding", control)
-        derived, gate5_authorized = resolver.rederive_release_decision(
+        derived, gate5_authorized = evidence_resolver.rederive_release_decision(
             manifest,
             control,
         )
         if gate5_authorized is not False:
             raise ArsError("stored publication evidence differs from source")
-        if derived == source:
-            return resolver, manifest_ref, control_ref
+        return derived == source
+
+    existing = existing_projection.get("release_decisions", {}).get(source["release_gate_decision_id"])
+    if isinstance(existing, dict):
+        evidence_resolver = stored_evidence_resolver()
+        manifest_ref = existing["evaluation_runs_manifest_ref"]
+        control_ref = existing["control_binding_ref"]
+        if stored_evidence_matches(evidence_resolver, manifest_ref, control_ref):
+            return evidence_resolver, manifest_ref, control_ref, False
     coverage_path = binding.schema_root.parent / "evals" / "p0-coverage.yaml"
     fixtures, schemas_root = _eval_roots(coverage_path)
     producer_evidence = run_p0_coverage(
@@ -985,16 +1135,165 @@ def _publication_evidence(
     schemas.validate("ars://evals/release-control-binding", control)
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
+    streams = existing_projection.get("streams", {})
+    registered_streams = tuple(streams.get(reference) for reference in (manifest_ref, control_ref))
+    if all(isinstance(stream, dict) for stream in registered_streams):
+        expected_hashes = (
+            sha256_hex(canonical_bytes(manifest)),
+            sha256_hex(canonical_bytes(control)),
+        )
+        if any(
+            stream.get("content_sha256") != expected_hash
+            for stream, expected_hash in zip(registered_streams, expected_hashes, strict=True)
+        ):
+            raise ArsError("registered publication evidence differs from source")
+        if all(stream.get("use_authority") == "accepted_for_scope" for stream in registered_streams):
+            evidence_resolver = stored_evidence_resolver()
+            if not stored_evidence_matches(evidence_resolver, manifest_ref, control_ref):
+                raise ArsError("stored publication evidence differs from source")
+            return evidence_resolver, manifest_ref, control_ref, False
+        return None, manifest_ref, control_ref, True
+    if registration_context is None:
+        raise ArsError("new release evidence requires --artefact-registration-context")
+    required = {
+        "task_id",
+        "dispatch_id",
+        "attempt_id",
+        "context_packet_id",
+        "producer_profile",
+        "code_commit",
+        "branch_identity",
+        "worktree_identity",
+        "environment_fingerprint",
+        "created_at",
+        "observed_at",
+        "relative_directory",
+    }
+    if set(registration_context) != required:
+        raise ConfigurationError("release artefact registration context fields are not exact")
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     objects = ObjectStore(binding.control_root)
-    objects.write("artefact", manifest_ref, 1, manifest)
-    objects.write("artefact", control_ref, 1, control)
-
-    resolver = StoredReleasePublicationEvidence(
-        objects=objects,
-        expected_store_identity=binding.store_identity,
-        rederive=rederive_release_from_snapshot,
+    command_service = CommandService(
+        binding.control_root,
+        ledger,
+        objects,
+        ReceiptStore(binding.control_root),
+        schemas,
+        authority_resolver=authority,
+        governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
+        clock=_authority_clock,
     )
-    return resolver, manifest_ref, control_ref
+    store = CandidateDocumentStore(
+        binding.control_root,
+        relative_directory=Path(str(registration_context["relative_directory"])),
+    )
+    for value, artefact_id, schema_id, artefact_type in (
+        (manifest, manifest_ref, "ars://evals/release-publication-evidence", "release_publication_evidence"),
+        (control, control_ref, "ars://evals/release-control-binding", "release_control_binding"),
+    ):
+        base_manifest = {
+            "artefact_id": artefact_id,
+            "aliases": [],
+            "artefact_type": artefact_type,
+            "artefact_schema_id": schema_id,
+            "artefact_schema_version": "1.0.0",
+            "task_id": registration_context["task_id"],
+            "dispatch_id": registration_context["dispatch_id"],
+            "attempt_id": registration_context["attempt_id"],
+            "producer_actor_id": actor_id,
+            "producer_profile": registration_context["producer_profile"],
+            "context_packet_id": registration_context["context_packet_id"],
+            "created_at": registration_context["created_at"],
+            "code_commit": registration_context["code_commit"],
+            "branch_identity": registration_context["branch_identity"],
+            "worktree_identity": registration_context["worktree_identity"],
+            "environment_fingerprint": registration_context["environment_fingerprint"],
+            "root_id": "control",
+            "relative_path": "pending",
+            "size_bytes": 0,
+            "media_type": "application/json",
+            "content_sha256": "0" * 64,
+            "observed_at": registration_context["observed_at"],
+            "availability_check_evidence_refs": [],
+            "input_dependencies": [],
+            "research_provenance": {
+                "dataset_ids": [],
+                "dataset_vintages": [],
+                "representation_ids": [],
+                "parameter_ids": [],
+                "seed_ids": [],
+                "sample_restriction_ids": [],
+            },
+            "validation": {
+                "validation_record_refs": [],
+                "expected_contract_ids": [],
+                "expected_schema_ids": [schema_id],
+            },
+            "authority": {
+                "availability": "available",
+                "regenerability": "regenerable_verified",
+                "integrity": "verified",
+                "structural_validation": "passed",
+                "scientific_review": "pending",
+                "use_authority": "candidate",
+                "accepted_scope": f"release:{source['release_gate_decision_id']}",
+                "consumer_restrictions": [],
+            },
+            "operations": {
+                "no_overwrite_evidence_refs": [],
+                "retention_class": "release_evidence",
+                "confidentiality_class": "internal",
+                "external_data_constraints": [],
+            },
+        }
+        register_candidate_document(
+            value=value,
+            registration=CandidateRegistration(
+                artefact_id=artefact_id,
+                project_id=binding.project_id,
+                actor_id=actor_id,
+                authority_grant_id=authority_grant_id,
+                submitted_at=str(registration_context["observed_at"]),
+                correlation_id=f"release-evidence:{source['release_gate_decision_id']}",
+                reason="register exact release publication evidence for independent authority review",
+                manifest=base_manifest,
+            ),
+            document_store=store,
+            command_service=command_service,
+        )
+    return None, manifest_ref, control_ref, True
+
+
+def _publication_context_for_reference(
+    binding: ControlBinding,
+    schemas: SchemaRegistry,
+    evaluation_time: datetime,
+) -> Callable[[str], ArtefactConsumerContext]:
+    """Build exact replay-derived contexts for release publication evidence."""
+
+    def resolve(reference: str) -> ArtefactConsumerContext:
+        state = replay(
+            EventLedger(binding.control_root, binding.project_id, schemas).iter_events(), schema_registry=schemas
+        )
+        stream = state.get("streams", {}).get(reference)
+        if not isinstance(stream, dict):
+            raise ArsError("release publication evidence is not registered")
+        manifest = stream.get("manifest")
+        if not isinstance(manifest, dict):
+            raise ArsError("release publication evidence manifest is unavailable")
+        authority = manifest.get("authority")
+        if not isinstance(authority, dict):
+            raise ArsError("release publication evidence authority is unavailable")
+        return ArtefactConsumerContext(
+            artefact_id=reference,
+            exact_content_sha256=str(stream["content_sha256"]),
+            project_id=binding.project_id,
+            task_id=str(manifest["task_id"]),
+            scope_id=str(authority["accepted_scope"]),
+            evaluation_time=evaluation_time,
+        )
+
+    return resolve
 
 
 def _reserve_output(output: Path) -> tuple[Path, int]:
@@ -1046,7 +1345,26 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
     output = args.output
     temporary, descriptor = _reserve_output(output)
     try:
-        evidence, manifest_ref, control_ref = _publication_evidence(binding, source)
+        registration_context = (
+            None if args.artefact_registration_context is None else _read_json(args.artefact_registration_context)
+        )
+        evidence, manifest_ref, control_ref, pending = _publication_evidence(
+            binding,
+            source,
+            actor_id=args.actor_id,
+            authority_grant_id=args.authority_grant_id,
+            registration_context=registration_context,
+        )
+        if pending:
+            _print_json(
+                {
+                    "status": "pending_artefact_authority",
+                    "evaluation_runs_manifest_ref": manifest_ref,
+                    "control_binding_ref": control_ref,
+                }
+            )
+            return 0
+        assert evidence is not None
         authority = LedgerAuthorityGrantResolver(
             binding.control_root,
             binding.project_id,
@@ -1145,9 +1463,14 @@ def _eval_release(args: argparse.Namespace) -> int:
     if not isinstance(projected, dict):
         raise ArsError("canonical release event is unavailable")
     resolver = StoredReleasePublicationEvidence(
-        ObjectStore(binding.control_root),
-        binding.store_identity,
-        rederive_release_from_snapshot,
+        consumers=build_artefact_consumers(binding),
+        context_for_reference=_publication_context_for_reference(
+            binding,
+            schema_registry,
+            datetime.fromisoformat(str(supplied_document["decided_at"]).replace("Z", "+00:00")),
+        ),
+        expected_store_identity=binding.store_identity,
+        rederive=rederive_release_from_snapshot,
     )
     manifest = resolver.resolve_evaluation_runs(projected["evaluation_runs_manifest_ref"])
     control = resolver.resolve_control_binding(projected["control_binding_ref"])
@@ -1222,6 +1545,21 @@ def _parser() -> argparse.ArgumentParser:
     submit.add_argument("--boot-identity", default=None)
     submit.add_argument("--evidence-store-registry", type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
+
+    brief = groups.add_parser("brief")
+    brief_actions = brief.add_subparsers(dest="brief_action", required=True)
+    export = brief_actions.add_parser("export")
+    export.add_argument("--config", type=Path, required=True)
+    export.add_argument("--request", type=Path, required=True)
+    export.add_argument("--attach-result", default=None)
+    export.set_defaults(handler=brief_export)
+    import_ = brief_actions.add_parser("import")
+    import_.add_argument("--config", type=Path, required=True)
+    import_.add_argument("--brief", type=Path, required=True)
+    import_.add_argument("--session", type=Path, required=True)
+    import_.add_argument("--document", type=Path, required=True)
+    import_.add_argument("--registration", type=Path, required=True)
+    import_.set_defaults(handler=brief_import)
 
     assurance_record = groups.add_parser("assurance-record")
     assurance_record_actions = assurance_record.add_subparsers(dest="assurance_record_action", required=True)
@@ -1326,6 +1664,7 @@ def _parser() -> argparse.ArgumentParser:
     publish_release.add_argument("--actor-id", required=True)
     publish_release.add_argument("--authority-grant-id", required=True)
     publish_release.add_argument("--evaluation-runs", type=Path, required=True)
+    publish_release.add_argument("--artefact-registration-context", type=Path, default=None)
     publish_release.add_argument("--output", type=Path, required=True)
     publish_release.set_defaults(handler=_eval_publish_release)
 
@@ -1344,7 +1683,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack"}:
+    if args.group not in {"eval", "assurance-pack", "brief"}:
         return int(args.handler(args))
     try:
         return int(args.handler(args))

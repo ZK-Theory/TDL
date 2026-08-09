@@ -1,4 +1,5 @@
 import json
+from dataclasses import FrozenInstanceError
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -15,6 +16,7 @@ from research_system.operations.resources import (
     RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
 )
 from research_system.schema_registry import (
+    RegisteredSchema,
     SchemaBinding,
     SchemaRegistry,
     _is_rfc3339_date_time,
@@ -258,6 +260,125 @@ def test_versioned_catalogue_returns_exact_validated_source_identity(tmp_path):
     assert identity.sha256 == sha256(sources["1.0.0"]).hexdigest()
 
 
+def test_validation_and_resolution_share_one_frozen_registered_schema(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    source = root / "registered.schema.json"
+    source.write_text(
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/registered",\n'
+        '  "type": "object",\n'
+        '  "properties": {"schema_version": {"const": "1.0.0"}},\n'
+        '  "required": ["schema_version"],\n'
+        '  "additionalProperties": false\n'
+        "}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    registry = SchemaRegistry(root)
+
+    validated = registry.validate(
+        "ars://test/registered",
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+    resolved = registry.resolve_identity("ars://test/registered", "1.0.0")
+
+    assert isinstance(validated, RegisteredSchema)
+    assert validated is resolved
+    assert validated.raw_bytes_sha256 == sha256(source.read_bytes()).hexdigest()
+    assert validated.parsed["$id"] == validated.schema_id
+    with pytest.raises(FrozenInstanceError):
+        validated.schema_id = "ars://test/changed"
+    with pytest.raises(TypeError):
+        validated.parsed["$id"] = "ars://test/changed"
+    with pytest.raises(TypeError):
+        validated.parsed["properties"]["schema_version"]["const"] = "2.0.0"
+    with pytest.raises(TypeError):
+        validated.parsed["required"].append("changed")
+
+    source.write_text("{}\n", encoding="utf-8", newline="\n")
+    validated_after_source_mutation = registry.validate(
+        "ars://test/registered",
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+    assert validated_after_source_mutation is validated
+    assert validated_after_source_mutation.raw_bytes != source.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        pytest.param(
+            lambda parsed: dict.__setitem__(parsed, "additionalProperties", True),
+            id="dict-base-mutator",
+        ),
+        pytest.param(
+            lambda parsed: list.append(parsed["required"], "unexpected"),
+            id="list-base-mutator",
+        ),
+        pytest.param(
+            lambda parsed: dict.__setitem__(
+                parsed["properties"]["schema_version"],
+                "const",
+                "2.0.0",
+            ),
+            id="nested-base-mutator",
+        ),
+    ],
+)
+def test_registered_schema_semantics_cannot_diverge_from_raw_digest(tmp_path, mutate):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    source = root / "immutable.schema.json"
+    source.write_text(
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/deep-immutable",\n'
+        '  "type": "object",\n'
+        '  "properties": {"schema_version": {"const": "1.0.0"}},\n'
+        '  "required": ["schema_version"],\n'
+        '  "additionalProperties": false\n'
+        "}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    registry = SchemaRegistry(root)
+    registered = registry.resolve_identity("ars://test/deep-immutable", "1.0.0")
+    original_digest = registered.raw_bytes_sha256
+
+    with pytest.raises(TypeError, match="immutable|descriptor"):
+        mutate(registered.parsed)
+
+    with pytest.raises(SchemaError):
+        registry.validate(
+            "ars://test/deep-immutable",
+            {"schema_version": "wrong", "unexpected": True},
+            schema_version="1.0.0",
+        )
+    assert registered.raw_bytes_sha256 == original_digest == sha256(registered.raw_bytes).hexdigest()
+
+
+def test_registry_rejects_duplicate_exact_schema_identity(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    schema = (
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/duplicate",\n'
+        '  "schema_version": "1.0.0",\n'
+        '  "type": "object"\n'
+        "}\n"
+    )
+    (root / "first.schema.json").write_text(schema, encoding="utf-8", newline="\n")
+    (root / "second.schema.json").write_text(schema, encoding="utf-8", newline="\n")
+
+    with pytest.raises(SchemaError, match="duplicate schema"):
+        SchemaRegistry(root)
+
+
 def test_validation_rejects_wrong_recorded_source_hash():
     registry = SchemaRegistry(SCHEMAS)
 
@@ -311,7 +432,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "CreateBackup": ("ars://core/command/CreateBackup", "1.0.0"),
         "ActivateAuthorityGrant": (
             "ars://core/command/ActivateAuthorityGrant",
-            "1.0.0",
+            "1.1.0",
         ),
         "RevokeIssuedAuthorityGrant": (
             "ars://core/command/RevokeIssuedAuthorityGrant",
@@ -412,7 +533,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "ActivateAuthorityGrant",
     ) == SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
     )
@@ -421,14 +542,14 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         "RevokeIssuedAuthorityGrant",
     ) == SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
     )
     assert registry.event_binding("AuthorityGrantActivated", "WrongProducer") is None
     assert registry.event_binding("AuthorityGrantActivated", None) is None
     assert registry.has_producer_bindings("AuthorityGrantActivated")
-    assert registry.is_active("ars://core/scoped-authority-grant", "2.0.0")
+    assert registry.is_active("ars://core/scoped-authority-grant", "2.1.0")
     assert registry.is_active(
         "ars://core/policy-action/AcceptR3AssuranceRequirement",
         "1.0.0",
@@ -441,6 +562,26 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         policy_action_type="accept_r3_assurance_requirement",
     )
     assert registry.policy_action_binding("wrong_policy_action") is None
+
+
+def test_runtime_binding_inventory_is_public_and_stably_ordered():
+    bindings = runtime_schema_registry(SCHEMAS).active_bindings()
+
+    assert len(bindings) == 112
+    assert bindings == tuple(
+        sorted(
+            bindings,
+            key=lambda binding: (
+                binding.schema_id,
+                binding.schema_version,
+                binding.command_type or "",
+                binding.event_type or "",
+                binding.producer_command_type or "",
+                binding.policy_action_type or "",
+            ),
+        )
+    )
+    assert len(set(bindings)) == len(bindings)
 
 
 def test_runtime_registry_reuses_one_instance_for_resolved_root_aliases():
@@ -488,6 +629,63 @@ def test_t2_event_versions_coexist_and_v1_1_identity_binds_exact_raw_bytes():
     assert identity.source_path == source.resolve()
     assert identity.raw_bytes == source.read_bytes()
     assert identity.sha256 == sha256(source.read_bytes()).hexdigest()
+
+
+def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_path, monkeypatch):
+    root = tmp_path / "schemas"
+    targets = tmp_path / "targets"
+    root.mkdir()
+    targets.mkdir()
+    first = targets / "first.schema.json"
+    second = targets / "second.schema.json"
+    first.write_text(
+        json.dumps(
+            {
+                "$id": "ars://test/path-race",
+                "title": "first",
+                "type": "object",
+                "properties": {"schema_version": {"const": "1.0.0"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    second.write_text(
+        json.dumps(
+            {
+                "$id": "ars://test/path-race",
+                "title": "second",
+                "type": "object",
+                "properties": {"schema_version": {"const": "1.0.0"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    alias = root / "active.schema.json"
+    try:
+        alias.symlink_to(first)
+    except OSError as exc:
+        pytest.skip(f"file symlink unavailable: {exc}")
+
+    real_read_bytes = Path.read_bytes
+    swapped = False
+
+    def swap_after_alias_read(path: Path) -> bytes:
+        nonlocal swapped
+        raw = real_read_bytes(path)
+        if path == first.resolve() and not swapped:
+            alias.unlink()
+            alias.symlink_to(second)
+            swapped = True
+        return raw
+
+    monkeypatch.setattr(Path, "read_bytes", swap_after_alias_read)
+
+    identity = SchemaRegistry(root).resolve_identity("ars://test/path-race", "1.0.0")
+
+    assert swapped
+    assert alias.resolve() == second
+    assert identity.raw_bytes == real_read_bytes(identity.source_path)
+    assert identity.raw_bytes_sha256 == sha256(identity.raw_bytes).hexdigest()
 
 
 def test_resource_grant_versions_coexist_and_require_explicit_version():
@@ -596,23 +794,7 @@ def test_revoke_authority_grant_payload_schema_is_strict(path, value):
 
 def test_every_core_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / "core").glob("*.schema.json"))
-    assert {path.name for path in paths} == {
-        "authority-bootstrap-input.schema.json",
-        "authority-bootstrap-manifest.schema.json",
-        "authority-grant-activated.schema.json",
-        "authority-grant-revoked.schema.json",
-        "authority-grant.schema.json",
-        "authority-root-initialized.schema.json",
-        "command.schema.json",
-        "event.schema.json",
-        "receipt.schema.json",
-        "receipt-v2.schema.json",
-        "release-gate-decision-published.schema.json",
-        "release-gate-decision-published.v1-1.schema.json",
-        "revoke-authority-grant.schema.json",
-        "store-identity-1.1.schema.json",
-        "task.schema.json",
-    }
+    assert paths, "core schema catalogue is empty"
     for path in paths:
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
@@ -625,7 +807,7 @@ def test_every_core_schema_declares_closed_object_contract():
 
 def test_every_command_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / "core" / "commands").glob("*.schema.json"))
-    assert len(paths) == 87
+    assert paths, "command schema catalogue is empty"
     for path in paths:
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"

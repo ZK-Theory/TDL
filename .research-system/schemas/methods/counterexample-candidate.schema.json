@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/counterexample-candidate", "type": "object", "additionalProperties": false,
+  "required": ["document_type", "responds_to_brief_manifest_sha256", "status", "claim", "opaque_recipe"],
+  "properties": {"document_type": {"const": "CounterexampleCandidate"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "status": {"const": "candidate"}, "claim": {"type": "string", "minLength": 1}, "opaque_recipe": {"type": "string", "minLength": 1}}
+}

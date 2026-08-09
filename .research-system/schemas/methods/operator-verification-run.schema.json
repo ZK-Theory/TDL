@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/operator-verification-run", "title": "Operator self-attested verification run; passed does not certify ARS execution or scientific validity", "type": "object", "additionalProperties": false,
+  "required": ["document_type", "responds_to_brief_manifest_sha256", "run_artefact_id", "request_artefact_id", "candidate_artefact_id", "script_sha256", "outcome", "exit_code", "stdout_excerpt", "stderr_excerpt", "traceback", "environment_description", "executed_by_actor_id", "executed_on", "attestation"],
+  "properties": {
+    "document_type": {"const": "OperatorVerificationRun"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "run_artefact_id": {"type": "string", "pattern": "^art_"}, "request_artefact_id": {"type": "string", "pattern": "^art_"}, "candidate_artefact_id": {"type": "string", "pattern": "^art_"}, "script_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "outcome": {"enum": ["passed", "failed", "error", "timeout"]}, "exit_code": {"type": ["integer", "null"]}, "stdout_excerpt": {"type": "string"}, "stderr_excerpt": {"type": "string"}, "traceback": {"type": "string"}, "environment_description": {"type": "string", "minLength": 1}, "executed_by_actor_id": {"type": "string", "pattern": "^act_"}, "executed_on": {"type": "string", "format": "date-time", "pattern": "Z$"}, "attestation": {"const": "operator_self_attested"}
+  }
+}

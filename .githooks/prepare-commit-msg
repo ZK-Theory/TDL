@@ -29,7 +29,7 @@ fi
 
 # Inspect staged files
 STAGED=$(git diff --cached --name-only 2>/dev/null)
-STAGED_COUNT=$(printf '%s\n' "$STAGED" | grep -c . 2>/dev/null || echo 0)
+STAGED_COUNT=$(printf '%s\n' "$STAGED" | awk 'NF { count++ } END { print count+0 }')
 
 # Select prefix + vault note in priority order
 if printf '%s\n' "$STAGED" | grep -qE '^results/'; then

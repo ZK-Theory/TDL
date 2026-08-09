@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaError
+from jsonschema.validators import extend
 
 from research_system.errors import SchemaError
 
@@ -53,15 +55,55 @@ if "date-time" not in Draft202012Validator.FORMAT_CHECKER.checkers:
     Draft202012Validator.FORMAT_CHECKER.checks("date-time")(_is_rfc3339_date_time)
 
 
+def _freeze_json(value: Any) -> Any:
+    """Return recursively immutable JSON without mutable built-in subclasses."""
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return _FrozenSequence(_freeze_json(item) for item in value)
+    return value
+
+
+class _FrozenSequence(tuple[Any, ...]):
+    """Tuple-backed JSON array with an explicit mutation failure surface."""
+
+    def append(self, _value: Any) -> None:
+        raise TypeError("registered schema JSON is immutable")
+
+
+_IMMUTABLE_SCHEMA_TYPE_CHECKER = Draft202012Validator.TYPE_CHECKER.redefine(
+    "object",
+    lambda _checker, instance: isinstance(instance, Mapping),
+).redefine(
+    "array",
+    lambda _checker, instance: isinstance(instance, (list, tuple)),
+)
+_ImmutableSchemaValidator = extend(
+    Draft202012Validator,
+    type_checker=_IMMUTABLE_SCHEMA_TYPE_CHECKER,
+)
+
+
 @dataclass(frozen=True)
-class SchemaIdentity:
-    """Exact source identity of one validated schema version."""
+class RegisteredSchema:
+    """One immutable record for the exact bytes parsed and validated."""
 
     schema_id: str
     schema_version: str | None
-    sha256: str
+    raw_bytes_sha256: str
     raw_bytes: bytes
     source_path: Path
+    parsed: Mapping[str, Any]
+
+    @property
+    def sha256(self) -> str:
+        """Compatibility name for the exact raw-byte digest."""
+        return self.raw_bytes_sha256
+
+
+# Compatibility for existing command producers while callers migrate to the
+# contract name accepted by 06h/G-RM-9.
+SchemaIdentity = RegisteredSchema
 
 
 @dataclass(frozen=True)
@@ -188,7 +230,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        "2.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-scoped-authority-grant",
@@ -196,7 +238,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/owner-authority-administration-decision",
-        "1.0.0",
+        "1.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-owner-authority-administration-decision",
@@ -224,7 +266,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/command/ActivateAuthorityGrant",
-        "1.0.0",
+        "1.1.0",
         command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
@@ -244,7 +286,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
     ),
@@ -256,7 +298,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
     ),
@@ -730,13 +772,114 @@ _RUNTIME_BINDINGS = (
         event_type="BackupCreated",
         producer_command_type="CreateBackup",
     ),
+    SchemaBinding(
+        "ars://core/command/RegisterArtefact",
+        "1.0.0",
+        command_type="RegisterArtefact",
+    ),
+    SchemaBinding(
+        "ars://core/event/ArtefactRegistered",
+        "1.0.0",
+        event_type="ArtefactRegistered",
+        producer_command_type="RegisterArtefact",
+    ),
+    SchemaBinding(
+        "ars://core/command/RecordScientificReview",
+        "1.0.0",
+        command_type="RecordScientificReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScientificReviewRecorded",
+        "1.0.0",
+        event_type="ScientificReviewRecorded",
+        producer_command_type="RecordScientificReview",
+    ),
+    SchemaBinding(
+        "ars://core/command/ResolveDecision",
+        "1.0.0",
+        command_type="ResolveDecision",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionResolved",
+        "1.0.0",
+        event_type="DecisionResolved",
+        producer_command_type="ResolveDecision",
+    ),
+    SchemaBinding(
+        "ars://core/command/SetArtefactUseAuthority",
+        "1.0.0",
+        command_type="SetArtefactUseAuthority",
+    ),
+    SchemaBinding(
+        "ars://core/event/ArtefactUseAuthoritySet",
+        "1.0.0",
+        event_type="ArtefactUseAuthoritySet",
+        producer_command_type="SetArtefactUseAuthority",
+    ),
+    SchemaBinding("ars://core/command/RequestContextPacket", "1.0.0", command_type="RequestContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketRequested",
+        "1.0.0",
+        event_type="ContextPacketRequested",
+        producer_command_type="RequestContextPacket",
+    ),
+    SchemaBinding("ars://core/command/BeginContextCompilation", "1.0.0", command_type="BeginContextCompilation"),
+    SchemaBinding(
+        "ars://core/event/ContextCompilationStarted",
+        "1.0.0",
+        event_type="ContextCompilationStarted",
+        producer_command_type="BeginContextCompilation",
+    ),
+    SchemaBinding("ars://core/command/CompleteContextCompilation", "1.0.0", command_type="CompleteContextCompilation"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketCompiled",
+        "1.0.0",
+        event_type="ContextPacketCompiled",
+        producer_command_type="CompleteContextCompilation",
+    ),
+    SchemaBinding("ars://core/command/ValidateContextPacket", "1.0.0", command_type="ValidateContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketValidated",
+        "1.0.0",
+        event_type="ContextPacketValidated",
+        producer_command_type="ValidateContextPacket",
+    ),
+    SchemaBinding("ars://core/command/IssueContextPacket", "1.0.0", command_type="IssueContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketIssued",
+        "1.0.0",
+        event_type="ContextPacketIssued",
+        producer_command_type="IssueContextPacket",
+    ),
+    SchemaBinding("ars://core/command/RecordContextDelivery", "1.0.0", command_type="RecordContextDelivery"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketDelivered",
+        "1.0.0",
+        event_type="ContextPacketDelivered",
+        producer_command_type="RecordContextDelivery",
+    ),
+    SchemaBinding("ars://core/command/FailContextPacket", "1.0.0", command_type="FailContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketFailed",
+        "1.0.0",
+        event_type="ContextPacketFailed",
+        producer_command_type="FailContextPacket",
+    ),
+    SchemaBinding("ars://core/command/ExpireContextPacket", "1.0.0", command_type="ExpireContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketExpired",
+        "1.0.0",
+        event_type="ContextPacketExpired",
+        producer_command_type="ExpireContextPacket",
+    ),
+    SchemaBinding("ars://core/command/SupersedeContextPacket", "1.0.0", command_type="SupersedeContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketSuperseded",
+        "1.0.0",
+        event_type="ContextPacketSuperseded",
+        producer_command_type="SupersedeContextPacket",
+    ),
 )
-
-
-@dataclass(frozen=True)
-class _CatalogueEntry:
-    identity: SchemaIdentity
-    schema: dict[str, Any]
 
 
 class SchemaRegistry:
@@ -758,11 +901,12 @@ class SchemaRegistry:
                 active binding is unknown; or command/event discriminators are
                 bound more than once.
         """
-        self._schemas: dict[tuple[str, str | None], _CatalogueEntry] = {}
-        self._schemas_by_id: dict[str, dict[str | None, _CatalogueEntry]] = {}
+        self._schemas: dict[tuple[str, str | None], RegisteredSchema] = {}
+        self._schemas_by_id: dict[str, dict[str | None, RegisteredSchema]] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
-                raw_bytes = path.read_bytes()
+                source_path = path.resolve(strict=True)
+                raw_bytes = source_path.read_bytes()
                 schema = json.loads(raw_bytes)
                 Draft202012Validator.check_schema(schema)
                 schema_id = schema["$id"]
@@ -781,16 +925,16 @@ class SchemaRegistry:
             key = (schema_id, schema_version)
             if key in self._schemas:
                 raise SchemaError(f"duplicate schema: {schema_id} version {schema_version}")
-            identity = SchemaIdentity(
+            registered = RegisteredSchema(
                 schema_id=schema_id,
                 schema_version=schema_version,
-                sha256=sha256(raw_bytes).hexdigest(),
+                raw_bytes_sha256=sha256(raw_bytes).hexdigest(),
                 raw_bytes=raw_bytes,
-                source_path=path.resolve(),
+                source_path=source_path,
+                parsed=_freeze_json(schema),
             )
-            entry = _CatalogueEntry(identity, schema)
-            self._schemas[key] = entry
-            self._schemas_by_id.setdefault(schema_id, {})[schema_version] = entry
+            self._schemas[key] = registered
+            self._schemas_by_id.setdefault(schema_id, {})[schema_version] = registered
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
         self._policy_action_bindings: dict[str, SchemaBinding] = {}
@@ -821,7 +965,7 @@ class SchemaRegistry:
         self,
         schema_id: str,
         schema_version: str | None = None,
-    ) -> _CatalogueEntry:
+    ) -> RegisteredSchema:
         if schema_version is not None:
             entry = self._schemas.get((schema_id, schema_version))
             if entry is None:
@@ -858,11 +1002,11 @@ class SchemaRegistry:
             Exact raw-source identity of the schema used for validation.
         """
         entry = self._resolve(schema_id, schema_version)
-        if expected_sha256 is not None and entry.identity.sha256 != expected_sha256:
-            raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.identity.schema_version}")
+        if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
+            raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.schema_version}")
         errors = sorted(
-            Draft202012Validator(
-                entry.schema,
+            _ImmutableSchemaValidator(
+                entry.parsed,
                 format_checker=Draft202012Validator.FORMAT_CHECKER,
             ).iter_errors(value),
             key=lambda error: list(error.absolute_path),
@@ -872,7 +1016,7 @@ class SchemaRegistry:
                 f"{'.'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}" for error in errors
             )
             raise SchemaError(f"{schema_id}: {message}")
-        return entry.identity
+        return entry
 
     def resolve_identity(
         self,
@@ -883,9 +1027,9 @@ class SchemaRegistry:
     ) -> SchemaIdentity:
         """Resolve an exact version and optionally verify its recorded digest."""
         entry = self._resolve(schema_id, schema_version)
-        if expected_sha256 is not None and entry.identity.sha256 != expected_sha256:
+        if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
             raise SchemaError(f"schema hash mismatch: {schema_id} version {schema_version}")
-        return entry.identity
+        return entry
 
     def is_active(self, schema_id: str, schema_version: str) -> bool:
         """Return whether the exact version has an explicit runtime binding."""
@@ -898,6 +1042,22 @@ class SchemaRegistry:
     def requires_command_provenance(self) -> bool:
         """Return whether this registry is enforcing explicit runtime bindings."""
         return bool(self._active_bindings)
+
+    def active_bindings(self) -> tuple[SchemaBinding, ...]:
+        """Return the complete active binding set in deterministic order."""
+        return tuple(
+            sorted(
+                self._active_bindings,
+                key=lambda binding: (
+                    binding.schema_id,
+                    binding.schema_version,
+                    binding.command_type or "",
+                    binding.event_type or "",
+                    binding.producer_command_type or "",
+                    binding.policy_action_type or "",
+                ),
+            )
+        )
 
     def command_binding(self, command_type: str) -> SchemaBinding | None:
         """Return the active schema selected by a trusted command discriminator."""

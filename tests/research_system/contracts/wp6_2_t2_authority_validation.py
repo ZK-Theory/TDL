@@ -16,6 +16,7 @@ from jsonschema import Draft202012Validator
 
 from research_system.schema_registry import SchemaRegistry
 from tests.research_system.contracts.wp6_2_t2_expectations import (
+    AUTHORIZED_PROTECTED_SUCCESSOR_PATHS,
     CATALOGUE_PATH,
     CATALOGUE_SCHEMA_PATH,
     CROSSWALK_AUTHORITIES,
@@ -262,8 +263,9 @@ def _validate_protected_bytes(repo_root: Path) -> None:
         "tests/research_system/unit/*wp6_2_live_grader_calibration*",
         *PROTECTED_PROVIDER_BLOBS,
     ]
-    changed = _git(repo_root, "diff", "--name-only", START_REVISION, "--", *protected_pathspecs)
-    _require(not changed, f"protected WP6.1/T1a/provider bytes changed: {changed}")
+    changed = set(_git(repo_root, "diff", "--name-only", START_REVISION, "--", *protected_pathspecs).splitlines())
+    unauthorized = sorted(changed - AUTHORIZED_PROTECTED_SUCCESSOR_PATHS)
+    _require(not unauthorized, f"protected WP6.1/T1a/provider bytes changed: {chr(10).join(unauthorized)}")
 
 
 def _derive_protected_paths(repo_root: Path, revision: str) -> list[str]:

@@ -12,7 +12,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
-from research_system.projection.replay import apply_event, rebuild_projection, replay
+from research_system.projection.replay import _replay, apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
     initialize_control_store,
@@ -465,7 +465,7 @@ def test_replay_rejects_wrong_recorded_command_schema_version(tmp_path):
         replay(events, schema_registry=harness.service.schemas)
 
 
-def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
+def test_replay_rejects_position_only_legacy_provenance_admission(tmp_path):
     events, harness = _events(tmp_path)
     legacy = events[0]
     for field in (
@@ -478,13 +478,32 @@ def test_replay_keeps_legacy_event_without_schema_provenance_readable(tmp_path):
     legacy["payload"] = {"title": "Legacy task"}
     events[0] = _rehash(legacy)
 
-    projection = replay(
-        events,
-        schema_registry=harness.service.schemas,
-        legacy_command_provenance_through_position=1,
-    )
+    with pytest.raises(IntegrityError, match="position-only legacy command provenance admission is insufficient"):
+        replay(
+            events,
+            schema_registry=harness.service.schemas,
+            legacy_command_provenance_through_position=1,
+        )
 
-    assert projection["streams"][TASK_ID]["status"] == "draft"
+
+def test_grandfathered_replay_without_schema_registry_fails_with_integrity_error(tmp_path):
+    events, _ = _events(tmp_path)
+    for field in (
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ):
+        events[0].pop(field)
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="grandfathered schema registry unavailable at 1"):
+        _replay(
+            events,
+            supported_major=1,
+            schema_registry=None,
+            grandfathered_missing_positions=frozenset({1}),
+            authority_state_validator=None,
+        )
 
 
 def test_replay_keeps_valid_generic_lease_granted_history_readable(tmp_path):
@@ -834,7 +853,7 @@ def test_s006_cli_requires_materialized_canonical_origin_pins(tmp_path, monkeypa
     )
     control_root = tmp_path / "control"
     bootstrap_path = write_authority_bootstrap_input(tmp_path / "authority-bootstrap.json")
-    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
+    with pytest.raises(ConfigurationError, match="canonical foundation origin witness path is not canonical"):
         main(
             [
                 "store",

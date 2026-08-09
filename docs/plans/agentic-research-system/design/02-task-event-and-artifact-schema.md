@@ -37,7 +37,7 @@ W2 implements:
 - the W0 source hierarchy, 2026-06-29 currency addendum, and selective-import policy;
 - the adversarial-review reconciliation and approved amendments P-020–P-025;
 - the current APM task/report/log shapes, including frontmatter aliases, worktree roots, output requirements, assurance requirements, attempt narratives, Partial reports, and closeout bookkeeping;
-- the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.Codex\skill-observations\log.md`): bus writes need explicit ownership and collision failure, not only read-before-write;
+- the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.claude\skill-observations\log.md`): bus writes need explicit ownership and collision failure, not only read-before-write;
 - current research-assurance lanes: topology, stochastic/null, statistical/panel, representation, output/provenance, and paper claim;
 - the requirement that T1.28 and all W0 no-migration items remain legacy-owned.
 

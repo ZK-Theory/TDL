@@ -19,14 +19,12 @@ def test_wp2_schema_catalogue_is_complete_and_valid():
         "ars://routing/route-decision",
         "ars://routing/route-failure",
     }
-    assert expected <= set(registry._schemas)
+    assert expected <= {schema_id for schema_id, _version in registry._schemas}
 
 
 def test_context_profiles_and_risk_policy_match_owner_contracts():
     context = yaml.safe_load(
-        (ROOT / ".research-system" / "policies" / "context-profiles.yaml").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / ".research-system" / "policies" / "context-profiles.yaml").read_text(encoding="utf-8")
     )
     assert context["reference_limits"] == {
         "R0": 8000,
@@ -35,23 +33,14 @@ def test_context_profiles_and_risk_policy_match_owner_contracts():
         "R3": 48000,
     }
     risk = yaml.safe_load(
-        (
-            ROOT
-            / ".research-system"
-            / "policies"
-            / "risk-and-independence.yaml"
-        ).read_text(encoding="utf-8")
+        (ROOT / ".research-system" / "policies" / "risk-and-independence.yaml").read_text(encoding="utf-8")
     )
     assert risk["risk_order"] == ["R0", "R1", "R2", "R3"]
     assert risk["independence_order"] == ["I0", "I1", "I2", "I3"]
 
 
 def test_core_assurance_pack_uses_exact_six_lanes():
-    pack = yaml.safe_load(
-        (ROOT / ".research-system" / "packs" / "core-assurance.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
+    pack = yaml.safe_load((ROOT / ".research-system" / "packs" / "core-assurance.yaml").read_text(encoding="utf-8"))
     assert set(pack["lanes"]) == {
         "topology",
         "stochastic_null",

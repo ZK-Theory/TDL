@@ -68,7 +68,10 @@ Files, data, result artifacts, notes — by path.
 Files, JSONs, figures, tests, notes — by path.
 ## Task-state manifest
 YAML path containing `task_id`, `deliverables`, `blockers`,
-`planned_contracts`, rooted `inputs`, and trackable `outputs`; validate with
+`planned_contracts`, rooted `inputs`, trackable `outputs`, independently
+resolvable `lanes`, production `registries`, `derived_fields` with exact
+preimages/semantics, and schema `required_fields` with authoritative sources
+and resolution checks; validate with
 `python -m shared.manager_dispatch_check ... --state-manifest <yaml>`. During
 warning-first calibration,
 retain and disposition every warning rather than presenting it as a pass.
@@ -147,6 +150,9 @@ When the agent must stop and ask or escalate.
 - Claims that a deliverable is absent, a blocker remains live, a planned
   contract is ready, an input resolves, or an output is trackable belong in
   the task-state manifest and are rechecked immediately before dispatch.
+- Parallel dispatch is valid only when the resolved workspace is the worktree
+  that currently owns the required branch. A detached checkout at the same
+  commit is not an alternative owner and must not receive the task.
 
 ## Completion Checklist
 

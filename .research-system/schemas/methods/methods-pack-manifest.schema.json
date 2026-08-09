@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://methods/methods-pack-manifest",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "pack_id",
+    "pack_version",
+    "declared_review_state",
+    "assets"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://methods/methods-pack-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "pack_id": {"const": "research-methods-pack"},
+    "pack_version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"},
+    "declared_review_state": {"enum": ["candidate", "reviewed"]},
+    "assets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/asset"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "observerOverlay": {
+      "type": "object",
+      "required": ["log_path", "title", "date", "status"],
+      "properties": {
+        "log_path": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "status": {"enum": ["OPEN", "ACTIONED", "DECLINED"]}
+      },
+      "additionalProperties": false
+    },
+    "projectAddition": {
+      "type": "object",
+      "required": ["name", "authority", "rationale"],
+      "properties": {
+        "name": {"$ref": "#/$defs/nonEmptyString"},
+        "authority": {"$ref": "#/$defs/nonEmptyString"},
+        "rationale": {"type": "string", "minLength": 20}
+      },
+      "additionalProperties": false
+    },
+    "lineage": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_title",
+        "source_path",
+        "source_sha256",
+        "sections",
+        "project_additions"
+      ],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/nonEmptyString"},
+        "source_title": {"$ref": "#/$defs/nonEmptyString"},
+        "source_path": {"$ref": "#/$defs/nonEmptyString"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "project_additions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/projectAddition"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "required": [
+        "asset_id",
+        "name",
+        "version",
+        "path",
+        "identity_scheme",
+        "identity",
+        "applicability_trigger",
+        "compatibility",
+        "dependencies",
+        "permissions",
+        "observer_overlays",
+        "declared_review_state",
+        "supersedes",
+        "required_output",
+        "lineage"
+      ],
+      "properties": {
+        "asset_id": {"type": "string", "pattern": "^mth_[a-z0-9_]+$"},
+        "name": {"$ref": "#/$defs/nonEmptyString"},
+        "version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"},
+        "path": {
+          "type": "string",
+          "pattern": "^\\.research-system/methods/assets/[a-z0-9-]+\\.md$"
+        },
+        "identity_scheme": {"enum": ["git_blob_sha1", "lf_canonical_sha256"]},
+        "identity": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "applicability_trigger": {"type": "string", "minLength": 20},
+        "compatibility": {"const": "any"},
+        "dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "permissions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "observer_overlays": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/observerOverlay"}
+        },
+        "declared_review_state": {"enum": ["candidate", "reviewed"]},
+        "supersedes": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha1"}, {"$ref": "#/$defs/sha256"}]},
+        "required_output": {
+          "enum": [
+            "ReviewFindingSet",
+            "CounterexampleCandidate",
+            "DeidentifiedContextSidecar",
+            "TheoremCitation",
+            "ExploratoryMemo"
+          ]
+        },
+        "lineage": {"$ref": "#/$defs/lineage"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"identity_scheme": {"const": "git_blob_sha1"}}},
+          "then": {"properties": {"identity": {"$ref": "#/$defs/sha1"}}}
+        },
+        {
+          "if": {"properties": {"identity_scheme": {"const": "lf_canonical_sha256"}}},
+          "then": {"properties": {"identity": {"$ref": "#/$defs/sha256"}}}
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

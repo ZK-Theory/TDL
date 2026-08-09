@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/deidentification-sidecar", "type": "object", "additionalProperties": false,
+  "required": ["sidecar_artefact_id", "revision", "content_sha256", "subject_ids", "transform", "sensitivity", "retention", "reversible_mapping"],
+  "properties": {
+    "sidecar_artefact_id": {"type": "string", "pattern": "^art_"}, "revision": {"type": "integer", "minimum": 1}, "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "subject_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "transform": {"type": "string", "minLength": 1}, "sensitivity": {"type": "string", "minLength": 1}, "retention": {"type": "string", "minLength": 1}, "reversible_mapping": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}
