@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -13,7 +12,7 @@ from research_system.artefacts.authority import ArtefactAuthorityContractLoader
 from research_system.artefacts.runtime import GoverningScientificReviewStore
 from research_system.artefacts.use_resolver import predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.cli import brief_export, brief_import
+from research_system.cli import main
 from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
@@ -22,6 +21,12 @@ from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
     register_candidate_document,
+)
+from research_system.methods.pack import load_methods_pack
+from research_system.methods.verification_records import (
+    build_operator_verification_run,
+    build_verification_request,
+    register_verification_record,
 )
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
@@ -45,6 +50,14 @@ BRIEF_ID = "art_019fe47a-2000-7000-8000-000000002000"
 IMPORTED_ID = "art_019fe47a-2001-7000-8000-000000002001"
 CONTEXT_ID = "ctx_019fe47a-2002-7000-8000-000000002002"
 RETRY_ID = "art_019fe47a-2005-7000-8000-000000002005"
+METHODS_ASSET_ARTEFACT_ID = "art_019fe47a-2006-7000-8000-000000002006"
+METHODS_ASSET_REVIEW_ID = "rev_019fe47a-2007-7000-8000-000000002007"
+METHODS_ASSET_REVIEW_EVIDENCE_ID = "arec_019fe47a-2008-7000-8000-000000002008"
+VERIFICATION_REQUEST_ID = "art_019fe47a-2013-7000-8000-000000002013"
+VERIFICATION_RUN_ID = "art_019fe47a-2014-7000-8000-000000002014"
+FOLLOWUP_BRIEF_ID = "art_019fe47a-2015-7000-8000-000000002015"
+VERIFICATION_RUN_REVIEW_ID = "rev_019fe47a-2016-7000-8000-000000002016"
+VERIFICATION_RUN_REVIEW_EVIDENCE_ID = "arec_019fe47a-2017-7000-8000-000000002017"
 
 
 def _register_review_authorized_subject(harness) -> None:
@@ -115,6 +128,173 @@ def _register_review_authorized_subject(harness) -> None:
             "project_id": PROJECT_ID,
             "review_id": REVIEW_ID,
             "subject_sha256": CONTENT_SHA256,
+            "reviewer_actor_id": ACTORS["actor-a"],
+            "eligible": True,
+            "related": False,
+            "independence_grade": "I1",
+            "status": "active",
+        },
+    )
+    harness.service.governing_evidence_resolver = governing_reviews
+    assert harness.service.submit(use).status == "accepted"
+
+
+def _register_review_authorized_methods_asset(harness, asset) -> None:
+    relative_path = "methods/assets/adversarial-review-protocol.md"
+    content_path = harness.objects.control_root / relative_path
+    content_path.parent.mkdir(parents=True, exist_ok=True)
+    content_path.write_bytes(asset.raw_bytes)
+    content_sha256 = sha256_hex(asset.raw_bytes)
+    owner_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=METHODS_ASSET_ARTEFACT_ID,
+        command_types=("RegisterArtefact", "SetArtefactUseAuthority"),
+    )
+    review_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=METHODS_ASSET_ARTEFACT_ID,
+        actor_id=ACTORS["actor-a"],
+        command_types=("RecordScientificReview",),
+        grant_id="agr_019fe47a-2009-7000-8000-000000002009",
+    )
+    predicate, predicate_sha = ArtefactAuthorityContractLoader(SUBJECT).load().predicate_for("review_evidence")
+    manifest = deepcopy(artefact_manifest())
+    manifest.update(
+        {
+            "artefact_id": METHODS_ASSET_ARTEFACT_ID,
+            "artefact_type": "methods_asset",
+            "artefact_schema_id": "ars://methods/provider-neutral-asset",
+            "context_packet_id": CONTEXT_ID,
+            "relative_path": relative_path,
+            "size_bytes": len(asset.raw_bytes),
+            "media_type": "text/markdown",
+            "content_sha256": content_sha256,
+        }
+    )
+    manifest["validation"]["expected_schema_ids"] = ["ars://methods/provider-neutral-asset"]
+    register = command(
+        command_id="cmd_019fe47a-2020-7000-8000-000000002020",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=owner_grant,
+        expected_stream_version=0,
+        payload={"new_artefact_id": METHODS_ASSET_ARTEFACT_ID, "manifest": manifest},
+    )
+    review = command(
+        command_id="cmd_019fe47a-2021-7000-8000-000000002021",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=review_grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": METHODS_ASSET_ARTEFACT_ID,
+            "review_id": METHODS_ASSET_REVIEW_ID,
+            "subject_sha256": content_sha256,
+            "scientific_review": "approved",
+            "evidence_refs": [METHODS_ASSET_REVIEW_EVIDENCE_ID],
+        },
+    )
+    use = command(
+        command_id="cmd_019fe47a-2022-7000-8000-000000002022",
+        command_type="SetArtefactUseAuthority",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=owner_grant,
+        expected_stream_version=2,
+        payload={
+            "artefact_id": METHODS_ASSET_ARTEFACT_ID,
+            "use_authority": "accepted_for_scope",
+            "subject_sha256": content_sha256,
+            "consumer_predicate": predicate_reference(
+                str(predicate["predicate_id"]), str(predicate["predicate_version"]), predicate_sha
+            ),
+            "evidence_refs": [METHODS_ASSET_REVIEW_ID, METHODS_ASSET_REVIEW_EVIDENCE_ID],
+        },
+    )
+    for envelope in (register, review, use):
+        envelope["target_stream_id"] = METHODS_ASSET_ARTEFACT_ID
+    assert harness.service.submit(register).status == "accepted"
+    assert harness.service.submit(review).status == "accepted"
+    governing_reviews = GoverningScientificReviewStore(harness.objects, harness.schemas)
+    governing_reviews.publish(
+        METHODS_ASSET_REVIEW_EVIDENCE_ID,
+        {
+            "schema_id": "ars://evidence/governing-scientific-review",
+            "schema_version": "1.0.0",
+            "project_id": PROJECT_ID,
+            "review_id": METHODS_ASSET_REVIEW_ID,
+            "subject_sha256": content_sha256,
+            "reviewer_actor_id": ACTORS["actor-a"],
+            "eligible": True,
+            "related": False,
+            "independence_grade": "I1",
+            "status": "active",
+        },
+    )
+    harness.service.governing_evidence_resolver = governing_reviews
+    assert harness.service.submit(use).status == "accepted"
+
+
+def _authorize_verification_run_for_review(harness, content_sha256: str) -> None:
+    owner_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=VERIFICATION_RUN_ID,
+        command_types=("SetArtefactUseAuthority",),
+        grant_id="agr_019fe47a-2019-7000-8000-000000002019",
+    )
+    review_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=VERIFICATION_RUN_ID,
+        actor_id=ACTORS["actor-a"],
+        command_types=("RecordScientificReview",),
+        grant_id="agr_019fe47a-2018-7000-8000-000000002018",
+    )
+    predicate, predicate_sha = ArtefactAuthorityContractLoader(SUBJECT).load().predicate_for("review_evidence")
+    review = command(
+        command_id="cmd_019fe47a-2023-7000-8000-000000002023",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=review_grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": VERIFICATION_RUN_ID,
+            "review_id": VERIFICATION_RUN_REVIEW_ID,
+            "subject_sha256": content_sha256,
+            "scientific_review": "approved",
+            "evidence_refs": [VERIFICATION_RUN_REVIEW_EVIDENCE_ID],
+        },
+    )
+    use = command(
+        command_id="cmd_019fe47a-2024-7000-8000-000000002024",
+        command_type="SetArtefactUseAuthority",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=owner_grant,
+        expected_stream_version=2,
+        payload={
+            "artefact_id": VERIFICATION_RUN_ID,
+            "use_authority": "accepted_for_scope",
+            "subject_sha256": content_sha256,
+            "consumer_predicate": predicate_reference(
+                str(predicate["predicate_id"]), str(predicate["predicate_version"]), predicate_sha
+            ),
+            "evidence_refs": [VERIFICATION_RUN_REVIEW_ID, VERIFICATION_RUN_REVIEW_EVIDENCE_ID],
+        },
+    )
+    for envelope in (review, use):
+        envelope["target_stream_id"] = VERIFICATION_RUN_ID
+    assert harness.service.submit(review).status == "accepted"
+    governing_reviews = GoverningScientificReviewStore(harness.objects, harness.schemas)
+    governing_reviews.publish(
+        VERIFICATION_RUN_REVIEW_EVIDENCE_ID,
+        {
+            "schema_id": "ars://evidence/governing-scientific-review",
+            "schema_version": "1.0.0",
+            "project_id": PROJECT_ID,
+            "review_id": VERIFICATION_RUN_REVIEW_ID,
+            "subject_sha256": content_sha256,
             "reviewer_actor_id": ACTORS["actor-a"],
             "eligible": True,
             "related": False,
@@ -219,14 +399,18 @@ def _deliver_real_context(harness):
     return compiled
 
 
-def _registration(artefact_id: str, context_id: str) -> dict:
+def _registration(
+    artefact_id: str,
+    context_id: str,
+    schema_id: str = "ars://methods/brief-manifest",
+) -> dict:
     manifest = deepcopy(artefact_manifest())
     manifest.update(
         {
             "artefact_id": artefact_id,
             "context_packet_id": context_id,
             "artefact_type": "methods_document",
-            "artefact_schema_id": "ars://methods/brief-manifest",
+            "artefact_schema_id": schema_id,
         }
     )
     manifest["authority"]["accepted_scope"] = SCOPE_ID
@@ -292,8 +476,17 @@ def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> No
 def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys) -> None:
     harness = control_plane(tmp_path)
     _register_review_authorized_subject(harness)
+    methods_pack = load_methods_pack(ROOT)
+    selected_asset = next(asset for asset in methods_pack.assets if asset.asset_id == "mth_adversarial_review_protocol")
+    _register_review_authorized_methods_asset(harness, selected_asset)
     compiled = _deliver_real_context(harness)
-    for artefact_id in (BRIEF_ID, IMPORTED_ID):
+    for artefact_id in (
+        BRIEF_ID,
+        IMPORTED_ID,
+        VERIFICATION_REQUEST_ID,
+        VERIFICATION_RUN_ID,
+        FOLLOWUP_BRIEF_ID,
+    ):
         activate_lifecycle_grant(
             harness, subject_kind="artefact", subject_id=artefact_id, command_types=("RegisterArtefact",)
         )
@@ -339,13 +532,13 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
                     ],
                     "assets": [
                         {
-                            "artefact_id": ARTEFACT_ID,
-                            "content_sha256": CONTENT_SHA256,
+                            "artefact_id": METHODS_ASSET_ARTEFACT_ID,
+                            "content_sha256": sha256_hex(selected_asset.raw_bytes),
                             "task_id": TASK_ID,
-                            "asset_id": "adversarial-review",
-                            "version": "1.0.0",
-                            "identity": CONTENT_SHA256,
-                            "identity_scheme": "lf_canonical_sha256",
+                            "asset_id": selected_asset.asset_id,
+                            "version": selected_asset.version,
+                            "identity": selected_asset.identity,
+                            "identity_scheme": selected_asset.identity_scheme,
                         }
                     ],
                     "expected_import_types": ["ReviewFindingSet"],
@@ -358,7 +551,19 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
         ),
         encoding="utf-8",
     )
-    assert brief_export(argparse.Namespace(config=tmp_path / "binding.json", request=request_path)) == 0
+    assert (
+        main(
+            [
+                "brief",
+                "export",
+                "--config",
+                str(tmp_path / "binding.json"),
+                "--request",
+                str(request_path),
+            ]
+        )
+        == 0
+    )
     exported = json.loads(capsys.readouterr().out)
     brief_path = tmp_path / "brief.json"
     brief_path.write_bytes(canonical_bytes(exported["brief"]))
@@ -387,23 +592,162 @@ def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys
     registration_path = tmp_path / "registration.json"
     registration_path.write_text(json.dumps(_registration(IMPORTED_ID, CONTEXT_ID)), encoding="utf-8")
     assert (
-        brief_import(
-            argparse.Namespace(
-                config=tmp_path / "binding.json",
-                brief=brief_path,
-                session=session_path,
-                document=document_path,
-                registration=registration_path,
-            )
+        main(
+            [
+                "brief",
+                "import",
+                "--config",
+                str(tmp_path / "binding.json"),
+                "--brief",
+                str(brief_path),
+                "--session",
+                str(session_path),
+                "--document",
+                str(document_path),
+                "--registration",
+                str(registration_path),
+            ]
         )
         == 0
     )
     imported = json.loads(capsys.readouterr().out)
     assert imported["use_authority"] == "candidate"
     assert (harness.objects.control_root / imported["relative_path"]).read_bytes() == canonical_bytes(document)
+
+    verification_request = build_verification_request(
+        brief_sha256=brief_hash,
+        request_artefact_id=VERIFICATION_REQUEST_ID,
+        candidate_artefact_id=IMPORTED_ID,
+        script_source="assert returned_document_hash",
+        recorded_at="2026-08-08T12:10:00Z",
+        schema_registry=harness.schemas,
+    )
+    registered_request = register_verification_record(
+        record=verification_request,
+        schema_registry=harness.schemas,
+        registration=CandidateRegistration(
+            **_registration(
+                VERIFICATION_REQUEST_ID,
+                CONTEXT_ID,
+                "ars://methods/verification-request",
+            )
+        ),
+        document_store=CandidateDocumentStore(harness.objects.control_root),
+        command_service=harness.service,
+    )
+    verification_run = build_operator_verification_run(
+        request=verification_request,
+        run_artefact_id=VERIFICATION_RUN_ID,
+        outcome="failed",
+        exit_code=1,
+        stdout_excerpt="",
+        stderr_excerpt="candidate hash differed",
+        traceback="trace exact candidate mismatch",
+        environment_description="owner-operated workstation",
+        executed_by_actor_id=ACTORS["actor-a"],
+        executed_on="2026-08-08T12:15:00Z",
+        schema_registry=harness.schemas,
+    )
+    registered_run = register_verification_record(
+        record=verification_run,
+        schema_registry=harness.schemas,
+        registration=CandidateRegistration(
+            **_registration(
+                VERIFICATION_RUN_ID,
+                CONTEXT_ID,
+                "ars://methods/operator-verification-run",
+            )
+        ),
+        document_store=CandidateDocumentStore(harness.objects.control_root),
+        command_service=harness.service,
+    )
+    assert (harness.objects.control_root / registered_request.relative_path).read_bytes() == canonical_bytes(
+        verification_request
+    )
+    assert (harness.objects.control_root / registered_run.relative_path).read_bytes() == canonical_bytes(
+        verification_run
+    )
+    _authorize_verification_run_for_review(harness, registered_run.content_sha256)
+
+    followup_path = tmp_path / "followup-export.json"
+    followup_path.write_text(
+        json.dumps(
+            {
+                "brief": {
+                    "brief_purpose": "independent_review",
+                    "context": {
+                        "context_id": CONTEXT_ID,
+                        "revision": 1,
+                        "packet_sha256": compiled.packet_sha256,
+                        "consumer_id": "operator",
+                        "purpose": "independent_review",
+                        "scope": SCOPE_ID,
+                        "evaluation_time": "2026-08-08T12:20:00Z",
+                        "control_store_identity": "store-one",
+                        "source_position": 7,
+                        "source_hash": "a" * 64,
+                    },
+                    "created_at": "2026-08-08T12:20:00Z",
+                    "subjects": [
+                        {
+                            "artefact_id": ARTEFACT_ID,
+                            "content_sha256": CONTENT_SHA256,
+                            "task_id": TASK_ID,
+                            "subject_kind": "artefact",
+                            "path_or_name": "evidence/evaluation-run.json",
+                            "role": "review_subject",
+                        }
+                    ],
+                    "assets": [
+                        {
+                            "artefact_id": METHODS_ASSET_ARTEFACT_ID,
+                            "content_sha256": sha256_hex(selected_asset.raw_bytes),
+                            "task_id": TASK_ID,
+                            "asset_id": selected_asset.asset_id,
+                            "version": selected_asset.version,
+                            "identity": selected_asset.identity,
+                            "identity_scheme": selected_asset.identity_scheme,
+                        }
+                    ],
+                    "expected_import_types": ["ReviewFindingSet"],
+                    "deidentification": None,
+                    "prohibitions": ["no execution", "no provider operation"],
+                    "required_session_fields": ["operator_actor_id"],
+                    "attach_result": {
+                        "artefact_id": VERIFICATION_RUN_ID,
+                        "content_sha256": registered_run.content_sha256,
+                        "task_id": TASK_ID,
+                    },
+                },
+                "registration": _registration(FOLLOWUP_BRIEF_ID, CONTEXT_ID),
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        main(
+            [
+                "brief",
+                "export",
+                "--config",
+                str(tmp_path / "binding.json"),
+                "--request",
+                str(followup_path),
+                "--attach-result",
+                VERIFICATION_RUN_ID,
+            ]
+        )
+        == 0
+    )
+    followup = json.loads(capsys.readouterr().out)
+    assert followup["rendered_verification"]["traceback"] == "trace exact candidate mismatch"
+    assert followup["brief"]["verification_context"]["operator_verification_run_id"] == VERIFICATION_RUN_ID
     before = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
     restarted = EventLedger(harness.objects.control_root, PROJECT_ID, harness.schemas)
     after = replay(tuple(restarted.iter_events()), schema_registry=harness.schemas)
     assert after == before
     assert after["streams"][BRIEF_ID]["use_authority"] == "candidate"
     assert after["streams"][IMPORTED_ID]["use_authority"] == "candidate"
+    assert after["streams"][VERIFICATION_REQUEST_ID]["use_authority"] == "candidate"
+    assert after["streams"][VERIFICATION_RUN_ID]["use_authority"] == "accepted_for_scope"
+    assert after["streams"][FOLLOWUP_BRIEF_ID]["use_authority"] == "candidate"

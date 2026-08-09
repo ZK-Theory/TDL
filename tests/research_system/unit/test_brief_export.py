@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from research_system.errors import ArsError
-from research_system.methods.brief import finalize_brief_manifest
+from research_system.methods.brief import _resolve_methods_asset, finalize_brief_manifest
+from research_system.methods.pack import load_methods_pack
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -73,3 +74,20 @@ def test_finalize_brief_manifest_rejects_hidden_reasoning_and_caller_hash() -> N
         finalize_brief_manifest({**_manifest(), "brief_sha256": "0" * 64}, schema_registry=registry)
     with pytest.raises(ArsError, match="brief manifest schema"):
         finalize_brief_manifest({**_manifest(), "hidden_reasoning": "forbidden"}, schema_registry=registry)
+
+
+def test_methods_asset_binding_rejects_unknown_or_stale_identity() -> None:
+    pack = load_methods_pack(ROOT)
+    asset = pack.assets[0]
+    exact = {
+        "asset_id": asset.asset_id,
+        "version": asset.version,
+        "identity": asset.identity,
+        "identity_scheme": asset.identity_scheme,
+    }
+
+    assert _resolve_methods_asset(pack, exact) is asset
+    with pytest.raises(ArsError, match="not a current RM-02"):
+        _resolve_methods_asset(pack, {**exact, "asset_id": "mth_unknown"})
+    with pytest.raises(ArsError, match="current RM-02 identity"):
+        _resolve_methods_asset(pack, {**exact, "identity": "0" * 40})

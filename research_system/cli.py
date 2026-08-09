@@ -63,6 +63,7 @@ from research_system.ids import new_id
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.methods.brief import export_brief
 from research_system.methods.importer import import_return_bundle
+from research_system.methods.pack import load_methods_pack
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -677,6 +678,11 @@ def brief_export(args: argparse.Namespace) -> int:
     context = request.get("context")
     if not isinstance(context, dict):
         raise ConfigurationError("brief export context is missing")
+    attach_result = getattr(args, "attach_result", None)
+    if attach_result is not None:
+        attachment = request.get("attach_result")
+        if not isinstance(attachment, dict) or attachment.get("artefact_id") != attach_result:
+            raise ConfigurationError("--attach-result must bind the exact request attachment artefact")
     try:
         context["evaluation_time"] = datetime.fromisoformat(str(context["evaluation_time"]).replace("Z", "+00:00"))
     except (KeyError, ValueError) as exc:
@@ -687,6 +693,7 @@ def brief_export(args: argparse.Namespace) -> int:
         context_events=ledger.snapshot().events,
         context_objects=objects,
         artefact_consumers=build_artefact_consumers(binding),
+        methods_pack=load_methods_pack(binding.schema_root.parent.parent),
         schema_registry=schemas,
         registration=_candidate_registration(registration_value),
         document_store=CandidateDocumentStore(binding.control_root),
@@ -1515,6 +1522,7 @@ def _parser() -> argparse.ArgumentParser:
     export = brief_actions.add_parser("export")
     export.add_argument("--config", type=Path, required=True)
     export.add_argument("--request", type=Path, required=True)
+    export.add_argument("--attach-result", default=None)
     export.set_defaults(handler=brief_export)
     import_ = brief_actions.add_parser("import")
     import_.add_argument("--config", type=Path, required=True)

@@ -17,6 +17,7 @@ from research_system.methods.registration import (
     RegisteredCandidate,
     register_candidate_document,
 )
+from research_system.methods.pack import MethodsAsset, MethodsPack
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -62,6 +63,22 @@ def _resolve_artefact(
     return getattr(consumers, method_name)(context, consumer_id=consumer_id)
 
 
+def _resolve_methods_asset(methods_pack: MethodsPack, requested: dict[str, Any]) -> MethodsAsset:
+    matches = tuple(asset for asset in methods_pack.assets if asset.asset_id == requested.get("asset_id"))
+    if len(matches) != 1:
+        raise ArsError("brief asset is not a current RM-02 Methods Pack asset")
+    asset = matches[0]
+    expected = {
+        "version": asset.version,
+        "identity": asset.identity,
+        "identity_scheme": asset.identity_scheme,
+    }
+    for field, value in expected.items():
+        if requested.get(field) != value:
+            raise ArsError(f"brief asset does not bind the current RM-02 {field}")
+    return asset
+
+
 def export_brief(
     *,
     request: dict[str, Any],
@@ -69,6 +86,7 @@ def export_brief(
     context_events: Iterable[dict[str, Any]],
     context_objects: Any,
     artefact_consumers: ArtefactEvidenceConsumers,
+    methods_pack: MethodsPack,
     schema_registry: SchemaRegistry,
     registration: CandidateRegistration,
     document_store: CandidateDocumentStore,
@@ -107,6 +125,7 @@ def export_brief(
         )
     asset_rows: list[dict[str, Any]] = []
     for asset in request["assets"]:
+        selected_asset = _resolve_methods_asset(methods_pack, asset)
         consumer_context = ArtefactConsumerContext(
             artefact_id=asset["artefact_id"],
             exact_content_sha256=asset["content_sha256"],
@@ -116,13 +135,15 @@ def export_brief(
             evaluation_time=context_args["evaluation_time"],
         )
         evidence = _resolve_artefact(artefact_consumers, purpose=purpose, context=consumer_context)
+        if evidence.content_bytes != selected_asset.raw_bytes:
+            raise ArsError("authorized brief asset bytes differ from the current RM-02 asset")
         resolved.append(evidence)
         asset_rows.append(
             {
-                "asset_id": asset["asset_id"],
-                "version": asset["version"],
-                "identity": asset["identity"],
-                "identity_scheme": asset["identity_scheme"],
+                "asset_id": selected_asset.asset_id,
+                "version": selected_asset.version,
+                "identity": selected_asset.identity,
+                "identity_scheme": selected_asset.identity_scheme,
                 "accepted_use_event_id": evidence.authority_event_id,
                 "accepted_use_event_sha256": evidence.authority_event_hash,
             }

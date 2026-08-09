@@ -128,6 +128,7 @@ class MethodsAsset:
     required_output: str
     lineage: AssetLineage
     content: str
+    raw_bytes: bytes
 
 
 @dataclass(frozen=True)
@@ -395,6 +396,7 @@ def _materialize_pack(
                 required_output=row["required_output"],
                 lineage=_lineage(row["lineage"]),
                 content=body,
+                raw_bytes=_canonical_lf(raw),
             )
         )
     return MethodsPack(
