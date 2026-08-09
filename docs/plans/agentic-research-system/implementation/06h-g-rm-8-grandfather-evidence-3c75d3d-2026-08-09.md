@@ -95,7 +95,7 @@ No canonical Control file was written.
 
 ## Candidate-head validation
 
-Interpreter: `C:\Users\steph\TDL\.venv\Scripts\python.exe`.
+Interpreter: repository virtual environment, CPython 3.13.5 on Windows.
 
 With plugin autoload, pytest cache, and coverage disabled, the exact mandated
 five-file set passed:

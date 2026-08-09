@@ -4,9 +4,10 @@ import hashlib
 import json
 import os
 import secrets
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
@@ -68,6 +69,11 @@ class GrandfatherPrefixEvidence:
             raise ValueError("grandfather missing-triple positions must be positive integers")
 
     def as_record(self) -> dict[str, Any]:
+        """Return the exact serializable prefix-evidence record.
+
+        Returns:
+            A dictionary containing every field bound by the prefix evidence.
+        """
         return {
             "store_identity": self.store_identity,
             "project_id": self.project_id,
@@ -83,10 +89,26 @@ class GrandfatherPrefixEvidence:
 
     @property
     def sha256(self) -> str:
+        """Return the SHA-256 of the canonical prefix-evidence record.
+
+        Returns:
+            The lowercase hexadecimal SHA-256 digest.
+        """
         return sha256_hex(canonical_bytes(self.as_record()))
 
     @classmethod
     def from_record(cls, value: Mapping[str, Any]) -> GrandfatherPrefixEvidence:
+        """Reconstruct validated prefix evidence from a serialized record.
+
+        Args:
+            value: Candidate record containing the exact evidence fields.
+
+        Returns:
+            Validated immutable prefix evidence.
+
+        Raises:
+            IntegrityError: If fields, types, hashes, or numeric bounds are invalid.
+        """
         expected = {
             "store_identity",
             "project_id",
@@ -166,13 +188,34 @@ class GrandfatherDecision:
 
     @property
     def sha256(self) -> str:
+        """Return the SHA-256 of the canonical unsigned owner decision.
+
+        Returns:
+            The lowercase hexadecimal SHA-256 digest.
+        """
         return sha256_hex(canonical_bytes(self._unsigned_record()))
 
     def as_record(self) -> dict[str, Any]:
+        """Return the signed serializable owner-decision record.
+
+        Returns:
+            The complete decision record including its canonical SHA-256.
+        """
         return {**self._unsigned_record(), "decision_sha256": self.sha256}
 
     @classmethod
     def from_record(cls, value: Mapping[str, Any]) -> GrandfatherDecision:
+        """Reconstruct and authenticate an attributed owner decision.
+
+        Args:
+            value: Candidate record containing the exact decision fields.
+
+        Returns:
+            The validated immutable grandfather decision.
+
+        Raises:
+            IntegrityError: If structure, protocol, evidence, attribution, or hashes are invalid.
+        """
         expected = {
             "schema_id",
             "schema_version",
@@ -245,7 +288,17 @@ def _derive_prefix_evidence(
     prefix_digest = hashlib.sha256()
     batch_count = 0
     captured_events: list[Mapping[str, Any]] = []
-    for path in ledger._batch_paths():
+    try:
+        batch_paths = sorted(
+            ledger._batch_paths(),
+            key=lambda path: (
+                int(path.name.partition("-")[0]),
+                path.relative_to(ledger.events_root).as_posix(),
+            ),
+        )
+    except ValueError as exc:
+        raise IntegrityError("grandfather prefix batch path is invalid") from exc
+    for path in batch_paths:
         try:
             raw = path.read_bytes()
             batch = tuple(json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip())
@@ -309,6 +362,8 @@ def capture_grandfather_prefix(
     expected_tail_hash: str,
 ) -> GrandfatherPrefixEvidence:
     """Capture one exact prefix cut, guarded by a caller-witnessed ledger tail."""
+    if type(max_global_position) is not int or max_global_position < 1:
+        raise IntegrityError("grandfather maximum global position must be positive")
     current = ledger.snapshot()
     _require_expected_snapshot(current, expected_snapshot)
     if current.global_position != max_global_position or current.event_hash != expected_tail_hash:

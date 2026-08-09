@@ -133,6 +133,59 @@ def test_public_grandfather_materialization_rejects_a_changed_expected_tail(tmp_
     assert not output.exists()
 
 
+@pytest.mark.parametrize("invalid_bound", [0, -1, True])
+def test_public_grandfather_capture_rejects_invalid_bound_before_snapshot(tmp_path, monkeypatch, invalid_bound):
+    harness, snapshot, _ = _decision(tmp_path)
+
+    def snapshot_must_not_run():
+        raise AssertionError("snapshot called before grandfather bound validation")
+
+    monkeypatch.setattr(harness.ledger, "snapshot", snapshot_must_not_run)
+
+    with pytest.raises(IntegrityError, match="maximum global position must be positive"):
+        capture_grandfather_prefix(
+            harness.ledger,
+            expected_snapshot=snapshot,
+            store_identity=STORE_IDENTITY,
+            max_global_position=invalid_bound,
+            expected_tail_hash=snapshot.event_hash,
+        )
+
+
+def test_public_grandfather_capture_uses_explicit_stable_batch_order(tmp_path, monkeypatch):
+    harness, _, _ = _decision(tmp_path)
+    harness.service.submit(
+        create_task_command(
+            "cmd_01978abc-4003-7000-8000-000000004003",
+            "grandfather-second-batch",
+            "tsk_01978abc-4004-7000-8000-000000004004",
+            {"title": "Second prefix batch"},
+        )
+    )
+    snapshot = harness.ledger.snapshot()
+    evidence = capture_grandfather_prefix(
+        harness.ledger,
+        expected_snapshot=snapshot,
+        store_identity=STORE_IDENTITY,
+        max_global_position=2,
+        expected_tail_hash=snapshot.event_hash,
+    )
+    original_batch_paths = harness.ledger._batch_paths
+
+    monkeypatch.setattr(harness.ledger, "_batch_paths", lambda: list(reversed(original_batch_paths())))
+
+    assert (
+        capture_grandfather_prefix(
+            harness.ledger,
+            expected_snapshot=snapshot,
+            store_identity=STORE_IDENTITY,
+            max_global_position=2,
+            expected_tail_hash=snapshot.event_hash,
+        )
+        == evidence
+    )
+
+
 def test_public_grandfather_capture_rejects_same_size_restored_mtime_prefix_aba(tmp_path, monkeypatch):
     harness, snapshot, _ = _decision(tmp_path)
     batch_path = harness.ledger._batch_paths()[0]

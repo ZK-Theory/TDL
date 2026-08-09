@@ -18,6 +18,14 @@ from tests.research_system.factories import PROJECT_ID, REPO_ROOT, control_plane
 
 MANIFEST_PATH = Path(__file__).with_name("wp6_1_06h_current_append_manifest.yaml")
 SCHEMAS = REPO_ROOT / ".research-system" / "schemas"
+_BINDING_FIELDS = (
+    "schema_id",
+    "schema_version",
+    "command_type",
+    "event_type",
+    "producer_command_type",
+    "policy_action_type",
+)
 APPEND_SITE_CLASSIFICATIONS = {
     (
         "research_system/authority.py",
@@ -36,20 +44,17 @@ def _manifest() -> dict:
     return yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
-def _binding_digest() -> tuple[int, str]:
-    rows = (
-        (
-            binding.schema_id,
-            binding.schema_version,
-            binding.command_type or "",
-            binding.event_type or "",
-            binding.producer_command_type or "",
-            binding.policy_action_type or "",
-        )
-        for binding in runtime_schema_registry(SCHEMAS).active_bindings()
+def _binding_digest(row_format: str) -> tuple[int, str]:
+    expected_format = "|".join(_BINDING_FIELDS) + "\n"
+    assert row_format.encode("utf-8") == expected_format.encode("utf-8")
+    field_names = tuple(row_format[:-1].split("|"))
+    terminator = row_format[-1].encode("utf-8")
+    bindings = runtime_schema_registry(SCHEMAS).active_bindings()
+    encoded = b"".join(
+        b"|".join(str(getattr(binding, field_name) or "").encode("utf-8") for field_name in field_names) + terminator
+        for binding in bindings
     )
-    encoded = "".join("|".join(row) + "\n" for row in rows).encode()
-    return len(runtime_schema_registry(SCHEMAS).active_bindings()), sha256(encoded).hexdigest()
+    return len(bindings), sha256(encoded).hexdigest()
 
 
 def _git_object(path: str) -> str:
@@ -63,29 +68,44 @@ def _git_object(path: str) -> str:
     return completed.stdout.strip()
 
 
+def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, str, str]]:
+    found: set[tuple[str, str, str, str]] = set()
+    stack: list[str] = []
+    aliases: list[set[str]] = [set()]
+
+    class Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            stack.append(node.name)
+            aliases.append(set())
+            self.generic_visit(node)
+            aliases.pop()
+            stack.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Assign(self, node: ast.Assign) -> None:
+            source_receiver = ast.unparse(node.value)
+            if "ledger" in source_receiver.lower() or source_receiver in aliases[-1]:
+                aliases[-1].update(target.id for target in node.targets if isinstance(target, ast.Name))
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
+                receiver = ast.unparse(node.func.value)
+                if "ledger" in receiver.lower() or receiver in aliases[-1]:
+                    site = (relative, stack[-1] if stack else "<module>", receiver)
+                    found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
+            self.generic_visit(node)
+
+    Visitor().visit(ast.parse(source))
+    return found
+
+
 def _append_sites() -> set[tuple[str, str, str, str]]:
     found: set[tuple[str, str, str, str]] = set()
     for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
         relative = path.relative_to(REPO_ROOT).as_posix()
-        stack: list[str] = []
-
-        class Visitor(ast.NodeVisitor):
-            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                stack.append(node.name)
-                self.generic_visit(node)
-                stack.pop()
-
-            visit_AsyncFunctionDef = visit_FunctionDef
-
-            def visit_Call(self, node: ast.Call) -> None:
-                if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
-                    receiver = ast.unparse(node.func.value)
-                    if "ledger" in receiver.lower():
-                        site = (relative, stack[-1] if stack else "<module>", receiver)
-                        found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
-                self.generic_visit(node)
-
-        Visitor().visit(ast.parse(path.read_text(encoding="utf-8")))
+        found.update(_append_sites_in_source(relative, path.read_text(encoding="utf-8")))
     return found
 
 
@@ -117,11 +137,17 @@ def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None
     )
     assert _git_object(".research-system/schemas/core/commands") == authorities["command_schema_tree"]
     assert _git_object(".research-system/schemas/core/events") == authorities["event_schema_tree"]
-    assert _binding_digest() == (
+    assert _binding_digest(document["runtime_bindings"]["canonical_row_format"]) == (
         document["runtime_bindings"]["count"],
         document["runtime_bindings"]["sha256"],
     )
     _reconcile_append_sites(_manifest_append_sites(document), _append_sites())
+
+
+def test_manifest_binding_row_format_decodes_to_exact_lf_bytes() -> None:
+    row_format = _manifest()["runtime_bindings"]["canonical_row_format"]
+
+    assert row_format.encode("utf-8") == ("|".join(_BINDING_FIELDS) + "\n").encode("utf-8")
 
 
 def test_manifest_controls_resolve_to_real_test_nodes() -> None:
@@ -224,4 +250,15 @@ def test_unmanifested_append_site_fails_reconciliation() -> None:
     }
 
     with pytest.raises(AssertionError, match="new_family"):
+        _reconcile_append_sites(expected, planted)
+
+
+def test_ledger_alias_append_fails_reconciliation() -> None:
+    expected = _manifest_append_sites(_manifest())
+    planted = _append_sites() | _append_sites_in_source(
+        "research_system/command/aliased.py",
+        "def submit_alias(ledger):\n    writer = ledger\n    writer.append([])\n",
+    )
+
+    with pytest.raises(AssertionError, match="submit_alias"):
         _reconcile_append_sites(expected, planted)

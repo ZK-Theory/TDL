@@ -586,11 +586,25 @@ def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_
     first = targets / "first.schema.json"
     second = targets / "second.schema.json"
     first.write_text(
-        json.dumps({"$id": "ars://test/path-race", "title": "first", "type": "object"}),
+        json.dumps(
+            {
+                "$id": "ars://test/path-race",
+                "title": "first",
+                "type": "object",
+                "properties": {"schema_version": {"const": "1.0.0"}},
+            }
+        ),
         encoding="utf-8",
     )
     second.write_text(
-        json.dumps({"$id": "ars://test/path-race", "title": "second", "type": "object"}),
+        json.dumps(
+            {
+                "$id": "ars://test/path-race",
+                "title": "second",
+                "type": "object",
+                "properties": {"schema_version": {"const": "1.0.0"}},
+            }
+        ),
         encoding="utf-8",
     )
     alias = root / "active.schema.json"
@@ -605,7 +619,7 @@ def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_
     def swap_after_alias_read(path: Path) -> bytes:
         nonlocal swapped
         raw = real_read_bytes(path)
-        if path == alias and not swapped:
+        if path == first.resolve() and not swapped:
             alias.unlink()
             alias.symlink_to(second)
             swapped = True
@@ -613,8 +627,10 @@ def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_
 
     monkeypatch.setattr(Path, "read_bytes", swap_after_alias_read)
 
-    identity = SchemaRegistry(root).resolve_identity("ars://test/path-race", None)
+    identity = SchemaRegistry(root).resolve_identity("ars://test/path-race", "1.0.0")
 
+    assert swapped
+    assert alias.resolve() == second
     assert identity.raw_bytes == real_read_bytes(identity.source_path)
     assert identity.raw_bytes_sha256 == sha256(identity.raw_bytes).hexdigest()
 
