@@ -8,7 +8,7 @@ import pytest
 
 import research_system.cli as cli
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ConflictError
+from research_system.errors import ConflictError, SchemaError
 from research_system.projection.replay import replay
 from tests.research_system.factories import ACTORS, REPO_ROOT, activate_lifecycle_grant
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
@@ -55,10 +55,11 @@ SAFE_C2_COMMAND_EVENTS = {
     "RequestResume": "ResumeRequested",
     "QuarantineOrphan": "OrphanQuarantined",
     "RequestReview": "ReviewRequested",
+    "RegisterArtefact": "ArtefactRegistered",
 }
 
 
-def test_safe_c2_runtime_bindings_are_literal_and_artefact_registration_stays_gated():
+def test_c2_runtime_bindings_are_literal_including_authorized_artefact_registration():
     from research_system.schema_registry import runtime_schema_registry
 
     schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
@@ -70,7 +71,241 @@ def test_safe_c2_runtime_bindings_are_literal_and_artefact_registration_stays_ga
         assert command.schema_id == f"ars://core/command/{command_type}"
         assert event.schema_id == f"ars://core/event/{event_type}"
 
-    assert schemas.command_binding("RegisterArtefact") is None
+
+ARTEFACT_ID = "art_01978abc-7820-7000-8000-000000007820"
+
+
+def _artefact_manifest(artefact_id: str) -> dict[str, object]:
+    content = canonical_bytes(
+        {
+            "schema_id": "ars://evals/evaluation-run",
+            "schema_version": "1.0.0",
+            "outcome": "passed",
+        }
+    )
+    return {
+        "artefact_id": artefact_id,
+        "aliases": [],
+        "artefact_type": "evaluation_run",
+        "artefact_schema_id": "ars://evals/evaluation-run",
+        "artefact_schema_version": "1.0.0",
+        "task_id": TASK_ID,
+        "dispatch_id": DISPATCH_ID,
+        "attempt_id": ATTEMPT_ID,
+        "producer_actor_id": ACTORS["actor-b"],
+        "producer_profile": "wp6.4-production",
+        "context_packet_id": "ctx_01978abc-7821-7000-8000-000000007821",
+        "created_at": "2026-08-09T20:00:00Z",
+        "code_commit": "git:sha1:" + "1" * 40,
+        "branch_identity": "codex/wp6-1-c2-operating-lifecycle",
+        "worktree_identity": "wp6-1-c2-operating-lifecycle",
+        "environment_fingerprint": "2" * 64,
+        "root_id": "control",
+        "relative_path": "evidence/c2-artefact.json",
+        "size_bytes": len(content),
+        "media_type": "application/json",
+        "content_sha256": sha256_hex(content),
+        "observed_at": "2026-08-09T20:00:00Z",
+        "availability_check_evidence_refs": ["availability-check:c2"],
+        "input_dependencies": [],
+        "research_provenance": {
+            "dataset_ids": [],
+            "dataset_vintages": [],
+            "representation_ids": [],
+            "parameter_ids": [],
+            "seed_ids": [],
+            "sample_restriction_ids": [],
+        },
+        "validation": {
+            "validation_record_refs": ["validation:c2"],
+            "expected_contract_ids": ["06i"],
+            "expected_schema_ids": ["ars://evals/evaluation-run"],
+        },
+        "authority": {
+            "availability": "available",
+            "regenerability": "non_regenerable",
+            "integrity": "verified",
+            "structural_validation": "passed",
+            "scientific_review": "pending",
+            "use_authority": "candidate",
+            "accepted_scope": "release:wp6.4",
+            "consumer_restrictions": [],
+        },
+        "operations": {
+            "no_overwrite_evidence_refs": ["no-overwrite:c2"],
+            "retention_class": "durable",
+            "confidentiality_class": "internal",
+            "external_data_constraints": [],
+        },
+    }
+
+
+def _register_artefact_command(harness, number: int = 846) -> tuple[dict[str, object], dict[str, object]]:
+    manifest = _artefact_manifest(ARTEFACT_ID)
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact",),
+    )
+    return (
+        _c1_command(
+            _command_id(number),
+            "RegisterArtefact",
+            ARTEFACT_ID,
+            0,
+            {"new_artefact_id": ARTEFACT_ID, "manifest": manifest},
+            authority_grant_id=grant_id,
+        ),
+        manifest,
+    )
+
+
+def test_public_artefact_registration_is_event_first_durable_and_replayable(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    command, manifest = _register_artefact_command(harness)
+
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == "accepted", receipt
+    assert harness.receipts.load(str(command["command_id"])) == receipt
+    event = tuple(harness.ledger.iter_events())[-1]
+    binding = harness.schemas.command_binding("RegisterArtefact")
+    assert binding is not None
+    identity = harness.schemas.resolve_identity(binding.schema_id, binding.schema_version)
+    assert event["event_type"] == "ArtefactRegistered"
+    assert event["payload"] == command["payload"]
+    assert (
+        event["command_schema_id"],
+        event["command_schema_version"],
+        event["command_schema_sha256"],
+    ) == (identity.schema_id, identity.schema_version, identity.raw_bytes_sha256)
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == manifest
+    index = json.loads(_c1_scoped_index_path(harness, command).read_text(encoding="utf-8"))
+    assert index["receipt"]["command_id"] == command["command_id"]
+    assert index["receipt"]["status"] == "accepted"
+
+    artefact = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][ARTEFACT_ID]
+    assert artefact["manifest"] == manifest
+    assert artefact["content_sha256"] == manifest["content_sha256"]
+    assert artefact["use_authority"] == "candidate"
+    assert artefact["manifest"]["authority"] == manifest["authority"]
+
+
+def test_cli_register_artefact_carries_the_c2_command_through_the_real_service(tmp_path, monkeypatch, capsys):
+    harness_root = tmp_path / "harness"
+    harness_root.mkdir()
+    harness = _c1_control_plane(harness_root)
+    command, _ = _register_artefact_command(harness, 847)
+    config_path = tmp_path / "binding.yaml"
+    config_path.write_text("{}", encoding="utf-8")
+    command_path = tmp_path / "register-artefact.json"
+    command_path.write_text(json.dumps(command), encoding="utf-8")
+    binding = SimpleNamespace(
+        control_root=harness.ledger.control_root,
+        project_id=harness.ledger.project_id,
+        schema_root=REPO_ROOT / ".research-system" / "schemas",
+        store_identity=harness.authority_resolver.expected_store_identity,
+        origin_witness=harness.authority_resolver.approved_witness,
+        origin_witness_path=harness.authority_resolver.approved_witness_path,
+    )
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *args, **kwargs: harness.authority_resolver)
+    monkeypatch.setattr(cli, "CommandService", lambda *args, **kwargs: harness.service)
+
+    result = cli.main(["command", "submit", "--config", str(config_path), "--command", str(command_path)])
+
+    assert result == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "accepted"
+    assert tuple(harness.ledger.iter_events())[-1]["event_type"] == "ArtefactRegistered"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "status", "reason_code"),
+    [
+        ("invalid_initial_authority", "rejected", "artefact_initial_authority_invalid"),
+        ("unverifiable_regenerability", "rejected", "artefact_regenerability_evidence_unavailable"),
+        ("unauthorized_actor", "rejected", "lifecycle_authority_unauthorized"),
+        ("stale_position", "conflict", "stream_version_conflict"),
+    ],
+)
+def test_public_artefact_registration_failures_leave_no_domain_mutation(tmp_path, mutation, status, reason_code):
+    harness = _c1_control_plane(tmp_path)
+    command, _ = _register_artefact_command(harness, 848)
+    if mutation == "invalid_initial_authority":
+        command["payload"]["manifest"]["authority"]["use_authority"] = "accepted_for_scope"
+    elif mutation == "unverifiable_regenerability":
+        command["payload"]["manifest"]["authority"]["regenerability"] = "regenerable_verified"
+    elif mutation == "unauthorized_actor":
+        command["actor_id"] = ACTORS["actor-b"]
+    else:
+        command["expected_stream_version"] = 1
+    before = _rejection_snapshot(harness)
+
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == status
+    assert receipt.reason_code == reason_code
+    assert _rejection_snapshot(harness) == before
+    assert not (harness.objects.control_root / "objects" / "artefact" / ARTEFACT_ID).exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_id", "ars://core/command/CreateTask"),
+        ("schema_version", "9.9.9"),
+    ],
+)
+def test_public_artefact_registration_rejects_mismatched_command_schema_before_mutation(tmp_path, field, value):
+    harness = _c1_control_plane(tmp_path)
+    command, _ = _register_artefact_command(harness, 849)
+    command[field] = value
+    before = _rejection_snapshot(harness)
+
+    with pytest.raises(SchemaError):
+        harness.service.submit(command)
+
+    assert _rejection_snapshot(harness) == before
+    assert not (harness.objects.control_root / "objects" / "artefact" / ARTEFACT_ID).exists()
+
+
+@pytest.mark.parametrize("missing", ("index", "receipt", "both"))
+def test_artefact_registration_identical_retry_repairs_committed_residue_without_new_domain_mutation(tmp_path, missing):
+    harness = _c1_control_plane(tmp_path)
+    command, _ = _register_artefact_command(harness, 850)
+    accepted = harness.service.submit(command)
+    assert accepted.status == "accepted"
+    index_path = _c1_scoped_index_path(harness, command)
+    receipt_path = harness.receipts.receipts_root / f"{command['command_id']}.json"
+    expected_index = index_path.read_bytes()
+    expected_receipt = receipt_path.read_bytes()
+    if missing in {"index", "both"}:
+        index_path.unlink()
+    if missing in {"receipt", "both"}:
+        receipt_path.unlink()
+    domain = _domain_snapshot(harness)
+
+    retried = harness.service.submit(deepcopy(command))
+
+    assert retried == accepted
+    assert _domain_snapshot(harness) == domain
+    assert index_path.read_bytes() == expected_index
+    assert receipt_path.read_bytes() == expected_receipt
+
+
+def test_artefact_registration_changed_retry_conflicts_without_domain_mutation(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    command, _ = _register_artefact_command(harness, 851)
+    assert harness.service.submit(command).status == "accepted"
+    changed = deepcopy(command)
+    changed["payload"]["manifest"]["relative_path"] = "evidence/conflicting-artefact.json"
+    domain = _domain_snapshot(harness)
+
+    with pytest.raises(ConflictError):
+        harness.service.submit(changed)
+
+    assert _domain_snapshot(harness) == domain
 
 
 def test_public_block_task_suspends_a_running_c1_task_and_replays(tmp_path):

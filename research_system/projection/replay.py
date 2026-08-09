@@ -827,6 +827,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             or manifest.get("artefact_id") != stream_id
             or not isinstance(manifest.get("authority"), dict)
             or manifest["authority"].get("use_authority") != "candidate"
+            or manifest["authority"].get("regenerability") == "regenerable_verified"
         ):
             raise IntegrityError("invalid artefact registration transition")
         streams[stream_id] = {

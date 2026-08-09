@@ -567,7 +567,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    assert len(bindings) == 112
+    assert len(bindings) == 164
     assert bindings == tuple(
         sorted(
             bindings,

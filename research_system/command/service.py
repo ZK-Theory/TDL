@@ -3893,6 +3893,11 @@ class CommandService:
                     "artefact_initial_authority_invalid",
                     "RegisterArtefact always starts at candidate authority.",
                 )
+            if authority.get("regenerability") == "regenerable_verified":
+                return rejected(
+                    "artefact_regenerability_evidence_unavailable",
+                    "RegisterArtefact cannot claim regenerable verification before its required canary evidence is governed.",
+                )
             if (
                 observed_version != 0
                 or registered is not None
