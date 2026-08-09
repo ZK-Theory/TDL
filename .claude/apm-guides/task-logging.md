@@ -64,9 +64,10 @@ Perform the following actions:
 ### 3.2 Task Report Delivery
 
 Perform the following actions:
-1. After the durable Task Log has been written, read the incoming Task Bus and verify it still contains the assignment just completed. Clear `.apm/bus/<agent-slug>/task.md` by writing an empty file through the normal file-edit/write tool; do not use terminal truncation or shell redirection. If the permission layer denies the clear, preserve the slot, report the exact path and denial to the User or Manager, and stop rather than retrying through another write mechanism.
-2. Read the Report Bus, then write the Task Report to it: `.apm/bus/<agent-slug>/report.md`. The report is a concise summary - key outcome, status, log path, and any flags. Detail belongs in the Task Log.
-3. Direct the User to deliver the report to the Manager per `.claude/skills/apm-communication/SKILL.md` §2.1 Direct Communication - provide both `/apm-5-check-reports <agent-id>` for targeted retrieval and `/apm-5-check-reports` as the general command, since multiple Workers may finish concurrently.
+1. After the durable Task Log has been written, read the incoming Task Bus and verify it still contains the assignment just completed. For a single-Task assignment, clear `.apm/bus/<agent-slug>/task.md` by writing an empty file through the normal file-edit/write tool. For a batch, preserve the complete batch envelope through every individual Task; do not clear it yet. Never use terminal truncation or shell redirection. If the permission layer denies a required clear, preserve the slot, report the exact path and denial to the User or Manager, and stop rather than retrying through another write mechanism.
+2. Read the Report Bus, then write the Task Report to it with a newly generated stable `report_id`: `.apm/bus/<agent-slug>/report.md`. The report is a concise summary - key outcome, status, log path, and any flags. Detail belongs in the Task Log.
+3. For a batch, after the single batch report has been written, re-read the incoming Task Bus, verify it is the same complete batch envelope, and only then clear it through the normal file-edit/write tool. A changed or partial identity is a collision and must remain intact.
+4. Direct the User to deliver the report to the Manager per `.claude/skills/apm-communication/SKILL.md` §2.1 Direct Communication - provide both `/apm-5-check-reports <agent-id>` for targeted retrieval and `/apm-5-check-reports` as the general command, since multiple Workers may finish concurrently.
 
 For batch execution, write a single batch report per §4.3 Batch Report Format after completing all Tasks (or stopping on failure).
 
@@ -153,6 +154,7 @@ Task Reports are concise summaries written to the Report Bus for the Manager to 
 stage: <N>
 task: <M>
 agent: <agent-slug>
+report_id: <UUID generated once for this report>
 status: Success | Partial | Failed
 log_path: ".apm/memory/stage-<NN>/task-<NN>-<MM>.log.md"
 important_findings: true | false
@@ -164,6 +166,7 @@ compatibility_issues: true | false
 - `stage`: Stage number from the Task Prompt.
 - `task`: Task number from the Task Prompt.
 - `agent`: Your agent identifier.
+- `report_id`: Stable UUID for compare-and-clear acknowledgement; never reuse it for another report.
 - `status`: Task outcome per §2.2 Outcome Standards.
 - `log_path`: Path to the Task Log for this Task.
 - `important_findings`: Same value as the Task Log.
@@ -184,6 +187,7 @@ When completing a batch of Tasks (or stopping early on failure), the Report Bus 
 ```yaml
 ---
 batch: true
+report_id: <UUID generated once for this batch report>
 batch_size: <N>
 completed: <M>
 stopped_early: true | false
@@ -202,6 +206,7 @@ tasks:
 
 **Field Descriptions:**
 - `batch`: Always `true` for batch reports.
+- `report_id`: Stable UUID for compare-and-clear acknowledgement; never reuse it for another report.
 - `batch_size`: Total Tasks in the batch.
 - `completed`: Tasks that were executed (excludes unstarted).
 - `stopped_early`: Whether the batch stopped before completing all Tasks.

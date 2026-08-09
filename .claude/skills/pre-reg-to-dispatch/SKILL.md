@@ -47,12 +47,14 @@ before any dispatch.
    Findings are warning-only during the approved calibration period: preserve
    and disposition each warning rather than treating prompt prose as fact.
 7. **Probe external specialist liveness before dispatch.** When execution depends
-   on a hosted prover, paid model, or other owner-configured API, run the cheapest
-   harmless smoke test before creating the Worker task and record the command,
-   date, and result. Put the same probe first in the Task Prompt. Authentication,
-   entitlement, or upstream-availability failure is a hard stop: preserve the
-   error and return it to the owner; do not hunt credentials, edit environment
-   files, or substitute a provider.
+   on a hosted prover, paid model, or other owner-configured API, run exactly one
+   cheapest harmless smoke test before creating the Worker task. Give it a finite
+   timeout, no retries, and an explicit request/token or monetary-cost ceiling;
+   record those bounds with the command, date, and result. Put the same bounded
+   one-shot probe first in the Task Prompt. Authentication, entitlement, timeout,
+   budget exhaustion, or upstream-availability failure is a hard stop: preserve
+   the error and return it to the owner without dispatch; do not hunt credentials,
+   edit environment files, retry, or substitute a provider.
 
 ## Output Format
 
