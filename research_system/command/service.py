@@ -23,6 +23,7 @@ from research_system.authority import (
     LedgerAuthorityGrantResolver,
     LifecycleCommandAuthorityEvidence,
     SCOPED_AUTHORITY_ADMISSION_VERSION,
+    SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES,
     SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
     SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
     ScopedAuthorityGrant,
@@ -4688,7 +4689,7 @@ class CommandService:
                 ):
                     raise IntegrityError("lifecycle authority bundle evidence is invalid")
                 if (
-                    command.envelope["command_type"] == "ReleaseExecutionLease"
+                    command.envelope["command_type"] in SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES
                     and command.actor_id != context.owner_actor_id
                 ):
                     expected_actor_class = evidence.actor_class

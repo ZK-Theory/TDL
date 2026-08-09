@@ -224,6 +224,55 @@ def test_register_review_and_use_authority_are_real_durable_commands(tmp_path):
     assert harness.service.submit(deepcopy(commands[0])) == receipts[0]
 
 
+def test_owner_activated_agent_grant_records_independent_scientific_review(tmp_path):
+    harness = control_plane(tmp_path)
+    owner_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact",),
+    )
+    review_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        actor_id=ACTORS["actor-b"],
+        allowed_actor_classes=("agent",),
+        command_types=("RecordScientificReview",),
+        grant_id=REVIEW_GRANT_ID,
+    )
+    manifest = artefact_manifest()
+    manifest["producer_actor_id"] = ACTORS["actor-a"]
+    register = command(
+        command_id="cmd_019fe47a-1020-7000-8000-000000001020",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=owner_grant,
+        expected_stream_version=0,
+        payload={"new_artefact_id": ARTEFACT_ID, "manifest": manifest},
+    )
+    review = command(
+        command_id="cmd_019fe47a-1021-7000-8000-000000001021",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-b"],
+        authority_grant_id=review_grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "review_id": REVIEW_ID,
+            "subject_sha256": CONTENT_SHA256,
+            "scientific_review": "approved",
+            "evidence_refs": [REVIEW_EVIDENCE_ID],
+        },
+    )
+
+    assert harness.service.submit(register).status == "accepted"
+    assert harness.service.submit(review).status == "accepted"
+    recorded = tuple(harness.ledger.iter_events())[-1]
+    assert recorded["event_type"] == "ScientificReviewRecorded"
+    assert recorded["actor_id"] == ACTORS["actor-b"]
+
+
 def test_register_rejects_caller_selected_accepted_state_without_any_write(tmp_path):
     harness = control_plane(tmp_path)
     register, _, _ = accepted_artefact_commands(harness)

@@ -251,6 +251,7 @@ def activate_lifecycle_grant(
     subject_kind: str,
     subject_id: str,
     actor_id: str = ACTORS["actor-a"],
+    allowed_actor_classes: tuple[str, ...] = ("human",),
     command_types: tuple[str, ...] | None = None,
     grant_id: str | None = None,
     effective_at: str = "2026-01-01T00:00:00Z",
@@ -263,6 +264,7 @@ def activate_lifecycle_grant(
         subject_kind: Governed subject kind for the grant scope.
         subject_id: Governed subject identity for the grant scope.
         actor_id: Actor recorded on the issued grant.
+        allowed_actor_classes: Exact actor classes proven by the owner-issued grant.
         command_types: Exact commands allowed by the grant, or the centralized
             defaults for ``subject_kind`` when omitted.
         grant_id: Explicit grant identity, or the deterministic identity derived
@@ -295,6 +297,7 @@ def activate_lifecycle_grant(
         if (
             existing.actor_id != actor_id
             or existing.subject_scope.to_dict() != subject_scope
+            or tuple(stored_grant["allowed_actor_classes"]) != allowed_actor_classes
             or stored_command_types != tuple(resolved_command_types)
         ):
             raise AssertionError("existing lifecycle grant does not match requested scope")
@@ -323,7 +326,7 @@ def activate_lifecycle_grant(
         "schema_version": SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         "authority_grant_id": grant_id,
         "actor_id": actor_id,
-        "allowed_actor_classes": ["human"],
+        "allowed_actor_classes": list(allowed_actor_classes),
         "allowed_commands": command_identities,
         "allowed_policy_actions": [],
         "subject_scope": subject_scope,

@@ -165,6 +165,12 @@ _SCOPED_SUBJECT_PREFIXES = {
     ),
 }
 _SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
+SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
+    {
+        "RecordScientificReview",
+        "ReleaseExecutionLease",
+    }
+)
 _SCOPED_COMMAND_SUBJECT_KINDS = {
     "CreateScopeDefinition": "scope_definition",
     "AmendScopeDefinition": "scope_definition",
@@ -2494,7 +2500,7 @@ class LedgerAuthorityGrantResolver:
         projection = self._projection()
         context = self._administration_context_from_projection(projection)
         self._validate_granted_command_identity(command)
-        if command.command_type == "ReleaseExecutionLease" and actor_id != context.owner_actor_id:
+        if command.command_type in SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES and actor_id != context.owner_actor_id:
             resolution, grant, _ = self._scoped_resolution(grant_id, projection)
             if resolution.actor_id != validate_id(actor_id, "actor"):
                 raise ArsError("authority actor mismatch")
