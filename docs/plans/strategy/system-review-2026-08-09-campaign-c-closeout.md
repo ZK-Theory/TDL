@@ -16,8 +16,8 @@ Commit admissibility now runs the contract validator against an isolated
 materialization of the Git index while retaining access to repository history.
 Unrelated working-copy bytes cannot make a scoped candidate pass or fail. A
 tracked pre-push hook makes local `main` read-only and routes integration through
-the remote PR seam. The installer verifies that boundary and all tracked hook
-modes. The main CI job has a 45-minute budget and remains an unfiltered
+the remote PR seam. The installer activates `core.hooksPath=.githooks` in a fresh
+clone, then verifies that boundary and all tracked hook modes. The main CI job has a 45-minute budget and remains an unfiltered
 post-merge composition and exact-reference currency signal.
 
 ## Observation dispositions
@@ -48,6 +48,8 @@ post-merge composition and exact-reference currency signal.
   nonzero status.
 - Main-boundary negative control: a `refs/heads/main` pre-push update is rejected.
 - Main-boundary positive control: a feature-branch update passes.
+- Fresh-clone execution control: `--install` activates the tracked path, then a
+  real feature push passes and a real `main` push is rejected by Git's hook seam.
 - Empty-index control: the prepare hook emits no stderr and one zero-file count.
 - Hook-liveness controls: missing hook/directory, non-executable mode, mirror
   deny/allow/fail-open receipt, and linked-worktree interpreter routing.
