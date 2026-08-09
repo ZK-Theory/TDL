@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,30 @@ def test_approved_binding_loads_foundation_pinned_witness_before_store(tmp_path:
     binding = ApprovedProjectBinding.load(foundation_path)
     assert binding.origin_witness_sha256 == foundation["origin_witness_sha256"]
     assert binding.origin_witness.initial_control_root == str(binding.control_root)
+
+
+@pytest.mark.parametrize("missing_child", ["objects", "events", "manifests", "receipts", "snapshots", "runtime"])
+def test_approved_binding_rejects_partial_store_without_repair(
+    tmp_path: Path,
+    missing_child: str,
+) -> None:
+    foundation_path, foundation = _materialized_foundation(tmp_path)
+    control_root = Path(str(foundation["control_root"]))
+    shutil.rmtree(control_root / missing_child)
+    before = {
+        str(path.relative_to(control_root)): ("dir" if path.is_dir() else path.read_bytes())
+        for path in control_root.rglob("*")
+    }
+
+    with pytest.raises(ConfigurationError, match="matching materialized store"):
+        ApprovedProjectBinding.load(foundation_path)
+
+    after = {
+        str(path.relative_to(control_root)): ("dir" if path.is_dir() else path.read_bytes())
+        for path in control_root.rglob("*")
+    }
+    assert after == before
+    assert not (control_root / missing_child).exists()
 
 
 def test_approved_binding_preserves_unavailable_historical_code_root(tmp_path: Path):
