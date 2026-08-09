@@ -173,3 +173,26 @@ def test_validate_return_bundle_rejects_review_subject_or_disposition_substituti
             document=missing_finding,
             schema_registry=registry,
         )
+
+
+def test_validate_return_bundle_rejects_ambiguous_brief_review_subject() -> None:
+    registry = SchemaRegistry(SCHEMAS)
+    manifest = _manifest()
+    first_subject = manifest["subjects"][0]
+    manifest["subjects"].append(
+        {
+            **first_subject,
+            "subject_id": "art_019fe35c-2a75-7650-b2cd-7d8bdef1fe6c",
+            "path_or_name": "other-candidate.json",
+            "sha256": "7" * 64,
+        }
+    )
+    brief = finalize_brief_manifest(manifest, schema_registry=registry)
+
+    with pytest.raises(ArsError, match="requires exactly one brief review_subject"):
+        validate_return_bundle(
+            brief=brief,
+            session=_session(brief["brief_sha256"]),
+            document=_findings(brief["brief_sha256"]),
+            schema_registry=registry,
+        )

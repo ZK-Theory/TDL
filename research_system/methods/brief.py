@@ -93,10 +93,10 @@ def export_brief(
     command_service: CommandSubmitter,
 ) -> BriefExportResult:
     """Export and register one exact brief through the 06j and 06i public seams."""
-    if "ReviewFindingSet" in request["expected_import_types"] and not any(
-        subject.get("role") == "review_subject" for subject in request["subjects"]
-    ):
-        raise ArsError("ReviewFindingSet brief requires a review_subject")
+    if "ReviewFindingSet" in request["expected_import_types"]:
+        review_subjects = [subject for subject in request["subjects"] if subject.get("role") == "review_subject"]
+        if len(review_subjects) != 1:
+            raise ArsError("ReviewFindingSet brief requires exactly one review_subject")
     context_args = deepcopy(request["context"])
     context_args["events"] = tuple(context_events())
     context_args["objects"] = context_objects

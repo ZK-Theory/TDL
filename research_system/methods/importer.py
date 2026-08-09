@@ -54,7 +54,10 @@ def _validate_brief_identity(brief: dict[str, Any]) -> str:
 
 def _validate_review_finding_set(document: dict[str, Any], brief: dict[str, Any]) -> None:
     review_subject = document["review_subject"]
-    if review_subject not in brief["subjects"]:
+    brief_review_subjects = [subject for subject in brief["subjects"] if subject.get("role") == "review_subject"]
+    if len(brief_review_subjects) != 1:
+        raise ArsError("ReviewFindingSet brief requires exactly one brief review_subject")
+    if review_subject != brief_review_subjects[0]:
         raise ArsError("review finding set does not bind an exact brief review subject")
 
     dispositions = document["candidate_dispositions"]

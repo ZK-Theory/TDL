@@ -168,11 +168,41 @@ def test_export_rejects_review_without_review_subject_before_resolution() -> Non
         resolutions.append(kwargs)
         raise AssertionError("context resolution must not run")
 
-    with pytest.raises(ArsError, match="requires a review_subject"):
+    with pytest.raises(ArsError, match="requires exactly one review_subject"):
         export_brief(
             request={
                 "expected_import_types": ["ReviewFindingSet"],
                 "subjects": [{"role": "supporting_evidence"}],
+            },
+            context_resolver=context_resolver,
+            context_events=lambda: (),
+            context_objects=object(),
+            artefact_consumers=object(),
+            methods_pack=object(),
+            schema_registry=object(),
+            registration=object(),
+            document_store=object(),
+            command_service=object(),
+        )
+
+    assert resolutions == []
+
+
+def test_export_rejects_duplicate_review_subjects_before_resolution() -> None:
+    resolutions: list[object] = []
+
+    def context_resolver(**kwargs):
+        resolutions.append(kwargs)
+        raise AssertionError("context resolution must not run")
+
+    with pytest.raises(ArsError, match="requires exactly one review_subject"):
+        export_brief(
+            request={
+                "expected_import_types": ["ReviewFindingSet"],
+                "subjects": [
+                    {"role": "review_subject"},
+                    {"role": "review_subject"},
+                ],
             },
             context_resolver=context_resolver,
             context_events=lambda: (),
