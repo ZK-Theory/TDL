@@ -13,7 +13,8 @@
 ## Observable change
 
 The dispatch guard now binds a parallel task to the worktree that owns its
-branch and re-resolves all state that can decay between planning and execution.
+branch, verifies its required prerequisite is an ancestor of `HEAD`, requires a
+complete task-state manifest, and re-resolves all state that can decay between planning and execution.
 The task-state manifest covers deliverables, blockers, planned contracts,
 rooted inputs, trackable outputs, independent lanes, production registries,
 derived-field preimages and semantics, and authoritative sources for required
@@ -51,6 +52,8 @@ never a valid calibration case.
 - Near-miss controls: malformed lane predicate, missing registry symbol, invalid
   registry disposition, empty field semantics, and failed required-field
   resolution all produce explicit warnings.
+- Required-boundary controls: a sibling prerequisite, an absent manifest, and
+  omitted manifest sections cannot silently pass as assessed state.
 - Targeted test result: `30 passed` across
   `tests/provenance/test_manager_dispatch_check.py` and
   `tests/tools/test_sync_agent_skills.py`.

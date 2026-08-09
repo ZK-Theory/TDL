@@ -12,6 +12,7 @@ from pathlib import Path
 from shared.manager_dispatch_check import (
     Check,
     _resolve_workspace,
+    check_branch_ancestry,
     check_report_bus,
     check_state_manifest,
     check_worktree,
@@ -93,6 +94,39 @@ def test_parallel_workspace_must_equal_branch_owned_worktree(tmp_path: Path) -> 
     assert not mismatch.ok
     assert str(owner) in mismatch.detail
     assert str(duplicate) in mismatch.detail
+
+
+def test_branch_ancestry_rejects_a_sibling_prerequisite(tmp_path: Path) -> None:
+    """Branch ownership is insufficient when the required base is not an ancestor."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "base.txt").write_text("base", encoding="utf-8")
+    subprocess.run(["git", "add", "base.txt"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "base"],
+        cwd=tmp_path,
+        check=True,
+    )
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    subprocess.run(["git", "switch", "-qc", "prerequisite"], cwd=tmp_path, check=True)
+    (tmp_path / "prerequisite.txt").write_text("required", encoding="utf-8")
+    subprocess.run(["git", "add", "prerequisite.txt"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "required"],
+        cwd=tmp_path,
+        check=True,
+    )
+    expected_base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    subprocess.run(["git", "switch", "-q", "--detach", base], cwd=tmp_path, check=True)
+    subprocess.run(["git", "switch", "-qc", "feature"], cwd=tmp_path, check=True)
+
+    check = check_branch_ancestry(tmp_path, expected_base)
+
+    assert not check.ok
+    assert expected_base in check.detail
 
 
 def test_state_manifest_fully_valid_and_existing_deliverable_warns(tmp_path: Path) -> None:
@@ -218,6 +252,19 @@ outputs: []
     assert next(c for c in checks if c.name == "state:blockers").advisory
     assert next(c for c in checks if c.name == "state:contract").advisory
     assert next(c for c in checks if c.name == "state:contract:broken").advisory
+
+
+def test_state_manifest_warns_when_required_sections_are_omitted(tmp_path: Path) -> None:
+    manifest = tmp_path / "state.yaml"
+    manifest.write_text("task_id: task-a\ndeliverables: []\n", encoding="utf-8")
+
+    checks = check_state_manifest(manifest, tmp_path, tmp_path)
+
+    omitted = {c.name for c in checks if c.advisory and "section is absent" in c.detail}
+    assert "state:registries" in omitted
+    assert "state:lanes" in omitted
+    assert "state:derived_fields" in omitted
+    assert "state:required_fields" in omitted
 
 
 def test_state_manifest_rejects_shell_strings_and_paths_outside_declared_roots(tmp_path: Path) -> None:
@@ -351,3 +398,35 @@ required_fields:
     ):
         check = next(c for c in checks if c.name == name)
         assert check.ok and check.advisory and "WARNING:" in check.detail
+
+
+def test_registry_symbol_match_rejects_comments_and_longer_names(tmp_path: Path) -> None:
+    (tmp_path / "registry.py").write_text(
+        "# REQUIRED_REGISTRY was removed\nREQUIRED_REGISTRY_OLD = {}\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "state.yaml"
+    manifest.write_text(
+        """
+task_id: task-a
+deliverables: []
+blockers: []
+planned_contracts: []
+inputs: []
+outputs: []
+lanes: []
+registries:
+  - id: lifecycle-bindings
+    path: registry.py
+    root: worktree
+    symbol: REQUIRED_REGISTRY
+    disposition: writable
+derived_fields: []
+required_fields: []
+""",
+        encoding="utf-8",
+    )
+
+    checks = check_state_manifest(manifest, tmp_path, tmp_path)
+
+    assert next(c for c in checks if c.name == "state:registry:lifecycle-bindings").advisory

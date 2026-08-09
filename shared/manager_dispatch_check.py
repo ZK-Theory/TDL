@@ -28,6 +28,8 @@ Usage::
     uv run python -m shared.manager_dispatch_check \\
         --agent panel-statistics-agent \\
         --branch run/b9-b10-recompute --mode parallel \\
+        --expected-base <required-prerequisite-ref> \\
+        --state-manifest contracts/manifests/dispatch-state/panel-statistics.yaml \\
         --provenance-manifest contracts/manifests/input-provenance/b9-om-gmm-inputs.yaml
 
 Exit codes:
@@ -39,7 +41,9 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import ast
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -156,6 +160,26 @@ def check_workspace_binding(
             f"workspace {actual} does not own branch '{branch}'; branch owner is {owner}",
         )
     return Check("workspace-binding", True, f"workspace owns branch '{branch}' ({owner})")
+
+
+def check_branch_ancestry(workspace: Path, expected_base: str) -> Check:
+    """Require the declared prerequisite ref to be an ancestor of workspace HEAD."""
+    proc = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", expected_base, "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        return Check("branch-ancestry", True, f"expected base {expected_base} is an ancestor of HEAD")
+    diagnostic = (proc.stderr or proc.stdout).strip()
+    suffix = f" ({diagnostic})" if diagnostic else ""
+    return Check(
+        "branch-ancestry",
+        False,
+        f"expected base {expected_base} is not an ancestor of workspace HEAD{suffix}",
+    )
 
 
 def _resolve_workspace(
@@ -355,13 +379,13 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         the dispatch-readiness command exit non-zero during calibration.
     """
     if not path.is_file():
-        return [Check("state-manifest", True, f"WARNING: manifest not found: {path}", advisory=True)]
+        return [Check("state-manifest", False, f"required manifest not found: {path}")]
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
-        return [Check("state-manifest", True, f"WARNING: unreadable manifest: {exc}", advisory=True)]
+        return [Check("state-manifest", False, f"unreadable required manifest: {exc}")]
     if not isinstance(payload, dict) or not isinstance(payload.get("task_id"), str):
-        return [Check("state-manifest", True, "WARNING: required task_id is absent", advisory=True)]
+        return [Check("state-manifest", False, "required task_id is absent")]
 
     checks: list[Check] = []
     for kind in (
@@ -375,7 +399,10 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         "derived_fields",
         "required_fields",
     ):
-        if not isinstance(payload.get(kind, []), list):
+        if kind not in payload:
+            checks.append(Check(f"state:{kind}", True, f"WARNING: required {kind} section is absent", advisory=True))
+            payload[kind] = []
+        elif not isinstance(payload[kind], list):
             checks.append(Check(f"state:{kind}", True, f"WARNING: {kind} must be a list", advisory=True))
             payload[kind] = []
 
@@ -501,11 +528,12 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
         symbol = item.get("symbol")
         disposition = item.get("disposition")
         allowed_dispositions = {"writable", "certified_unchanged"}
-        try:
-            source = target.read_text(encoding="utf-8") if target and target.is_file() else ""
-        except OSError:
-            source = ""
-        ok = isinstance(symbol, str) and bool(symbol) and symbol in source and disposition in allowed_dispositions
+        ok = (
+            isinstance(symbol, str)
+            and bool(symbol)
+            and _source_declares_symbol(target, symbol)
+            and disposition in allowed_dispositions
+        )
         detail = (
             f"registry dependency resolved ({disposition})"
             if ok
@@ -541,6 +569,31 @@ def check_state_manifest(path: Path, workspace: Path, proj_root: Path) -> list[C
     return checks or [Check("state-manifest", True, "manifest has no state claims")]
 
 
+def _source_declares_symbol(target: Path | None, symbol: str) -> bool:
+    """Match a declared registry symbol, excluding comments and longer names."""
+    if target is None or not target.is_file():
+        return False
+    try:
+        source = target.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if target.suffix == ".py":
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return False
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == symbol:
+                return True
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if any(isinstance(candidate, ast.Name) and candidate.id == symbol for candidate in targets):
+                    return True
+        return False
+    token = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(symbol)}(?![A-Za-z0-9_])")
+    return any(token.search(line) for line in source.splitlines() if not line.lstrip().startswith("#"))
+
+
 def render(agent: str, branch: str, mode: str, checks: list[Check]) -> str:
     """Render the Dispatch Readiness markdown block pasted into the envelope."""
     all_ok = all(c.ok for c in checks)
@@ -568,6 +621,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--agent", required=True, help="Worker agent slug (bus dir name).")
     p.add_argument("--branch", required=True, help="Feature branch for the dispatch.")
     p.add_argument(
+        "--expected-base",
+        required=True,
+        help="Required prerequisite ref that must be an ancestor of workspace HEAD.",
+    )
+    p.add_argument(
         "--mode",
         choices=["parallel", "sequential"],
         default="parallel",
@@ -584,7 +642,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Dir to run the contract gate in (default: the branch worktree, else PROJ_ROOT).",
     )
-    p.add_argument("--state-manifest", default=None, help="Warning-first task-state manifest (YAML).")
+    p.add_argument("--state-manifest", required=True, help="Tracked task-state manifest (YAML).")
     return p.parse_args(argv)
 
 
@@ -600,16 +658,16 @@ def main(argv: list[str] | None = None) -> int:
     wt_map = _worktree_paths(proj_root)
     workspace = _resolve_workspace(args.workspace, args.branch, wt_map, proj_root)
     checks.append(check_workspace_binding(args.branch, args.mode, workspace, wt_map))
+    checks.append(check_branch_ancestry(workspace, args.expected_base))
     checks.append(check_contracts(workspace))
     checks.append(check_hook_gate(workspace))
 
     manifests = [Path(m) for m in args.provenance_manifest]
     checks.extend(check_provenance(manifests, repo_root, proj_root))
-    if args.state_manifest:
-        state_path = Path(args.state_manifest)
-        if not state_path.is_absolute():
-            state_path = workspace / state_path
-        checks.extend(check_state_manifest(state_path, workspace, proj_root))
+    state_path = Path(args.state_manifest)
+    if not state_path.is_absolute():
+        state_path = workspace / state_path
+    checks.extend(check_state_manifest(state_path, workspace, proj_root))
 
     print(render(args.agent, args.branch, args.mode, checks))
     if all(c.ok for c in checks):
