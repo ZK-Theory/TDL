@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from research_system.artefacts.authority import ArtefactAuthorityContractLoader
 from research_system.artefacts.runtime import GoverningScientificReviewStore
 from research_system.artefacts.use_resolver import predicate_reference
@@ -16,6 +18,11 @@ from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
 from research_system.context.tokenizers import ReferenceRegexV1
+from research_system.methods.registration import (
+    CandidateDocumentStore,
+    CandidateRegistration,
+    register_candidate_document,
+)
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
@@ -37,6 +44,7 @@ ROOT = Path(__file__).parents[3]
 BRIEF_ID = "art_019fe47a-2000-7000-8000-000000002000"
 IMPORTED_ID = "art_019fe47a-2001-7000-8000-000000002001"
 CONTEXT_ID = "ctx_019fe47a-2002-7000-8000-000000002002"
+RETRY_ID = "art_019fe47a-2005-7000-8000-000000002005"
 
 
 def _register_review_authorized_subject(harness) -> None:
@@ -232,6 +240,53 @@ def _registration(artefact_id: str, context_id: str) -> dict:
         "reason": "register exact methods document",
         "manifest": manifest,
     }
+
+
+def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> None:
+    class InterruptOnceStore(CandidateDocumentStore):
+        attempts = 0
+
+        def write(self, artefact_id, raw_bytes):
+            self.attempts += 1
+            if self.attempts == 1:
+                raise OSError("simulated post-authority publication interruption")
+            return super().write(artefact_id, raw_bytes)
+
+    harness = control_plane(tmp_path)
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=RETRY_ID,
+        command_types=("RegisterArtefact",),
+    )
+    registration = CandidateRegistration(**_registration(RETRY_ID, CONTEXT_ID))
+    store = InterruptOnceStore(harness.objects.control_root)
+    value = {"document_type": "ReviewFindingSet", "findings": []}
+
+    with pytest.raises(OSError, match="interruption"):
+        register_candidate_document(
+            value=value,
+            registration=registration,
+            document_store=store,
+            command_service=harness.service,
+        )
+
+    assert not (harness.objects.control_root / store.relative_path(RETRY_ID)).exists()
+    events_after_acceptance = tuple(event for event in harness.ledger.iter_events() if event["stream_id"] == RETRY_ID)
+    assert len(events_after_acceptance) == 1
+
+    recovered = register_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=store,
+        command_service=harness.service,
+    )
+
+    assert (harness.objects.control_root / recovered.relative_path).read_bytes() == recovered.raw_bytes
+    assert recovered.receipt.status == "accepted"
+    assert tuple(event for event in harness.ledger.iter_events() if event["stream_id"] == RETRY_ID) == (
+        events_after_acceptance
+    )
 
 
 def test_real_cli_export_import_restart_and_replay(monkeypatch, tmp_path, capsys) -> None:

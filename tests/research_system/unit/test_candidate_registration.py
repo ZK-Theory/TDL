@@ -76,9 +76,10 @@ def test_accepted_registration_recovers_document_publish_on_exact_retry(tmp_path
 
     class ReplayingService:
         attempts = 0
+        command_ids = []
 
         def submit(self, envelope):
-            del envelope
+            self.command_ids.append(envelope["command_id"])
             self.attempts += 1
             return SimpleNamespace(status="accepted" if self.attempts == 1 else "replayed")
 
@@ -99,3 +100,4 @@ def test_accepted_registration_recovers_document_publish_on_exact_retry(tmp_path
         command_service=service,
     )
     assert (tmp_path / recovered.relative_path).read_bytes() == recovered.raw_bytes
+    assert service.command_ids[0] == service.command_ids[1]

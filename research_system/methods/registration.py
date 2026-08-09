@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import uuid
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +12,6 @@ from typing import Any, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError
-from research_system.ids import new_id
 from research_system.store.durability import fsync_directory
 
 
@@ -79,6 +80,14 @@ class CandidateDocumentStore:
         return relative.as_posix()
 
 
+def _stable_command_id(idempotency_key: str) -> str:
+    """Derive one canonical UUIDv7 command identity for an exact registration."""
+    value = int.from_bytes(hashlib.sha256(idempotency_key.encode("utf-8")).digest()[:16], "big")
+    value = (value & ~(0xF << 76)) | (0x7 << 76)
+    value = (value & ~(0b11 << 62)) | (0b10 << 62)
+    return f"cmd_{uuid.UUID(int=value)}"
+
+
 def register_candidate_document(
     *,
     value: dict[str, Any],
@@ -106,8 +115,9 @@ def register_candidate_document(
     if not isinstance(authority, dict):
         raise ArsError("registration manifest authority is missing")
     authority["use_authority"] = "candidate"
+    idempotency_key = f"methods-register:{registration.artefact_id}:{digest}"
     command = {
-        "command_id": new_id("command"),
+        "command_id": _stable_command_id(idempotency_key),
         "command_type": "RegisterArtefact",
         "schema_id": "ars://core/command/RegisterArtefact",
         "schema_version": "1.0.0",
@@ -117,7 +127,7 @@ def register_candidate_document(
         "authority_grant_id": registration.authority_grant_id,
         "target_stream_id": registration.artefact_id,
         "expected_stream_version": 0,
-        "idempotency_key": f"methods-register:{registration.artefact_id}:{digest}",
+        "idempotency_key": idempotency_key,
         "correlation_id": registration.correlation_id,
         "causation_id": None,
         "reason": registration.reason,
