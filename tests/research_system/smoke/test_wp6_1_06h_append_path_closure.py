@@ -68,6 +68,55 @@ _HISTORICAL_DECISION_PATH = (
 _PACKAGED_AUTHORITY_PATH = "research_system/projection/data/wp6_1_06h_grandfather_authority.yaml"
 _INTEGRATED_PR229_MERGE = "a1c917f7e313d9636509795c525d12f97b695be3"
 _PRODUCTION_CANDIDATE = "2f005f11754761ee81e56ef0f9da497ea2544feb"
+_MANIFEST_SCHEMA_ID = "ars://tests/wp6-1/06h-current-append-manifest"
+_MANIFEST_SCHEMA_VERSION = "1.0.0"
+_ASSURANCE_LANE = "output_provenance"
+_PRE_06H_FREEZE = "non_reconstructible_not_recorded_before_existing_runtime_changes"
+_CANDIDATE_DEFAULT = "require_complete_command_schema_identity_except_exact_bound_prefix"
+_EXPECTED_ACCEPTED_AUTHORITIES = {
+    "owner_source_catalogue": {
+        "repository_path": ".research-system/contracts/wp6-1-owner-source-catalogue.yaml",
+        "git_blob_id": "1adc66921ee9c90d8786ff173748150922f1035e",
+    },
+    "command_schema_tree": "8a86a0c4921343e6a3afca3f491fad33e9a8a10f",
+    "event_schema_tree": "058c1d5ddcb9d249916977f12b11768b6d15de0f",
+}
+_EXPECTED_RUNTIME_BINDINGS = {
+    "count": 164,
+    "canonical_row_format": "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n",
+    "sha256": "ceca5bfeac6bf2bddacd6025a0fb2ccf0e23f7e1d3ec29acebd8f31ac6205694",
+}
+_EXPECTED_HISTORICAL_EVIDENCE = {
+    "pre_06h_freeze": _PRE_06H_FREEZE,
+    "candidate_default": _CANDIDATE_DEFAULT,
+    "protocol_activation": _PROTOCOL_VERSION,
+    "owner_protocol_decision": "07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74",
+    "decision_record": _DECISION_PATH,
+    "selected_lineage": "3c75d3d102d8fe14746b19662005e88c4b776ffa",
+}
+_EXPECTED_DECISION = {
+    "schema_id": "ars://core/decision/grandfather-command-provenance-prefix",
+    "schema_version": "1.0.0",
+    "protocol": _PROTOCOL_VERSION,
+    "selected_by": "Stephen Dorman",
+    "selected_at": "2026-08-09",
+    "owner_statement": "SELECT G-RM-8 GRANDFATHER for candidate lineage 3c75d3d; authorize bounded construction and required evidence capture.",
+    "candidate_lineage": "3c75d3d102d8fe14746b19662005e88c4b776ffa",
+    "evidence": {
+        "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+        "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+        "max_global_position": 79,
+        "tail_event_hash": "aaa83100505c0f8298a334904e0c969f89bd73cb7ee2fbbbee20d020316b17bb",
+        "ledger_prefix_sha256": "84b466194993c94eaa80a30d90cd5f2dbdc74537d57b7fa94303b231d185a0e4",
+        "historical_event_set_sha256": "afbfdc724a7e288e49021f8ce4947ed720245e122b28851bc11b9ef3fb3cfdd3",
+        "missing_triple_positions": [],
+        "missing_triple_set_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "event_count": 79,
+        "batch_count": 76,
+    },
+    "evidence_sha256": "f1bd38e309dbad817e09eb1fa76e36b3b7fca847562e8cab357bc52d6a30e7a7",
+    "decision_sha256": "07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74",
+}
 
 
 def _manifest() -> dict:
@@ -121,13 +170,22 @@ def _git_is_ancestor(ancestor: str, descendant: str) -> bool:
     )
 
 
+def _validate_decision_authority(record: dict) -> None:
+    assert record == _EXPECTED_DECISION
+
+
 def _validate_manifest_authority(document: dict) -> None:
     historical = document["historical_evidence"]
     decision_path = historical["decision_record"]
+    assert document["schema_id"] == _MANIFEST_SCHEMA_ID
+    assert document["schema_version"] == _MANIFEST_SCHEMA_VERSION
     assert document["accounted_base"] == _git_output("merge-base", "HEAD", "origin/main")
     assert document["integrated_pr229_merge"] == _INTEGRATED_PR229_MERGE
     assert document["production_candidate"] == _PRODUCTION_CANDIDATE
-    assert historical["protocol_activation"] == _PROTOCOL_VERSION
+    assert document["assurance_lane"] == _ASSURANCE_LANE
+    assert document["accepted_authorities"] == _EXPECTED_ACCEPTED_AUTHORITIES
+    assert document["runtime_bindings"] == _EXPECTED_RUNTIME_BINDINGS
+    assert historical == _EXPECTED_HISTORICAL_EVIDENCE
     assert decision_path == _DECISION_PATH
 
     packaged_authority_file = REPO_ROOT / _PACKAGED_AUTHORITY_PATH
@@ -140,13 +198,14 @@ def _validate_manifest_authority(document: dict) -> None:
         capture_output=True,
     ).stdout
     assert packaged_authority_raw == packaged_authority_committed
-    assert packaged_authority["schema_id"] == document["schema_id"]
-    assert packaged_authority["schema_version"] == document["schema_version"]
+    assert packaged_authority["schema_id"] == _MANIFEST_SCHEMA_ID
+    assert packaged_authority["schema_version"] == _MANIFEST_SCHEMA_VERSION
     assert packaged_authority["historical_evidence"] == historical
 
     decision_file = REPO_ROOT / decision_path
     decision = load_grandfather_decision(decision_file)
     raw = decision_file.read_bytes()
+    decision_record = json.loads(raw)
     historical_raw = (REPO_ROOT / _HISTORICAL_DECISION_PATH).read_bytes()
     committed = subprocess.run(
         ["git", "show", f"HEAD:{decision_path}"],
@@ -154,7 +213,8 @@ def _validate_manifest_authority(document: dict) -> None:
         check=True,
         capture_output=True,
     ).stdout
-    assert raw == historical_raw == committed == canonical_bytes(json.loads(raw)) + b"\n"
+    assert raw == historical_raw == committed == canonical_bytes(decision_record) + b"\n"
+    _validate_decision_authority(decision.as_record())
     assert historical["owner_protocol_decision"] == decision.sha256
     assert historical["selected_lineage"] == decision.candidate_lineage
     assert _git_is_ancestor(document["integrated_pr229_merge"], document["accounted_base"])
@@ -285,9 +345,21 @@ def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None
 @pytest.mark.parametrize(
     ("field", "value"),
     [
+        ("schema_id", "ars://tests/wp6-1/forged-append-manifest"),
+        ("schema_version", "9.9.9"),
         ("accounted_base", "1" * 40),
         ("integrated_pr229_merge", "2" * 40),
         ("production_candidate", "3" * 40),
+        ("assurance_lane", "topology"),
+        ("accepted_authorities.owner_source_catalogue.repository_path", "contracts/forged-catalogue.yaml"),
+        ("accepted_authorities.owner_source_catalogue.git_blob_id", "6" * 40),
+        ("accepted_authorities.command_schema_tree", "7" * 40),
+        ("accepted_authorities.event_schema_tree", "8" * 40),
+        ("runtime_bindings.count", "0"),
+        ("runtime_bindings.canonical_row_format", "forged\n"),
+        ("runtime_bindings.sha256", "9" * 64),
+        ("historical_evidence.pre_06h_freeze", "forged-pre-06h-freeze"),
+        ("historical_evidence.candidate_default", "forged-candidate-default"),
         ("historical_evidence.protocol_activation", "G-RM-8-GRANDFATHER/9.9.9"),
         ("historical_evidence.decision_record", "docs/forged-decision.json"),
         ("historical_evidence.owner_protocol_decision", "4" * 64),
@@ -304,6 +376,30 @@ def test_manifest_rejects_stale_or_forged_authority(field: str, value: str) -> N
 
     with pytest.raises(AssertionError):
         _validate_manifest_authority(document)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_id", "ars://core/decision/forged"),
+        ("selected_by", "forged-owner"),
+        ("selected_at", "2099-01-01"),
+        ("owner_statement", "forged statement"),
+        ("evidence.store_identity", "a" * 64),
+        ("evidence.missing_triple_positions", [1]),
+        ("evidence.event_count", 0),
+    ],
+)
+def test_manifest_rejects_forged_selected_decision_authority(field: str, value: object) -> None:
+    record = deepcopy(_EXPECTED_DECISION)
+    target = record
+    parts = field.split(".")
+    for part in parts[:-1]:
+        target = target[part]
+    target[parts[-1]] = value
+
+    with pytest.raises(AssertionError):
+        _validate_decision_authority(record)
 
 
 def test_manifest_binding_row_format_decodes_to_exact_lf_bytes() -> None:

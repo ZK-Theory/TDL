@@ -67,6 +67,11 @@ EXACT_LIFECYCLE_BINDINGS = {
         "ApproveReadiness",
         "ars://core/command/ApproveReadiness",
     ),
+    "ars://core/event/TaskBlocked": (
+        "TaskBlocked",
+        "BlockTask",
+        "ars://core/command/BlockTask",
+    ),
     "ars://core/event/DispatchIssued": (
         "DispatchIssued",
         "IssueDispatch",
@@ -164,6 +169,106 @@ EXACT_LIFECYCLE_BINDINGS = {
     ),
 }
 
+_C2_EXACT_LIFECYCLE_BINDINGS = {
+    "ars://core/event/InputRequested": ("InputRequested", "RequestInput", "ars://core/command/RequestInput"),
+    "ars://core/event/TaskPaused": ("TaskPaused", "PauseTask", "ars://core/command/PauseTask"),
+    "ars://core/event/TaskSubmittedForReview": (
+        "TaskSubmittedForReview",
+        "SubmitForReview",
+        "ars://core/command/SubmitForReview",
+    ),
+    "ars://core/event/TaskResumed": ("TaskResumed", "ResumeTask", "ars://core/command/ResumeTask"),
+    "ars://core/event/TaskCancelled": ("TaskCancelled", "CancelTask", "ars://core/command/CancelTask"),
+    "ars://core/event/BlockerRecorded": (
+        "BlockerRecorded",
+        "RecordBlocker",
+        "ars://core/command/RecordBlocker",
+    ),
+    "ars://core/event/BlockerResolved": (
+        "BlockerResolved",
+        "ResolveBlocker",
+        "ars://core/command/ResolveBlocker",
+    ),
+    "ars://core/event/DispatchFulfilled": (
+        "DispatchFulfilled",
+        "FulfilDispatch",
+        "ars://core/command/FulfilDispatch",
+    ),
+    "ars://core/event/AttemptCompleted": (
+        "AttemptCompleted",
+        "CompleteAttempt",
+        "ars://core/command/CompleteAttempt",
+    ),
+    "ars://core/event/AttemptFailed": ("AttemptFailed", "FailAttempt", "ars://core/command/FailAttempt"),
+    "ars://core/event/PartialOutcomeRecorded": (
+        "PartialOutcomeRecorded",
+        "RecordAttemptPartial",
+        "ars://core/command/RecordAttemptPartial",
+    ),
+    "ars://core/event/AttemptPaused": ("AttemptPaused", "PauseAttempt", "ars://core/command/PauseAttempt"),
+    "ars://core/event/AttemptResumed": (
+        "AttemptResumed",
+        "ResumeAttempt",
+        "ars://core/command/ResumeAttempt",
+    ),
+    "ars://core/event/AttemptStopRequested": (
+        "AttemptStopRequested",
+        "RequestAttemptStop",
+        "ars://core/command/RequestAttemptStop",
+    ),
+    "ars://core/event/AttemptAbandoned": (
+        "AttemptAbandoned",
+        "ConfirmAttemptStopped",
+        "ars://core/command/ConfirmAttemptStopped",
+    ),
+    "ars://core/event/AttemptSuperseded": (
+        "AttemptSuperseded",
+        "SupersedeAttempt",
+        "ars://core/command/SupersedeAttempt",
+    ),
+    "ars://core/event/CheckpointRecorded": (
+        "CheckpointRecorded",
+        "RecordCheckpoint",
+        "ars://core/command/RecordCheckpoint",
+    ),
+    "ars://core/event/PauseRequested": (
+        "PauseRequested",
+        "RequestPause",
+        "ars://core/command/RequestPause",
+    ),
+    "ars://core/event/PauseConfirmed": (
+        "PauseConfirmed",
+        "ConfirmPause",
+        "ars://core/command/ConfirmPause",
+    ),
+    "ars://core/event/StopRequested": ("StopRequested", "RequestStop", "ars://core/command/RequestStop"),
+    "ars://core/event/StopConfirmed": ("StopConfirmed", "ConfirmStop", "ars://core/command/ConfirmStop"),
+    "ars://core/event/ResumeRequested": (
+        "ResumeRequested",
+        "RequestResume",
+        "ars://core/command/RequestResume",
+    ),
+    "ars://core/event/OrphanQuarantined": (
+        "OrphanQuarantined",
+        "QuarantineOrphan",
+        "ars://core/command/QuarantineOrphan",
+    ),
+    "ars://core/event/ReviewRequested": (
+        "ReviewRequested",
+        "RequestReview",
+        "ars://core/command/RequestReview",
+    ),
+}
+EXACT_LIFECYCLE_BINDINGS.update(_C2_EXACT_LIFECYCLE_BINDINGS)
+
+_EXACT_LIFECYCLE_PRODUCER_BINDINGS = {
+    ("ars://core/event/AttemptCreated", "RetryAttempt"): (
+        "AttemptCreated",
+        "RetryAttempt",
+        "ars://core/command/RetryAttempt",
+    ),
+}
+
 _MESSAGE_EVENT_SCHEMA_IDS = {
     "MessagePublished": "ars://core/event/MessagePublished",
     "MessageDelivered": "ars://core/event/MessageDelivered",
@@ -172,7 +277,9 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
 }
 
 # These payloads are derived from their command payloads rather than copied verbatim.
-_DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset({"TaskClaimStarted", "LeaseExpired", "AttemptCreated"})
+_DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset(
+    {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded"}
+)
 
 
 def validate_exact_lifecycle_envelope(
@@ -198,7 +305,9 @@ def validate_exact_lifecycle_envelope(
     expected_message_schema_id = _MESSAGE_EVENT_SCHEMA_IDS.get(event_type)
     if expected_message_schema_id is not None and schema_id != expected_message_schema_id:
         raise ValueError("Message event requires its exact active schema identity")
-    binding = EXACT_LIFECYCLE_BINDINGS.get(schema_id)
+    binding = _EXACT_LIFECYCLE_PRODUCER_BINDINGS.get((schema_id, str(event.get("command_type", ""))))
+    if binding is None:
+        binding = EXACT_LIFECYCLE_BINDINGS.get(schema_id)
     if binding is None:
         return None
     event_type, command_type, command_schema_id = binding
