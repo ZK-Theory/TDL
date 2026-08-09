@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+from copy import deepcopy
 from hashlib import sha256
+import json
 from pathlib import Path
 import subprocess
 
@@ -9,8 +11,10 @@ import pytest
 import yaml
 
 from research_system.errors import ArsError
+from research_system.canonical import canonical_bytes
 from research_system.evals.executors.control_store import execute_s009, execute_s011
 from research_system.evals.scenarios import FoundationPorts
+from research_system.projection.grandfather import load_grandfather_decision
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from tests.research_system.factories import PROJECT_ID, REPO_ROOT, control_plane, create_task_command
@@ -38,6 +42,12 @@ APPEND_SITE_CLASSIFICATIONS = {
     ("research_system/evals/executors/control_store.py", "execute_s011", "ledger"): "commandless_evaluation_fixture",
     ("research_system/evals/scenarios.py", "recover_writer", "ledger"): "commandless_evaluation_fixture",
 }
+_PROTOCOL_VERSION = "G-RM-8-GRANDFATHER/1.0.0"
+_DECISION_PATH = (
+    "docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
+)
+_INTEGRATED_PR229_MERGE = "a1c917f7e313d9636509795c525d12f97b695be3"
+_PRODUCTION_CANDIDATE = "2f005f11754761ee81e56ef0f9da497ea2544feb"
 
 
 def _manifest() -> dict:
@@ -68,16 +78,68 @@ def _git_object(path: str) -> str:
     return completed.stdout.strip()
 
 
+def _git_output(*args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _git_is_ancestor(ancestor: str, descendant: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def _validate_manifest_authority(document: dict) -> None:
+    historical = document["historical_evidence"]
+    decision_path = historical["decision_record"]
+    assert document["accounted_base"] == _git_output("merge-base", "HEAD", "origin/main")
+    assert document["integrated_pr229_merge"] == _INTEGRATED_PR229_MERGE
+    assert document["production_candidate"] == _PRODUCTION_CANDIDATE
+    assert historical["protocol_activation"] == _PROTOCOL_VERSION
+    assert decision_path == _DECISION_PATH
+
+    decision_file = REPO_ROOT / decision_path
+    decision = load_grandfather_decision(decision_file)
+    raw = decision_file.read_bytes()
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{decision_path}"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert raw == committed == canonical_bytes(json.loads(raw)) + b"\n"
+    assert historical["owner_protocol_decision"] == decision.sha256
+    assert historical["selected_lineage"] == decision.candidate_lineage
+    assert _git_is_ancestor(document["integrated_pr229_merge"], document["accounted_base"])
+    assert _git_is_ancestor(historical["selected_lineage"], document["production_candidate"])
+    assert _git_is_ancestor(document["production_candidate"], "HEAD")
+
+
 def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, str, str]]:
     found: set[tuple[str, str, str, str]] = set()
     stack: list[str] = []
     aliases: list[set[str]] = [set()]
+    append_aliases: list[dict[str, str]] = [{}]
 
     class Visitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             stack.append(node.name)
             aliases.append(set())
+            append_aliases.append({})
             self.generic_visit(node)
+            append_aliases.pop()
             aliases.pop()
             stack.pop()
 
@@ -87,6 +149,23 @@ def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, s
             source_receiver = ast.unparse(node.value)
             if "ledger" in source_receiver.lower() or source_receiver in aliases[-1]:
                 aliases[-1].update(target.id for target in node.targets if isinstance(target, ast.Name))
+            if isinstance(node.value, ast.Attribute) and node.value.attr == "append":
+                receiver = ast.unparse(node.value.value)
+                if "ledger" in receiver.lower() or receiver in aliases[-1]:
+                    append_aliases[-1].update(
+                        (target.id, receiver) for target in node.targets if isinstance(target, ast.Name)
+                    )
+            self.generic_visit(node)
+
+        def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+            if (
+                isinstance(node.target, ast.Name)
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "append"
+            ):
+                receiver = ast.unparse(node.value.value)
+                if "ledger" in receiver.lower() or receiver in aliases[-1]:
+                    append_aliases[-1][node.target.id] = receiver
             self.generic_visit(node)
 
         def visit_Call(self, node: ast.Call) -> None:
@@ -95,6 +174,10 @@ def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, s
                 if "ledger" in receiver.lower() or receiver in aliases[-1]:
                     site = (relative, stack[-1] if stack else "<module>", receiver)
                     found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
+            elif isinstance(node.func, ast.Name) and node.func.id in append_aliases[-1]:
+                receiver = append_aliases[-1][node.func.id]
+                site = (relative, stack[-1] if stack else "<module>", receiver)
+                found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
             self.generic_visit(node)
 
     Visitor().visit(ast.parse(source))
@@ -131,6 +214,7 @@ def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None
     document = _manifest()
     authorities = document["accepted_authorities"]
 
+    _validate_manifest_authority(document)
     assert (
         _git_object(authorities["owner_source_catalogue"]["repository_path"])
         == (authorities["owner_source_catalogue"]["git_blob_id"])
@@ -142,6 +226,30 @@ def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None
         document["runtime_bindings"]["sha256"],
     )
     _reconcile_append_sites(_manifest_append_sites(document), _append_sites())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("accounted_base", "1" * 40),
+        ("integrated_pr229_merge", "2" * 40),
+        ("production_candidate", "3" * 40),
+        ("historical_evidence.protocol_activation", "G-RM-8-GRANDFATHER/9.9.9"),
+        ("historical_evidence.decision_record", "docs/forged-decision.json"),
+        ("historical_evidence.owner_protocol_decision", "4" * 64),
+        ("historical_evidence.selected_lineage", "5" * 40),
+    ],
+)
+def test_manifest_rejects_stale_or_forged_authority(field: str, value: str) -> None:
+    document = deepcopy(_manifest())
+    target = document
+    parts = field.split(".")
+    for part in parts[:-1]:
+        target = target[part]
+    target[parts[-1]] = value
+
+    with pytest.raises(AssertionError):
+        _validate_manifest_authority(document)
 
 
 def test_manifest_binding_row_format_decodes_to_exact_lf_bytes() -> None:
@@ -258,6 +366,17 @@ def test_ledger_alias_append_fails_reconciliation() -> None:
     planted = _append_sites() | _append_sites_in_source(
         "research_system/command/aliased.py",
         "def submit_alias(ledger):\n    writer = ledger\n    writer.append([])\n",
+    )
+
+    with pytest.raises(AssertionError, match="submit_alias"):
+        _reconcile_append_sites(expected, planted)
+
+
+def test_bound_method_alias_append_fails_reconciliation() -> None:
+    expected = _manifest_append_sites(_manifest())
+    planted = _append_sites() | _append_sites_in_source(
+        "research_system/command/bound_alias.py",
+        "def submit_alias(service):\n    emit = service.ledger.append\n    emit([])\n",
     )
 
     with pytest.raises(AssertionError, match="submit_alias"):

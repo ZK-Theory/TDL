@@ -308,6 +308,59 @@ def test_validation_and_resolution_share_one_frozen_registered_schema(tmp_path):
     assert validated_after_source_mutation.raw_bytes != source.read_bytes()
 
 
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        pytest.param(
+            lambda parsed: dict.__setitem__(parsed, "additionalProperties", True),
+            id="dict-base-mutator",
+        ),
+        pytest.param(
+            lambda parsed: list.append(parsed["required"], "unexpected"),
+            id="list-base-mutator",
+        ),
+        pytest.param(
+            lambda parsed: dict.__setitem__(
+                parsed["properties"]["schema_version"],
+                "const",
+                "2.0.0",
+            ),
+            id="nested-base-mutator",
+        ),
+    ],
+)
+def test_registered_schema_semantics_cannot_diverge_from_raw_digest(tmp_path, mutate):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    source = root / "immutable.schema.json"
+    source.write_text(
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/deep-immutable",\n'
+        '  "type": "object",\n'
+        '  "properties": {"schema_version": {"const": "1.0.0"}},\n'
+        '  "required": ["schema_version"],\n'
+        '  "additionalProperties": false\n'
+        "}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    registry = SchemaRegistry(root)
+    registered = registry.resolve_identity("ars://test/deep-immutable", "1.0.0")
+    original_digest = registered.raw_bytes_sha256
+
+    with pytest.raises(TypeError, match="immutable|descriptor"):
+        mutate(registered.parsed)
+
+    with pytest.raises(SchemaError):
+        registry.validate(
+            "ars://test/deep-immutable",
+            {"schema_version": "wrong", "unexpected": True},
+            schema_version="1.0.0",
+        )
+    assert registered.raw_bytes_sha256 == original_digest == sha256(registered.raw_bytes).hexdigest()
+
+
 def test_registry_rejects_duplicate_exact_schema_identity(tmp_path):
     root = tmp_path / "schemas"
     root.mkdir()

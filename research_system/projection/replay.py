@@ -1055,6 +1055,23 @@ def replay(
             "position-only legacy command provenance admission is insufficient; "
             "use the exact grandfather prefix protocol"
         )
+    return _replay(
+        events,
+        supported_major=supported_major,
+        schema_registry=schema_registry,
+        grandfathered_missing_positions=frozenset(),
+        authority_state_validator=authority_state_validator,
+    )
+
+
+def _replay(
+    events: Iterable[dict[str, Any]],
+    *,
+    supported_major: int,
+    schema_registry: SchemaRegistry | None,
+    grandfathered_missing_positions: frozenset[int],
+    authority_state_validator: Callable[[dict[str, Any]], None] | None,
+) -> dict[str, Any]:
     state: dict[str, Any] = {
         "streams": {},
         "last_position": 0,
@@ -1082,9 +1099,10 @@ def replay(
             "command_schema_sha256",
         }
         recorded_provenance = provenance_fields.intersection(event)
+        grandfathered_missing = not recorded_provenance and position in grandfathered_missing_positions
         if recorded_provenance and recorded_provenance != provenance_fields:
             raise IntegrityError(f"incomplete command schema identity at {position}")
-        if schema_registry is not None and not recorded_provenance:
+        if schema_registry is not None and not recorded_provenance and position not in grandfathered_missing_positions:
             raise IntegrityError(f"missing command schema identity at {position}")
         if schema_registry is not None:
             if recorded_provenance:
@@ -1097,7 +1115,9 @@ def replay(
                 except SchemaError as exc:
                     raise IntegrityError(f"command schema identity mismatch at {position}") from exc
             try:
-                if t2_event:
+                if grandfathered_missing:
+                    schema_registry.validate("ars://core/event", event)
+                elif t2_event:
                     schema_registry.validate(
                         event["schema_id"],
                         event,
@@ -1134,7 +1154,25 @@ def replay(
             raise IntegrityError("event hash-chain mismatch")
         if not _verify_event_hash(event):
             raise IntegrityError(f"event hash mismatch at {position}")
-        _validate_active_lifecycle_binding(event, schema_registry)
+        projection_event = event
+        if grandfathered_missing:
+            binding = schema_registry.event_binding(
+                str(event.get("event_type", "")),
+                str(event.get("command_type", "")),
+            )
+            if binding is None:
+                raise IntegrityError(f"grandfathered event binding unavailable at {position}")
+            command = schema_registry.command_binding(str(event.get("command_type", "")))
+            if command is None:
+                raise IntegrityError(f"grandfathered command binding unavailable at {position}")
+            command_identity = schema_registry.resolve_identity(command.schema_id, command.schema_version)
+            projection_event = {
+                **event,
+                "command_schema_id": command_identity.schema_id,
+                "command_schema_version": command_identity.schema_version,
+                "command_schema_sha256": command_identity.raw_bytes_sha256,
+            }
+        _validate_active_lifecycle_binding(projection_event, schema_registry)
         project_id = event.get("project_id")
         if state["project_id"] is None:
             state["project_id"] = project_id
@@ -1162,10 +1200,10 @@ def replay(
         if event.get("transaction_index") != expected_index:
             raise IntegrityError("event transaction index gap or overlap")
         transaction_seen += 1
-        transaction_events.append(event)
+        transaction_events.append(projection_event)
         if transaction_seen == transaction_count:
             _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
-        state = apply_event(state, event)
+        state = apply_event(state, projection_event)
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:

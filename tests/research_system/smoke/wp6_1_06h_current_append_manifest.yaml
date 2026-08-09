@@ -20,6 +20,7 @@ historical_evidence:
   protocol_activation: G-RM-8-GRANDFATHER/1.0.0
   owner_protocol_decision: 07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74
   decision_record: docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json
+  selected_lineage: 3c75d3d102d8fe14746b19662005e88c4b776ffa
 append_sites:
   - path: research_system/authority.py
     symbol: initialize_authority_control_store

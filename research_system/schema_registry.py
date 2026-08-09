@@ -8,10 +8,12 @@ from datetime import datetime
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaError
+from jsonschema.validators import extend
 
 from research_system.errors import SchemaError
 
@@ -53,49 +55,33 @@ if "date-time" not in Draft202012Validator.FORMAT_CHECKER.checkers:
     Draft202012Validator.FORMAT_CHECKER.checks("date-time")(_is_rfc3339_date_time)
 
 
-class _FrozenDict(dict[str, Any]):
-    """A JSON-object-compatible mapping that rejects mutation."""
-
-    def _immutable(self, *_args: Any, **_kwargs: Any) -> None:
-        raise TypeError("registered schema JSON is immutable")
-
-    __setitem__ = _immutable
-    __delitem__ = _immutable
-    __ior__ = _immutable
-    clear = _immutable
-    pop = _immutable
-    popitem = _immutable
-    setdefault = _immutable
-    update = _immutable
-
-
-class _FrozenList(list[Any]):
-    """A JSON-array-compatible sequence that rejects mutation."""
-
-    def _immutable(self, *_args: Any, **_kwargs: Any) -> None:
-        raise TypeError("registered schema JSON is immutable")
-
-    __setitem__ = _immutable
-    __delitem__ = _immutable
-    __iadd__ = _immutable
-    __imul__ = _immutable
-    append = _immutable
-    clear = _immutable
-    extend = _immutable
-    insert = _immutable
-    pop = _immutable
-    remove = _immutable
-    reverse = _immutable
-    sort = _immutable
-
-
 def _freeze_json(value: Any) -> Any:
-    """Return recursively immutable JSON that retains dict/list semantics."""
+    """Return recursively immutable JSON without mutable built-in subclasses."""
     if isinstance(value, dict):
-        return _FrozenDict({key: _freeze_json(item) for key, item in value.items()})
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
     if isinstance(value, list):
-        return _FrozenList(_freeze_json(item) for item in value)
+        return _FrozenSequence(_freeze_json(item) for item in value)
     return value
+
+
+class _FrozenSequence(tuple[Any, ...]):
+    """Tuple-backed JSON array with an explicit mutation failure surface."""
+
+    def append(self, _value: Any) -> None:
+        raise TypeError("registered schema JSON is immutable")
+
+
+_IMMUTABLE_SCHEMA_TYPE_CHECKER = Draft202012Validator.TYPE_CHECKER.redefine(
+    "object",
+    lambda _checker, instance: isinstance(instance, Mapping),
+).redefine(
+    "array",
+    lambda _checker, instance: isinstance(instance, (list, tuple)),
+)
+_ImmutableSchemaValidator = extend(
+    Draft202012Validator,
+    type_checker=_IMMUTABLE_SCHEMA_TYPE_CHECKER,
+)
 
 
 @dataclass(frozen=True)
@@ -821,7 +807,7 @@ class SchemaRegistry:
         if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
             raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.schema_version}")
         errors = sorted(
-            Draft202012Validator(
+            _ImmutableSchemaValidator(
                 entry.parsed,
                 format_checker=Draft202012Validator.FORMAT_CHECKER,
             ).iter_errors(value),

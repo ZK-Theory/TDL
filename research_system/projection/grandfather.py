@@ -4,10 +4,13 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
@@ -26,6 +29,14 @@ _COMMAND_SCHEMA_FIELDS = frozenset(
 _DECISION_SCHEMA_ID = "ars://core/decision/grandfather-command-provenance-prefix"
 _PROTOCOL_VERSION = "G-RM-8-GRANDFATHER/1.0.0"
 _SHA256_LENGTH = 64
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_AUTHORITY_MANIFEST_PATH = (
+    _REPOSITORY_ROOT / "tests" / "research_system" / "smoke" / "wp6_1_06h_current_append_manifest.yaml"
+)
+_SELECTED_DECISION_RELATIVE_PATH = (
+    "docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
+)
+_SELECTED_CANDIDATE_LINEAGE = "3c75d3d102d8fe14746b19662005e88c4b776ffa"
 
 
 def _require_sha256(value: str, label: str) -> None:
@@ -263,6 +274,39 @@ def _require_expected_snapshot(current: LedgerSnapshot, expected: LedgerSnapshot
         raise ConflictError("expected ledger tail changed during grandfather capture")
 
 
+def _file_identity(value: os.stat_result) -> tuple[int, int]:
+    return value.st_dev, value.st_ino
+
+
+def _authenticate_published_destination(
+    destination: Path,
+    data: bytes,
+    *,
+    parent_identity: tuple[int, int],
+    source_identity: tuple[int, int] | None,
+) -> None:
+    try:
+        if destination.is_symlink():
+            raise IntegrityError("grandfather decision destination must not be a symlink")
+        if _file_identity(destination.parent.stat(follow_symlinks=False)) != parent_identity:
+            raise ConflictError("grandfather decision destination parent changed")
+        with destination.open("rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if not stat.S_ISREG(opened.st_mode):
+                raise IntegrityError("grandfather decision published destination is not a regular file")
+            if source_identity is not None and _file_identity(opened) != source_identity:
+                raise ConflictError("grandfather decision published destination identity mismatch")
+            if handle.read() != data:
+                raise ConflictError("grandfather decision published destination conflicts")
+            linked = destination.stat(follow_symlinks=False)
+            if _file_identity(linked) != _file_identity(opened):
+                raise ConflictError("grandfather decision published destination changed")
+            if _file_identity(destination.parent.stat(follow_symlinks=False)) != parent_identity:
+                raise ConflictError("grandfather decision destination parent changed")
+    except FileNotFoundError as exc:
+        raise ConflictError("grandfather decision published destination disappeared") from exc
+
+
 def _store_manifest(ledger: EventLedger) -> dict[str, Any]:
     manifest = load_store_manifest_unbound(ledger.control_root)
     if manifest.get("project_id") != ledger.project_id:
@@ -377,8 +421,6 @@ def capture_grandfather_prefix(
         store_identity=store_identity,
         max_global_position=max_global_position,
     )
-    if evidence.missing_triple_positions:
-        raise IntegrityError("grandfather capture found non-empty missing-triple evidence")
     if evidence.tail_event_hash != expected_tail_hash:
         raise IntegrityError("grandfather prefix tail hash mismatch")
     _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
@@ -395,9 +437,7 @@ def capture_grandfather_prefix(
 
 def _verify_decision(ledger: EventLedger, decision: GrandfatherDecision) -> LedgerSnapshot:
     expected = decision.evidence
-    if expected.missing_triple_positions:
-        raise IntegrityError("grandfather decision contains non-empty missing-triple evidence")
-    if expected.missing_triple_set_sha256 != sha256_hex(canonical_bytes([])):
+    if expected.missing_triple_set_sha256 != sha256_hex(canonical_bytes(list(expected.missing_triple_positions))):
         raise IntegrityError("grandfather missing-triple set hash mismatch")
     manifest = _store_manifest(ledger)
     actual_identity = str(manifest.get("store_identity", ""))
@@ -418,22 +458,20 @@ def replay_grandfathered(
     decision: GrandfatherDecision,
     *,
     schema_registry: SchemaRegistry,
-    expected_decision_sha256: str,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Replay a ledger only after exact G-RM-8 prefix admission."""
-    try:
-        _require_sha256(expected_decision_sha256, "expected grandfather decision")
-    except ValueError as exc:
-        raise IntegrityError("grandfather decision identity is invalid") from exc
-    if decision.sha256 != expected_decision_sha256:
-        raise IntegrityError("grandfather decision identity mismatch")
+    selected = load_selected_grandfather_decision()
+    if decision.as_record() != selected.as_record():
+        raise IntegrityError("grandfather decision authority mismatch")
     snapshot = _verify_decision(ledger, decision)
-    from research_system.projection.replay import replay
+    from research_system.projection.replay import _replay
 
-    state = replay(
+    state = _replay(
         snapshot.events,
+        supported_major=1,
         schema_registry=schema_registry,
+        grandfathered_missing_positions=frozenset(decision.evidence.missing_triple_positions),
         authority_state_validator=authority_state_validator,
     )
     _verify_decision(ledger, decision)
@@ -455,6 +493,9 @@ def materialize_grandfather_decision(
         raise IntegrityError("grandfather decision must not be materialized inside the control store")
     if not destination.parent.is_dir():
         raise IntegrityError("grandfather decision destination parent is unavailable")
+    if destination.parent.is_symlink() or destination.parent.resolve(strict=True) != destination.parent.absolute():
+        raise IntegrityError("grandfather decision destination parent must not use symlinks")
+    parent_identity = _file_identity(destination.parent.stat(follow_symlinks=False))
     evidence = capture_grandfather_prefix(
         ledger,
         expected_snapshot=expected_snapshot,
@@ -466,8 +507,12 @@ def materialize_grandfather_decision(
         raise IntegrityError("grandfather decision evidence does not match the captured prefix")
     data = canonical_bytes(decision.as_record()) + b"\n"
     if destination.exists():
-        if destination.read_bytes() != data:
-            raise ConflictError("grandfather decision destination conflicts")
+        _authenticate_published_destination(
+            destination,
+            data,
+            parent_identity=parent_identity,
+            source_identity=None,
+        )
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
         return decision.sha256
@@ -477,13 +522,19 @@ def materialize_grandfather_decision(
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+            temporary_identity = _file_identity(os.fstat(handle.fileno()))
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
         try:
             os.link(temporary, destination)
         except FileExistsError:
-            if destination.read_bytes() != data:
-                raise ConflictError("grandfather decision destination conflicts")
+            temporary_identity = None
+        _authenticate_published_destination(
+            destination,
+            data,
+            parent_identity=parent_identity,
+            source_identity=temporary_identity,
+        )
         _verify_decision(ledger, decision)
         _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
     except BaseException:
@@ -503,3 +554,27 @@ def load_grandfather_decision(path: Path) -> GrandfatherDecision:
     if not isinstance(value, dict) or raw != canonical_bytes(value) + b"\n":
         raise IntegrityError("grandfather decision file is noncanonical")
     return GrandfatherDecision.from_record(value)
+
+
+def load_selected_grandfather_decision() -> GrandfatherDecision:
+    """Resolve the owner-selected decision through its independent manifest pin."""
+    try:
+        manifest = yaml.safe_load(_AUTHORITY_MANIFEST_PATH.read_text(encoding="utf-8"))
+        historical = manifest["historical_evidence"]
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError, TypeError) as exc:
+        raise IntegrityError("grandfather authority manifest is invalid") from exc
+    if (
+        manifest.get("schema_id") != "ars://tests/wp6-1/06h-current-append-manifest"
+        or manifest.get("schema_version") != "1.0.0"
+        or historical.get("protocol_activation") != _PROTOCOL_VERSION
+        or historical.get("decision_record") != _SELECTED_DECISION_RELATIVE_PATH
+        or historical.get("selected_lineage") != _SELECTED_CANDIDATE_LINEAGE
+    ):
+        raise IntegrityError("grandfather authority manifest is invalid")
+    decision = load_grandfather_decision(_REPOSITORY_ROOT / _SELECTED_DECISION_RELATIVE_PATH)
+    if (
+        historical.get("owner_protocol_decision") != decision.sha256
+        or decision.candidate_lineage != _SELECTED_CANDIDATE_LINEAGE
+    ):
+        raise IntegrityError("grandfather authority manifest pin mismatch")
+    return decision
