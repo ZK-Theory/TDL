@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/IssueContextPacket",
+  "title": "W3 context lifecycle command: IssueContextPacket",
+  "type": "object",
+  "properties": {
+    "command_type": {
+      "const": "IssueContextPacket"
+    },
+    "schema_id": {
+      "const": "ars://core/command/IssueContextPacket"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payload": {
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "packet_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "capability_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provider_template_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_id",
+        "request_id",
+        "packet_revision",
+        "packet_sha256",
+        "manifest_sha256",
+        "capability_digest",
+        "provider_template_sha256"
+      ]
+    }
+  },
+  "required": [
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "payload"
+  ]
+}

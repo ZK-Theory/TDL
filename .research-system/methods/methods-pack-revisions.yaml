@@ -1,0 +1,44 @@
+schema_id: ars://methods/methods-pack-revisions
+schema_version: 1.0.0
+history_id: research-methods-pack-revisions
+revisions:
+  - asset_id: mth_adversarial_review_protocol
+    version: 1.0.0
+    identity_scheme: git_blob_sha1
+    identity: 426dafc2bc200a341f07b488107c7a804fd83c5e
+    recorded_at: "2026-08-08"
+    revision_reason: Initial provider-neutral candidate authored from verified source lineage.
+    supersedes_identity: null
+    previous_history_blob: null
+  - asset_id: mth_counterexample_search_brief
+    version: 1.0.0
+    identity_scheme: git_blob_sha1
+    identity: b17404e8953c644ca54a6be9f5fbade6c904cb1a
+    recorded_at: "2026-08-08"
+    revision_reason: Initial provider-neutral candidate authored from verified source lineage.
+    supersedes_identity: null
+    previous_history_blob: null
+  - asset_id: mth_context_deidentification_transform
+    version: 1.0.0
+    identity_scheme: git_blob_sha1
+    identity: 58a37830600076ddf71bc20c127108234e15eff9
+    recorded_at: "2026-08-08"
+    revision_reason: Initial provider-neutral candidate authored from verified source lineage.
+    supersedes_identity: null
+    previous_history_blob: null
+  - asset_id: mth_theorem_retrieval_brief
+    version: 1.0.0
+    identity_scheme: git_blob_sha1
+    identity: 8ca3d5e25114feb2d1ff64389cf045f7a19c50f1
+    recorded_at: "2026-08-08"
+    revision_reason: Initial provider-neutral candidate authored from verified source lineage.
+    supersedes_identity: null
+    previous_history_blob: null
+  - asset_id: mth_decomposition_scaffolding_template
+    version: 1.0.0
+    identity_scheme: git_blob_sha1
+    identity: a21f725460af817335decd8162b27ca724fae211
+    recorded_at: "2026-08-08"
+    revision_reason: Initial provider-neutral candidate authored from verified source lineage.
+    supersedes_identity: null
+    previous_history_blob: null

@@ -29,6 +29,7 @@ SUBJECT_IDS = {
     "artefact": "art_01978abc-6117-7000-8000-000000006117",
     "review": "rev_01978abc-6118-7000-8000-000000006118",
     "decision": "dec_01978abc-6119-7000-8000-000000006119",
+    "context": "ctx_01978abc-6124-7000-8000-000000006124",
     "rule_evaluation": "val_01978abc-6120-7000-8000-000000006120",
     "corrected_record": "msg_01978abc-6121-7000-8000-000000006121",
     "resource": "rgr_01978abc-6122-7000-8000-000000006122",
@@ -243,6 +244,18 @@ def test_v2_schema_enforces_the_same_closed_subject_vocabulary_as_the_model() ->
         schemas.validate_active(
             "ars://core/scoped-authority-grant",
             value,
+            schema_version="2.0.0",
+        )
+
+    context_mismatch = _grant_value()
+    context_mismatch["subject_scope"] = {
+        "project_id": PROJECT_ID,
+        "subject": {"kind": "context", "id": SUBJECT_IDS["artefact"]},
+    }
+    with pytest.raises(SchemaError):
+        schemas.validate_active(
+            "ars://core/scoped-authority-grant",
+            context_mismatch,
             schema_version="2.0.0",
         )
 

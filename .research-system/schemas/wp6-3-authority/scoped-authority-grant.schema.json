@@ -102,6 +102,7 @@
                 "lease",
                 "attempt",
                 "message",
+                "context",
                 "blocker",
                 "artefact",
                 "review",
@@ -114,7 +115,7 @@
                 "assurance_pack"
               ]
             },
-            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|ctx|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
           },
           "allOf": [
             {
@@ -144,6 +145,10 @@
             {
               "if": {"properties": {"kind": {"const": "message"}}, "required": ["kind"]},
               "then": {"properties": {"id": {"pattern": "^msg_"}}}
+            },
+            {
+              "if": {"properties": {"kind": {"const": "context"}}, "required": ["kind"]},
+              "then": {"properties": {"id": {"pattern": "^ctx_"}}}
             },
             {
               "if": {"properties": {"kind": {"const": "blocker"}}, "required": ["kind"]},

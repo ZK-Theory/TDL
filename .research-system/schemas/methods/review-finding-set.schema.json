@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/review-finding-set", "type": "object", "additionalProperties": false,
+  "required": ["document_type", "responds_to_brief_manifest_sha256", "status", "findings"],
+  "properties": {"document_type": {"const": "ReviewFindingSet"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "status": {"enum": ["imported"]}, "findings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["finding_id", "severity", "summary", "evidence"], "properties": {"finding_id": {"type": "string", "minLength": 1}, "severity": {"enum": ["critical", "high", "medium", "low", "nitpick"]}, "summary": {"type": "string", "minLength": 1}, "evidence": {"type": "string", "minLength": 1}}}}}
+}

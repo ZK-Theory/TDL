@@ -107,8 +107,8 @@
           "type": "object",
           "required": ["kind", "id"],
           "properties": {
-            "kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "message", "blocker", "artefact", "review", "decision", "rule_evaluation", "corrected_record", "resource", "project_store", "assurance_requirement", "assurance_pack"]},
-            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_"}
+            "kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "message", "context", "blocker", "artefact", "review", "decision", "rule_evaluation", "corrected_record", "resource", "project_store", "assurance_requirement", "assurance_pack"]},
+            "id": {"type": "string", "pattern": "^(?:obj|tsk|dsp|els|att|cpm|msg|ctx|blk|art|rev|dec|val|rsq|rgr|rcf|hbt|pid|stp|rsd|rcv|opc|opr|bkr|prj|asr|asp)_"}
           },
           "oneOf": [
             {"properties": {"kind": {"const": "scope_definition"}, "id": {"pattern": "^obj_"}}},
@@ -117,6 +117,7 @@
             {"properties": {"kind": {"const": "lease"}, "id": {"pattern": "^els_"}}},
             {"properties": {"kind": {"const": "attempt"}, "id": {"pattern": "^att_"}}},
             {"properties": {"kind": {"const": "message"}, "id": {"pattern": "^msg_"}}},
+            {"properties": {"kind": {"const": "context"}, "id": {"pattern": "^ctx_"}}},
             {"properties": {"kind": {"const": "blocker"}, "id": {"pattern": "^blk_"}}},
             {"properties": {"kind": {"const": "artefact"}, "id": {"pattern": "^art_"}}},
             {"properties": {"kind": {"const": "review"}, "id": {"pattern": "^rev_"}}},

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evidence/governing-scientific-review",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "project_id",
+    "review_id",
+    "subject_sha256",
+    "reviewer_actor_id",
+    "eligible",
+    "related",
+    "independence_grade",
+    "status"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evidence/governing-scientific-review"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "review_id": {"type": "string", "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "subject_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "eligible": {"type": "boolean"},
+    "related": {"type": "boolean"},
+    "independence_grade": {"enum": ["I0", "I1", "I2", "I3"]},
+    "status": {"enum": ["active", "withdrawn", "superseded"]}
+  },
+  "additionalProperties": false
+}

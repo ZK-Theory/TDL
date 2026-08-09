@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from copy import deepcopy
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -96,6 +96,7 @@ from research_system.store.receipts import ReceiptStore
 
 
 _release_submit_guard = _take_release_submit_guard()
+_ARTEFACT_REVIEW_INDEPENDENCE_ORDER = {"I0": 0, "I1": 1, "I2": 2, "I3": 3}
 _CALLER_PROVENANCE_FIELDS = frozenset(
     {
         "command_schema_id",
@@ -157,12 +158,35 @@ _C1_COMMAND_TYPES = (
     | _C1_RESOURCE_COMMAND_TYPES
 )
 _BACKUP_COMMAND_TYPES = frozenset({"CreateBackup"})
+_ARTEFACT_AUTHORITY_COMMAND_TYPES = frozenset(
+    {
+        "RegisterArtefact",
+        "RecordScientificReview",
+        "ResolveDecision",
+        "SetArtefactUseAuthority",
+    }
+)
+_CONTEXT_PACKET_COMMAND_TYPES = frozenset(
+    {
+        "RequestContextPacket",
+        "BeginContextCompilation",
+        "CompleteContextCompilation",
+        "ValidateContextPacket",
+        "IssueContextPacket",
+        "RecordContextDelivery",
+        "FailContextPacket",
+        "ExpireContextPacket",
+        "SupersedeContextPacket",
+    }
+)
 _LIFECYCLE_COMMAND_TYPES = (
     _SCOPE_COMMAND_TYPES
     | _TASK_REVISION_COMMAND_TYPES
     | _MESSAGE_COMMAND_TYPES
     | _C1_COMMAND_TYPES
     | _BACKUP_COMMAND_TYPES
+    | _ARTEFACT_AUTHORITY_COMMAND_TYPES
+    | _CONTEXT_PACKET_COMMAND_TYPES
 )
 _COMMAND_EVENT_TYPES = {
     "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
@@ -201,6 +225,19 @@ _COMMAND_EVENT_TYPES = {
     "RecordHeartbeat": "HeartbeatRecorded",
     "ReleaseResources": "ResourcesReleased",
     "CreateBackup": "BackupCreated",
+    "RegisterArtefact": "ArtefactRegistered",
+    "RecordScientificReview": "ScientificReviewRecorded",
+    "ResolveDecision": "DecisionResolved",
+    "SetArtefactUseAuthority": "ArtefactUseAuthoritySet",
+    "RequestContextPacket": "ContextPacketRequested",
+    "BeginContextCompilation": "ContextCompilationStarted",
+    "CompleteContextCompilation": "ContextPacketCompiled",
+    "ValidateContextPacket": "ContextPacketValidated",
+    "IssueContextPacket": "ContextPacketIssued",
+    "RecordContextDelivery": "ContextPacketDelivered",
+    "FailContextPacket": "ContextPacketFailed",
+    "ExpireContextPacket": "ContextPacketExpired",
+    "SupersedeContextPacket": "ContextPacketSuperseded",
 }
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
@@ -491,6 +528,7 @@ class CommandService:
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
         message_adapter_registry: Iterable[MessageAdapterRegistration] | None = None,
         backup_materializer: BackupMaterializer | None = None,
+        governing_evidence_resolver: Any | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
             raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
@@ -517,6 +555,7 @@ class CommandService:
         if backup_materializer is not None and not isinstance(backup_materializer, BackupMaterializer):
             raise TypeError("backup_materializer must be BackupMaterializer")
         self.backup_materializer = backup_materializer
+        self.governing_evidence_resolver = governing_evidence_resolver
         if message_adapter_registry is None:
             self._message_adapter_registry: tuple[MessageAdapterRegistration, ...] = ()
         else:
@@ -1293,6 +1332,8 @@ class CommandService:
                     self._ensure_resource_grant_materialized(command)
                 if command.envelope["command_type"] == "CreateBackup":
                     self._ensure_backup_materialized(command)
+                if command.envelope["command_type"] == "RegisterArtefact":
+                    self._ensure_artefact_materialized(command)
                 receipt = write_receipt(reconstructed)
                 if activation_marker_status == "committed":
                     self._remove_scoped_activation_marker(command.command_id)
@@ -1413,6 +1454,24 @@ class CommandService:
                     self._prepare_resource_grant_materialization(command)
             elif command.envelope["command_type"] in _BACKUP_COMMAND_TYPES:
                 prepared = self._prepare_backup_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
+            elif command.envelope["command_type"] in _ARTEFACT_AUTHORITY_COMMAND_TYPES:
+                prepared = self._prepare_artefact_authority_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
+            elif command.envelope["command_type"] in _CONTEXT_PACKET_COMMAND_TYPES:
+                prepared = self._prepare_context_packet_command(
                     command,
                     snapshot,
                     observed_version,
@@ -2008,6 +2067,8 @@ class CommandService:
                     self._ensure_resource_grant_materialized(command)
                 if command_type == "CreateBackup":
                     self._ensure_backup_materialized(command)
+                if command_type == "RegisterArtefact":
+                    self._ensure_artefact_materialized(command)
             result = self.receipts.write_scoped(
                 self._authority_scope(command),
                 lifecycle_authority.authority_key,
@@ -2104,6 +2165,14 @@ class CommandService:
             return project_id, "resource", str(payload.get("resource_id", "")), "R3"
         if command_type in _BACKUP_COMMAND_TYPES:
             return project_id, "project_store", str(payload.get("project_id", "")), "R3"
+        if command_type == "RegisterArtefact":
+            return project_id, "artefact", str(payload.get("new_artefact_id", "")), "R3"
+        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+            return project_id, "artefact", str(payload.get("artefact_id", "")), "R3"
+        if command_type == "ResolveDecision":
+            return project_id, "decision", str(payload.get("decision_id", "")), "R3"
+        if command_type in _CONTEXT_PACKET_COMMAND_TYPES:
+            return project_id, "context", str(payload.get("context_id", "")), "R3"
 
         subject_id = str(
             payload.get(
@@ -3105,6 +3174,373 @@ class CommandService:
         if len(events) != 1 or events[0].get("payload") != command.envelope["payload"]:
             raise IntegrityError("backup materialization requires one exact committed event")
         return materializer.materialize(command, events[0])
+
+    def _prepare_artefact_authority_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate the accepted 06i transitions before any durable write."""
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+
+        def rejected(code: str, explanation: str) -> Receipt:
+            return self._rejected(command, observed_version, code, explanation)
+
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return rejected(
+                "invalid_artefact_project",
+                "Artefact authority commands must target the selected control-store project.",
+            )
+        artefact_events = [
+            event
+            for event in snapshot.events
+            if event.get("stream_id") == command.target_stream_id
+            and event.get("event_type") in {"ArtefactRegistered", "ScientificReviewRecorded", "ArtefactUseAuthoritySet"}
+        ]
+        registered = next(
+            (event for event in artefact_events if event.get("event_type") == "ArtefactRegistered"),
+            None,
+        )
+
+        if command_type == "RegisterArtefact":
+            manifest = payload.get("manifest")
+            if (
+                payload.get("new_artefact_id") != command.target_stream_id
+                or not isinstance(manifest, dict)
+                or manifest.get("artefact_id") != command.target_stream_id
+            ):
+                return rejected(
+                    "invalid_artefact_identity",
+                    "RegisterArtefact must bind one exact new artefact identity.",
+                )
+            authority = manifest.get("authority")
+            if not isinstance(authority, dict) or authority.get("use_authority") != "candidate":
+                return rejected(
+                    "artefact_initial_authority_invalid",
+                    "RegisterArtefact always starts at candidate authority.",
+                )
+            if (
+                observed_version != 0
+                or registered is not None
+                or self.objects.revision_exists("artefact", command.target_stream_id, 1)
+            ):
+                return rejected(
+                    "artefact_already_registered",
+                    "RegisterArtefact requires an empty artefact stream and object revision.",
+                )
+            return deepcopy(payload)
+
+        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+            if payload.get("artefact_id") != command.target_stream_id or registered is None:
+                return rejected(
+                    "artefact_not_registered",
+                    "Artefact authority transitions require the registered artefact stream.",
+                )
+            registered_payload = registered.get("payload")
+            manifest = registered_payload.get("manifest") if isinstance(registered_payload, dict) else None
+            if not isinstance(manifest, dict) or payload.get("subject_sha256") != manifest.get("content_sha256"):
+                return rejected(
+                    "artefact_subject_hash_mismatch",
+                    "Artefact authority transitions must bind the registered content hash.",
+                )
+            current_use_authority = "candidate"
+            for event in artefact_events:
+                if event.get("event_type") == "ArtefactUseAuthoritySet" and isinstance(event.get("payload"), dict):
+                    current_use_authority = str(event["payload"].get("use_authority", ""))
+            if current_use_authority in {"rejected", "superseded"}:
+                return rejected(
+                    "artefact_authority_terminal",
+                    "Rejected or superseded artefacts cannot receive further authority transitions.",
+                )
+            if command_type == "RecordScientificReview":
+                review_id = payload.get("review_id")
+                if any(
+                    event.get("event_type") == "ScientificReviewRecorded"
+                    and isinstance(event.get("payload"), dict)
+                    and event["payload"].get("review_id") == review_id
+                    for event in snapshot.events
+                ):
+                    return rejected(
+                        "scientific_review_identity_conflict",
+                        "Scientific review identity is already committed.",
+                    )
+                return deepcopy(payload)
+            if payload.get("use_authority") == "candidate":
+                return rejected(
+                    "invalid_artefact_authority_transition",
+                    "Candidate is established only by RegisterArtefact.",
+                )
+            if payload.get("use_authority") == "accepted_for_scope":
+                evidence_error = self._validate_governing_review_evidence(
+                    command,
+                    artefact_events,
+                    manifest,
+                )
+                if evidence_error is not None:
+                    return rejected(*evidence_error)
+            return deepcopy(payload)
+
+        if command_type == "ResolveDecision":
+            if (
+                payload.get("decision_id") != command.target_stream_id
+                or payload.get("deciding_actor_id") != command.actor_id
+                or payload.get("decision_authority_grant_id") != command.envelope.get("authority_grant_id")
+            ):
+                return rejected(
+                    "decision_authority_binding_mismatch",
+                    "ResolveDecision must bind its stream, deciding actor, and authority grant.",
+                )
+            if any(
+                event.get("event_type") == "DecisionResolved"
+                for event in snapshot.events
+                if event.get("stream_id") == command.target_stream_id
+            ):
+                return rejected("decision_already_resolved", "Decision is already resolved.")
+            return deepcopy(payload)
+
+        raise IntegrityError(f"unsupported artefact authority command type: {command_type}")
+
+    def _validate_governing_review_evidence(
+        self,
+        command: Command,
+        artefact_events: list[dict[str, Any]],
+        manifest: dict[str, Any],
+    ) -> tuple[str, str] | None:
+        """Resolve the accepted predicate's complete independent review set."""
+        resolver = self.governing_evidence_resolver
+        if resolver is None or not callable(getattr(resolver, "resolve", None)):
+            return (
+                "governing_review_resolver_unavailable",
+                "Accepted artefact use requires the production governing-review resolver.",
+            )
+        from research_system.artefacts.authority import ArtefactAuthorityContractLoader
+        from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
+        from research_system.artefacts.use_resolver import predicate_reference
+
+        contract = ArtefactAuthorityContractLoader(ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT).load()
+        supplied_reference = command.envelope["payload"].get("consumer_predicate")
+        consumer_kind: str | None = None
+        for candidate_kind, predicate in contract.predicates_by_kind.items():
+            expected = predicate_reference(
+                str(predicate["predicate_id"]),
+                str(predicate["predicate_version"]),
+                contract.predicate_sha256_by_kind[candidate_kind],
+            )
+            if supplied_reference == expected:
+                consumer_kind = candidate_kind
+                break
+        if consumer_kind is None:
+            return (
+                "artefact_consumer_predicate_unaccepted",
+                "Accepted artefact use must bind one exact accepted consumer predicate.",
+            )
+        rule = contract.review_rules_by_kind[consumer_kind]
+        minimum = rule.get("minimum_approved_reviews")
+        minimum_grade = rule.get("minimum_independence_grade")
+        if not isinstance(minimum, int) or minimum < 1 or minimum_grade not in _ARTEFACT_REVIEW_INDEPENDENCE_ORDER:
+            raise IntegrityError("accepted governing-review rule is invalid")
+        submitted_at = datetime.fromisoformat(str(command.envelope["submitted_at"]).replace("Z", "+00:00"))
+        use_refs = command.envelope["payload"].get("evidence_refs")
+        if not isinstance(use_refs, list):
+            return (
+                "governing_scientific_review_missing",
+                "Accepted artefact use must bind its complete governing review evidence.",
+            )
+        approved = 0
+        for event in artefact_events:
+            review = event.get("payload")
+            if (
+                event.get("event_type") != "ScientificReviewRecorded"
+                or not isinstance(review, dict)
+                or review.get("scientific_review") != "approved"
+                or review.get("subject_sha256") != command.envelope["payload"].get("subject_sha256")
+            ):
+                continue
+            review_id = review.get("review_id")
+            review_refs = review.get("evidence_refs")
+            reviewer_actor_id = event.get("actor_id")
+            if (
+                not isinstance(review_id, str)
+                or not isinstance(review_refs, list)
+                or not review_refs
+                or review_id not in use_refs
+                or any(reference not in use_refs for reference in review_refs)
+            ):
+                continue
+            matched = False
+            for reference in review_refs:
+                if not isinstance(reference, str):
+                    continue
+                try:
+                    resolution = resolver.resolve(
+                        reference,
+                        project_id=self.ledger.project_id,
+                        evaluation_time=submitted_at,
+                    )
+                except Exception:  # noqa: BLE001 - invalid authority is one stable rejection
+                    continue
+                record = resolution.record
+                if (
+                    resolution.reference_id != reference
+                    or not isinstance(record, Mapping)
+                    or record.get("schema_id") != "ars://evidence/governing-scientific-review"
+                    or record.get("schema_version") != "1.0.0"
+                    or record.get("project_id") != self.ledger.project_id
+                    or record.get("review_id") != review_id
+                    or record.get("subject_sha256") != review.get("subject_sha256")
+                    or record.get("reviewer_actor_id") != reviewer_actor_id
+                    or record.get("status") != "active"
+                    or (rule.get("require_eligible") is True and record.get("eligible") is not True)
+                    or (rule.get("prohibit_related_reviewer") is True and record.get("related") is not False)
+                    or (
+                        rule.get("prohibit_producer_reviewer") is True
+                        and reviewer_actor_id == manifest.get("producer_actor_id")
+                    )
+                    or _ARTEFACT_REVIEW_INDEPENDENCE_ORDER.get(str(record.get("independence_grade")), -1)
+                    < _ARTEFACT_REVIEW_INDEPENDENCE_ORDER[str(minimum_grade)]
+                    or sha256_hex(canonical_bytes(record)) != resolution.canonical_sha256
+                ):
+                    continue
+                matched = True
+                break
+            if matched:
+                approved += 1
+        if approved < minimum:
+            return (
+                "governing_scientific_review_missing",
+                "Accepted artefact use requires the complete independently resolved governing review set.",
+            )
+        return None
+
+    def _ensure_artefact_materialized(self, command: Command) -> dict[str, Any]:
+        """Materialize revision 1 only from the exact committed registration."""
+        events = [
+            event
+            for event in self.ledger.snapshot().events
+            if event.get("command_id") == command.command_id
+            and event.get("command_type") == "RegisterArtefact"
+            and event.get("event_type") == "ArtefactRegistered"
+            and event.get("stream_id") == command.target_stream_id
+            and event.get("command_payload_hash") == command.payload_hash
+        ]
+        if len(events) != 1 or events[0].get("payload") != command.envelope["payload"]:
+            raise IntegrityError("artefact materialization requires one exact committed registration")
+        manifest = deepcopy(command.envelope["payload"]["manifest"])
+        if self.objects.revision_exists("artefact", command.target_stream_id, 1):
+            existing = self.objects.read("artefact", command.target_stream_id, 1)
+            if existing != manifest:
+                raise ConflictError("artefact revision conflicts")
+            return existing
+        self.objects.write("artefact", command.target_stream_id, 1, manifest)
+        persisted = self.objects.read("artefact", command.target_stream_id, 1)
+        if persisted != manifest:
+            raise ConflictError("artefact revision conflicts")
+        return persisted
+
+    def _prepare_context_packet_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate the W3 lifecycle and exact packet identity before append."""
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+
+        def rejected(code: str, explanation: str) -> Receipt:
+            return self._rejected(command, observed_version, code, explanation)
+
+        if (
+            command.envelope.get("project_id") != self.ledger.project_id
+            or payload.get("context_id") != command.target_stream_id
+        ):
+            return rejected(
+                "invalid_context_identity",
+                "Context lifecycle commands must bind the selected project and context stream.",
+            )
+        events = sorted(
+            (
+                event
+                for event in snapshot.events
+                if event.get("stream_id") == command.target_stream_id
+                and event.get("event_type")
+                in {
+                    "ContextPacketRequested",
+                    "ContextCompilationStarted",
+                    "ContextPacketCompiled",
+                    "ContextPacketValidated",
+                    "ContextPacketIssued",
+                    "ContextPacketDelivered",
+                    "ContextPacketFailed",
+                    "ContextPacketExpired",
+                    "ContextPacketSuperseded",
+                }
+            ),
+            key=lambda event: int(event.get("stream_version", 0)),
+        )
+        states = {
+            "ContextPacketRequested": "requested",
+            "ContextCompilationStarted": "compiling",
+            "ContextPacketCompiled": "compiled",
+            "ContextPacketValidated": "validated",
+            "ContextPacketIssued": "issued",
+            "ContextPacketDelivered": "delivered",
+            "ContextPacketFailed": "failed",
+            "ContextPacketExpired": "expired",
+            "ContextPacketSuperseded": "superseded",
+        }
+        current = states.get(str(events[-1].get("event_type"))) if events else None
+        allowed = {
+            "RequestContextPacket": {None},
+            "BeginContextCompilation": {"requested"},
+            "CompleteContextCompilation": {"compiling"},
+            "ValidateContextPacket": {"compiled"},
+            "IssueContextPacket": {"validated"},
+            "RecordContextDelivery": {"issued"},
+            "FailContextPacket": {"requested", "compiling", "compiled"},
+            "ExpireContextPacket": {"issued", "delivered"},
+            "SupersedeContextPacket": {"issued", "delivered"},
+        }
+        if current not in allowed[command_type]:
+            return rejected(
+                "invalid_context_transition",
+                f"{command_type} is not valid from context state {current!r}.",
+            )
+        if command_type == "RequestContextPacket":
+            if payload.get("project_id") != self.ledger.project_id:
+                return rejected("invalid_context_project", "Context request project does not match Control.")
+            return deepcopy(payload)
+
+        request_payload = events[0].get("payload") if events else None
+        supplied_revision = (
+            payload.get("revision") if command_type == "BeginContextCompilation" else payload.get("packet_revision")
+        )
+        revision_mismatch = (
+            isinstance(request_payload, dict)
+            and supplied_revision is not None
+            and supplied_revision != request_payload.get("revision")
+        )
+        if not isinstance(request_payload, dict) or revision_mismatch:
+            return rejected(
+                "context_revision_mismatch",
+                "Context lifecycle commands must retain the requested revision.",
+            )
+        compiled = next(
+            (event.get("payload") for event in events if event.get("event_type") == "ContextPacketCompiled"),
+            None,
+        )
+        if command_type in {"ValidateContextPacket", "IssueContextPacket", "RecordContextDelivery"}:
+            if not isinstance(compiled, dict):
+                return rejected("context_compilation_missing", "Context packet compilation is missing.")
+            for field in ("packet_revision", "packet_sha256"):
+                if payload.get(field) != compiled.get(field):
+                    return rejected(
+                        "context_packet_identity_mismatch",
+                        "Context lifecycle command does not bind the compiled packet identity.",
+                    )
+        return deepcopy(payload)
 
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed request event."""
@@ -4789,6 +5225,16 @@ class CommandService:
         elif command_type in _BACKUP_COMMAND_TYPES:
             if prepared_payload is None or prepared_payload != command.envelope["payload"]:
                 raise IntegrityError("CreateBackup requires its exact prepared payload")
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(prepared_payload)
+        elif command_type in _ARTEFACT_AUTHORITY_COMMAND_TYPES:
+            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+                raise IntegrityError(f"{command_type} requires its exact prepared payload")
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(prepared_payload)
+        elif command_type in _CONTEXT_PACKET_COMMAND_TYPES:
+            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+                raise IntegrityError(f"{command_type} requires its exact prepared payload")
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)
         elif command_type == "SupersedeTask":

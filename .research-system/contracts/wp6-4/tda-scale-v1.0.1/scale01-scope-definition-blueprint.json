@@ -1,0 +1,16 @@
+{
+  "new_scope_definition_id": "obj_0198f5d0-0000-7000-8000-000000000001",
+  "revision": 1,
+  "members": [],
+  "ordering_rules": [],
+  "effective_at": "2026-08-09T00:00:00Z",
+  "dependency_rules": [
+    "the canonical WP6.4 foundation is materially bound to project prj_01978abc-1000-7000-8000-000000001000 and store 2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "accepted genuine distinct-party KAN-68/A7 evidence is required before admission",
+    "accepted provider-free operator-session evidence is required before admission",
+    "WP6.6 alone owns the accepted dossier expected set and final cardinality",
+    "D-G6-5 owner acceptance is required before dispatch"
+  ],
+  "completion_predicate": "This payload remains empty and non-dispatchable until an accepted WP6.6 expected set exists; issue a superseding blueprint rather than mutating these bytes.",
+  "amendment_authority": "Stephen owner decision only; immutable supersession is required and in-place mutation is forbidden."
+}

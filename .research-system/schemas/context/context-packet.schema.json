@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://context/context-packet",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": {"const": "ars://context/context-packet"},
+    "schema_version": {"const": "1.0.0"},
+    "context_id": {"type": "string", "pattern": "^ctx_"},
+    "request_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "manifest_id": {"type": "string", "pattern": "^ctx_"},
+    "manifest_revision": {"type": "integer", "minimum": 1},
+    "rendered_content": {"type": "string"},
+    "rendered_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": ["schema_id", "schema_version", "context_id", "request_id", "revision", "manifest_id", "manifest_revision", "rendered_content", "rendered_sha256"]
+}

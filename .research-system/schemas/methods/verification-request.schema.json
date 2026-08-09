@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/verification-request", "title": "Non-executing verification request", "type": "object", "additionalProperties": false,
+  "required": ["document_type", "responds_to_brief_manifest_sha256", "request_artefact_id", "candidate_artefact_id", "script_sha256", "script_source", "proposed_by", "recorded_at"],
+  "properties": {
+    "document_type": {"const": "VerificationRequest"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "request_artefact_id": {"type": "string", "pattern": "^art_"}, "candidate_artefact_id": {"type": "string", "pattern": "^art_"}, "script_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "script_source": {"type": "string", "minLength": 1}, "proposed_by": {"const": "external_session"}, "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  }
+}

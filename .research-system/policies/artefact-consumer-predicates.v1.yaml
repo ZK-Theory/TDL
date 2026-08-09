@@ -1,0 +1,79 @@
+schema_id: ars://policy/artefact-consumer-predicates
+schema_version: 1.0.0
+candidate_state: proposed
+dimensions:
+  - availability
+  - regenerability
+  - integrity
+  - structural_validation
+  - scientific_review
+  - use_authority
+predicates:
+  - predicate_id: result-evidence-v1
+    predicate_version: 1.0.0
+    consumer_kind: result_evidence
+    allowed_consumer_ids:
+      - release_publication
+      - rm03_result_assessment
+    dimensions:
+      availability: [available]
+      regenerability: [not_declared, regenerable_verified, non_regenerable, unknown]
+      integrity: [verified]
+      structural_validation: [passed, not_applicable]
+      scientific_review: [approved]
+      use_authority: [accepted_for_scope]
+    required_decision_kind: null
+  - predicate_id: review-evidence-v1
+    predicate_version: 1.0.0
+    consumer_kind: review_evidence
+    allowed_consumer_ids:
+      - rm03_brief_review
+      - rm04_followup_review
+    dimensions:
+      availability: [available]
+      regenerability: [not_declared, regenerable_verified, non_regenerable, unknown]
+      integrity: [verified]
+      structural_validation: [passed, not_applicable]
+      scientific_review: [approved]
+      use_authority: [accepted_for_scope]
+    required_decision_kind: null
+  - predicate_id: manuscript-evidence-v1
+    predicate_version: 1.0.0
+    consumer_kind: manuscript_evidence
+    allowed_consumer_ids:
+      - rm03_brief_manuscript
+      - rm04_manuscript_pilot
+    dimensions:
+      availability: [available]
+      regenerability: [not_declared, regenerable_verified, non_regenerable, unknown]
+      integrity: [verified]
+      structural_validation: [passed]
+      scientific_review: [approved]
+      use_authority: [accepted_for_scope]
+    required_decision_kind: null
+  - predicate_id: claim-evidence-v1
+    predicate_version: 1.0.0
+    consumer_kind: claim_evidence
+    allowed_consumer_ids:
+      - rm03_claim_assessment
+    dimensions:
+      availability: [available]
+      regenerability: [not_declared, regenerable_verified, non_regenerable, unknown]
+      integrity: [verified]
+      structural_validation: [passed]
+      scientific_review: [approved]
+      use_authority: [accepted_for_scope]
+    required_decision_kind: claim_promotion
+  - predicate_id: sensitive-sidecar-v1
+    predicate_version: 1.0.0
+    consumer_kind: sensitive_sidecar
+    allowed_consumer_ids:
+      - rm03_sensitive_sidecar
+    dimensions:
+      availability: [available]
+      regenerability: [not_declared, regenerable_verified, non_regenerable, unknown]
+      integrity: [verified]
+      structural_validation: [passed, not_applicable]
+      scientific_review: [approved]
+      use_authority: [accepted_for_scope]
+    required_decision_kind: null

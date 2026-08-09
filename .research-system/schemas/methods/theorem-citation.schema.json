@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/theorem-citation", "type": "object", "additionalProperties": false,
+  "required": ["document_type", "responds_to_brief_manifest_sha256", "status", "citation", "relevance"],
+  "properties": {"document_type": {"const": "TheoremCitation"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "status": {"const": "imported"}, "citation": {"type": "string", "minLength": 1}, "relevance": {"type": "string", "minLength": 1}}
+}

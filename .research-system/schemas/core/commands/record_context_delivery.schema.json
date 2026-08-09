@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/RecordContextDelivery",
+  "title": "W3 context lifecycle command: RecordContextDelivery",
+  "type": "object",
+  "properties": {
+    "command_type": {
+      "const": "RecordContextDelivery"
+    },
+    "schema_id": {
+      "const": "ars://core/command/RecordContextDelivery"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payload": {
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "packet_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recipient_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapter_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_receipt_object_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "delivery_receipt_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "delivery_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_id",
+        "request_id",
+        "packet_revision",
+        "packet_sha256",
+        "recipient_id",
+        "recipient_session_id",
+        "adapter_id",
+        "delivery_receipt_object_id",
+        "delivery_receipt_revision",
+        "delivery_receipt_sha256"
+      ]
+    }
+  },
+  "required": [
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "payload"
+  ]
+}

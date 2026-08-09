@@ -1056,13 +1056,24 @@ their exact-subject review records. The merge tree is byte-identical to the
 final PR-head tree. The exact integration record is
 `reviews/wp6-4-pr208-integration-record-2026-08-03.md`.
 
-This closes only the PR #208 implementation, review, integration, and owner
-disposition tail. KAN-57 and the WP6.4 master-plan row remain open because the
-canonical foundation values are still null and no real external-store A8
-proof, bounded session evidence, TDA-scale v1.0.1/SCALE-01 accepted preflight,
-or D-G6-5 record exists. KAN-68 and genuine distinct-party Gate A A7 evidence
-also remain prerequisites. No provider invocation, credentials, dispatch,
-live research, or pilot-result claim is authorized by this status record.
+That was superseded operationally by the real KAN-78 Source-to-Control run.
+The canonical Control store now has the owner-approved bootstrap identity,
+write-once external origin witness, governed backup/restore evidence and real
+A8 candidate `a8c_2034a902cc3e597d7094e4efb1cebe975690afe97f615bb54ea5bde0355b6e7b`
+with raw SHA-256
+`64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d6`.
+Fresh-process load and replay succeed after the original Source is unavailable.
+
+The current WP6.4 integrated candidate also runs the owner-operated public
+brief-out/evidence-back path through real 06j context authority, RM-02 assets,
+06i artefact-use resolution and RM-04 candidate registration, with restart and
+replay equality. TDA-scale v1.0.1 and SCALE-01 preflight are materialized and
+remain `pending_wp6_6`, so no pilot dispatch is implied. KAN-57 remains open
+until the integrated candidate passes final exact-subject review, lands on
+`main`, receives the exact remaining owner dispositions, and Jira is read back.
+KAN-68 remains explicitly owned by its active WP6.3 completion lane. No provider
+invocation, credentials, returned-content execution, result promotion, claim
+promotion, or pilot dispatch is authorized by this status record.
 
 ## W11 specification status (non-decision)
 

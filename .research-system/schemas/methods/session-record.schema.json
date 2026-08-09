@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://methods/session-record", "type": "object", "additionalProperties": false,
+  "required": ["operator_actor_id", "application_family", "application_version", "application_choice_by", "session_date", "responds_to_brief_manifest_sha256"],
+  "properties": {
+    "operator_actor_id": {"type": "string", "pattern": "^act_"}, "application_family": {"type": "string", "minLength": 1}, "application_version": {"type": "string", "minLength": 1}, "application_choice_by": {"const": "operator"}, "session_date": {"type": "string", "format": "date"}, "responds_to_brief_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

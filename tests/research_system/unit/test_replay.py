@@ -834,7 +834,7 @@ def test_s006_cli_requires_materialized_canonical_origin_pins(tmp_path, monkeypa
     )
     control_root = tmp_path / "control"
     bootstrap_path = write_authority_bootstrap_input(tmp_path / "authority-bootstrap.json")
-    with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
+    with pytest.raises(ConfigurationError, match="canonical foundation origin witness path is not canonical"):
         main(
             [
                 "store",

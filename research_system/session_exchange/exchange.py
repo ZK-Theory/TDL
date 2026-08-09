@@ -15,7 +15,8 @@ from jsonschema.exceptions import ValidationError
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ConflictError, SchemaError
+from research_system.errors import ArsError, ConflictError, SchemaError
+from research_system.evidence.consumers import ArtefactConsumerContext, ArtefactEvidenceConsumers
 from research_system.ids import validate_id
 from research_system.session_exchange.authority import (
     INDEPENDENT_SESSION_REVIEW,
@@ -381,6 +382,8 @@ def record_session_evidence(
     producer_verdict: str,
     unresolved_findings: tuple[UnresolvedFinding, ...],
     recorded_at: str,
+    artefact_consumers: ArtefactEvidenceConsumers,
+    brief_use_context: ArtefactConsumerContext,
     authority_binding: ControlBinding | None = None,
     review_record: SessionRecordLocator | None = None,
     owner_decision_record: SessionRecordLocator | None = None,
@@ -405,9 +408,20 @@ def record_session_evidence(
     if len({producer_identity_locator, reviewer_identity_locator, acceptor_identity_locator}) != 3:
         raise SchemaError("producer, reviewer, and acceptor identity locators must be distinct")
     store = ObjectStore(control_root)
-    brief = store.read("artefact", brief_artifact_id, 1)
+    if brief_use_context.artefact_id != brief_artifact_id:
+        raise ConflictError("brief authority context names a different artefact")
+    try:
+        resolved_brief = artefact_consumers.resolve_for_review(
+            brief_use_context,
+            consumer_id="rm04_followup_review",
+        )
+        brief = json.loads(resolved_brief.content_bytes)
+    except (ArsError, AttributeError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SchemaError("prepared session brief authority resolution failed") from exc
     if not isinstance(brief, dict):
         raise SchemaError("prepared session brief must be an object")
+    if canonical_bytes(brief) != resolved_brief.content_bytes:
+        raise SchemaError("prepared session brief bytes must be canonical JSON")
     _validate_document(brief, "owner-operated-session-brief.schema.json")
     expected_join = {
         "handoff_id": handoff_id,

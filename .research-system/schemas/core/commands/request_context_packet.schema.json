@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/RequestContextPacket",
+  "title": "W3 context lifecycle command: RequestContextPacket",
+  "type": "object",
+  "properties": {
+    "command_type": {
+      "const": "RequestContextPacket"
+    },
+    "schema_id": {
+      "const": "ars://core/command/RequestContextPacket"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payload": {
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "project_id": {
+          "type": "string",
+          "pattern": "^prj_"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^tsk_"
+        },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "risk": {
+          "enum": [
+            "R0",
+            "R1",
+            "R2",
+            "R3"
+          ]
+        },
+        "actor_id": {
+          "type": "string",
+          "pattern": "^act_"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producing_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permitted_scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "control_store_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_position": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_token_budget": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provider_tokenizer_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_token_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "provider_upper_bound_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_upper_bound_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "provider_usable_capacity": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "provider_reserve": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "candidate_set_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "retrieval_trace_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "required_source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "confidence_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "security_declaration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "independence_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "delivery_receipt_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "parent_context_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency_triggers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "retention_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sensitivity_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supersession_lineage": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "cumulative_addendum_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "context_id",
+        "revision",
+        "project_id",
+        "task_id",
+        "task_revision",
+        "purpose",
+        "role",
+        "risk",
+        "actor_id",
+        "session_id",
+        "producing_attempt_id",
+        "permitted_scopes",
+        "control_store_identity",
+        "source_position",
+        "source_hash",
+        "compiler_version",
+        "policy_version",
+        "reference_profile",
+        "reference_token_budget",
+        "provider_tokenizer_id",
+        "provider_token_count",
+        "provider_upper_bound_id",
+        "provider_upper_bound_count",
+        "provider_usable_capacity",
+        "provider_reserve",
+        "candidate_set_digest",
+        "retrieval_trace_refs",
+        "required_source_ids",
+        "confidence_summary",
+        "security_declaration",
+        "independence_evidence_refs",
+        "delivery_receipt_refs",
+        "parent_context_id",
+        "currency_triggers",
+        "retention_class",
+        "sensitivity_class",
+        "supersession_lineage",
+        "cumulative_addendum_bytes",
+        "expires_at"
+      ]
+    }
+  },
+  "required": [
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "payload"
+  ]
+}

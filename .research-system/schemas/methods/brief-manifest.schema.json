@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://methods/brief-manifest",
+  "title": "Owner-operated research brief manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["brief_artefact_id", "brief_purpose", "context_packet", "created_at", "subjects", "assets", "expected_import_types", "deidentification", "prohibitions", "required_session_fields", "verification_context", "brief_sha256"],
+  "properties": {
+    "brief_artefact_id": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "brief_purpose": {"enum": ["result_analysis", "result_reproduction", "scientific_review", "independent_review", "manuscript_review", "claim_review", "claim_promotion_preparation", "deidentification_reversal"]},
+    "context_packet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["context_id", "revision", "packet_sha256", "delivery_receipt_id", "delivery_receipt_sha256"],
+      "properties": {
+        "context_id": {"type": "string", "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "revision": {"type": "integer", "minimum": 1},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "delivery_receipt_id": {"type": "string", "minLength": 1},
+        "delivery_receipt_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "subjects": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/subject"}},
+    "assets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/asset"}},
+    "expected_import_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["ReviewFindingSet", "CounterexampleCandidate", "TheoremCitation", "ExploratoryMemo", "VerificationRequest", "OperatorVerificationRun"]}},
+    "deidentification": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/deidentification"}]},
+    "prohibitions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "required_session_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "verification_context": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/verification_context"}]},
+    "brief_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "subject": {
+      "type": "object", "additionalProperties": false,
+      "required": ["subject_id", "subject_kind", "path_or_name", "sha256", "role", "use_predicate_id", "use_predicate_version", "use_predicate_sha256"],
+      "properties": {
+        "subject_id": {"type": "string", "minLength": 1}, "subject_kind": {"type": "string", "minLength": 1}, "path_or_name": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}, "role": {"type": "string", "minLength": 1}, "use_predicate_id": {"type": "string", "minLength": 1}, "use_predicate_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}, "use_predicate_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "asset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asset_id", "version", "identity", "identity_scheme", "accepted_use_event_id", "accepted_use_event_sha256"],
+      "properties": {
+        "asset_id": {"type": "string", "minLength": 1}, "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}, "identity": {"type": "string", "pattern": "^[0-9a-f]{40}$|^[0-9a-f]{64}$"}, "identity_scheme": {"enum": ["git_blob_sha1", "lf_canonical_sha256"]}, "accepted_use_event_id": {"type": "string", "minLength": 1}, "accepted_use_event_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "deidentification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sidecar_artefact_id", "revision", "content_sha256"],
+      "properties": {"sidecar_artefact_id": {"type": "string", "pattern": "^art_"}, "revision": {"type": "integer", "minimum": 1}, "content_sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "verification_context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_id", "schema_version", "operator_verification_run_id", "content_hash"],
+      "properties": {"schema_id": {"const": "ars://methods/operator-verification-run"}, "schema_version": {"const": "1.0.0"}, "operator_verification_run_id": {"type": "string", "pattern": "^art_"}, "content_hash": {"$ref": "#/$defs/sha256"}}
+    }
+  }
+}

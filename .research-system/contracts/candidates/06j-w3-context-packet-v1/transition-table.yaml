@@ -1,0 +1,18 @@
+schema_version: 1.0.0
+lifecycle: context-packet-v1
+initial_command: RequestContextPacket
+terminal_states: [failed, expired, superseded]
+transitions:
+  - {from: null, command: RequestContextPacket, event: ContextPacketRequested, to: requested}
+  - {from: requested, command: BeginContextCompilation, event: ContextCompilationStarted, to: compiling}
+  - {from: compiling, command: CompleteContextCompilation, event: ContextPacketCompiled, to: compiled}
+  - {from: compiled, command: ValidateContextPacket, event: ContextPacketValidated, to: validated}
+  - {from: validated, command: IssueContextPacket, event: ContextPacketIssued, to: issued}
+  - {from: issued, command: RecordContextDelivery, event: ContextPacketDelivered, to: delivered}
+  - {from: requested, command: FailContextPacket, event: ContextPacketFailed, to: failed}
+  - {from: compiling, command: FailContextPacket, event: ContextPacketFailed, to: failed}
+  - {from: compiled, command: FailContextPacket, event: ContextPacketFailed, to: failed}
+  - {from: issued, command: ExpireContextPacket, event: ContextPacketExpired, to: expired}
+  - {from: delivered, command: ExpireContextPacket, event: ContextPacketExpired, to: expired}
+  - {from: issued, command: SupersedeContextPacket, event: ContextPacketSuperseded, to: superseded}
+  - {from: delivered, command: SupersedeContextPacket, event: ContextPacketSuperseded, to: superseded}

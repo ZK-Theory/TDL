@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/event/ContextPacketCompiled",
+  "title": "W3 context lifecycle event: ContextPacketCompiled",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "const": "ContextPacketCompiled"
+    },
+    "schema_id": {
+      "const": "ars://core/event/ContextPacketCompiled"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "command_type": {
+      "const": "CompleteContextCompilation"
+    },
+    "payload": {
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_object_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "packet_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "packet_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifest_object_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "manifest_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rendered_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_id",
+        "request_id",
+        "packet_object_id",
+        "packet_revision",
+        "packet_sha256",
+        "manifest_object_id",
+        "manifest_revision",
+        "manifest_sha256",
+        "rendered_sha256"
+      ]
+    }
+  },
+  "required": [
+    "event_type",
+    "schema_id",
+    "schema_version",
+    "command_type",
+    "payload"
+  ]
+}

@@ -1,0 +1,135 @@
+schema_id: ars://methods/methods-pack-manifest
+schema_version: 1.0.0
+pack_id: research-methods-pack
+pack_version: 1.0.0
+declared_review_state: candidate
+assets:
+  - asset_id: mth_adversarial_review_protocol
+    name: Adversarial Review Protocol
+    version: 1.0.0
+    path: .research-system/methods/assets/adversarial-review-protocol.md
+    identity_scheme: git_blob_sha1
+    identity: 426dafc2bc200a341f07b488107c7a804fd83c5e
+    applicability_trigger: A proof, derivation, or technical argument needs risk-led independent critique before it can support a research decision.
+    compatibility: any
+    dependencies: []
+    permissions:
+      - read_supplied_research_context
+      - write_typed_candidate_output
+    observer_overlays: []
+    declared_review_state: candidate
+    supersedes: null
+    required_output: ReviewFindingSet
+    lineage:
+      source_id: woodruff-et-al-ai-assisted-research
+      source_title: "Accelerating Scientific Research with Gemini: Case Studies and Common Techniques"
+      source_path: TDA-Research/01-Literature/Research Papers/Gemini For Research.md
+      source_sha256: 43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24
+      sections:
+        - "### **2.1 Iterative Prompting and Refinement**"
+        - "### **3.2 Cryptography: AI-Assisted Bug Detection in SNARGs**"
+      project_additions: []
+  - asset_id: mth_counterexample_search_brief
+    name: Counterexample Search Brief
+    version: 1.0.0
+    path: .research-system/methods/assets/counterexample-search-brief.md
+    identity_scheme: git_blob_sha1
+    identity: b17404e8953c644ca54a6be9f5fbade6c904cb1a
+    applicability_trigger: A conjecture or universal claim needs a neutral prove-or-refute search before it can be relied upon.
+    compatibility: any
+    dependencies: []
+    permissions:
+      - read_supplied_research_context
+      - write_typed_candidate_output
+    observer_overlays: []
+    declared_review_state: candidate
+    supersedes: null
+    required_output: CounterexampleCandidate
+    lineage:
+      source_id: woodruff-et-al-ai-assisted-research
+      source_title: "Accelerating Scientific Research with Gemini: Case Studies and Common Techniques"
+      source_path: TDA-Research/01-Literature/Research Papers/Gemini For Research.md
+      source_sha256: 43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24
+      sections:
+        - "### **2.3 Simulation and Counterexample Search**"
+        - "### **9.2 Understanding Current Limitations and Failure Modes**"
+      project_additions:
+        - name: minimal-instance-first
+          authority: ARS heuristic
+          rationale: Start with the smallest admissible instance to make a returned candidate easier to verify; this ordering is not attributed to the source paper.
+  - asset_id: mth_context_deidentification_transform
+    name: Context De-identification Transform
+    version: 1.0.0
+    path: .research-system/methods/assets/context-deidentification-transform.md
+    identity_scheme: git_blob_sha1
+    identity: 58a37830600076ddf71bc20c127108234e15eff9
+    applicability_trigger: Recognition of a paper, author, project, or open-problem label may bias or prematurely halt work on an otherwise self-contained problem.
+    compatibility: any
+    dependencies: []
+    permissions:
+      - read_supplied_research_context
+      - write_sensitive_sidecar_candidate
+      - write_deidentified_brief_candidate
+    observer_overlays: []
+    declared_review_state: candidate
+    supersedes: null
+    required_output: DeidentifiedContextSidecar
+    lineage:
+      source_id: woodruff-et-al-ai-assisted-research
+      source_title: "Accelerating Scientific Research with Gemini: Case Studies and Common Techniques"
+      source_path: TDA-Research/01-Literature/Research Papers/Gemini For Research.md
+      source_sha256: 43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24
+      sections:
+        - "### **2.7 Human-AI Collaboration Dynamics**"
+        - "### **9.2 Understanding Current Limitations and Failure Modes**"
+      project_additions: []
+  - asset_id: mth_theorem_retrieval_brief
+    name: Theorem Retrieval Brief
+    version: 1.0.0
+    path: .research-system/methods/assets/theorem-retrieval-brief.md
+    identity_scheme: git_blob_sha1
+    identity: 8ca3d5e25114feb2d1ff64389cf045f7a19c50f1
+    applicability_trigger: A proof gap may be bridged by an external theorem whose exact statement and assumptions are not yet in the supplied context.
+    compatibility: any
+    dependencies: []
+    permissions:
+      - read_supplied_research_context
+      - write_typed_candidate_output
+    observer_overlays: []
+    declared_review_state: candidate
+    supersedes: null
+    required_output: TheoremCitation
+    lineage:
+      source_id: woodruff-et-al-ai-assisted-research
+      source_title: "Accelerating Scientific Research with Gemini: Case Studies and Common Techniques"
+      source_path: TDA-Research/01-Literature/Research Papers/Gemini For Research.md
+      source_sha256: 43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24
+      sections:
+        - "### **2.2 Cross-Pollination of Ideas**"
+        - "### **2.3 Simulation and Counterexample Search**"
+      project_additions: []
+  - asset_id: mth_decomposition_scaffolding_template
+    name: Decomposition Scaffolding Template
+    version: 1.0.0
+    path: .research-system/methods/assets/decomposition-scaffolding-template.md
+    identity_scheme: git_blob_sha1
+    identity: a21f725460af817335decd8162b27ca724fae211
+    applicability_trigger: A research question is too broad for a single verifiable step and needs an explicit dependency-ordered decomposition.
+    compatibility: any
+    dependencies: []
+    permissions:
+      - read_supplied_research_context
+      - write_typed_candidate_output
+    observer_overlays: []
+    declared_review_state: candidate
+    supersedes: null
+    required_output: ExploratoryMemo
+    lineage:
+      source_id: woodruff-et-al-ai-assisted-research
+      source_title: "Accelerating Scientific Research with Gemini: Case Studies and Common Techniques"
+      source_path: TDA-Research/01-Literature/Research Papers/Gemini For Research.md
+      source_sha256: 43f65f8dfae9e0cb0a8493e517a3a19cc48432b5329b22345a64dfc731cccf24
+      sections:
+        - "### **2.1 Iterative Prompting and Refinement**"
+        - "### **2.8 Summary: The AI-Assisted Research Playbook**"
+      project_additions: []

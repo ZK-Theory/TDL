@@ -1,0 +1,25 @@
+schema_id: ars://contracts/artefact-authority-identity-manifest
+schema_version: 1.0.0
+candidate_state: proposed
+identity_surface: git_blob_utf8_lf
+components:
+  - component_id: artefact-authority-interface
+    candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-authority-interface.v1.yaml
+    canonical_path: .research-system/contracts/artefact-authority-interface.v1.yaml
+    git_blob: a59b6fb566005211827f2da05b0eb264493944ee
+    canonical_sha256: 9d707988b418b858d69ae2d3106c647a3978b8b0a6add84c34f518f42c3c1bc8
+  - component_id: artefact-consumer-predicates
+    candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-consumer-predicates.v1.yaml
+    canonical_path: .research-system/policies/artefact-consumer-predicates.v1.yaml
+    git_blob: 0376cc0a3b59a15e97794d59201ebbba7069d0eb
+    canonical_sha256: ffbe4d5c27087e0bf601b37cb73e01ac5a50f16b0d8f4b53f2571775ba06a80c
+  - component_id: artefact-consumer-predicates-schema
+    candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-consumer-predicates.schema.json
+    canonical_path: .research-system/schemas/policy/artefact-consumer-predicates.schema.json
+    git_blob: cde69a303faab61afef6ac4eaf07e21ee6a47e0c
+    canonical_sha256: 242f77c74d5033760ebb1f6e9bc4882697122354a5d100704a64b2a66dc4b550
+  - component_id: governing-review-set-rules
+    candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/governing-review-set-rules.v1.yaml
+    canonical_path: .research-system/policies/governing-review-set-rules.v1.yaml
+    git_blob: f9f274e51d947ffbda9e79d3453bcf88a901fba0
+    canonical_sha256: 35d7712359700650736618739bc1d9829b0047dd95c3d83679a7f309505a4daf

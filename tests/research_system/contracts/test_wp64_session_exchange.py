@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+from datetime import UTC, datetime
 import inspect
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -11,6 +13,7 @@ from jsonschema.exceptions import ValidationError
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, SchemaError
+from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.session_exchange import (
     EvidenceArtifact,
     SessionRecordLocator,
@@ -74,6 +77,15 @@ def _prepare_fixture(control_root: Path, **overrides):
 
 
 def _evidence_kwargs(control_root: Path) -> dict[str, object]:
+    brief = ObjectStore(control_root).read("artefact", BRIEF_ARTIFACT_ID, 1)
+    brief_bytes = canonical_bytes(brief)
+
+    class BriefConsumers:
+        def resolve_for_review(self, context, *, consumer_id):
+            assert consumer_id == "rm04_followup_review"
+            assert context.exact_content_sha256 == sha256_hex(brief_bytes)
+            return SimpleNamespace(content_bytes=brief_bytes)
+
     returned_path = control_root / "candidate.patch"
     returned_path.write_bytes(b"exact candidate bytes\n")
     tests_path = control_root / "focused-tests.txt"
@@ -118,6 +130,15 @@ def _evidence_kwargs(control_root: Path) -> dict[str, object]:
             ),
         ),
         "recorded_at": "2026-08-04T09:30:00Z",
+        "artefact_consumers": BriefConsumers(),
+        "brief_use_context": ArtefactConsumerContext(
+            artefact_id=BRIEF_ARTIFACT_ID,
+            exact_content_sha256=sha256_hex(brief_bytes),
+            project_id="prj_01978abc-6400-7000-8000-000000000009",
+            task_id=TASK_ID,
+            scope_id="session-review:wp6.4",
+            evaluation_time=datetime(2026, 8, 4, 9, 30, tzinfo=UTC),
+        ),
     }
 
 

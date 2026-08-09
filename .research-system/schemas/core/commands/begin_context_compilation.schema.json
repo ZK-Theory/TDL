@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/BeginContextCompilation",
+  "title": "W3 context lifecycle command: BeginContextCompilation",
+  "type": "object",
+  "properties": {
+    "command_type": {
+      "const": "BeginContextCompilation"
+    },
+    "schema_id": {
+      "const": "ars://core/command/BeginContextCompilation"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payload": {
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_id",
+        "request_id",
+        "revision",
+        "compiler_version",
+        "policy_version"
+      ]
+    }
+  },
+  "required": [
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "payload"
+  ]
+}

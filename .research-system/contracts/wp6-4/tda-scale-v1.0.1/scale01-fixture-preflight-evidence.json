@@ -1,0 +1,115 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale01-fixture-preflight-evidence",
+  "schema_version": "1.0.1",
+  "evidence_state": "observed_unreviewed",
+  "observed_at": "2026-08-08T23:00:23Z",
+  "operation_scope": "read_only_identity_and_no_write_preflight",
+  "project_binding": {
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
+    "origin_authority_root": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority",
+    "origin_witness_path": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority\\store-origins\\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
+    "origin_witness_sha256": "1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa",
+    "foundation_repository_path": ".research-system/config/foundation.yaml",
+    "foundation_git_commit": "a5d86ed9512a3db5e6532ca8dabf13d203b902e5",
+    "foundation_git_blob_id": "7c46e841ea3cb5c87684736a6e461b7d9a96c24f",
+    "foundation_raw_sha256": "3f9a0e6af3021f3c0273f003e5bebdc722b00e525671aa84163cac5cfa7541da",
+    "foundation_semantic_sha256": "0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22"
+  },
+  "fixture_root": {
+    "configured_path": "C:\\Users\\steph\\TDL",
+    "volume_id": "13903934379739225562",
+    "stable_file_id": "dev:13903934379739225562:ino:1970324839646002",
+    "write_capable": true,
+    "dispatch_consequence": "The current checkout is an identity-verification source only. WP6.6 must supply a read-only artefact grant or mount before admission or dispatch."
+  },
+  "fixtures": [
+    {
+      "fixture_alias": "F-BHPS-EMBED",
+      "geometry_alias": "G-MEDIAN",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/trajectory_tda_bhps/embeddings.npy",
+      "raw_bytes": 1361568,
+      "raw_sha256": "349fd443529a1212f03e8a1b8b189c02bdce6afffe82ea17c5ca8895e041b3c0",
+      "git_commit": null,
+      "git_blob_id": null,
+      "git_identity_status": "external_or_untracked_raw_identity_only"
+    },
+    {
+      "fixture_alias": "F-BHPS-TRAJ",
+      "geometry_alias": "G-MEDIAN",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/trajectory_tda_bhps/01_trajectories.json",
+      "raw_bytes": 1898001,
+      "raw_sha256": "a872606a435478515daa8edd91ac58172c173d61c8a8c2e2f12e305dc1b07b47",
+      "git_commit": "a5d86ed9512a3db5e6532ca8dabf13d203b902e5",
+      "git_blob_id": "93f3b036d1a3a09bde319c6555cd764e28809ac1",
+      "git_identity_status": "tracked_exact_blob"
+    },
+    {
+      "fixture_alias": "G-MEDIAN-CHECKPOINT",
+      "geometry_alias": "G-MEDIAN",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/panel_methodology/fdr/subgroup_checkpoints/bhps_nssec_Routine-Manual_B1000_seed42.json",
+      "raw_bytes": 579,
+      "raw_sha256": "9a0feef58c77d8e5d2b798db2936fc6c14f1f56518177b9d31ee71f2360bd8a7",
+      "git_commit": null,
+      "git_blob_id": null,
+      "git_identity_status": "external_or_untracked_raw_identity_only"
+    },
+    {
+      "fixture_alias": "F-USOC-EMBED",
+      "geometry_alias": "G-SLOW-L5000",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/trajectory_tda_integration/embeddings.npy",
+      "raw_bytes": 4364928,
+      "raw_sha256": "69b2ba55902565960e8009004d2c21332d3786e2af3e83edc4ac0a2d3a5f5540",
+      "git_commit": "a5d86ed9512a3db5e6532ca8dabf13d203b902e5",
+      "git_blob_id": "6e93382df54754303ad0684f11182b3834105b98",
+      "git_identity_status": "tracked_exact_blob"
+    },
+    {
+      "fixture_alias": "F-USOC-TRAJ",
+      "geometry_alias": "G-SLOW-L5000",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/trajectory_tda_integration/01_trajectories.json",
+      "raw_bytes": 5584666,
+      "raw_sha256": "d356874922685ac7052124b8a7897f6a52e5cde2a124a1ec4816bc30e6748c39",
+      "git_commit": "a5d86ed9512a3db5e6532ca8dabf13d203b902e5",
+      "git_blob_id": "5fc06e8d196df3faa3121c0f6f901c57386b69e8",
+      "git_identity_status": "tracked_exact_blob"
+    },
+    {
+      "fixture_alias": "G-SLOW-L5000-CHECKPOINT",
+      "geometry_alias": "G-SLOW-L5000",
+      "repository_root": "C:\\Users\\steph\\TDL",
+      "relative_path": "results/panel_methodology/fdr/subgroup_checkpoints/usoc_nssec_Routine-Manual_B1000_seed42.json",
+      "raw_bytes": 583,
+      "raw_sha256": "3c4dc1e29f2817b0f8c51a2b1892375053cb82b7f7223940f16797b207f06541",
+      "git_commit": null,
+      "git_blob_id": null,
+      "git_identity_status": "external_or_untracked_raw_identity_only"
+    }
+  ],
+  "fixture_set_sha256": "226b90fc9cf4335531346bd13bed9b08bb1d26526b8d51be67538749422f936c",
+  "pre_fixture_set_sha256": "226b90fc9cf4335531346bd13bed9b08bb1d26526b8d51be67538749422f936c",
+  "post_fixture_set_sha256": "226b90fc9cf4335531346bd13bed9b08bb1d26526b8d51be67538749422f936c",
+  "fixture_mutation_observed": false,
+  "rollback_and_recovery": {
+    "status": "satisfied_by_real_a8_restore_and_non_mutating_rejection",
+    "positive_candidate_id": "a8c_2034a902cc3e597d7094e4efb1cebe975690afe97f615bb54ea5bde0355b6e7b",
+    "positive_object_path": "C:\\Users\\steph\\TDL-ARS-WP64-Evidence\\real-a8-9b8c88d\\objects\\sha256-64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d.json",
+    "positive_object_raw_sha256": "64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d",
+    "positive_claim_raw_sha256": "47ad8e5f554983f11514ff7173b11a6eabe6f2b51f5eed5d6b2a89af655563cf",
+    "restore_binding_path": "C:\\Users\\steph\\TDL-ARS-WP64-Evidence\\operation-2026-08-08-r2\\control-binding-restored.json",
+    "restore_binding_raw_sha256": "6386a0f89720148e3b47f76b7ebc79b69d22f833b174f8e3e3f22b23e71ba6eb",
+    "runtime_inputs_raw_sha256": "f0a0707aa7a7a8507ca4b48dbf20cca2148d7533815138f214a057b36a5708df",
+    "exact_git_subject": "9b8c88d8427645551383e98b9b0f7fd5613520b8"
+  },
+  "publication_policy": {
+    "state_publication": "forbidden",
+    "provider_calls": "forbidden",
+    "legacy_writes": "forbidden"
+  }
+}
