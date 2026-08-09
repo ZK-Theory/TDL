@@ -1,4 +1,5 @@
 import json
+from dataclasses import FrozenInstanceError
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -15,6 +16,7 @@ from research_system.operations.resources import (
     RESOURCE_GRANT_V1_1_SCHEMA_VERSION,
 )
 from research_system.schema_registry import (
+    RegisteredSchema,
     SchemaBinding,
     SchemaRegistry,
     _is_rfc3339_date_time,
@@ -258,6 +260,72 @@ def test_versioned_catalogue_returns_exact_validated_source_identity(tmp_path):
     assert identity.sha256 == sha256(sources["1.0.0"]).hexdigest()
 
 
+def test_validation_and_resolution_share_one_frozen_registered_schema(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    source = root / "registered.schema.json"
+    source.write_text(
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/registered",\n'
+        '  "type": "object",\n'
+        '  "properties": {"schema_version": {"const": "1.0.0"}},\n'
+        '  "required": ["schema_version"],\n'
+        '  "additionalProperties": false\n'
+        "}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    registry = SchemaRegistry(root)
+
+    validated = registry.validate(
+        "ars://test/registered",
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+    resolved = registry.resolve_identity("ars://test/registered", "1.0.0")
+
+    assert isinstance(validated, RegisteredSchema)
+    assert validated is resolved
+    assert validated.raw_bytes_sha256 == sha256(source.read_bytes()).hexdigest()
+    assert validated.parsed["$id"] == validated.schema_id
+    with pytest.raises(FrozenInstanceError):
+        validated.schema_id = "ars://test/changed"
+    with pytest.raises(TypeError):
+        validated.parsed["$id"] = "ars://test/changed"
+    with pytest.raises(TypeError):
+        validated.parsed["properties"]["schema_version"]["const"] = "2.0.0"
+    with pytest.raises(TypeError):
+        validated.parsed["required"].append("changed")
+
+    source.write_text("{}\n", encoding="utf-8", newline="\n")
+    validated_after_source_mutation = registry.validate(
+        "ars://test/registered",
+        {"schema_version": "1.0.0"},
+        schema_version="1.0.0",
+    )
+    assert validated_after_source_mutation is validated
+    assert validated_after_source_mutation.raw_bytes != source.read_bytes()
+
+
+def test_registry_rejects_duplicate_exact_schema_identity(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    schema = (
+        "{\n"
+        '  "$schema": "https://json-schema.org/draft/2020-12/schema",\n'
+        '  "$id": "ars://test/duplicate",\n'
+        '  "schema_version": "1.0.0",\n'
+        '  "type": "object"\n'
+        "}\n"
+    )
+    (root / "first.schema.json").write_text(schema, encoding="utf-8", newline="\n")
+    (root / "second.schema.json").write_text(schema, encoding="utf-8", newline="\n")
+
+    with pytest.raises(SchemaError, match="duplicate schema"):
+        SchemaRegistry(root)
+
+
 def test_validation_rejects_wrong_recorded_source_hash():
     registry = SchemaRegistry(SCHEMAS)
 
@@ -441,6 +509,26 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         policy_action_type="accept_r3_assurance_requirement",
     )
     assert registry.policy_action_binding("wrong_policy_action") is None
+
+
+def test_runtime_binding_inventory_is_public_and_stably_ordered():
+    bindings = runtime_schema_registry(SCHEMAS).active_bindings()
+
+    assert len(bindings) == 112
+    assert bindings == tuple(
+        sorted(
+            bindings,
+            key=lambda binding: (
+                binding.schema_id,
+                binding.schema_version,
+                binding.command_type or "",
+                binding.event_type or "",
+                binding.producer_command_type or "",
+                binding.policy_action_type or "",
+            ),
+        )
+    )
+    assert len(set(bindings)) == len(bindings)
 
 
 def test_runtime_registry_reuses_one_instance_for_resolved_root_aliases():

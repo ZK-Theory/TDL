@@ -1,0 +1,177 @@
+from __future__ import annotations
+
+import ast
+from hashlib import sha256
+from pathlib import Path
+import subprocess
+
+import pytest
+import yaml
+
+from research_system.errors import ArsError
+from research_system.schema_registry import runtime_schema_registry
+from research_system.store.ledger import EventLedger
+from tests.research_system.factories import PROJECT_ID, REPO_ROOT, control_plane, create_task_command
+
+
+MANIFEST_PATH = Path(__file__).with_name("wp6_1_06h_current_append_manifest.yaml")
+SCHEMAS = REPO_ROOT / ".research-system" / "schemas"
+
+
+def _manifest() -> dict:
+    return yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+
+def _binding_digest() -> tuple[int, str]:
+    rows = (
+        (
+            binding.schema_id,
+            binding.schema_version,
+            binding.command_type or "",
+            binding.event_type or "",
+            binding.producer_command_type or "",
+            binding.policy_action_type or "",
+        )
+        for binding in runtime_schema_registry(SCHEMAS).active_bindings()
+    )
+    encoded = "".join("|".join(row) + "\n" for row in rows).encode()
+    return len(runtime_schema_registry(SCHEMAS).active_bindings()), sha256(encoded).hexdigest()
+
+
+def _git_object(path: str) -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", f"HEAD:{path}"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _append_sites() -> set[tuple[str, str, str]]:
+    found: set[tuple[str, str, str]] = set()
+    for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        stack: list[str] = []
+
+        class Visitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                stack.append(node.name)
+                self.generic_visit(node)
+                stack.pop()
+
+            visit_AsyncFunctionDef = visit_FunctionDef
+
+            def visit_Call(self, node: ast.Call) -> None:
+                if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
+                    receiver = ast.unparse(node.func.value)
+                    if "ledger" in receiver.lower():
+                        found.add((relative, stack[-1] if stack else "<module>", receiver))
+                self.generic_visit(node)
+
+        Visitor().visit(ast.parse(path.read_text(encoding="utf-8")))
+    return found
+
+
+def _manifest_append_sites(document: dict) -> set[tuple[str, str, str]]:
+    return {(row["path"], row["symbol"], row["receiver"]) for row in document["append_sites"]}
+
+
+def _reconcile_append_sites(
+    expected: set[tuple[str, str, str]],
+    observed: set[tuple[str, str, str]],
+) -> None:
+    missing = sorted(observed - expected)
+    stale = sorted(expected - observed)
+    assert not missing and not stale, f"unmanifested={missing}; stale={stale}"
+
+
+def _test_functions(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None:
+    document = _manifest()
+    authorities = document["accepted_authorities"]
+
+    assert (
+        _git_object(authorities["owner_source_catalogue"]["repository_path"])
+        == (authorities["owner_source_catalogue"]["git_blob_id"])
+    )
+    assert _git_object(".research-system/schemas/core/commands") == authorities["command_schema_tree"]
+    assert _git_object(".research-system/schemas/core/events") == authorities["event_schema_tree"]
+    assert _binding_digest() == (
+        document["runtime_bindings"]["count"],
+        document["runtime_bindings"]["sha256"],
+    )
+    _reconcile_append_sites(_manifest_append_sites(document), _append_sites())
+
+
+def test_manifest_controls_resolve_to_real_test_nodes() -> None:
+    for node_id in _manifest()["controls"]:
+        path_text, function = node_id.split("::", 1)
+        path = REPO_ROOT / path_text
+        assert path.is_file(), node_id
+        assert function in _test_functions(path), node_id
+
+
+def test_public_generic_append_uses_registered_schema_record(tmp_path: Path) -> None:
+    harness = control_plane(tmp_path)
+    command = create_task_command(
+        "cmd_019fe500-0001-7000-8000-000000000001",
+        "06h-current-public-path",
+        "tsk_019fe500-0002-7000-8000-000000000002",
+        {"title": "06h current append proof"},
+    )
+
+    receipt = harness.service.submit(command)
+    event = tuple(harness.ledger.iter_events())[0]
+    registered = harness.service.schemas.validate_active(
+        command["schema_id"],
+        command,
+        schema_version=command["schema_version"],
+    )
+
+    assert receipt.status == "accepted"
+    assert event["command_schema_id"] == registered.schema_id
+    assert event["command_schema_version"] == registered.schema_version
+    assert event["command_schema_sha256"] == registered.raw_bytes_sha256
+
+
+@pytest.mark.parametrize(
+    "schema_id",
+    ["ars://core/event/TaskCreated", "ars://wp6-2/t2/event/CostGrantIssued"],
+    ids=["generic", "t2"],
+)
+def test_runtime_ledger_rejects_missing_triple_for_generic_and_t2(
+    tmp_path: Path,
+    schema_id: str,
+) -> None:
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=runtime_schema_registry(SCHEMAS),
+    )
+
+    with pytest.raises(ArsError, match="complete command schema identity"):
+        ledger.append(
+            [
+                {
+                    "event_type": schema_id.rsplit("/", 1)[-1],
+                    "stream_id": "tsk_019fe500-0003-7000-8000-000000000003",
+                    "schema_id": schema_id,
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
+def test_unmanifested_append_site_fails_reconciliation() -> None:
+    expected = _manifest_append_sites(_manifest())
+    planted = _append_sites() | {("research_system/command/new_family.py", "submit_new_family", "service.ledger")}
+
+    with pytest.raises(AssertionError, match="new_family"):
+        _reconcile_append_sites(expected, planted)

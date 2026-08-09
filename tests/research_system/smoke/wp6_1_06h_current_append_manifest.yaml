@@ -1,0 +1,54 @@
+schema_id: ars://tests/wp6-1/06h-current-append-manifest
+schema_version: 1.0.0
+accounted_base: 9736c900fd4f72e84b2208eeff0dcfb2a2b44106
+assurance_lane: output_provenance
+accepted_authorities:
+  owner_source_catalogue:
+    repository_path: .research-system/contracts/wp6-1-owner-source-catalogue.yaml
+    git_blob_id: 1adc66921ee9c90d8786ff173748150922f1035e
+  command_schema_tree: 8a86a0c4921343e6a3afca3f491fad33e9a8a10f
+  event_schema_tree: 058c1d5ddcb9d249916977f12b11768b6d15de0f
+runtime_bindings:
+  count: 112
+  canonical_row_format: schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\\n
+  sha256: 4b7a5b1813415f360e12d40341320444fc13334a6cb78690effd0695eb4b2b6a
+historical_evidence:
+  pre_06h_freeze: non_reconstructible_not_recorded_before_existing_runtime_changes
+  candidate_default: require_complete_command_schema_identity_from_genesis
+  protocol_activation: none
+  owner_protocol_decision: pending_exact_subject_decision
+append_sites:
+  - path: research_system/authority.py
+    symbol: initialize_authority_control_store
+    receiver: ledger
+    classification: commandless_system_bootstrap
+  - path: research_system/command/service.py
+    symbol: submit
+    receiver: self.ledger
+    classification: generic_and_guarded_command_producer
+  - path: research_system/command/t2.py
+    symbol: submit_t2
+    receiver: service.ledger
+    classification: t2_command_producer
+  - path: research_system/evals/executors/control_store.py
+    symbol: execute_s009
+    receiver: ledger
+    classification: commandless_evaluation_fixture
+  - path: research_system/evals/executors/control_store.py
+    symbol: execute_s011
+    receiver: ledger
+    classification: commandless_evaluation_fixture
+  - path: research_system/evals/scenarios.py
+    symbol: recover_writer
+    receiver: ledger
+    classification: commandless_evaluation_fixture
+controls:
+  - tests/research_system/unit/test_schema_registry.py::test_validation_and_resolution_share_one_frozen_registered_schema
+  - tests/research_system/unit/test_schema_registry.py::test_registry_rejects_duplicate_exact_schema_identity
+  - tests/research_system/unit/test_schema_registry.py::test_runtime_binding_inventory_is_public_and_stably_ordered
+  - tests/research_system/unit/test_command_service.py::test_create_task_vertical_uses_exact_activated_schema_identity
+  - tests/research_system/unit/test_wp6_2_t2_runtime.py::test_closed_family_receipt_v2_reducers_projection_and_legacy_indices
+  - tests/research_system/unit/test_store.py::test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_public_generic_append_uses_registered_schema_record
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_runtime_ledger_rejects_missing_triple_for_generic_and_t2
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unmanifested_append_site_fails_reconciliation
