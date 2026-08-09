@@ -120,3 +120,7 @@ internals, so they survive refactors.
 - Attack capabilities after normal binding, across instances, and under replay/reuse; validate instance ownership and consumption at the protected seam.
 - Capture long test partitions independently so one timeout cannot erase completed evidence.
 - For decorated public APIs, test both runtime signatures and source-visible defaults/annotations; hidden parameters must be optional yet fail closed.
+- For existing durable stores, run layout and identity validation before any constructor or helper that can create directories, defaults, or metadata; rejection tests must prove the missing or partial layout is byte-for-byte unchanged.
+- Bind recovery markers to the complete validated command and resolved schema identity, and bind rollback to the exact object generation owned by that attempt. A different command committing the same target is a mandatory no-delete control.
+- Treat visible filesystem generations as untrusted after a failed directory flush. A retry must re-establish durability before interpreting or advancing them, including on native Windows.
+- For multi-resource cleanup, preserve the primary safety error, attempt every cleanup, and retain retryable ownership state for any close that failed. Test doubles must conform to the real lock/fence ownership record.
