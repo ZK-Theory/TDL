@@ -12,24 +12,26 @@
 
 **Candidate tree:** `01625ae2e64a90981f0721c9bb7b35bf7d3abe25`
 
+**Post-PR #229 integrated main:** `35f20340a026aafdd4eb17a594eff8a079f6a493`
+
+**Post-PR #229 production candidate:** `4ad065464c5e51f4cc0e4e633af910a548f2c697`
+
 **Historical candidate preserved:** `6cc557198f0fc0f624ffd834643ec2788f8d2711`
 
-**Status:** current-producer candidate preserved; G-RM-8 `GRANDFATHER` selected
-and under bounded construction; final post-PR #229 census, independent review,
-and owner acceptance remain open
+**Status:** current-producer and G-RM-8 `GRANDFATHER` construction preserved;
+the final post-PR #229 census is reconciled; independent review and owner
+acceptance remain open
 
 ## Capability truth
 
 C2 remains **INCOMPLETE**. The G-RM-9/current-schema identity, current producer
-binding, and complete append-path accounting candidate is implemented against
-the PR #222 merge, but 06h cannot be accepted until:
+binding, complete append-path accounting, and selected G-RM-8 exact-prefix
+protocol are implemented. The post-PR #229 census is reconciled at production
+candidate `4ad0654`. 06h cannot be accepted until:
 
-1. the selected `GRANDFATHER` protocol is implemented with the required positive,
-   new-malformed, repeat, genesis, incremental, and rollback/stop controls;
-2. the final binding census is reconciled after PR #229 integration;
-3. one fresh no-history independent reviewer assesses that complete exact
+1. one fresh no-history independent reviewer assesses the complete exact
    subject; and
-4. Stephen separately accepts the exact reviewed 06h subject.
+2. Stephen separately accepts the exact reviewed 06h subject.
 
 This record does not authorize 06i Stage A, author G-RM-14 bytes, authorize
 `artefact.register`, commission premature review, or claim acceptance.
@@ -68,6 +70,12 @@ bindings. The canonical rows
 `schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type`
 have SHA-256
 `4b7a5b1813415f360e12d40341320444fc13334a6cb78690effd0695eb4b2b6a`.
+
+After PR #229 and the intervening live-main merges were integrated at
+`35f2034`, the final census remained exactly 112 bindings with the same digest,
+and the AST reconciliation still found exactly the same six append sites. The
+exact evidence is recorded in
+`06h-post-pr229-reconciliation-evidence-4ad0654-2026-08-09.md`.
 
 ## Current candidate behavior
 
@@ -145,20 +153,11 @@ under `tracemalloc`, starting tracing immediately before construction:
 This is a bounded Python-allocation measurement for registry construction, not
 a process-RSS or production-load claim.
 
-## Exact owner decision still required
+## Recorded owner decision and remaining gate
 
-Stephen must select exactly one G-RM-8 branch after its required independent
-evidence is available:
-
-- **Migrate:** immutable store inventory, content-addressed transformation,
-  projection equivalence, repeat-run no-op, drift rejection, and atomic
-  owner-approved binding switch.
-- **Grandfather:** an attributed decision binding `store_identity`,
-  `ledger_fingerprint`, and `max_global_position`, with failure on any pin drift
-  or historical-set growth.
-- **No prior store:** independent declared-root/store/backup discovery plus
-  operator attestation and the planted out-of-first-root negative.
-- **Defer:** 06h and C2 remain owner-blocked.
-
-Until one choice is recorded and the selected branch is implemented and
-accepted, `artefact.register`, 06i Stage A, and G-RM-14 remain blocked.
+Stephen selected G-RM-8 `GRANDFATHER` for lineage `3c75d3d`. The attributed
+decision, exact prefix evidence, implementation, and fail-closed controls are
+preserved in reachable ancestors and the linked evidence records. The remaining
+06h gates are one fresh no-history review of the complete exact subject and
+Stephen's separate acceptance of that reviewed subject. Until that acceptance,
+`artefact.register`, 06i Stage A, and G-RM-14 remain blocked.

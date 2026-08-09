@@ -1,6 +1,8 @@
 schema_id: ars://tests/wp6-1/06h-current-append-manifest
 schema_version: 1.0.0
-accounted_base: 9736c900fd4f72e84b2208eeff0dcfb2a2b44106
+accounted_base: 35f20340a026aafdd4eb17a594eff8a079f6a493
+integrated_pr229_merge: a1c917f7e313d9636509795c525d12f97b695be3
+production_candidate: 4ad065464c5e51f4cc0e4e633af910a548f2c697
 assurance_lane: output_provenance
 accepted_authorities:
   owner_source_catalogue:
@@ -14,9 +16,10 @@ runtime_bindings:
   sha256: 4b7a5b1813415f360e12d40341320444fc13334a6cb78690effd0695eb4b2b6a
 historical_evidence:
   pre_06h_freeze: non_reconstructible_not_recorded_before_existing_runtime_changes
-  candidate_default: require_complete_command_schema_identity_from_genesis
-  protocol_activation: none
-  owner_protocol_decision: pending_exact_subject_decision
+  candidate_default: require_complete_command_schema_identity_except_exact_bound_prefix
+  protocol_activation: G-RM-8-GRANDFATHER/1.0.0
+  owner_protocol_decision: 07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74
+  decision_record: docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json
 append_sites:
   - path: research_system/authority.py
     symbol: initialize_authority_control_store
