@@ -425,6 +425,29 @@ class _PublicationDirectory:
             raise ConflictError("grandfather decision published destination disappeared") from exc
         self.ensure_current()
 
+    def cleanup_created_link(
+        self,
+        name: str,
+        data: bytes,
+        *,
+        source_name: str,
+        source_identity: tuple[int, int],
+    ) -> None:
+        """Remove a prohibited generation after this writer created the link."""
+        self.authenticate(source_name, data, source_identity=source_identity)
+        try:
+            self.authenticate(name, data, source_identity=None)
+        except (ConflictError, IntegrityError):
+            try:
+                self.unlink(name, missing_ok=True)
+            except (OSError, ConflictError, IntegrityError) as exc:
+                raise ConflictError("grandfather decision destination cleanup failed") from exc
+        try:
+            if self.exists(name):
+                self.authenticate(name, data, source_identity=None)
+        except (OSError, ConflictError, IntegrityError) as exc:
+            raise ConflictError("grandfather decision destination cleanup failed") from exc
+
     def unlink(self, name: str, *, missing_ok: bool) -> None:
         try:
             if self._descriptor is None:
@@ -606,6 +629,8 @@ def replay_grandfathered(
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Replay a ledger only after exact G-RM-8 prefix admission."""
+    if not isinstance(schema_registry, SchemaRegistry):
+        raise IntegrityError("grandfather schema registry is invalid")
     selected = load_selected_grandfather_decision()
     if decision.as_record() != selected.as_record():
         raise IntegrityError("grandfather decision authority mismatch")
@@ -666,15 +691,32 @@ def materialize_grandfather_decision(
                 temporary_identity = _file_identity(os.fstat(handle.fileno()))
             _verify_decision(ledger, decision)
             _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
+            created_link = False
             try:
                 publication.link(temporary_name, destination.name)
+                created_link = True
             except FileExistsError:
                 temporary_identity = None
-            publication.authenticate(
-                destination.name,
-                data,
-                source_identity=temporary_identity,
-            )
+            try:
+                publication.authenticate(
+                    destination.name,
+                    data,
+                    source_identity=temporary_identity,
+                )
+            except (ConflictError, IntegrityError) as publish_error:
+                if created_link:
+                    if temporary_identity is None:
+                        raise IntegrityError("grandfather decision publication source identity is unavailable")
+                    try:
+                        publication.cleanup_created_link(
+                            destination.name,
+                            data,
+                            source_name=temporary_name,
+                            source_identity=temporary_identity,
+                        )
+                    except ConflictError as cleanup_error:
+                        raise cleanup_error from publish_error
+                raise
             _verify_decision(ledger, decision)
             _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
         except BaseException:

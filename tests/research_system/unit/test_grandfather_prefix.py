@@ -286,6 +286,7 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
     output.parent.mkdir()
     replacement = b"post-link replacement\n"
     real_link = os.link
+    fsynced: list[Path] = []
     swapped = False
 
     def link_then_swap(source, destination, *args, **kwargs):
@@ -296,6 +297,12 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
         swapped = True
 
     monkeypatch.setattr(os, "link", link_then_swap)
+    monkeypatch.setattr(
+        grandfather_module,
+        "fsync_directory",
+        lambda path: fsynced.append(path),
+        raising=False,
+    )
 
     with pytest.raises((ConflictError, IntegrityError), match="published|destination"):
         materialize_grandfather_decision(
@@ -306,6 +313,71 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
         )
 
     assert swapped
+    assert not output.exists()
+    assert fsynced == [output.parent, output.parent, output.parent]
+
+
+def test_public_grandfather_materialization_reports_post_link_cleanup_race(tmp_path, monkeypatch):
+    harness, snapshot, decision = _decision(tmp_path)
+    output = tmp_path / "evidence" / "grandfather-decision.json"
+    output.parent.mkdir()
+    replacement = b"post-link replacement\n"
+    real_link = os.link
+    real_unlink = grandfather_module._PublicationDirectory.unlink
+
+    def link_then_swap(source, destination, *args, **kwargs):
+        real_link(source, destination, *args, **kwargs)
+        Path(destination).unlink()
+        Path(destination).write_bytes(replacement)
+
+    def unlink_then_replant(self, name, *, missing_ok):
+        real_unlink(self, name, missing_ok=missing_ok)
+        if name == output.name:
+            output.write_bytes(replacement)
+
+    monkeypatch.setattr(os, "link", link_then_swap)
+    monkeypatch.setattr(grandfather_module._PublicationDirectory, "unlink", unlink_then_replant)
+
+    with pytest.raises(ConflictError, match="cleanup failed"):
+        materialize_grandfather_decision(
+            harness.ledger,
+            decision,
+            output,
+            expected_snapshot=snapshot,
+        )
+
+    assert output.read_bytes() == replacement
+
+
+def test_public_grandfather_materialization_reports_post_link_cleanup_failure(tmp_path, monkeypatch):
+    harness, snapshot, decision = _decision(tmp_path)
+    output = tmp_path / "evidence" / "grandfather-decision.json"
+    output.parent.mkdir()
+    replacement = b"post-link replacement\n"
+    real_link = os.link
+    real_unlink = grandfather_module._PublicationDirectory.unlink
+
+    def link_then_swap(source, destination, *args, **kwargs):
+        real_link(source, destination, *args, **kwargs)
+        Path(destination).unlink()
+        Path(destination).write_bytes(replacement)
+
+    def reject_destination_unlink(self, name, *, missing_ok):
+        if name == output.name:
+            raise PermissionError("watched cleanup failure")
+        real_unlink(self, name, missing_ok=missing_ok)
+
+    monkeypatch.setattr(os, "link", link_then_swap)
+    monkeypatch.setattr(grandfather_module._PublicationDirectory, "unlink", reject_destination_unlink)
+
+    with pytest.raises(ConflictError, match="cleanup failed"):
+        materialize_grandfather_decision(
+            harness.ledger,
+            decision,
+            output,
+            expected_snapshot=snapshot,
+        )
+
     assert output.read_bytes() == replacement
 
 
@@ -401,6 +473,45 @@ def test_public_grandfather_replay_admits_exact_prefix_and_later_complete_event(
 
     assert projection["last_position"] == 2
     assert projection["streams"][later_task]["status"] == "draft"
+
+
+@pytest.mark.parametrize(
+    "invalid_registry",
+    (None, object(), {}),
+    ids=("none", "plain-object", "mapping"),
+)
+def test_public_grandfather_replay_rejects_malformed_registry_before_ledger_read(
+    tmp_path,
+    monkeypatch,
+    invalid_registry,
+):
+    harness, _, decision = _decision(tmp_path)
+    _pin_selected_decision(monkeypatch, tmp_path, decision)
+    monkeypatch.setattr(
+        harness.ledger,
+        "snapshot",
+        lambda: pytest.fail("malformed registry reached the ledger read boundary"),
+    )
+
+    with pytest.raises(IntegrityError, match="grandfather schema registry is invalid"):
+        replay_grandfathered(
+            harness.ledger,
+            decision,
+            schema_registry=invalid_registry,
+        )
+
+
+def test_public_grandfather_replay_accepts_schema_registry_at_entry(tmp_path, monkeypatch):
+    harness, _, decision = _decision(tmp_path)
+    _pin_selected_decision(monkeypatch, tmp_path, decision)
+
+    projection = replay_grandfathered(
+        harness.ledger,
+        decision,
+        schema_registry=harness.schemas,
+    )
+
+    assert projection["last_position"] == 1
 
 
 def test_public_grandfather_replay_admits_exact_missing_triple_within_bound(tmp_path, monkeypatch):
