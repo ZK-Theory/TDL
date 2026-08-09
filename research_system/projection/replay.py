@@ -12,6 +12,7 @@ from research_system.authority import (
     SCOPED_AUTHORITY_ADMISSION_VERSION,
     SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
     SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
@@ -44,21 +45,68 @@ _ALLOWED_DISPOSITIONS = frozenset(
 )
 
 
-def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str, str]:
+_SCOPED_ACTIVATION_SCHEMA_VERSIONS = {
+    ("1.0.0", "1.0.0"): LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    ("1.1.0", "1.1.0"): SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+}
+
+_ISSUED_REVOCATION_SCHEMA_VERSIONS = {
+    ("1.0.0", "1.0.0"): LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    ("1.0.0", "1.1.0"): SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+}
+
+
+def _scoped_grant_schema_for_command(
+    command_type: str,
+    *,
+    command_schema_version: str | None = None,
+    event_schema_version: str | None = None,
+) -> tuple[str, str, str]:
     if command_type == "ActivateExternalAssuranceRecordGrant":
         return (
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
             "ars://core/event/ExternalAssuranceRecordGrantActivated",
         )
+    if command_schema_version is None or event_schema_version is None:
+        grant_version = SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
+    else:
+        try:
+            grant_version = _SCOPED_ACTIVATION_SCHEMA_VERSIONS[(command_schema_version, event_schema_version)]
+        except KeyError as exc:
+            raise IntegrityError("unsupported scoped authority activation schema versions") from exc
     return (
         SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
-        SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        grant_version,
         "ars://core/event/ScopedAuthorityGrantActivated",
     )
 
 
-def _issued_revocation_schema_for_command(command_type: str) -> tuple[str, str, str]:
+def _is_historical_scoped_activation(event: dict[str, Any]) -> bool:
+    return (
+        event.get("command_type") == "ActivateAuthorityGrant"
+        and event.get("command_schema_id") == "ars://core/command/ActivateAuthorityGrant"
+        and event.get("schema_id") == "ars://core/event/ScopedAuthorityGrantActivated"
+        and (event.get("command_schema_version"), event.get("schema_version")) == ("1.0.0", "1.0.0")
+    )
+
+
+def _is_historical_issued_revocation(event: dict[str, Any]) -> bool:
+    return (
+        event.get("command_type") == "RevokeIssuedAuthorityGrant"
+        and event.get("command_schema_id") == "ars://core/command/RevokeIssuedAuthorityGrant"
+        and event.get("command_schema_version") == "1.0.0"
+        and event.get("schema_id") == "ars://core/event/IssuedAuthorityGrantRevoked"
+        and event.get("schema_version") == "1.0.0"
+    )
+
+
+def _issued_revocation_schema_for_command(
+    command_type: str,
+    *,
+    command_schema_version: str | None = None,
+    event_schema_version: str | None = None,
+) -> tuple[str, str, str]:
     if command_type == "RevokeExternalAssuranceRecordGrant":
         return (
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
@@ -66,9 +114,16 @@ def _issued_revocation_schema_for_command(command_type: str) -> tuple[str, str, 
             "ars://core/event/ExternalAssuranceRecordGrantRevoked",
         )
     if command_type == "RevokeIssuedAuthorityGrant":
+        if command_schema_version is None or event_schema_version is None:
+            grant_version = SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
+        else:
+            try:
+                grant_version = _ISSUED_REVOCATION_SCHEMA_VERSIONS[(command_schema_version, event_schema_version)]
+            except KeyError as exc:
+                raise IntegrityError("unsupported issued authority revocation schema versions") from exc
         return (
             SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
-            SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+            grant_version,
             "ars://core/event/IssuedAuthorityGrantRevoked",
         )
     raise ValueError(f"unsupported issued authority revocation command: {command_type}")
@@ -99,6 +154,28 @@ def _validate_active_lifecycle_binding(
         return
     if schema_registry is None:
         raise IntegrityError("exact lifecycle schema registry unavailable")
+    if _is_historical_scoped_activation(event):
+        try:
+            command_identity = schema_registry.resolve_identity(
+                "ars://core/command/ActivateAuthorityGrant",
+                "1.0.0",
+            )
+        except SchemaError as exc:
+            raise IntegrityError("historical authority command binding is unresolved") from exc
+        if event["command_schema_sha256"] != command_identity.sha256:
+            raise IntegrityError("exact lifecycle command schema hash mismatch")
+        return
+    if _is_historical_issued_revocation(event):
+        try:
+            command_identity = schema_registry.resolve_identity(
+                "ars://core/command/RevokeIssuedAuthorityGrant",
+                "1.0.0",
+            )
+        except SchemaError as exc:
+            raise IntegrityError("historical authority command binding is unresolved") from exc
+        if event["command_schema_sha256"] != command_identity.sha256:
+            raise IntegrityError("exact lifecycle command schema hash mismatch")
+        return
     command_binding = schema_registry.command_binding(command_type)
     event_binding = schema_registry.event_binding(
         event["event_type"],
@@ -143,6 +220,20 @@ def _validate_recorded_event_schema(
     recorded_schema = str(event.get("schema_id", ""))
     recorded_version = str(event.get("schema_version", ""))
     if recorded_schema == "ars://core/event":
+        return
+    if _is_historical_scoped_activation(event):
+        schema_registry.validate(
+            "ars://core/event/ScopedAuthorityGrantActivated",
+            event,
+            schema_version="1.0.0",
+        )
+        return
+    if _is_historical_issued_revocation(event):
+        schema_registry.validate(
+            "ars://core/event/IssuedAuthorityGrantRevoked",
+            event,
+            schema_version="1.0.0",
+        )
         return
     event_binding = schema_registry.event_binding(
         str(event.get("event_type", "")),
@@ -428,7 +519,9 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "ActivateExternalAssuranceRecordGrant",
         }:
             grant_schema_id, grant_schema_version, event_schema_id = _scoped_grant_schema_for_command(
-                str(event.get("command_type"))
+                str(event.get("command_type")),
+                command_schema_version=str(event.get("command_schema_version")),
+                event_schema_version=str(event.get("schema_version")),
             )
             expected_fields = {
                 "authority_admission_version",
@@ -535,7 +628,9 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "RevokeExternalAssuranceRecordGrant",
         }:
             grant_schema_id, grant_schema_version, event_schema_id = _issued_revocation_schema_for_command(
-                event["command_type"]
+                event["command_type"],
+                command_schema_version=str(event.get("command_schema_version", "")),
+                event_schema_version=str(event.get("schema_version", "")),
             )
             expected_fields = {
                 "authority_admission_version",
@@ -673,6 +768,159 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_backup(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
+    elif event_type == "ArtefactRegistered":
+        payload = event["payload"]
+        manifest = payload.get("manifest") if isinstance(payload, dict) else None
+        if (
+            stream_id in streams
+            or not isinstance(manifest, dict)
+            or payload.get("new_artefact_id") != stream_id
+            or manifest.get("artefact_id") != stream_id
+            or not isinstance(manifest.get("authority"), dict)
+            or manifest["authority"].get("use_authority") != "candidate"
+        ):
+            raise IntegrityError("invalid artefact registration transition")
+        streams[stream_id] = {
+            "artefact_id": stream_id,
+            "manifest": deepcopy(manifest),
+            "content_sha256": manifest.get("content_sha256"),
+            "use_authority": "candidate",
+            "scientific_reviews": [],
+            "version": event["stream_version"],
+        }
+    elif event_type == "ScientificReviewRecorded":
+        payload = event["payload"]
+        current = streams.get(stream_id)
+        if (
+            not isinstance(current, dict)
+            or current.get("artefact_id") != stream_id
+            or not isinstance(payload, dict)
+            or payload.get("artefact_id") != stream_id
+            or payload.get("subject_sha256") != current.get("content_sha256")
+        ):
+            raise IntegrityError("invalid scientific review transition")
+        reviews = list(current.get("scientific_reviews", []))
+        if any(review.get("review_id") == payload.get("review_id") for review in reviews):
+            raise IntegrityError("duplicate scientific review identity")
+        reviews.append(
+            {
+                **deepcopy(payload),
+                "reviewer_actor_id": event["actor_id"],
+                "event_id": event["event_id"],
+                "event_hash": event["event_hash"],
+                "recorded_at": event["recorded_at"],
+            }
+        )
+        streams[stream_id] = {
+            **current,
+            "scientific_reviews": reviews,
+            "version": event["stream_version"],
+        }
+    elif event_type == "ArtefactUseAuthoritySet":
+        payload = event["payload"]
+        current = streams.get(stream_id)
+        if (
+            not isinstance(current, dict)
+            or current.get("artefact_id") != stream_id
+            or not isinstance(payload, dict)
+            or payload.get("artefact_id") != stream_id
+            or payload.get("subject_sha256") != current.get("content_sha256")
+            or payload.get("use_authority") == "candidate"
+        ):
+            raise IntegrityError("invalid artefact use-authority transition")
+        streams[stream_id] = {
+            **current,
+            "use_authority": payload["use_authority"],
+            "consumer_predicate": payload["consumer_predicate"],
+            "authority_evidence_refs": list(payload["evidence_refs"]),
+            "authority_event_id": event["event_id"],
+            "authority_event_hash": event["event_hash"],
+            "version": event["stream_version"],
+        }
+    elif event_type == "DecisionResolved":
+        payload = event["payload"]
+        if stream_id in streams or not isinstance(payload, dict) or payload.get("decision_id") != stream_id:
+            raise IntegrityError("invalid decision resolution transition")
+        projection = {
+            **deepcopy(payload),
+            "status": "resolved",
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "version": event["stream_version"],
+        }
+        updated.setdefault("decisions", {})[stream_id] = projection
+        streams[stream_id] = projection
+    elif event_type in {
+        "ContextPacketRequested",
+        "ContextCompilationStarted",
+        "ContextPacketCompiled",
+        "ContextPacketValidated",
+        "ContextPacketIssued",
+        "ContextPacketDelivered",
+        "ContextPacketFailed",
+        "ContextPacketExpired",
+        "ContextPacketSuperseded",
+    }:
+        payload = event["payload"]
+        if not isinstance(payload, dict) or payload.get("context_id") != stream_id:
+            raise IntegrityError("invalid context lifecycle identity")
+        current = streams.get(stream_id)
+        current_state = current.get("status") if isinstance(current, dict) else None
+        next_state = {
+            "ContextPacketRequested": "requested",
+            "ContextCompilationStarted": "compiling",
+            "ContextPacketCompiled": "compiled",
+            "ContextPacketValidated": "validated",
+            "ContextPacketIssued": "issued",
+            "ContextPacketDelivered": "delivered",
+            "ContextPacketFailed": "failed",
+            "ContextPacketExpired": "expired",
+            "ContextPacketSuperseded": "superseded",
+        }[event_type]
+        allowed = {
+            None: {"requested"},
+            "requested": {"compiling", "failed"},
+            "compiling": {"compiled", "failed"},
+            "compiled": {"validated", "failed"},
+            "validated": {"issued"},
+            "issued": {"delivered", "expired", "superseded"},
+            "delivered": {"expired", "superseded"},
+            "failed": set(),
+            "expired": set(),
+            "superseded": set(),
+        }
+        if next_state not in allowed[current_state]:
+            raise IntegrityError("invalid context lifecycle transition")
+        history = list(current.get("history", [])) if isinstance(current, dict) else []
+        history.append(
+            {
+                "event_type": event_type,
+                "event_id": event["event_id"],
+                "event_hash": event["event_hash"],
+                "payload": deepcopy(payload),
+            }
+        )
+        streams[stream_id] = {
+            **(current if isinstance(current, dict) else {}),
+            "context_id": stream_id,
+            "status": next_state,
+            "history": history,
+            "request": deepcopy(payload) if event_type == "ContextPacketRequested" else (current or {}).get("request"),
+            "compilation": deepcopy(payload)
+            if event_type == "ContextPacketCompiled"
+            else (current or {}).get("compilation"),
+            "validation": deepcopy(payload)
+            if event_type == "ContextPacketValidated"
+            else (current or {}).get("validation"),
+            "issuance": deepcopy(payload) if event_type == "ContextPacketIssued" else (current or {}).get("issuance"),
+            "delivery": deepcopy(payload)
+            if event_type == "ContextPacketDelivered"
+            else (current or {}).get("delivery"),
+            "terminal": deepcopy(payload)
+            if next_state in {"failed", "expired", "superseded"}
+            else (current or {}).get("terminal"),
+            "version": event["stream_version"],
+        }
     elif event_type == "ScopeCompleted":
         _validate_scope_completion(event["payload"])
         streams[stream_id] = {
@@ -861,7 +1109,14 @@ def replay(
                         schema_version=str(event.get("schema_version", "")),
                     )
                 else:
-                    schema_registry.validate("ars://core/event", event)
+                    if (
+                        schema_registry.event_binding(
+                            str(event.get("event_type", "")),
+                            str(event.get("command_type", "")),
+                        )
+                        is None
+                    ):
+                        schema_registry.validate("ars://core/event", event)
                     _validate_recorded_event_schema(event, schema_registry)
             except SchemaError as exc:
                 raise IntegrityError(f"event schema validation failed at {position}") from exc

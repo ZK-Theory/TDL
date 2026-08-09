@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://context/context-delivery-receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": {"const": "ars://context/context-delivery-receipt"},
+    "schema_version": {"const": "1.0.0"},
+    "delivery_receipt_id": {"type": "string", "pattern": "^ctx_"},
+    "context_id": {"type": "string", "pattern": "^ctx_"},
+    "packet_revision": {"type": "integer", "minimum": 1},
+    "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "recipient_id": {"type": "string", "minLength": 1},
+    "recipient_session_id": {"type": "string", "minLength": 1},
+    "adapter_id": {"type": "string", "minLength": 1},
+    "delivered_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  },
+  "required": ["schema_id", "schema_version", "delivery_receipt_id", "context_id", "packet_revision", "packet_sha256", "recipient_id", "recipient_session_id", "adapter_id", "delivered_at"]
+}

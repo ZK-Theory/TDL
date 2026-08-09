@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
+from datetime import UTC, datetime
 import shutil
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +12,7 @@ from research_system.assurance.external_records import ExternalRecordResolution
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, SchemaError
+from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.session_exchange import (
     EvidenceArtifact,
     SessionRecordPublicationContext,
@@ -539,6 +542,22 @@ def test_session_evidence_advances_only_from_governed_distinct_party_records(
         brief_bytes=b"Return exact implementation and test evidence.",
         prepared_at="2026-07-12T09:00:00Z",
     )
+    brief_bytes = canonical_bytes(brief.document)
+
+    class BriefConsumers:
+        def resolve_for_review(self, context, *, consumer_id):
+            assert consumer_id == "rm04_followup_review"
+            assert context.exact_content_sha256 == sha256_hex(brief_bytes)
+            return SimpleNamespace(content_bytes=brief_bytes)
+
+    brief_context = ArtefactConsumerContext(
+        artefact_id=str(subject["brief_artifact_id"]),
+        exact_content_sha256=sha256_hex(brief_bytes),
+        project_id=PROJECT_ID,
+        task_id=str(subject["task_id"]),
+        scope_id="session-review:wp6.4",
+        evaluation_time=datetime(2026, 7, 12, 9, 30, tzinfo=UTC),
+    )
     returned_path = tmp_path / "returned.txt"
     test_path = tmp_path / "test.txt"
     returned_path.write_bytes(b"implementation evidence\n")
@@ -570,6 +589,8 @@ def test_session_evidence_advances_only_from_governed_distinct_party_records(
         ),
         "producer_verdict": "completed",
         "unresolved_findings": (UnresolvedFinding("WP64-NOTE", "note", "Owner acceptance remains separate."),),
+        "artefact_consumers": BriefConsumers(),
+        "brief_use_context": brief_context,
     }
 
     revision_1 = record_session_evidence(

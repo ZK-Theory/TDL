@@ -46,6 +46,7 @@ from research_system.evals.release_snapshot import (
     build_release_snapshot_documents,
     rederive_release_from_snapshot,
 )
+from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.evals.variants import Gate5VariantRow, build_observed_assertion_evidence
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
@@ -251,6 +252,39 @@ def evidence_resolver(*, derived: dict | None = None, gate: object = False):
         evaluation_runs_manifest=manifest,
         control_binding_ref=CONTROL_REF,
         control_binding=control,
+        expected_store_identity="4" * 64,
+        rederive=rederive,
+    )
+
+
+def stored_authority_evidence(
+    documents: dict[str, bytes],
+    *,
+    rederive=rederive_release_from_snapshot,
+) -> StoredReleasePublicationEvidence:
+    contexts = {
+        reference: ArtefactConsumerContext(
+            artefact_id=reference,
+            exact_content_sha256=sha256_hex(content),
+            project_id=PROJECT_ID,
+            task_id="tsk_01978abc-2020-7000-8000-000000002020",
+            scope_id="release:wp6.4",
+            evaluation_time=datetime(2026, 7, 13, 12, tzinfo=UTC),
+        )
+        for reference, content in documents.items()
+    }
+
+    class Consumers:
+        def resolve_for_result(self, context, *, consumer_id):
+            assert consumer_id == "release_publication"
+            content = documents[context.artefact_id]
+            if sha256_hex(content) != context.exact_content_sha256:
+                raise ArsError("artefact content authority changed")
+            return SimpleNamespace(content_bytes=content)
+
+    return StoredReleasePublicationEvidence(
+        consumers=Consumers(),
+        context_for_reference=contexts.__getitem__,
         expected_store_identity="4" * 64,
         rederive=rederive,
     )
@@ -571,33 +605,19 @@ def test_release_evidence_schema_rejects_unknown_nested_fields(
 def test_stored_evidence_resolves_after_restart_and_rejects_byte_tamper(
     tmp_path,
 ) -> None:
-    _source, stored_manifest, stored_control = producer_snapshot()
-    manifest = deepcopy(stored_manifest)
-    control = deepcopy(stored_control)
+    manifest = {"document": "evaluation-runs", "project_id": PROJECT_ID}
+    control = {"document": "control-binding", "project_id": PROJECT_ID}
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
-    objects = ObjectStore(tmp_path)
-    manifest_path = objects.write("artefact", manifest_ref, 1, manifest)
-    objects.write("artefact", control_ref, 1, control)
-    restarted = StoredReleasePublicationEvidence(
-        ObjectStore(tmp_path),
-        "4" * 64,
-        rederive_release_from_snapshot,
-    )
+    documents = {
+        manifest_ref: canonical_bytes(manifest),
+        control_ref: canonical_bytes(control),
+    }
+    restarted = stored_authority_evidence(documents)
     assert restarted.resolve_evaluation_runs(manifest_ref) == manifest
-    verify_release_publication(
-        ReleasePublicationRequest.from_dict(
-            {
-                **publication_request(),
-                "evaluation_runs_manifest_ref": manifest_ref,
-                "control_binding_ref": control_ref,
-            }
-        ),
-        restarted,
-        SchemaRegistry(ROOT / ".research-system" / "schemas"),
-    )
-    manifest_path.write_bytes(manifest_path.read_bytes() + b" ")
-    with pytest.raises(IntegrityError, match="canonical"):
+    assert restarted.resolve_control_binding(control_ref) == control
+    documents[manifest_ref] += b" "
+    with pytest.raises(PublicationEvidenceError, match="authority resolution"):
         restarted.resolve_evaluation_runs(manifest_ref)
 
 
@@ -793,31 +813,32 @@ def test_release_result_identity_tamper_fails_closed(field, invalid) -> None:
         )
 
 
-def test_stored_snapshot_rederivation_uses_resolved_documents(tmp_path) -> None:
-    _source, stored_manifest, stored_control = producer_snapshot()
-    manifest = deepcopy(stored_manifest)
-    control = deepcopy(stored_control)
-    objects = ObjectStore(tmp_path)
+def test_stored_snapshot_rederivation_uses_resolved_documents() -> None:
+    manifest = {"document": "evaluation-runs", "project_id": PROJECT_ID}
+    control = {"document": "control-binding", "project_id": PROJECT_ID}
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
-    objects.write("artefact", manifest_ref, 1, manifest)
-    objects.write("artefact", control_ref, 1, control)
-    verified = verify_release_publication(
-        ReleasePublicationRequest.from_dict(
-            {
-                **publication_request(),
-                "evaluation_runs_manifest_ref": manifest_ref,
-                "control_binding_ref": control_ref,
-            }
-        ),
-        StoredReleasePublicationEvidence(
-            objects,
-            "4" * 64,
-            rederive_release_from_snapshot,
-        ),
-        SchemaRegistry(ROOT / ".research-system" / "schemas"),
+    observed: list[tuple[dict, dict]] = []
+
+    def rederive(resolved_manifest, resolved_control):
+        observed.append((resolved_manifest, resolved_control))
+        return {"decision": "derived"}, SimpleNamespace()
+
+    resolver = stored_authority_evidence(
+        {
+            manifest_ref: canonical_bytes(manifest),
+            control_ref: canonical_bytes(control),
+        },
+        rederive=rederive,
     )
-    assert verified.source_decision_sha256 == sha256_hex(canonical_bytes(source_decision()))
+    resolved_manifest = resolver.resolve_evaluation_runs(manifest_ref)
+    resolved_control = resolver.resolve_control_binding(control_ref)
+    decision, _gate = resolver.rederive_release_decision(
+        resolved_manifest,
+        resolved_control,
+    )
+    assert observed == [(manifest, control)]
+    assert decision == {"decision": "derived"}
 
 
 def test_concurrent_identical_producer_snapshot_writes_are_idempotent(

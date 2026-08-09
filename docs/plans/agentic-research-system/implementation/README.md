@@ -33,8 +33,8 @@
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **proposed**. Closes the P-043 producer-emits gap across both the generic and T2 producer paths, records the pre-change baseline, and specifies the G-RM-8 migration/grandfather/no-store protocols
-9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **staged plan; non-dispatchable**. The accepted P-044 amendment preserves historical G-RM-10 and defines open G-RM-14. Stage A remains blocked on accepted 06h, an admissible suite review and explicit G-RM-3; Stage B additionally requires acceptance of the exact G-RM-14 candidate
-10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **integrated WP6.1 obligation; not implemented**. G-RM-3 is closed for the plan suite. Stage A still requires accepted 06h; Stage B requires independent review and G-RM-12 acceptance of the exact nine-command candidate and preserves phase-qualified failures plus the sealed capability/template boundary
+9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **implemented and production-path proven in the WP6.4 integrated candidate; exact-subject review and integration pending**. The candidate uses real command submission, replay-derived authority, governing scientific-review evidence, root-bound content reads, and the fixed production-consumer ports. G-RM-14 disposition follows the final exact-subject review.
+10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **implemented and production-path proven in the WP6.4 integrated candidate; exact-subject review and integration pending**. The nine-command lifecycle, immutable packet/delivery objects, consumer resolver, and real CommandService adapter execute through the public brief round trip. G-RM-12 disposition follows the final exact-subject review.
 11. [WP6.7 legacy consolidation sequencing](06l-wp6-7-legacy-consolidation-sequencing.md) — sequencing only; this is a distinct legacy-integration scope and path from 06i's artefact-authority and production-consumer firewall plan, not a collision or supersession.
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
@@ -54,13 +54,16 @@ therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
 authorized. ARS does not invoke Claude or Codex or handle their OAuth
 credentials.
 
-## Research Methods obligations — integrated by P-047, **capabilities not runnable**
+## Research Methods obligations — integrated by P-047, **candidate production path proven**
 
 P-047 retires separate-lane tracking. WP6.1 owns 06h, 06i, 06j and RM-01;
 WP6.4 owns RM-02, RM-03 and RM-04's governed non-executing verification-return
 path; Gate 9 owns only RM-04's manuscript pilot. RM-05 remains deferred behind
-G-RM-11. None of the RM-02/RM-03/RM-04 runtime, schemas, CLI or tests exists on
-current `main`, so those capabilities are NOT RUNNABLE.
+G-RM-11. The WP6.4 integrated candidate now contains the RM-02 assets and
+history verifier, real `ars brief export` / `ars brief import` production path,
+and RM-04 non-executing verification-request/return records. The public path is
+proven with durable candidate registration and restart/replay equality; it is
+not integrated on `main` until final exact-subject review and merge complete.
 
 **G-RM-3 is closed** for exact commit `0137d2c` and tree `ee7d510` by the
 2026-07-31 owner record after zero-finding independent review. Do not repeat it.

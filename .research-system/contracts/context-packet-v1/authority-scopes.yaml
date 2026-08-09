@@ -1,0 +1,16 @@
+schema_version: 1.0.0
+lifecycle: context-packet-v1
+scopes:
+  RequestContextPacket: context.request
+  BeginContextCompilation: context.compile
+  CompleteContextCompilation: context.compile
+  ValidateContextPacket: context.validate
+  IssueContextPacket: context.issue
+  RecordContextDelivery: context.deliver
+  FailContextPacket: context.fail
+  ExpireContextPacket: context.expire
+  SupersedeContextPacket: context.supersede
+independence_rules:
+  validate_requires_independent_evidence: true
+  issue_requires_authority_grant: true
+  deliver_requires_exact_recipient_and_hash: true

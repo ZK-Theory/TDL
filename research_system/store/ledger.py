@@ -303,7 +303,6 @@ class EventLedger:
                 schema_version=event_schema_version,
             )
             return
-        schemas.validate("ars://core/event", validation_payload)
         if event_binding is not None:
             schemas.validate_active(
                 event_binding.schema_id,
@@ -311,6 +310,7 @@ class EventLedger:
                 schema_version=event_binding.schema_version,
             )
             return
+        schemas.validate("ars://core/event", validation_payload)
         payload_schema = f"{event_schema}/payload"
         if event_schema != "ars://core/event":
             if schemas.requires_command_provenance and schemas.contains(payload_schema):

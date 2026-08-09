@@ -188,7 +188,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        "2.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-scoped-authority-grant",
@@ -196,7 +196,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/owner-authority-administration-decision",
-        "1.0.0",
+        "1.1.0",
     ),
     SchemaBinding(
         "ars://core/external-assurance-record-owner-authority-administration-decision",
@@ -224,7 +224,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/command/ActivateAuthorityGrant",
-        "1.0.0",
+        "1.1.0",
         command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
@@ -244,7 +244,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/ScopedAuthorityGrantActivated",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
     ),
@@ -256,7 +256,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://core/event/IssuedAuthorityGrantRevoked",
-        "1.0.0",
+        "1.1.0",
         event_type="AuthorityGrantRevoked",
         producer_command_type="RevokeIssuedAuthorityGrant",
     ),
@@ -531,6 +531,113 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="BackupCreated",
         producer_command_type="CreateBackup",
+    ),
+    SchemaBinding(
+        "ars://core/command/RegisterArtefact",
+        "1.0.0",
+        command_type="RegisterArtefact",
+    ),
+    SchemaBinding(
+        "ars://core/event/ArtefactRegistered",
+        "1.0.0",
+        event_type="ArtefactRegistered",
+        producer_command_type="RegisterArtefact",
+    ),
+    SchemaBinding(
+        "ars://core/command/RecordScientificReview",
+        "1.0.0",
+        command_type="RecordScientificReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/ScientificReviewRecorded",
+        "1.0.0",
+        event_type="ScientificReviewRecorded",
+        producer_command_type="RecordScientificReview",
+    ),
+    SchemaBinding(
+        "ars://core/command/ResolveDecision",
+        "1.0.0",
+        command_type="ResolveDecision",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionResolved",
+        "1.0.0",
+        event_type="DecisionResolved",
+        producer_command_type="ResolveDecision",
+    ),
+    SchemaBinding(
+        "ars://core/command/SetArtefactUseAuthority",
+        "1.0.0",
+        command_type="SetArtefactUseAuthority",
+    ),
+    SchemaBinding(
+        "ars://core/event/ArtefactUseAuthoritySet",
+        "1.0.0",
+        event_type="ArtefactUseAuthoritySet",
+        producer_command_type="SetArtefactUseAuthority",
+    ),
+    SchemaBinding("ars://core/command/RequestContextPacket", "1.0.0", command_type="RequestContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketRequested",
+        "1.0.0",
+        event_type="ContextPacketRequested",
+        producer_command_type="RequestContextPacket",
+    ),
+    SchemaBinding("ars://core/command/BeginContextCompilation", "1.0.0", command_type="BeginContextCompilation"),
+    SchemaBinding(
+        "ars://core/event/ContextCompilationStarted",
+        "1.0.0",
+        event_type="ContextCompilationStarted",
+        producer_command_type="BeginContextCompilation",
+    ),
+    SchemaBinding("ars://core/command/CompleteContextCompilation", "1.0.0", command_type="CompleteContextCompilation"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketCompiled",
+        "1.0.0",
+        event_type="ContextPacketCompiled",
+        producer_command_type="CompleteContextCompilation",
+    ),
+    SchemaBinding("ars://core/command/ValidateContextPacket", "1.0.0", command_type="ValidateContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketValidated",
+        "1.0.0",
+        event_type="ContextPacketValidated",
+        producer_command_type="ValidateContextPacket",
+    ),
+    SchemaBinding("ars://core/command/IssueContextPacket", "1.0.0", command_type="IssueContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketIssued",
+        "1.0.0",
+        event_type="ContextPacketIssued",
+        producer_command_type="IssueContextPacket",
+    ),
+    SchemaBinding("ars://core/command/RecordContextDelivery", "1.0.0", command_type="RecordContextDelivery"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketDelivered",
+        "1.0.0",
+        event_type="ContextPacketDelivered",
+        producer_command_type="RecordContextDelivery",
+    ),
+    SchemaBinding("ars://core/command/FailContextPacket", "1.0.0", command_type="FailContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketFailed",
+        "1.0.0",
+        event_type="ContextPacketFailed",
+        producer_command_type="FailContextPacket",
+    ),
+    SchemaBinding("ars://core/command/ExpireContextPacket", "1.0.0", command_type="ExpireContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketExpired",
+        "1.0.0",
+        event_type="ContextPacketExpired",
+        producer_command_type="ExpireContextPacket",
+    ),
+    SchemaBinding("ars://core/command/SupersedeContextPacket", "1.0.0", command_type="SupersedeContextPacket"),
+    SchemaBinding(
+        "ars://core/event/ContextPacketSuperseded",
+        "1.0.0",
+        event_type="ContextPacketSuperseded",
+        producer_command_type="SupersedeContextPacket",
     ),
 )
 

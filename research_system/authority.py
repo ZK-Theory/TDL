@@ -37,11 +37,13 @@ from research_system.store.identity import (
 
 SCOPED_AUTHORITY_ADMISSION_VERSION = "owner-bound-v1"
 SCOPED_AUTHORITY_GRANT_SCHEMA_ID = "ars://core/scoped-authority-grant"
-SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION = "2.0.0"
+LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION = "2.0.0"
+SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION = "2.1.0"
 EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID = "ars://core/external-assurance-record-scoped-authority-grant"
 EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION = "1.0.0"
 OWNER_AUTHORITY_DECISION_SCHEMA_ID = "ars://core/owner-authority-administration-decision"
-OWNER_AUTHORITY_DECISION_SCHEMA_VERSION = "1.0.0"
+LEGACY_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION = "1.0.0"
+OWNER_AUTHORITY_DECISION_SCHEMA_VERSION = "1.1.0"
 EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID = (
     "ars://core/external-assurance-record-owner-authority-administration-decision"
 )
@@ -94,6 +96,7 @@ _SCOPED_SUBJECT_KINDS = {
     "lease": "execution_lease",
     "attempt": "attempt",
     "message": None,
+    "context": None,
     "blocker": None,
     "artefact": "artefact",
     "review": None,
@@ -117,6 +120,7 @@ _SCOPED_SUBJECT_PREFIXES = {
     "artefact": ("art",),
     "review": ("rev",),
     "decision": ("dec",),
+    "context": ("ctx",),
     "rule_evaluation": ("val",),
     "corrected_record": (
         "obj",
@@ -192,6 +196,19 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "RequestResourceGrant": "resource",
     "ReleaseResources": "resource",
     "CreateBackup": "project_store",
+    "RegisterArtefact": "artefact",
+    "RecordScientificReview": "artefact",
+    "SetArtefactUseAuthority": "artefact",
+    "ResolveDecision": "decision",
+    "RequestContextPacket": "context",
+    "BeginContextCompilation": "context",
+    "CompleteContextCompilation": "context",
+    "ValidateContextPacket": "context",
+    "IssueContextPacket": "context",
+    "RecordContextDelivery": "context",
+    "FailContextPacket": "context",
+    "ExpireContextPacket": "context",
+    "SupersedeContextPacket": "context",
 }
 _SCOPED_POLICY_ACTION_SUBJECT_KINDS = {
     "accept_r3_assurance_requirement": "assurance_requirement",
@@ -205,6 +222,7 @@ _EXTERNAL_RECORD_POLICY_ACTION = "publish_external_assurance_record"
 _SCOPED_GRANT_SCHEMA_IDENTITIES = frozenset(
     {
         (SCOPED_AUTHORITY_GRANT_SCHEMA_ID, SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION),
+        (SCOPED_AUTHORITY_GRANT_SCHEMA_ID, LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION),
         (EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID, EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION),
     }
 )
@@ -495,7 +513,10 @@ class ScopedAuthorityGrant:
         canonical_bytes(value)
         if not isinstance(value, dict) or set(value) != _SCOPED_GRANT_FIELDS:
             raise ValueError("ScopedAuthorityGrant fields must be exact")
-        if value["schema_id"] != expected_schema_id or value["schema_version"] != expected_schema_version:
+        accepted_versions = {expected_schema_version}
+        if expected_schema_id == SCOPED_AUTHORITY_GRANT_SCHEMA_ID:
+            accepted_versions.add(LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION)
+        if value["schema_id"] != expected_schema_id or value["schema_version"] not in accepted_versions:
             raise ValueError("invalid ScopedAuthorityGrant schema")
         if value["delegable"] is not False or value["revoked"] is not False:
             raise ValueError("ScopedAuthorityGrant must be non-delegable and immutable-active")
@@ -675,6 +696,7 @@ class OwnerAuthorityAdministrationDecision:
             decision_schema
             not in {
                 (OWNER_AUTHORITY_DECISION_SCHEMA_ID, OWNER_AUTHORITY_DECISION_SCHEMA_VERSION),
+                (OWNER_AUTHORITY_DECISION_SCHEMA_ID, LEGACY_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION),
                 (
                     EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
                     EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
@@ -708,11 +730,17 @@ class OwnerAuthorityAdministrationDecision:
             "revoke_issued_authority_grant",
         }:
             raise ValueError("unsupported owner authority administration action")
-        expected_decision_schema = (
+        current_decision_schema = (
             OWNER_AUTHORITY_DECISION_SCHEMA_ID,
             OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
             SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
             SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        )
+        legacy_decision_schema = (
+            OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+            LEGACY_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+            SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
+            LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         )
         external_decision_schema = (
             EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
@@ -720,8 +748,10 @@ class OwnerAuthorityAdministrationDecision:
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
             EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
         )
-        if decision_schema == expected_decision_schema[:2]:
-            expected = expected_decision_schema
+        if decision_schema == current_decision_schema[:2]:
+            expected = current_decision_schema
+        elif decision_schema == legacy_decision_schema[:2]:
+            expected = legacy_decision_schema
         elif decision_schema == external_decision_schema[:2]:
             expected = external_decision_schema
         else:
@@ -1834,11 +1864,22 @@ class LedgerAuthorityGrantResolver:
                 EXTERNAL_RECORD_OWNER_AUTHORITY_DECISION_SCHEMA_ID,
             }:
                 raise SchemaError("owner authority administration decision schema is not supported")
-            self.schema_registry.validate_active(
-                str(decision_schema_id),
-                value,
-                schema_version=str(value.get("schema_version")),
-            )
+            decision_version = str(value.get("schema_version"))
+            if (
+                decision_schema_id == OWNER_AUTHORITY_DECISION_SCHEMA_ID
+                and decision_version == LEGACY_OWNER_AUTHORITY_DECISION_SCHEMA_VERSION
+            ):
+                self.schema_registry.validate(
+                    str(decision_schema_id),
+                    value,
+                    schema_version=decision_version,
+                )
+            else:
+                self.schema_registry.validate_active(
+                    str(decision_schema_id),
+                    value,
+                    schema_version=decision_version,
+                )
             return OwnerAuthorityAdministrationDecision.from_dict(value)
         except (IntegrityError, SchemaError, ValueError) as exc:
             raise IntegrityError("owner authority administration decision invalid") from exc
@@ -2129,7 +2170,15 @@ class LedgerAuthorityGrantResolver:
                 grant_id,
                 1,
             )
-            self.schema_registry.validate_active(
+            validate = (
+                self.schema_registry.validate
+                if (
+                    grant_schema_id == SCOPED_AUTHORITY_GRANT_SCHEMA_ID
+                    and grant_schema_version == LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
+                )
+                else self.schema_registry.validate_active
+            )
+            validate(
                 grant_schema_id,
                 value,
                 schema_version=grant_schema_version,

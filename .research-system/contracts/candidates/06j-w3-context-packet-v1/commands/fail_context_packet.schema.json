@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command/FailContextPacket",
+  "title": "W3 context lifecycle command: FailContextPacket",
+  "type": "object",
+  "properties": {
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "on_behalf_of_actor_id": {
+      "type": ["string", "null"],
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "target_stream_id": {
+      "type": "string",
+      "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "expected_stream_version": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "command_type": {
+      "const": "FailContextPacket"
+    },
+    "schema_id": {
+      "const": "ars://core/command/FailContextPacket"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payload": {
+      "properties": {
+        "context_id": {
+          "type": "string",
+          "pattern": "^ctx_"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lifecycle_phase": {
+          "enum": [
+            "requested",
+            "compiling",
+            "compiled"
+          ]
+        },
+        "failure_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_evidence_status": {
+          "enum": [
+            "absent_before_immutable_bytes",
+            "present"
+          ]
+        },
+        "packet_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "packet_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_id",
+        "request_id",
+        "lifecycle_phase",
+        "failure_code",
+        "packet_evidence_status",
+        "packet_revision",
+        "packet_sha256"
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"lifecycle_phase": {"const": "compiled"}}},
+          "then": {
+            "properties": {
+              "packet_evidence_status": {"const": "present"},
+              "packet_revision": {"type": "integer"},
+              "packet_sha256": {"type": "string"}
+            }
+          },
+          "else": {
+            "properties": {
+              "packet_evidence_status": {"const": "absent_before_immutable_bytes"},
+              "packet_revision": {"type": "null"},
+              "packet_sha256": {"type": "null"}
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "command_id",
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "submitted_at",
+    "actor_id",
+    "on_behalf_of_actor_id",
+    "authority_grant_id",
+    "target_stream_id",
+    "expected_stream_version",
+    "idempotency_key",
+    "correlation_id",
+    "causation_id",
+    "reason",
+    "evidence_refs",
+    "payload",
+    "project_id"
+  ],
+  "additionalProperties": false
+}

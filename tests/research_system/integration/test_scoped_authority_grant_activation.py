@@ -12,6 +12,8 @@ from research_system.authority import (
     GrantedCommandIdentity,
     GrantedPolicyActionIdentity,
     LedgerAuthorityGrantResolver,
+    OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+    SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import _replay_verify
@@ -71,7 +73,7 @@ def _scoped_grant(
     )
     return {
         "schema_id": "ars://core/scoped-authority-grant",
-        "schema_version": "2.0.0",
+        "schema_version": SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         "authority_grant_id": GRANT_ID,
         "actor_id": actor_id,
         "allowed_actor_classes": actor_classes or ["human"],
@@ -110,15 +112,15 @@ def _decision(
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        str(grant["schema_version"]),
     )
     return {
         "schema_id": "ars://core/owner-authority-administration-decision",
-        "schema_version": "1.0.0",
+        "schema_version": OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
         "record_id": record_id,
         "revision": 1,
         "project_id": context.project_id,
-        "store_identity": context.store_identity,
+        "store_identity": str(context.store_identity),
         "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
         "root_grant_id": context.root_grant_id,
         "root_grant_sha256": context.root_grant_sha256,
@@ -149,13 +151,15 @@ def _activation_command(
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        str(grant["schema_version"]),
     )
+    command_binding = schemas.command_binding("ActivateAuthorityGrant")
+    assert command_binding is not None
     return {
         "command_id": command_id,
         "command_type": "ActivateAuthorityGrant",
         "schema_id": "ars://core/command/ActivateAuthorityGrant",
-        "schema_version": "1.0.0",
+        "schema_version": command_binding.schema_version,
         "submitted_at": "2026-07-12T12:00:00Z",
         "actor_id": ACTOR_ID,
         "on_behalf_of_actor_id": None,
@@ -336,7 +340,7 @@ def _activation_event_payload(
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        str(grant["schema_version"]),
     )
     return {
         "authority_admission_version": "owner-bound-v1",
@@ -368,7 +372,7 @@ def _revocation_event_payload(
     context = resolver.administration_context()
     grant_schema = schemas.resolve_identity(
         "ars://core/scoped-authority-grant",
-        "2.0.0",
+        str(grant["schema_version"]),
     )
     return {
         "authority_admission_version": "owner-bound-v1",
@@ -415,7 +419,7 @@ def _system(tmp_path):
 def _schema_owner_decision() -> dict[str, object]:
     return {
         "schema_id": "ars://core/owner-authority-administration-decision",
-        "schema_version": "1.0.0",
+        "schema_version": OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
         "record_id": ACTIVATE_DECISION_ID,
         "revision": 1,
         "project_id": PROJECT_ID,
@@ -428,7 +432,7 @@ def _schema_owner_decision() -> dict[str, object]:
         "target_grant_id": GRANT_ID,
         "target_grant_sha256": "d" * 64,
         "target_grant_schema_id": "ars://core/scoped-authority-grant",
-        "target_grant_schema_version": "2.0.0",
+        "target_grant_schema_version": SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
         "target_grant_schema_sha256": "e" * 64,
         "subject_scope": {
             "project_id": PROJECT_ID,
@@ -492,14 +496,14 @@ def test_owner_administration_schema_requires_lowercase_sha256_store_identity(
     schemas.validate_active(
         "ars://core/owner-authority-administration-decision",
         decision,
-        schema_version="1.0.0",
+        schema_version=OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
     )
     decision["store_identity"] = store_identity
     with pytest.raises(SchemaError):
         schemas.validate_active(
             "ars://core/owner-authority-administration-decision",
             decision,
-            schema_version="1.0.0",
+            schema_version=OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
         )
 
 
@@ -590,7 +594,7 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
             schemas,
             grant,
             activation_decision,
-            command_id=ACTIVATE_RETRY_ID,
+            command_id=ACTIVATE_COMMAND_ID,
         )
     )
     assert retry == accepted
@@ -730,6 +734,97 @@ def test_owner_decision_activates_resolves_retries_and_revokes_scoped_grant(
             "assurance_requirement",
             REQUIREMENT_ID,
             NOW,
+        )
+
+
+def test_replay_selects_revoked_grant_version_from_exact_event_identity(
+    tmp_path,
+) -> None:
+    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    grant = _scoped_grant(schemas)
+    activation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=ACTIVATE_DECISION_ID,
+        action="activate_authority_grant",
+    )
+    objects.write("assurance_record", ACTIVATE_DECISION_ID, 1, activation_decision)
+    assert service.submit(_activation_command(resolver, schemas, grant, activation_decision)).status == "accepted"
+    revocation_decision = _decision(
+        resolver,
+        schemas,
+        grant,
+        record_id=REVOKE_DECISION_ID,
+        action="revoke_issued_authority_grant",
+    )
+    objects.write("assurance_record", REVOKE_DECISION_ID, 1, revocation_decision)
+    assert service.submit(_revocation_command(resolver, grant, revocation_decision)).status == "accepted"
+
+    current_events = list(ledger.iter_events())
+    current = replay(
+        current_events,
+        schema_registry=schemas,
+        authority_state_validator=lambda state: None,
+    )
+    assert current["authority_grants"][GRANT_ID]["schema_version"] == "2.1.0"
+    assert current["authority_grants"][GRANT_ID]["status"] == "revoked"
+
+    legacy_events = deepcopy(current_events)
+    activation = next(event for event in legacy_events if event["command_type"] == "ActivateAuthorityGrant")
+    activation["schema_version"] = "1.0.0"
+    activation["command_schema_version"] = "1.0.0"
+    activation["command_schema_sha256"] = schemas.resolve_identity(
+        "ars://core/command/ActivateAuthorityGrant",
+        "1.0.0",
+    ).sha256
+    activation["payload"]["activated_grant_schema_version"] = "2.0.0"
+    activation["payload"]["activated_grant_schema_sha256"] = schemas.resolve_identity(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    ).sha256
+    activation.pop("event_hash")
+    activation["event_hash"] = sha256_hex(canonical_bytes(activation))
+
+    revocation = next(event for event in legacy_events if event["command_type"] == "RevokeIssuedAuthorityGrant")
+    revocation["schema_version"] = "1.0.0"
+    revocation["previous_event_hash"] = activation["event_hash"]
+    revocation["payload"]["target_grant_schema_version"] = "2.0.0"
+    revocation["payload"]["target_grant_schema_sha256"] = schemas.resolve_identity(
+        "ars://core/scoped-authority-grant",
+        "2.0.0",
+    ).sha256
+    revocation.pop("event_hash")
+    revocation["event_hash"] = sha256_hex(canonical_bytes(revocation))
+
+    historical = replay(
+        legacy_events,
+        schema_registry=schemas,
+        authority_state_validator=lambda state: None,
+    )
+    assert historical["authority_grants"][GRANT_ID]["schema_version"] == "2.0.0"
+    assert historical["authority_grants"][GRANT_ID]["status"] == "revoked"
+
+    mixed = deepcopy(legacy_events)
+    mixed[-1]["schema_version"] = "1.1.0"
+    mixed[-1].pop("event_hash")
+    mixed[-1]["event_hash"] = sha256_hex(canonical_bytes(mixed[-1]))
+    with pytest.raises((IntegrityError, SchemaError), match="schema|binding"):
+        replay(
+            mixed,
+            schema_registry=schemas,
+            authority_state_validator=lambda state: None,
+        )
+
+    reverse_mixed = deepcopy(current_events)
+    reverse_mixed[-1]["schema_version"] = "1.0.0"
+    reverse_mixed[-1].pop("event_hash")
+    reverse_mixed[-1]["event_hash"] = sha256_hex(canonical_bytes(reverse_mixed[-1]))
+    with pytest.raises((IntegrityError, SchemaError), match="schema|binding"):
+        replay(
+            reverse_mixed,
+            schema_registry=schemas,
+            authority_state_validator=lambda state: None,
         )
 
 

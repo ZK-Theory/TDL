@@ -1,0 +1,29 @@
+schema_version: 1.0.0
+catalogue: context-packet-v1
+commands:
+  RequestContextPacket: ars://core/command/RequestContextPacket
+  BeginContextCompilation: ars://core/command/BeginContextCompilation
+  CompleteContextCompilation: ars://core/command/CompleteContextCompilation
+  ValidateContextPacket: ars://core/command/ValidateContextPacket
+  IssueContextPacket: ars://core/command/IssueContextPacket
+  RecordContextDelivery: ars://core/command/RecordContextDelivery
+  FailContextPacket: ars://core/command/FailContextPacket
+  ExpireContextPacket: ars://core/command/ExpireContextPacket
+  SupersedeContextPacket: ars://core/command/SupersedeContextPacket
+events:
+  ContextPacketRequested: ars://core/event/ContextPacketRequested
+  ContextCompilationStarted: ars://core/event/ContextCompilationStarted
+  ContextPacketCompiled: ars://core/event/ContextPacketCompiled
+  ContextPacketValidated: ars://core/event/ContextPacketValidated
+  ContextPacketIssued: ars://core/event/ContextPacketIssued
+  ContextPacketDelivered: ars://core/event/ContextPacketDelivered
+  ContextPacketFailed: ars://core/event/ContextPacketFailed
+  ContextPacketExpired: ars://core/event/ContextPacketExpired
+  ContextPacketSuperseded: ars://core/event/ContextPacketSuperseded
+objects:
+  context_packet: ars://context/context-packet
+  context_manifest: ars://context/context-manifest
+  context_delivery_receipt: ars://context/context-delivery-receipt
+reservations:
+  F-029: p1-design-only
+  F-030: p1-design-only

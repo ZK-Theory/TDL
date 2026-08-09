@@ -1,0 +1,81 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale01-gate6-preflight",
+  "schema_version": "1.0.1",
+  "preflight_id": "SCALE-01-G6-PREFLIGHT-v1.0.1",
+  "package_id": "TDA-ARS-SCALE-RESEARCH",
+  "package_version": "1.0.1",
+  "lifecycle_status": "produced_unreviewed",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "acceptance_subject_binding": "exact_git_subject_and_external_review_envelope_required",
+  "project_binding": {
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
+    "origin_authority_root": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority",
+    "origin_witness_path": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority\\store-origins\\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
+    "origin_witness_sha256": "1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa"
+  },
+  "scope_definition_blueprint": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+    "identity_stage": "recompute_before_final_subject"
+  },
+  "fixture_preflight_evidence": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json",
+    "fixture_set_sha256": "226b90fc9cf4335531346bd13bed9b08bb1d26526b8d51be67538749422f936c",
+    "identity_stage": "recompute_before_final_subject"
+  },
+  "prerequisites": [
+    {
+      "dependency_id": "foundation_and_real_a8",
+      "status": "satisfied",
+      "exact_ref": "9b8c88d8427645551383e98b9b0f7fd5613520b8",
+      "raw_sha256": "64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d"
+    },
+    {
+      "dependency_id": "kan68_a7_genuine_distinct_party_acceptance",
+      "status": "pending",
+      "implementation_merge": "681c008a7e781330b25c884a3a9576f240d0d310",
+      "candidate_evidence_path": "C:\\Users\\steph\\TDL-ARS-WP64-Evidence\\preparation\\a7-canonical-assurance-requirement.authored-unreviewed.json",
+      "candidate_evidence_raw_sha256": "421e6d1e83657b5fb124856c83f610b5e7ee3f47122d97b59563cde7baa562e6",
+      "remaining_gap": "No accepted distinct-party A7 evidence record exists."
+    },
+    {
+      "dependency_id": "provider_free_operator_session",
+      "status": "pending",
+      "implementation_merge": "a426b731e614986b6ca19a193e452df3e3efd885",
+      "record_schema_git_blob_id": "a2274b5148ac58636d165ada10157324892ed46b",
+      "remaining_gap": "No real owner-accepted external-session evidence record exists."
+    },
+    {
+      "dependency_id": "wp6_6_expected_set_and_read_only_admission",
+      "status": "pending",
+      "exact_ref": null,
+      "remaining_gap": "WP6.6 must supply the accepted expected set, final cardinality, and read-only fixture authority."
+    },
+    {
+      "dependency_id": "d_g6_5",
+      "status": "pending",
+      "exact_ref": null,
+      "remaining_gap": "The owner decision must bind the final independently reviewed exact preflight subject."
+    }
+  ],
+  "unresolved_dependencies": [
+    "kan68_a7_genuine_distinct_party_acceptance",
+    "provider_free_operator_session",
+    "wp6_6_expected_set_and_read_only_admission",
+    "d_g6_5"
+  ],
+  "claims": {
+    "research_claim": null,
+    "pilot_claim": null,
+    "result_claim": null
+  },
+  "publication_policy": {
+    "state_publication": "forbidden",
+    "provider_calls": "forbidden",
+    "legacy_writes": "forbidden"
+  },
+  "supersession_policy": "immutable_supersede_never_mutate"
+}
