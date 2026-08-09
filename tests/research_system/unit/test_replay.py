@@ -12,7 +12,7 @@ import pytest
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
-from research_system.projection.replay import apply_event, rebuild_projection, replay
+from research_system.projection.replay import _replay, apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
     initialize_control_store,
@@ -483,6 +483,26 @@ def test_replay_rejects_position_only_legacy_provenance_admission(tmp_path):
             events,
             schema_registry=harness.service.schemas,
             legacy_command_provenance_through_position=1,
+        )
+
+
+def test_grandfathered_replay_without_schema_registry_fails_with_integrity_error(tmp_path):
+    events, _ = _events(tmp_path)
+    for field in (
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+    ):
+        events[0].pop(field)
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="grandfathered schema registry unavailable at 1"):
+        _replay(
+            events,
+            supported_major=1,
+            schema_registry=None,
+            grandfathered_missing_positions=frozenset({1}),
+            authority_state_validator=None,
         )
 
 

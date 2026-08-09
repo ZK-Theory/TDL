@@ -103,6 +103,7 @@ def _pin_selected_decision(monkeypatch, tmp_path: Path, decision: GrandfatherDec
     monkeypatch.setattr(grandfather_module, "_REPOSITORY_ROOT", tmp_path)
     monkeypatch.setattr(grandfather_module, "_AUTHORITY_MANIFEST_PATH", authority_manifest)
     monkeypatch.setattr(grandfather_module, "_SELECTED_DECISION_RELATIVE_PATH", decision_path)
+    monkeypatch.setattr(grandfather_module, "_SELECTED_DECISION_PATH", tmp_path / decision_path)
     monkeypatch.setattr(grandfather_module, "_SELECTED_CANDIDATE_LINEAGE", decision.candidate_lineage)
 
 
@@ -287,9 +288,9 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
     real_link = os.link
     swapped = False
 
-    def link_then_swap(source, destination):
+    def link_then_swap(source, destination, *args, **kwargs):
         nonlocal swapped
-        real_link(source, destination)
+        real_link(source, destination, *args, **kwargs)
         Path(destination).unlink()
         Path(destination).write_bytes(replacement)
         swapped = True
@@ -306,6 +307,77 @@ def test_public_grandfather_materialization_rejects_post_link_destination_swap(t
 
     assert swapped
     assert output.read_bytes() == replacement
+
+
+def test_public_grandfather_materialization_pins_parent_before_publication(tmp_path, monkeypatch):
+    harness, snapshot, decision = _decision(tmp_path)
+    output = tmp_path / "evidence" / "grandfather-decision.json"
+    output.parent.mkdir()
+    displaced_parent = tmp_path / "displaced-evidence"
+    forbidden_parent = harness.ledger.control_root / "forbidden-publication"
+    forbidden_parent.mkdir()
+    probe = tmp_path / "directory-symlink-probe"
+    try:
+        probe.symlink_to(forbidden_parent, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink unavailable: {exc}")
+    probe.unlink()
+    real_capture = grandfather_module.capture_grandfather_prefix
+    swap_attempted = False
+    swap_blocked = False
+
+    def swap_parent_after_capture(*args, **kwargs):
+        nonlocal swap_attempted, swap_blocked
+        evidence = real_capture(*args, **kwargs)
+        swap_attempted = True
+        try:
+            output.parent.rename(displaced_parent)
+            output.parent.symlink_to(forbidden_parent, target_is_directory=True)
+        except OSError:
+            swap_blocked = True
+        return evidence
+
+    monkeypatch.setattr(grandfather_module, "capture_grandfather_prefix", swap_parent_after_capture)
+
+    try:
+        published = materialize_grandfather_decision(
+            harness.ledger,
+            decision,
+            output,
+            expected_snapshot=snapshot,
+        )
+    except (ConflictError, IntegrityError):
+        published = None
+
+    assert swap_attempted
+    assert not (forbidden_parent / output.name).exists()
+    if swap_blocked:
+        assert published == decision.sha256
+
+
+def test_public_grandfather_materialization_fsyncs_link_and_cleanup(tmp_path, monkeypatch):
+    harness, snapshot, decision = _decision(tmp_path)
+    output = tmp_path / "evidence" / "grandfather-decision.json"
+    output.parent.mkdir()
+    fsynced: list[Path] = []
+
+    monkeypatch.setattr(
+        grandfather_module,
+        "fsync_directory",
+        lambda path: fsynced.append(path),
+        raising=False,
+    )
+
+    assert (
+        materialize_grandfather_decision(
+            harness.ledger,
+            decision,
+            output,
+            expected_snapshot=snapshot,
+        )
+        == decision.sha256
+    )
+    assert fsynced == [output.parent, output.parent]
 
 
 def test_public_grandfather_replay_admits_exact_prefix_and_later_complete_event(tmp_path, monkeypatch):
@@ -465,8 +537,32 @@ def test_public_grandfather_replay_rejects_forged_attribution_with_self_digest(t
         )
 
 
-def test_selected_grandfather_decision_resolves_from_external_repository_pin():
+def test_selected_grandfather_decision_resolves_from_packaged_pin():
     decision = load_selected_grandfather_decision()
 
     assert decision.sha256 == "07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74"
     assert decision.candidate_lineage == CANDIDATE_LINEAGE
+
+
+def test_selected_grandfather_decision_resolves_from_packaged_authority(tmp_path, monkeypatch):
+    package_data = Path(grandfather_module.__file__).with_name("data")
+
+    assert grandfather_module._AUTHORITY_MANIFEST_PATH.parent == package_data
+    assert grandfather_module._SELECTED_DECISION_PATH.parent == package_data
+    monkeypatch.setattr(grandfather_module, "_REPOSITORY_ROOT", tmp_path / "unavailable-checkout")
+
+    decision = load_selected_grandfather_decision()
+
+    assert decision.sha256 == "07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74"
+
+
+def test_selected_grandfather_decision_rejects_non_mapping_historical_evidence(tmp_path, monkeypatch):
+    authority = tmp_path / "authority.yaml"
+    authority.write_text(
+        "schema_id: ars://tests/wp6-1/06h-current-append-manifest\nschema_version: 1.0.0\nhistorical_evidence: []\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(grandfather_module, "_AUTHORITY_MANIFEST_PATH", authority)
+
+    with pytest.raises(IntegrityError, match="authority manifest is invalid"):
+        load_selected_grandfather_decision()

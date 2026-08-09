@@ -111,6 +111,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["financial_tda*", "poverty_tda*", "shared*", "trajectory_tda*", "research_system*"]
 
+[tool.setuptools.package-data]
+"research_system.projection" = ["data/*.json", "data/*.yaml"]
+
 [tool.ruff]
 # NOTE: the root .ruff.toml takes precedence over this section when present;
 # line-length here mirrors it to avoid documenting a conflicting limit.

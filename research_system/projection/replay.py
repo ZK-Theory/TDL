@@ -1048,6 +1048,25 @@ def replay(
     legacy_command_provenance_through_position: int = 0,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    """Rebuild projection state from canonical ledger events.
+
+    Args:
+        events: Ordered canonical event records.
+        supported_major: Event-schema major version accepted by this replay.
+        schema_registry: Optional active schema registry for runtime validation.
+        legacy_command_provenance_through_position: Retained rejected input; any
+            nonzero value raises ``IntegrityError``. Use
+            ``replay_grandfathered`` for exact G-RM-8 prefix admission.
+        authority_state_validator: Optional validator for authority projections.
+
+    Returns:
+        The rebuilt projection state.
+
+    Raises:
+        IntegrityError: If event integrity fails or the legacy position-only
+            provenance parameter is nonzero.
+        ValueError: If the legacy position-only parameter is negative.
+    """
     if legacy_command_provenance_through_position < 0:
         raise ValueError("legacy command provenance position must be non-negative")
     if legacy_command_provenance_through_position:
@@ -1156,6 +1175,8 @@ def _replay(
             raise IntegrityError(f"event hash mismatch at {position}")
         projection_event = event
         if grandfathered_missing:
+            if schema_registry is None:
+                raise IntegrityError(f"grandfathered schema registry unavailable at {position}")
             binding = schema_registry.event_binding(
                 str(event.get("event_type", "")),
                 str(event.get("command_type", "")),

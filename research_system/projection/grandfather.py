@@ -15,6 +15,7 @@ import yaml
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
 from research_system.schema_registry import SchemaRegistry
+from research_system.store.durability import fsync_directory
 from research_system.store.identity import load_store_manifest_unbound
 from research_system.store.ledger import EventLedger, LedgerSnapshot
 
@@ -30,12 +31,12 @@ _DECISION_SCHEMA_ID = "ars://core/decision/grandfather-command-provenance-prefix
 _PROTOCOL_VERSION = "G-RM-8-GRANDFATHER/1.0.0"
 _SHA256_LENGTH = 64
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-_AUTHORITY_MANIFEST_PATH = (
-    _REPOSITORY_ROOT / "tests" / "research_system" / "smoke" / "wp6_1_06h_current_append_manifest.yaml"
-)
+_PACKAGE_DATA = Path(__file__).with_name("data")
+_AUTHORITY_MANIFEST_PATH = _PACKAGE_DATA / "wp6_1_06h_grandfather_authority.yaml"
 _SELECTED_DECISION_RELATIVE_PATH = (
-    "docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
+    "research_system/projection/data/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
 )
+_SELECTED_DECISION_PATH = _PACKAGE_DATA / "06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
 _SELECTED_CANDIDATE_LINEAGE = "3c75d3d102d8fe14746b19662005e88c4b776ffa"
 
 
@@ -307,6 +308,150 @@ def _authenticate_published_destination(
         raise ConflictError("grandfather decision published destination disappeared") from exc
 
 
+class _PublicationDirectory:
+    """Replacement-fenced directory operations for the grandfather writer."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._parent_identity = _file_identity(path.stat(follow_symlinks=False))
+        self._anchor = None
+        self._descriptor: int | None = None
+        if os.name == "nt":
+            from research_system.store.lock import _open_directory_anchor
+
+            self._anchor = _open_directory_anchor(
+                path,
+                reject_reparse=True,
+                delete_protect=True,
+            )
+        else:
+            directory_flag = getattr(os, "O_DIRECTORY", 0)
+            nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
+            if not directory_flag or not nofollow_flag:
+                raise IntegrityError("platform cannot pin grandfather destination parent")
+            try:
+                self._descriptor = os.open(path, os.O_RDONLY | directory_flag | nofollow_flag)
+            except OSError as exc:
+                raise IntegrityError("grandfather decision destination parent is unavailable") from exc
+        self.ensure_current()
+
+    def ensure_current(self) -> None:
+        try:
+            if _file_identity(self.path.stat(follow_symlinks=False)) != self._parent_identity:
+                raise ConflictError("grandfather decision destination parent changed")
+            if self._anchor is not None:
+                identity, final_path = self._anchor.refresh()
+                if identity != self._anchor.identity or final_path != self._anchor.final_path:
+                    raise ConflictError("grandfather decision destination parent changed")
+            elif self._descriptor is not None:
+                observed = os.fstat(self._descriptor)
+                if not stat.S_ISDIR(observed.st_mode) or _file_identity(observed) != self._parent_identity:
+                    raise ConflictError("grandfather decision destination parent changed")
+        except FileNotFoundError as exc:
+            raise ConflictError("grandfather decision destination parent disappeared") from exc
+
+    def exists(self, name: str) -> bool:
+        self.ensure_current()
+        if self._descriptor is None:
+            return (self.path / name).exists()
+        try:
+            os.stat(name, dir_fd=self._descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        return True
+
+    def open_new(self, name: str):
+        self.ensure_current()
+        if self._descriptor is None:
+            return (self.path / name).open("xb")
+        descriptor = os.open(
+            name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=self._descriptor,
+        )
+        return os.fdopen(descriptor, "wb")
+
+    def link(self, source_name: str, destination_name: str) -> None:
+        self.ensure_current()
+        if self._descriptor is None:
+            os.link(self.path / source_name, self.path / destination_name)
+        else:
+            os.link(
+                source_name,
+                destination_name,
+                src_dir_fd=self._descriptor,
+                dst_dir_fd=self._descriptor,
+                follow_symlinks=False,
+            )
+        self.ensure_current()
+        self.fsync()
+
+    def authenticate(
+        self,
+        name: str,
+        data: bytes,
+        *,
+        source_identity: tuple[int, int] | None,
+    ) -> None:
+        self.ensure_current()
+        if self._descriptor is None:
+            _authenticate_published_destination(
+                self.path / name,
+                data,
+                parent_identity=self._parent_identity,
+                source_identity=source_identity,
+            )
+            self.ensure_current()
+            return
+        try:
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(name, flags, dir_fd=self._descriptor)
+            try:
+                opened = os.fstat(descriptor)
+                if not stat.S_ISREG(opened.st_mode):
+                    raise IntegrityError("grandfather decision published destination is not a regular file")
+                if source_identity is not None and _file_identity(opened) != source_identity:
+                    raise ConflictError("grandfather decision published destination identity mismatch")
+                with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                    if handle.read() != data:
+                        raise ConflictError("grandfather decision published destination conflicts")
+                linked = os.stat(name, dir_fd=self._descriptor, follow_symlinks=False)
+                if _file_identity(linked) != _file_identity(opened):
+                    raise ConflictError("grandfather decision published destination changed")
+            finally:
+                os.close(descriptor)
+        except FileNotFoundError as exc:
+            raise ConflictError("grandfather decision published destination disappeared") from exc
+        self.ensure_current()
+
+    def unlink(self, name: str, *, missing_ok: bool) -> None:
+        try:
+            if self._descriptor is None:
+                (self.path / name).unlink(missing_ok=missing_ok)
+            else:
+                os.unlink(name, dir_fd=self._descriptor)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
+            return
+        self.fsync()
+
+    def fsync(self) -> None:
+        if self._descriptor is None:
+            fsync_directory(self.path)
+        else:
+            os.fsync(self._descriptor)
+
+    def close(self) -> None:
+        if self._anchor is not None:
+            self._anchor.close()
+            self._anchor = None
+        if self._descriptor is not None:
+            os.close(self._descriptor)
+            self._descriptor = None
+
+
 def _store_manifest(ledger: EventLedger) -> dict[str, Any]:
     manifest = load_store_manifest_unbound(ledger.control_root)
     if manifest.get("project_id") != ledger.project_id:
@@ -495,53 +640,50 @@ def materialize_grandfather_decision(
         raise IntegrityError("grandfather decision destination parent is unavailable")
     if destination.parent.is_symlink() or destination.parent.resolve(strict=True) != destination.parent.absolute():
         raise IntegrityError("grandfather decision destination parent must not use symlinks")
-    parent_identity = _file_identity(destination.parent.stat(follow_symlinks=False))
-    evidence = capture_grandfather_prefix(
-        ledger,
-        expected_snapshot=expected_snapshot,
-        store_identity=decision.evidence.store_identity,
-        max_global_position=decision.evidence.max_global_position,
-        expected_tail_hash=decision.evidence.tail_event_hash,
-    )
-    if evidence != decision.evidence:
-        raise IntegrityError("grandfather decision evidence does not match the captured prefix")
-    data = canonical_bytes(decision.as_record()) + b"\n"
-    if destination.exists():
-        _authenticate_published_destination(
-            destination,
-            data,
-            parent_identity=parent_identity,
-            source_identity=None,
-        )
-        _verify_decision(ledger, decision)
-        _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
-        return decision.sha256
-    temporary = destination.with_name(f".{destination.name}.{os.getpid()}-{secrets.token_hex(8)}.tmp")
+    publication = _PublicationDirectory(destination.parent)
     try:
-        with temporary.open("xb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-            temporary_identity = _file_identity(os.fstat(handle.fileno()))
-        _verify_decision(ledger, decision)
-        _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
-        try:
-            os.link(temporary, destination)
-        except FileExistsError:
-            temporary_identity = None
-        _authenticate_published_destination(
-            destination,
-            data,
-            parent_identity=parent_identity,
-            source_identity=temporary_identity,
+        evidence = capture_grandfather_prefix(
+            ledger,
+            expected_snapshot=expected_snapshot,
+            store_identity=decision.evidence.store_identity,
+            max_global_position=decision.evidence.max_global_position,
+            expected_tail_hash=decision.evidence.tail_event_hash,
         )
-        _verify_decision(ledger, decision)
-        _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-    temporary.unlink(missing_ok=True)
-    return decision.sha256
+        if evidence != decision.evidence:
+            raise IntegrityError("grandfather decision evidence does not match the captured prefix")
+        data = canonical_bytes(decision.as_record()) + b"\n"
+        if publication.exists(destination.name):
+            publication.authenticate(destination.name, data, source_identity=None)
+            _verify_decision(ledger, decision)
+            _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
+            return decision.sha256
+        temporary_name = f".{destination.name}.{os.getpid()}-{secrets.token_hex(8)}.tmp"
+        try:
+            with publication.open_new(temporary_name) as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+                temporary_identity = _file_identity(os.fstat(handle.fileno()))
+            _verify_decision(ledger, decision)
+            _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
+            try:
+                publication.link(temporary_name, destination.name)
+            except FileExistsError:
+                temporary_identity = None
+            publication.authenticate(
+                destination.name,
+                data,
+                source_identity=temporary_identity,
+            )
+            _verify_decision(ledger, decision)
+            _require_expected_snapshot(ledger.snapshot(), expected_snapshot)
+        except BaseException:
+            publication.unlink(temporary_name, missing_ok=True)
+            raise
+        publication.unlink(temporary_name, missing_ok=True)
+        return decision.sha256
+    finally:
+        publication.close()
 
 
 def load_grandfather_decision(path: Path) -> GrandfatherDecision:
@@ -564,14 +706,16 @@ def load_selected_grandfather_decision() -> GrandfatherDecision:
     except (OSError, UnicodeError, yaml.YAMLError, KeyError, TypeError) as exc:
         raise IntegrityError("grandfather authority manifest is invalid") from exc
     if (
-        manifest.get("schema_id") != "ars://tests/wp6-1/06h-current-append-manifest"
+        not isinstance(manifest, Mapping)
+        or not isinstance(historical, Mapping)
+        or manifest.get("schema_id") != "ars://tests/wp6-1/06h-current-append-manifest"
         or manifest.get("schema_version") != "1.0.0"
         or historical.get("protocol_activation") != _PROTOCOL_VERSION
         or historical.get("decision_record") != _SELECTED_DECISION_RELATIVE_PATH
         or historical.get("selected_lineage") != _SELECTED_CANDIDATE_LINEAGE
     ):
         raise IntegrityError("grandfather authority manifest is invalid")
-    decision = load_grandfather_decision(_REPOSITORY_ROOT / _SELECTED_DECISION_RELATIVE_PATH)
+    decision = load_grandfather_decision(_SELECTED_DECISION_PATH)
     if (
         historical.get("owner_protocol_decision") != decision.sha256
         or decision.candidate_lineage != _SELECTED_CANDIDATE_LINEAGE

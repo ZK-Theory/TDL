@@ -19,7 +19,7 @@ historical_evidence:
   candidate_default: require_complete_command_schema_identity_except_exact_bound_prefix
   protocol_activation: G-RM-8-GRANDFATHER/1.0.0
   owner_protocol_decision: 07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74
-  decision_record: docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json
+  decision_record: research_system/projection/data/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json
   selected_lineage: 3c75d3d102d8fe14746b19662005e88c4b776ffa
 append_sites:
   - path: research_system/authority.py
@@ -27,7 +27,7 @@ append_sites:
     receiver: ledger
     classification: system_bootstrap_command_producer
   - path: research_system/command/service.py
-    symbol: submit
+    symbol: CommandService.submit
     receiver: self.ledger
     classification: generic_and_guarded_command_producer
   - path: research_system/command/t2.py
@@ -35,11 +35,11 @@ append_sites:
     receiver: service.ledger
     classification: t2_command_producer
   - path: research_system/store/ledger.py
-    symbol: _append_release_from_validated_submit
+    symbol: EventLedger._append_release_from_validated_submit
     receiver: self
     classification: guarded_release_command_producer
   - path: research_system/store/ledger.py
-    symbol: _append_scoped_authority_from_validated_submit
+    symbol: EventLedger._append_scoped_authority_from_validated_submit
     receiver: self
     classification: guarded_scoped_authority_command_producer
   - path: research_system/evals/executors/control_store.py
@@ -51,7 +51,7 @@ append_sites:
     receiver: ledger
     classification: commandless_evaluation_fixture
   - path: research_system/evals/scenarios.py
-    symbol: recover_writer
+    symbol: FoundationPorts.recover_writer
     receiver: ledger
     classification: commandless_evaluation_fixture
 controls:
@@ -63,6 +63,11 @@ controls:
   - tests/research_system/unit/test_command_service.py::test_create_task_vertical_uses_exact_activated_schema_identity
   - tests/research_system/unit/test_wp6_2_t2_runtime.py::test_closed_family_receipt_v2_reducers_projection_and_legacy_indices
   - tests/research_system/unit/test_store.py::test_runtime_ledger_rejects_absent_or_partial_command_schema_provenance
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_accounts_for_exact_runtime_bindings_and_append_sites
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_rejects_stale_or_forged_authority
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_binding_row_format_decodes_to_exact_lf_bytes
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_controls_resolve_to_real_test_nodes
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_accounts_for_every_append_closure_smoke_control
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_public_generic_append_uses_registered_schema_record
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_runtime_ledger_rejects_missing_triple_for_generic_and_t2
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_commandless_fixture_classification_matches_public_append_behavior
@@ -70,6 +75,7 @@ controls:
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unmanifested_append_site_fails_reconciliation
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_ledger_alias_append_fails_reconciliation
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_bound_method_alias_append_fails_reconciliation
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_nested_ledger_alias_append_fails_reconciliation
+  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_duplicate_class_method_append_sites_remain_distinct
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_event_ledger_guarded_self_append_sites_are_discovered
   - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_unproved_direct_self_append_receiver_fails_closed
-  - tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py::test_manifest_binding_row_format_decodes_to_exact_lf_bytes

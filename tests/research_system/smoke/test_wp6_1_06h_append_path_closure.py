@@ -36,26 +36,36 @@ APPEND_SITE_CLASSIFICATIONS = {
         "initialize_authority_control_store",
         "ledger",
     ): "system_bootstrap_command_producer",
-    ("research_system/command/service.py", "submit", "self.ledger"): "generic_and_guarded_command_producer",
+    (
+        "research_system/command/service.py",
+        "CommandService.submit",
+        "self.ledger",
+    ): "generic_and_guarded_command_producer",
     ("research_system/command/t2.py", "submit_t2", "service.ledger"): "t2_command_producer",
     (
         "research_system/store/ledger.py",
-        "_append_release_from_validated_submit",
+        "EventLedger._append_release_from_validated_submit",
         "self",
     ): "guarded_release_command_producer",
     (
         "research_system/store/ledger.py",
-        "_append_scoped_authority_from_validated_submit",
+        "EventLedger._append_scoped_authority_from_validated_submit",
         "self",
     ): "guarded_scoped_authority_command_producer",
     ("research_system/evals/executors/control_store.py", "execute_s009", "ledger"): "commandless_evaluation_fixture",
     ("research_system/evals/executors/control_store.py", "execute_s011", "ledger"): "commandless_evaluation_fixture",
-    ("research_system/evals/scenarios.py", "recover_writer", "ledger"): "commandless_evaluation_fixture",
+    (
+        "research_system/evals/scenarios.py",
+        "FoundationPorts.recover_writer",
+        "ledger",
+    ): "commandless_evaluation_fixture",
 }
 _PROTOCOL_VERSION = "G-RM-8-GRANDFATHER/1.0.0"
-_DECISION_PATH = (
+_DECISION_PATH = "research_system/projection/data/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
+_HISTORICAL_DECISION_PATH = (
     "docs/plans/agentic-research-system/implementation/06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json"
 )
+_PACKAGED_AUTHORITY_PATH = "research_system/projection/data/wp6_1_06h_grandfather_authority.yaml"
 _INTEGRATED_PR229_MERGE = "a1c917f7e313d9636509795c525d12f97b695be3"
 _PRODUCTION_CANDIDATE = "2f005f11754761ee81e56ef0f9da497ea2544feb"
 
@@ -120,16 +130,31 @@ def _validate_manifest_authority(document: dict) -> None:
     assert historical["protocol_activation"] == _PROTOCOL_VERSION
     assert decision_path == _DECISION_PATH
 
+    packaged_authority_file = REPO_ROOT / _PACKAGED_AUTHORITY_PATH
+    packaged_authority_raw = packaged_authority_file.read_bytes()
+    packaged_authority = yaml.safe_load(packaged_authority_raw)
+    packaged_authority_committed = subprocess.run(
+        ["git", "show", f"HEAD:{_PACKAGED_AUTHORITY_PATH}"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert packaged_authority_raw == packaged_authority_committed
+    assert packaged_authority["schema_id"] == document["schema_id"]
+    assert packaged_authority["schema_version"] == document["schema_version"]
+    assert packaged_authority["historical_evidence"] == historical
+
     decision_file = REPO_ROOT / decision_path
     decision = load_grandfather_decision(decision_file)
     raw = decision_file.read_bytes()
+    historical_raw = (REPO_ROOT / _HISTORICAL_DECISION_PATH).read_bytes()
     committed = subprocess.run(
         ["git", "show", f"HEAD:{decision_path}"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
     ).stdout
-    assert raw == committed == canonical_bytes(json.loads(raw)) + b"\n"
+    assert raw == historical_raw == committed == canonical_bytes(json.loads(raw)) + b"\n"
     assert historical["owner_protocol_decision"] == decision.sha256
     assert historical["selected_lineage"] == decision.candidate_lineage
     assert _git_is_ancestor(document["integrated_pr229_merge"], document["accounted_base"])
@@ -146,14 +171,20 @@ def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, s
 
     class Visitor(ast.NodeVisitor):
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            stack.append(node.name)
             classes.append(node.name)
+            aliases.append(set(aliases[-1]))
+            append_aliases.append(dict(append_aliases[-1]))
             self.generic_visit(node)
+            append_aliases.pop()
+            aliases.pop()
             classes.pop()
+            stack.pop()
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             stack.append(node.name)
-            aliases.append(set())
-            append_aliases.append({})
+            aliases.append(set(aliases[-1]))
+            append_aliases.append(dict(append_aliases[-1]))
             self.generic_visit(node)
             append_aliases.pop()
             aliases.pop()
@@ -193,11 +224,11 @@ def _append_sites_in_source(relative: str, source: str) -> set[tuple[str, str, s
                     or (receiver == "self" and classes and classes[-1] == "EventLedger")
                 )
                 if proven_ledger_receiver or receiver == "self":
-                    site = (relative, stack[-1] if stack else "<module>", receiver)
+                    site = (relative, ".".join(stack) if stack else "<module>", receiver)
                     found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
             elif isinstance(node.func, ast.Name) and node.func.id in append_aliases[-1]:
                 receiver = append_aliases[-1][node.func.id]
-                site = (relative, stack[-1] if stack else "<module>", receiver)
+                site = (relative, ".".join(stack) if stack else "<module>", receiver)
                 found.add((*site, APPEND_SITE_CLASSIFICATIONS.get(site, "unclassified")))
             self.generic_visit(node)
 
@@ -228,9 +259,10 @@ def _reconcile_append_sites(
 
 def _test_functions(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")}
 
 
+@pytest.mark.integration
 def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None:
     document = _manifest()
     authorities = document["accepted_authorities"]
@@ -249,6 +281,7 @@ def test_manifest_accounts_for_exact_runtime_bindings_and_append_sites() -> None
     _reconcile_append_sites(_manifest_append_sites(document), _append_sites())
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -285,6 +318,14 @@ def test_manifest_controls_resolve_to_real_test_nodes() -> None:
         path = REPO_ROOT / path_text
         assert path.is_file(), node_id
         assert function in _test_functions(path), node_id
+
+
+def test_manifest_accounts_for_every_append_closure_smoke_control() -> None:
+    path_text = "tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py"
+    listed = {node_id for node_id in _manifest()["controls"] if node_id.startswith(f"{path_text}::")}
+    defined = {f"{path_text}::{function}" for function in _test_functions(REPO_ROOT / path_text)}
+
+    assert listed == defined
 
 
 def test_public_generic_append_uses_registered_schema_record(tmp_path: Path) -> None:
@@ -413,17 +454,62 @@ def test_bound_method_alias_append_fails_reconciliation() -> None:
         _reconcile_append_sites(expected, planted)
 
 
+def test_nested_ledger_alias_append_fails_reconciliation() -> None:
+    observed = _append_sites_in_source(
+        "research_system/command/nested_alias.py",
+        "def outer(ledger):\n    writer = ledger\n    def inner():\n        writer.append([])\n",
+    )
+
+    assert observed == {
+        (
+            "research_system/command/nested_alias.py",
+            "outer.inner",
+            "writer",
+            "unclassified",
+        )
+    }
+    with pytest.raises(AssertionError, match="nested_alias"):
+        _reconcile_append_sites(set(), observed)
+
+
+def test_duplicate_class_method_append_sites_remain_distinct() -> None:
+    observed = _append_sites_in_source(
+        "research_system/command/duplicate_methods.py",
+        "class First:\n"
+        "    def emit(self):\n"
+        "        self.ledger.append([])\n"
+        "class Second:\n"
+        "    def emit(self):\n"
+        "        self.ledger.append([])\n",
+    )
+
+    assert observed == {
+        (
+            "research_system/command/duplicate_methods.py",
+            "First.emit",
+            "self.ledger",
+            "unclassified",
+        ),
+        (
+            "research_system/command/duplicate_methods.py",
+            "Second.emit",
+            "self.ledger",
+            "unclassified",
+        ),
+    }
+
+
 def test_event_ledger_guarded_self_append_sites_are_discovered() -> None:
     expected = {
         (
             "research_system/store/ledger.py",
-            "_append_release_from_validated_submit",
+            "EventLedger._append_release_from_validated_submit",
             "self",
             "guarded_release_command_producer",
         ),
         (
             "research_system/store/ledger.py",
-            "_append_scoped_authority_from_validated_submit",
+            "EventLedger._append_scoped_authority_from_validated_submit",
             "self",
             "guarded_scoped_authority_command_producer",
         ),
@@ -443,7 +529,7 @@ def test_unproved_direct_self_append_receiver_fails_closed() -> None:
     assert observed == {
         (
             "research_system/command/unproved_writer.py",
-            "emit",
+            "UnprovedWriter.emit",
             "self",
             "unclassified",
         )
