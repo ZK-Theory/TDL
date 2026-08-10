@@ -20,7 +20,7 @@ from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
 from research_system.context.sources import FileSourceResolver
-from research_system.context.tokenizers import ReferenceRegexV1
+from research_system.context.tokenizers import ProviderCountEvidence, ReferenceRegexV1
 from research_system.errors import SchemaError
 from research_system.evidence.consumers import ArtefactEvidenceConsumers
 from research_system.methods.registration import (
@@ -34,6 +34,7 @@ from research_system.methods.verification_records import (
     build_verification_request,
     register_verification_record,
 )
+from research_system.routing.engine import RouteCandidate
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
@@ -437,15 +438,97 @@ def _deliver_real_context(harness):
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},
     )
-    validated = lifecycle.validate(
-        compiled,
+    task = SimpleNamespace(task_id=TASK_ID, revision=1, route_request_id="brief-route-1")
+    requirement = SimpleNamespace(
+        assurance_requirement_id="brief-requirement-1",
+        content_hash="c" * 64,
+        task_id=TASK_ID,
+        task_revision=1,
+    )
+    evidence = SimpleNamespace(
+        routing_evidence_snapshot_id="brief-routing-snapshot-1",
+        evidence_id="brief-provider-evidence-1",
+        content_hash="d" * 64,
+        expires_at="2030-01-01T00:00:00Z",
+        validate_pre_route=lambda: None,
+        hard_gate_failures=lambda request, candidate: (),
+    )
+    dispatch = lifecycle.plan_dispatch(
+        task=task,
+        attempt_id="brief-attempt-1",
+        requirement=requirement,
+        compiled=compiled,
         capability=compiled.capability,
-        validation_evidence={
-            "route_decision_id": "route-1",
-            "route_witness_sha256": "c" * 64,
-            "selected_route_evidence_sha256": "d" * 64,
-        },
-        provider_template={"operation": "compile_brief"},
+        candidates=[RouteCandidate("owner-operated", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=evidence,
+        operational_evidence=evidence,
+    )
+    count = ProviderCountEvidence(
+        "brief-provider-count-v1",
+        "provider_tokens",
+        10,
+        True,
+        "owner-operated",
+        "brief-model",
+        "brief-render-v1",
+        "brief-evidence-v1",
+    )
+
+    class BriefW7Adapter:
+        def load_evidence(self, evidence_id, content_hash):
+            return {"evidence_id": evidence_id, "content_hash": content_hash}
+
+        def revalidate(self, route, selected, provider_evidence, capability):
+            return route, selected, provider_evidence, capability
+
+        def build_prevalidated_template(self, selected, revalidated, count_evidence, capability):
+            del revalidated
+            accounting = {
+                "method": count_evidence.counter_id,
+                "raw_capacity": 100,
+                "fixed_overhead": 10,
+                "managed_tokens": count_evidence.count,
+                "reserved_variable_tokens": 5,
+                "segments": {"context": "managed", "system": "reserved"},
+            }
+            return {
+                "operation": "compile_brief",
+                "provider": count_evidence.provider,
+                "model": count_evidence.model,
+                "profile_id": selected.route["winner"].profile_id,
+                "adapter_revision": "owner-operated-v1",
+                "context_id": selected.context.context_id,
+                "context_revision": selected.context.revision,
+                "packet_sha256": selected.context.packet_sha256,
+                "rendered_payload_hash": selected.context.packet_sha256,
+                "command_revision": 1,
+                "command_revision_hash": "e" * 64,
+                "idempotency_key": "brief-provider-issue-1",
+                "timeout_s": 30,
+                "policy_hash": "f" * 64,
+                "parity_evidence_hash": "1" * 64,
+                "currentness_evidence_hash": "2" * 64,
+                "provider_count_evidence": {
+                    "counter_id": count_evidence.counter_id,
+                    "units": count_evidence.units,
+                    "count": count_evidence.count,
+                    "exact": count_evidence.exact,
+                    "provider": count_evidence.provider,
+                    "model": count_evidence.model,
+                    "rendering_revision": count_evidence.rendering_revision,
+                    "evidence_revision": count_evidence.evidence_revision,
+                },
+                "wrapper_accounting": accounting,
+                "wrapper_accounting_sha256": sha256_hex(canonical_bytes(accounting)),
+                "capability_digest": capability.digest,
+            }
+
+    validated = lifecycle.prevalidate_dispatch(
+        dispatch,
+        capability=compiled.capability,
+        provider_count_evidence=count,
+        usable_capacity_tokens=100,
+        w7_adapter=BriefW7Adapter(),
     )
     restarted = ContextLifecycleService(harness.objects, writer, writer_id="rm03-production")
     recovered = restarted.recover_validated(compiled.context_id)

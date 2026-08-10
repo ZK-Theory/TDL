@@ -802,15 +802,9 @@ def context_packet_transition(args: argparse.Namespace) -> int:
             manifest=source["manifest"],
         )
     elif action == "validate":
-        compiled = lifecycle.recover_compiled(str(source["context_id"]))
-        template = dict(source["provider_template"])
-        if template.get("capability_digest") != compiled.capability.digest:
-            raise ArsError("CLI provider template is not bound to the recovered capability")
-        receipt = lifecycle.validate(
-            compiled,
-            capability=compiled.capability,
-            validation_evidence=source["validation_evidence"],
-            provider_template=template,
+        raise ArsError(
+            "context validation requires an in-process service-sealed W4/W7 dispatch; "
+            "caller-supplied validation or provider-template fields are forbidden"
         )
     elif action == "issue":
         receipt = lifecycle.issue(lifecycle.recover_validated(str(source["context_id"])))
@@ -1623,6 +1617,24 @@ def _eval_release(args: argparse.Namespace) -> int:
     return 0
 
 
+_EVAL_ROOT_EXECUTION_CLASSES = {
+    _eval_validate: "pure_observation",
+    _eval_calibrate: "classified_dispatch",
+    _eval_run: "classified_dispatch",
+    _eval_publish_release: "classified_dispatch",
+    _eval_release: "pure_observation",
+    _eval_retention_validate: "pure_observation",
+}
+
+
+def require_eval_root_execution_class(handler: Callable[..., int]) -> str:
+    """Fail closed when an eval parser root has no reviewed execution class."""
+    try:
+        return _EVAL_ROOT_EXECUTION_CLASSES[handler]
+    except KeyError as exc:
+        raise ArsError("unclassified eval CLI root") from exc
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ars")
     groups = parser.add_subparsers(dest="group", required=True)
@@ -1834,6 +1846,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.group not in {"eval", "assurance-pack", "brief", "context-packet"}:
         return int(args.handler(args))
     try:
+        if args.group == "eval":
+            require_eval_root_execution_class(args.handler)
         return int(args.handler(args))
     except ArsError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from research_system.adapters.base import ProviderCommand, TransportResult
+from research_system.adapters.fake import FakeTransport
 from research_system.adapters.provider import ProviderAdapter
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.context.models import ContextProfile, SourceFragment
@@ -188,7 +189,7 @@ class _ScenarioW7:
         }
 
 
-class _ScenarioTransport:
+class _ScenarioTransport(FakeTransport):
     def __init__(self, command):
         self.command = command
 

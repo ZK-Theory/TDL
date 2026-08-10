@@ -18,6 +18,7 @@ import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.evals.executors import FixtureExecutor, require_executor
+from research_system.errors import ArsError
 
 MutationCalibrationStatus = Literal["not_calibrated", "calibrated"]
 
@@ -146,10 +147,12 @@ def calibrate_fixture(
     payload = dict(_load(root / "input" / "stimulus.json")["payload"])
     pre_expected = _expected_evidence(root, "pre-control.json")
     post_expected = _expected_evidence(root, "post-control.json")
+    registration = require_executor(fixture_id)
+    if execute is not None and registration.execution_class == "lifecycle_required":
+        raise ArsError(f"lifecycle execution authority required: {fixture_id}")
     if execute is not None:
         executor = execute
     else:
-        registration = require_executor(fixture_id)
         if registration.execution_class == "lifecycle_required":
             from research_system.evals.lifecycle import execute_lifecycle_fixture
 

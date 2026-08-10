@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -85,6 +86,24 @@ def test_adapter_f020_normalized_fake_receipt_is_complete():
         operation_policy=default_provider_operation_policy(live_provider_enabled=True),
     ).issue(_command(), "context")
     assert receipt.complete is True
+
+
+def test_06j_evaluation_operation_rejects_non_fake_transport_before_invoke():
+    class NonFakeTransport:
+        calls = 0
+
+        def invoke(self, argv, stdin, timeout_s):
+            del argv, stdin, timeout_s
+            self.calls += 1
+            return _result()
+
+    transport = NonFakeTransport()
+    with pytest.raises(ArsError, match="requires FakeTransport"):
+        ProviderAdapter(["provider"], transport).issue(
+            replace(_command(), operation="evaluate_gate5_fixture"),
+            "context",
+        )
+    assert transport.calls == 0
 
 
 def test_adapter_s013_unauthorized_command_blocks_before_transport():

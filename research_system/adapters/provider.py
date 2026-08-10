@@ -163,6 +163,13 @@ class ProviderAdapter:
         issued_dispatch: Any | None = None,
         capability: Any | None = None,
     ) -> ProviderReceipt:
+        bounded_06j = (
+            command.operation in {"deliver_context", "evaluate_gate5_fixture"}
+            or issued_dispatch is not None
+            or capability is not None
+        )
+        if bounded_06j and not isinstance(self._transport, FakeTransport):
+            raise ArsError("06j provider execution requires FakeTransport")
         if command.operation == "deliver_context" or issued_dispatch is not None or capability is not None:
             self._verify_context_delivery_seal(
                 command,

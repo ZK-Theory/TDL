@@ -5,6 +5,7 @@ import pytest
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.executors import require_executor
+from research_system.errors import ArsError
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
@@ -13,6 +14,15 @@ FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
 def test_missing_executor_is_fixture_definition_error():
     with pytest.raises(FixtureDefinitionError, match="executor_missing"):
         require_executor("F-999")
+
+
+def test_lifecycle_fixture_rejects_raw_calibration_executor_injection():
+    with pytest.raises(ArsError, match="lifecycle execution authority required"):
+        calibrate_fixture(
+            "F-025",
+            fixture_root=FIXTURES,
+            execute=lambda subject, payload: {"subject": subject, "payload": payload},
+        )
 
 
 def test_executor_receives_stimulus_payload_only():
@@ -43,9 +53,7 @@ def test_observed_mismatch_is_fixture_error_not_pass():
         fixture_root=FIXTURES,
         execute=lambda subject, payload: {"unexpected": True},
     )
-    assert {item.verdict for item in (*record.known_bad, *record.known_good)} == {
-        "fixture_error"
-    }
+    assert {item.verdict for item in (*record.known_bad, *record.known_good)} == {"fixture_error"}
     assert record.blocking_verdict == "fixture_error"
 
 
@@ -80,9 +88,10 @@ def test_undetected_mutation_is_fixture_error():
 
 def test_mutation_detection_ignores_producer_flag():
     executor = require_executor("F-001")
-    payload = {"contract": "immutable_message_ownership",
-               "action": {"operation": "publish_message", "slot": "task.md",
-                          "incoming_owner": "T0.12"}}
+    payload = {
+        "contract": "immutable_message_ownership",
+        "action": {"operation": "publish_message", "slot": "task.md", "incoming_owner": "T0.12"},
+    }
     flagged = executor("known_bad", {**payload, "producer_passed": True})
     unflagged = executor("known_bad", payload)
     assert flagged == unflagged
@@ -100,4 +109,3 @@ def test_f036_three_named_mutations_detected():
         assert [item.reason for item in mutation.decisions] == ["mutation_detected"] * 2
     # F-036 has a required M grader, so it stays blocked -- but honestly:
     assert record.blocking_verdict == "unable_to_grade"
-

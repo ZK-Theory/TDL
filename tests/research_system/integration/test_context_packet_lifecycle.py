@@ -4,10 +4,12 @@ from copy import deepcopy
 from contextlib import contextmanager
 from datetime import UTC, datetime
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from research_system.adapters.base import ProviderCommand, TransportResult
+from research_system.adapters.fake import FakeTransport
 from research_system.adapters.provider import ProviderAdapter
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.context.command_adapter import CommandServiceContextWriter
@@ -266,6 +268,39 @@ def provider_count(count: int = 10) -> ProviderCountEvidence:
     )
 
 
+def plan_valid(service: ContextLifecycleService, compiled):
+    return service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=RecordingRoutingEvidence(),
+        operational_evidence=RecordingRoutingEvidence(),
+    )
+
+
+def validate_valid(service: ContextLifecycleService, compiled):
+    return service.prevalidate_dispatch(
+        plan_valid(service, compiled),
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=RecordingW7Adapter(compiled),
+    )
+
+
+def issue_valid(service: ContextLifecycleService, compiled):
+    return service.prevalidate_and_issue_dispatch(
+        plan_valid(service, compiled),
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=RecordingW7Adapter(compiled),
+    )
+
+
 def test_cli_parser_exposes_exact_nine_context_lifecycle_operations() -> None:
     from research_system.cli import _parser
 
@@ -301,6 +336,28 @@ def test_cli_parser_exposes_exact_nine_context_lifecycle_operations() -> None:
         observed.add(args.context_packet_action)
         assert args.handler.__name__ == "context_packet_transition"
     assert observed == expected
+
+
+def test_cli_validate_rejects_caller_built_w4_w7_fields_before_service_access(monkeypatch) -> None:
+    from research_system import cli
+
+    class BombLifecycle:
+        def __getattr__(self, name):
+            raise AssertionError(f"CLI reached lifecycle service method: {name}")
+
+    monkeypatch.setattr(cli, "_context_packet_runtime", lambda _args: BombLifecycle())
+    monkeypatch.setattr(
+        cli,
+        "_read_json",
+        lambda _path: {
+            "context_id": new_id("context"),
+            "validation_evidence": {"route_decision_id": "caller-route"},
+            "provider_template": {"operation": "caller-built"},
+        },
+    )
+    args = SimpleNamespace(context_packet_action="validate", input="ignored")
+    with pytest.raises(ArsError, match="caller-supplied.*forbidden"):
+        cli.context_packet_transition(args)
 
 
 def test_w4_route_rejects_missing_or_foreign_capability_before_evidence(tmp_path) -> None:
@@ -528,8 +585,27 @@ def test_deliver_context_transport_requires_unchanged_issued_template_and_capabi
         authorized=True,
     )
 
-    class CountingTransport:
+    class NonFakeTransport:
         calls = 0
+
+        def invoke(self, argv, stdin, timeout_s):
+            del argv, stdin, timeout_s
+            self.calls += 1
+            raise AssertionError("non-fake transport reached")
+
+    non_fake = NonFakeTransport()
+    with pytest.raises(ArsError, match="requires FakeTransport"):
+        ProviderAdapter(["provider"], non_fake).issue(
+            command,
+            "managed context",
+            issued_dispatch=issued,
+            capability=compiled.capability,
+        )
+    assert non_fake.calls == 0
+
+    class CountingTransport(FakeTransport):
+        def __init__(self):
+            self.calls = 0
 
         def invoke(self, argv, stdin, timeout_s):
             del argv, stdin, timeout_s
@@ -776,21 +852,7 @@ def test_context_packet_runs_requested_through_delivered_and_resolves(tmp_path) 
         schema_version="1.0.0",
     )
 
-    service.validate_and_issue(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={
-            "route_decision_id": "route-1",
-            "route_witness_sha256": "c" * 64,
-            "selected_route_evidence_sha256": "d" * 64,
-        },
-        provider_template={
-            "operation": "compile_brief",
-            "provider": "provider-1",
-            "model": "model-1",
-            "rendered_sha256": "e" * 64,
-        },
-    )
+    issue_valid(service, compiled)
     service.record_delivery(
         compiled,
         recipient_id="consumer-1",
@@ -966,12 +1028,7 @@ def test_delivery_hash_mismatch_has_no_delivery_write(tmp_path) -> None:
     writer = RecordingContextWriter()
     service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
     compiled = compile_valid(service, new_id("context"))
-    service.validate_and_issue(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={"route_decision_id": "route-1"},
-        provider_template={"operation": "compile_brief"},
-    )
+    issue_valid(service, compiled)
     before = list(writer.events)
     with pytest.raises(ArsError, match="delivery hash"):
         service.record_delivery(
@@ -989,23 +1046,7 @@ def test_validation_to_issue_recovers_after_process_restart(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     initial = ContextLifecycleService(objects, writer, writer_id="writer-1")
     compiled = compile_valid(initial, new_id("context"))
-    template = {
-        "operation": "compile_brief",
-        "provider": "provider-1",
-        "model": "model-1",
-        "rendered_sha256": "e" * 64,
-    }
-    validation = {
-        "route_decision_id": "route-1",
-        "route_witness_sha256": "c" * 64,
-        "selected_route_evidence_sha256": "d" * 64,
-    }
-    validated = initial.validate(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence=validation,
-        provider_template=template,
-    )
+    validated = validate_valid(initial, compiled)
 
     restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")
     recovered = restarted.recover_validated(compiled.context_id)
@@ -1018,12 +1059,7 @@ def test_validated_recovery_rejects_template_substitution(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     service = ContextLifecycleService(objects, writer, writer_id="writer-1")
     compiled = compile_valid(service, new_id("context"))
-    service.validate(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={"route_decision_id": "route-1"},
-        provider_template={"operation": "compile_brief"},
-    )
+    validate_valid(service, compiled)
     writer.events[-1]["payload"]["provider_template"] = {"operation": "substituted"}
 
     restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")

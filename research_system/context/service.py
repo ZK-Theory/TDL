@@ -521,6 +521,31 @@ class ContextLifecycleService:
         w7_adapter: Any,
     ) -> LifecycleIssuedDispatch:
         """Bind selected-route W7 evidence and issue one immutable packet template."""
+        validated = self.prevalidate_dispatch(
+            dispatch,
+            capability=capability,
+            provider_count_evidence=provider_count_evidence,
+            usable_capacity_tokens=usable_capacity_tokens,
+            w7_adapter=w7_adapter,
+        )
+        self.issue(validated)
+        return LifecycleIssuedDispatch(
+            dispatch=dispatch,
+            template=validated.template,
+            capability=capability,
+            mint_key=_DISPATCH_MINT_KEY,
+        )
+
+    def prevalidate_dispatch(
+        self,
+        dispatch: LifecycleBoundDispatch,
+        *,
+        capability: ContextLifecycleCapability,
+        provider_count_evidence: Any,
+        usable_capacity_tokens: int,
+        w7_adapter: Any,
+    ) -> ValidatedContextPacket:
+        """Validate only a service-sealed W4 dispatch through selected-route W7."""
         if type(dispatch) is not LifecycleBoundDispatch:
             raise ArsError("lifecycle-bound dispatch is missing or forged")
         dispatch.verify_capability(capability)
@@ -570,22 +595,17 @@ class ContextLifecycleService:
                 packet_sha256=compiled.packet_sha256,
             )
             raise ContextLifecycleFailure(str(exc), receipt) from exc
-        template = self.validate_and_issue(
-            compiled,
-            capability=capability,
-            validation_evidence={
-                "route_decision_id": str(dispatch.route.get("request_id")),
-                "route_witness_sha256": dispatch.provider_evidence_hash,
-                "selected_route_evidence_sha256": dispatch.operational_evidence_hash,
-            },
-            provider_template=provider_template,
-        )
-        return LifecycleIssuedDispatch(
-            dispatch=dispatch,
-            template=template,
-            capability=capability,
-            mint_key=_DISPATCH_MINT_KEY,
-        )
+        validated = self._validated_packet(compiled, capability, provider_template)
+        with self.commands.lifecycle_lock(compiled.context_id):
+            self._submit_validation(
+                validated,
+                {
+                    "route_decision_id": str(dispatch.route.get("request_id")),
+                    "route_witness_sha256": dispatch.provider_evidence_hash,
+                    "selected_route_evidence_sha256": dispatch.operational_evidence_hash,
+                },
+            )
+        return validated
 
     def _validate_prevalidated_template(
         self,
@@ -884,26 +904,6 @@ class ContextLifecycleService:
             transition_receipts=transition_receipts,
         )
 
-    def validate_and_issue(
-        self,
-        compiled: CompiledContextPacket,
-        *,
-        capability: ContextLifecycleCapability,
-        validation_evidence: Mapping[str, Any],
-        provider_template: Mapping[str, Any],
-    ) -> PrevalidatedProviderCommandTemplate:
-        """Freeze validation evidence and issue without releasing the writer lock."""
-        self.verify_capability(
-            capability,
-            context_id=compiled.context_id,
-            packet_sha256=compiled.packet_sha256,
-        )
-        validated = self._validated_packet(compiled, capability, provider_template)
-        with self.commands.lifecycle_lock(compiled.context_id):
-            self._submit_validation(validated, validation_evidence)
-            self._submit_issue(validated)
-        return validated.template
-
     def _validated_packet(
         self,
         compiled: CompiledContextPacket,
@@ -956,25 +956,6 @@ class ContextLifecycleService:
                 "provider_template_sha256": validated.template.sha256,
             },
         )
-
-    def validate(
-        self,
-        compiled: CompiledContextPacket,
-        *,
-        capability: ContextLifecycleCapability,
-        validation_evidence: Mapping[str, Any],
-        provider_template: Mapping[str, Any],
-    ) -> ValidatedContextPacket:
-        """Persist validation separately so issue can recover after restart."""
-        self.verify_capability(
-            capability,
-            context_id=compiled.context_id,
-            packet_sha256=compiled.packet_sha256,
-        )
-        validated = self._validated_packet(compiled, capability, provider_template)
-        with self.commands.lifecycle_lock(compiled.context_id):
-            self._submit_validation(validated, validation_evidence)
-        return validated
 
     def recover_validated(self, context_id: str) -> ValidatedContextPacket:
         """Rebuild exact issue authority from verified lifecycle and object bytes."""
