@@ -4569,18 +4569,16 @@ class CommandService:
                     "decision_authority_binding_mismatch",
                     "ResolveDecision must bind its stream, deciding actor, and authority grant.",
                 )
-            if any(
-                event.get("event_type") == "DecisionResolved"
-                for event in snapshot.events
-                if event.get("stream_id") == command.target_stream_id
-            ):
-                return rejected("decision_already_resolved", "Decision is already resolved.")
             decision = self._c1_streams(snapshot).get(command.target_stream_id)
             if not isinstance(decision, dict):
                 return rejected(
                     "decision_resolution_precondition_failed",
                     "ResolveDecision requires an existing Decision in under_review state.",
                 )
+            if decision.get("status") == "resolved" and payload.get("decision_revision") == decision.get(
+                "decision_revision"
+            ):
+                return rejected("decision_already_resolved", "This Decision revision is already resolved.")
             review_ids = tuple(payload.get("considered_review_ids", ()))
             decision_hash = sha256_hex(canonical_bytes(decision))
             reviewed = tuple(self._c1_streams(snapshot).get(review_id) for review_id in review_ids)

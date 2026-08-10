@@ -1060,6 +1060,88 @@ def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_r
             "redispatch_rerun_disclosure_requirements": ["disclose the superseded scope"],
         },
     )
+    _submit_decision_command(
+        harness,
+        6630,
+        "RequestDecisionReview",
+        primary,
+        {
+            "decision_id": primary,
+            "decision_revision": 2,
+            "review_requirements": ["independent exact-subject review"],
+            "governing_evidence_refs": ["evidence:decision-review-request:revision-2"],
+        },
+        actor_id=ACTOR_C,
+        authority_grant_id=proposer_grant,
+    )
+    revision_2_state = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][primary]
+    revision_2_hash = sha256_hex(canonical_bytes(revision_2_state))
+    revision_2_review_id = "rev_01978abc-6631-7000-8000-000000006631"
+    _request_review(harness, revision_2_review_id, 6631, revision_2_hash, subject_id=primary)
+    _record_review_verdict(harness, revision_2_review_id, revision_2_hash, 6632, "approve")
+    _submit_review_command(
+        harness,
+        6635,
+        "SatisfyReview",
+        revision_2_review_id,
+        {
+            "review_id": revision_2_review_id,
+            "prior_review_state": "verdict_recorded",
+            "policy_evaluation_refs": ["policy-evaluation:decision-review:revision-2"],
+            "satisfaction_gate": "decision-review-gate",
+        },
+    )
+    _submit_decision_command(
+        harness,
+        6636,
+        "ResolveDecision",
+        primary,
+        {
+            "decision_id": primary,
+            "selected_option": "proceed",
+            "effective_scope": "C3 amended decision test only",
+            "effective_at": "2026-08-09T14:00:00Z",
+            "decision_revision": 2,
+            "deciding_actor_id": ACTORS["actor-a"],
+            "decision_authority_grant_id": owner_grant,
+            "governing_evidence_refs": ["evidence:owner-decision:revision-2"],
+            "considered_review_ids": [revision_2_review_id],
+            "permitted_commands": ["AmendDecision"],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": ["material subject change"],
+        },
+    )
+    duplicate_resolution = _command(
+        "cmd_01978abc-6637-7000-8000-000000006637",
+        "ResolveDecision",
+        primary,
+        harness.ledger.snapshot().stream_versions[primary],
+        {
+            "decision_id": primary,
+            "selected_option": "proceed",
+            "effective_scope": "C3 amended decision test only",
+            "effective_at": "2026-08-09T14:00:00Z",
+            "decision_revision": 2,
+            "deciding_actor_id": ACTORS["actor-a"],
+            "decision_authority_grant_id": owner_grant,
+            "governing_evidence_refs": ["evidence:owner-decision:revision-2"],
+            "considered_review_ids": [revision_2_review_id],
+            "permitted_commands": ["AmendDecision"],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": ["material subject change"],
+        },
+    )
+    duplicate_resolution["actor_id"] = ACTORS["actor-a"]
+    duplicate_resolution["authority_grant_id"] = owner_grant
+    before_duplicate = tuple(harness.ledger.iter_events())
+
+    duplicate_receipt = harness.service.submit(duplicate_resolution)
+
+    assert duplicate_receipt.status == "rejected"
+    assert duplicate_receipt.reason_code == "decision_already_resolved"
+    assert tuple(harness.ledger.iter_events()) == before_duplicate
 
     _submit_decision_command(harness, 6610, "ProposeDecision", rejected_id, _decision_payload(rejected_id))
     _submit_decision_command(
@@ -1157,8 +1239,9 @@ def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_r
     assert harness.service.submit(correction).status == "accepted"
 
     projection = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)
-    assert projection["streams"][primary]["status"] == "proposed"
+    assert projection["streams"][primary]["status"] == "resolved"
     assert projection["streams"][primary]["decision_revision"] == 2
+    assert projection["streams"][primary]["effective_scope"] == "C3 amended decision test only"
     assert projection["streams"][rejected_id]["status"] == "rejected"
     assert projection["streams"][expired_id]["status"] == "expired"
     assert projection["streams"][superseded_id]["status"] == "superseded"
