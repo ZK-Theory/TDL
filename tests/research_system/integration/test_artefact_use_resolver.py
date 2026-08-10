@@ -118,8 +118,8 @@ def test_public_resolver_reads_real_replay_and_immutable_object_state(tmp_path):
 )
 def test_public_resolver_failures_are_read_only(tmp_path, field, value, reason):
     harness = control_plane(tmp_path)
-    for value in accepted_artefact_commands(harness):
-        assert harness.service.submit(value).status == "accepted"
+    for submitted_command in accepted_artefact_commands(harness):
+        assert harness.service.submit(submitted_command).status == "accepted"
     loader = ArtefactAuthorityContractLoader(SUBJECT)
     resolver = ArtefactUseResolver(
         ledger=harness.ledger,
