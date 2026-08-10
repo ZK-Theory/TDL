@@ -12,8 +12,8 @@ from tests.research_system.factories import REPO_ROOT
 
 
 SUBJECT = AcceptedContractSubject(
-    manifest_git_blob="0cd9581ca4427a8515aefd99a7a045d52452ddd3",
-    manifest_sha256="0b1f5499d631bfd113dcec0453247d68468a91a2c2bf997b295f6088ff418e6b",
+    manifest_git_blob="7af3af9fbec1e5a1427162885eaeb6a82cbfca7b",
+    manifest_sha256="b32821b6487a2d2a9941966a01dca1bdf62c3d3e57255f4c8f6933282a197ad1",
 )
 
 

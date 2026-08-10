@@ -310,10 +310,20 @@ class ArtefactAuthorityContractLoader:
             )
 
         inventory = interface.get("consumer_inventory")
-        if not isinstance(inventory, list) or [
-            row.get("consumer_kind") for row in inventory if isinstance(row, dict)
-        ] != list(_CONSUMER_KINDS):
-            raise ContractIdentityError("public consumer inventory is incomplete or reordered")
+        if not isinstance(inventory, list) or not inventory or any(not isinstance(row, dict) for row in inventory):
+            raise ContractIdentityError("public consumer inventory is invalid")
+        inventory_pairs = [(str(row.get("consumer_kind", "")), str(row.get("consumer_id", ""))) for row in inventory]
+        policy_pairs = [
+            (kind, str(consumer_id))
+            for kind, predicate in predicates_by_kind.items()
+            for consumer_id in predicate.get("allowed_consumer_ids", [])
+        ]
+        if (
+            len(inventory_pairs) != len(set(inventory_pairs))
+            or set(inventory_pairs) != set(policy_pairs)
+            or any(kind not in _CONSUMER_KINDS for kind, _ in inventory_pairs)
+        ):
+            raise ContractIdentityError("public consumer inventory is not closed over the accepted policy")
 
         return AcceptedArtefactAuthorityContract(
             manifest_git_blob=self.accepted_subject.manifest_git_blob,

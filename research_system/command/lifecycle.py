@@ -260,12 +260,166 @@ _C2_EXACT_LIFECYCLE_BINDINGS = {
     ),
 }
 EXACT_LIFECYCLE_BINDINGS.update(_C2_EXACT_LIFECYCLE_BINDINGS)
+EXACT_LIFECYCLE_BINDINGS.update(
+    {
+        "ars://core/event/ScopeCompleted": (
+            "ScopeCompleted",
+            "CompleteScope",
+            "ars://core/command/CompleteScope",
+        ),
+        "ars://core/event/TaskAccepted": (
+            "TaskAccepted",
+            "AcceptTask",
+            "ars://core/command/AcceptTask",
+        ),
+        "ars://core/event/TaskRejected": (
+            "TaskRejected",
+            "RejectTask",
+            "ars://core/command/RejectTask",
+        ),
+        "ars://core/event/TaskReopened": (
+            "TaskReopened",
+            "ReopenTask",
+            "ars://core/command/ReopenTask",
+        ),
+        "ars://core/event/ReviewAssigned": (
+            "ReviewAssigned",
+            "AssignReview",
+            "ars://core/command/AssignReview",
+        ),
+        "ars://core/event/ReviewStarted": (
+            "ReviewStarted",
+            "StartReview",
+            "ars://core/command/StartReview",
+        ),
+        "ars://core/event/ReviewVerdictRecorded": (
+            "ReviewVerdictRecorded",
+            "RecordReviewVerdict",
+            "ars://core/command/RecordReviewVerdict",
+        ),
+        "ars://core/event/ReviewChangesRequested": (
+            "ReviewChangesRequested",
+            "RequestReviewChanges",
+            "ars://core/command/RequestReviewChanges",
+        ),
+        "ars://core/event/ReviewSatisfied": (
+            "ReviewSatisfied",
+            "SatisfyReview",
+            "ars://core/command/SatisfyReview",
+        ),
+        "ars://core/event/ReviewWithdrawn": (
+            "ReviewWithdrawn",
+            "WithdrawReview",
+            "ars://core/command/WithdrawReview",
+        ),
+        "ars://core/event/ReviewSuperseded": (
+            "ReviewSuperseded",
+            "SupersedeReview",
+            "ars://core/command/SupersedeReview",
+        ),
+        "ars://core/event/DecisionProposed": (
+            "DecisionProposed",
+            "ProposeDecision",
+            "ars://core/command/ProposeDecision",
+        ),
+        "ars://core/event/DecisionReviewRequested": (
+            "DecisionReviewRequested",
+            "RequestDecisionReview",
+            "ars://core/command/RequestDecisionReview",
+        ),
+        "ars://core/event/DecisionResolved": (
+            "DecisionResolved",
+            "ResolveDecision",
+            "ars://core/command/ResolveDecision",
+        ),
+        "ars://core/event/ArtefactRegistered": (
+            "ArtefactRegistered",
+            "RegisterArtefact",
+            "ars://core/command/RegisterArtefact",
+        ),
+        "ars://core/event/ArtefactAvailabilityRecorded": (
+            "ArtefactAvailabilityRecorded",
+            "RecordArtefactAvailability",
+            "ars://core/command/RecordArtefactAvailability",
+        ),
+        "ars://core/event/ArtefactRegenerabilityRecorded": (
+            "ArtefactRegenerabilityRecorded",
+            "RecordArtefactRegenerability",
+            "ars://core/command/RecordArtefactRegenerability",
+        ),
+        "ars://core/event/ArtefactIntegrityRecorded": (
+            "ArtefactIntegrityRecorded",
+            "RecordArtefactIntegrity",
+            "ars://core/command/RecordArtefactIntegrity",
+        ),
+        "ars://core/event/StructuralValidationRecorded": (
+            "StructuralValidationRecorded",
+            "RecordStructuralValidation",
+            "ars://core/command/RecordStructuralValidation",
+        ),
+        "ars://core/event/ScientificReviewRecorded": (
+            "ScientificReviewRecorded",
+            "RecordScientificReview",
+            "ars://core/command/RecordScientificReview",
+        ),
+        "ars://core/event/ArtefactUseAuthoritySet": (
+            "ArtefactUseAuthoritySet",
+            "SetArtefactUseAuthority",
+            "ars://core/command/SetArtefactUseAuthority",
+        ),
+        "ars://core/event/ArtefactSuperseded": (
+            "ArtefactSuperseded",
+            "SupersedeArtefact",
+            "ars://core/command/SupersedeArtefact",
+        ),
+        "ars://core/event/LateArtefactAdopted": (
+            "LateArtefactAdopted",
+            "AdoptLateArtefact",
+            "ars://core/command/AdoptLateArtefact",
+        ),
+        "ars://core/event/DecisionRejected": (
+            "DecisionRejected",
+            "RejectDecision",
+            "ars://core/command/RejectDecision",
+        ),
+        "ars://core/event/DecisionExpired": (
+            "DecisionExpired",
+            "ExpireDecision",
+            "ars://core/command/ExpireDecision",
+        ),
+        "ars://core/event/DecisionSuperseded": (
+            "DecisionSuperseded",
+            "SupersedeDecision",
+            "ars://core/command/SupersedeDecision",
+        ),
+        "ars://core/event/RuleEvaluationRecorded": (
+            "RuleEvaluationRecorded",
+            "RecordRuleEvaluation",
+            "ars://core/command/RecordRuleEvaluation",
+        ),
+        "ars://core/event/DecisionAmendmentProposed": (
+            "DecisionAmendmentProposed",
+            "AmendDecision",
+            "ars://core/command/AmendDecision",
+        ),
+        "ars://core/event/RecordCorrected": (
+            "RecordCorrected",
+            "RecordCorrection",
+            "ars://core/command/RecordCorrection",
+        ),
+    }
+)
 
 _EXACT_LIFECYCLE_PRODUCER_BINDINGS = {
     ("ars://core/event/AttemptCreated", "RetryAttempt"): (
         "AttemptCreated",
         "RetryAttempt",
         "ars://core/command/RetryAttempt",
+    ),
+    ("ars://core/event/PartialOutcomeRecorded", "ClosePartial"): (
+        "PartialOutcomeRecorded",
+        "ClosePartial",
+        "ars://core/command/ClosePartial",
     ),
 }
 
@@ -278,7 +432,7 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
 
 # These payloads are derived from their command payloads rather than copied verbatim.
 _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset(
-    {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded"}
+    {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded", "ArtefactUseAuthoritySet"}
 )
 
 
@@ -442,3 +596,37 @@ def has_unique_member_ids(records: Iterable[Mapping[str, Any]]) -> bool:
     """
     member_ids = [record.get("member_id") for record in records]
     return len(member_ids) == len(set(member_ids))
+
+
+def validate_scope_completion_members(
+    definition: Mapping[str, Any],
+    dispositions: Iterable[Mapping[str, Any]],
+    streams: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Fail closed unless every required member has its declared terminal state."""
+    expected = {str(member["member_id"]): member for member in definition.get("members", ())}
+    terminal_status = {
+        "accepted": "accepted",
+        "superseded": "superseded",
+        "cancelled": "cancelled",
+        "rejected": "rejected",
+    }
+    for disposition in dispositions:
+        member_id = str(disposition["member_id"])
+        member = expected.get(member_id)
+        if member is None:
+            raise ValueError("scope completion contains an undeclared member")
+        declared = str(member.get("required_disposition"))
+        observed = str(disposition.get("disposition"))
+        if observed != declared:
+            raise ValueError("scope member disposition differs from its required disposition")
+        if observed in {"partial_accepted", "deferred"}:
+            raise ValueError("scope member remains unresolved")
+        if not disposition.get("completion_evidence_ref"):
+            raise ValueError("scope member completion evidence is missing")
+        if observed == "removed_by_amendment":
+            continue
+        expected_status = terminal_status.get(observed)
+        current = streams.get(member_id)
+        if expected_status is None or not isinstance(current, Mapping) or current.get("status") != expected_status:
+            raise ValueError("scope member is not in its declared terminal state")

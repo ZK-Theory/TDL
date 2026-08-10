@@ -17,16 +17,19 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_attempt,
+    reduce_artefact,
     reduce_backup,
     reduce_blocker,
     reduce_checkpoint,
     reduce_dispatch,
+    reduce_decision,
     reduce_lease,
     reduce_message,
     reduce_operation,
     reduce_recovery,
     reduce_review,
     reduce_resource,
+    reduce_rule_evaluation,
     reduce_scope,
     reduce_task,
     validate_scope_lifecycle_event,
@@ -36,19 +39,6 @@ from research_system.command.lifecycle import validate_exact_lifecycle_envelope
 from research_system.command.t2 import apply_t2_event
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
-
-_ALLOWED_DISPOSITIONS = frozenset(
-    {
-        "accepted",
-        "partial_accepted",
-        "deferred",
-        "superseded",
-        "removed_by_amendment",
-        "cancelled",
-        "rejected",
-    }
-)
-
 
 _SCOPED_ACTIVATION_SCHEMA_VERSIONS = {
     ("1.0.0", "1.0.0"): LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
@@ -272,32 +262,6 @@ def _validate_recorded_event_schema(
         )
     elif schema_registry.contains(payload_schema):
         schema_registry.validate(payload_schema, event.get("payload"))
-
-
-def _validate_scope_completion(payload: dict[str, Any]) -> None:
-    reference = payload.get("scope_definition_ref")
-    if (
-        not isinstance(reference, dict)
-        or not reference.get("object_id")
-        or not isinstance(reference.get("revision"), int)
-        or reference["revision"] < 1
-    ):
-        raise IntegrityError("scope completion requires an exact definition revision")
-    required = payload.get("required_member_ids")
-    dispositions = payload.get("member_dispositions")
-    if not isinstance(required, list) or len(required) != len(set(required)):
-        raise IntegrityError("scope completion has invalid required members")
-    if not isinstance(dispositions, dict):
-        raise IntegrityError("scope completion requires member dispositions")
-    missing = sorted(set(required).difference(dispositions))
-    if missing:
-        raise IntegrityError(f"missing dispositions: {', '.join(missing)}")
-    extra = sorted(set(dispositions).difference(required))
-    if extra:
-        raise IntegrityError(f"unexpected dispositions: {', '.join(extra)}")
-    invalid = sorted(member for member, disposition in dispositions.items() if disposition not in _ALLOWED_DISPOSITIONS)
-    if invalid:
-        raise IntegrityError(f"invalid dispositions: {', '.join(invalid)}")
 
 
 def _validate_claim_dispatch_transaction(
@@ -720,13 +684,17 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         "TaskSubmittedForReview",
         "TaskResumed",
         "TaskCancelled",
-    }:
+        "TaskAccepted",
+        "TaskRejected",
+        "TaskReopened",
+    } or (event_type == "PartialOutcomeRecorded" and event.get("command_type") == "ClosePartial"):
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type in {
         "ScopeDefinitionCreated",
         "ScopeDefinitionAmended",
         "ScopeDefinitionSuperseded",
+        "ScopeCompleted",
     }:
         validate_scope_lifecycle_event(streams, event)
         streams[stream_id] = reduce_scope(streams.get(stream_id, {}), event)
@@ -802,7 +770,16 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_recovery(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type == "ReviewRequested":
+    elif event_type in {
+        "ReviewRequested",
+        "ReviewAssigned",
+        "ReviewStarted",
+        "ReviewVerdictRecorded",
+        "ReviewChangesRequested",
+        "ReviewSatisfied",
+        "ReviewWithdrawn",
+        "ReviewSuperseded",
+    }:
         try:
             streams[stream_id] = reduce_review(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
@@ -817,89 +794,62 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_backup(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type == "ArtefactRegistered":
-        payload = event["payload"]
-        manifest = payload.get("manifest") if isinstance(payload, dict) else None
-        if (
-            stream_id in streams
-            or not isinstance(manifest, dict)
-            or payload.get("new_artefact_id") != stream_id
-            or manifest.get("artefact_id") != stream_id
-            or not isinstance(manifest.get("authority"), dict)
-            or manifest["authority"].get("use_authority") != "candidate"
-            or manifest["authority"].get("regenerability") == "regenerable_verified"
-        ):
-            raise IntegrityError("invalid artefact registration transition")
-        streams[stream_id] = {
-            "artefact_id": stream_id,
-            "manifest": deepcopy(manifest),
-            "content_sha256": manifest.get("content_sha256"),
-            "use_authority": "candidate",
-            "scientific_reviews": [],
-            "version": event["stream_version"],
-        }
-    elif event_type == "ScientificReviewRecorded":
-        payload = event["payload"]
-        current = streams.get(stream_id)
-        if (
-            not isinstance(current, dict)
-            or current.get("artefact_id") != stream_id
-            or not isinstance(payload, dict)
-            or payload.get("artefact_id") != stream_id
-            or payload.get("subject_sha256") != current.get("content_sha256")
-        ):
-            raise IntegrityError("invalid scientific review transition")
-        reviews = list(current.get("scientific_reviews", []))
-        if any(review.get("review_id") == payload.get("review_id") for review in reviews):
-            raise IntegrityError("duplicate scientific review identity")
-        reviews.append(
-            {
-                **deepcopy(payload),
-                "reviewer_actor_id": event["actor_id"],
-                "event_id": event["event_id"],
-                "event_hash": event["event_hash"],
-                "recorded_at": event["recorded_at"],
-            }
-        )
-        streams[stream_id] = {
-            **current,
-            "scientific_reviews": reviews,
-            "version": event["stream_version"],
-        }
-    elif event_type == "ArtefactUseAuthoritySet":
-        payload = event["payload"]
-        current = streams.get(stream_id)
-        if (
-            not isinstance(current, dict)
-            or current.get("artefact_id") != stream_id
-            or not isinstance(payload, dict)
-            or payload.get("artefact_id") != stream_id
-            or payload.get("subject_sha256") != current.get("content_sha256")
-            or payload.get("use_authority") == "candidate"
-        ):
-            raise IntegrityError("invalid artefact use-authority transition")
-        streams[stream_id] = {
-            **current,
-            "use_authority": payload["use_authority"],
-            "consumer_predicate": payload["consumer_predicate"],
-            "authority_evidence_refs": list(payload["evidence_refs"]),
-            "authority_event_id": event["event_id"],
-            "authority_event_hash": event["event_hash"],
-            "version": event["stream_version"],
-        }
-    elif event_type == "DecisionResolved":
-        payload = event["payload"]
-        if stream_id in streams or not isinstance(payload, dict) or payload.get("decision_id") != stream_id:
-            raise IntegrityError("invalid decision resolution transition")
-        projection = {
-            **deepcopy(payload),
-            "status": "resolved",
-            "event_id": event["event_id"],
-            "event_hash": event["event_hash"],
-            "version": event["stream_version"],
-        }
+    elif event_type in {
+        "ArtefactRegistered",
+        "ArtefactAvailabilityRecorded",
+        "ArtefactRegenerabilityRecorded",
+        "ArtefactIntegrityRecorded",
+        "StructuralValidationRecorded",
+        "ScientificReviewRecorded",
+        "ArtefactUseAuthoritySet",
+        "ArtefactSuperseded",
+        "LateArtefactAdopted",
+    }:
+        try:
+            streams[stream_id] = reduce_artefact(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type in {
+        "DecisionProposed",
+        "DecisionReviewRequested",
+        "DecisionResolved",
+        "DecisionRejected",
+        "DecisionExpired",
+        "DecisionSuperseded",
+        "DecisionAmendmentProposed",
+    }:
+        try:
+            projection = reduce_decision(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
         updated.setdefault("decisions", {})[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "RuleEvaluationRecorded":
+        try:
+            projection = reduce_rule_evaluation(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+        updated.setdefault("rule_evaluations", {})[stream_id] = projection
+        streams[stream_id] = projection
+    elif event_type == "RecordCorrected":
+        payload = event["payload"]
+        correction_index = payload.get("governance_correction_index") if isinstance(payload, dict) else None
+        corrections = updated.setdefault("governance_correction_index", {})
+        if (
+            not isinstance(payload, dict)
+            or payload.get("erroneous_record_id") != stream_id
+            or stream_id not in streams
+            or not isinstance(correction_index, str)
+            or not correction_index
+            or correction_index in corrections
+        ):
+            raise IntegrityError("invalid governance correction transition")
+        corrections[correction_index] = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "stream_version": event["stream_version"],
+        }
     elif event_type in {
         "ContextPacketRequested",
         "ContextCompilationStarted",
@@ -969,15 +919,6 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "terminal": deepcopy(payload)
             if next_state in {"failed", "expired", "superseded"}
             else (current or {}).get("terminal"),
-            "version": event["stream_version"],
-        }
-    elif event_type == "ScopeCompleted":
-        _validate_scope_completion(event["payload"])
-        streams[stream_id] = {
-            "scope_id": stream_id,
-            "status": "completed",
-            "scope_definition_ref": event["payload"]["scope_definition_ref"],
-            "member_dispositions": dict(event["payload"]["member_dispositions"]),
             "version": event["stream_version"],
         }
     elif event_type in {"EvidenceDeletionVerified", "EvidenceDeletionPending"}:

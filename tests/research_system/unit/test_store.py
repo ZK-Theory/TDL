@@ -1190,6 +1190,55 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert receipt["event_batch_id"] == events[0]["transaction_id"]
 
 
+def test_raw_prefix_sha256_stops_after_first_batch_beyond_cut(tmp_path, monkeypatch):
+    ledger = _catalogue_only_ledger(tmp_path)
+    for index in range(3):
+        ledger.append(
+            [
+                {
+                    "event_type": "TaskCreated",
+                    "stream_id": TASK_ID,
+                    "schema_id": "ars://core/event",
+                    "payload": {"index": index},
+                }
+            ]
+        )
+    paths = ledger._batch_paths()
+    expected = sha256_hex(paths[0].read_bytes())
+    ledger.snapshot()
+    original_read_bytes = Path.read_bytes
+
+    def guarded_read_bytes(path):
+        if path == paths[2]:
+            raise AssertionError("raw prefix read a batch after the cut")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+
+    assert ledger.raw_prefix_sha256(1) == expected
+
+
+def test_raw_prefix_sha256_rejects_a_cut_inside_atomic_batch(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            },
+            {
+                "event_type": "TaskAmended",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            },
+        ]
+    )
+
+    with pytest.raises(ConflictError, match="splits one atomic event batch"):
+        ledger.raw_prefix_sha256(1)
+
+
 def test_default_ledger_rejects_append_without_explicit_schema_registry(tmp_path):
     ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
 

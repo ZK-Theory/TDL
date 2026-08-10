@@ -2,6 +2,113 @@ schema_id: ars://policy/governing-review-set-rules
 schema_version: 1.0.0
 candidate_state: proposed
 independence_order: [I0, I1, I2, I3]
+governing_review_resolution:
+  authoritative_source: all ScientificReviewRecorded events on the exact artefact stream in verified replay at snapshot ledger_position
+  universe_selector:
+    - project_id
+    - artefact_stream_id
+    - exact_subject_sha256
+  snapshot_binding:
+    store_identity: required
+    ledger_position: exact
+    raw_prefix_sha256: required
+    later_events: excluded_by_position
+  event_resolution:
+    event_type: ScientificReviewRecorded
+    stream_identity: registered artefact_id
+    review_identity: payload.review_id
+    duplicate_review_id_anywhere: deny
+    event_binding: [stream_id, stream_version, event_id, event_hash, recorded_at]
+    revision_semantics: none; each review_id is immutable and may occur exactly once
+  membership_rule:
+    include: every ScientificReviewRecorded event on the exact artefact stream whose payload subject_sha256 equals the registered content hash
+    caller_supplied_subset: prohibited
+    wrong_project_stream_or_subject: deny
+  evidence_record_resolution:
+    source: GoverningScientificReviewStore via every event payload evidence_refs entry
+    schema: ars://evidence/governing-scientific-review@1.0.0
+    record_fields:
+      - schema_id
+      - schema_version
+      - project_id
+      - review_id
+      - subject_sha256
+      - reviewer_actor_id
+      - eligible
+      - related
+      - independence_grade
+      - status
+    matching_rule: exactly one canonical record matching review_id and event subject/reviewer; zero or multiple denies
+    record_identity: resolver-derived reference_id plus sha256(P0 canonical JSON exact record)
+  no_omission_proof:
+    - store_identity
+    - ledger_position
+    - raw_prefix_sha256
+    - ordered_governing_review_ids
+    - ordered_governing_review_record_sha256s
+    - governing_review_set_sha256
+  total_order:
+    key: [review_id_utf8_bytes]
+    direction: ascending
+    duplicate_review_id: deny
+  event_census:
+    members: every ScientificReviewRecorded event on the artefact stream at snapshot ledger_position
+    row_fields: [review_id, stream_version, event_id, event_hash, recorded_at]
+    ordering: review_id UTF-8 bytes ascending
+    digest: sha256(P0 canonical JSON rows)
+    duplicate_or_omitted_event: deny
+  set_digest:
+    algorithm: sha256
+    serialization: research_system.canonical.canonical_bytes P0 canonical JSON
+    preimage_schema: ars://policy/governing-review-set-digest@1.0.0
+    preimage_fields_in_semantic_order:
+      - schema_id
+      - schema_version
+      - store_identity
+      - ledger_position
+      - raw_prefix_sha256
+      - scientific_review_event_census_sha256
+      - reviews
+    reviews_row_fields:
+      - review_id
+      - artefact_stream_id
+      - artefact_stream_version
+      - event_id
+      - event_hash
+      - recorded_at
+      - evidence_reference_ids
+      - exact_record_sha256
+      - project_id
+      - exact_subject_sha256
+      - reviewer_actor_id
+      - status
+      - eligible
+      - related
+      - independence_grade
+  satisfaction_gate:
+    evaluate_every_governing_review: true
+    approved_event_value: approved
+    accepted_record_status: active
+    require_eligible: true
+    prohibit_related_reviewer: true
+    prohibit_producer_reviewer: true
+    blocking_states:
+      - changes_requested
+      - rejected
+      - unsatisfied
+      - ineligible
+      - related
+      - insufficient_independence
+      - withdrawn
+      - superseded
+    minimum_count_applies_after_all_reviews_evaluated: true
+  accepted_event_binding:
+    - ordered_governing_review_ids
+    - ordered_governing_review_record_sha256s
+    - governing_review_set_sha256
+    - store_identity
+    - ledger_position
+    - raw_prefix_sha256
 rules:
   result_evidence:
     minimum_approved_reviews: 1
@@ -35,9 +142,60 @@ rules:
     prohibit_producer_reviewer: true
 decision_rules:
   claim_promotion:
+    authoritative_source: verified_decision_replay_at_evaluation_snapshot
+    decision_kind: claim_promotion
+    required_status: resolved
     selected_option: approve
-    deciding_actor: authority_owner_actor
+    deciding_actor_binding:
+      required_owner_role: Stephen
+      actor_id_source: verified_replay.authority_owner_actor_id
+      prohibit_caller_supplied_actor: true
+    owner_authority_resolution:
+      source: InitializeAuthorityRoot genesis events in verified replay at the same snapshot
+      selection: the unique authority_root_id and authority_owner_actor_id established at genesis
+      active_requirements: [authority_root grant status=active, activation_event_id resolves exactly once]
+      ambiguity_or_missing_genesis: deny
+      binding:
+        - owner_actor_id
+        - authority_root_id
+        - authority_root_grant_sha256
+        - authority_root_activation_event_id
+        - authority_root_activation_event_hash
+        - authority_root_activation_global_position
     required_permitted_command: SetArtefactUseAuthority
     effective_scope_format: claim_promotion:<scope_id>
     require_exact_scope: true
-    require_effective_at_or_before_evaluation: true
+    currentness:
+      effective_at_or_before_evaluation_time: true
+      not_expired: true
+      not_rejected: true
+      not_superseded: true
+      no_later_effective_amendment_changes_approval: true
+    decision_resolution:
+      universe_selector:
+        - project_id
+        - decision_kind=claim_promotion
+        - exact_effective_scope
+        - effective_at<=evaluation_time
+      revision_winner: unique greatest stream_version per decision_id; duplicate or tie denies
+      supersession: follow exact DecisionSuperseded links to closure; broken, cyclic, or forked closure denies
+      current_candidate: resolved approve decision with no active superseder or later approval-changing amendment
+      cardinality: exactly_one_else_deny
+      total_order_for_proof: decision_id UTF-8 bytes ascending
+    snapshot_binding:
+      store_identity: required
+      ledger_position: same_as_governing_review_snapshot
+      raw_prefix_sha256: same_as_governing_review_snapshot
+    event_binding:
+      - decision_id
+      - decision_event_id
+      - decision_event_hash
+      - decision_subject_sha256
+      - decision_projection_sha256
+      - authority_grant_id
+      - owner_actor_id
+      - authority_root_id
+      - authority_root_grant_sha256
+      - authority_root_activation_event_id
+      - authority_root_activation_event_hash
+    caller_supplied_decision_or_actor: prohibited

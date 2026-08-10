@@ -1,20 +1,217 @@
 schema_id: ars://contracts/artefact-authority-interface
 schema_version: 1.0.0
 candidate_state: proposed
+owner_catalogue_source: .research-system/contracts/wp6-1-owner-source-catalogue.yaml
 command_families:
-  - command_type: RegisterArtefact
-    event_type: ArtefactRegistered
+  - catalogue_key: artefact.register
+    owner_catalogue_binding:
+      command_type: RegisterArtefact
+      ordered_events: [ArtefactRegistered]
+      reducers: [reduce_artefact]
+      projections: [artefact]
+      projection_selector: null
+      authority:
+        rule_and_precondition: immutable content hash and complete manifest provenance
+        authority_subject_kind: artefact
+        authority_subject_id_source: payload.new_artefact_id
+        authority_scope_source: [envelope.project_id, authority_subject_kind, authority_subject_id_source]
+        authority_grant_id_source: envelope.authority_grant_id
+        authority_effective_at_source: authority_grant.effective_at
+        authority_expires_at_source: authority_grant.expires_at
+        allowed_actor_classes: [human, agent, service]
+        prohibited_actor_classes: [importer]
+      receipt: R
+      positive_test: pos_artefact_register
+      negative_profile: NA
+      expanded_negative_tests:
+        - neg_artefact_register_missing_field
+        - neg_artefact_register_wrong_type
+        - neg_artefact_register_missing_authority
+        - neg_artefact_register_wrong_authority
+        - neg_artefact_register_expired_grant
+        - neg_artefact_register_not_yet_effective_grant
+        - neg_artefact_register_prohibited_actor
+        - neg_artefact_register_wrong_authority_scope
+        - neg_artefact_register_wrong_authority_subject_kind
+        - neg_artefact_register_wrong_authority_subject_id
+        - neg_artefact_register_stale_expected_version
+        - neg_artefact_register_conflicting_payload
+        - neg_artefact_register_idempotency_conflict
+        - neg_artefact_register_atomic_no_event
+        - neg_artefact_register_atomic_no_receipt_acceptance
+        - neg_artefact_register_atomic_no_projection_side_effect
+        - neg_artefact_register_illegal_from_state
+        - neg_artefact_register_illegal_to_state
+        - neg_artefact_register_invalid_command_subject_identity
+        - neg_artefact_register_authority_rule_mutation
+        - neg_artefact_register_accepted_subject_binding_mutation
+        - neg_artefact_register_allowed_actor_class_mutation
+      complete_record_sha256: 0b6eadd054aac60b8661747c74a2e92631d7b41b3199d65d8c0716a8c0cc9ff7
     initial_use_authority: candidate
-    target_kind: artefact
-  - command_type: RecordScientificReview
-    event_type: ScientificReviewRecorded
-    target_kind: artefact
-  - command_type: SetArtefactUseAuthority
-    event_type: ArtefactUseAuthoritySet
-    target_kind: artefact
-  - command_type: ResolveDecision
-    event_type: DecisionResolved
-    target_kind: decision
+    atomic_failure_contract: &atomic_command_failure
+      validation_order:
+        - schema_and_exact_subject_identity
+        - authority_grant_actor_scope_and_effectivity
+        - current_state_expected_version_and_idempotency
+        - bound_evidence_and_domain_preconditions
+        - writer_lock_recheck
+        - durable_mutation
+      failure_exception: typed_command_rejection
+      rejected_receipt: permitted_if_typed_and_not_accepted
+      accepted_receipt: none
+      event_append: none
+      object_revision: none
+      projection_mutation: none
+  - catalogue_key: artefact.scientific_review
+    owner_catalogue_binding:
+      command_type: RecordScientificReview
+      ordered_events: [ScientificReviewRecorded]
+      reducers: [reduce_artefact]
+      projections: [artefact, review]
+      projection_selector: null
+      authority:
+        rule_and_precondition: eligible review bound to exact subject hash
+        authority_subject_kind: artefact
+        authority_subject_id_source: envelope.target_stream_id
+        authority_scope_source: [envelope.project_id, authority_subject_kind, authority_subject_id_source]
+        authority_grant_id_source: envelope.authority_grant_id
+        authority_effective_at_source: authority_grant.effective_at
+        authority_expires_at_source: authority_grant.expires_at
+        allowed_actor_classes: [human, agent, service]
+        prohibited_actor_classes: [importer]
+      receipt: R
+      positive_test: pos_artefact_scientific_review
+      negative_profile: NI
+      expanded_negative_tests:
+        - neg_artefact_scientific_review_missing_field
+        - neg_artefact_scientific_review_wrong_type
+        - neg_artefact_scientific_review_missing_authority
+        - neg_artefact_scientific_review_wrong_authority
+        - neg_artefact_scientific_review_expired_grant
+        - neg_artefact_scientific_review_not_yet_effective_grant
+        - neg_artefact_scientific_review_prohibited_actor
+        - neg_artefact_scientific_review_wrong_authority_scope
+        - neg_artefact_scientific_review_wrong_authority_subject_kind
+        - neg_artefact_scientific_review_wrong_authority_subject_id
+        - neg_artefact_scientific_review_stale_expected_version
+        - neg_artefact_scientific_review_conflicting_payload
+        - neg_artefact_scientific_review_idempotency_conflict
+        - neg_artefact_scientific_review_atomic_no_event
+        - neg_artefact_scientific_review_atomic_no_receipt_acceptance
+        - neg_artefact_scientific_review_atomic_no_projection_side_effect
+        - neg_artefact_scientific_review_illegal_from_state
+        - neg_artefact_scientific_review_illegal_to_state
+        - neg_artefact_scientific_review_invalid_command_subject_identity
+        - neg_artefact_scientific_review_authority_rule_mutation
+        - neg_artefact_scientific_review_accepted_subject_binding_mutation
+        - neg_artefact_scientific_review_allowed_actor_class_mutation
+        - neg_artefact_scientific_review_stale_subject_hash
+        - neg_artefact_scientific_review_ineligible_reviewer
+        - neg_artefact_scientific_review_self_related_reviewer
+        - neg_artefact_scientific_review_insufficient_independence_grade
+        - neg_artefact_scientific_review_incomplete_governing_review_set
+      complete_record_sha256: e32c3fc7c7d1d456ba62bbc4011120a944b9c404f9d306d69543ea04f5c0752d
+    atomic_failure_contract: *atomic_command_failure
+  - catalogue_key: artefact.use_authority
+    owner_catalogue_binding:
+      command_type: SetArtefactUseAuthority
+      ordered_events: [ArtefactUseAuthoritySet]
+      reducers: [reduce_artefact]
+      projections: [artefact, governance]
+      projection_selector: null
+      authority:
+        rule_and_precondition: consumer predicate over all six dimensions
+        authority_subject_kind: artefact
+        authority_subject_id_source: envelope.target_stream_id
+        authority_scope_source: [envelope.project_id, authority_subject_kind, authority_subject_id_source]
+        authority_grant_id_source: envelope.authority_grant_id
+        authority_effective_at_source: authority_grant.effective_at
+        authority_expires_at_source: authority_grant.expires_at
+        allowed_actor_classes: [human, agent, service]
+        prohibited_actor_classes: [importer]
+      receipt: R
+      positive_test: pos_artefact_use_authority
+      negative_profile: NI
+      expanded_negative_tests:
+        - neg_artefact_use_authority_missing_field
+        - neg_artefact_use_authority_wrong_type
+        - neg_artefact_use_authority_missing_authority
+        - neg_artefact_use_authority_wrong_authority
+        - neg_artefact_use_authority_expired_grant
+        - neg_artefact_use_authority_not_yet_effective_grant
+        - neg_artefact_use_authority_prohibited_actor
+        - neg_artefact_use_authority_wrong_authority_scope
+        - neg_artefact_use_authority_wrong_authority_subject_kind
+        - neg_artefact_use_authority_wrong_authority_subject_id
+        - neg_artefact_use_authority_stale_expected_version
+        - neg_artefact_use_authority_conflicting_payload
+        - neg_artefact_use_authority_idempotency_conflict
+        - neg_artefact_use_authority_atomic_no_event
+        - neg_artefact_use_authority_atomic_no_receipt_acceptance
+        - neg_artefact_use_authority_atomic_no_projection_side_effect
+        - neg_artefact_use_authority_illegal_from_state
+        - neg_artefact_use_authority_illegal_to_state
+        - neg_artefact_use_authority_invalid_command_subject_identity
+        - neg_artefact_use_authority_authority_rule_mutation
+        - neg_artefact_use_authority_accepted_subject_binding_mutation
+        - neg_artefact_use_authority_allowed_actor_class_mutation
+        - neg_artefact_use_authority_stale_subject_hash
+        - neg_artefact_use_authority_ineligible_reviewer
+        - neg_artefact_use_authority_self_related_reviewer
+        - neg_artefact_use_authority_insufficient_independence_grade
+        - neg_artefact_use_authority_incomplete_governing_review_set
+      complete_record_sha256: 1617a904037563d280a73c9a504ef6e96c2b17338776b46a1e9adbc9efce4332
+    atomic_failure_contract: *atomic_command_failure
+  - catalogue_key: decision.resolve
+    owner_catalogue_binding:
+      command_type: ResolveDecision
+      ordered_events: [DecisionResolved]
+      reducers: [reduce_decision]
+      projections: [decision, governance]
+      projection_selector: null
+      authority:
+        rule_and_precondition: reserved deciding authority; exact evidence/reviews
+        authority_subject_kind: decision
+        authority_subject_id_source: envelope.target_stream_id
+        authority_scope_source: [envelope.project_id, authority_subject_kind, authority_subject_id_source]
+        authority_grant_id_source: envelope.authority_grant_id
+        authority_effective_at_source: authority_grant.effective_at
+        authority_expires_at_source: authority_grant.expires_at
+        allowed_actor_classes: [human, agent, service]
+        prohibited_actor_classes: [importer]
+      receipt: R
+      positive_test: pos_decision_resolve
+      negative_profile: NI
+      expanded_negative_tests:
+        - neg_decision_resolve_missing_field
+        - neg_decision_resolve_wrong_type
+        - neg_decision_resolve_missing_authority
+        - neg_decision_resolve_wrong_authority
+        - neg_decision_resolve_expired_grant
+        - neg_decision_resolve_not_yet_effective_grant
+        - neg_decision_resolve_prohibited_actor
+        - neg_decision_resolve_wrong_authority_scope
+        - neg_decision_resolve_wrong_authority_subject_kind
+        - neg_decision_resolve_wrong_authority_subject_id
+        - neg_decision_resolve_stale_expected_version
+        - neg_decision_resolve_conflicting_payload
+        - neg_decision_resolve_idempotency_conflict
+        - neg_decision_resolve_atomic_no_event
+        - neg_decision_resolve_atomic_no_receipt_acceptance
+        - neg_decision_resolve_atomic_no_projection_side_effect
+        - neg_decision_resolve_illegal_from_state
+        - neg_decision_resolve_illegal_to_state
+        - neg_decision_resolve_invalid_command_subject_identity
+        - neg_decision_resolve_authority_rule_mutation
+        - neg_decision_resolve_accepted_subject_binding_mutation
+        - neg_decision_resolve_allowed_actor_class_mutation
+        - neg_decision_resolve_stale_subject_hash
+        - neg_decision_resolve_ineligible_reviewer
+        - neg_decision_resolve_self_related_reviewer
+        - neg_decision_resolve_insufficient_independence_grade
+        - neg_decision_resolve_incomplete_governing_review_set
+      complete_record_sha256: 93b81dbf14b0d4feffb872f0307f64b225c823e5e6ed542bfc195c6c69ff4703
+    atomic_failure_contract: *atomic_command_failure
 public_resolver:
   type: ArtefactUseResolver
   request_fields:
@@ -45,7 +242,12 @@ public_resolver:
     - authority_event_id
     - authority_event_hash
     - governing_review_ids
+    - governing_review_record_sha256s
+    - governing_review_set_sha256
     - decision_id
+    - decision_event_id
+    - decision_event_hash
+    - decision_projection_sha256
     - canonical_manifest_bytes
   consumer_kinds:
     - result_evidence
@@ -60,6 +262,13 @@ public_resolver:
       - reference_id
       - canonical_sha256
       - record
+    event_fields:
+      - stream_id
+      - stream_version
+      - event_id
+      - event_hash
+      - recorded_at
+      - evidence_refs
     record_fields:
       - schema_id
       - schema_version
@@ -81,38 +290,193 @@ public_resolver:
     object_revision: none
     projection_mutation: none
 consumer_inventory:
-  - method: resolve_for_result
-    consumer_kind: result_evidence
-    callers:
-      - research_system.evals.release_publication.StoredReleasePublicationEvidence
-      - research_system.cli._publication_evidence
-      - research_system.cli._eval_release
-      - research_system.methods.brief.result_assessment
-  - method: resolve_for_review
-    consumer_kind: review_evidence
-    callers:
-      - research_system.methods.brief.review_assessment
-      - research_system.methods.manuscript_review.follow_up_review
-  - method: resolve_for_manuscript
-    consumer_kind: manuscript_evidence
-    callers:
-      - research_system.methods.brief.manuscript_assessment
-      - research_system.methods.manuscript_review.manuscript_pilot
-  - method: resolve_for_claim
-    consumer_kind: claim_evidence
-    callers:
-      - research_system.methods.brief.claim_assessment
-  - method: resolve_sensitive_sidecar
-    consumer_kind: sensitive_sidecar
-    callers:
-      - research_system.methods.brief.sensitive_sidecar
-      - research_system.methods.importer.sensitive_sidecar
+  - consumer_kind: result_evidence
+    consumer_id: release_publication
+    method: resolve_for_result
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/evals/release_publication.py::StoredReleasePublicationEvidence._resolve::resolve_for_result
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: _eval_publish_release
+        required_calls: [_publication_evidence]
+      - source_path: research_system/cli.py
+        qualified_symbol: _publication_evidence
+        required_calls: [stored_evidence_resolver]
+      - source_path: research_system/cli.py
+        qualified_symbol: stored_evidence_resolver
+        required_calls: [StoredReleasePublicationEvidence]
+      - source_path: research_system/cli.py
+        qualified_symbol: _eval_release
+        required_calls: [StoredReleasePublicationEvidence, verify_replayed_release]
+      - source_path: research_system/command/service.py
+        qualified_symbol: CommandService._prepare_release_publication
+        required_calls: [verify_release_publication]
+      - source_path: research_system/evals/release_publication.py
+        qualified_symbol: StoredReleasePublicationEvidence._resolve
+        required_calls: [resolve_for_result]
+  - consumer_kind: result_evidence
+    consumer_id: rm03_result_assessment
+    method: resolve_for_result
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[result_analysis]::resolve_for_result
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[result_reproduction]::resolve_for_result
+    transitive_root_bindings: &brief_roots
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [getattr, resolve_for_review, resolve_for_manuscript]
+  - consumer_kind: review_evidence
+    consumer_id: rm03_brief_review
+    method: resolve_for_review
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[scientific_review]::resolve_for_review
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[independent_review]::resolve_for_review
+    transitive_root_bindings: *brief_roots
+  - consumer_kind: review_evidence
+    consumer_id: rm04_followup_review
+    method: resolve_for_review
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_resolve_artefact::resolve_for_review
+      - research_system/session_exchange/exchange.py::record_session_evidence::resolve_for_review
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [resolve_for_review]
+      - source_path: research_system/session_exchange/exchange.py
+        qualified_symbol: record_session_evidence
+        required_calls: [_evidence_revision_history, resolve_for_review]
+  - consumer_kind: manuscript_evidence
+    consumer_id: rm03_brief_manuscript
+    method: resolve_for_manuscript
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[manuscript_review]::resolve_for_manuscript
+    transitive_root_bindings: *brief_roots
+  - consumer_kind: manuscript_evidence
+    consumer_id: rm04_manuscript_pilot
+    method: resolve_for_manuscript
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_resolve_artefact::resolve_for_manuscript
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [resolve_for_manuscript]
+  - consumer_kind: claim_evidence
+    consumer_id: rm03_claim_assessment
+    method: resolve_for_claim
+    reachability: current_first_party
+    dispatch_bindings:
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[claim_review]::resolve_for_claim
+      - research_system/methods/brief.py::_PURPOSE_CONSUMER[claim_promotion_preparation]::resolve_for_claim
+    transitive_root_bindings: *brief_roots
+  - consumer_kind: sensitive_sidecar
+    consumer_id: rm03_sensitive_sidecar
+    method: resolve_sensitive_sidecar
+    reachability: reserved_no_current_first_party_call
+    dispatch_bindings: []
+    transitive_root_bindings: []
+    activation_rule: deny until a changed exact candidate inventories and independently reviews the first-party call path
+public_entrypoint_bindings:
+  - kind: console_script
+    name: ars
+    target: research_system.cli:main
+  - kind: cli_handler
+    command_tokens: [eval, publish-release]
+    handler: _eval_publish_release
+  - kind: cli_handler
+    command_tokens: [eval, release]
+    handler: _eval_release
+  - kind: cli_handler
+    command_tokens: [brief, export]
+    handler: brief_export
+  - kind: public_export
+    source_path: research_system/methods/__init__.py
+    symbol: export_brief
+  - kind: public_export
+    source_path: research_system/session_exchange/__init__.py
+    symbol: record_session_evidence
+direct_storage_inventory:
+  - path: research_system/artefacts/use_resolver.py
+    owner: ArtefactUseResolver._resolve
+    classification: canonical_authority_consumer
+    operations: [manifest_object_read, content_reader_read]
+  - path: research_system/session_exchange/exchange.py
+    owner: _evidence_revision_history
+    classification: direct_session_evidence_consumer
+    operations: [latest_revision, artefact_object_read]
+  - path: research_system/command/service.py
+    owner: CommandService._ensure_artefact_materialized
+    classification: registration_storage_mechanics
+    operations: [existence_read, object_read, object_write]
+  - path: research_system/session_exchange/exchange.py
+    owner: prepare_session_brief
+    classification: producer_storage_mechanics
+    operations: [artefact_object_write]
+  - path: research_system/session_exchange/exchange.py
+    owner: record_session_evidence
+    classification: consumer_then_producer_storage_mechanics
+    operations: [resolve_for_review, artefact_object_write]
+dynamic_object_store_kind_exclusions:
+  - call: research_system/assurance/external_records.py::load_complete_revision_history::read::kind
+    kind_source: storage_object_kind(record_class) closed by _RECORD_STORAGE_KINDS
+    permitted_kinds: &external_record_kinds
+      - canonical_actor
+      - producer_relationship_evidence
+      - contract_schema_authorship
+      - independent_contract_review
+      - independent_schema_review
+      - stephen_contract_schema_acceptance
+      - accepted_assurance_requirement
+      - obligation_applicability_confirmation
+      - independent_pack_review
+      - stephen_owner_acceptance
+      - active_authority_grant
+      - registered_pack_object
+    unclassified_kind: deny
+  - call: research_system/assurance/external_records.py::ExternalAssuranceRecordStore._write_storage::write::kind
+    kind_source: storage_object_kind(record_class) closed by _RECORD_STORAGE_KINDS
+    permitted_kinds: *external_record_kinds
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_marker::read::marker['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_marker::rollback_new_revision::marker['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_receipt::read::existing['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
 invariants:
   - canonical consumption rebuilds current state from verified replay
   - direct object reads never establish use authority
   - registration forces candidate regardless of caller manifest state
   - accepted predicates are identified by id, version, and canonical SHA-256
-  - every accepted_for_scope transition binds the complete governing review set
-  - claim evidence additionally binds a current Stephen-attributed claim_promotion decision
+  - every accepted_for_scope transition binds the complete governing review set and no-omission proof
+  - claim evidence additionally binds the current exact Stephen-attributed P-005 claim_promotion decision
   - supersession changes authority and never deletes prior evidence
-  - all failures occur before any event, receipt, object, or projection mutation
+  - all command failures leave no event, no accepted receipt, no object revision, and no projection mutation

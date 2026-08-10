@@ -24,8 +24,8 @@ from research_system.store.objects import ObjectStore
 
 
 ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT = AcceptedContractSubject(
-    manifest_git_blob="0cd9581ca4427a8515aefd99a7a045d52452ddd3",
-    manifest_sha256="0b1f5499d631bfd113dcec0453247d68468a91a2c2bf997b295f6088ff418e6b",
+    manifest_git_blob="7af3af9fbec1e5a1427162885eaeb6a82cbfca7b",
+    manifest_sha256="b32821b6487a2d2a9941966a01dca1bdf62c3d3e57255f4c8f6933282a197ad1",
 )
 
 
@@ -96,7 +96,7 @@ def build_artefact_consumers(binding: ControlBinding) -> ArtefactEvidenceConsume
     """Construct the accepted 06i consumer port from one verified binding."""
     schemas = runtime_schema_registry(binding.schema_root)
     objects = ObjectStore(binding.control_root)
-    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas, store_identity=binding.store_identity)
     authority = LedgerAuthorityGrantResolver(
         binding.control_root,
         binding.project_id,

@@ -36,6 +36,7 @@ from research_system.command.lifecycle import (
     content_hash_matches,
     has_unique_member_ids,
     materialize_scope_member_changes,
+    validate_scope_completion_members,
 )
 from research_system.command.models import Command, Receipt
 from research_system.command.t2 import T2_COMMAND_TYPES, T2Receipt, submit_t2
@@ -105,11 +106,13 @@ _CALLER_PROVENANCE_FIELDS = frozenset(
         "command_schema_sha256",
     }
 )
+_TASK_TERMINAL_STATES = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
 _SCOPE_COMMAND_TYPES = frozenset(
     {
         "CreateScopeDefinition",
         "AmendScopeDefinition",
         "SupersedeScopeDefinition",
+        "CompleteScope",
     }
 )
 _TASK_REVISION_COMMAND_TYPES = frozenset(
@@ -161,6 +164,31 @@ _C2_COMMAND_TYPES = (
     | _C2_RECOVERY_COMMAND_TYPES
     | _C2_REVIEW_COMMAND_TYPES
 )
+_C3_TASK_COMMAND_TYPES = frozenset({"AcceptTask", "RejectTask", "ClosePartial", "ReopenTask"})
+_C3_REVIEW_COMMAND_TYPES = frozenset(
+    {
+        "AssignReview",
+        "StartReview",
+        "RecordReviewVerdict",
+        "RequestReviewChanges",
+        "SatisfyReview",
+        "WithdrawReview",
+        "SupersedeReview",
+    }
+)
+_C3_DECISION_COMMAND_TYPES = frozenset(
+    {
+        "ProposeDecision",
+        "RequestDecisionReview",
+        "RejectDecision",
+        "ExpireDecision",
+        "SupersedeDecision",
+        "RecordRuleEvaluation",
+        "AmendDecision",
+        "RecordCorrection",
+    }
+)
+_C3_COMMAND_TYPES = _C3_TASK_COMMAND_TYPES | _C3_REVIEW_COMMAND_TYPES | _C3_DECISION_COMMAND_TYPES
 _C1_DISPATCH_COMMAND_TYPES = frozenset(
     {
         "IssueDispatch",
@@ -194,9 +222,15 @@ _BACKUP_COMMAND_TYPES = frozenset({"CreateBackup"})
 _ARTEFACT_AUTHORITY_COMMAND_TYPES = frozenset(
     {
         "RegisterArtefact",
+        "RecordArtefactAvailability",
+        "RecordArtefactRegenerability",
+        "RecordArtefactIntegrity",
+        "RecordStructuralValidation",
         "RecordScientificReview",
         "ResolveDecision",
         "SetArtefactUseAuthority",
+        "SupersedeArtefact",
+        "AdoptLateArtefact",
     }
 )
 _CONTEXT_PACKET_COMMAND_TYPES = frozenset(
@@ -218,6 +252,7 @@ _LIFECYCLE_COMMAND_TYPES = (
     | _MESSAGE_COMMAND_TYPES
     | _C1_COMMAND_TYPES
     | _C2_COMMAND_TYPES
+    | _C3_COMMAND_TYPES
     | _BACKUP_COMMAND_TYPES
     | _ARTEFACT_AUTHORITY_COMMAND_TYPES
     | _CONTEXT_PACKET_COMMAND_TYPES
@@ -232,6 +267,7 @@ _COMMAND_EVENT_TYPES = {
     "CreateScopeDefinition": "ScopeDefinitionCreated",
     "AmendScopeDefinition": "ScopeDefinitionAmended",
     "SupersedeScopeDefinition": "ScopeDefinitionSuperseded",
+    "CompleteScope": "ScopeCompleted",
     "CreateTask": "TaskCreated",
     "AmendTask": "TaskAmended",
     "SupersedeTask": "TaskSuperseded",
@@ -286,9 +322,34 @@ _COMMAND_EVENT_TYPES = {
     "ReleaseResources": "ResourcesReleased",
     "CreateBackup": "BackupCreated",
     "RegisterArtefact": "ArtefactRegistered",
+    "RecordArtefactAvailability": "ArtefactAvailabilityRecorded",
+    "RecordArtefactRegenerability": "ArtefactRegenerabilityRecorded",
+    "RecordArtefactIntegrity": "ArtefactIntegrityRecorded",
+    "RecordStructuralValidation": "StructuralValidationRecorded",
     "RecordScientificReview": "ScientificReviewRecorded",
     "ResolveDecision": "DecisionResolved",
     "SetArtefactUseAuthority": "ArtefactUseAuthoritySet",
+    "SupersedeArtefact": "ArtefactSuperseded",
+    "AdoptLateArtefact": "LateArtefactAdopted",
+    "AcceptTask": "TaskAccepted",
+    "RejectTask": "TaskRejected",
+    "ClosePartial": "PartialOutcomeRecorded",
+    "ReopenTask": "TaskReopened",
+    "AssignReview": "ReviewAssigned",
+    "StartReview": "ReviewStarted",
+    "RecordReviewVerdict": "ReviewVerdictRecorded",
+    "RequestReviewChanges": "ReviewChangesRequested",
+    "SatisfyReview": "ReviewSatisfied",
+    "WithdrawReview": "ReviewWithdrawn",
+    "SupersedeReview": "ReviewSuperseded",
+    "ProposeDecision": "DecisionProposed",
+    "RequestDecisionReview": "DecisionReviewRequested",
+    "RejectDecision": "DecisionRejected",
+    "ExpireDecision": "DecisionExpired",
+    "SupersedeDecision": "DecisionSuperseded",
+    "RecordRuleEvaluation": "RuleEvaluationRecorded",
+    "AmendDecision": "DecisionAmendmentProposed",
+    "RecordCorrection": "RecordCorrected",
     "RequestContextPacket": "ContextPacketRequested",
     "BeginContextCompilation": "ContextCompilationStarted",
     "CompleteContextCompilation": "ContextPacketCompiled",
@@ -1521,6 +1582,15 @@ class CommandService:
                 if isinstance(prepared, Receipt):
                     return write_receipt(prepared)
                 prepared_payload = prepared
+            elif command.envelope["command_type"] in _C3_COMMAND_TYPES:
+                prepared = self._prepare_c3_command(
+                    command,
+                    snapshot,
+                    observed_version,
+                )
+                if isinstance(prepared, Receipt):
+                    return write_receipt(prepared)
+                prepared_payload = prepared
             elif command.envelope["command_type"] in _BACKUP_COMMAND_TYPES:
                 prepared = self._prepare_backup_command(
                     command,
@@ -2236,6 +2306,24 @@ class CommandService:
             return project_id, "attempt", str(payload.get("attempt_id", "")), "R3"
         if command_type in _C2_REVIEW_COMMAND_TYPES:
             return project_id, "review", str(payload.get("new_review_id", "")), "R3"
+        if command_type in _C3_TASK_COMMAND_TYPES:
+            return project_id, "task", str(payload.get("task_id", "")), "R3"
+        if command_type in _C3_REVIEW_COMMAND_TYPES:
+            return project_id, "review", str(payload.get("review_id", "")), "R3"
+        if command_type == "ProposeDecision":
+            return project_id, "decision", str(payload.get("new_decision_id", "")), "R3"
+        if command_type in {
+            "RequestDecisionReview",
+            "RejectDecision",
+            "ExpireDecision",
+            "SupersedeDecision",
+            "AmendDecision",
+        }:
+            return project_id, "decision", str(payload.get("decision_id", "")), "R3"
+        if command_type == "RecordRuleEvaluation":
+            return project_id, "rule_evaluation", str(payload.get("new_rule_evaluation_id", "")), "R3"
+        if command_type == "RecordCorrection":
+            return project_id, "corrected_record", str(payload.get("erroneous_record_id", "")), "R3"
         if command_type in _C1_DISPATCH_COMMAND_TYPES:
             return project_id, "dispatch", str(payload.get("dispatch_id", "")), "R3"
         if command_type in _C1_LEASE_COMMAND_TYPES:
@@ -2250,7 +2338,16 @@ class CommandService:
             return project_id, "project_store", str(payload.get("project_id", "")), "R3"
         if command_type == "RegisterArtefact":
             return project_id, "artefact", str(payload.get("new_artefact_id", "")), "R3"
-        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+        if command_type in {
+            "RecordArtefactAvailability",
+            "RecordArtefactRegenerability",
+            "RecordArtefactIntegrity",
+            "RecordStructuralValidation",
+            "RecordScientificReview",
+            "SetArtefactUseAuthority",
+            "SupersedeArtefact",
+            "AdoptLateArtefact",
+        }:
             return project_id, "artefact", str(payload.get("artefact_id", "")), "R3"
         if command_type == "ResolveDecision":
             return project_id, "decision", str(payload.get("decision_id", "")), "R3"
@@ -3758,6 +3855,363 @@ class CommandService:
             return payload
         return payload
 
+    def _prepare_c3_command(
+        self,
+        command: Command,
+        snapshot: LedgerSnapshot,
+        observed_version: int,
+    ) -> dict[str, Any] | Receipt:
+        """Validate C3 Task, Review, Decision, rule, and correction transitions."""
+        payload = command.envelope["payload"]
+        command_type = command.envelope["command_type"]
+
+        def rejected(code: str, explanation: str) -> Receipt:
+            return self._rejected(command, observed_version, code, explanation)
+
+        if command.envelope.get("project_id") != self.ledger.project_id:
+            return rejected(
+                "invalid_command_project",
+                "C3 command project must match the control-store project.",
+            )
+        streams = self._c1_streams(snapshot)
+
+        if command_type in _C3_TASK_COMMAND_TYPES:
+            if payload.get("task_id") != command.target_stream_id:
+                return rejected(
+                    "invalid_command_subject_identity",
+                    "C3 Task payload identity must equal the authority-bound target stream.",
+                )
+            task = streams.get(command.target_stream_id)
+            if not isinstance(task, dict):
+                return rejected("invalid_task_transition", "C3 Task transition requires a current Task.")
+            status = task.get("status")
+            revision = int(task.get("current_revision", 1))
+            if command_type == "AcceptTask":
+                review_ids = tuple(payload.get("satisfied_review_ids", ()))
+                criteria = tuple(task.get("definition", {}).get("acceptance_criteria", ()))
+                selected = set(payload.get("selected_artefact_ids", ()))
+                submitted = set(task.get("review_submission", {}).get("candidate_artefact_ids", ()))
+                task_hash = sha256_hex(canonical_bytes(task))
+
+                def binds_task(review_id: str) -> bool:
+                    review = streams.get(review_id)
+                    if not isinstance(review, dict) or review.get("status") != "satisfied":
+                        return False
+                    request = review.get("request", {})
+                    return (command.target_stream_id, task_hash) in tuple(
+                        zip(request.get("subject_ids", ()), request.get("subject_hashes", ()), strict=False)
+                    )
+
+                if (
+                    status != "review_pending"
+                    or payload.get("task_revision") != revision
+                    or not review_ids
+                    or any(not binds_task(review_id) for review_id in review_ids)
+                    or set(payload.get("satisfied_acceptance_criteria", ())) != set(criteria)
+                    or not selected.issubset(submitted)
+                ):
+                    return rejected(
+                        "task_acceptance_precondition_failed",
+                        "AcceptTask requires the current review-pending revision and an explicit satisfied review and criterion set.",
+                    )
+                return deepcopy(payload)
+            if command_type == "RejectTask":
+                review = streams.get(payload.get("review_verdict_id"))
+                request = review.get("request", {}) if isinstance(review, dict) else {}
+                reviewed_subject = (
+                    command.target_stream_id,
+                    payload.get("verdict_subject_sha256"),
+                )
+                if (
+                    status != "review_pending"
+                    or payload.get("task_revision") != revision
+                    or not isinstance(review, dict)
+                    or review.get("status") != "verdict_recorded"
+                    or review.get("verdict", {}).get("verdict") not in {"reject", "changes_requested"}
+                    or payload.get("verdict_subject_sha256") != review.get("subject_sha256")
+                    or reviewed_subject
+                    not in tuple(zip(request.get("subject_ids", ()), request.get("subject_hashes", ()), strict=False))
+                ):
+                    return rejected(
+                        "task_rejection_precondition_failed",
+                        "RejectTask requires the current review-pending revision and exact verdict evidence.",
+                    )
+                return deepcopy(payload)
+            if command_type == "ClosePartial":
+                if (
+                    status in _TASK_TERMINAL_STATES
+                    or not payload.get("unmet_obligations")
+                    or not payload.get("claim_restrictions")
+                ):
+                    return rejected(
+                        "task_partial_precondition_failed",
+                        "ClosePartial requires a nonterminal Task, unmet obligations, and explicit claim restrictions.",
+                    )
+                return deepcopy(payload)
+
+            prior_status = payload.get("prior_terminal_status")
+            terminal_event_type = {
+                "partial": "PartialOutcomeRecorded",
+                "rejected": "TaskRejected",
+                "cancelled": "TaskCancelled",
+            }.get(str(prior_status))
+            terminal_event = next(
+                (
+                    event
+                    for event in reversed(snapshot.events)
+                    if event.get("stream_id") == command.target_stream_id
+                    and event.get("event_type") == terminal_event_type
+                ),
+                None,
+            )
+            terminal_ref = payload.get("preserved_terminal_record_ref")
+            if (
+                terminal_event_type is None
+                or status != prior_status
+                or payload.get("new_execution_epoch") != int(task.get("execution_epoch", 1)) + 1
+                or not payload.get("authority_evidence_refs")
+                or not isinstance(terminal_event, dict)
+                or not isinstance(terminal_ref, dict)
+                or terminal_ref.get("record_id") != terminal_event.get("event_id")
+                or terminal_ref.get("content_sha256") != terminal_event.get("event_hash")
+            ):
+                return rejected(
+                    "task_reopen_precondition_failed",
+                    "ReopenTask requires the exact terminal event, a new execution epoch, and explicit authority evidence.",
+                )
+            return deepcopy(payload)
+
+        if command_type in _C3_REVIEW_COMMAND_TYPES:
+            if payload.get("review_id") != command.target_stream_id:
+                return rejected(
+                    "invalid_command_subject_identity",
+                    "C3 Review payload identity must equal the authority-bound target stream.",
+                )
+            review = streams.get(command.target_stream_id)
+            if not isinstance(review, dict):
+                return rejected("invalid_review_transition", "C3 Review transition requires a current Review.")
+            status = review.get("status")
+            request = review.get("request")
+            if not isinstance(request, dict):
+                return rejected("invalid_review_transition", "C3 Review transition requires its immutable request.")
+            subject_hashes = tuple(request.get("subject_hashes", ()))
+            if command_type == "AssignReview":
+                if (
+                    status != "requested"
+                    or command.actor_id != review.get("requester_actor_id")
+                    or payload.get("reviewer_actor_id") == review.get("requester_actor_id")
+                    or not payload.get("independence_evidence_refs")
+                ):
+                    return rejected(
+                        "review_assignment_precondition_failed",
+                        "AssignReview requires an eligible reviewer distinct from the requester and independence evidence.",
+                    )
+                return deepcopy(payload)
+            if command_type == "StartReview":
+                assignment = review.get("assignment")
+                if (
+                    status != "assigned"
+                    or not isinstance(assignment, dict)
+                    or command.actor_id != assignment.get("reviewer_actor_id")
+                    or payload.get("unchanged_subject_sha256") not in subject_hashes
+                ):
+                    return rejected(
+                        "review_start_subject_mismatch",
+                        "StartReview requires the assigned reviewer and one exact unchanged requested subject hash.",
+                    )
+                return deepcopy(payload)
+            if command_type == "RecordReviewVerdict":
+                assignment = review.get("assignment")
+                started = review.get("start")
+                if (
+                    status != "in_review"
+                    or not isinstance(assignment, dict)
+                    or not isinstance(started, dict)
+                    or payload.get("reviewer_actor_id") != command.actor_id
+                    or payload.get("reviewer_actor_id") != assignment.get("reviewer_actor_id")
+                    or payload.get("unchanged_subject_sha256") != started.get("unchanged_subject_sha256")
+                    or payload.get("computed_independence_grade") != assignment.get("computed_independence_grade")
+                    or not payload.get("required_evidence_refs")
+                    or not payload.get("trace_visibility_evidence_refs")
+                ):
+                    return rejected(
+                        "review_verdict_precondition_failed",
+                        "RecordReviewVerdict requires the assigned reviewer, exact started subject, independence grade, and evidence.",
+                    )
+                return deepcopy(payload)
+            if command_type == "RequestReviewChanges":
+                if (
+                    status != "verdict_recorded"
+                    or command.actor_id != review.get("requester_actor_id")
+                    or not payload.get("policy_evaluation_refs")
+                    or not payload.get("conditions")
+                ):
+                    return rejected(
+                        "review_changes_precondition_failed",
+                        "RequestReviewChanges requires a recorded verdict, policy evaluation, and conditions.",
+                    )
+                return deepcopy(payload)
+            if command_type == "SatisfyReview":
+                assignment = review.get("assignment", {})
+                if (
+                    status not in {"verdict_recorded", "changes_requested"}
+                    or command.actor_id != review.get("requester_actor_id")
+                    or command.actor_id == assignment.get("reviewer_actor_id")
+                    or payload.get("prior_review_state") != status
+                    or not payload.get("policy_evaluation_refs")
+                    or (
+                        status == "changes_requested"
+                        and payload.get("unchanged_subject_sha256") != review.get("subject_sha256")
+                    )
+                ):
+                    return rejected(
+                        "review_satisfaction_precondition_failed",
+                        "SatisfyReview requires the exact prior review state and policy evidence; changed subjects require a bound hash.",
+                    )
+                return deepcopy(payload)
+            if command_type == "WithdrawReview":
+                if status in {"satisfied", "withdrawn", "superseded"} or command.actor_id != review.get(
+                    "requester_actor_id"
+                ):
+                    return rejected("review_terminal", "A terminal Review cannot be withdrawn.")
+                return deepcopy(payload)
+            replacement = streams.get(payload.get("replacement_review_id"))
+            expected_hash = review.get("subject_sha256") or (subject_hashes[0] if len(subject_hashes) == 1 else None)
+            if (
+                status in {"satisfied", "withdrawn", "superseded"}
+                or command.actor_id != review.get("requester_actor_id")
+                or not isinstance(replacement, dict)
+                or replacement.get("status") in {"satisfied", "withdrawn", "superseded"}
+                or payload.get("unchanged_subject_sha256") != expected_hash
+            ):
+                return rejected(
+                    "review_supersession_precondition_failed",
+                    "SupersedeReview requires a live replacement Review bound to the same exact subject hash.",
+                )
+            return deepcopy(payload)
+
+        if command_type == "ProposeDecision":
+            if (
+                payload.get("new_decision_id") != command.target_stream_id
+                or command.target_stream_id in streams
+                or payload.get("decision_revision") != 1
+                or not payload.get("options")
+                or payload.get("recommendation") not in payload.get("options", ())
+                or not payload.get("governing_evidence_refs")
+            ):
+                return rejected(
+                    "decision_proposal_precondition_failed",
+                    "ProposeDecision requires an empty stream, revision 1, a listed recommendation, and governing evidence.",
+                )
+            return deepcopy(payload)
+        if command_type == "RecordRuleEvaluation":
+            if (
+                payload.get("new_rule_evaluation_id") != command.target_stream_id
+                or command.target_stream_id in streams
+                or not payload.get("input_ids")
+                or len(payload.get("input_ids", ())) != len(payload.get("input_hashes", ()))
+            ):
+                return rejected(
+                    "rule_evaluation_precondition_failed",
+                    "RecordRuleEvaluation requires an empty bound stream and paired exact inputs and hashes.",
+                )
+            return deepcopy(payload)
+        if command_type == "RecordCorrection":
+            correction_id = payload.get("erroneous_record_id")
+            if (
+                correction_id != command.target_stream_id
+                or correction_id not in streams
+                or not payload.get("corrected_evidence_refs")
+                or not payload.get("affected_projections")
+                or any(
+                    event.get("event_type") == "RecordCorrected"
+                    and isinstance(event.get("payload"), dict)
+                    and event["payload"].get("governance_correction_index")
+                    == payload.get("governance_correction_index")
+                    for event in snapshot.events
+                )
+            ):
+                return rejected(
+                    "correction_precondition_failed",
+                    "RecordCorrection requires an existing erroneous record, evidence, affected projections, and a unique correction index.",
+                )
+            return deepcopy(payload)
+
+        decision = streams.get(command.target_stream_id)
+        if not isinstance(decision, dict) or payload.get("decision_id") != command.target_stream_id:
+            return rejected(
+                "invalid_decision_transition", "Decision command requires its exact current Decision stream."
+            )
+        status = decision.get("status")
+        revision = int(decision.get("decision_revision", 1))
+        if command_type == "RequestDecisionReview":
+            if (
+                status != "proposed"
+                or command.actor_id != decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != revision
+                or not payload.get("review_requirements")
+                or not payload.get("governing_evidence_refs")
+            ):
+                return rejected(
+                    "decision_review_precondition_failed",
+                    "RequestDecisionReview requires the current proposal and explicit review requirements and evidence.",
+                )
+            return deepcopy(payload)
+        if command_type == "RejectDecision":
+            if (
+                status not in {"proposed", "under_review"}
+                or command.actor_id == decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != revision
+                or payload.get("deciding_actor_id") != command.actor_id
+                or payload.get("decision_authority_grant_id") != command.envelope.get("authority_grant_id")
+            ):
+                return rejected(
+                    "decision_rejection_precondition_failed",
+                    "RejectDecision requires an unresolved current revision and exact deciding authority.",
+                )
+            return deepcopy(payload)
+        if command_type == "ExpireDecision":
+            observed_at = datetime.fromisoformat(str(payload.get("observed_at", "")).replace("Z", "+00:00"))
+            expires_at = datetime.fromisoformat(str(decision.get("expires_at", "")).replace("Z", "+00:00"))
+            if (
+                status not in {"proposed", "under_review"}
+                or payload.get("decision_revision") != revision
+                or observed_at < expires_at
+            ):
+                return rejected(
+                    "decision_expiry_precondition_failed",
+                    "ExpireDecision requires an unresolved current revision observed at or after its expiry.",
+                )
+            return deepcopy(payload)
+        if command_type == "SupersedeDecision":
+            replacement = streams.get(payload.get("replacement_decision_id"))
+            if (
+                status not in {"proposed", "under_review"}
+                or command.actor_id == decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != revision
+                or not isinstance(replacement, dict)
+                or replacement.get("decision_kind") != decision.get("decision_kind")
+            ):
+                return rejected(
+                    "decision_supersession_precondition_failed",
+                    "SupersedeDecision requires an unresolved source and a compatible replacement Decision.",
+                )
+            return deepcopy(payload)
+        if command_type == "AmendDecision":
+            if (
+                status != "resolved"
+                or command.actor_id == decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != revision + 1
+                or not payload.get("changed_fields")
+                or not payload.get("governing_evidence_refs")
+            ):
+                return rejected(
+                    "decision_amendment_precondition_failed",
+                    "AmendDecision requires a resolved Decision, the next revision, changed fields, and governing evidence.",
+                )
+            return deepcopy(payload)
+        raise IntegrityError(f"unsupported C3 command type: {command_type}")
+
     def _prepare_resource_grant_materialization(self, command: Command) -> dict[str, Any]:
         """Validate the exact authority preimage without writing before append."""
         payload = command.envelope["payload"]
@@ -3870,7 +4324,18 @@ class CommandService:
             event
             for event in snapshot.events
             if event.get("stream_id") == command.target_stream_id
-            and event.get("event_type") in {"ArtefactRegistered", "ScientificReviewRecorded", "ArtefactUseAuthoritySet"}
+            and event.get("event_type")
+            in {
+                "ArtefactRegistered",
+                "ArtefactAvailabilityRecorded",
+                "ArtefactRegenerabilityRecorded",
+                "ArtefactIntegrityRecorded",
+                "StructuralValidationRecorded",
+                "ScientificReviewRecorded",
+                "ArtefactUseAuthoritySet",
+                "ArtefactSuperseded",
+                "LateArtefactAdopted",
+            }
         ]
         registered = next(
             (event for event in artefact_events if event.get("event_type") == "ArtefactRegistered"),
@@ -3910,7 +4375,17 @@ class CommandService:
                 )
             return deepcopy(payload)
 
-        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+        artefact_transition_types = {
+            "RecordArtefactAvailability",
+            "RecordArtefactRegenerability",
+            "RecordArtefactIntegrity",
+            "RecordStructuralValidation",
+            "RecordScientificReview",
+            "SetArtefactUseAuthority",
+            "SupersedeArtefact",
+            "AdoptLateArtefact",
+        }
+        if command_type in artefact_transition_types:
             if payload.get("artefact_id") != command.target_stream_id or registered is None:
                 return rejected(
                     "artefact_not_registered",
@@ -3918,7 +4393,15 @@ class CommandService:
                 )
             registered_payload = registered.get("payload")
             manifest = registered_payload.get("manifest") if isinstance(registered_payload, dict) else None
-            if not isinstance(manifest, dict) or payload.get("subject_sha256") != manifest.get("content_sha256"):
+            supplied_sha256 = payload.get(
+                "artefact_sha256" if command_type == "AdoptLateArtefact" else "subject_sha256"
+            )
+            if not isinstance(manifest, dict):
+                return rejected(
+                    "artefact_subject_hash_mismatch",
+                    "Artefact authority transitions require a registered manifest.",
+                )
+            if command_type != "SupersedeArtefact" and supplied_sha256 != manifest.get("content_sha256"):
                 return rejected(
                     "artefact_subject_hash_mismatch",
                     "Artefact authority transitions must bind the registered content hash.",
@@ -3927,6 +4410,8 @@ class CommandService:
             for event in artefact_events:
                 if event.get("event_type") == "ArtefactUseAuthoritySet" and isinstance(event.get("payload"), dict):
                     current_use_authority = str(event["payload"].get("use_authority", ""))
+                elif event.get("event_type") == "ArtefactSuperseded":
+                    current_use_authority = "superseded"
             if current_use_authority in {"rejected", "superseded"}:
                 return rejected(
                     "artefact_authority_terminal",
@@ -3945,19 +4430,139 @@ class CommandService:
                         "Scientific review identity is already committed.",
                     )
                 return deepcopy(payload)
+            if command_type in {
+                "RecordArtefactAvailability",
+                "RecordArtefactRegenerability",
+                "RecordArtefactIntegrity",
+                "RecordStructuralValidation",
+            }:
+                return deepcopy(payload)
+            if command_type == "SupersedeArtefact":
+                replacement_id = payload.get("replacement_artefact_id")
+                replacement = next(
+                    (
+                        event
+                        for event in snapshot.events
+                        if event.get("stream_id") == replacement_id and event.get("event_type") == "ArtefactRegistered"
+                    ),
+                    None,
+                )
+                replacement_payload = replacement.get("payload") if isinstance(replacement, dict) else None
+                replacement_manifest = (
+                    replacement_payload.get("manifest") if isinstance(replacement_payload, dict) else None
+                )
+                if (
+                    replacement_id == command.target_stream_id
+                    or not isinstance(replacement_manifest, dict)
+                    or payload.get("replacement_sha256") != replacement_manifest.get("content_sha256")
+                    or replacement_manifest.get("artefact_type") != manifest.get("artefact_type")
+                    or not payload.get("continuing_consumer_dispositions")
+                ):
+                    return rejected(
+                        "artefact_supersession_invalid",
+                        "Supersession requires a distinct registered type-compatible replacement and continuing-consumer dispositions.",
+                    )
+                cursor = replacement_id
+                seen = {command.target_stream_id}
+                while isinstance(cursor, str):
+                    if cursor in seen:
+                        return rejected("artefact_supersession_cycle", "Artefact supersession must be acyclic.")
+                    seen.add(cursor)
+                    prior = next(
+                        (
+                            event
+                            for event in snapshot.events
+                            if event.get("stream_id") == cursor and event.get("event_type") == "ArtefactSuperseded"
+                        ),
+                        None,
+                    )
+                    prior_payload = prior.get("payload") if isinstance(prior, dict) else None
+                    cursor = prior_payload.get("replacement_artefact_id") if isinstance(prior_payload, dict) else None
+                return deepcopy(payload)
+            if command_type == "AdoptLateArtefact":
+                streams = self._c1_streams(snapshot)
+                attempt = streams.get(payload.get("attempt_id"))
+                review = streams.get(payload.get("review_id"))
+                terminal = {"completed", "failed", "partial", "abandoned", "superseded"}
+                terminal_events = [
+                    event
+                    for event in snapshot.events
+                    if event.get("stream_id") == payload.get("attempt_id")
+                    and event.get("event_type")
+                    in {
+                        "AttemptCompleted",
+                        "AttemptFailed",
+                        "PartialOutcomeRecorded",
+                        "AttemptAbandoned",
+                        "AttemptSuperseded",
+                    }
+                ]
+                try:
+                    late_observed_at = datetime.fromisoformat(
+                        str(payload.get("late_observed_at")).replace("Z", "+00:00")
+                    )
+                    terminal_recorded_at = datetime.fromisoformat(
+                        str(terminal_events[-1]["recorded_at"]).replace("Z", "+00:00")
+                    )
+                except (IndexError, KeyError, ValueError):
+                    late_observed_at = terminal_recorded_at = None
+                review_request = review.get("request") if isinstance(review, dict) else None
+                review_assignment = review.get("assignment") if isinstance(review, dict) else None
+                expected_review_subject = sha256_hex(
+                    canonical_bytes(self._c1_streams(snapshot).get(command.target_stream_id, {}))
+                )
+                review_subject_pairs = (
+                    set(
+                        zip(
+                            review_request.get("subject_ids", []),
+                            review_request.get("subject_hashes", []),
+                            strict=False,
+                        )
+                    )
+                    if isinstance(review_request, dict)
+                    else set()
+                )
+                if (
+                    not isinstance(attempt, dict)
+                    or attempt.get("status") not in terminal
+                    or attempt.get("lease_id") != payload.get("lease_id")
+                    or not isinstance(review, dict)
+                    or review.get("status") != "satisfied"
+                    or (command.target_stream_id, expected_review_subject) not in review_subject_pairs
+                    or not isinstance(review_assignment, dict)
+                    or review_assignment.get("reviewer_actor_id") == manifest.get("producer_actor_id")
+                    or not payload.get("allowed_consumer_scope")
+                    or any(event.get("event_type") == "LateArtefactAdopted" for event in artefact_events)
+                    or late_observed_at is None
+                    or terminal_recorded_at is None
+                    or late_observed_at <= terminal_recorded_at
+                ):
+                    return rejected(
+                        "late_artefact_adoption_invalid",
+                        "Late adoption requires one terminal linked attempt, its lease, a satisfied review, and a non-empty consumer scope.",
+                    )
+                return deepcopy(payload)
             if payload.get("use_authority") == "candidate":
                 return rejected(
                     "invalid_artefact_authority_transition",
                     "Candidate is established only by RegisterArtefact.",
                 )
             if payload.get("use_authority") == "accepted_for_scope":
-                evidence_error = self._validate_governing_review_evidence(
+                review_binding = self._validate_governing_review_evidence(
                     command,
                     artefact_events,
                     manifest,
                 )
-                if evidence_error is not None:
-                    return rejected(*evidence_error)
+                if isinstance(review_binding, tuple):
+                    return rejected(*review_binding)
+                decision_binding = self._claim_promotion_binding(command, manifest, review_binding)
+                if isinstance(decision_binding, tuple):
+                    return rejected(*decision_binding)
+                prepared = deepcopy(payload)
+                prepared["evidence_refs"] = list(
+                    dict.fromkeys([*prepared["evidence_refs"], *review_binding, *decision_binding])
+                )
+                return prepared
             return deepcopy(payload)
 
         if command_type == "ResolveDecision":
@@ -3970,12 +4575,48 @@ class CommandService:
                     "decision_authority_binding_mismatch",
                     "ResolveDecision must bind its stream, deciding actor, and authority grant.",
                 )
-            if any(
-                event.get("event_type") == "DecisionResolved"
-                for event in snapshot.events
-                if event.get("stream_id") == command.target_stream_id
+            decision = self._c1_streams(snapshot).get(command.target_stream_id)
+            if not isinstance(decision, dict):
+                return rejected(
+                    "decision_resolution_precondition_failed",
+                    "ResolveDecision requires an existing Decision in under_review state.",
+                )
+            if decision.get("status") == "resolved" and payload.get("decision_revision") == decision.get(
+                "decision_revision"
             ):
-                return rejected("decision_already_resolved", "Decision is already resolved.")
+                return rejected("decision_already_resolved", "This Decision revision is already resolved.")
+            review_ids = tuple(payload.get("considered_review_ids", ()))
+            decision_hash = sha256_hex(canonical_bytes(decision))
+            reviewed = tuple(self._c1_streams(snapshot).get(review_id) for review_id in review_ids)
+            if (
+                decision.get("status") != "under_review"
+                or command.actor_id == decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != decision.get("decision_revision")
+                or payload.get("selected_option") not in decision.get("options", ())
+                or not review_ids
+                or any(
+                    not isinstance(review, dict)
+                    or review.get("status") != "satisfied"
+                    or (
+                        command.target_stream_id,
+                        decision_hash,
+                    )
+                    not in tuple(
+                        zip(
+                            review.get("request", {}).get("subject_ids", ()),
+                            review.get("request", {}).get("subject_hashes", ()),
+                            strict=False,
+                        )
+                    )
+                    or review.get("assignment", {}).get("reviewer_actor_id")
+                    in {decision.get("proposer_actor_id"), command.actor_id}
+                    for review in reviewed
+                )
+            ):
+                return rejected(
+                    "decision_resolution_precondition_failed",
+                    "ResolveDecision requires the current reviewed revision, a listed option, and satisfied exact-subject reviews.",
+                )
             return deepcopy(payload)
 
         raise IntegrityError(f"unsupported artefact authority command type: {command_type}")
@@ -3985,7 +4626,7 @@ class CommandService:
         command: Command,
         artefact_events: list[dict[str, Any]],
         manifest: dict[str, Any],
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str] | list[str]:
         """Resolve the accepted predicate's complete independent review set."""
         resolver = self.governing_evidence_resolver
         if resolver is None or not callable(getattr(resolver, "resolve", None)):
@@ -4026,31 +4667,44 @@ class CommandService:
                 "governing_scientific_review_missing",
                 "Accepted artefact use must bind its complete governing review evidence.",
             )
-        approved = 0
-        for event in artefact_events:
+        rows: list[dict[str, Any]] = []
+        census_rows: list[dict[str, Any]] = []
+        review_events = sorted(
+            (event for event in artefact_events if event.get("event_type") == "ScientificReviewRecorded"),
+            key=lambda event: str(event.get("payload", {}).get("review_id", "")),
+        )
+        for event in review_events:
             review = event.get("payload")
             if (
-                event.get("event_type") != "ScientificReviewRecorded"
-                or not isinstance(review, dict)
+                not isinstance(review, dict)
                 or review.get("scientific_review") != "approved"
                 or review.get("subject_sha256") != command.envelope["payload"].get("subject_sha256")
             ):
-                continue
+                return (
+                    "governing_scientific_review_blocking",
+                    "Every replay-derived governing scientific review must approve the exact subject.",
+                )
             review_id = review.get("review_id")
             review_refs = review.get("evidence_refs")
             reviewer_actor_id = event.get("actor_id")
             if (
                 not isinstance(review_id, str)
                 or not isinstance(review_refs, list)
-                or not review_refs
+                or len(review_refs) != 1
                 or review_id not in use_refs
                 or any(reference not in use_refs for reference in review_refs)
             ):
-                continue
-            matched = False
+                return (
+                    "governing_scientific_review_missing",
+                    "Accepted artefact use must bind every governing review and evidence record.",
+                )
+            matched = []
             for reference in review_refs:
                 if not isinstance(reference, str):
-                    continue
+                    return (
+                        "governing_scientific_review_invalid",
+                        "A governing scientific review record could not be resolved.",
+                    )
                 try:
                     resolution = resolver.resolve(
                         reference,
@@ -4080,17 +4734,192 @@ class CommandService:
                     < _ARTEFACT_REVIEW_INDEPENDENCE_ORDER[str(minimum_grade)]
                     or sha256_hex(canonical_bytes(record)) != resolution.canonical_sha256
                 ):
-                    continue
-                matched = True
-                break
-            if matched:
-                approved += 1
-        if approved < minimum:
+                    return (
+                        "governing_scientific_review_invalid",
+                        "Every governing scientific review record must satisfy the accepted exact-subject rules.",
+                    )
+                matched.append(resolution)
+            if len(matched) != 1:
+                return (
+                    "governing_scientific_review_invalid",
+                    "Each governing review must resolve exactly one canonical evidence record.",
+                )
+            resolution = matched[0]
+            census_rows.append(
+                {
+                    "review_id": review_id,
+                    "stream_version": event.get("stream_version"),
+                    "event_id": event.get("event_id"),
+                    "event_hash": event.get("event_hash"),
+                    "recorded_at": event.get("recorded_at"),
+                }
+            )
+            rows.append(
+                {
+                    "review_id": review_id,
+                    "artefact_stream_id": command.target_stream_id,
+                    "artefact_stream_version": event.get("stream_version"),
+                    "event_id": event.get("event_id"),
+                    "event_hash": event.get("event_hash"),
+                    "recorded_at": event.get("recorded_at"),
+                    "evidence_reference_ids": list(review_refs),
+                    "exact_record_sha256": resolution.canonical_sha256,
+                    "project_id": self.ledger.project_id,
+                    "exact_subject_sha256": review.get("subject_sha256"),
+                    "reviewer_actor_id": reviewer_actor_id,
+                    "status": resolution.record.get("status"),
+                    "eligible": resolution.record.get("eligible"),
+                    "related": resolution.record.get("related"),
+                    "independence_grade": resolution.record.get("independence_grade"),
+                }
+            )
+        if len(rows) < minimum:
             return (
                 "governing_scientific_review_missing",
                 "Accepted artefact use requires the complete independently resolved governing review set.",
             )
-        return None
+        from research_system.store.identity import load_store_manifest_unbound
+
+        snapshot = self.ledger.snapshot()
+        store_identity = self.ledger.store_identity
+        if store_identity is None:
+            store_identity = str(load_store_manifest_unbound(self.ledger.control_root)["store_identity"])
+        raw_prefix_sha256 = self.ledger.raw_prefix_sha256(snapshot.global_position)
+        set_sha256 = sha256_hex(
+            canonical_bytes(
+                {
+                    "schema_id": "ars://policy/governing-review-set-digest",
+                    "schema_version": "1.0.0",
+                    "store_identity": store_identity,
+                    "ledger_position": snapshot.global_position,
+                    "raw_prefix_sha256": raw_prefix_sha256,
+                    "scientific_review_event_census_sha256": sha256_hex(canonical_bytes(census_rows)),
+                    "reviews": rows,
+                }
+            )
+        )
+        return [
+            *(f"governing-review-id:{row['review_id']}" for row in rows),
+            *(f"governing-review-record-sha256:{row['exact_record_sha256']}" for row in rows),
+            f"governing-review-set-sha256:{set_sha256}",
+            f"store-identity:{store_identity}",
+            f"ledger-position:{snapshot.global_position}",
+            f"raw-prefix-sha256:{raw_prefix_sha256}",
+        ]
+
+    def _claim_promotion_binding(
+        self,
+        command: Command,
+        manifest: dict[str, Any],
+        review_binding: list[str],
+    ) -> tuple[str, str] | list[str]:
+        """Derive P-005 solely from verified replay when the accepted predicate requires it."""
+        from research_system.artefacts.authority import ArtefactAuthorityContractLoader
+        from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
+        from research_system.artefacts.use_resolver import predicate_reference
+
+        contract = ArtefactAuthorityContractLoader(ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT).load()
+        claim = contract.predicates_by_kind["claim_evidence"]
+        claim_reference = predicate_reference(
+            str(claim["predicate_id"]),
+            str(claim["predicate_version"]),
+            contract.predicate_sha256_by_kind["claim_evidence"],
+        )
+        if command.envelope["payload"].get("consumer_predicate") != claim_reference:
+            return []
+        snapshot = self.ledger.snapshot()
+        state = replay(
+            snapshot.events,
+            schema_registry=self.schemas,
+            authority_state_validator=self._authority_state_validator(),
+        )
+        owner_actor_id = state.get("authority_owner_actor_id")
+        root_id = state.get("authority_root_id")
+        grants = state.get("authority_grants")
+        root_grant = grants.get(root_id) if isinstance(grants, dict) else None
+        if (
+            not isinstance(owner_actor_id, str)
+            or not isinstance(root_id, str)
+            or not isinstance(root_grant, dict)
+            or root_grant.get("status") != "active"
+        ):
+            return ("claim_promotion_owner_unavailable", "P-005 requires the active replay-derived Stephen owner root.")
+        reviews = {
+            reference.partition(":")[2] for reference in review_binding if reference.startswith("governing-review-id:")
+        }
+        decisions = state.get("decisions")
+        if not isinstance(decisions, dict):
+            return ("claim_promotion_decision_missing", "P-005 requires one current replay-derived approval decision.")
+        submitted_at = datetime.fromisoformat(str(command.envelope["submitted_at"]).replace("Z", "+00:00"))
+        required_scope = f"claim_promotion:{manifest.get('authority', {}).get('accepted_scope')}"
+        active_superseded = {
+            superseded
+            for decision in decisions.values()
+            if isinstance(decision, dict) and decision.get("status") == "resolved"
+            for superseded in decision.get("superseded_decision_ids", [])
+        }
+        matches = [
+            (decision_id, decision)
+            for decision_id, decision in decisions.items()
+            if isinstance(decision_id, str)
+            and isinstance(decision, dict)
+            and decision_id not in active_superseded
+            and decision.get("decision_kind") == "claim_promotion"
+            and decision.get("status") == "resolved"
+            and decision.get("selected_option") == "approve"
+            and decision.get("effective_scope") == required_scope
+            and decision.get("deciding_actor_id") == owner_actor_id
+            and "SetArtefactUseAuthority" in decision.get("permitted_commands", [])
+            and set(decision.get("considered_review_ids", [])) == reviews
+            and decision_id in command.envelope["payload"].get("evidence_refs", [])
+            and datetime.fromisoformat(str(decision.get("effective_at")).replace("Z", "+00:00")) <= submitted_at
+            and datetime.fromisoformat(str(decision.get("expires_at")).replace("Z", "+00:00")) > submitted_at
+        ]
+        if len(matches) != 1:
+            return ("claim_promotion_decision_missing", "P-005 requires exactly one current Stephen approval decision.")
+        decision_id, decision = matches[0]
+        reviewed_subject_hashes = {
+            subject_hash
+            for review_id in decision.get("considered_review_ids", [])
+            for review in [state.get("streams", {}).get(review_id)]
+            if isinstance(review, dict)
+            for subject_id, subject_hash in zip(
+                review.get("request", {}).get("subject_ids", []),
+                review.get("request", {}).get("subject_hashes", []),
+                strict=False,
+            )
+            if subject_id == decision_id
+        }
+        if len(reviewed_subject_hashes) != 1:
+            return ("claim_promotion_subject_ambiguous", "P-005 lacks one exact reviewed decision subject hash.")
+        decision_subject_sha256 = next(iter(reviewed_subject_hashes))
+        decision_events = [
+            event
+            for event in snapshot.events
+            if event.get("stream_id") == decision_id
+            and event.get("event_type") == "DecisionResolved"
+            and event.get("actor_id") == owner_actor_id
+        ]
+        activation_events = [
+            event for event in snapshot.events if event.get("event_id") == root_grant.get("activation_event_id")
+        ]
+        if len(decision_events) != 1 or len(activation_events) != 1:
+            return ("claim_promotion_decision_ambiguous", "P-005 event or owner-root evidence is ambiguous.")
+        decision_event = decision_events[0]
+        activation_event = activation_events[0]
+        return [
+            f"decision-id:{decision_id}",
+            f"decision-event-id:{decision_event['event_id']}",
+            f"decision-event-hash:{decision_event['event_hash']}",
+            f"decision-subject-sha256:{decision_subject_sha256}",
+            f"decision-projection-sha256:{sha256_hex(canonical_bytes(decision))}",
+            f"decision-authority-grant-id:{decision_event['authority_grant_id']}",
+            f"owner-actor-id:{owner_actor_id}",
+            f"authority-root-id:{root_id}",
+            f"authority-root-grant-sha256:{root_grant['authority_grant_sha256']}",
+            f"authority-root-activation-event-id:{activation_event['event_id']}",
+            f"authority-root-activation-event-hash:{activation_event['event_hash']}",
+        ]
 
     def _ensure_artefact_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed registration."""
@@ -5371,6 +6200,68 @@ class CommandService:
                 )
             return payload
 
+        if command_type == "CompleteScope":
+            revision = int(payload["revision"])
+            if revision != source_revision:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "stale_scope_revision",
+                    "Scope completion must name the current immutable revision.",
+                )
+            definition = self._scope_definition(
+                command.target_stream_id,
+                source_revision,
+                evidence,
+            )
+            if payload["completion_predicate"] != definition.get("completion_predicate"):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "scope_completion_predicate_mismatch",
+                    "Scope completion must reproduce the current revision's predicate.",
+                )
+            dispositions = payload["member_dispositions"]
+            if not has_unique_member_ids(dispositions):
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "duplicate_scope_member_disposition",
+                    "Each current ScopeDefinition member requires one disposition.",
+                )
+            observed_members = {str(item["member_id"]): str(item["member_kind"]) for item in dispositions}
+            expected_members = {
+                str(item["member_id"]): str(item["member_kind"]) for item in definition.get("members", [])
+            }
+            if observed_members != expected_members:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "missing_scope_member_disposition",
+                    "Every current ScopeDefinition member requires one exact disposition.",
+                )
+            if not payload["completion_evidence_refs"]:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "scope_completion_evidence_missing",
+                    "Scope completion requires durable completion evidence.",
+                )
+            try:
+                validate_scope_completion_members(
+                    definition,
+                    dispositions,
+                    self._c1_streams(snapshot),
+                )
+            except ValueError as exc:
+                return self._rejected(
+                    command,
+                    observed_version,
+                    "scope_member_not_resolved",
+                    str(exc),
+                )
+            return payload
+
         replacement = (
             str(payload["replacement_scope_definition_id"]),
             int(payload["replacement_revision"]),
@@ -5867,6 +6758,11 @@ class CommandService:
         elif command_type == "SupersedeScopeDefinition":
             event_type = "ScopeDefinitionSuperseded"
             payload = command.envelope["payload"]
+        elif command_type == "CompleteScope":
+            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+                raise IntegrityError("CompleteScope requires its exact prepared payload")
+            event_type = "ScopeCompleted"
+            payload = deepcopy(prepared_payload)
         elif command_type == "CreateTask":
             create_binding = self.schemas.command_binding("CreateTask")
             activated_create = create_binding is not None and (
@@ -5907,13 +6803,22 @@ class CommandService:
             )
             if command_type == "RetryAttempt":
                 payload["creation_kind"] = "retry"
+        elif command_type in _C3_COMMAND_TYPES:
+            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+                raise IntegrityError(f"{command_type} requires its exact prepared payload")
+            event_type = _COMMAND_EVENT_TYPES[command_type]
+            payload = deepcopy(prepared_payload)
+            if command_type == "ClosePartial":
+                payload["subject_kind"] = "task"
         elif command_type in _BACKUP_COMMAND_TYPES:
             if prepared_payload is None or prepared_payload != command.envelope["payload"]:
                 raise IntegrityError("CreateBackup requires its exact prepared payload")
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)
         elif command_type in _ARTEFACT_AUTHORITY_COMMAND_TYPES:
-            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+            if prepared_payload is None or (
+                command_type != "SetArtefactUseAuthority" and prepared_payload != command.envelope["payload"]
+            ):
                 raise IntegrityError(f"{command_type} requires its exact prepared payload")
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)
