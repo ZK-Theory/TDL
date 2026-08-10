@@ -12,9 +12,9 @@
   "project_binding": {
     "project_id": "prj_01978abc-1000-7000-8000-000000001000",
     "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
-    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
-    "origin_authority_root": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority",
-    "origin_witness_path": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority\\store-origins\\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
+    "control_root": "control",
+    "origin_authority_root": "origin-authority",
+    "origin_witness_path": "store-origins/sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
     "origin_witness_sha256": "1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa",
     "control_tail_position": 145,
     "control_tail_event_hash": "9e057ee4ed1442d4df65df770881252a89ce818b8a713102c4b6778b81429112",

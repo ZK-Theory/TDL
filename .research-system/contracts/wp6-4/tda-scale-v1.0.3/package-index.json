@@ -9,7 +9,7 @@
   "execution_authorized": false,
   "candidate_base_git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
   "self_identity_binding": "final_exact_git_subject_preflight_sha256_and_external_review_envelope_required",
-  "external_vault_root": "C:\\Users\\steph\\Documents\\TDA-Research",
+  "external_vault_root": "tda-research",
   "external_vault_git_status": "not_a_git_repository_raw_identity_only",
   "project_binding": {
     "project_id": "prj_01978abc-1000-7000-8000-000000001000",
@@ -29,9 +29,9 @@
     "package_version": "1.0.2",
     "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/package-index.json",
     "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
-    "raw_bytes": 5825,
-    "raw_sha256": "98671eb4c1832f1c8ae861b0f882868efc4ff19a9126a7c1d0e934ee6849594d",
-    "git_blob_id": "d3688b9a04776942e0208f8cbaa858d1d440720e"
+    "raw_bytes": 5796,
+    "raw_sha256": "7e16985ad2436609f583e45af0a7d13f077bde0f6f497a3fe414357871b3c0ae",
+    "git_blob_id": "5e2afab20527c224bb375e0cb9f9e0044edf060c"
   },
   "reused_components": [
     {
@@ -58,9 +58,9 @@
       "component_id": "SCALE01-GATE6-PREFLIGHT",
       "component_version": "1.0.3",
       "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json",
-      "raw_bytes": 9794,
-      "raw_sha256": "42435a9cf3ee1e0d9650a8b1c9735d12da55fbf848374bb5a3cb86f1c577db3d",
-      "git_blob_id": "f3f838967873e72cf1532b84bc0891c9000f93a5",
+      "raw_bytes": 9748,
+      "raw_sha256": "204b2a219eaf603f0eafd45cb253848c072ed2c46a35ac48268ac92f7597ef49",
+      "git_blob_id": "8a1f1c02ad799cbd1bbcd33de29fdd312b7c9992",
       "identity_stage": "content_addressed_precommit"
     }
   ],
@@ -103,7 +103,7 @@
   },
   "preflight_closure": {
     "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json",
-    "raw_sha256": "42435a9cf3ee1e0d9650a8b1c9735d12da55fbf848374bb5a3cb86f1c577db3d",
+    "raw_sha256": "204b2a219eaf603f0eafd45cb253848c072ed2c46a35ac48268ac92f7597ef49",
     "current_foundation": "satisfied",
     "historical_real_a8": "satisfied",
     "current_foundation_real_a8_compatibility": "satisfied",

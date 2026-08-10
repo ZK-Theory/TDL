@@ -9,7 +9,7 @@
   "execution_authorized": false,
   "candidate_base_git_commit": "4773e90981dce739c1761b9cbd68ad6768085b86",
   "self_identity_binding": "final_exact_git_subject_preflight_sha256_and_external_review_envelope_required",
-  "external_vault_root": "C:\\Users\\steph\\Documents\\TDA-Research",
+  "external_vault_root": "tda-research",
   "external_vault_git_status": "not_a_git_repository_raw_identity_only",
   "project_binding": {
     "project_id": "prj_01978abc-1000-7000-8000-000000001000",
@@ -49,9 +49,9 @@
       "component_id": "SCALE01-GATE6-PREFLIGHT",
       "component_version": "1.0.2",
       "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
-      "raw_bytes": 7399,
-      "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
-      "git_blob_id": "156e19a5ccc0c41a0b09a344d1a7d346ade27438",
+      "raw_bytes": 7287,
+      "raw_sha256": "869851b9fedd2331a9e5c99fc0b69bd13517c9823b9219b7e34e6609a539333d",
+      "git_blob_id": "e41fc74f9180910b4e30efd0272a69bbd8bc14bc",
       "identity_stage": "content_addressed_precommit"
     }
   ],
@@ -94,7 +94,7 @@
   },
   "preflight_closure": {
     "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
-    "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
+    "raw_sha256": "869851b9fedd2331a9e5c99fc0b69bd13517c9823b9219b7e34e6609a539333d",
     "foundation_and_real_a8": "satisfied",
     "kan68_a7_genuine_distinct_party_acceptance": "satisfied",
     "provider_free_operator_session": "satisfied",

@@ -12,9 +12,9 @@
   "project_binding": {
     "project_id": "prj_01978abc-1000-7000-8000-000000001000",
     "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
-    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
-    "origin_authority_root": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority",
-    "origin_witness_path": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority\\store-origins\\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
+    "control_root": "control",
+    "origin_authority_root": "origin-authority",
+    "origin_witness_path": "store-origins/sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
     "origin_witness_sha256": "1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa",
     "control_tail_position": 145,
     "control_tail_event_hash": "9e057ee4ed1442d4df65df770881252a89ce818b8a713102c4b6778b81429112",
@@ -87,6 +87,7 @@
       "evidence_object_raw_sha256": "64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d",
       "historical_foundation": {
         "repository_path": ".research-system/config/foundation.yaml",
+        "git_commit": "9b8c88d8427645551383e98b9b0f7fd5613520b8",
         "schema_version": "1.0.0",
         "semantic_sha256": "0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22",
         "raw_sha256": "3f9a0e6af3021f3c0273f003e5bebdc722b00e525671aa84163cac5cfa7541da",
@@ -173,8 +174,8 @@
     "package_version": "1.0.2",
     "preflight_id": "SCALE-01-G6-PREFLIGHT-v1.0.2",
     "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
-    "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
-    "git_blob_id": "156e19a5ccc0c41a0b09a344d1a7d346ade27438"
+    "raw_sha256": "869851b9fedd2331a9e5c99fc0b69bd13517c9823b9219b7e34e6609a539333d",
+    "git_blob_id": "e41fc74f9180910b4e30efd0272a69bbd8bc14bc"
   },
   "supersession_policy": "immutable_supersede_never_mutate"
 }
