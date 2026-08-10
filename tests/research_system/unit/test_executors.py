@@ -13,11 +13,18 @@ import pytest
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals import coverage as coverage_module
 from research_system.evals.coverage import P0_CASES
-from research_system.evals.executors import EXECUTORS, require_executor
+from research_system.evals.executors import (
+    ADAPTER_SCIENTIFIC_IDS,
+    EXECUTORS,
+    LIFECYCLE_REQUIRED_IDS,
+    PURE_OBSERVATION_IDS,
+    require_executor,
+)
 from research_system.evals.executors.control_store import (
     CONTROL_STORE_EXECUTORS,
     execute_f001,
 )
+from research_system.errors import ArsError
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
@@ -151,20 +158,17 @@ def test_f020_receipt_retention_regression_changes_only_selected_operation(monke
         "no-raw-transcript-retention",
         operation,
     )
-    assert after["controls"]["no-raw-transcript-retention"]["operations"][operation][
-        "receipt_mode"
-    ] == "raw_retained"
+    assert after["controls"]["no-raw-transcript-retention"]["operations"][operation]["receipt_mode"] == "raw_retained"
 
 
 def test_f020_declared_tool_evidence_depends_on_adapter_probe(monkeypatch):
     from research_system.adapters.provider import ProviderAdapter
-    from research_system.errors import ArsError
 
     def reject_every_issue(self, command, managed_content):
         del self, command, managed_content
         raise ArsError("probe rejected")
 
-    monkeypatch.setattr(ProviderAdapter, "issue", reject_every_issue)
+    monkeypatch.setattr(ProviderAdapter, "issue_adapter_scientific_probe", reject_every_issue)
     observed = require_executor("F-020")(
         "known_good",
         {
@@ -207,8 +211,29 @@ _F001_PAYLOAD = {
 
 def test_control_store_registers_f001():
     assert CONTROL_STORE_EXECUTORS["F-001"] is execute_f001
-    assert EXECUTORS["F-001"] is execute_f001
-    assert require_executor("F-001") is execute_f001
+    assert EXECUTORS["F-001"].execute_raw is execute_f001
+    assert require_executor("F-001").execute_raw is execute_f001
+    assert require_executor("F-001").execution_class == "pure_observation"
+
+
+def test_every_registered_executor_has_one_closed_execution_class():
+    classes = (LIFECYCLE_REQUIRED_IDS, ADAPTER_SCIENTIFIC_IDS, PURE_OBSERVATION_IDS)
+    assert set().union(*classes) == set(EXECUTORS)
+    assert all(not (left & right) for index, left in enumerate(classes) for right in classes[index + 1 :])
+    assert {fixture_id: item.execution_class for fixture_id, item in EXECUTORS.items()} == {
+        fixture_id: expected
+        for expected, fixture_ids in (
+            ("lifecycle_required", LIFECYCLE_REQUIRED_IDS),
+            ("adapter_scientific", ADAPTER_SCIENTIFIC_IDS),
+            ("pure_observation", PURE_OBSERVATION_IDS),
+        )
+        for fixture_id in fixture_ids
+    }
+
+
+def test_lifecycle_executor_rejects_raw_registry_call_without_authority():
+    with pytest.raises(ArsError, match="lifecycle execution authority required"):
+        require_executor("F-025")("known_good", {"action": {}})
 
 
 def test_execute_f001_known_bad_reproduces_destructive_overwrite():

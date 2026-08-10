@@ -3,10 +3,15 @@ from __future__ import annotations
 from copy import deepcopy
 from contextlib import contextmanager
 from datetime import UTC, datetime
+import json
+from types import SimpleNamespace
 
 import pytest
 
-from research_system.canonical import sha256_hex
+from research_system.adapters.base import ProviderCommand, TransportResult
+from research_system.adapters.fake import FakeTransport
+from research_system.adapters.provider import ProviderAdapter
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.registry import (
@@ -14,9 +19,11 @@ from research_system.context.registry import (
     resolve_context_packet_for_consumer,
 )
 from research_system.context.service import ContextLifecycleService
-from research_system.context.tokenizers import ReferenceRegexV1
+from research_system.routing.engine import RouteCandidate
+from research_system.context.tokenizers import ProviderCountEvidence, ReferenceRegexV1
 from research_system.errors import ArsError
 from research_system.ids import new_id
+from research_system.operations.coordinator import issue_lifecycle_dispatch
 from research_system.schema_registry import bundled_schema_registry
 from research_system.store.objects import ObjectStore
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
@@ -79,6 +86,19 @@ class RecordingContextWriter:
         return {"status": "accepted"}
 
 
+class StaticSourceResolver:
+    def __init__(self, *fragments: SourceFragment, before_resolve=None) -> None:
+        self.fragments = fragments
+        self.before_resolve = before_resolve
+        self.calls: list[set[str]] = []
+
+    def resolve(self, source_ids: set[str]) -> tuple[SourceFragment, ...]:
+        if self.before_resolve is not None:
+            self.before_resolve()
+        self.calls.append(set(source_ids))
+        return tuple(fragment for fragment in self.fragments if fragment.source_id in source_ids)
+
+
 def request_payload(context_id: str) -> dict:
     return {
         "request_id": "context-request-1",
@@ -135,11 +155,574 @@ def compile_valid(service: ContextLifecycleService, context_id: str):
     )
     return service.compile_packet(
         request=request_payload(context_id),
-        fragments=[fragment],
+        source_resolver=StaticSourceResolver(fragment),
         profile=ContextProfile("bounded-r2", 100),
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},
     )
+
+
+class RecordingRoutingEvidence:
+    routing_evidence_snapshot_id = "routing-snapshot-1"
+    evidence_id = "provider-evidence-1"
+    content_hash = "c" * 64
+    expires_at = "2030-01-01T00:00:00Z"
+
+    def __init__(self) -> None:
+        self.gate_calls = 0
+
+    def validate_pre_route(self) -> None:
+        return None
+
+    def hard_gate_failures(self, request, candidate) -> tuple[str, ...]:
+        del request, candidate
+        self.gate_calls += 1
+        return ()
+
+
+class RouteTask:
+    task_id = "tsk_" + "1" * 32
+    revision = 1
+    route_request_id = "rrq_" + "2" * 32
+
+
+class RouteRequirement:
+    assurance_requirement_id = "asr_" + "3" * 32
+    content_hash = "d" * 64
+    task_id = RouteTask.task_id
+    task_revision = RouteTask.revision
+
+
+class RecordingW7Adapter:
+    def __init__(self, compiled) -> None:
+        self.compiled = compiled
+        self.calls: list[str] = []
+
+    def load_evidence(self, evidence_id, content_hash):
+        self.calls.append("load_evidence")
+        return {"evidence_id": evidence_id, "content_hash": content_hash}
+
+    def revalidate(self, route, compiled, evidence, capability):
+        self.calls.append("revalidate")
+        assert compiled is self.compiled
+        assert evidence["content_hash"] == "c" * 64
+        return {"winner": route["winner"].profile_id, "capability": capability.digest}
+
+    def build_prevalidated_template(self, dispatch, revalidated, count, capability):
+        self.calls.append("build_prevalidated_template")
+        assert revalidated == {
+            "winner": dispatch.route["winner"].profile_id,
+            "capability": capability.digest,
+        }
+        accounting = {
+            "method": "exact",
+            "raw_capacity": 100,
+            "fixed_overhead": 10,
+            "managed_tokens": count.count,
+            "reserved_variable_tokens": 20,
+            "segments": {"context": "managed"},
+        }
+        return {
+            "operation": "deliver_context",
+            "provider": count.provider,
+            "model": count.model,
+            "profile_id": dispatch.route["winner"].profile_id,
+            "adapter_revision": "adapter-v1",
+            "context_id": dispatch.context.context_id,
+            "context_revision": dispatch.context.revision,
+            "packet_sha256": dispatch.context.packet_sha256,
+            "rendered_payload_hash": dispatch.context.packet_sha256,
+            "command_revision": 1,
+            "command_revision_hash": "e" * 64,
+            "idempotency_key": "issue-context-1",
+            "timeout_s": 5,
+            "policy_hash": "f" * 64,
+            "parity_evidence_hash": "1" * 64,
+            "currentness_evidence_hash": "2" * 64,
+            "provider_count_evidence": {
+                "counter_id": count.counter_id,
+                "units": count.units,
+                "count": count.count,
+                "exact": count.exact,
+                "provider": count.provider,
+                "model": count.model,
+                "rendering_revision": count.rendering_revision,
+                "evidence_revision": count.evidence_revision,
+            },
+            "wrapper_accounting": accounting,
+            "wrapper_accounting_sha256": sha256_hex(canonical_bytes(accounting)),
+            "capability_digest": capability.digest,
+        }
+
+
+def provider_count(count: int = 10) -> ProviderCountEvidence:
+    return ProviderCountEvidence(
+        "fake-codex-exact-v1",
+        "provider_tokens",
+        count,
+        True,
+        "codex",
+        "p0-fake",
+        "render-v1",
+        "eval-v1",
+    )
+
+
+def plan_valid(service: ContextLifecycleService, compiled):
+    return service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=RecordingRoutingEvidence(),
+        operational_evidence=RecordingRoutingEvidence(),
+    )
+
+
+def validate_valid(service: ContextLifecycleService, compiled):
+    return service.prevalidate_dispatch(
+        plan_valid(service, compiled),
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=RecordingW7Adapter(compiled),
+    )
+
+
+def issue_valid(service: ContextLifecycleService, compiled):
+    return service.prevalidate_and_issue_dispatch(
+        plan_valid(service, compiled),
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=RecordingW7Adapter(compiled),
+    )
+
+
+def test_cli_parser_exposes_exact_nine_context_lifecycle_operations() -> None:
+    from research_system.cli import _parser
+
+    expected = {
+        "request",
+        "begin-compilation",
+        "complete-compilation",
+        "validate",
+        "issue",
+        "deliver",
+        "fail",
+        "expire",
+        "supersede",
+    }
+    observed = set()
+    for action in sorted(expected):
+        args = _parser().parse_args(
+            [
+                "context-packet",
+                action,
+                "--config",
+                "config.json",
+                "--input",
+                "input.json",
+                "--actor-id",
+                "actor-1",
+                "--authority-grant-id",
+                "grant-1",
+                "--writer-id",
+                "writer-1",
+            ]
+        )
+        observed.add(args.context_packet_action)
+        assert args.handler.__name__ == "context_packet_transition"
+    assert observed == expected
+
+
+def test_cli_validate_rejects_caller_built_w4_w7_fields_before_service_access(monkeypatch) -> None:
+    from research_system import cli
+
+    class BombLifecycle:
+        def __getattr__(self, name):
+            raise AssertionError(f"CLI reached lifecycle service method: {name}")
+
+    monkeypatch.setattr(cli, "_context_packet_runtime", lambda _args: BombLifecycle())
+    monkeypatch.setattr(
+        cli,
+        "_read_json",
+        lambda _path: {
+            "context_id": new_id("context"),
+            "validation_evidence": {"route_decision_id": "caller-route"},
+            "provider_template": {"operation": "caller-built"},
+        },
+    )
+    args = SimpleNamespace(context_packet_action="validate", input="ignored")
+    with pytest.raises(ArsError, match="caller-supplied.*forbidden"):
+        cli.context_packet_transition(args)
+
+
+def test_w4_route_rejects_missing_or_foreign_capability_before_evidence(tmp_path) -> None:
+    first = ContextLifecycleService(ObjectStore(tmp_path / "first"), RecordingContextWriter(), writer_id="writer-1")
+    second = ContextLifecycleService(ObjectStore(tmp_path / "second"), RecordingContextWriter(), writer_id="writer-2")
+    compiled = compile_valid(first, new_id("context"))
+    foreign = compile_valid(second, new_id("context")).capability
+    provider = RecordingRoutingEvidence()
+    operational = RecordingRoutingEvidence()
+    candidates = [RouteCandidate("codex", 1, 1, 0, 100, 1, 1)]
+
+    with pytest.raises(TypeError):
+        first.plan_dispatch(
+            task=RouteTask(),
+            attempt_id="att_" + "4" * 32,
+            requirement=RouteRequirement(),
+            compiled=compiled,
+            candidates=candidates,
+            provider_evidence=provider,
+            operational_evidence=operational,
+        )
+    with pytest.raises(ArsError, match="missing or forged"):
+        first.plan_dispatch(
+            task=RouteTask(),
+            attempt_id="att_" + "4" * 32,
+            requirement=RouteRequirement(),
+            compiled=compiled,
+            capability=foreign,
+            candidates=candidates,
+            provider_evidence=provider,
+            operational_evidence=operational,
+        )
+
+    assert provider.gate_calls == 0
+    assert operational.gate_calls == 0
+
+
+def test_w4_route_returns_service_sealed_lifecycle_dispatch(tmp_path) -> None:
+    service = ContextLifecycleService(ObjectStore(tmp_path), RecordingContextWriter(), writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    provider = RecordingRoutingEvidence()
+    operational = RecordingRoutingEvidence()
+
+    dispatch = service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=provider,
+        operational_evidence=operational,
+    )
+
+    assert dispatch.context is compiled
+    assert dispatch.capability_digest == compiled.capability.digest
+    assert dispatch.state == "unissued"
+    dispatch.verify_capability(compiled.capability)
+
+
+def test_coordinator_rejects_foreign_capability_before_any_issue_side_effect(tmp_path) -> None:
+    first = ContextLifecycleService(ObjectStore(tmp_path / "first"), RecordingContextWriter(), writer_id="writer-1")
+    second = ContextLifecycleService(ObjectStore(tmp_path / "second"), RecordingContextWriter(), writer_id="writer-2")
+    compiled = compile_valid(first, new_id("context"))
+    foreign = compile_valid(second, new_id("context")).capability
+    provider = RecordingRoutingEvidence()
+    operational = RecordingRoutingEvidence()
+    dispatch = first.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=provider,
+        operational_evidence=operational,
+    )
+
+    class BombPort:
+        calls = 0
+
+        def load_evidence(self, *args):
+            self.calls += 1
+            raise AssertionError("issue side effect reached")
+
+    bomb = BombPort()
+    with pytest.raises(ArsError, match="missing or forged"):
+        issue_lifecycle_dispatch(dispatch, foreign, bomb, bomb, bomb)
+    assert bomb.calls == 0
+
+
+def test_w4_no_route_is_one_compiled_phase_lifecycle_failure(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    provider = RecordingRoutingEvidence()
+    operational = RecordingRoutingEvidence()
+    provider.hard_gate_failures = lambda request, candidate: ("provider_unavailable",)
+
+    with pytest.raises(ArsError, match="no eligible route") as caught:
+        service.plan_dispatch(
+            task=RouteTask(),
+            attempt_id="att_" + "4" * 32,
+            requirement=RouteRequirement(),
+            compiled=compiled,
+            capability=compiled.capability,
+            candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+            provider_evidence=provider,
+            operational_evidence=operational,
+        )
+
+    assert caught.value.receipt == {"status": "accepted"}
+    failures = [event for event in writer.events if event["event_type"] == "ContextPacketFailed"]
+    assert len(failures) == 1
+    assert failures[0]["payload"] == {
+        "context_id": compiled.context_id,
+        "request_id": compiled.request_id,
+        "lifecycle_phase": "compiled",
+        "failure_code": "no_eligible_route",
+        "packet_evidence_status": "present",
+        "packet_revision": compiled.revision,
+        "packet_sha256": compiled.packet_sha256,
+    }
+
+
+def test_w7_prevalidation_freezes_template_then_issues_under_lifecycle_lock(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    dispatch = service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=RecordingRoutingEvidence(),
+        operational_evidence=RecordingRoutingEvidence(),
+    )
+    adapter = RecordingW7Adapter(compiled)
+
+    issued = service.prevalidate_and_issue_dispatch(
+        dispatch,
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=adapter,
+    )
+
+    assert issued.state == "issued"
+    assert issued.template.content["packet_sha256"] == compiled.packet_sha256
+    assert adapter.calls == ["load_evidence", "revalidate", "build_prevalidated_template"]
+    assert [event["event_type"] for event in writer.events[-2:]] == [
+        "ContextPacketValidated",
+        "ContextPacketIssued",
+    ]
+
+
+def test_w7_capacity_failure_writes_once_before_adapter_side_effect(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    dispatch = service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=RecordingRoutingEvidence(),
+        operational_evidence=RecordingRoutingEvidence(),
+    )
+    adapter = RecordingW7Adapter(compiled)
+
+    with pytest.raises(ArsError, match="bound_provider_capacity_gate"):
+        service.prevalidate_and_issue_dispatch(
+            dispatch,
+            capability=compiled.capability,
+            provider_count_evidence=provider_count(81),
+            usable_capacity_tokens=100,
+            w7_adapter=adapter,
+        )
+
+    assert adapter.calls == []
+    assert [event["event_type"] for event in writer.events].count("ContextPacketFailed") == 1
+
+
+def test_deliver_context_transport_requires_unchanged_issued_template_and_capability(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
+    compiled = compile_valid(service, new_id("context"))
+    dispatch = service.plan_dispatch(
+        task=RouteTask(),
+        attempt_id="att_" + "4" * 32,
+        requirement=RouteRequirement(),
+        compiled=compiled,
+        capability=compiled.capability,
+        candidates=[RouteCandidate("codex", 1, 1, 0, 100, 1, 1)],
+        provider_evidence=RecordingRoutingEvidence(),
+        operational_evidence=RecordingRoutingEvidence(),
+    )
+    issued = service.prevalidate_and_issue_dispatch(
+        dispatch,
+        capability=compiled.capability,
+        provider_count_evidence=provider_count(),
+        usable_capacity_tokens=100,
+        w7_adapter=RecordingW7Adapter(compiled),
+    )
+    content = issued.template.content
+    command = ProviderCommand(
+        provider_command_id="pcmd_" + "5" * 32,
+        revision=content["command_revision"],
+        revision_hash=content["command_revision_hash"],
+        provider=content["provider"],
+        model=content["model"],
+        profile_id=content["profile_id"],
+        adapter_revision=content["adapter_revision"],
+        policy_hash=content["policy_hash"],
+        context_hash=content["packet_sha256"],
+        rendered_payload_hash=content["rendered_payload_hash"],
+        idempotency_key=content["idempotency_key"],
+        operation=content["operation"],
+        timeout_s=content["timeout_s"],
+        wrapper_accounting=content["wrapper_accounting"],
+        authorized=True,
+    )
+
+    class NonFakeTransport:
+        calls = 0
+
+        def invoke(self, argv, stdin, timeout_s):
+            del argv, stdin, timeout_s
+            self.calls += 1
+            raise AssertionError("non-fake transport reached")
+
+    non_fake = NonFakeTransport()
+    with pytest.raises(ArsError, match="requires FakeTransport"):
+        ProviderAdapter(["provider"], non_fake).issue(
+            command,
+            "managed context",
+            issued_dispatch=issued,
+            capability=compiled.capability,
+        )
+    assert non_fake.calls == 0
+
+    class CountingTransport(FakeTransport):
+        def __init__(self):
+            self.calls = 0
+
+        def invoke(self, argv, stdin, timeout_s):
+            del argv, stdin, timeout_s
+            self.calls += 1
+            return TransportResult(
+                status="terminal",
+                stdout=json.dumps(
+                    {
+                        "provider": command.provider,
+                        "model": command.model,
+                        "profile_id": command.profile_id,
+                        "adapter_revision": command.adapter_revision,
+                        "command_revision": command.revision,
+                        "command_revision_hash": command.revision_hash,
+                        "delivered_context_hash": command.context_hash,
+                    }
+                ),
+                stderr="",
+                provider_request_id="provider-request-1",
+                exit_code=0,
+            )
+
+    transport = CountingTransport()
+    adapter = ProviderAdapter(["fake-provider"], transport)
+    with pytest.raises(ArsError, match="missing or forged"):
+        adapter.issue(command, "managed context")
+    assert transport.calls == 0
+
+    receipt = adapter.issue(
+        command,
+        "managed context",
+        issued_dispatch=issued,
+        capability=compiled.capability,
+    )
+    assert receipt.complete is True
+    assert transport.calls == 1
+
+
+def test_context_compilation_begins_before_source_access_and_returns_receipts(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
+    context_id = new_id("context")
+    content = "governing method and exact source"
+    fragment = SourceFragment(
+        source_id="method-source",
+        revision="1",
+        authority_rank=10,
+        mandatory=True,
+        content=content,
+        content_hash=sha256_hex(content.encode("utf-8")),
+    )
+    resolver = StaticSourceResolver(
+        fragment,
+        before_resolve=lambda: (
+            writer.events[-1]["event_type"] == "ContextCompilationStarted"
+            or pytest.fail("source access occurred before BeginContextCompilation")
+        ),
+    )
+
+    compiled = service.compile_packet(
+        request=request_payload(context_id),
+        source_resolver=resolver,
+        profile=ContextProfile("bounded-r2", 100),
+        reference_counter=ReferenceRegexV1(),
+        required_source_ids={"method-source"},
+    )
+
+    assert resolver.calls == [{"method-source"}]
+    assert set(compiled.transition_receipts) == {
+        "RequestContextPacket",
+        "BeginContextCompilation",
+        "CompleteContextCompilation",
+    }
+
+
+def test_raw_command_service_cannot_bypass_context_lifecycle(tmp_path) -> None:
+    harness = control_plane(tmp_path)
+    context_id = new_id("context")
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="context",
+        subject_id=context_id,
+        command_types=("RequestContextPacket",),
+    )
+    payload = request_payload(context_id)
+    payload.update(
+        {
+            "project_id": PROJECT_ID,
+            "actor_id": ACTORS["actor-a"],
+            "required_source_ids": ["method-source"],
+        }
+    )
+    envelope = {
+        "command_id": new_id("command"),
+        "command_type": "RequestContextPacket",
+        "schema_id": "ars://core/command/RequestContextPacket",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-10T12:00:00Z",
+        "actor_id": ACTORS["actor-a"],
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": grant_id,
+        "target_stream_id": context_id,
+        "expected_stream_version": 0,
+        "idempotency_key": "raw-context-lifecycle-bypass",
+        "correlation_id": f"context:{context_id}",
+        "causation_id": None,
+        "reason": "attempt raw context lifecycle submission",
+        "evidence_refs": [],
+        "payload": payload,
+        "project_id": PROJECT_ID,
+    }
+    before = harness.ledger.snapshot()
+
+    with pytest.raises(ArsError, match="ContextLifecycleService"):
+        harness.service.submit(envelope)
+
+    assert harness.ledger.snapshot() == before
 
 
 @pytest.mark.integration
@@ -209,7 +792,7 @@ def test_production_context_compilation_recovers_committed_response_loss(tmp_pat
     def compile_with(service, selected_request):
         return service.compile_packet(
             request=selected_request,
-            fragments=fragments,
+            source_resolver=StaticSourceResolver(*fragments),
             profile=ContextProfile("bounded-r2", 100),
             reference_counter=ReferenceRegexV1(),
             required_source_ids={"method-source"},
@@ -269,21 +852,7 @@ def test_context_packet_runs_requested_through_delivered_and_resolves(tmp_path) 
         schema_version="1.0.0",
     )
 
-    service.validate_and_issue(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={
-            "route_decision_id": "route-1",
-            "route_witness_sha256": "c" * 64,
-            "selected_route_evidence_sha256": "d" * 64,
-        },
-        provider_template={
-            "operation": "compile_brief",
-            "provider": "provider-1",
-            "model": "model-1",
-            "rendered_sha256": "e" * 64,
-        },
-    )
+    issue_valid(service, compiled)
     service.record_delivery(
         compiled,
         recipient_id="consumer-1",
@@ -313,8 +882,45 @@ def test_context_packet_runs_requested_through_delivered_and_resolves(tmp_path) 
         control_store_identity="store-1",
         source_position=7,
         source_hash="a" * 64,
+        source_resolver=StaticSourceResolver(
+            SourceFragment(
+                source_id="method-source",
+                revision="1",
+                authority_rank=10,
+                mandatory=True,
+                content="governing method and exact source",
+                content_hash=sha256_hex(b"governing method and exact source"),
+            )
+        ),
     )
     assert resolved.packet["rendered_content"] == "governing method and exact source"
+
+    with pytest.raises(ArsError, match="stale or superseded"):
+        resolve_context_packet_for_consumer(
+            writer.events,
+            objects,
+            context_id=compiled.context_id,
+            revision=1,
+            packet_sha256=compiled.packet_sha256,
+            consumer_id="consumer-1",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            evaluation_time=datetime(2029, 1, 1, tzinfo=UTC),
+            control_store_identity="store-1",
+            source_position=7,
+            source_hash="a" * 64,
+            source_resolver=StaticSourceResolver(
+                SourceFragment(
+                    source_id="method-source",
+                    revision="1",
+                    authority_rank=10,
+                    mandatory=True,
+                    content="governing method and exact source",
+                    content_hash=sha256_hex(b"governing method and exact source"),
+                    current=False,
+                )
+            ),
+        )
 
 
 def test_compilation_failure_writes_one_terminal_failure_and_no_packet(tmp_path) -> None:
@@ -324,7 +930,7 @@ def test_compilation_failure_writes_one_terminal_failure_and_no_packet(tmp_path)
     with pytest.raises(ArsError, match="mandatory source omitted"):
         service.compile_packet(
             request=request_payload(context_id),
-            fragments=[],
+            source_resolver=StaticSourceResolver(),
             profile=ContextProfile("bounded-r2", 100),
             reference_counter=ReferenceRegexV1(),
             required_source_ids={"missing"},
@@ -338,16 +944,91 @@ def test_compilation_failure_writes_one_terminal_failure_and_no_packet(tmp_path)
     ]
 
 
+def test_restricted_source_fails_before_packet_persistence(tmp_path) -> None:
+    writer = RecordingContextWriter()
+    objects = ObjectStore(tmp_path)
+    service = ContextLifecycleService(objects, writer, writer_id="writer-1")
+    context_id = new_id("context")
+    content = "restricted source"
+    fragment = SourceFragment(
+        source_id="restricted-source",
+        revision="1",
+        authority_rank=10,
+        mandatory=True,
+        content=content,
+        content_hash=sha256_hex(content.encode("utf-8")),
+        sensitivity_class="restricted",
+    )
+
+    with pytest.raises(ArsError, match="unsafe or restricted"):
+        service.compile_packet(
+            request=request_payload(context_id),
+            source_resolver=StaticSourceResolver(fragment),
+            profile=ContextProfile("bounded-r2", 100),
+            reference_counter=ReferenceRegexV1(),
+            required_source_ids={"restricted-source"},
+        )
+
+    assert [event["event_type"] for event in writer.events] == [
+        "ContextPacketRequested",
+        "ContextCompilationStarted",
+        "ContextPacketFailed",
+    ]
+    assert not list(tmp_path.rglob("*.json"))
+
+
+def test_production_source_failure_retries_original_receipt_without_reresolving(tmp_path) -> None:
+    harness = control_plane(tmp_path)
+    context_id = new_id("context")
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="context",
+        subject_id=context_id,
+        command_types=(
+            "RequestContextPacket",
+            "BeginContextCompilation",
+            "FailContextPacket",
+        ),
+    )
+    writer = CommandServiceContextWriter(
+        harness.service,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant_id,
+        clock=lambda: datetime(2026, 8, 10, tzinfo=UTC),
+    )
+    service = ContextLifecycleService(harness.objects, writer, writer_id="writer-1")
+    resolver = StaticSourceResolver()
+    request = request_payload(context_id)
+    request.update({"project_id": PROJECT_ID, "actor_id": ACTORS["actor-a"]})
+
+    def compile_missing_source():
+        return service.compile_packet(
+            request=request,
+            source_resolver=resolver,
+            profile=ContextProfile("bounded-r2", 100),
+            reference_counter=ReferenceRegexV1(),
+            required_source_ids={"missing"},
+        )
+
+    with pytest.raises(ArsError, match="mandatory source omitted") as first:
+        compile_missing_source()
+    with pytest.raises(ArsError, match="mandatory source omitted") as retry:
+        compile_missing_source()
+
+    assert first.value.receipt == retry.value.receipt
+    assert resolver.calls == [{"missing"}]
+    assert [event["event_type"] for event in writer.iter_events(context_id)] == [
+        "ContextPacketRequested",
+        "ContextCompilationStarted",
+        "ContextPacketFailed",
+    ]
+
+
 def test_delivery_hash_mismatch_has_no_delivery_write(tmp_path) -> None:
     writer = RecordingContextWriter()
     service = ContextLifecycleService(ObjectStore(tmp_path), writer, writer_id="writer-1")
     compiled = compile_valid(service, new_id("context"))
-    service.validate_and_issue(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={"route_decision_id": "route-1"},
-        provider_template={"operation": "compile_brief"},
-    )
+    issue_valid(service, compiled)
     before = list(writer.events)
     with pytest.raises(ArsError, match="delivery hash"):
         service.record_delivery(
@@ -365,23 +1046,7 @@ def test_validation_to_issue_recovers_after_process_restart(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     initial = ContextLifecycleService(objects, writer, writer_id="writer-1")
     compiled = compile_valid(initial, new_id("context"))
-    template = {
-        "operation": "compile_brief",
-        "provider": "provider-1",
-        "model": "model-1",
-        "rendered_sha256": "e" * 64,
-    }
-    validation = {
-        "route_decision_id": "route-1",
-        "route_witness_sha256": "c" * 64,
-        "selected_route_evidence_sha256": "d" * 64,
-    }
-    validated = initial.validate(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence=validation,
-        provider_template=template,
-    )
+    validated = validate_valid(initial, compiled)
 
     restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")
     recovered = restarted.recover_validated(compiled.context_id)
@@ -394,12 +1059,7 @@ def test_validated_recovery_rejects_template_substitution(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     service = ContextLifecycleService(objects, writer, writer_id="writer-1")
     compiled = compile_valid(service, new_id("context"))
-    service.validate(
-        compiled,
-        capability=compiled.capability,
-        validation_evidence={"route_decision_id": "route-1"},
-        provider_template={"operation": "compile_brief"},
-    )
+    validate_valid(service, compiled)
     writer.events[-1]["payload"]["provider_template"] = {"operation": "substituted"}
 
     restarted = ContextLifecycleService(objects, writer, writer_id="writer-1")

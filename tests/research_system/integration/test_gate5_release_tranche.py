@@ -495,6 +495,7 @@ def test_restore_preflight_accepts_governed_retired_source(tmp_path):
     assert result.status == "verified"
     assert result.failed_predicates == ()
 
+
 def _rebind_restore_case(case, preflight, *, witness_path=None):
     from research_system.store.identity import canonical_restore_binding_output, rebind_restored_store
 
@@ -2314,21 +2315,21 @@ def test_s016_executor_proves_distinct_preissue_and_issue_time_outage_flows(
     monkeypatch,
 ):
     from research_system.evals.executors.release_tranche import execute_s016
-    from research_system.operations import coordinator as coordinator_module
-    from research_system.routing.engine import PreparedDispatch
+    from research_system.context.service import LifecycleBoundDispatch
+    from research_system.evals import lifecycle as lifecycle_module
 
     calls = []
-    original = coordinator_module.issue_prepared_dispatch
+    original = lifecycle_module.EvaluationLifecycleRuntime.issue
 
-    def counted(prepared, adapter, operations, command_service):
+    def counted(self, prepared, **kwargs):
         calls.append(prepared)
-        return original(prepared, adapter, operations, command_service)
+        return original(self, prepared, **kwargs)
 
-    monkeypatch.setattr(coordinator_module, "issue_prepared_dispatch", counted)
+    monkeypatch.setattr(lifecycle_module.EvaluationLifecycleRuntime, "issue", counted)
     observed = execute_s016("known_good", _s016_payload())
 
     assert len(calls) == 1
-    assert isinstance(calls[0], PreparedDispatch)
+    assert isinstance(calls[0], LifecycleBoundDispatch)
     assert calls[0].route["kind"] == "selected"
     assert observed["pre_dispatch_failure"] == "no_eligible_route"
     assert observed["candidate_rejection_codes"] == [

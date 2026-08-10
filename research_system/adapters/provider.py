@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from research_system.adapters.base import (
     ProviderCommand,
@@ -10,10 +11,10 @@ from research_system.adapters.base import (
 )
 from research_system.adapters.fake import FakeTransport
 from research_system.canonical import sha256_hex
+from research_system.context.template import validate_wrapper_accounting
 from research_system.errors import ArsError
 
 
-_ALLOWED_SEGMENT_BUCKETS = frozenset({"managed", "reserved"})
 _DECLARED_PROVIDER_OPERATIONS = frozenset(
     {
         "cancel_provider_work",
@@ -65,34 +66,6 @@ def enforce_provider_operation_policy(
         raise ArsError("live_provider_disabled")
 
 
-def validate_wrapper_accounting(accounting: dict) -> None:
-    required = {
-        "method",
-        "raw_capacity",
-        "fixed_overhead",
-        "managed_tokens",
-        "reserved_variable_tokens",
-        "segments",
-    }
-    if set(accounting) != required:
-        raise ArsError("wrapper_accounting_incomplete")
-    segments = accounting["segments"]
-    if not isinstance(segments, dict) or not segments or any(
-        bucket not in _ALLOWED_SEGMENT_BUCKETS for bucket in segments.values()
-    ):
-        raise ArsError("wrapper_accounting_incomplete")
-    numeric = (
-        accounting["raw_capacity"],
-        accounting["fixed_overhead"],
-        accounting["managed_tokens"],
-        accounting["reserved_variable_tokens"],
-    )
-    if any(not isinstance(value, int) or value < 0 for value in numeric):
-        raise ArsError("wrapper_accounting_incomplete")
-    if sum(numeric[1:]) > numeric[0]:
-        raise ArsError("wrapper_capacity_exceeded")
-
-
 def _payload(result: TransportResult) -> dict:
     if not result.stdout:
         return {}
@@ -103,9 +76,7 @@ def _payload(result: TransportResult) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def normalize_receipt(
-    command: ProviderCommand, result: TransportResult
-) -> ProviderReceipt:
+def normalize_receipt(command: ProviderCommand, result: TransportResult) -> ProviderReceipt:
     """Extract registered semantics and discard raw transport content."""
     validate_wrapper_accounting(command.wrapper_accounting)
     payload = _payload(result)
@@ -154,13 +125,7 @@ def normalize_receipt(
         output_refs=tuple(payload.get("output_refs", ())),
         output_hash=output_hash,
         exit_code=result.exit_code,
-        failure_code=(
-            None
-            if complete
-            else "provider_unavailable"
-            if outage
-            else "provider_completion_unproven"
-        ),
+        failure_code=(None if complete else "provider_unavailable" if outage else "provider_completion_unproven"),
     )
 
 
@@ -190,12 +155,79 @@ class ProviderAdapter:
         ):
             raise ArsError("live_provider_capability_not_implemented")
 
-    def issue(self, command: ProviderCommand, managed_content: str) -> ProviderReceipt:
+    def issue(
+        self,
+        command: ProviderCommand,
+        managed_content: str,
+        *,
+        issued_dispatch: Any | None = None,
+        capability: Any | None = None,
+    ) -> ProviderReceipt:
+        bounded_06j = (
+            command.operation in {"deliver_context", "evaluate_gate5_fixture"}
+            or issued_dispatch is not None
+            or capability is not None
+        )
+        if bounded_06j and not isinstance(self._transport, FakeTransport):
+            raise ArsError("06j provider execution requires FakeTransport")
+        if command.operation == "deliver_context" or issued_dispatch is not None or capability is not None:
+            self._verify_context_delivery_seal(
+                command,
+                issued_dispatch=issued_dispatch,
+                capability=capability,
+            )
+        return self._issue_command(command, managed_content)
+
+    def issue_adapter_scientific_probe(
+        self,
+        command: ProviderCommand,
+        managed_content: str,
+    ) -> ProviderReceipt:
+        """Run an exact fake-transport adapter probe with no lifecycle inputs."""
+        if not isinstance(self._transport, FakeTransport):
+            raise ArsError("adapter scientific probes require FakeTransport")
+        return self._issue_command(command, managed_content)
+
+    def _issue_command(
+        self,
+        command: ProviderCommand,
+        managed_content: str,
+    ) -> ProviderReceipt:
         if not command.authorized:
             raise ArsError("unauthorized_adapter_command")
         enforce_provider_operation_policy(command, self._operation_policy)
         validate_wrapper_accounting(command.wrapper_accounting)
-        result = self._transport.invoke(
-            list(self._argv), managed_content, command.timeout_s
-        )
+        result = self._transport.invoke(list(self._argv), managed_content, command.timeout_s)
         return normalize_receipt(command, result)
+
+    @staticmethod
+    def _verify_context_delivery_seal(
+        command: ProviderCommand,
+        *,
+        issued_dispatch: Any | None,
+        capability: Any | None,
+    ) -> None:
+        from research_system.context.service import LifecycleIssuedDispatch
+
+        if type(issued_dispatch) is not LifecycleIssuedDispatch or capability is None:
+            raise ArsError("issued context lifecycle dispatch is missing or forged")
+        issued_dispatch.verify_capability(capability)
+        content = issued_dispatch.template.content
+        expected = {
+            "revision": content["command_revision"],
+            "revision_hash": content["command_revision_hash"],
+            "provider": content["provider"],
+            "model": content["model"],
+            "profile_id": content["profile_id"],
+            "adapter_revision": content["adapter_revision"],
+            "policy_hash": content["policy_hash"],
+            "context_hash": content["packet_sha256"],
+            "rendered_payload_hash": content["rendered_payload_hash"],
+            "idempotency_key": content["idempotency_key"],
+            "operation": content["operation"],
+            "timeout_s": content["timeout_s"],
+            "wrapper_accounting": content["wrapper_accounting"],
+        }
+        observed = {name: getattr(command, name) for name in expected}
+        if observed != expected:
+            raise ArsError("provider command changed the prevalidated context template")

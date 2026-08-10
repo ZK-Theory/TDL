@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 
 from research_system.canonical import sha256_hex
-from research_system.context.compiler import compile_candidate, validate_provider_gate
+from research_system.context.compiler import _validate_provider_gate, compile_candidate
 from research_system.context.errors import ContextBudgetExceeded
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.tokenizers import (
@@ -12,8 +12,8 @@ from research_system.context.tokenizers import (
     Utf8ByteEvidenceV1,
 )
 from research_system.errors import ArsError
-from research_system.routing.engine import PreparedDispatch, RouteCandidate, select_route
-from research_system.routing.orchestrator import plan_dispatch
+from research_system.routing.engine import RouteCandidate, _DispatchPlan, _select_route
+from research_system.routing.orchestrator import _plan_dispatch
 
 
 def _fragment(source_id, authority, content, mandatory=True):
@@ -66,10 +66,7 @@ def test_f022_f025_f026_complete_mandatory_closure_is_measured():
         evidence_revision="eval-v1",
     )
     assert candidate.reference_count > 0
-    assert (
-        validate_provider_gate(candidate, provider, usable_capacity_tokens=16)
-        == provider
-    )
+    assert _validate_provider_gate(candidate, provider, usable_capacity_tokens=16) == provider
     assert Utf8ByteEvidenceV1().count(candidate.rendered_content).units == "utf8_bytes"
 
 
@@ -77,12 +74,8 @@ def test_f027_index_deletion_preserves_mandatory_hash():
     profile = ContextProfile("r2", reference_limit=100)
     mandatory = _fragment("direct-source", 100, "governing evidence")
     optional = _fragment("optional-index", 1, "supplement", mandatory=False)
-    with_index = compile_candidate(
-        [mandatory, optional], profile, ReferenceRegexV1(), {"direct-source"}
-    )
-    direct = compile_candidate(
-        [mandatory], profile, ReferenceRegexV1(), {"direct-source"}
-    )
+    with_index = compile_candidate([mandatory, optional], profile, ReferenceRegexV1(), {"direct-source"})
+    direct = compile_candidate([mandatory], profile, ReferenceRegexV1(), {"direct-source"})
     assert with_index.mandatory_hash == direct.mandatory_hash
 
 
@@ -112,7 +105,7 @@ def test_f028_either_token_gate_blocks_without_truncation():
         evidence_revision="eval-v1",
     )
     with pytest.raises(ContextBudgetExceeded, match="bound_provider_capacity_gate"):
-        validate_provider_gate(candidate, overflow, usable_capacity_tokens=16)
+        _validate_provider_gate(candidate, overflow, usable_capacity_tokens=16)
 
 
 class _RoutingRequest:
@@ -136,38 +129,20 @@ def _route_candidate(profile_id, capability):
 
 def test_f031_routing_is_permutation_invariant():
     candidates = [_route_candidate("weak", 1), _route_candidate("strong", 2)]
-    forward = select_route(_RoutingRequest(), candidates, _RoutingSnapshot())
-    reverse = select_route(
-        _RoutingRequest(), list(reversed(candidates)), _RoutingSnapshot()
-    )
+    forward = _select_route(_RoutingRequest(), candidates, _RoutingSnapshot())
+    reverse = _select_route(_RoutingRequest(), list(reversed(candidates)), _RoutingSnapshot())
     assert forward == reverse
     assert forward["winner"].profile_id == "strong"
 
 
 def test_f033_missing_verifier_witness_blocks_prepared_dispatch():
-    result = select_route(
+    result = _select_route(
         _RoutingRequest(),
         [_route_candidate("producer", 10)],
         _RoutingSnapshot({"producer": ("independence_unavailable",)}),
     )
     assert result["kind"] == "failure"
     assert result["evaluated"][0][1] == ("independence_unavailable",)
-
-
-def test_prepared_dispatch_remains_unissued():
-    prepared = PreparedDispatch(
-        "att_" + "1" * 32,
-        "asr_" + "2" * 32,
-        "a" * 64,
-        {"context": "compiled"},
-        {"kind": "selected"},
-        "art_" + "3" * 32,
-        "b" * 64,
-        "art_" + "4" * 32,
-        "c" * 64,
-        "2026-07-03T00:00:00Z",
-    )
-    assert prepared.state == "unissued"
 
 
 @dataclass(frozen=True)
@@ -179,10 +154,7 @@ class _Task:
 
     def requirement_is_current(self, requirement):
         self.log.append("w5_current")
-        return (
-            requirement.task_id == self.task_id
-            and requirement.task_revision == self.revision
-        )
+        return requirement.task_id == self.task_id and requirement.task_revision == self.revision
 
 
 @dataclass(frozen=True)
@@ -227,9 +199,7 @@ class _Evidence:
 def test_two_stage_planning_orders_evidence_and_stays_unissued():
     log = []
     task = _Task("tsk_" + "1" * 32, 3, "rrq_" + "2" * 32, log)
-    requirement = _Requirement(
-        "asr_" + "3" * 32, "a" * 64, task.task_id, task.revision
-    )
+    requirement = _Requirement("asr_" + "3" * 32, "a" * 64, task.task_id, task.revision)
     provider = _Evidence(
         "provider",
         "art_" + "4" * 32,
@@ -244,7 +214,7 @@ def test_two_stage_planning_orders_evidence_and_stays_unissued():
         "2026-07-02T23:00:00Z",
         log,
     )
-    prepared = plan_dispatch(
+    prepared = _plan_dispatch(
         task,
         "att_" + "6" * 32,
         requirement,
@@ -261,6 +231,6 @@ def test_two_stage_planning_orders_evidence_and_stays_unissued():
         "provider_candidate_gate",
         "operational_candidate_gate",
     ]
-    assert isinstance(prepared, PreparedDispatch)
+    assert isinstance(prepared, _DispatchPlan)
     assert prepared.state == "unissued"
     assert prepared.expires_at == "2026-07-02T23:00:00Z"

@@ -15,6 +15,11 @@ class MappingObjects:
         return self.values[(object_id, revision)]
 
 
+class UnusedSourceResolver:
+    def resolve(self, source_ids: set[str]):
+        raise AssertionError(f"source resolution should not be reached: {source_ids}")
+
+
 def test_resolver_fails_closed_on_wrong_recipient_and_changed_currency() -> None:
     context_id = "ctx_01978abc-1000-7000-8000-000000001000"
     packet_hash = "1" * 64
@@ -84,6 +89,7 @@ def test_resolver_fails_closed_on_wrong_recipient_and_changed_currency() -> None
             control_store_identity="store-1",
             source_position=1,
             source_hash="3" * 64,
+            source_resolver=UnusedSourceResolver(),
         )
 
 
@@ -117,4 +123,5 @@ def test_resolver_rejects_reordered_lifecycle_before_object_read() -> None:
             control_store_identity="store-1",
             source_position=1,
             source_hash="3" * 64,
+            source_resolver=UnusedSourceResolver(),
         )

@@ -1,6 +1,6 @@
 from research_system.context.models import ContextCandidate
-from research_system.routing.engine import PreparedDispatch, RouteCandidate
-from research_system.routing.orchestrator import plan_dispatch
+from research_system.routing.engine import RouteCandidate, _DispatchPlan
+from research_system.routing.orchestrator import _plan_dispatch
 
 
 class _Task:
@@ -41,7 +41,7 @@ def test_real_compiled_candidate_can_be_planned_without_issue():
         2,
         "ars-reference-regex-v1",
     )
-    prepared = plan_dispatch(
+    prepared = _plan_dispatch(
         _Task(),
         "att_" + "7" * 32,
         _Requirement(),
@@ -50,5 +50,5 @@ def test_real_compiled_candidate_can_be_planned_without_issue():
         _Evidence("art_" + "8" * 32, "c" * 64),
         _Evidence("art_" + "9" * 32, "d" * 64),
     )
-    assert isinstance(prepared, PreparedDispatch)
+    assert isinstance(prepared, _DispatchPlan)
     assert prepared.state == "unissued"

@@ -810,156 +810,21 @@ class _S016CommandTrace:
         )
 
 
-class _S016IssueAdapter:
-    """Build and issue the provider command from one eligible dispatch."""
-
-    def __init__(self, request) -> None:
-        from research_system.adapters.base import TransportResult
-        from research_system.adapters.fake import FakeTransport
-        from research_system.adapters.provider import ProviderAdapter
-
-        transport = FakeTransport(
-            [
-                TransportResult(
-                    "provider_unavailable",
-                    "",
-                    "synthetic outage",
-                    None,
-                    None,
-                )
-            ]
-        )
-        self.request = request
-        from research_system.adapters.provider import default_provider_operation_policy
-
-        self.provider = ProviderAdapter(
-            ["fake-provider"],
-            transport,
-            operation_policy=default_provider_operation_policy(live_provider_enabled=True),
-        )
-        self.managed_content = ""
-
-    def load_evidence(self, evidence_id: str, content_hash: str) -> dict[str, Any]:
-        return {
-            "evidence_id": evidence_id,
-            "content_hash": content_hash,
-            "available": True,
-        }
-
-    def revalidate(self, route, context, provider_evidence):
-        winner = route.get("winner")
-        if (
-            route.get("kind") != "selected"
-            or winner is None
-            or winner.profile_id != "required-cross-family"
-            or provider_evidence.get("available") is not True
-        ):
-            raise ValueError("S-016 issue route is not eligible")
-        return {
-            "profile_id": winner.profile_id,
-            "context_hash": self.request.context_hash,
-        }
-
-    def build_command(self, prepared, grant, lease, revalidated):
-        from research_system.adapters.base import ProviderCommand
-
-        profile_id = prepared.route["winner"].profile_id
-        if revalidated["profile_id"] != profile_id:
-            raise ValueError("S-016 revalidation changed selected profile")
-        self.managed_content = str(prepared.context["managed_content"])
-        return ProviderCommand(
-            provider_command_id="pcmd_" + "5" * 32,
-            revision=1,
-            revision_hash="e" * 64,
-            provider=profile_id,
-            model="evaluated-r3-profile",
-            profile_id=profile_id,
-            adapter_revision="fake-adapter-v1",
-            policy_hash="f" * 64,
-            context_hash=revalidated["context_hash"],
-            rendered_payload_hash="1" * 64,
-            idempotency_key="s016-issue-time-outage",
-            operation="request_review",
-            timeout_s=30.0,
-            wrapper_accounting={
-                "method": "fake-upper-v1",
-                "raw_capacity": 100,
-                "fixed_overhead": 10,
-                "managed_tokens": 60,
-                "reserved_variable_tokens": 5,
-                "segments": {"managed": "managed", "system": "reserved"},
-            },
-            authorized=bool(grant["authorized"] and lease["active"]),
-        )
-
-    def record_issue_command(self, provider_command):
-        return {
-            "event_type": "ProviderCommandIssued",
-            "provider_command_id": provider_command.provider_command_id,
-            "profile_id": provider_command.profile_id,
-        }
-
-    def issue(self, provider_command, issued_receipt):
-        if issued_receipt.status != "accepted":
-            raise ValueError("S-016 provider command was not recorded")
-        return self.provider.issue(provider_command, self.managed_content)
-
-
-class _S016IssueOperations:
-    """Drive grant, lease, and outage receipt transitions for S-016."""
-
-    def build_request(self, prepared, revalidated):
-        return {
-            "attempt_id": prepared.attempt_id,
-            "profile_id": revalidated["profile_id"],
-        }
-
-    def request_grant_command(self, request):
-        return {
-            "event_type": "ResourceGrantRequested",
-            "attempt_id": request["attempt_id"],
-            "authorized": True,
-        }
-
-    def load_grant(self, grant_receipt):
-        return {"authorized": grant_receipt.status == "accepted"}
-
-    def claim_lease_command(self, grant, attempt_id):
-        return {
-            "event_type": "LeaseClaimed",
-            "attempt_id": attempt_id,
-            "authorized": grant["authorized"],
-        }
-
-    def load_lease(self, lease_receipt):
-        return {"active": lease_receipt.status == "accepted"}
-
-    def record_provider_receipt_command(self, lease, provider_receipt):
-        return {
-            "event_type": (
-                "ProviderOutageRecorded"
-                if provider_receipt.failure_code == "provider_unavailable"
-                else "ProviderReceiptRecorded"
-            ),
-            "lease_active": lease["active"],
-            "receipt_status": provider_receipt.status,
-            "failure_code": provider_receipt.failure_code,
-            "acceptance_allowed": provider_receipt.complete,
-        }
-
-
 def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Derive distinct pre-dispatch and issue-time provider-outage evidence."""
     if subject == "known_bad":
         return dict(_EVIDENCE["S-016"][0])
     from dataclasses import asdict
 
-    from research_system.operations import coordinator
+    from research_system.adapters.base import TransportResult
+    from research_system.context.service import ContextLifecycleFailure, LifecycleBoundDispatch
+    from research_system.evals.lifecycle import (
+        EvaluationLifecycleRuntime,
+        EvaluationProviderBinding,
+    )
     from research_system.routing.engine import (
         REJECTION_ORDER,
-        PreparedDispatch,
         RouteCandidate,
-        select_route,
     )
     from research_system.routing.models import RouteRequest
 
@@ -988,9 +853,15 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     class PreDispatchOutageEvidence:
         routing_evidence_snapshot_id = "res_" + "4" * 32
+        evidence_id = "art_" + "4" * 32
+        content_hash = "2" * 64
+        expires_at = "2030-01-01T00:00:00Z"
+
+        def validate_pre_route(self):
+            return None
 
         def hard_gate_failures(self, route_request, candidate):
-            assert route_request == request
+            assert route_request.task_id == request.task_id
             return {
                 "required-cross-family": ("provider_unavailable",),
                 "same-family-fallback": ("independence_unavailable",),
@@ -999,47 +870,101 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     class EligibleEvidence:
         routing_evidence_snapshot_id = "res_" + "6" * 32
+        evidence_id = "art_" + "6" * 32
+        content_hash = "3" * 64
+        expires_at = "2030-01-01T00:00:00Z"
+
+        def validate_pre_route(self):
+            return None
 
         def hard_gate_failures(self, route_request, candidate):
-            assert route_request == request
+            assert route_request.task_id == request.task_id
             return ()
+
+    class Task:
+        task_id = request.task_id
+        revision = request.task_revision
+        route_request_id = request.request_id
+
+    class Requirement:
+        assurance_requirement_id = request.assurance_requirement_id
+        content_hash = request.assurance_requirement_hash
+        task_id = request.task_id
+        task_revision = request.task_revision
 
     candidates = [
         RouteCandidate("required-cross-family", 3, 3, 0, 100, 1, 1),
         RouteCandidate("same-family-fallback", 3, 0, 0, 100, 1, 1),
         RouteCandidate("subthreshold-fallback", 0, 3, 0, 100, 1, 1),
     ]
-    pre_dispatch = select_route(request, candidates, PreDispatchOutageEvidence())
     pre_dispatch_trace = _S016CommandTrace()
     codes = sorted(
-        {reason for _candidate, failures in pre_dispatch["evaluated"] for reason in failures},
+        {
+            reason
+            for candidate in candidates
+            for reason in PreDispatchOutageEvidence().hard_gate_failures(request, candidate)
+        },
         key=REJECTION_ORDER.index,
     )
-
-    issue_route = select_route(request, [candidates[0]], EligibleEvidence())
-    if issue_route["kind"] != "selected":
-        raise ValueError("S-016 issue-time provider was not eligible")
-    prepared = PreparedDispatch(
-        attempt_id="att_" + "7" * 32,
-        assurance_requirement_id=request.assurance_requirement_id,
-        assurance_requirement_hash=request.assurance_requirement_hash,
-        context={
-            "managed_content": "synthetic managed context",
-            "context_hash": request.context_hash,
-        },
-        route=issue_route,
-        provider_evidence_id="art_" + "8" * 32,
-        provider_evidence_hash="2" * 64,
-        operational_evidence_id="art_" + "9" * 32,
-        operational_evidence_hash="3" * 64,
-        expires_at="2026-07-11T00:30:00Z",
-    )
     trace = _S016CommandTrace()
-    provider_command, provider_receipt, _terminal = coordinator.issue_prepared_dispatch(
-        prepared,
-        _S016IssueAdapter(request),
-        _S016IssueOperations(),
-        trace,
+    runtime = EvaluationLifecycleRuntime(writer_id="s016-evaluation")
+    try:
+        rejected = runtime.compile("S-016 pre-dispatch outage candidate")
+        try:
+            runtime.plan(
+                rejected,
+                task=Task(),
+                attempt_id="att_" + "0" * 32,
+                requirement=Requirement(),
+                candidates=candidates,
+                provider_evidence=PreDispatchOutageEvidence(),
+                operational_evidence=PreDispatchOutageEvidence(),
+            )
+        except ContextLifecycleFailure:
+            pre_dispatch_failure = "no_eligible_route"
+        else:  # pragma: no cover - fail closed
+            raise ValueError("S-016 pre-dispatch outage unexpectedly routed")
+        compiled = runtime.compile("S-016 exact managed context")
+        prepared = runtime.plan(
+            compiled,
+            task=Task(),
+            attempt_id="att_" + "7" * 32,
+            requirement=Requirement(),
+            candidates=[candidates[0]],
+            provider_evidence=EligibleEvidence(),
+            operational_evidence=EligibleEvidence(),
+        )
+        _issued, provider_command, provider_receipt = runtime.issue(
+            prepared,
+            binding=EvaluationProviderBinding(
+                provider="required-cross-family",
+                model="evaluated-r3-profile",
+                adapter_revision="fake-adapter-v1",
+                operation="request_review",
+                policy_hash="f" * 64,
+                parity_evidence_hash="1" * 64,
+                currentness_evidence_hash="2" * 64,
+                count=60,
+                usable_capacity=100,
+            ),
+            transport_result=TransportResult("provider_unavailable", "", "synthetic outage", None, None),
+            managed_content="S-016 exact managed context",
+        )
+    finally:
+        runtime.close()
+    trace.submit(
+        {
+            "event_type": "ProviderCommandIssued",
+            "provider_command_id": provider_command.provider_command_id,
+            "profile_id": provider_command.profile_id,
+        }
+    )
+    trace.submit(
+        {
+            "event_type": "ProviderOutageRecorded",
+            "receipt_status": provider_receipt.status,
+            "failure_code": provider_receipt.failure_code,
+        }
     )
 
     issue_events = [event for event in trace.events if event.get("event_type") == "ProviderCommandIssued"]
@@ -1052,14 +977,14 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     bindings_unchanged = (
         request_before == asdict(request)
         and provider_command.profile_id == selected_profile
-        and provider_command.context_hash == request.context_hash
+        and provider_command.context_hash == prepared.context.packet_sha256
         and provider_command.authorized
     )
     return {
-        "pre_dispatch_failure": ("no_eligible_route" if pre_dispatch["kind"] == "failure" else None),
+        "pre_dispatch_failure": pre_dispatch_failure,
         "candidate_rejection_codes": codes,
-        "pre_dispatch_prepared_count": (0 if pre_dispatch["kind"] == "failure" else 1),
-        "issue_time_prepared_count": int(isinstance(prepared, PreparedDispatch)),
+        "pre_dispatch_prepared_count": 0,
+        "issue_time_prepared_count": int(isinstance(prepared, LifecycleBoundDispatch)),
         "pre_dispatch_issued_command_count": len(
             [event for event in pre_dispatch_trace.events if event.get("event_type") == "ProviderCommandIssued"]
         ),

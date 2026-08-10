@@ -97,5 +97,6 @@ class CommandServiceContextWriter:
             "evidence_refs": [],
             "payload": dict(payload),
             "project_id": self.service.ledger.project_id,
+            "context_lifecycle_submission_key": self.service._context_lifecycle_submission_key,
         }
         return self.service.submit(envelope)

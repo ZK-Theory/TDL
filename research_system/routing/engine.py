@@ -12,9 +12,7 @@ from research_system.routing.models import RouteRequest
 class RoutingEvidenceSnapshot(Protocol):
     routing_evidence_snapshot_id: str
 
-    def hard_gate_failures(
-        self, request: RouteRequest, candidate: RouteCandidate
-    ) -> tuple[str, ...]: ...
+    def hard_gate_failures(self, request: RouteRequest, candidate: RouteCandidate) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -29,7 +27,7 @@ class RouteCandidate:
 
 
 @dataclass(frozen=True)
-class PreparedDispatch:
+class _DispatchPlan:
     attempt_id: str
     assurance_requirement_id: str
     assurance_requirement_hash: str
@@ -57,7 +55,7 @@ REJECTION_ORDER = (
 )
 
 
-def select_route(
+def _select_route(
     request: RouteRequest,
     candidates: Sequence[RouteCandidate],
     evidence: RoutingEvidenceSnapshot,
@@ -69,9 +67,7 @@ def select_route(
         unknown = set(failures) - set(REJECTION_ORDER)
         if unknown:
             raise ValueError(f"unknown route rejection reason: {sorted(unknown)}")
-        evaluated.append(
-            (candidate, tuple(sorted(failures, key=REJECTION_ORDER.index)))
-        )
+        evaluated.append((candidate, tuple(sorted(failures, key=REJECTION_ORDER.index))))
     eligible = [item for item, failures in evaluated if not failures]
     if not eligible:
         return {

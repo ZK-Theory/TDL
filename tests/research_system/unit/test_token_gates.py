@@ -1,6 +1,6 @@
 import pytest
 
-from research_system.context.compiler import validate_provider_gate
+from research_system.context.compiler import _validate_provider_gate
 from research_system.context.errors import ContextBudgetExceeded
 from research_system.context.models import ContextCandidate
 from research_system.context.tokenizers import (
@@ -43,7 +43,7 @@ def test_provider_gate_rejects_non_token_units():
         "eval-v1",
     )
     with pytest.raises(ArsError, match="provider_tokens"):
-        validate_provider_gate(_candidate(), evidence, usable_capacity_tokens=16)
+        _validate_provider_gate(_candidate(), evidence, usable_capacity_tokens=16)
 
 
 def test_provider_gate_reserves_twenty_percent_capacity():
@@ -58,4 +58,4 @@ def test_provider_gate_reserves_twenty_percent_capacity():
         "eval-v1",
     )
     with pytest.raises(ContextBudgetExceeded, match="bound_provider_capacity_gate"):
-        validate_provider_gate(_candidate(), evidence, usable_capacity_tokens=16)
+        _validate_provider_gate(_candidate(), evidence, usable_capacity_tokens=16)

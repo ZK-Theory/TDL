@@ -31,9 +31,7 @@ def build_candidate(
         for item in ordered
     )
     mandatory_ids = {source.source_id for source in mandatory}
-    mandatory_manifest = tuple(
-        item for item in source_manifest if item["source_id"] in mandatory_ids
-    )
+    mandatory_manifest = tuple(item for item in source_manifest if item["source_id"] in mandatory_ids)
     return ContextCandidate(
         context_candidate_id=new_id("context"),
         manifest_id=new_id("context"),
@@ -43,9 +41,7 @@ def build_candidate(
         reference_counter_id=evidence.counter_id,
         rendered_content=rendered,
         source_ids=tuple(item["source_id"] for item in source_manifest),
-        mandatory_source_ids=tuple(
-            item["source_id"] for item in mandatory_manifest
-        ),
+        mandatory_source_ids=tuple(item["source_id"] for item in mandatory_manifest),
         mandatory_hash=sha256_hex(canonical_bytes(list(mandatory_manifest))),
         source_manifest=source_manifest,
         conflicts=(),
@@ -70,9 +66,7 @@ def compile_candidate(
         fragment_list,
         key=lambda item: (-item.authority_rank, item.source_id, item.revision),
     )
-    mandatory = [
-        item for item in ordered if item.source_id in required_source_ids
-    ]
+    mandatory = [item for item in ordered if item.source_id in required_source_ids]
     rendered = "\n\n".join(item.content for item in ordered)
     evidence = reference_counter.count(rendered)
     if evidence.units != "ars_reference_tokens":
@@ -83,17 +77,14 @@ def compile_candidate(
     candidate.validate_manifest(
         required_source_ids,
         included_ids,
-        (
-            {item.source_id for item in ordered if not item.mandatory}
-            | set(optional_source_ids or ())
-        )
+        ({item.source_id for item in ordered if not item.mandatory} | set(optional_source_ids or ()))
         - required_source_ids,
         candidate.omissions,
     )
     return candidate
 
 
-def validate_provider_gate(
+def _validate_provider_gate(
     candidate: ContextCandidate,
     evidence: ProviderCountEvidence,
     usable_capacity_tokens: int,

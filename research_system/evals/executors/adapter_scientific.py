@@ -212,7 +212,9 @@ def derive_f020_policy_controls(
     declared_command = command("invoke_declared_tool")
     declared_transport = FakeTransport([terminal_result(declared_command)])
     try:
-        declared_receipt = adapter_builder(declared_transport).issue(declared_command, "declared input")
+        declared_receipt = adapter_builder(declared_transport).issue_adapter_scientific_probe(
+            declared_command, "declared input"
+        )
     except ArsError:
         declared_tool_only = False
     else:
@@ -221,7 +223,7 @@ def derive_f020_policy_controls(
     forbidden_command = command("undeclared_shell")
     forbidden = FakeTransport([terminal_result(forbidden_command)])
     try:
-        adapter_builder(forbidden).issue(forbidden_command, "")
+        adapter_builder(forbidden).issue_adapter_scientific_probe(forbidden_command, "")
     except ArsError:
         shell_blocked = True
     else:  # pragma: no cover - fail-closed defensive branch
@@ -237,7 +239,7 @@ def derive_f020_policy_controls(
         live_command = command(operation)
         live_transport = FakeTransport([terminal_result(live_command)])
         try:
-            adapter_builder(live_transport).issue(live_command, "")
+            adapter_builder(live_transport).issue_adapter_scientific_probe(live_command, "")
         except ArsError:
             live_enabled = False
         else:  # pragma: no cover - fail-closed defensive branch
@@ -257,7 +259,7 @@ def derive_f020_policy_controls(
         transcript_command = command(operation)
         scripted = FakeTransport([terminal_result(transcript_command)])
         try:
-            receipt = adapter_builder(scripted, live_provider_enabled=True).issue(
+            receipt = adapter_builder(scripted, live_provider_enabled=True).issue_adapter_scientific_probe(
                 transcript_command,
                 "bounded context",
             )
@@ -285,9 +287,7 @@ def derive_f020_policy_controls(
         command_service,
         {"event_type": "F020PolicyProbe"},
     )
-    direct_write_blocked = (
-        not submission.direct_writer_used and len(command_service.submissions) == 1
-    )
+    direct_write_blocked = not submission.direct_writer_used and len(command_service.submissions) == 1
     return {
         "no-shell": {
             "operations": {

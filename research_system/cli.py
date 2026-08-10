@@ -62,6 +62,7 @@ from research_system.evals.release_snapshot import (
 )
 from research_system.ids import new_id
 from research_system.context.registry import resolve_context_packet_for_consumer
+from research_system.context.sources import FileSourceResolver
 from research_system.methods.brief import export_brief
 from research_system.methods.importer import import_return_bundle
 from research_system.methods.pack import load_methods_pack
@@ -714,6 +715,7 @@ def brief_export(args: argparse.Namespace) -> int:
         context_resolver=resolve_context_packet_for_consumer,
         context_events=lambda: ledger.snapshot().events,
         context_objects=objects,
+        context_source_resolver=FileSourceResolver(binding.control_root / "context-sources"),
         artefact_consumers=build_artefact_consumers(binding),
         methods_pack=load_methods_pack(binding.schema_root.parent.parent),
         schema_registry=schemas,
@@ -755,6 +757,90 @@ def brief_import(args: argparse.Namespace) -> int:
             "relative_path": registered.relative_path,
         }
     )
+    return 0
+
+
+def _context_packet_runtime(args: argparse.Namespace):
+    from research_system.context.command_adapter import CommandServiceContextWriter
+    from research_system.context.service import ContextLifecycleService
+
+    _binding, _schemas, _ledger, objects, command_service = _brief_runtime(args)
+    writer = CommandServiceContextWriter(
+        command_service,
+        actor_id=args.actor_id,
+        authority_grant_id=args.authority_grant_id,
+    )
+    return ContextLifecycleService(
+        objects,
+        writer,
+        writer_id=args.writer_id,
+    )
+
+
+def _print_context_receipt(value: Any) -> None:
+    if hasattr(value, "__dataclass_fields__"):
+        _print_json(asdict(value))
+    elif isinstance(value, dict):
+        _print_json(value)
+    else:
+        _print_json({"status": str(getattr(value, "status", value))})
+
+
+def context_packet_transition(args: argparse.Namespace) -> int:
+    """Dispatch one named context-packet lifecycle operation."""
+    lifecycle = _context_packet_runtime(args)
+    source = _read_json(args.input)
+    action = args.context_packet_action
+    if action == "request":
+        receipt = lifecycle.request(source["payload"])
+    elif action == "begin-compilation":
+        receipt = lifecycle.begin_compilation(source["payload"])
+    elif action == "complete-compilation":
+        receipt = lifecycle.complete_compilation(
+            source["payload"],
+            packet=source["packet"],
+            manifest=source["manifest"],
+        )
+    elif action == "validate":
+        raise ArsError(
+            "context validation requires an in-process service-sealed W4/W7 dispatch; "
+            "caller-supplied validation or provider-template fields are forbidden"
+        )
+    elif action == "issue":
+        receipt = lifecycle.issue(lifecycle.recover_validated(str(source["context_id"])))
+    elif action == "deliver":
+        compiled = lifecycle.recover_compiled(str(source["context_id"]))
+        receipt = lifecycle.record_delivery(
+            compiled,
+            recipient_id=str(source["recipient_id"]),
+            recipient_session_id=str(source["recipient_session_id"]),
+            adapter_id=str(source["adapter_id"]),
+            delivered_sha256=str(source["delivered_sha256"]),
+        )
+    elif action == "fail":
+        receipt = lifecycle.fail(
+            context_id=str(source["context_id"]),
+            request_id=str(source["request_id"]),
+            lifecycle_phase=str(source["lifecycle_phase"]),
+            failure_code=str(source["failure_code"]),
+            packet_revision=source.get("packet_revision"),
+            packet_sha256=source.get("packet_sha256"),
+        )
+    elif action == "expire":
+        receipt = lifecycle.expire(
+            lifecycle.recover_compiled(str(source["context_id"])),
+            str(source["reason"]),
+        )
+    elif action == "supersede":
+        receipt = lifecycle.supersede(
+            lifecycle.recover_compiled(str(source["context_id"])),
+            replacement_context_id=str(source["replacement_context_id"]),
+            replacement_packet_sha256=str(source["replacement_packet_sha256"]),
+            reason=str(source["reason"]),
+        )
+    else:  # pragma: no cover - argparse owns the closed action set
+        raise ArsError(f"unsupported context packet action: {action}")
+    _print_context_receipt(receipt)
     return 0
 
 
@@ -1531,6 +1617,24 @@ def _eval_release(args: argparse.Namespace) -> int:
     return 0
 
 
+_EVAL_ROOT_EXECUTION_CLASSES = {
+    _eval_validate: "pure_observation",
+    _eval_calibrate: "classified_dispatch",
+    _eval_run: "classified_dispatch",
+    _eval_publish_release: "classified_dispatch",
+    _eval_release: "pure_observation",
+    _eval_retention_validate: "pure_observation",
+}
+
+
+def require_eval_root_execution_class(handler: Callable[..., int]) -> str:
+    """Fail closed when an eval parser root has no reviewed execution class."""
+    try:
+        return _EVAL_ROOT_EXECUTION_CLASSES[handler]
+    except KeyError as exc:
+        raise ArsError("unclassified eval CLI root") from exc
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ars")
     groups = parser.add_subparsers(dest="group", required=True)
@@ -1595,6 +1699,27 @@ def _parser() -> argparse.ArgumentParser:
     import_.add_argument("--document", type=Path, required=True)
     import_.add_argument("--registration", type=Path, required=True)
     import_.set_defaults(handler=brief_import)
+
+    context_packet = groups.add_parser("context-packet")
+    context_packet_actions = context_packet.add_subparsers(dest="context_packet_action", required=True)
+    for action in (
+        "request",
+        "begin-compilation",
+        "complete-compilation",
+        "validate",
+        "issue",
+        "deliver",
+        "fail",
+        "expire",
+        "supersede",
+    ):
+        transition = context_packet_actions.add_parser(action)
+        transition.add_argument("--config", type=Path, required=True)
+        transition.add_argument("--input", type=Path, required=True)
+        transition.add_argument("--actor-id", required=True)
+        transition.add_argument("--authority-grant-id", required=True)
+        transition.add_argument("--writer-id", required=True)
+        transition.set_defaults(handler=context_packet_transition)
 
     assurance_record = groups.add_parser("assurance-record")
     assurance_record_actions = assurance_record.add_subparsers(dest="assurance_record_action", required=True)
@@ -1718,9 +1843,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet"}:
         return int(args.handler(args))
     try:
+        if args.group == "eval":
+            require_eval_root_execution_class(args.handler)
         return int(args.handler(args))
     except ArsError as exc:
         print(f"error: {exc}", file=sys.stderr)
