@@ -229,7 +229,19 @@ def _write_facts(binding: ControlBinding, facts: dict[str, _FactsResolution]) ->
         (directory / f"{fact.revision:08d}-{sha256_hex(data)}.json").write_bytes(data)
 
 
-def _runner_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, production_facts_reader: bool = False):
+def _runner_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    production_facts_reader: bool = False,
+) -> tuple[
+    AssurancePackRunnerConfig,
+    Path,
+    dict[str, SemanticRecordLocator],
+    _RecordResolver,
+    _FactsReader,
+    _GrantAuthority,
+]:
     contract = frozen._load_yaml(frozen.CONTRACT_PATH)
     pack = frozen._proposed_pack(contract)
     pack, raw_candidate, record_store, _ = frozen._external_records(pack, contract)
@@ -441,7 +453,18 @@ def _phase_cli_args(
     return argv
 
 
-def _accepted_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: str):
+def _accepted_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: str,
+) -> tuple[
+    AssurancePackRunnerConfig,
+    Path,
+    dict[str, SemanticRecordLocator],
+    _RecordResolver,
+    _FactsReader,
+    _GrantAuthority,
+]:
     config, candidate_path, locators, records, facts, authority = _runner_inputs(tmp_path, monkeypatch)
     evaluation_time = datetime(2026, 7, 28, 12, tzinfo=UTC)
     prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
@@ -466,6 +489,16 @@ def _rewrite_acceptance_candidate(path: Path, field: str, value: str) -> None:
     wrapper = json.loads(path.read_bytes())
     evidence = wrapper["evidence"]
     evidence["candidate"][field] = value
+    evidence.pop("evidence_identity")
+    evidence["evidence_identity"] = runner_module._phase_evidence_identity(evidence)
+    wrapper["evidence_sha256"] = runner_module._phase_evidence_identity(evidence)
+    path.write_bytes(runner_module._canonical_json_bytes(wrapper, "test acceptance evidence"))
+
+
+def _rewrite_acceptance_state(path: Path, state: str) -> None:
+    wrapper = json.loads(path.read_bytes())
+    evidence = wrapper["evidence"]
+    evidence["state"] = state
     evidence.pop("evidence_identity")
     evidence["evidence_identity"] = runner_module._phase_evidence_identity(evidence)
     wrapper["evidence_sha256"] = runner_module._phase_evidence_identity(evidence)
@@ -543,6 +576,7 @@ def test_prepare_then_acceptance_reloads_exact_subject_and_ignores_working_tree_
     assert {phase for _, phase in facts_reader.calls} == {"load", "acceptance", "consumption"}
 
 
+@pytest.mark.integration
 def test_consumption_reloads_accepted_git_bytes_and_records_durable_use(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -582,8 +616,16 @@ def test_consumption_reloads_accepted_git_bytes_and_records_durable_use(
     assert consumed.pack["assurance_pack_id"] == accepted.subject.assurance_pack_id
     assert consumed.evidence_path.name == "consumption.json"
     assert consumed.evidence_path.exists()
+    consumption_evidence = json.loads(consumed.evidence_path.read_bytes())["evidence"]
+    assert consumption_evidence["retry_idempotency"] == {
+        "run_id": run_id,
+        "acceptance_identity": consumed.acceptance_identity,
+        "candidate_blob": consumed.subject.pack_git_blob,
+        "candidate_raw_sha256": consumed.subject.pack_raw_sha256,
+    }
 
 
+@pytest.mark.integration
 def test_consumption_rejects_post_acceptance_grant_revocation_without_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -620,6 +662,7 @@ def test_consumption_rejects_post_acceptance_grant_revocation_without_evidence(
     assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "consumption.json").exists()
 
 
+@pytest.mark.integration
 def test_public_cli_prepare_acceptance_consumption_returns_exact_git_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -688,27 +731,33 @@ def test_public_cli_prepare_acceptance_consumption_returns_exact_git_bytes(
 
 
 @pytest.mark.parametrize(
-    "change",
+    ("change", "expected"),
     (
-        "missing_acceptance",
-        "corrupt_acceptance",
-        "candidate_path",
-        "candidate_blob",
-        "candidate_raw_sha256",
-        "external_record",
-        "relationship_fact",
-        "expired_grant",
-        "foreign_grant",
-        "wrong_control_binding",
-        "changed_reference_snapshot",
-        "self_authored_review",
-        "insufficient_independence",
+        ("missing_acceptance", "immutable preparation evidence is unreadable"),
+        ("corrupt_acceptance", "acceptance evidence is not a mapping"),
+        ("acceptance_state", "acceptance evidence does not authorize consumption"),
+        ("candidate_path", "consumption candidate path differs from immutable acceptance"),
+        ("candidate_blob", "candidate Git subject no longer resolves exactly"),
+        ("candidate_raw_sha256", "candidate raw SHA-256 no longer resolves exactly"),
+        ("external_record", "owner decision does not bind the exact independent review"),
+        ("relationship_fact", "relationship-evidence-facts changed since acceptance"),
+        ("expired_grant", "replay-backed acceptance authority did not resolve"),
+        ("foreign_grant", "replay-backed grant scope or identity is foreign"),
+        ("wrong_control_binding", "replay-backed grant scope or identity is foreign"),
+        ("changed_reference_snapshot", "current reference snapshot changed since acceptance"),
+        (
+            "self_authored_review",
+            "producer relationship evidence does not bind the declared reviewer and producer roles",
+        ),
+        ("insufficient_independence", "relationship-evidence-facts comparisons are not independently derived"),
     ),
 )
+@pytest.mark.integration
 def test_consumption_rejects_changed_current_inputs_without_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     change: str,
+    expected: str,
 ) -> None:
     run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3a7"
     config, candidate_path, locators, records, facts, authority = _accepted_run(tmp_path, monkeypatch, run_id)
@@ -723,6 +772,8 @@ def test_consumption_rejects_changed_current_inputs_without_mutation(
         acceptance_path.unlink()
     elif change == "corrupt_acceptance":
         acceptance_path.write_bytes(b"{}")
+    elif change == "acceptance_state":
+        _rewrite_acceptance_state(acceptance_path, "prepared")
     elif change == "candidate_path":
         invocation_path = candidate_path.parent / "foreign-pack.yaml"
     elif change == "candidate_blob":
@@ -785,7 +836,7 @@ def test_consumption_rejects_changed_current_inputs_without_mutation(
     reader = _GitObjectReader(config.repository_root)
     accepted_git_bytes = reader.blob(reader.blob_at(reader.head_commit(), PACK_PATH))
 
-    with pytest.raises(PackUnconsumable):
+    with pytest.raises(PackUnconsumable, match=expected):
         load_assurance_pack(
             config=consumption_config,
             candidate_path=invocation_path,

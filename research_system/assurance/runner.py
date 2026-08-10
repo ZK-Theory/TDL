@@ -1445,12 +1445,10 @@ def _load_acceptance(path: Path, run_id: str) -> tuple[Mapping[str, object], str
     evidence = _mapping(wrapper.get("evidence"), "acceptance evidence")
     if wrapper.get("evidence_sha256") != _phase_evidence_identity(evidence):
         raise PackUnconsumable("acceptance evidence identity is corrupt")
-    if (
-        evidence.get("run_id") != run_id
-        or evidence.get("phase") != "acceptance"
-        or evidence.get("state") != "consumption_authorized"
-    ):
+    if evidence.get("run_id") != run_id or evidence.get("phase") != "acceptance":
         raise PackUnconsumable("acceptance evidence is for a different run or phase")
+    if evidence.get("state") != "consumption_authorized":
+        raise PackUnconsumable("acceptance evidence does not authorize consumption")
     acceptance_identity = _text(evidence.get("evidence_identity"), "acceptance identity")
     if acceptance_identity != _phase_evidence_identity(
         {key: value for key, value in evidence.items() if key != "evidence_identity"}
@@ -1749,6 +1747,12 @@ def load_assurance_pack(
         "reference_snapshot": reference_receipt,
         "prior_acceptance_identity": acceptance_identity,
         "consumed_pack_sha256": candidate.raw_sha256,
+        "retry_idempotency": {
+            "run_id": run_id,
+            "acceptance_identity": acceptance_identity,
+            "candidate_blob": candidate.blob,
+            "candidate_raw_sha256": candidate.raw_sha256,
+        },
     }
     evidence_identity = _phase_evidence_identity(evidence)
     evidence["evidence_identity"] = evidence_identity
