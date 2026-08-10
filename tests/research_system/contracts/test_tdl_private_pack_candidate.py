@@ -383,7 +383,7 @@ class _Resolver:
         self.per_phase_override = per_phase_override or {}
         self.per_phase_resolution_override = per_phase_resolution_override or {}
         self.trusted_digests = trusted_digests or {
-            "accepted_assurance_requirement": PLACEHOLDER_REQUIREMENT_SHA256,
+            "accepted_assurance_requirement": _current_requirement_allocation()["acceptance_record_sha256"],
         }
         self.trusted_revisions = trusted_revisions or {}
         self.calls: list[tuple[str, str]] = []
@@ -584,22 +584,15 @@ def test_producer_is_distinct_from_every_role_the_contract_separates_it_from(con
     )
 
 
-def test_requirement_acceptance_is_still_pending(candidate):
-    """`acceptance_record_sha256` is the one field W1 cannot allocate ahead of the acceptance.
-
-    It hashes an owner acceptance record that has to genuinely exist. Minting a hash over
-    nothing is exactly the self-attestation the contract forbids, and the contract's
-    `required_temporal_order` puts `requirement_accepted` before `candidate_authored`.
-
-    This fails the moment the acceptance lands, which is the signal that the pack candidate
-    can finally be authored — and it is deleted in that same change, not before.
-    """
+def test_current_requirement_allocation_binds_published_owner_acceptance(candidate):
+    """The current allocation binds the exact externally published acceptance."""
     pack, _ = candidate
     requirement = _current_requirement_allocation()
 
-    assert requirement["acceptance_state"] == "pending_owner_acceptance"
-    assert requirement["acceptance_record_sha256"] is None
-    assert pack["assurance_requirement_reference"]["acceptance_record_sha256"] == PLACEHOLDER_REQUIREMENT_SHA256
+    assert requirement["acceptance_state"] == "active"
+    assert (
+        requirement["acceptance_record_sha256"] == pack["assurance_requirement_reference"]["acceptance_record_sha256"]
+    )
 
 
 def test_every_required_record_identity_is_allocated_or_declared_pending():
@@ -635,17 +628,17 @@ def test_every_required_record_identity_is_allocated_or_declared_pending():
     pending = {row["field"]: row["id_prefix"] for row in allocations["pending_allocations"]}
 
     unaccounted = set(required_identity_fields) - allocated_fields - set(pending)
-    assert not unaccounted, (
-        f"record schemas require identity fields that are neither allocated nor declared pending: {sorted(unaccounted)}"
-    )
+    assert (
+        not unaccounted
+    ), f"record schemas require identity fields that are neither allocated nor declared pending: {sorted(unaccounted)}"
 
     stale = set(pending) - set(required_identity_fields)
     assert not stale, f"pending_allocations lists fields no record schema requires: {sorted(stale)}"
 
     for field, prefix in pending.items():
-        assert prefix == required_identity_fields[field], (
-            f"{field} declared as {prefix}_ but the schema requires {required_identity_fields[field]}_"
-        )
+        assert (
+            prefix == required_identity_fields[field]
+        ), f"{field} declared as {prefix}_ but the schema requires {required_identity_fields[field]}_"
 
     # Non-empty is the current, correct state. When W1 allocates the rest this fails, which is
     # the signal that the acceptance record can be authored — and this test is retired then.
@@ -660,8 +653,8 @@ def test_identity_allocations_are_append_only_and_uniquely_revisioned():
     ):
         rows = allocations[block]
         assert rows, f"{block} is empty"
-        ids = [row[id_field] for row in rows]
-        assert len(set(ids)) == len(ids), f"duplicate allocated id in {block}"
+        identities = [(row[id_field], row["revision"]) for row in rows]
+        assert len(set(identities)) == len(identities), f"duplicate allocated identity revision in {block}"
         revisions = [(row["id_kind"], row["revision"]) for row in rows]
         assert len(set(revisions)) == len(revisions), f"duplicate (id_kind, revision) in {block}"
 

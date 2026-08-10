@@ -99,6 +99,7 @@ from research_system.store.identity import (
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+from research_system.store.schema_binding import publish_store_schema_binding_activation
 
 
 def _print_json(value: Any) -> None:
@@ -536,6 +537,26 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
             "config_sha256": sha256_hex(expected_output),
             "manifest_hash": result["manifest_hash"],
             "preflight_result_hash": preflight.result_hash,
+        }
+    )
+    return 0
+
+
+def _store_activate_schema_binding(args: argparse.Namespace) -> int:
+    try:
+        value = json.loads(args.activation.read_bytes())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ConfigurationError(f"invalid schema binding activation: {args.activation}") from exc
+    if not isinstance(value, dict):
+        raise ConfigurationError("schema binding activation must be an object")
+    digest, object_path = publish_store_schema_binding_activation(args.control_root, value)
+    _print_json(
+        {
+            "status": "activated",
+            "control_root": str(args.control_root.resolve(strict=True)),
+            "schema_root": value["schema_root"],
+            "activation_sha256": digest,
+            "activation_object": str(object_path),
         }
     )
     return 0
@@ -1544,6 +1565,11 @@ def _parser() -> argparse.ArgumentParser:
     restore_bind.add_argument("--schema-root", type=Path, required=True)
     restore_bind.add_argument("--config-output", type=Path, required=True)
     restore_bind.set_defaults(handler=_store_restore_bind)
+
+    activate_schema = store_commands.add_parser("activate-schema-binding")
+    activate_schema.add_argument("--control-root", type=Path, required=True)
+    activate_schema.add_argument("--activation", type=Path, required=True)
+    activate_schema.set_defaults(handler=_store_activate_schema_binding)
 
     command = groups.add_parser("command")
     command_actions = command.add_subparsers(dest="command_action", required=True)
