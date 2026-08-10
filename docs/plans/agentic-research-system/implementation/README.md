@@ -20,7 +20,7 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (P-042/06g accepted for governing planning; WP6.3 readiness blocked)
+## WP6 suite (P-042/06g governs; WP6.3 and WP6.4 integrated)
 
 1. [WP6 master — historical Gate 6 launch-basis snapshot](06-wp6-gate6-readiness-and-integration-plan.md) (exact revision `fe5f1d40` preserved under P-036)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
@@ -28,47 +28,49 @@
 4. [WP6.2 — historical live-capability plan](06b-wp6-2-live-capability-plan.md) (direct-provider execution deferred by P-042)
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 
-**Current WP6.1 execution control:** [06o capability-campaign plan](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md) records C1 integrated through PR #212. The fixed pre-C1 `104/19/85` baseline and `23/28/32/2` allocation remain authoritative; the current census is `104/42/62`. WP6.1 remains incomplete, and C2/KAN-73 requires an explicit owner start.
+**Current WP6.1 execution control:** [06o capability-campaign plan](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md) remains the campaign authority. C1, C2 and C3 are integrated, as are 06h, 06i and 06j after the accepted 06j remediation on current `main`. WP6.1 remains incomplete: R1 and the final assembled WP6.1 proof are the remaining capability work. The fixed pre-C1 `104/19/85` baseline and `23/28/32/2` allocation remain historical allocation authorities, not the current completion account.
 
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
-8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **G-RM-8 `GRANDFATHER` is selected and constructed under KAN-95, the post-PR #229 binding census is reconciled against final live main, and the single exact-subject review's four findings are remediated; same-reviewer verification and owner acceptance remain open**. The [current producer record](06h-current-producer-and-evidence-record-9736c90-2026-08-09.md) and [final live-main reconciliation evidence](06h-final-live-main-reconciliation-evidence-2f005f1-2026-08-09.md) bind the unchanged 112-row runtime catalogue and complete classified six-site append census without fabricating the non-reconstructible pre-change baseline. The [attributed decision](06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json) binds the exact 79-event Control prefix and zero missing-triple set.
-9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **implemented and production-path proven in the WP6.4 integrated candidate; exact-subject review and integration pending**. The candidate uses real command submission, replay-derived authority, governing scientific-review evidence, root-bound content reads, and the fixed production-consumer ports. G-RM-14 disposition follows the final exact-subject review.
-10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **implemented and production-path proven in the WP6.4 integrated candidate; exact-subject review and integration pending**. The nine-command lifecycle, immutable packet/delivery objects, consumer resolver, and real CommandService adapter execute through the public brief round trip. G-RM-12 disposition follows the final exact-subject review.
+8. [WP6.1 schema identity, producer completeness, and historical-event protocol](06h-wp6-1-schema-identity-and-artefact-command-seam-plan.md) — **integrated**. G-RM-8 `GRANDFATHER`, the post-PR #229 binding census, exact-prefix evidence and accepted review/remediation chain remain bound to their recorded subjects. The [current producer record](06h-current-producer-and-evidence-record-9736c90-2026-08-09.md), [final live-main reconciliation evidence](06h-final-live-main-reconciliation-evidence-2f005f1-2026-08-09.md), and [attributed decision](06h-g-rm-8-grandfather-decision-3c75d3d-2026-08-09.json) retain the detailed identities.
+9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **integrated on `main`**. The production path uses real command submission, replay-derived authority, governing scientific-review evidence, root-bound content reads and the fixed production-consumer ports.
+10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **integrated on `main` after exact-subject remediation and G-RM-12 acceptance**. The nine-command lifecycle, immutable packet/delivery objects, consumer resolver and real CommandService adapter execute through the public brief round trip.
 11. [WP6.7 legacy consolidation sequencing](06l-wp6-7-legacy-consolidation-sequencing.md) — sequencing only; this is a distinct legacy-integration scope and path from 06i's artefact-authority and production-consumer firewall plan, not a collision or supersession.
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
-portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
-in the WP6 master plan; their dispatch plans are written when their gates approach.
+portfolio/Discovery specification, dossier admission, legacy consolidation) retain
+their separate ownership and gates in the WP6 master plan.
 Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
 2026-07-17) in
 [../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
 P-042 and the 06g acceptance record supersede the direct-provider WP6.2
 sequence. The governing first-release dependency path is WP6.1 plus WP6.3 into
-WP6.4 and Gate 6. The
-[KAN-56 readiness assessment](../reviews/wp6-3-gate-a-readiness-assessment-2026-07-26.md)
-found WP6.3 not ready for implementation: its upstream contract remains
-unaccepted, its six skill identities are stale, two required contract references
-remain pending, and the `assurance_pack` ID kind is unavailable. Gate A A7
-therefore remains open; no WP6.3 implementation brief or WP6.4 dispatch is
-authorized. ARS does not invoke Claude or Codex or handle their OAuth
-credentials.
+WP6.4 and Gate 6. WP6.3 and WP6.4 are integrated; WP6.4's D-G6-5 decision is
+accepted and its SCALE-01 v1.0.3 package remains `pending_wp6_6`,
+`dispatchable: false` and `execution_authorized: false`. WP6.5 remains an
+independent specification lane under P-042/06g. WP6.6 dossier admission and
+WP6.7 legacy consolidation retain their separate gates. Gate 6 still requires
+WP6.1 R1, the final WP6.1 proof and final assembled Gate 6 acceptance. ARS does
+not invoke Claude or Codex or handle their OAuth credentials.
 
-## Research Methods obligations — integrated by P-047, **candidate production path proven**
+## Research Methods obligations — integrated by P-047, **WP6.4 production path integrated**
 
 P-047 retires separate-lane tracking. WP6.1 owns 06h, 06i, 06j and RM-01;
 WP6.4 owns RM-02, RM-03 and RM-04's governed non-executing verification-return
 path; Gate 9 owns only RM-04's manuscript pilot. RM-05 remains deferred behind
-G-RM-11. The WP6.4 integrated candidate now contains the RM-02 assets and
+G-RM-11. The integrated WP6.4 capability contains the RM-02 assets and
 history verifier, real `ars brief export` / `ars brief import` production path,
 and RM-04 non-executing verification-request/return records. The public path is
-proven with durable candidate registration and restart/replay equality; it is
-not integrated on `main` until final exact-subject review and merge complete.
+integrated on `main` with durable candidate registration and restart/replay
+equality. This does not authorize provider invocation, returned-content
+execution, pilot dispatch, result promotion or claim promotion.
 
 **G-RM-3 is closed** for exact commit `0137d2c` and tree `ee7d510` by the
 2026-07-31 owner record after zero-finding independent review. Do not repeat it.
-That acceptance does not satisfy G-RM-12/G-RM-13/G-RM-14 or make unimplemented
-capabilities runnable.
+That historical acceptance did not itself satisfy later gates or make
+unimplemented capabilities runnable; the subsequent 06i and 06j integration
+records and owner decisions are independently authoritative. G-RM-13 remains
+separate for its later manuscript-specific use.
 
 1. [RM-00 — integrated obligation/gate crosswalk](rm-00-research-methods-lane-master-plan.md) (historical identities plus live ownership; not a separate campaign)
 2. [RM-01 — suite recovery and quality accounting](rm-01-unblock-and-suite-recovery-plan.md) (consumes the pre-06h baseline and compares the same post-change cohort)
