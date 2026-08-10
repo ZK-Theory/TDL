@@ -17,6 +17,7 @@ from research_system.discovery.dossier import (
     RegisteredRoot,
     accepted_expected_set_hash,
     prepare_dossier_admission,
+    registered_root_identity_hash,
 )
 from research_system.errors import IntegrityError
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
@@ -73,8 +74,8 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
     )
     expected = replace(expected, content_hash=accepted_expected_set_hash(expected))
     roots = {
-        "repo": RegisteredRoot("repo", REPO, 1, "3" * 64),
-        "vault": RegisteredRoot("vault", VAULT, 1, "4" * 64),
+        "repo": RegisteredRoot("repo", REPO, 1, registered_root_identity_hash(REPO)),
+        "vault": RegisteredRoot("vault", VAULT, 1, registered_root_identity_hash(VAULT)),
     }
     return expected, roots
 
@@ -146,7 +147,14 @@ def test_stale_collision_unauthorized_and_incomplete_inputs_reject_before_public
         ({"current_expected_set_revision": 2}, "stale_expected_set_revision"),
         ({"existing_identities": frozenset({expected.dossier_id})}, "immutable_identity_collision"),
         ({"registered_roots": {"repo": replace(roots["repo"], authorized=False)}}, "unauthorized_path"),
-        ({"registered_roots": {"repo": RegisteredRoot("repo", tmp_path, 1, "3" * 64)}}, "incomplete_package"),
+        (
+            {
+                "registered_roots": {
+                    "repo": RegisteredRoot("repo", tmp_path, 1, registered_root_identity_hash(tmp_path))
+                }
+            },
+            "incomplete_package",
+        ),
     )
     for overrides, reason in cases:
         arguments = {
@@ -192,8 +200,8 @@ def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Pa
             current_expected_set_revision=3,
             candidate_members=tuple(expected.members),
             registered_roots={
-                "repo": RegisteredRoot("repo", tmp_path, 1, "3" * 64),
-                "vault": RegisteredRoot("vault", tmp_path, 1, "4" * 64),
+                "repo": RegisteredRoot("repo", tmp_path, 1, registered_root_identity_hash(tmp_path)),
+                "vault": RegisteredRoot("vault", tmp_path, 1, registered_root_identity_hash(tmp_path)),
             },
         )
 
@@ -305,13 +313,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             "owner_requirement_refs": ["W11:OR-116-121"],
             "content_sha256": "8" * 64,
             "collision_status": "no_collision",
-            "registered_roots": [
-                {
-                    **asdict(root),
-                    "path": "$REPOSITORY_ROOT" if root.root_id == "repo" else "$TDA_VAULT_ROOT",
-                }
-                for root in roots.values()
-            ],
+            "registered_roots": json.loads((REPO / PATH_AUTHORITY).read_bytes())["registered_roots"],
         },
         720,
     )

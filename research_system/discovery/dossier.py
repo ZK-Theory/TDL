@@ -13,6 +13,8 @@ import json
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from research_system.store.lock import _open_directory_anchor
+
 
 class DossierAdmissionRejected(ValueError):
     """The dossier did not match the independently accepted admission subject."""
@@ -75,6 +77,23 @@ def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
     return _canonical_hash(value)
 
 
+def registered_root_identity_hash(path: Path) -> str:
+    """Hash the held physical directory identity and final path."""
+
+    anchor = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
+    try:
+        return _canonical_hash(
+            {
+                "scheme": anchor.identity.scheme,
+                "volume_or_device": anchor.identity.volume_or_device,
+                "file_id": anchor.identity.file_id.hex(),
+                "final_path": str(anchor.final_path).casefold(),
+            }
+        )
+    finally:
+        anchor.close()
+
+
 def _validate_sha256(value: str, label: str) -> None:
     if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise DossierAdmissionRejected(f"invalid_{label}")
@@ -108,23 +127,40 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
     if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
         raise DossierAdmissionRejected("path_traversal")
 
-    root_path = root.path.resolve(strict=True)
-    candidate = root_path.joinpath(*relative.parts)
+    anchor = _open_directory_anchor(root.path, reject_reparse=False, delete_protect=False)
     try:
-        candidate.relative_to(root_path)
-    except ValueError as exc:
-        raise DossierAdmissionRejected("path_escape") from exc
+        identity_hash = _canonical_hash(
+            {
+                "scheme": anchor.identity.scheme,
+                "volume_or_device": anchor.identity.volume_or_device,
+                "file_id": anchor.identity.file_id.hex(),
+                "final_path": str(anchor.final_path).casefold(),
+            }
+        )
+        if identity_hash != root.registration_hash:
+            raise DossierAdmissionRejected("path_registration_identity_mismatch")
+        root_path = anchor.final_path
+        candidate = root_path.joinpath(*relative.parts)
+        try:
+            candidate.relative_to(root_path)
+        except ValueError as exc:
+            raise DossierAdmissionRejected("path_escape") from exc
 
-    current = root_path
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise DossierAdmissionRejected("unregistered_path_alias")
-    try:
-        raw = candidate.read_bytes()
-    except (FileNotFoundError, IsADirectoryError, PermissionError) as exc:
-        raise DossierAdmissionRejected("incomplete_package") from exc
-    return raw
+        current = root_path
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise DossierAdmissionRejected("unregistered_path_alias")
+        try:
+            raw = candidate.read_bytes()
+        except (FileNotFoundError, IsADirectoryError, PermissionError) as exc:
+            raise DossierAdmissionRejected("incomplete_package") from exc
+        refreshed_identity, refreshed_path = anchor.refresh()
+        if refreshed_identity != anchor.identity or refreshed_path != anchor.final_path:
+            raise DossierAdmissionRejected("path_registration_identity_changed")
+        return raw
+    finally:
+        anchor.close()
 
 
 def prepare_dossier_admission(

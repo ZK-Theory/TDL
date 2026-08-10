@@ -807,7 +807,7 @@ class DiscoveryRuntime:
             root_values = accepted_paths["subject"].get("registered_roots")
             if isinstance(root_values, list):
                 path_tokens = {
-                    "$REPOSITORY_ROOT": self.catalogue_path.resolve().parents[3],
+                    "$REPOSITORY_ROOT": Path("C:/Users/steph/TDL"),
                     "$TDA_VAULT_ROOT": Path("C:/Users/steph/TDL/vault"),
                 }
                 roots = {
