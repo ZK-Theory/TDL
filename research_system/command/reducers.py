@@ -1116,21 +1116,6 @@ def reduce_decision(state: dict[str, Any], event: dict[str, Any]) -> dict[str, A
             "history": [{"event_id": event["event_id"], "event_type": event_type, "revision": 1}],
             "version": event["stream_version"],
         }
-    if event_type == "DecisionResolved" and not state:
-        if payload["decision_id"] != event["stream_id"]:
-            raise ValueError("DecisionResolved direct compatibility subject mismatch")
-        return {
-            **deepcopy(payload),
-            "status": "resolved",
-            "history": [
-                {
-                    "event_id": event["event_id"],
-                    "event_type": event_type,
-                    "revision": payload["decision_revision"],
-                }
-            ],
-            "version": event["stream_version"],
-        }
     if not state or payload.get("decision_id") != state.get("decision_id"):
         raise ValueError(f"{event_type} requires its exact current Decision")
     status = state.get("status")

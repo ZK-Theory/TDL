@@ -4576,39 +4576,43 @@ class CommandService:
             ):
                 return rejected("decision_already_resolved", "Decision is already resolved.")
             decision = self._c1_streams(snapshot).get(command.target_stream_id)
-            if isinstance(decision, dict):
-                review_ids = tuple(payload.get("considered_review_ids", ()))
-                decision_hash = sha256_hex(canonical_bytes(decision))
-                reviewed = tuple(self._c1_streams(snapshot).get(review_id) for review_id in review_ids)
-                if (
-                    decision.get("status") != "under_review"
-                    or command.actor_id == decision.get("proposer_actor_id")
-                    or payload.get("decision_revision") != decision.get("decision_revision")
-                    or payload.get("selected_option") not in decision.get("options", ())
-                    or not review_ids
-                    or any(
-                        not isinstance(review, dict)
-                        or review.get("status") != "satisfied"
-                        or (
-                            command.target_stream_id,
-                            decision_hash,
-                        )
-                        not in tuple(
-                            zip(
-                                review.get("request", {}).get("subject_ids", ()),
-                                review.get("request", {}).get("subject_hashes", ()),
-                                strict=False,
-                            )
-                        )
-                        or review.get("assignment", {}).get("reviewer_actor_id")
-                        in {decision.get("proposer_actor_id"), command.actor_id}
-                        for review in reviewed
+            if not isinstance(decision, dict):
+                return rejected(
+                    "decision_resolution_precondition_failed",
+                    "ResolveDecision requires an existing Decision in under_review state.",
+                )
+            review_ids = tuple(payload.get("considered_review_ids", ()))
+            decision_hash = sha256_hex(canonical_bytes(decision))
+            reviewed = tuple(self._c1_streams(snapshot).get(review_id) for review_id in review_ids)
+            if (
+                decision.get("status") != "under_review"
+                or command.actor_id == decision.get("proposer_actor_id")
+                or payload.get("decision_revision") != decision.get("decision_revision")
+                or payload.get("selected_option") not in decision.get("options", ())
+                or not review_ids
+                or any(
+                    not isinstance(review, dict)
+                    or review.get("status") != "satisfied"
+                    or (
+                        command.target_stream_id,
+                        decision_hash,
                     )
-                ):
-                    return rejected(
-                        "decision_resolution_precondition_failed",
-                        "ResolveDecision requires the current reviewed revision, a listed option, and satisfied exact-subject reviews.",
+                    not in tuple(
+                        zip(
+                            review.get("request", {}).get("subject_ids", ()),
+                            review.get("request", {}).get("subject_hashes", ()),
+                            strict=False,
+                        )
                     )
+                    or review.get("assignment", {}).get("reviewer_actor_id")
+                    in {decision.get("proposer_actor_id"), command.actor_id}
+                    for review in reviewed
+                )
+            ):
+                return rejected(
+                    "decision_resolution_precondition_failed",
+                    "ResolveDecision requires the current reviewed revision, a listed option, and satisfied exact-subject reviews.",
+                )
             return deepcopy(payload)
 
         raise IntegrityError(f"unsupported artefact authority command type: {command_type}")

@@ -885,6 +885,42 @@ def _submit_decision_command(
     return command
 
 
+def test_resolve_decision_rejects_an_empty_stream_without_append(tmp_path):
+    harness = control_plane(tmp_path)
+    decision_id = "dec_01978abc-6690-7000-8000-000000006690"
+    owner_grant = scoped_lifecycle_grant_id(decision_id)
+    resolution = _command(
+        "cmd_01978abc-6692-7000-8000-000000006692",
+        "ResolveDecision",
+        decision_id,
+        0,
+        {
+            "decision_id": decision_id,
+            "selected_option": "proceed",
+            "effective_scope": "C3 empty-stream negative",
+            "effective_at": "2026-08-09T12:00:00Z",
+            "decision_revision": 1,
+            "deciding_actor_id": ACTORS["actor-a"],
+            "decision_authority_grant_id": owner_grant,
+            "governing_evidence_refs": ["evidence:owner-decision"],
+            "considered_review_ids": [DECISION_REVIEW_ID],
+            "permitted_commands": ["AmendDecision"],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": ["material subject change"],
+        },
+    )
+    resolution["actor_id"] = ACTORS["actor-a"]
+    resolution["authority_grant_id"] = owner_grant
+    before = tuple(harness.ledger.iter_events())
+
+    receipt = harness.service.submit(resolution)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "decision_resolution_precondition_failed", receipt
+    assert tuple(harness.ledger.iter_events()) == before
+
+
 def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_resolve(tmp_path):
     harness = control_plane(tmp_path)
     primary, rejected_id, expired_id, superseded_id, replacement_id = DECISION_IDS
