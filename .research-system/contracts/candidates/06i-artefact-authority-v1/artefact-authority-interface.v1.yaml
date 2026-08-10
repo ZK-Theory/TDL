@@ -262,24 +262,24 @@ public_resolver:
       - reference_id
       - canonical_sha256
       - record
+    event_fields:
+      - stream_id
+      - stream_version
+      - event_id
+      - event_hash
+      - recorded_at
+      - evidence_refs
     record_fields:
       - schema_id
       - schema_version
       - project_id
       - review_id
-      - review_stream_version
-      - head_event_id
-      - head_event_hash
-      - head_recorded_at
       - subject_sha256
-      - consumer_kind
       - reviewer_actor_id
       - eligible
       - related
       - independence_grade
       - status
-      - effective_at
-      - supersedes_review_id
     accepted_status: active
     identity_rule: canonical_sha256 is resolver-derived from exact record bytes
   failure_contract:
@@ -302,6 +302,9 @@ consumer_inventory:
         required_calls: [_publication_evidence]
       - source_path: research_system/cli.py
         qualified_symbol: _publication_evidence
+        required_calls: [stored_evidence_resolver]
+      - source_path: research_system/cli.py
+        qualified_symbol: stored_evidence_resolver
         required_calls: [StoredReleasePublicationEvidence]
       - source_path: research_system/cli.py
         qualified_symbol: _eval_release

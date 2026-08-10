@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 from pathlib import Path
 import tomllib
 
@@ -115,47 +116,95 @@ def _production_dispatch_bindings() -> set[str]:
     return bindings
 
 
-def _object_store_boundary_calls() -> (
-    tuple[
-        set[tuple[str, str, str, str | None]],
-        set[str],
-    ]
-):
+def _is_object_store_annotation(annotation: ast.expr | None) -> bool:
+    return (
+        isinstance(annotation, ast.Name)
+        and annotation.id == "ObjectStore"
+        or isinstance(annotation, ast.Attribute)
+        and annotation.attr == "ObjectStore"
+        or isinstance(annotation, ast.Constant)
+        and annotation.value == "ObjectStore"
+    )
+
+
+def _object_store_calls_in_source(
+    source: str,
+    relative: str,
+) -> tuple[set[tuple[str, str, str, str | None]], set[str]]:
     calls: set[tuple[str, str, str, str | None]] = set()
     dynamic: set[str] = set()
-    for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
-        constants = {
-            target.id: node.value.value
-            for node in tree.body
-            if isinstance(node, (ast.Assign, ast.AnnAssign))
-            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-            if isinstance(target, ast.Name)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        }
-        for node in ast.walk(tree):
-            if (
-                not isinstance(node, ast.Call)
-                or not isinstance(node.func, ast.Attribute)
-                or node.func.attr not in {"read", "write", "latest_revision", "rollback_new_revision"}
-            ):
+    tree = ast.parse(source, filename=relative)
+    parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    module_constants = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+    }
+    scopes: list[ast.Module | ast.FunctionDef | ast.AsyncFunctionDef] = [tree]
+    scopes.extend(node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)))
+    for scope in scopes:
+        constants = dict(module_constants)
+        store_names = {"objects", "store", "context_objects", "authority_objects"}
+        method_aliases: dict[str, str] = {}
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for argument in [*scope.args.posonlyargs, *scope.args.args, *scope.args.kwonlyargs]:
+                if _is_object_store_annotation(argument.annotation):
+                    store_names.add(argument.arg)
+        for node in ast.walk(scope):
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                if _is_object_store_annotation(node.annotation):
+                    store_names.add(node.target.id)
+                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                    constants[node.target.id] = node.value.value
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
                 continue
-            receiver = node.func.value
-            receiver_is_object_store = (
-                (
+            target = node.targets[0].id
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                constants[target] = node.value.value
+            elif (
+                isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Name)
+                and node.value.func.id == "ObjectStore"
+            ):
+                store_names.add(target)
+            elif isinstance(node.value, ast.Name) and node.value.id in store_names:
+                store_names.add(target)
+            elif (
+                isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id in store_names
+                and node.value.attr in {"read", "write", "latest_revision", "rollback_new_revision"}
+            ):
+                method_aliases[target] = node.value.attr
+
+        for node in ast.walk(scope):
+            if not isinstance(node, ast.Call):
+                continue
+            method: str | None = None
+            if isinstance(node.func, ast.Name) and node.func.id in method_aliases:
+                method = method_aliases[node.func.id]
+            elif isinstance(node.func, ast.Attribute) and node.func.attr in {
+                "read",
+                "write",
+                "latest_revision",
+                "rollback_new_revision",
+            }:
+                receiver = node.func.value
+                if (
                     isinstance(receiver, ast.Name)
-                    and receiver.id in {"objects", "store", "context_objects", "authority_objects"}
-                )
-                or (isinstance(receiver, ast.Attribute) and receiver.attr == "objects")
-                or (
-                    isinstance(receiver, ast.Call)
+                    and receiver.id in store_names
+                    or isinstance(receiver, ast.Attribute)
+                    and isinstance(receiver.value, ast.Name)
+                    and receiver.value.id == "self"
+                    and receiver.attr == "objects"
+                    or isinstance(receiver, ast.Call)
                     and isinstance(receiver.func, ast.Name)
                     and receiver.func.id == "ObjectStore"
-                )
-            )
-            if not receiver_is_object_store:
+                ):
+                    method = node.func.attr
+            if method is None:
                 continue
             argument_node = (
                 node.args[0]
@@ -171,7 +220,6 @@ def _object_store_boundary_calls() -> (
                 argument = constants[argument_node.id]
             else:
                 argument = None
-            relative = path.relative_to(REPO_ROOT).as_posix()
             owners: list[str] = []
             current: ast.AST = node
             while current in parents:
@@ -180,10 +228,23 @@ def _object_store_boundary_calls() -> (
                     owners.append(current.name)
             owner = ".".join(reversed(owners))
             if argument == "artefact":
-                calls.add((relative, owner, node.func.attr, argument))
+                calls.add((relative, owner, method, argument))
             elif argument is None:
                 expression = "<missing>" if argument_node is None else ast.unparse(argument_node)
-                dynamic.add(f"{relative}::{owner}::{node.func.attr}::{expression}")
+                dynamic.add(f"{relative}::{owner}::{method}::{expression}")
+    return calls, dynamic
+
+
+def _object_store_boundary_calls() -> tuple[set[tuple[str, str, str, str | None]], set[str]]:
+    calls: set[tuple[str, str, str, str | None]] = set()
+    dynamic: set[str] = set()
+    for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
+        found, unresolved = _object_store_calls_in_source(
+            path.read_text(encoding="utf-8"),
+            path.relative_to(REPO_ROOT).as_posix(),
+        )
+        calls.update(found)
+        dynamic.update(unresolved)
     calls.add(
         (
             "research_system/artefacts/use_resolver.py",
@@ -211,11 +272,31 @@ def _function_calls(path: Path, qualified_symbol: str) -> set[str]:
         if symbol != qualified_symbol:
             continue
         calls: set[str] = set()
-        for call in (child for child in ast.walk(node) if isinstance(child, ast.Call)):
-            if isinstance(call.func, ast.Name):
-                calls.add(call.func.id)
-            elif isinstance(call.func, ast.Attribute):
-                calls.add(call.func.attr)
+
+        class ReachableCalls(ast.NodeVisitor):
+            def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+                if child is node:
+                    for statement in child.body:
+                        self.visit(statement)
+
+            visit_AsyncFunctionDef = visit_FunctionDef
+
+            def visit_If(self, child: ast.If) -> None:
+                if isinstance(child.test, ast.Constant) and child.test.value is False:
+                    for statement in child.orelse:
+                        self.visit(statement)
+                    return
+                for statement in [*child.body, *child.orelse]:
+                    self.visit(statement)
+
+            def visit_Call(self, child: ast.Call) -> None:
+                if isinstance(child.func, ast.Name):
+                    calls.add(child.func.id)
+                elif isinstance(child.func, ast.Attribute):
+                    calls.add(child.func.attr)
+                self.generic_visit(child)
+
+        ReachableCalls().visit(node)
         return calls
     raise AssertionError(f"missing declared production root: {path}:{qualified_symbol}")
 
@@ -287,12 +368,13 @@ def test_command_families_bind_exact_owner_catalogue_authority_and_controls():
 def test_review_universe_and_p005_are_deterministic_and_no_omission():
     rules = _yaml(CANDIDATE / "governing-review-set-rules.v1.yaml")
     resolution = rules["governing_review_resolution"]
-    assert resolution["authoritative_source"] == "verified_replay_at_evaluation_snapshot"
+    assert resolution["authoritative_source"] == (
+        "all ScientificReviewRecorded events on the exact artefact stream in verified replay at snapshot ledger_position"
+    )
     assert resolution["universe_selector"] == [
         "project_id",
+        "artefact_stream_id",
         "exact_subject_sha256",
-        "consumer_kind",
-        "effective_at_or_before_evaluation_time",
     ]
     assert resolution["no_omission_proof"] == [
         "store_identity",
@@ -310,19 +392,16 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "ineligible",
         "related",
         "insufficient_independence",
+        "withdrawn",
+        "superseded",
     ]
-    assert resolution["revision_resolution"] == {
-        "stream_identity": "review_id",
-        "candidate_revisions": "all events for the review stream at or before snapshot ledger_position",
-        "winner": "unique greatest stream_version",
-        "tie_or_duplicate_stream_version": "deny",
-        "head_event_binding": [
-            "stream_id",
-            "stream_version",
-            "event_id",
-            "event_hash",
-            "recorded_at",
-        ],
+    assert resolution["event_resolution"] == {
+        "event_type": "ScientificReviewRecorded",
+        "stream_identity": "registered artefact_id",
+        "review_identity": "payload.review_id",
+        "duplicate_review_id_anywhere": "deny",
+        "event_binding": ["stream_id", "stream_version", "event_id", "event_hash", "recorded_at"],
+        "revision_semantics": "none; each review_id is immutable and may occur exactly once",
     }
     assert resolution["total_order"] == {
         "key": ["review_id_utf8_bytes"],
@@ -339,47 +418,58 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
             "store_identity",
             "ledger_position",
             "raw_prefix_sha256",
-            "review_stream_census_sha256",
+            "scientific_review_event_census_sha256",
             "reviews",
         ],
         "reviews_row_fields": [
             "review_id",
-            "review_stream_version",
-            "head_event_id",
-            "head_event_hash",
-            "head_recorded_at",
+            "artefact_stream_id",
+            "artefact_stream_version",
+            "event_id",
+            "event_hash",
+            "recorded_at",
+            "evidence_reference_ids",
             "exact_record_sha256",
             "project_id",
             "exact_subject_sha256",
-            "consumer_kind",
-            "effective_at",
+            "reviewer_actor_id",
             "status",
             "eligible",
             "related",
             "independence_grade",
-            "supersedes_review_id",
         ],
     }
-    assert resolution["stream_census"] == {
-        "members": "every review stream visible at snapshot ledger_position",
-        "row_fields": [
-            "review_id",
-            "head_stream_version",
-            "head_event_id",
-            "head_event_hash",
-            "selection_disposition",
-        ],
-        "selection_dispositions": [
-            "included",
-            "wrong_project",
-            "wrong_subject",
-            "wrong_consumer_kind",
-            "not_yet_effective",
-        ],
+    assert resolution["event_census"] == {
+        "members": "every ScientificReviewRecorded event on the artefact stream at snapshot ledger_position",
+        "row_fields": ["review_id", "stream_version", "event_id", "event_hash", "recorded_at"],
         "ordering": "review_id UTF-8 bytes ascending",
         "digest": "sha256(P0 canonical JSON rows)",
-        "unclassified_or_omitted_stream": "deny",
+        "duplicate_or_omitted_event": "deny",
     }
+    assert resolution["evidence_record_resolution"] == {
+        "source": "GoverningScientificReviewStore via every event payload evidence_refs entry",
+        "schema": "ars://evidence/governing-scientific-review@1.0.0",
+        "record_fields": [
+            "schema_id",
+            "schema_version",
+            "project_id",
+            "review_id",
+            "subject_sha256",
+            "reviewer_actor_id",
+            "eligible",
+            "related",
+            "independence_grade",
+            "status",
+        ],
+        "matching_rule": "exactly one canonical record matching review_id and event subject/reviewer; zero or multiple denies",
+        "record_identity": "resolver-derived reference_id plus sha256(P0 canonical JSON exact record)",
+    }
+    record_schema = json.loads(
+        (REPO_ROOT / ".research-system/schemas/evidence/governing-scientific-review.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert _interface()["public_resolver"]["governing_review_evidence"]["record_fields"] == record_schema["required"]
 
     p005 = rules["decision_rules"]["claim_promotion"]
     assert p005["authoritative_source"] == "verified_decision_replay_at_evaluation_snapshot"
@@ -387,7 +477,7 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
     assert p005["selected_option"] == "approve"
     assert p005["deciding_actor_binding"] == {
         "required_owner_role": "Stephen",
-        "actor_id_source": "current_accepted_owner_authority.actor_id",
+        "actor_id_source": "verified_replay.authority_owner_actor_id",
         "prohibit_caller_supplied_actor": True,
     }
     assert p005["currentness"] == {
@@ -398,17 +488,17 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "no_later_effective_amendment_changes_approval": True,
     }
     assert p005["owner_authority_resolution"] == {
-        "source": "verified owner-administration authority replay at the same snapshot",
-        "universe_selector": ["project_id", "owner_role=Stephen", "effective_at<=evaluation_time"],
-        "active_requirements": ["accepted", "not_expired", "not_revoked", "not_superseded"],
-        "cardinality": "exactly_one_else_deny",
+        "source": "InitializeAuthorityRoot genesis events in verified replay at the same snapshot",
+        "selection": "the unique authority_root_id and authority_owner_actor_id established at genesis",
+        "active_requirements": ["authority_root grant status=active", "activation_event_id resolves exactly once"],
+        "ambiguity_or_missing_genesis": "deny",
         "binding": [
             "owner_actor_id",
-            "owner_authority_record_id",
-            "owner_authority_record_sha256",
-            "owner_authority_event_id",
-            "owner_authority_event_hash",
-            "owner_authority_stream_version",
+            "authority_root_id",
+            "authority_root_grant_sha256",
+            "authority_root_activation_event_id",
+            "authority_root_activation_event_hash",
+            "authority_root_activation_global_position",
         ],
     }
     assert p005["decision_resolution"] == {
@@ -432,10 +522,10 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "decision_projection_sha256",
         "authority_grant_id",
         "owner_actor_id",
-        "owner_authority_record_id",
-        "owner_authority_record_sha256",
-        "owner_authority_event_id",
-        "owner_authority_event_hash",
+        "authority_root_id",
+        "authority_root_grant_sha256",
+        "authority_root_activation_event_id",
+        "authority_root_activation_event_hash",
     ]
 
 
@@ -538,6 +628,43 @@ def test_direct_artefact_storage_boundary_is_exact_including_history_and_content
     interface = _interface()
     assert {row["call"] for row in interface["dynamic_object_store_kind_exclusions"]} == dynamic
     assert all("artefact" not in row["permitted_kinds"] for row in interface["dynamic_object_store_kind_exclusions"])
+
+
+def test_object_store_boundary_analysis_catches_alias_method_and_typed_wrapper_bypasses():
+    probes = {
+        "assigned_alias": """
+def probe():
+    object_store = ObjectStore(root)
+    object_store.read(kind="artefact", object_id="x", revision=1)
+""",
+        "method_alias": """
+def probe(store: ObjectStore):
+    reader = store.read
+    reader(kind="artefact", object_id="x", revision=1)
+""",
+        "typed_wrapper": """
+def probe(object_store: ObjectStore):
+    object_store.read(object_kind="artefact", object_id="x", revision=1)
+""",
+    }
+    for label, source in probes.items():
+        calls, dynamic = _object_store_calls_in_source(source, f"synthetic/{label}.py")
+        assert dynamic == set()
+        assert calls == {(f"synthetic/{label}.py", "probe", "read", "artefact")}
+
+
+def test_transitive_root_analysis_ignores_statically_dead_and_uncalled_nested_calls(tmp_path: Path):
+    source = """
+def root():
+    if False:
+        resolve_for_result()
+    def never_called():
+        resolve_for_review()
+    resolve_for_claim()
+"""
+    path = tmp_path / "synthetic_root.py"
+    path.write_text(source, encoding="utf-8")
+    assert _function_calls(path, "root") == {"resolve_for_claim"}
 
 
 def test_resolver_and_command_failures_distinguish_rejection_from_acceptance():
