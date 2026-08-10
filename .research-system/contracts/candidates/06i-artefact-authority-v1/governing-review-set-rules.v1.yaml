@@ -14,6 +14,17 @@ governing_review_resolution:
     ledger_position: exact
     raw_prefix_sha256: required
     later_events: excluded_by_position
+  revision_resolution:
+    stream_identity: review_id
+    candidate_revisions: all events for the review stream at or before snapshot ledger_position
+    winner: unique greatest stream_version
+    tie_or_duplicate_stream_version: deny
+    head_event_binding:
+      - stream_id
+      - stream_version
+      - event_id
+      - event_hash
+      - recorded_at
   membership_rule:
     include: every review selected by the universe selector
     active_revision: latest effective revision at or before evaluation_time
@@ -27,6 +38,55 @@ governing_review_resolution:
     - ordered_governing_review_ids
     - ordered_governing_review_record_sha256s
     - governing_review_set_sha256
+  total_order:
+    key: [review_id_utf8_bytes]
+    direction: ascending
+    duplicate_review_id: deny
+  stream_census:
+    members: every review stream visible at snapshot ledger_position
+    row_fields:
+      - review_id
+      - head_stream_version
+      - head_event_id
+      - head_event_hash
+      - selection_disposition
+    selection_dispositions:
+      - included
+      - wrong_project
+      - wrong_subject
+      - wrong_consumer_kind
+      - not_yet_effective
+    ordering: review_id UTF-8 bytes ascending
+    digest: sha256(P0 canonical JSON rows)
+    unclassified_or_omitted_stream: deny
+  set_digest:
+    algorithm: sha256
+    serialization: research_system.canonical.canonical_bytes P0 canonical JSON
+    preimage_schema: ars://policy/governing-review-set-digest@1.0.0
+    preimage_fields_in_semantic_order:
+      - schema_id
+      - schema_version
+      - store_identity
+      - ledger_position
+      - raw_prefix_sha256
+      - review_stream_census_sha256
+      - reviews
+    reviews_row_fields:
+      - review_id
+      - review_stream_version
+      - head_event_id
+      - head_event_hash
+      - head_recorded_at
+      - exact_record_sha256
+      - project_id
+      - exact_subject_sha256
+      - consumer_kind
+      - effective_at
+      - status
+      - eligible
+      - related
+      - independence_grade
+      - supersedes_review_id
   satisfaction_gate:
     evaluate_every_governing_review: true
     approved_status: active
@@ -89,6 +149,18 @@ decision_rules:
       required_owner_role: Stephen
       actor_id_source: current_accepted_owner_authority.actor_id
       prohibit_caller_supplied_actor: true
+    owner_authority_resolution:
+      source: verified owner-administration authority replay at the same snapshot
+      universe_selector: [project_id, owner_role=Stephen, effective_at<=evaluation_time]
+      active_requirements: [accepted, not_expired, not_revoked, not_superseded]
+      cardinality: exactly_one_else_deny
+      binding:
+        - owner_actor_id
+        - owner_authority_record_id
+        - owner_authority_record_sha256
+        - owner_authority_event_id
+        - owner_authority_event_hash
+        - owner_authority_stream_version
     required_permitted_command: SetArtefactUseAuthority
     effective_scope_format: claim_promotion:<scope_id>
     require_exact_scope: true
@@ -98,6 +170,17 @@ decision_rules:
       not_rejected: true
       not_superseded: true
       no_later_effective_amendment_changes_approval: true
+    decision_resolution:
+      universe_selector:
+        - project_id
+        - decision_kind=claim_promotion
+        - exact_effective_scope
+        - effective_at<=evaluation_time
+      revision_winner: unique greatest stream_version per decision_id; duplicate or tie denies
+      supersession: follow exact DecisionSuperseded links to closure; broken, cyclic, or forked closure denies
+      current_candidate: resolved approve decision with no active superseder or later approval-changing amendment
+      cardinality: exactly_one_else_deny
+      total_order_for_proof: decision_id UTF-8 bytes ascending
     snapshot_binding:
       store_identity: required
       ledger_position: same_as_governing_review_snapshot
@@ -109,4 +192,9 @@ decision_rules:
       - decision_subject_sha256
       - decision_projection_sha256
       - authority_grant_id
+      - owner_actor_id
+      - owner_authority_record_id
+      - owner_authority_record_sha256
+      - owner_authority_event_id
+      - owner_authority_event_hash
     caller_supplied_decision_or_actor: prohibited

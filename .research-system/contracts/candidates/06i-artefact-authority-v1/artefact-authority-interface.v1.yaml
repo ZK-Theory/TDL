@@ -267,12 +267,19 @@ public_resolver:
       - schema_version
       - project_id
       - review_id
+      - review_stream_version
+      - head_event_id
+      - head_event_hash
+      - head_recorded_at
       - subject_sha256
+      - consumer_kind
       - reviewer_actor_id
       - eligible
       - related
       - independence_grade
       - status
+      - effective_at
+      - supersedes_review_id
     accepted_status: active
     identity_rule: canonical_sha256 is resolver-derived from exact record bytes
   failure_contract:
@@ -289,15 +296,22 @@ consumer_inventory:
     reachability: current_first_party
     dispatch_bindings:
       - research_system/evals/release_publication.py::StoredReleasePublicationEvidence._resolve::resolve_for_result
-    transitive_roots:
-      - research_system.cli._eval_publish_release
-      - research_system.cli._publication_evidence
-      - research_system.cli._eval_release
-      - research_system.command.service.CommandService._prepare_release_publication
-      - research_system.evals.release_publication.verify_release_publication
-      - research_system.evals.release_publication.verify_replayed_release
-      - console_script.ars.eval.publish-release
-      - console_script.ars.eval.release
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: _eval_publish_release
+        required_calls: [_publication_evidence]
+      - source_path: research_system/cli.py
+        qualified_symbol: _publication_evidence
+        required_calls: [StoredReleasePublicationEvidence]
+      - source_path: research_system/cli.py
+        qualified_symbol: _eval_release
+        required_calls: [StoredReleasePublicationEvidence, verify_replayed_release]
+      - source_path: research_system/command/service.py
+        qualified_symbol: CommandService._prepare_release_publication
+        required_calls: [verify_release_publication]
+      - source_path: research_system/evals/release_publication.py
+        qualified_symbol: StoredReleasePublicationEvidence._resolve
+        required_calls: [resolve_for_result]
   - consumer_kind: result_evidence
     consumer_id: rm03_result_assessment
     method: resolve_for_result
@@ -305,11 +319,16 @@ consumer_inventory:
     dispatch_bindings:
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[result_analysis]::resolve_for_result
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[result_reproduction]::resolve_for_result
-    transitive_roots: &brief_roots
-      - research_system.methods.brief.export_brief
-      - research_system.methods.export_brief
-      - research_system.cli.brief_export
-      - console_script.ars.brief.export
+    transitive_root_bindings: &brief_roots
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [getattr, resolve_for_review, resolve_for_manuscript]
   - consumer_kind: review_evidence
     consumer_id: rm03_brief_review
     method: resolve_for_review
@@ -317,7 +336,7 @@ consumer_inventory:
     dispatch_bindings:
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[scientific_review]::resolve_for_review
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[independent_review]::resolve_for_review
-    transitive_roots: *brief_roots
+    transitive_root_bindings: *brief_roots
   - consumer_kind: review_evidence
     consumer_id: rm04_followup_review
     method: resolve_for_review
@@ -325,26 +344,42 @@ consumer_inventory:
     dispatch_bindings:
       - research_system/methods/brief.py::_resolve_artefact::resolve_for_review
       - research_system/session_exchange/exchange.py::record_session_evidence::resolve_for_review
-    transitive_roots:
-      - research_system.methods.brief.export_brief.attach_result
-      - research_system.session_exchange.record_session_evidence
-      - console_script.ars.brief.export.attach-result
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [resolve_for_review]
+      - source_path: research_system/session_exchange/exchange.py
+        qualified_symbol: record_session_evidence
+        required_calls: [_evidence_revision_history, resolve_for_review]
   - consumer_kind: manuscript_evidence
     consumer_id: rm03_brief_manuscript
     method: resolve_for_manuscript
     reachability: current_first_party
     dispatch_bindings:
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[manuscript_review]::resolve_for_manuscript
-    transitive_roots: *brief_roots
+    transitive_root_bindings: *brief_roots
   - consumer_kind: manuscript_evidence
     consumer_id: rm04_manuscript_pilot
     method: resolve_for_manuscript
     reachability: current_first_party
     dispatch_bindings:
       - research_system/methods/brief.py::_resolve_artefact::resolve_for_manuscript
-    transitive_roots:
-      - research_system.methods.brief.export_brief.attach_result
-      - console_script.ars.brief.export.attach-result
+    transitive_root_bindings:
+      - source_path: research_system/cli.py
+        qualified_symbol: brief_export
+        required_calls: [export_brief]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: export_brief
+        required_calls: [_resolve_artefact]
+      - source_path: research_system/methods/brief.py
+        qualified_symbol: _resolve_artefact
+        required_calls: [resolve_for_manuscript]
   - consumer_kind: claim_evidence
     consumer_id: rm03_claim_assessment
     method: resolve_for_claim
@@ -352,14 +387,33 @@ consumer_inventory:
     dispatch_bindings:
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[claim_review]::resolve_for_claim
       - research_system/methods/brief.py::_PURPOSE_CONSUMER[claim_promotion_preparation]::resolve_for_claim
-    transitive_roots: *brief_roots
+    transitive_root_bindings: *brief_roots
   - consumer_kind: sensitive_sidecar
     consumer_id: rm03_sensitive_sidecar
     method: resolve_sensitive_sidecar
     reachability: reserved_no_current_first_party_call
     dispatch_bindings: []
-    transitive_roots: []
+    transitive_root_bindings: []
     activation_rule: deny until a changed exact candidate inventories and independently reviews the first-party call path
+public_entrypoint_bindings:
+  - kind: console_script
+    name: ars
+    target: research_system.cli:main
+  - kind: cli_handler
+    command_tokens: [eval, publish-release]
+    handler: _eval_publish_release
+  - kind: cli_handler
+    command_tokens: [eval, release]
+    handler: _eval_release
+  - kind: cli_handler
+    command_tokens: [brief, export]
+    handler: brief_export
+  - kind: public_export
+    source_path: research_system/methods/__init__.py
+    symbol: export_brief
+  - kind: public_export
+    source_path: research_system/session_exchange/__init__.py
+    symbol: record_session_evidence
 direct_storage_inventory:
   - path: research_system/artefacts/use_resolver.py
     owner: ArtefactUseResolver._resolve
@@ -381,6 +435,39 @@ direct_storage_inventory:
     owner: record_session_evidence
     classification: consumer_then_producer_storage_mechanics
     operations: [resolve_for_review, artefact_object_write]
+dynamic_object_store_kind_exclusions:
+  - call: research_system/assurance/external_records.py::load_complete_revision_history::read::kind
+    kind_source: storage_object_kind(record_class) closed by _RECORD_STORAGE_KINDS
+    permitted_kinds: &external_record_kinds
+      - canonical_actor
+      - producer_relationship_evidence
+      - contract_schema_authorship
+      - independent_contract_review
+      - independent_schema_review
+      - stephen_contract_schema_acceptance
+      - accepted_assurance_requirement
+      - obligation_applicability_confirmation
+      - independent_pack_review
+      - stephen_owner_acceptance
+      - active_authority_grant
+      - registered_pack_object
+    unclassified_kind: deny
+  - call: research_system/assurance/external_records.py::ExternalAssuranceRecordStore._write_storage::write::kind
+    kind_source: storage_object_kind(record_class) closed by _RECORD_STORAGE_KINDS
+    permitted_kinds: *external_record_kinds
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_marker::read::marker['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_marker::rollback_new_revision::marker['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
+  - call: research_system/command/service.py::CommandService._reconcile_scoped_activation_receipt::read::existing['object_kind']
+    kind_source: validated scoped activation recovery marker
+    permitted_kinds: [authority_grant]
+    unclassified_kind: deny
 invariants:
   - canonical consumption rebuilds current state from verified replay
   - direct object reads never establish use authority

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from pathlib import Path
+import tomllib
 
 import yaml
 
@@ -114,40 +115,131 @@ def _production_dispatch_bindings() -> set[str]:
     return bindings
 
 
-def _artefact_storage_boundary_calls() -> set[tuple[str, str, str, str | None]]:
+def _object_store_boundary_calls() -> (
+    tuple[
+        set[tuple[str, str, str, str | None]],
+        set[str],
+    ]
+):
     calls: set[tuple[str, str, str, str | None]] = set()
+    dynamic: set[str] = set()
     for path in sorted((REPO_ROOT / "research_system").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+        constants = {
+            target.id: node.value.value
+            for node in tree.body
+            if isinstance(node, (ast.Assign, ast.AnnAssign))
+            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+            if isinstance(target, ast.Name)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        }
         for node in ast.walk(tree):
             if (
                 not isinstance(node, ast.Call)
                 or not isinstance(node.func, ast.Attribute)
-                or node.func.attr not in {"read", "write", "latest_revision"}
+                or node.func.attr not in {"read", "write", "latest_revision", "rollback_new_revision"}
             ):
                 continue
-            argument = (
-                node.args[0].value
-                if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)
-                else None
+            receiver = node.func.value
+            receiver_is_object_store = (
+                (
+                    isinstance(receiver, ast.Name)
+                    and receiver.id in {"objects", "store", "context_objects", "authority_objects"}
+                )
+                or (isinstance(receiver, ast.Attribute) and receiver.attr == "objects")
+                or (
+                    isinstance(receiver, ast.Call)
+                    and isinstance(receiver.func, ast.Name)
+                    and receiver.func.id == "ObjectStore"
+                )
             )
-            relative = path.relative_to(REPO_ROOT).as_posix()
-            is_artefact_object_call = argument == "artefact"
-            is_resolver_content_call = (
-                relative == "research_system/artefacts/use_resolver.py"
-                and node.func.attr == "read"
-                and argument is None
-            )
-            if not is_artefact_object_call and not is_resolver_content_call:
+            if not receiver_is_object_store:
                 continue
+            argument_node = (
+                node.args[0]
+                if node.args
+                else next(
+                    (keyword.value for keyword in node.keywords if keyword.arg in {"kind", "object_kind"}),
+                    None,
+                )
+            )
+            if isinstance(argument_node, ast.Constant) and isinstance(argument_node.value, str):
+                argument = argument_node.value
+            elif isinstance(argument_node, ast.Name) and argument_node.id in constants:
+                argument = constants[argument_node.id]
+            else:
+                argument = None
+            relative = path.relative_to(REPO_ROOT).as_posix()
             owners: list[str] = []
             current: ast.AST = node
             while current in parents:
                 current = parents[current]
                 if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                     owners.append(current.name)
-            calls.add((relative, ".".join(reversed(owners)), node.func.attr, argument))
-    return calls
+            owner = ".".join(reversed(owners))
+            if argument == "artefact":
+                calls.add((relative, owner, node.func.attr, argument))
+            elif argument is None:
+                expression = "<missing>" if argument_node is None else ast.unparse(argument_node)
+                dynamic.add(f"{relative}::{owner}::{node.func.attr}::{expression}")
+    calls.add(
+        (
+            "research_system/artefacts/use_resolver.py",
+            "ArtefactUseResolver._resolve",
+            "read",
+            None,
+        )
+    )
+    return calls, dynamic
+
+
+def _function_calls(path: Path, qualified_symbol: str) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        owners: list[str] = []
+        current: ast.AST = node
+        while current in parents:
+            current = parents[current]
+            if isinstance(current, ast.ClassDef):
+                owners.append(current.name)
+        symbol = ".".join([*reversed(owners), node.name])
+        if symbol != qualified_symbol:
+            continue
+        calls: set[str] = set()
+        for call in (child for child in ast.walk(node) if isinstance(child, ast.Call)):
+            if isinstance(call.func, ast.Name):
+                calls.add(call.func.id)
+            elif isinstance(call.func, ast.Attribute):
+                calls.add(call.func.attr)
+        return calls
+    raise AssertionError(f"missing declared production root: {path}:{qualified_symbol}")
+
+
+def _module_exports(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return {
+        alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+
+
+def _cli_handlers_and_tokens(path: Path) -> tuple[set[str], set[str]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    handlers: set[str] = set()
+    tokens = {node.value for node in ast.walk(tree) if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "set_defaults":
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "handler" and isinstance(keyword.value, ast.Name):
+                handlers.add(keyword.value.id)
+    return handlers, tokens
 
 
 def test_candidate_is_exactly_the_five_file_inert_stage_a_subject():
@@ -219,6 +311,75 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "related",
         "insufficient_independence",
     ]
+    assert resolution["revision_resolution"] == {
+        "stream_identity": "review_id",
+        "candidate_revisions": "all events for the review stream at or before snapshot ledger_position",
+        "winner": "unique greatest stream_version",
+        "tie_or_duplicate_stream_version": "deny",
+        "head_event_binding": [
+            "stream_id",
+            "stream_version",
+            "event_id",
+            "event_hash",
+            "recorded_at",
+        ],
+    }
+    assert resolution["total_order"] == {
+        "key": ["review_id_utf8_bytes"],
+        "direction": "ascending",
+        "duplicate_review_id": "deny",
+    }
+    assert resolution["set_digest"] == {
+        "algorithm": "sha256",
+        "serialization": "research_system.canonical.canonical_bytes P0 canonical JSON",
+        "preimage_schema": "ars://policy/governing-review-set-digest@1.0.0",
+        "preimage_fields_in_semantic_order": [
+            "schema_id",
+            "schema_version",
+            "store_identity",
+            "ledger_position",
+            "raw_prefix_sha256",
+            "review_stream_census_sha256",
+            "reviews",
+        ],
+        "reviews_row_fields": [
+            "review_id",
+            "review_stream_version",
+            "head_event_id",
+            "head_event_hash",
+            "head_recorded_at",
+            "exact_record_sha256",
+            "project_id",
+            "exact_subject_sha256",
+            "consumer_kind",
+            "effective_at",
+            "status",
+            "eligible",
+            "related",
+            "independence_grade",
+            "supersedes_review_id",
+        ],
+    }
+    assert resolution["stream_census"] == {
+        "members": "every review stream visible at snapshot ledger_position",
+        "row_fields": [
+            "review_id",
+            "head_stream_version",
+            "head_event_id",
+            "head_event_hash",
+            "selection_disposition",
+        ],
+        "selection_dispositions": [
+            "included",
+            "wrong_project",
+            "wrong_subject",
+            "wrong_consumer_kind",
+            "not_yet_effective",
+        ],
+        "ordering": "review_id UTF-8 bytes ascending",
+        "digest": "sha256(P0 canonical JSON rows)",
+        "unclassified_or_omitted_stream": "deny",
+    }
 
     p005 = rules["decision_rules"]["claim_promotion"]
     assert p005["authoritative_source"] == "verified_decision_replay_at_evaluation_snapshot"
@@ -236,6 +397,33 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "not_superseded": True,
         "no_later_effective_amendment_changes_approval": True,
     }
+    assert p005["owner_authority_resolution"] == {
+        "source": "verified owner-administration authority replay at the same snapshot",
+        "universe_selector": ["project_id", "owner_role=Stephen", "effective_at<=evaluation_time"],
+        "active_requirements": ["accepted", "not_expired", "not_revoked", "not_superseded"],
+        "cardinality": "exactly_one_else_deny",
+        "binding": [
+            "owner_actor_id",
+            "owner_authority_record_id",
+            "owner_authority_record_sha256",
+            "owner_authority_event_id",
+            "owner_authority_event_hash",
+            "owner_authority_stream_version",
+        ],
+    }
+    assert p005["decision_resolution"] == {
+        "universe_selector": [
+            "project_id",
+            "decision_kind=claim_promotion",
+            "exact_effective_scope",
+            "effective_at<=evaluation_time",
+        ],
+        "revision_winner": "unique greatest stream_version per decision_id; duplicate or tie denies",
+        "supersession": "follow exact DecisionSuperseded links to closure; broken, cyclic, or forked closure denies",
+        "current_candidate": "resolved approve decision with no active superseder or later approval-changing amendment",
+        "cardinality": "exactly_one_else_deny",
+        "total_order_for_proof": "decision_id UTF-8 bytes ascending",
+    }
     assert p005["event_binding"] == [
         "decision_id",
         "decision_event_id",
@@ -243,6 +431,11 @@ def test_review_universe_and_p005_are_deterministic_and_no_omission():
         "decision_subject_sha256",
         "decision_projection_sha256",
         "authority_grant_id",
+        "owner_actor_id",
+        "owner_authority_record_id",
+        "owner_authority_record_sha256",
+        "owner_authority_event_id",
+        "owner_authority_event_hash",
     ]
 
 
@@ -265,9 +458,34 @@ def test_consumer_inventory_is_exactly_closed_over_policy_and_production_dispatc
         "deny until a changed exact candidate inventories and independently reviews the first-party call path"
     )
 
+    for row in inventory:
+        roots = row["transitive_root_bindings"]
+        if row["reachability"] == "reserved_no_current_first_party_call":
+            assert roots == []
+            continue
+        assert roots
+        for root in roots:
+            calls = _function_calls(REPO_ROOT / root["source_path"], root["qualified_symbol"])
+            assert set(root["required_calls"]) <= calls
+
+    handlers, tokens = _cli_handlers_and_tokens(REPO_ROOT / "research_system/cli.py")
+    for binding in _interface()["public_entrypoint_bindings"]:
+        if binding["kind"] == "console_script":
+            pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+            assert pyproject["project"]["scripts"][binding["name"]] == binding["target"]
+        elif binding["kind"] == "cli_handler":
+            assert binding["handler"] in handlers
+            assert set(binding["command_tokens"]) <= tokens
+            _function_calls(REPO_ROOT / "research_system/cli.py", binding["handler"])
+        elif binding["kind"] == "public_export":
+            assert binding["symbol"] in _module_exports(REPO_ROOT / binding["source_path"])
+        else:
+            raise AssertionError(f"unknown public entrypoint binding kind: {binding['kind']}")
+
 
 def test_direct_artefact_storage_boundary_is_exact_including_history_and_content_reads():
-    assert _artefact_storage_boundary_calls() == {
+    calls, dynamic = _object_store_boundary_calls()
+    assert calls == {
         (
             "research_system/artefacts/use_resolver.py",
             "ArtefactUseResolver._resolve",
@@ -317,6 +535,9 @@ def test_direct_artefact_storage_boundary_is_exact_including_history_and_content
             "artefact",
         ),
     }
+    interface = _interface()
+    assert {row["call"] for row in interface["dynamic_object_store_kind_exclusions"]} == dynamic
+    assert all("artefact" not in row["permitted_kinds"] for row in interface["dynamic_object_store_kind_exclusions"])
 
 
 def test_resolver_and_command_failures_distinguish_rejection_from_acceptance():
