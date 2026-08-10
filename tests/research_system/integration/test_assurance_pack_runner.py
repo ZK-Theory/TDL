@@ -13,7 +13,8 @@ import pytest
 
 from research_system.assurance import PackUnconsumable
 from research_system.assurance.external_records import ExternalRecordResolution, ExternalRecordSchemaCatalogue
-from research_system.assurance.pack_loader import _revalidate_references
+from research_system.assurance.pack_loader import PackAcceptanceSubject, _revalidate_references
+from research_system.assurance import tdl_private_semantics as tdl_semantics
 from research_system.assurance.runner import (
     AssurancePackRunnerConfig,
     SemanticRecordLocator,
@@ -392,6 +393,35 @@ def test_acceptance_records_bind_authoritative_schema_valid_pack_subject(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    subject = PackAcceptanceSubject(
+        pack_id="sentinel-pack-family",
+        assurance_pack_id="asp_00000000-0000-7000-8000-000000000001",
+        assurance_pack_revision=17,
+        canonical_repository_path="sentinel/pack.yaml",
+        pack_git_blob="1" * 40,
+        pack_raw_sha256="2" * 64,
+        schema_id="ars://sentinel/pack-schema/9.8",
+        schema_version="9.8.7",
+        schema_repository_path="sentinel/pack.schema.json",
+        schema_git_blob="3" * 40,
+        schema_canonical_sha256="4" * 64,
+    )
+    expected_subject = {
+        "pack_id": "sentinel-pack-family",
+        "assurance_pack_id": "asp_00000000-0000-7000-8000-000000000001",
+        "assurance_pack_revision": 17,
+        "canonical_repository_path": "sentinel/pack.yaml",
+        "pack_git_blob": "1" * 40,
+        "pack_raw_sha256": "2" * 64,
+        "schema_id": "ars://sentinel/pack-schema/9.8",
+        "schema_version": "9.8.7",
+        "schema_repository_path": "sentinel/pack.schema.json",
+        "schema_git_blob": "3" * 40,
+        "schema_canonical_sha256": "4" * 64,
+    }
+    assert runner_module._pack_subject_dict(subject) == expected_subject
+    assert tdl_semantics._pack_subject_dict(subject) == expected_subject
+
     _, _, _, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
     catalogue = ExternalRecordSchemaCatalogue(REPOSITORY_ROOT / ".research-system" / "schemas")
 
