@@ -1,0 +1,180 @@
+{
+  "schema_id": "ars://contracts/wp6-4/scale01-gate6-preflight",
+  "schema_version": "1.0.3",
+  "preflight_id": "SCALE-01-G6-PREFLIGHT-v1.0.3",
+  "package_id": "TDA-ARS-SCALE-RESEARCH",
+  "package_version": "1.0.3",
+  "lifecycle_status": "produced_unreviewed",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "acceptance_subject_binding": "exact_git_subject_preflight_sha256_and_external_review_envelope_required",
+  "project_binding": {
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
+    "origin_authority_root": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority",
+    "origin_witness_path": "C:\\Users\\steph\\TDL-ARS-WP64-Origin-Authority\\store-origins\\sha256-f309842fa91a1b79aa22daf695c5cf581243a9a45f8bdf949b74843d576df18c.json",
+    "origin_witness_sha256": "1e565f988983e505802c779e4a02e5655e9c84e93ab02ddba4308deb02a417fa",
+    "control_tail_position": 145,
+    "control_tail_event_hash": "9e057ee4ed1442d4df65df770881252a89ce818b8a713102c4b6778b81429112",
+    "grandfather_prefix_position": 79,
+    "grandfather_prefix_event_hash": "aaa83100505c0f8298a334904e0c969f89bd73cb7ee2fbbbee20d020316b17bb",
+    "post_grandfather_missing_command_schema_triples": 0
+  },
+  "current_foundation": {
+    "repository_path": ".research-system/config/foundation.yaml",
+    "candidate_base_git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+    "schema_version": "1.1.0",
+    "semantic_sha256": "06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30",
+    "raw_sha256": "fbc9737c25206339e954d613e10bcdbc167a7283f7cd6386f0692411d2271348",
+    "git_blob_id": "3e9acb28df737ddd761e80157f642ac5bac2e333",
+    "status": "current_exact"
+  },
+  "scope_definition_blueprint": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+    "raw_sha256": "0c36e3e3368eaefe1905509d2a0271b2f16bb0170eec709ef9e6f7b6b1ddccf5",
+    "git_blob_id": "aa929c72cc590bcc928fdc972d9d73f68d6a17cb",
+    "status": "reused_unchanged_pending_wp6_6_expected_set"
+  },
+  "fixture_preflight_evidence": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json",
+    "raw_sha256": "6d97d806dba636d13e3e628957bee9dac04d2b844df3fe9a8f111b00d1f2bcbd",
+    "git_blob_id": "063a5b87ed07da4af1cef183e288e422193cc94b",
+    "fixture_set_sha256": "226b90fc9cf4335531346bd13bed9b08bb1d26526b8d51be67538749422f936c",
+    "status": "reused_immutable_historical_observation",
+    "current_revalidation": {
+      "fixture_mutation_observed": false,
+      "binary_and_untracked_raw_sha256_matches": [
+        "F-BHPS-EMBED",
+        "G-MEDIAN-CHECKPOINT",
+        "F-USOC-EMBED",
+        "G-SLOW-L5000-CHECKPOINT"
+      ],
+      "tracked_text_git_blob_matches": [
+        {
+          "fixture_alias": "F-BHPS-TRAJ",
+          "git_blob_id": "93f3b036d1a3a09bde319c6555cd764e28809ac1",
+          "git_status": "clean",
+          "current_checkout_raw_sha256": "646d7615f942bdd8e5dc9c45a48b4126302550ed2cad898489a9001f31157cb6",
+          "historical_observation_raw_sha256": "a872606a435478515daa8edd91ac58172c173d61c8a8c2e2f12e305dc1b07b47"
+        },
+        {
+          "fixture_alias": "F-USOC-TRAJ",
+          "git_blob_id": "5fc06e8d196df3faa3121c0f6f901c57386b69e8",
+          "git_status": "clean",
+          "current_checkout_raw_sha256": "2dd78652dd7844be53610cffc5bfb28b46a8e27ee157a1d18d4da4e614c61e4a",
+          "historical_observation_raw_sha256": "d356874922685ac7052124b8a7897f6a52e5cde2a124a1ec4816bc30e6748c39"
+        }
+      ],
+      "identity_rule": "Git blob identity governs tracked text across checkout EOL representations; raw SHA-256 governs binary and untracked fixtures."
+    }
+  },
+  "prerequisites": [
+    {
+      "dependency_id": "current_foundation",
+      "status": "satisfied",
+      "candidate_base_git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+      "schema_version": "1.1.0",
+      "semantic_sha256": "06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30",
+      "raw_sha256": "fbc9737c25206339e954d613e10bcdbc167a7283f7cd6386f0692411d2271348",
+      "git_blob_id": "3e9acb28df737ddd761e80157f642ac5bac2e333"
+    },
+    {
+      "dependency_id": "historical_real_a8",
+      "status": "satisfied",
+      "evidence_subject_git_commit": "9b8c88d8427645551383e98b9b0f7fd5613520b8",
+      "evidence_object_raw_sha256": "64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d",
+      "historical_foundation": {
+        "repository_path": ".research-system/config/foundation.yaml",
+        "schema_version": "1.0.0",
+        "semantic_sha256": "0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22",
+        "raw_sha256": "3f9a0e6af3021f3c0273f003e5bebdc722b00e525671aa84163cac5cfa7541da",
+        "git_blob_id": "7c46e841ea3cb5c87684736a6e461b7d9a96c24f"
+      }
+    },
+    {
+      "dependency_id": "current_foundation_real_a8_compatibility",
+      "status": "satisfied",
+      "validation_method": "replay_grandfathered",
+      "result": "passed",
+      "current_foundation_semantic_sha256": "06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30",
+      "grandfather_decision_sha256": "07eac8199ffb48ceea6e0d235f0f2193fac4ebaae4b1e3340e39899e59927c74",
+      "grandfather_prefix_position": 79,
+      "grandfather_prefix_event_hash": "aaa83100505c0f8298a334904e0c969f89bd73cb7ee2fbbbee20d020316b17bb",
+      "grandfather_ledger_prefix_sha256": "84b466194993c94eaa80a30d90cd5f2dbdc74537d57b7fa94303b231d185a0e4",
+      "grandfather_historical_event_set_sha256": "afbfdc724a7e288e49021f8ce4947ed720245e122b28851bc11b9ef3fb3cfdd3",
+      "control_tail_position": 145,
+      "control_tail_event_hash": "9e057ee4ed1442d4df65df770881252a89ce818b8a713102c4b6778b81429112",
+      "replayed_event_count": 145,
+      "replayed_state_sha256": "574d3b21c343f5b111ba93ebf9d826417db3ef6b0d6797ff04808e506f9d6f8d"
+    },
+    {
+      "dependency_id": "kan68_a7_genuine_distinct_party_acceptance",
+      "status": "satisfied",
+      "implementation_subject": "98c0c2f263e7c087a64cd79c87095a658cfbe755",
+      "implementation_tree": "b064735d8c33e97a88ae3e83dd7c82b2ad6768df",
+      "assurance_pack_id": "asp_019fa860-3a4b-7784-839f-60f6277e6ce9",
+      "assurance_pack_git_blob": "a4def75227fbeb06eb6c5ddb059b526210b2ec77",
+      "assurance_pack_raw_sha256": "8b9b5e855eb43cc1c31a19b6d257a10ccf2ac12e78d17d35a8b31fd732b1f1fa",
+      "independent_review_record_id": "arv_019fea0f-54af-78d7-9b45-4c4feec8a2cf",
+      "independent_review_canonical_sha256": "de22bb497680d4c674607c92f3cd47cd239f934f348fa4ce9d58e7d4dc497346",
+      "owner_acceptance_record_id": "apr_019fea13-676b-75e4-a908-046a9cf8a82c",
+      "owner_acceptance_canonical_sha256": "2d549ec8fdc5e06ece218ac9ba4697d2372069a57f544b1eecbe2ffc43cd91ba",
+      "natural_run_id": "run_019fe9ff-b00f-74e4-9b57-a5de85e7bab2",
+      "preparation_identity": "59c5e75684c90731c23ac2b4f8a9c819d2977b000e570a37c1e1306f4ab28393",
+      "acceptance_evidence_sha256": "8da89949ebc919aca56494861136fef1e0315d6e187618a2abd3e02ec7f1e2db",
+      "consumption_evidence_sha256": "d2b6acbcc8f23f5043511a2ead4b4c53f887f6a36ff96374d803395d74074400"
+    },
+    {
+      "dependency_id": "provider_free_operator_session",
+      "status": "satisfied",
+      "implementation_merge": "13707dd9ddd307237ee9ba67853cf51448b99d8e",
+      "brief_artifact_id": "art_019fea15-1486-749c-8182-8b0db7034421",
+      "brief_document_raw_sha256": "9e49e6f22e4052f5b89f00d3edb2646c087ddfd3206fad109caa13fa48000e35",
+      "brief_raw_sha256": "28d351337fe756e7a752b086678a2120c2eb78acf9639e62ee07e0d4546b4b38",
+      "session_evidence_artifact_id": "art_019fea15-14d8-73b5-8db8-f5d94a9c8c58",
+      "session_evidence_revision": 3,
+      "session_evidence_subject_raw_sha256": "2f6423cd234ac7e6ffb046e689efee850eb3365d15d63876440dba21decc5907",
+      "session_evidence_document_raw_sha256": "7e6e23e8ad39a84b0d8d0920a61486b0fa4e317470c564b9c3d4d5c9907d0b7d",
+      "independent_review_record_id": "isr_019fea2b-0483-742d-8fda-23d188f7b853",
+      "independent_review_canonical_sha256": "e289199e02652071319cd527359018f37c2ba9a59b0b364f6a0beee73c226802",
+      "owner_acceptance_record_id": "osd_019febb6-bec1-715c-9d47-e6d5dfdf3cd8",
+      "owner_acceptance_canonical_sha256": "0d30d1c073ea5a2ac67fc76f664be6fece44bcb4c9de539e61df3cb3c836218e"
+    },
+    {
+      "dependency_id": "wp6_6_expected_set_and_read_only_admission",
+      "status": "pending",
+      "exact_ref": null,
+      "remaining_gap": "WP6.6 must supply the accepted expected set, final cardinality, and read-only fixture authority before admission or dispatch."
+    },
+    {
+      "dependency_id": "d_g6_5",
+      "status": "pending",
+      "exact_ref": null,
+      "remaining_gap": "The owner decision must bind this final independently reviewed exact preflight subject."
+    }
+  ],
+  "unresolved_dependencies": [
+    "wp6_6_expected_set_and_read_only_admission",
+    "d_g6_5"
+  ],
+  "claims": {
+    "research_claim": null,
+    "pilot_claim": null,
+    "result_claim": null
+  },
+  "publication_policy": {
+    "state_publication": "forbidden",
+    "provider_calls": "forbidden",
+    "legacy_writes": "forbidden"
+  },
+  "supersedes": {
+    "package_version": "1.0.2",
+    "preflight_id": "SCALE-01-G6-PREFLIGHT-v1.0.2",
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
+    "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
+    "git_blob_id": "156e19a5ccc0c41a0b09a344d1a7d346ade27438"
+  },
+  "supersession_policy": "immutable_supersede_never_mutate"
+}

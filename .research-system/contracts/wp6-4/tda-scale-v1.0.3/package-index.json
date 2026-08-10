@@ -1,0 +1,130 @@
+{
+  "schema_id": "ars://contracts/wp6-4/tda-scale-package-index",
+  "schema_version": "1.0.3",
+  "package_id": "TDA-ARS-SCALE-RESEARCH",
+  "package_version": "1.0.3",
+  "lifecycle_status": "produced_unreviewed",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "candidate_base_git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+  "self_identity_binding": "final_exact_git_subject_preflight_sha256_and_external_review_envelope_required",
+  "external_vault_root": "C:\\Users\\steph\\Documents\\TDA-Research",
+  "external_vault_git_status": "not_a_git_repository_raw_identity_only",
+  "project_binding": {
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "current_foundation_semantic_sha256": "06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30"
+  },
+  "current_foundation": {
+    "repository_path": ".research-system/config/foundation.yaml",
+    "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+    "schema_version": "1.1.0",
+    "raw_bytes": 2630,
+    "raw_sha256": "fbc9737c25206339e954d613e10bcdbc167a7283f7cd6386f0692411d2271348",
+    "git_blob_id": "3e9acb28df737ddd761e80157f642ac5bac2e333",
+    "semantic_sha256": "06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30"
+  },
+  "predecessor_package": {
+    "package_version": "1.0.2",
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/package-index.json",
+    "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+    "raw_bytes": 5825,
+    "raw_sha256": "98671eb4c1832f1c8ae861b0f882868efc4ff19a9126a7c1d0e934ee6849594d",
+    "git_blob_id": "d3688b9a04776942e0208f8cbaa858d1d440720e"
+  },
+  "reused_components": [
+    {
+      "component_id": "SCALE01-SCOPE-DEFINITION-BLUEPRINT",
+      "component_version": "1.0.1",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+      "raw_bytes": 1014,
+      "raw_sha256": "0c36e3e3368eaefe1905509d2a0271b2f16bb0170eec709ef9e6f7b6b1ddccf5",
+      "git_blob_id": "aa929c72cc590bcc928fdc972d9d73f68d6a17cb",
+      "reuse_reason": "WP6.6 expected-set and cardinality authority remain pending, so the empty non-dispatchable blueprint is unchanged."
+    },
+    {
+      "component_id": "SCALE01-FIXTURE-PREFLIGHT-EVIDENCE",
+      "component_version": "1.0.1",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json",
+      "raw_bytes": 6118,
+      "raw_sha256": "6d97d806dba636d13e3e628957bee9dac04d2b844df3fe9a8f111b00d1f2bcbd",
+      "git_blob_id": "063a5b87ed07da4af1cef183e288e422193cc94b",
+      "reuse_reason": "The immutable six-fixture observation and real A8 recovery evidence are reused; current tracked text is clean and Git-blob equal despite checkout-dependent raw EOL bytes, while binary and untracked raw identities remain equal."
+    }
+  ],
+  "changed_components": [
+    {
+      "component_id": "SCALE01-GATE6-PREFLIGHT",
+      "component_version": "1.0.3",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json",
+      "raw_bytes": 9794,
+      "raw_sha256": "42435a9cf3ee1e0d9650a8b1c9735d12da55fbf848374bb5a3cb86f1c577db3d",
+      "git_blob_id": "f3f838967873e72cf1532b84bc0891c9000f93a5",
+      "identity_stage": "content_addressed_precommit"
+    }
+  ],
+  "source_dependencies": [
+    {
+      "schema_id": "ars://core/command/CreateScopeDefinition",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/core/commands/create_scope_definition.schema.json",
+      "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+      "raw_bytes": 16949,
+      "raw_sha256": "0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856",
+      "git_blob_id": "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1"
+    },
+    {
+      "schema_id": "ars://portfolio/research-dossier-manifest",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/contracts/w11/research-dossier-manifest.schema.json",
+      "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+      "raw_bytes": 8118,
+      "raw_sha256": "ebba2bae34833237a5bb1dde06bcb598258b52f325635237378e7b8fdcf7e987",
+      "git_blob_id": "5cc93fe457c3f540bc2bea8d19e5c92d9c801675"
+    },
+    {
+      "schema_id": "ars://portfolio/dossier-expected-set-content",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/contracts/w11/dossier-expected-set-content.schema.json",
+      "git_commit": "03107b48b55b4588bf785dcbf3bb32f7e08f0bd9",
+      "raw_bytes": 10518,
+      "raw_sha256": "543002112c8d9ace692f15d2d0e6a3a3f2747a01e405ced717c94c1b3f3bcc0d",
+      "git_blob_id": "caa26760e10f2ff04078940ef63ebe0c84944b95"
+    }
+  ],
+  "scope_validation": {
+    "status": "passed_reused_unchanged",
+    "payload_repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+    "payload_raw_sha256": "0c36e3e3368eaefe1905509d2a0271b2f16bb0170eec709ef9e6f7b6b1ddccf5",
+    "schema_repository_path": ".research-system/schemas/core/commands/create_scope_definition.schema.json",
+    "schema_git_blob_id": "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1",
+    "schema_raw_sha256": "0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856"
+  },
+  "preflight_closure": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json",
+    "raw_sha256": "42435a9cf3ee1e0d9650a8b1c9735d12da55fbf848374bb5a3cb86f1c577db3d",
+    "current_foundation": "satisfied",
+    "historical_real_a8": "satisfied",
+    "current_foundation_real_a8_compatibility": "satisfied",
+    "kan68_a7_genuine_distinct_party_acceptance": "satisfied",
+    "provider_free_operator_session": "satisfied",
+    "wp6_6_expected_set_and_read_only_admission": "pending",
+    "d_g6_5": "pending"
+  },
+  "cardinality_authority": {
+    "authority": "wp6_6_dossier_expected_set",
+    "status": "pending",
+    "exact_ref": null,
+    "object_count": null,
+    "scope_count": null,
+    "edge_count": null,
+    "relationship_count": null
+  },
+  "claims": {
+    "research_claim": null,
+    "pilot_claim": null,
+    "result_claim": null
+  },
+  "supersession_policy": "immutable_supersede_never_mutate"
+}
