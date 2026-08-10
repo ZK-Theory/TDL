@@ -232,7 +232,7 @@ def execute_f033(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     runtime = EvaluationLifecycleRuntime(writer_id="f033-evaluation")
     task = _RoutingTask("f033")
     requirement = _RoutingRequirement(task, "f033")
-    outcomes = []
+    outcomes: list[tuple[str, str | None]] = []
     try:
         for name in ("producer", "role-switch"):
             compiled = runtime.compile(f"F-033 {name} candidate")
@@ -246,17 +246,19 @@ def execute_f033(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                     provider_evidence=_F033Evidence(),
                     operational_evidence=_F033Evidence(),
                 )
-            except ContextLifecycleFailure:
-                outcomes.append("failure")
+            except ContextLifecycleFailure as exc:
+                evaluated = (exc.detail or {}).get("evaluated", ())
+                reasons = tuple(reason for _candidate, failures in evaluated for reason in failures)
+                outcomes.append(("failure", reasons[0] if reasons else None))
             else:  # pragma: no cover - fail closed
-                outcomes.append("selected")
+                outcomes.append(("selected", None))
     finally:
         runtime.close()
     return {
-        "producer_dispatched": outcomes[0] == "selected",
-        "reason": "independence_unavailable",
+        "producer_dispatched": outcomes[0][0] == "selected",
+        "reason": outcomes[0][1],
         "verifier_witness_bound": True,
-        "role_switch_ignored": outcomes[1] == "failure",
+        "role_switch_ignored": outcomes[1][0] == "failure",
     }
 
 

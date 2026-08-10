@@ -44,6 +44,12 @@ class OperationsIssuePort(Protocol):
 
     def load_lease(self, lease_receipt: Receipt) -> Mapping[str, Any]: ...
 
+    def load_provider_receipt(
+        self,
+        lease: Mapping[str, Any],
+        provider_command: ProviderCommand,
+    ) -> tuple[ProviderReceipt, Receipt] | None: ...
+
     def record_provider_receipt_command(
         self, lease: Mapping[str, Any], provider_receipt: ProviderReceipt
     ) -> dict[str, Any]: ...
@@ -95,15 +101,19 @@ def _issue_bound_template(
         capability,
     )
     issued_receipt = submit_ars_command(command_service, adapter.record_issue_command(provider_command)).receipt
-    provider_receipt = adapter.issue(
-        provider_command,
-        issued_receipt,
-        issued,
-        capability,
-    )
-    terminal_receipt = submit_ars_command(
-        command_service, operations.record_provider_receipt_command(lease, provider_receipt)
-    ).receipt
+    recovered = operations.load_provider_receipt(lease, provider_command)
+    if recovered is None:
+        provider_receipt = adapter.issue(
+            provider_command,
+            issued_receipt,
+            issued,
+            capability,
+        )
+        terminal_receipt = submit_ars_command(
+            command_service, operations.record_provider_receipt_command(lease, provider_receipt)
+        ).receipt
+    else:
+        provider_receipt, terminal_receipt = recovered
     return provider_command, provider_receipt, terminal_receipt
 
 
