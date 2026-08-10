@@ -8,6 +8,7 @@ from typing import Any, Iterable
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
+from research_system.discovery.authority import prepare_authority_transition, replay_authority
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierMember,
@@ -79,10 +80,77 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "dossiers": {},
         "portfolio_objects": {},
         "scopes": {},
+        "authority_events": [],
+        "authorities": {},
+        "authority_streams": {},
     }
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
+        if isinstance(payload, dict) and "authority_event_type" in payload:
+            authority_event = {
+                "owner_row_id": payload["owner_row_id"],
+                "authority_kind": payload["authority_kind"],
+                "event_type": payload["authority_event_type"],
+                "payload": deepcopy(payload["authority_payload"]),
+            }
+            state["authority_events"].append(authority_event)
+            state["authority_streams"][event["stream_id"]] = payload["authority_kind"]
+            state["authorities"] = replay_authority(state["authority_events"])
+            continue
+        if event.get("command_type") in {
+            "RequestW11AuthorityReview",
+            "RecordW11AuthorityReview",
+            "ProposeW11AuthorityDecision",
+        } or (event.get("command_type") == "ResolveDecision" and event["stream_id"] in state["authority_streams"]):
+            kind = state["authority_streams"].get(event["stream_id"])
+            current = state["authorities"].get(kind, {})
+            if event_type == "ReviewRequested":
+                shadow = {
+                    "actor_id": event["actor_id"],
+                    "reviewer_actor_id": payload["reviewer_capability"][0],
+                    "review_id": payload["new_review_id"],
+                    "subject_sha256": current.get("subject_sha256"),
+                    "file_sha256": current.get("file_sha256"),
+                }
+            elif event_type == "ReviewVerdictRecorded":
+                shadow = {
+                    "actor_id": event["actor_id"],
+                    "verdict": payload["verdict"],
+                    "unchanged_subject_sha256": payload["unchanged_subject_sha256"],
+                    "unchanged_file_sha256": current.get("file_sha256"),
+                    "reconstruction_sha256": payload["context_manifest_sha256"],
+                }
+            elif event_type == "DecisionProposed":
+                shadow = {
+                    "actor_id": event["actor_id"],
+                    "decision_id": payload["new_decision_id"],
+                    "proposed_decision": payload["recommendation"],
+                    "subject_sha256": current.get("subject_sha256"),
+                    "file_sha256": current.get("file_sha256"),
+                }
+            else:
+                shadow = {
+                    "actor_id": event["actor_id"],
+                    "decision_id": payload["decision_id"],
+                    "decision": payload["selected_option"],
+                    "transaction_id": payload["conditions"][0],
+                }
+            state["authority_events"].append(
+                {
+                    "owner_row_id": {
+                        "ReviewRequested": "OR-112" if kind == "dossier_expected_set" else "OR-118",
+                        "ReviewVerdictRecorded": "OR-113" if kind == "dossier_expected_set" else "OR-119",
+                        "DecisionProposed": "OR-114" if kind == "dossier_expected_set" else "OR-120",
+                        "DecisionResolved": "OR-115" if kind == "dossier_expected_set" else "OR-121",
+                    }[event_type],
+                    "authority_kind": kind,
+                    "event_type": event_type,
+                    "payload": shadow,
+                }
+            )
+            state["authorities"] = replay_authority(state["authority_events"])
+            continue
         if event_type == "W11CatalogueGenesisImported":
             if state["catalogue"] is not None:
                 raise IntegrityError("W11 genesis appears more than once")
@@ -350,15 +418,27 @@ class DiscoveryRuntime:
                 prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] in {
             "ProposePromotionDecision",
-            "ResolveDecision",
             "RegisterSpikePlan",
             "ProposeSpikeExecutionDecision",
             "StartSpike",
             "RecordSpikeVerdict",
-        }:
+        } or (
+            envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") in {"OR-013", "OR-016"}
+        ):
             prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] == "AdmitResearchDossier":
             prepared = self._prepare_dossier(command, projection)
+        elif envelope["command_type"] in {
+            "RegisterDossierExpectedSetContent",
+            "RegisterPathRegistrationContent",
+            "ObserveW11AuthorityFile",
+            "RequestW11AuthorityReview",
+            "RecordW11AuthorityReview",
+            "ProposeW11AuthorityDecision",
+        } or (
+            envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") in {"OR-115", "OR-121"}
+        ):
+            prepared = self._prepare_authority(command, projection)
         else:
             raise IntegrityError(f"unsupported Discovery command: {envelope['command_type']}")
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
@@ -370,12 +450,16 @@ class DiscoveryRuntime:
             [
                 {
                     "event_type": prepared_event_type,
-                    "schema_id": {
-                        "ReviewRequested": "ars://core/event/ReviewRequested",
-                        "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
-                        "DecisionProposed": "ars://core/event/DecisionProposed",
-                        "DecisionResolved": "ars://core/event/DecisionResolved",
-                    }.get(prepared_event_type, "ars://core/event"),
+                    "schema_id": (
+                        {
+                            "ReviewRequested": "ars://core/event/ReviewRequested",
+                            "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
+                            "DecisionProposed": "ars://core/event/DecisionProposed",
+                            "DecisionResolved": "ars://core/event/DecisionResolved",
+                        }.get(prepared_event_type, "ars://core/event")
+                        if "authority_event_type" not in prepared_payload
+                        else "ars://core/event"
+                    ),
                     "schema_version": "1.0.0",
                     "stream_id": prepared_stream_id,
                     "command_id": command.command_id,
@@ -406,13 +490,177 @@ class DiscoveryRuntime:
         )
         return self.receipts.write(receipt)
 
+    @staticmethod
+    def _prepare_authority(
+        command: Command,
+        projection: dict[str, Any],
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        payload = command.envelope["payload"]
+        row = payload.get("row_id")
+        routes = {
+            "OR-110": ("dossier_expected_set", "register"),
+            "OR-111": ("dossier_expected_set", "observe"),
+            "OR-112": ("dossier_expected_set", "request_review"),
+            "OR-113": ("dossier_expected_set", "record_review"),
+            "OR-114": ("dossier_expected_set", "propose"),
+            "OR-115": ("dossier_expected_set", "resolve"),
+            "OR-116": ("path_registration", "register"),
+            "OR-117": ("path_registration", "observe"),
+            "OR-118": ("path_registration", "request_review"),
+            "OR-119": ("path_registration", "record_review"),
+            "OR-120": ("path_registration", "propose"),
+            "OR-121": ("path_registration", "resolve"),
+        }
+        if row not in routes:
+            raise IntegrityError("invalid W11 authority row")
+        kind, action = routes[row]
+        if payload.get("authority_kind") != kind:
+            raise IntegrityError("W11 authority kind mismatch")
+        transition_payload = {
+            key: deepcopy(value) for key, value in payload.items() if key not in {"row_id", "authority_kind"}
+        }
+        try:
+            events = prepare_authority_transition(
+                events=projection["authority_events"],
+                kind=kind,
+                action=action,
+                actor_id=command.actor_id,
+                payload=transition_payload,
+            )
+        except ValueError as exc:
+            raise IntegrityError(str(exc)) from exc
+        current = projection["authorities"].get(kind, {})
+
+        def stable_id(prefix: str, suffix: int) -> str:
+            return (
+                f"{prefix}_019fed25-b33e-7740-b280-{(1100 if kind == 'dossier_expected_set' else 1200) + suffix:012d}"
+            )
+
+        def persisted_payload(event: dict[str, object]) -> dict[str, Any]:
+            event_type = str(event["event_type"])
+            shadow = event["payload"]
+            if event_type == "ReviewRequested":
+                return {
+                    "review_type": "provenance",
+                    "new_review_id": stable_id("rev", 0),
+                    "subject_ids": [stable_id("obj", 3)],
+                    "subject_hashes": [current["subject_sha256"]],
+                    "governing_refs": [f"W11:{event['owner_row_id']}"],
+                    "review_questions": [
+                        "Does the exact authority subject and independently observed file identity match?"
+                    ],
+                    "required_evidence_refs": [current["file_sha256"]],
+                    "required_lanes": ["provenance"],
+                    "reviewer_capability": [shadow["reviewer_actor_id"]],
+                    "required_independence_grade": "independent",
+                    "visibility_policy": "owner-visible",
+                    "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+                    "satisfaction_authority": "ars://portfolio/policy/w11-authority-review@1.0.0",
+                    "deadline": "2026-08-12T00:00:00Z",
+                    "escalation_rule": "owner-ruling",
+                }
+            if event_type == "ReviewVerdictRecorded":
+                return {
+                    "review_id": current["review_id"],
+                    "verdict": shadow["verdict"],
+                    "findings": [],
+                    "required_evidence_refs": [current["file_sha256"]],
+                    "limitations": [],
+                    "conditions": [],
+                    "reviewer_actor_id": command.actor_id,
+                    "reviewer_profile": "independent-w11-authority-reviewer",
+                    "reviewer_session": f"session-{kind}",
+                    "reviewer_model_metadata": "independent-runtime-review",
+                    "context_manifest_id": stable_id("ctx", 1),
+                    "context_manifest_sha256": shadow["reconstruction_sha256"],
+                    "unchanged_subject_sha256": shadow["unchanged_subject_sha256"],
+                    "producing_attempt_id": stable_id("att", 2),
+                    "trace_visibility_evidence_refs": [current["file_sha256"]],
+                    "computed_independence_grade": "independent",
+                }
+            if event_type == "DecisionProposed":
+                return {
+                    "new_decision_id": shadow["decision_id"],
+                    "question": f"Accept exact {kind} authority?",
+                    "recommendation": shadow["proposed_decision"],
+                    "options": ["accept", "reject"],
+                    "decision_revision": 1,
+                    "decision_kind": "design_lock",
+                    "governing_evidence_refs": [current["file_sha256"]],
+                    "affected_task_ids": [],
+                    "affected_claim_ids": [],
+                    "required_authority": "owner",
+                    "expires_at": "2026-08-12T00:00:00Z",
+                    "review_date": "2026-08-11T00:00:00Z",
+                    "consequences": [f"the exact {kind} subject becomes admission authority"],
+                }
+            if event_type == "DecisionResolved":
+                return {
+                    "decision_id": shadow["decision_id"],
+                    "selected_option": shadow["decision"],
+                    "effective_scope": f"exact {kind} subject",
+                    "effective_at": "2026-08-11T00:00:00Z",
+                    "decision_revision": 1,
+                    "deciding_actor_id": command.actor_id,
+                    "decision_authority_grant_id": command.envelope["authority_grant_id"],
+                    "governing_evidence_refs": [current["file_sha256"]],
+                    "considered_review_ids": [current["review_id"]],
+                    "permitted_commands": ["AdmitResearchDossier"],
+                    "superseded_decision_ids": [],
+                    "conditions": [shadow["transaction_id"]],
+                    "revisit_triggers": ["authority subject changes"],
+                }
+            return {
+                "owner_row_id": event["owner_row_id"],
+                "authority_kind": event["authority_kind"],
+                "authority_event_type": event["event_type"],
+                "authority_payload": shadow,
+            }
+
+        return [
+            (
+                str(event["event_type"]),
+                command.target_stream_id,
+                persisted_payload(event),
+            )
+            for event in events
+        ]
+
     def _prepare_dossier(
         self,
         command: Command,
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
         expected = self.accepted_expected_set
-        if expected is None or self.registered_roots is None or self.current_expected_set_revision is None:
+        roots = self.registered_roots
+        current_revision = self.current_expected_set_revision
+        accepted_expected = projection["authorities"].get("dossier_expected_set")
+        accepted_paths = projection["authorities"].get("path_registration")
+        if accepted_expected and accepted_expected.get("status") == "accepted":
+            subject = accepted_expected["subject"]
+            expected_value = subject.get("expected_set")
+            if isinstance(expected_value, dict):
+                expected = AcceptedExpectedSet(
+                    **{
+                        **expected_value,
+                        "members": tuple(DossierMember(**member) for member in expected_value["members"]),
+                    }
+                )
+                current_revision = expected.revision
+        if accepted_paths and accepted_paths.get("status") == "accepted":
+            root_values = accepted_paths["subject"].get("registered_roots")
+            if isinstance(root_values, list):
+                roots = {
+                    value["root_id"]: RegisteredRoot(
+                        root_id=value["root_id"],
+                        path=Path(value["path"]),
+                        registration_revision=value["registration_revision"],
+                        registration_hash=value["registration_hash"],
+                        authorized=value.get("authorized", True),
+                    )
+                    for value in root_values
+                }
+        if expected is None or roots is None or current_revision is None:
             raise IntegrityError("accepted dossier authority is not active")
         payload = command.envelope["payload"]
         if (
@@ -430,9 +678,9 @@ class DiscoveryRuntime:
             raise IntegrityError("invalid dossier candidate member") from exc
         prepared = prepare_dossier_admission(
             expected_set=expected,
-            current_expected_set_revision=self.current_expected_set_revision,
+            current_expected_set_revision=current_revision,
             candidate_members=members,
-            registered_roots=self.registered_roots,
+            registered_roots=roots,
             existing_identities=frozenset(
                 {
                     *projection["dossiers"],
@@ -484,6 +732,9 @@ class DiscoveryRuntime:
             and decision.get("status") == "proposed"
             and candidate
             and candidate.get("status") == "promotion_pending"
+            and candidate.get("decision_id") == decision_id
+            and command.target_stream_id == decision_id
+            and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -496,6 +747,8 @@ class DiscoveryRuntime:
             and candidate.get("status") == "spike_planning_authorized"
             and spike is None
             and command.target_stream_id == spike_id
+            and isinstance(p.get("plan_sha256"), str)
+            and len(p["plan_sha256"]) == 64
         ):
             return out(
                 ("SpikePlanned", spike_id),
@@ -520,21 +773,52 @@ class DiscoveryRuntime:
             and decision.get("status") == "proposed"
             and spike
             and spike.get("decision_id") == decision_id
+            and candidate
+            and candidate.get("status") == "spike_approval_pending"
+            and command.target_stream_id == decision_id
+            and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
                 ("SpikeAuthorized", spike_id, deepcopy(p)),
                 ("CandidateSpikeAuthorized", candidate_id, deepcopy(p)),
             ]
-        if ct == "StartSpike" and row == "OR-017" and spike and spike.get("status") == "authorized":
+        if (
+            ct == "StartSpike"
+            and row == "OR-017"
+            and spike
+            and spike.get("status") == "authorized"
+            and candidate
+            and candidate.get("status") == "spike_authorized"
+            and command.target_stream_id == spike_id
+            and isinstance(p.get("attempt_id"), str)
+            and isinstance(p.get("lease_id"), str)
+        ):
             return out(("SpikeStarted", spike_id), ("CandidateSpikeStarted", candidate_id))
-        if ct == "RecordSpikeVerdict" and row == "OR-018" and spike and spike.get("status") == "running":
+        if (
+            ct == "RecordSpikeVerdict"
+            and row == "OR-018"
+            and spike
+            and spike.get("status") == "running"
+            and candidate
+            and candidate.get("status") == "spike_running"
+            and command.target_stream_id == spike_id
+            and p.get("verdict") in {"PASS", "FAIL"}
+            and isinstance(p.get("verdict_sha256"), str)
+            and len(p["verdict_sha256"]) == 64
+        ):
             return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
         if (
             ct == "RequestDiscoveryOutcomeReview"
             and row == "OR-036"
             and spike
             and spike.get("status") == "verdict_recorded"
+            and command.target_stream_id == review_id
+            and projection["reviews"].get(review_id) is None
+            and p.get("subject_sha256") == spike.get("verdict_sha256")
+            and p.get("review_contract", {}).get("new_review_id") == review_id
+            and p.get("review_contract", {}).get("subject_ids") == [spike_id]
+            and p.get("review_contract", {}).get("subject_hashes") == [spike.get("verdict_sha256")]
         ):
             return [
                 ("ReviewRequested", review_id, deepcopy(p["review_contract"])),
@@ -546,6 +830,10 @@ class DiscoveryRuntime:
             and spike
             and spike.get("review_pending")
             and projection["reviews"].get(review_id, {}).get("status") == "pending"
+            and command.target_stream_id == review_id
+            and p.get("subject_sha256") == spike.get("verdict_sha256")
+            and p.get("review_verdict", {}).get("verdict") == "approve"
+            and p.get("review_verdict", {}).get("unchanged_subject_sha256") == spike.get("verdict_sha256")
         ):
             return [
                 ("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"])),

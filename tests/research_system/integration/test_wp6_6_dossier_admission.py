@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from research_system.discovery import DiscoveryRuntime, replay_discovery
+from research_system.discovery.authority import subject_sha256
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierAdmissionRejected,
@@ -249,3 +250,123 @@ def test_real_dossier_admission_runs_through_public_durable_replayable_seam(tmp_
         current_expected_set_revision=3,
     )
     assert restarted.submit(command) == receipt
+
+
+def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, object], offset: int) -> None:
+    actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(5)]
+    stream_id = f"obj_019fed25-b33e-7740-b280-{offset:012d}"
+    decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
+    first_row = 110 if kind == "dossier_expected_set" else 116
+    subject["subject_sha256"] = subject_sha256(subject)
+    steps = (
+        (
+            "RegisterDossierExpectedSetContent"
+            if kind == "dossier_expected_set"
+            else "RegisterPathRegistrationContent",
+            actors[0],
+            {"subject": subject},
+        ),
+        (
+            "ObserveW11AuthorityFile",
+            actors[1],
+            {
+                "subject_sha256": subject["subject_sha256"],
+                "repository_path": f"authority/{kind}.json",
+                "git_commit": "2" * 40,
+                "git_blob": "3" * 40,
+                "file_size": 123,
+                "file_sha256": "4" * 64,
+            },
+        ),
+        ("RequestW11AuthorityReview", actors[2], {"reviewer_actor_id": actors[3]}),
+        (
+            "RecordW11AuthorityReview",
+            actors[3],
+            {
+                "verdict": "approve",
+                "unchanged_subject_sha256": subject["subject_sha256"],
+                "unchanged_file_sha256": "4" * 64,
+                "reconstruction_sha256": "5" * 64,
+            },
+        ),
+        ("ProposeW11AuthorityDecision", actors[2], {"decision_id": decision_id, "proposed_decision": "accept"}),
+        (
+            "ResolveDecision",
+            actors[4],
+            {"decision_id": decision_id, "decision": "accept", "transaction_id": f"txn:{kind}"},
+        ),
+    )
+    for index, (command_type, actor_id, value) in enumerate(steps):
+        command = _command(
+            command_type, stream_id, index, {"row_id": f"OR-{first_row + index}", "authority_kind": kind, **value}
+        )
+        command["actor_id"] = actor_id
+        assert runtime.submit(command).status == "accepted"
+
+
+def test_authority_chains_activate_dossier_admission_without_constructor_inputs(tmp_path: Path) -> None:
+    expected, roots = _subject()
+    schemas = bundled_runtime_schema_registry()
+    runtime = DiscoveryRuntime(
+        tmp_path,
+        EventLedger(tmp_path, PROJECT_ID, schemas),
+        schemas,
+        catalogue_path=CATALOGUE,
+    )
+    runtime.submit(_genesis())
+    _accept_authority(
+        runtime,
+        "dossier_expected_set",
+        {
+            "authority_kind": "dossier_expected_set",
+            "record_id": expected.expected_set_id,
+            "record_revision": expected.revision,
+            "project_id": expected.project_id,
+            "scope_id": expected.dossier_id,
+            "owner_requirement_refs": ["W11:OR-110-115"],
+            "content_sha256": expected.content_hash,
+            "expected_set": json.loads(json.dumps(asdict(expected))),
+        },
+        710,
+    )
+    _accept_authority(
+        runtime,
+        "path_registration",
+        {
+            "authority_kind": "path_registration",
+            "record_id": "path-registration:tda-scale",
+            "record_revision": 1,
+            "project_id": expected.project_id,
+            "scope_id": expected.dossier_id,
+            "owner_requirement_refs": ["W11:OR-116-121"],
+            "content_sha256": "8" * 64,
+            "collision_status": "no_collision",
+            "registered_roots": [
+                {
+                    **asdict(root),
+                    "path": str(root.path),
+                }
+                for root in roots.values()
+            ],
+        },
+        720,
+    )
+    command = _command(
+        "AdmitResearchDossier",
+        expected.dossier_id,
+        0,
+        {
+            "row_id": "OR-028",
+            "dossier_id": expected.dossier_id,
+            "expected_set_id": expected.expected_set_id,
+            "candidate_members": [asdict(member) for member in expected.members],
+        },
+    )
+
+    receipt = runtime.submit(command)
+    replayed = replay_discovery(runtime.ledger.iter_events())
+
+    assert receipt.status == "accepted"
+    assert replayed["authorities"]["dossier_expected_set"]["status"] == "accepted"
+    assert replayed["authorities"]["path_registration"]["status"] == "accepted"
+    assert replayed["dossiers"][expected.dossier_id]["member_count"] == 21

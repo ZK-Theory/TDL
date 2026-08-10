@@ -126,10 +126,22 @@ _RUNTIME_BINDINGS = (
         producer_command_type="RequestDiscoveryOutcomeReview",
     ),
     SchemaBinding(
+        "ars://core/event/ReviewRequested",
+        "1.0.0",
+        event_type="ReviewRequested",
+        producer_command_type="RequestW11AuthorityReview",
+    ),
+    SchemaBinding(
         "ars://core/event/ReviewVerdictRecorded",
         "1.0.0",
         event_type="ReviewVerdictRecorded",
         producer_command_type="ReviewDiscoveryOutcome",
+    ),
+    SchemaBinding(
+        "ars://core/event/ReviewVerdictRecorded",
+        "1.0.0",
+        event_type="ReviewVerdictRecorded",
+        producer_command_type="RecordW11AuthorityReview",
     ),
     SchemaBinding(
         "ars://core/command/CreateScopeDefinition",
@@ -275,6 +287,12 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="DecisionProposed",
         producer_command_type="ProposeSpikeExecutionDecision",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeW11AuthorityDecision",
     ),
     SchemaBinding(
         "ars://core/command/RequestDecisionReview",
