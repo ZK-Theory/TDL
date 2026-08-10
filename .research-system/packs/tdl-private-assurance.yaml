@@ -11,8 +11,8 @@ upstream_contract_reference:
   schema_id: ars://contracts/wp6-3-tdl-private-assurance-pack
   schema_version: 1.0.0
   repository_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
-  git_blob: 7298b994ca80fb43364ec53964b735f1c7e3929a
-  canonical_sha256: 03cd115c8e914b015a57be2092e41044802ff0c0d018ffb25e04a09c38eda985
+  git_blob: 45235331db948ba2fcf92baeb76e92418059b14c
+  canonical_sha256: d2ec974181a2db7cd9bd27089ee4c8d18458468d08744142728b957ccad8dac8
 schema_reference:
   schema_id: ars://assurance/packs/tdl-private/1.0
   schema_version: 1.0.0
@@ -21,9 +21,9 @@ schema_reference:
   canonical_sha256: 1cac93d2ba0a8bb594b8bee9770039ed02798dfa9878019a23bd22ba56af38f6
 assurance_requirement_reference:
   assurance_requirement_id: asr_019fa9de-c8a4-7ded-a0e8-41407ec0df34
-  revision: 1
-  acceptance_record_id: ard_db59f11f-0cee-78f8-9dab-ba278b7126e0
-  acceptance_record_sha256: b77e8c04088efa26621d08673a136b89a87d2f938336a72b1933ce2a0fbb99de
+  revision: 2
+  acceptance_record_id: ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141
+  acceptance_record_sha256: 2eb97a540a0d39446f22000e1f8c778f0dd014471d73648d826a4dcc100c0548
   prospective_producer_actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
 source_authority:
   accepted_plan_revision: fe5f1d40bc8f05f061317c677b5891cea0711249

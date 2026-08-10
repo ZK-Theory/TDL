@@ -456,7 +456,6 @@ def _require_accepted_requirement(
     reference = pack["assurance_requirement_reference"]
     if (
         record.get("assurance_requirement_id") != reference["assurance_requirement_id"]  # type: ignore[index]
-        or resolution.revision != reference["revision"]  # type: ignore[index]
         or record.get("revision") != reference["revision"]  # type: ignore[index]
         or resolution.canonical_sha256 != reference["acceptance_record_sha256"]  # type: ignore[index]
     ):

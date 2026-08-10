@@ -24,8 +24,8 @@ allocated_by: w1_authority
 allocated_at: '2026-07-28'
 authorizing_decision_path: docs/plans/agentic-research-system/handoffs/28-wp6-3-pack-unblock-decisions.md
 authorizing_contract_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
-authorizing_contract_git_blob: 7298b994ca80fb43364ec53964b735f1c7e3929a
-authorizing_contract_canonical_sha256: 03cd115c8e914b015a57be2092e41044802ff0c0d018ffb25e04a09c38eda985
+authorizing_contract_git_blob: 45235331db948ba2fcf92baeb76e92418059b14c
+authorizing_contract_canonical_sha256: d2ec974181a2db7cd9bd27089ee4c8d18458468d08744142728b957ccad8dac8
 
 actor_allocations:
   # One identity for one role. The eleven `required_distinct_pairs` constrain
@@ -62,6 +62,14 @@ assurance_requirement_allocations:
     # owner accepts, and `acceptance_state` gates that.
     acceptance_record_sha256: null
     acceptance_state: pending_owner_acceptance
+  - id_kind: assurance_requirement
+    assurance_requirement_id: asr_019fa9de-c8a4-7ded-a0e8-41407ec0df34
+    revision: 2
+    prospective_producer_actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
+    acceptance_record_id: ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141
+    acceptance_record_path: external-control://accepted_assurance_requirement/ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141/1
+    acceptance_record_sha256: 2eb97a540a0d39446f22000e1f8c778f0dd014471d73648d826a4dcc100c0548
+    acceptance_state: active
 
 # Identities the external record schemas require that are NOT yet allocated.
 #
