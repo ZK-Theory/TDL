@@ -579,10 +579,17 @@ def _accepted_git_artifact(reader: _GitObjectReader, subject: Mapping[str, objec
 
 def _pack_subject_dict(subject: PackAcceptanceSubject) -> dict[str, object]:
     return {
-        "pack_git_blob": subject.pack_git_blob,
-        "pack_raw_sha256": subject.pack_raw_sha256,
+        "pack_id": subject.pack_id,
         "assurance_pack_id": subject.assurance_pack_id,
         "assurance_pack_revision": subject.assurance_pack_revision,
+        "canonical_repository_path": subject.canonical_repository_path,
+        "pack_git_blob": subject.pack_git_blob,
+        "pack_raw_sha256": subject.pack_raw_sha256,
+        "schema_id": subject.schema_id,
+        "schema_version": subject.schema_version,
+        "schema_repository_path": subject.schema_repository_path,
+        "schema_git_blob": subject.schema_git_blob,
+        "schema_canonical_sha256": subject.schema_canonical_sha256,
     }
 
 
@@ -934,14 +941,22 @@ def _validate_relationship_facts(
     )
 
 
-def _check_pack_review_fact_provenance(facts: _FactsResolution, provenance: Mapping[str, object]) -> None:
+def _check_pack_review_fact_provenance(
+    facts: _FactsResolution,
+    requirement_facts: _FactsResolution,
+    provenance: Mapping[str, object],
+) -> None:
     record = facts.record
     producer = _mapping(record.get("producer"), "pack-review relationship-evidence-facts producer")
     reviewer = _mapping(record.get("reviewer"), "pack-review relationship-evidence-facts reviewer")
+    requirement_producer = _mapping(
+        requirement_facts.record.get("producer"),
+        "requirement-scope relationship-evidence-facts producer",
+    )
     if (
         producer.get("task_id") != provenance.get("producer_task_id")
         or producer.get("operator_session_id") != provenance.get("producer_session_id")
-        or producer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
+        or producer.get("stable_handoff_or_run_id") != requirement_producer.get("stable_handoff_or_run_id")
         or reviewer.get("task_id") != provenance.get("review_task_id")
         or reviewer.get("operator_session_id") != provenance.get("review_session_id")
         or reviewer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
@@ -957,7 +972,14 @@ def _validate_pack_review_fact_operator_provenance(
     facts = fact_records.get("relationship_evidence_facts:pack_review")
     if facts is None:
         raise PackUnconsumable("pack-review relationship facts are required")
-    _check_pack_review_fact_provenance(facts, _mapping(review.get("operator_provenance"), "pack review"))
+    requirement_facts = fact_records.get("relationship_evidence_facts:requirement_scope")
+    if requirement_facts is None:
+        raise PackUnconsumable("requirement-scope relationship facts are required")
+    _check_pack_review_fact_provenance(
+        facts,
+        requirement_facts,
+        _mapping(review.get("operator_provenance"), "pack review"),
+    )
 
 
 def _check_fact(

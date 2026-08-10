@@ -286,7 +286,7 @@
           "maxItems": 3
         },
         "review_provenance_partial_application": {"const": "prohibited"},
-        "handoff_binding": {"const": "single_stable_handoff_id_shared_by_every_review_provenance_record"},
+        "handoff_binding": {"const": "reviewer_handoff_bound_per_review_and_producer_handoff_bound_across_relationship_facts"},
         "operator_model": {
           "type": "object",
           "required": ["provider_neutral", "governing_authority", "session_family_selection", "allowed_agent_operator_types", "allowed_session_families", "review_operator_must_be_agent_operator_type", "human_owner_may_act_as_review_operator", "provider_specific_constraint_requires_contract_rationale"],
