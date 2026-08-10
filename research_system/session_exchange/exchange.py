@@ -18,6 +18,12 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, SchemaError
 from research_system.evidence.consumers import ArtefactConsumerContext, ArtefactEvidenceConsumers
 from research_system.ids import validate_id
+from research_system.methods.registration import (
+    CandidateDocumentStore,
+    CandidateRegistration,
+    CommandSubmitter,
+    register_candidate_document,
+)
 from research_system.session_exchange.authority import (
     INDEPENDENT_SESSION_REVIEW,
     OWNER_SESSION_ACCEPTANCE_DECISION,
@@ -104,6 +110,9 @@ def _validate_document(document: dict[str, Any], schema_name: str) -> None:
 def prepare_session_brief(
     control_root: Path,
     *,
+    registration: CandidateRegistration,
+    document_store: CandidateDocumentStore,
+    command_service: CommandSubmitter,
     brief_artifact_id: str,
     handoff_id: str,
     session_id: str,
@@ -162,9 +171,25 @@ def prepare_session_brief(
         "prepared_at": prepared_at,
     }
     _validate_document(document, "owner-operated-session-brief.schema.json")
-    path = ObjectStore(control_root).write("artefact", brief_artifact_id, 1, document)
-    raw = path.read_bytes()
-    return PublishedSessionDocument(path=path, raw_sha256=sha256_hex(raw), document=document)
+    if registration.artefact_id != brief_artifact_id:
+        raise SchemaError("session brief registration names a different artefact")
+    try:
+        registered = register_candidate_document(
+            value=document,
+            registration=registration,
+            document_store=document_store,
+            command_service=command_service,
+        )
+    except ArsError:
+        raise
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise SchemaError("session brief registration is invalid") from exc
+    path = Path(control_root).resolve(strict=True) / registered.relative_path
+    return PublishedSessionDocument(
+        path=path,
+        raw_sha256=registered.content_sha256,
+        document=document,
+    )
 
 
 def _artifact_evidence(source: EvidenceArtifact) -> dict[str, Any]:

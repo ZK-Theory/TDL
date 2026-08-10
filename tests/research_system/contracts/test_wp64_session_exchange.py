@@ -14,6 +14,7 @@ from jsonschema.exceptions import ValidationError
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, SchemaError
 from research_system.evidence.consumers import ArtefactConsumerContext
+from research_system.methods.registration import CandidateDocumentStore, CandidateRegistration
 from research_system.session_exchange import (
     EvidenceArtifact,
     SessionRecordLocator,
@@ -56,7 +57,26 @@ _EVIDENCE_CORE_FIELDS = (
 
 
 def _prepare_fixture(control_root: Path, **overrides):
+    class AcceptedCommandService:
+        def submit(self, _command):
+            return SimpleNamespace(status="accepted")
+
     values = {
+        "registration": CandidateRegistration(
+            artefact_id=BRIEF_ARTIFACT_ID,
+            project_id="prj_01978abc-6400-7000-8000-000000000009",
+            actor_id="act_01978abc-6400-7000-8000-000000000010",
+            authority_grant_id="agr_01978abc-6400-7000-8000-000000000011",
+            submitted_at="2026-08-04T09:00:00Z",
+            correlation_id="wp64-session-fixture",
+            reason="register exact owner-operated session brief",
+            manifest={
+                "artefact_id": BRIEF_ARTIFACT_ID,
+                "authority": {"use_authority": "candidate"},
+            },
+        ),
+        "document_store": CandidateDocumentStore(control_root),
+        "command_service": AcceptedCommandService(),
         "brief_artifact_id": BRIEF_ARTIFACT_ID,
         "handoff_id": HANDOFF_ID,
         "session_id": SESSION_ID,
@@ -77,8 +97,7 @@ def _prepare_fixture(control_root: Path, **overrides):
 
 
 def _evidence_kwargs(control_root: Path) -> dict[str, object]:
-    brief = ObjectStore(control_root).read("artefact", BRIEF_ARTIFACT_ID, 1)
-    brief_bytes = canonical_bytes(brief)
+    brief_bytes = (control_root / "methods" / "documents" / f"{BRIEF_ARTIFACT_ID}.json").read_bytes()
 
     class BriefConsumers:
         def resolve_for_review(self, context, *, consumer_id):
@@ -293,7 +312,7 @@ def test_identical_retry_converges_and_changed_inputs_conflict_without_mutation(
     brief = _prepare_fixture(tmp_path)
     brief_bytes = brief.path.read_bytes()
     assert _prepare_fixture(tmp_path).path == brief.path
-    with pytest.raises(ConflictError, match="object revision already exists"):
+    with pytest.raises(ConflictError, match="methods document identity already binds different bytes"):
         _prepare_fixture(tmp_path, brief_bytes=b"changed brief bytes\n")
     assert brief.path.read_bytes() == brief_bytes
 
