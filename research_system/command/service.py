@@ -219,7 +219,7 @@ _C1_COMMAND_TYPES = (
     | _C1_ATTEMPT_COMMAND_TYPES
     | _C1_RESOURCE_COMMAND_TYPES
 )
-_BACKUP_COMMAND_TYPES = frozenset({"CreateBackup"})
+_BACKUP_COMMAND_TYPES = frozenset({"CreateBackup", "VerifyRestore"})
 _ARTEFACT_AUTHORITY_COMMAND_TYPES = frozenset(
     {
         "RegisterArtefact",
@@ -322,6 +322,7 @@ _COMMAND_EVENT_TYPES = {
     "RecordHeartbeat": "HeartbeatRecorded",
     "ReleaseResources": "ResourcesReleased",
     "CreateBackup": "BackupCreated",
+    "VerifyRestore": "RestoreVerified",
     "RegisterArtefact": "ArtefactRegistered",
     "RecordArtefactAvailability": "ArtefactAvailabilityRecorded",
     "RecordArtefactRegenerability": "ArtefactRegenerabilityRecorded",
@@ -650,6 +651,7 @@ class CommandService:
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
         message_adapter_registry: Iterable[MessageAdapterRegistration] | None = None,
         backup_materializer: BackupMaterializer | None = None,
+        restore_verification_provider: Callable[[Command, LedgerSnapshot], dict[str, Any]] | None = None,
         governing_evidence_resolver: Any | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
@@ -677,6 +679,9 @@ class CommandService:
         if backup_materializer is not None and not isinstance(backup_materializer, BackupMaterializer):
             raise TypeError("backup_materializer must be BackupMaterializer")
         self.backup_materializer = backup_materializer
+        if restore_verification_provider is not None and not callable(restore_verification_provider):
+            raise TypeError("restore_verification_provider must be callable")
+        self.restore_verification_provider = restore_verification_provider
         self.governing_evidence_resolver = governing_evidence_resolver
         if message_adapter_registry is None:
             self._message_adapter_registry: tuple[MessageAdapterRegistration, ...] = ()
@@ -4246,6 +4251,14 @@ class CommandService:
         observed_version: int,
     ) -> dict[str, Any] | Receipt:
         """Validate and stage one exact backup without publishing it pre-event."""
+        if command.envelope["command_type"] == "VerifyRestore":
+            provider = self.restore_verification_provider
+            if provider is None:
+                raise ArsError("VerifyRestore requires the governed restore verification provider")
+            prepared = provider(command, snapshot)
+            if prepared != command.envelope["payload"]:
+                raise IntegrityError("restore verification differs from the exact command payload")
+            return deepcopy(prepared)
         payload = command.envelope["payload"]
         if (
             command.envelope.get("project_id") != self.ledger.project_id
@@ -6819,7 +6832,7 @@ class CommandService:
                 payload["subject_kind"] = "task"
         elif command_type in _BACKUP_COMMAND_TYPES:
             if prepared_payload is None or prepared_payload != command.envelope["payload"]:
-                raise IntegrityError("CreateBackup requires its exact prepared payload")
+                raise IntegrityError(f"{command_type} requires its exact prepared payload")
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)
         elif command_type in _ARTEFACT_AUTHORITY_COMMAND_TYPES:

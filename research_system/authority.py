@@ -245,6 +245,7 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "RequestResourceGrant": "resource",
     "ReleaseResources": "resource",
     "CreateBackup": "project_store",
+    "VerifyRestore": "project_store",
     "RegisterArtefact": "artefact",
     "RecordArtefactAvailability": "artefact",
     "RecordArtefactRegenerability": "artefact",

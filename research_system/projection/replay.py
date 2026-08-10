@@ -19,6 +19,7 @@ from research_system.command.reducers import (
     reduce_attempt,
     reduce_artefact,
     reduce_backup,
+    reduce_restore_verification,
     reduce_blocker,
     reduce_checkpoint,
     reduce_dispatch,
@@ -792,6 +793,11 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     elif event_type == "BackupCreated":
         try:
             streams[stream_id] = reduce_backup(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
+    elif event_type == "RestoreVerified":
+        try:
+            streams[stream_id] = reduce_restore_verification(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
     elif event_type in {

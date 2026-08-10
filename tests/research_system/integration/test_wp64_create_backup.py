@@ -10,11 +10,13 @@ from typing import Any
 import pytest
 
 import research_system.cli as cli
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import runtime_schema_registry
+from research_system.projection.replay import replay
 from research_system.store.identity import load_store_manifest
 from research_system.store.ledger import EventLedger
 from tests.research_system.integration.test_scoped_authority_grant_activation import (
@@ -33,6 +35,8 @@ BACKUP_RECEIPT_ID = "bkr_01978abc-7703-7000-8000-000000007703"
 ARTEFACT_ID = "art_01978abc-7704-7000-8000-000000007704"
 DUPLICATE_COMMAND_ID = "cmd_01978abc-7705-7000-8000-000000007705"
 DUPLICATE_RECEIPT_ID = "bkr_01978abc-7706-7000-8000-000000007706"
+VERIFY_COMMAND_ID = "cmd_01978abc-7707-7000-8000-000000007707"
+RECOVERY_EVIDENCE_ID = "rcv_01978abc-7708-7000-8000-000000007708"
 
 
 def _backup_request_for_cli_validation() -> dict[str, Any]:
@@ -113,6 +117,9 @@ def _activate_backup_grant(tmp_path: Path) -> tuple[ControlBinding, EventLedger]
     command_binding = schemas.command_binding("CreateBackup")
     assert command_binding is not None
     command_identity = schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
+    verify_binding = schemas.command_binding("VerifyRestore")
+    assert verify_binding is not None
+    verify_identity = schemas.resolve_identity(verify_binding.schema_id, verify_binding.schema_version)
     grant = {
         "schema_id": "ars://core/scoped-authority-grant",
         "schema_version": "2.1.0",
@@ -125,7 +132,13 @@ def _activate_backup_grant(tmp_path: Path) -> tuple[ControlBinding, EventLedger]
                 "schema_id": command_identity.schema_id,
                 "schema_version": command_identity.schema_version,
                 "schema_sha256": command_identity.sha256,
-            }
+            },
+            {
+                "command_type": "VerifyRestore",
+                "schema_id": verify_identity.schema_id,
+                "schema_version": verify_identity.schema_version,
+                "schema_sha256": verify_identity.sha256,
+            },
         ],
         "allowed_policy_actions": [],
         "subject_scope": {
@@ -195,6 +208,240 @@ def _registry(
         backup_roots=(destination,),
         restore_roots=(),
     )
+
+
+@pytest.mark.integration
+def test_store_verify_restore_appends_evidence_without_cutover_and_replays(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    binding, ledger = _activate_backup_grant(tmp_path)
+    destination = tmp_path / "backup"
+    artefact_path = tmp_path / "external-evidence.bin"
+    artefact_path.write_bytes(b"owner-approved external evidence\n")
+    registry = _registry(tmp_path, binding, destination)
+    request = {
+        "command_id": BACKUP_COMMAND_ID,
+        "receipt_id": BACKUP_RECEIPT_ID,
+        "receipt_revision": 1,
+        "submitted_at": "2026-08-10T18:30:00Z",
+        "actor_id": ACTOR_ID,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": GRANT_ID,
+        "idempotency_key": "wp61-r1:create-backup",
+        "correlation_id": "wp61-r1",
+        "causation_id": None,
+        "reason": "create the governed R1 backup",
+        "evidence_refs": ["evidence:external-availability"],
+        "snapshot_id": "snapshot-wp61-r1",
+        "schema_versions": ["ars-core@1.0.0"],
+        "tool_versions": ["tdl@1.0.0"],
+        "encryption_class": "test-owner-approved",
+        "redaction_class": "test-owner-approved",
+        "destination_class": "test-local-control-copy",
+        "verified_at": "2026-08-10T18:30:00Z",
+        "verified_by_actor_id": ACTOR_ID,
+        "verification_authority_grant_id": GRANT_ID,
+        "external_artefacts": [
+            {
+                "artefact_id": ARTEFACT_ID,
+                "source_path": str(artefact_path.resolve()),
+                "content_sha256": sha256_hex(artefact_path.read_bytes()),
+                "availability": "available",
+                "availability_evidence_refs": ["evidence:external-availability"],
+                "observed_at": "2026-08-10T18:30:00Z",
+            }
+        ],
+    }
+    request_path = tmp_path / "backup-request.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    monkeypatch.setattr(cli, "load_evidence_store_registry", lambda _path, _schemas: registry)
+    assert (
+        cli.main(
+            [
+                "store",
+                "backup",
+                "--config",
+                str(tmp_path / "binding.json"),
+                "--request",
+                str(request_path),
+                "--registry",
+                str(tmp_path / "registry.yaml"),
+                "--destination-root",
+                str(destination.resolve()),
+            ]
+        )
+        == 0
+    )
+    backup_output = json.loads(capsys.readouterr().out)
+    backup_receipt = backup_output["backup_receipt"]
+    restore_registry = EvidenceStoreRegistry(
+        store_id="evidence-store:restore-test",
+        registry_hash=backup_receipt["evidence_registry_hash"],
+        policy_revision="test-v1",
+        primary_root=destination / "evidence-primary",
+        runtime_root=destination / "evidence-runtime",
+        staging_root=destination / "evidence-staging",
+        temp_root=destination / "evidence-temp",
+        replicas=(),
+        permitted_consumers=("restore-verifier",),
+        retention_policy_ids=("test-retention",),
+        verifier_authority_bindings=((ACTOR_ID, GRANT_ID),),
+        unregistered_replicas_prohibited=True,
+        backup_roots=(binding.control_root,),
+        restore_roots=(destination,),
+    )
+    monkeypatch.setattr(cli, "load_evidence_store_registry", lambda _path, _schemas: restore_registry)
+    endpoint_path = destination / "manifests" / "endpoint-ownership.json"
+    endpoint_path.write_bytes(
+        canonical_bytes(
+            {
+                "target_root": str(destination.resolve(strict=False)),
+                "endpoint_scheme": backup_receipt["source_endpoint_scheme"],
+                "owner_actor_id": ACTOR_ID,
+                "authority_grant_id": GRANT_ID,
+                "observed_at": "2026-08-10T18:30:00Z",
+            }
+        )
+    )
+    target_ledger = EventLedger(destination, PROJECT_ID, runtime_schema_registry(binding.schema_root)).snapshot()
+    supported_schema_ids = sorted({event["schema_id"] for event in target_ledger.events})
+    from research_system.operations.backups import verify_restore_before_writer_lease
+
+    preflight = verify_restore_before_writer_lease(
+        target_root=destination,
+        receipt=cli._backup_receipt_from_json(backup_receipt),
+        snapshot_path=Path(backup_output["snapshot_path"]),
+        endpoint_ownership_path=endpoint_path,
+        artefact_manifest_path=destination / "manifests" / "external-artefacts.json",
+        registry=restore_registry,
+        actor_id=ACTOR_ID,
+        authority_grant_id=GRANT_ID,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    assert preflight.failed_predicates == ()
+    assert preflight.status == "verified"
+    command = {
+        "command_id": VERIFY_COMMAND_ID,
+        "command_type": "VerifyRestore",
+        "schema_id": "ars://core/command/VerifyRestore",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-10T18:31:00Z",
+        "actor_id": ACTOR_ID,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": GRANT_ID,
+        "target_stream_id": PROJECT_ID,
+        "expected_stream_version": ledger.snapshot().stream_versions[PROJECT_ID],
+        "idempotency_key": "wp61-r1:verify-restore",
+        "correlation_id": "wp61-r1",
+        "causation_id": BACKUP_COMMAND_ID,
+        "reason": "record evidence-only restore verification",
+        "evidence_refs": [preflight.result_hash],
+        "payload": {
+            "project_id": PROJECT_ID,
+            "backup_receipt_id": BACKUP_RECEIPT_ID,
+            "store_identity": binding.store_identity,
+            "canonical_tail_position": preflight.tail_position,
+            "canonical_tail_sha256": preflight.tail_hash,
+            "hash_chain_verified": True,
+            "snapshot_replay_verified": True,
+            "endpoint_ownership_verified": True,
+            "supported_schema_ids": supported_schema_ids,
+            "external_artefacts": [
+                {
+                    "artefact_id": ARTEFACT_ID,
+                    "content_sha256": sha256_hex(artefact_path.read_bytes()),
+                    "availability": "available",
+                    "availability_evidence_refs": [preflight.result_hash],
+                }
+            ],
+            "verified_at": backup_receipt["verified_at"],
+            "recovery_evidence_id": RECOVERY_EVIDENCE_ID,
+        },
+        "project_id": PROJECT_ID,
+    }
+    command_path = tmp_path / "verify-restore-command.json"
+    command_path.write_text(json.dumps(command), encoding="utf-8")
+    target_before = {
+        str(path.relative_to(destination)): path.read_bytes() for path in destination.rglob("*") if path.is_file()
+    }
+    assert (
+        cli.main(
+            [
+                "store",
+                "verify-restore",
+                "--config",
+                str(tmp_path / "binding.json"),
+                "--command",
+                str(command_path),
+                "--target-root",
+                str(destination),
+                "--receipt",
+                str(destination / "manifests" / "backup-receipt.json"),
+                "--snapshot",
+                backup_output["snapshot_path"],
+                "--endpoint-ownership",
+                str(endpoint_path),
+                "--artefact-manifest",
+                str(destination / "manifests" / "external-artefacts.json"),
+                "--registry",
+                str(tmp_path / "registry.yaml"),
+            ]
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "accepted"
+    assert output["verification_only"] is True
+    assert output["cutover_authorized"] is False
+    after = ledger.snapshot()
+    event = [item for item in after.events if item.get("command_id") == VERIFY_COMMAND_ID]
+    assert len(event) == 1 and event[0]["event_type"] == "RestoreVerified"
+    replay_schemas = runtime_schema_registry(binding.schema_root)
+    replay_resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        replay_schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    replayed = replay(
+        after.events,
+        schema_registry=replay_schemas,
+        authority_state_validator=replay_resolver.validate_replayed_administration_state,
+    )
+    assert replayed["streams"][PROJECT_ID]["restore_verifications"][RECOVERY_EVIDENCE_ID]["cutover_authorized"] is False
+    assert target_before == {
+        str(path.relative_to(destination)): path.read_bytes() for path in destination.rglob("*") if path.is_file()
+    }
+    assert not list(destination.rglob("*.lock"))
+
+    bypass = {
+        **command,
+        "command_id": "cmd_01978abc-7709-7000-8000-000000007709",
+        "idempotency_key": "wp61-r1:verify-restore-bypass",
+        "expected_stream_version": after.stream_versions[PROJECT_ID],
+    }
+    bypass_path = tmp_path / "generic-verify-restore-command.json"
+    bypass_path.write_text(json.dumps(bypass), encoding="utf-8")
+    source_before = ledger.snapshot()
+    receipts_before = {
+        str(path.relative_to(binding.control_root)): path.read_bytes()
+        for path in (binding.control_root / "receipts").rglob("*")
+        if path.is_file()
+    }
+    with pytest.raises(ArsError, match="governed restore verification provider"):
+        cli.main(["command", "submit", "--config", str(tmp_path / "binding.json"), "--command", str(bypass_path)])
+    assert ledger.snapshot() == source_before
+    assert receipts_before == {
+        str(path.relative_to(binding.control_root)): path.read_bytes()
+        for path in (binding.control_root / "receipts").rglob("*")
+        if path.is_file()
+    }
 
 
 @pytest.mark.integration

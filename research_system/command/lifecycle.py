@@ -167,6 +167,11 @@ EXACT_LIFECYCLE_BINDINGS = {
         "CreateBackup",
         "ars://core/command/CreateBackup",
     ),
+    "ars://core/event/RestoreVerified": (
+        "RestoreVerified",
+        "VerifyRestore",
+        "ars://core/command/VerifyRestore",
+    ),
 }
 
 _C2_EXACT_LIFECYCLE_BINDINGS = {

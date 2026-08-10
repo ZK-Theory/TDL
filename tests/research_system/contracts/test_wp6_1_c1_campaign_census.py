@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from research_system.schema_registry import runtime_schema_registry
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE_PATH = REPO_ROOT / ".research-system" / "contracts" / "wp6-1-owner-source-catalogue.yaml"
 
@@ -146,3 +148,13 @@ def test_wp6_1_c1_campaign_census_matches_normative_plan_allocation() -> None:
     assert campaign_rows <= all_rows
     assert active_rows.isdisjoint(campaign_rows)
     assert len(active_rows | campaign_rows) == 104
+
+
+def test_wp6_1_current_runtime_census_is_104_active_zero_remaining() -> None:
+    rows = yaml.safe_load(CATALOGUE_PATH.read_text(encoding="utf-8"))["rows"]
+    registry = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    active = [row["key"] for row in rows if registry.command_binding(row["command_type"]) is not None]
+    remaining = [row["key"] for row in rows if registry.command_binding(row["command_type"]) is None]
+
+    assert len(active) == 104
+    assert remaining == []

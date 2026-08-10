@@ -543,6 +543,93 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
     return 0
 
 
+def _store_verify_restore(args: argparse.Namespace) -> int:
+    """Verify a moved restore and append evidence without binding or cutover."""
+    binding = ControlBinding.load(args.config)
+    command = _read_json(args.command)
+    receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
+    schemas = runtime_schema_registry(binding.schema_root)
+    registry = load_evidence_store_registry(args.registry, schemas)
+    target_root = args.target_root.resolve(strict=True)
+
+    def verification_provider(_command: Any, _source_snapshot: Any) -> dict[str, Any]:
+        result = verify_restore_before_writer_lease(
+            target_root=target_root,
+            receipt=receipt,
+            snapshot_path=args.snapshot,
+            endpoint_ownership_path=args.endpoint_ownership,
+            artefact_manifest_path=args.artefact_manifest,
+            registry=registry,
+            actor_id=command["actor_id"],
+            authority_grant_id=command["authority_grant_id"],
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
+        if result.status != "verified":
+            raise IntegrityError(f"restore verification failed: {', '.join(result.failed_predicates)}")
+        target_snapshot = EventLedger(target_root, binding.project_id, schemas).snapshot()
+        supported_schema_ids = sorted({str(event["schema_id"]) for event in target_snapshot.events})
+        payload = command["payload"]
+        if payload.get("verified_at") != receipt.verified_at:
+            raise IntegrityError("restore verification time differs from the backup receipt")
+        artefacts = payload.get("external_artefacts")
+        if not isinstance(artefacts, list) or len(artefacts) != len(receipt.artefact_bindings):
+            raise IntegrityError("restore verification artefact evidence differs from the backup receipt")
+        by_id = {item.get("artefact_id"): item for item in artefacts if isinstance(item, dict)}
+        for artefact in receipt.artefact_bindings:
+            item = by_id.get(artefact.artefact_id)
+            if (
+                item is None
+                or item.get("content_sha256") != artefact.artefact_hash
+                or item.get("availability") != "available"
+                or result.result_hash not in item.get("availability_evidence_refs", ())
+            ):
+                raise IntegrityError("restore verification artefact evidence is not bound to the verified result")
+        expected = {
+            **payload,
+            "project_id": result.project_id,
+            "backup_receipt_id": receipt.receipt_id,
+            "store_identity": result.store_identity,
+            "canonical_tail_position": result.tail_position,
+            "canonical_tail_sha256": result.tail_hash,
+            "hash_chain_verified": True,
+            "snapshot_replay_verified": True,
+            "endpoint_ownership_verified": True,
+            "supported_schema_ids": supported_schema_ids,
+        }
+        if expected != payload:
+            raise IntegrityError("restore verification payload differs from the governed preflight")
+        return expected
+
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    receipt_record = CommandService(
+        binding.control_root,
+        ledger,
+        ObjectStore(binding.control_root),
+        ReceiptStore(binding.control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        ),
+        clock=_authority_clock,
+        restore_verification_provider=verification_provider,
+    ).submit(command)
+    _print_json(
+        {
+            "status": receipt_record.status,
+            "command_receipt": asdict(receipt_record),
+            "verification_only": True,
+            "cutover_authorized": False,
+        }
+    )
+    return 0
+
+
 def _store_activate_schema_binding(args: argparse.Namespace) -> int:
     try:
         value = json.loads(args.activation.read_bytes())
@@ -1680,6 +1767,17 @@ def _parser() -> argparse.ArgumentParser:
     restore_bind.add_argument("--schema-root", type=Path, required=True)
     restore_bind.add_argument("--config-output", type=Path, required=True)
     restore_bind.set_defaults(handler=_store_restore_bind)
+
+    verify_restore = store_commands.add_parser("verify-restore")
+    verify_restore.add_argument("--config", type=Path, required=True)
+    verify_restore.add_argument("--command", type=Path, required=True)
+    verify_restore.add_argument("--target-root", type=Path, required=True)
+    verify_restore.add_argument("--receipt", type=Path, required=True)
+    verify_restore.add_argument("--snapshot", type=Path, required=True)
+    verify_restore.add_argument("--endpoint-ownership", type=Path, required=True)
+    verify_restore.add_argument("--artefact-manifest", type=Path, required=True)
+    verify_restore.add_argument("--registry", type=Path, required=True)
+    verify_restore.set_defaults(handler=_store_verify_restore)
 
     activate_schema = store_commands.add_parser("activate-schema-binding")
     activate_schema.add_argument("--control-root", type=Path, required=True)

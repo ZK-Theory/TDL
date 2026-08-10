@@ -933,6 +933,17 @@ _RUNTIME_BINDINGS = (
         producer_command_type="CreateBackup",
     ),
     SchemaBinding(
+        "ars://core/command/VerifyRestore",
+        "1.0.0",
+        command_type="VerifyRestore",
+    ),
+    SchemaBinding(
+        "ars://core/event/RestoreVerified",
+        "1.0.0",
+        event_type="RestoreVerified",
+        producer_command_type="VerifyRestore",
+    ),
+    SchemaBinding(
         "ars://core/command/RegisterArtefact",
         "1.0.0",
         command_type="RegisterArtefact",

@@ -1589,6 +1589,44 @@ def reduce_backup(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any
     }
 
 
+def reduce_restore_verification(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Project evidence-only restore verification without granting cutover authority."""
+    validate_exact_lifecycle_envelope(event)
+    if event.get("event_type") != "RestoreVerified" or event.get("schema_id") != "ars://core/event/RestoreVerified":
+        raise ValueError("reduce_restore_verification requires the exact RestoreVerified event")
+    payload = event["payload"]
+    project_id = payload["project_id"]
+    if event.get("project_id") != project_id or event.get("stream_id") != project_id:
+        raise ValueError("RestoreVerified project stream identity mismatch")
+    if any(
+        payload.get(field) is not True
+        for field in ("hash_chain_verified", "snapshot_replay_verified", "endpoint_ownership_verified")
+    ):
+        raise ValueError("RestoreVerified requires all verification predicates")
+    if state and (state.get("project_id") != project_id or state.get("store_identity") != payload["store_identity"]):
+        raise ValueError("RestoreVerified immutable project-store binding mismatch")
+    verifications = deepcopy(state.get("restore_verifications", {}))
+    evidence_id = payload["recovery_evidence_id"]
+    if evidence_id in verifications:
+        raise ValueError("RestoreVerified recovery evidence identity is already projected")
+    verifications[evidence_id] = {
+        **deepcopy(payload),
+        "event_id": event["event_id"],
+        "event_hash": event["event_hash"],
+        "event_position": event["global_position"],
+        "stream_version": event["stream_version"],
+        "command_id": event["command_id"],
+        "cutover_authorized": False,
+    }
+    return {
+        **state,
+        "project_id": project_id,
+        "store_identity": payload["store_identity"],
+        "restore_verifications": verifications,
+        "version": event["stream_version"],
+    }
+
+
 def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
     attempts: set[str] = set()
     stream_states: dict[str, dict[str, Any]] = {}
@@ -1752,6 +1790,11 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             )
         elif event["event_type"] == "BackupCreated":
             stream_states[event["stream_id"]] = reduce_backup(
+                stream_states.get(event["stream_id"], {}),
+                event,
+            )
+        elif event["event_type"] == "RestoreVerified":
+            stream_states[event["stream_id"]] = reduce_restore_verification(
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
