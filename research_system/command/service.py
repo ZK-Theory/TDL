@@ -651,7 +651,8 @@ class CommandService:
         t2_authority_resolver: Callable[[str, str, int], Any | None] | None = None,
         message_adapter_registry: Iterable[MessageAdapterRegistration] | None = None,
         backup_materializer: BackupMaterializer | None = None,
-        restore_verification_provider: Callable[[Command, LedgerSnapshot], dict[str, Any]] | None = None,
+        restore_verification_provider: Callable[[Command, LedgerSnapshot], tuple[dict[str, Any], Callable[[], None]]]
+        | None = None,
         governing_evidence_resolver: Any | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
@@ -1478,6 +1479,7 @@ class CommandService:
                 raise ConflictError(f"receipt already exists: {command.command_id}")
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
+            restore_verification_revalidator: Callable[[], None] | None = None
             activation_object_existed: bool | None = None
             append_started = False
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
@@ -1611,7 +1613,10 @@ class CommandService:
                 )
                 if isinstance(prepared, Receipt):
                     return write_receipt(prepared)
-                prepared_payload = prepared
+                if command.envelope["command_type"] == "VerifyRestore":
+                    prepared_payload, restore_verification_revalidator = prepared
+                else:
+                    prepared_payload = prepared
             elif command.envelope["command_type"] in _ARTEFACT_AUTHORITY_COMMAND_TYPES:
                 prepared = self._prepare_artefact_authority_command(
                     command,
@@ -1714,6 +1719,9 @@ class CommandService:
                     command_schema=command_schema,
                 )
                 event = events[0]
+                if restore_verification_revalidator is not None:
+                    self._before_restore_verification_revalidation(command)
+                    restore_verification_revalidator()
                 append_started = True
                 if isinstance(prepared_payload, VerifiedReleasePublication):
                     ledger_receipt = release_append(
@@ -4244,21 +4252,24 @@ class CommandService:
             raise ConflictError("resource grant revision conflicts")
         return {"authority_preimage_ref": expected_ref}
 
+    def _before_restore_verification_revalidation(self, command: Command) -> None:
+        """Test seam immediately before the final checked-input revalidation."""
+
     def _prepare_backup_command(
         self,
         command: Command,
         snapshot: LedgerSnapshot,
         observed_version: int,
-    ) -> dict[str, Any] | Receipt:
+    ) -> dict[str, Any] | tuple[dict[str, Any], Callable[[], None]] | Receipt:
         """Validate and stage one exact backup without publishing it pre-event."""
         if command.envelope["command_type"] == "VerifyRestore":
             provider = self.restore_verification_provider
             if provider is None:
                 raise ArsError("VerifyRestore requires the governed restore verification provider")
-            prepared = provider(command, snapshot)
-            if prepared != command.envelope["payload"]:
+            prepared, revalidate = provider(command, snapshot)
+            if prepared != command.envelope["payload"] or not callable(revalidate):
                 raise IntegrityError("restore verification differs from the exact command payload")
-            return deepcopy(prepared)
+            return deepcopy(prepared), revalidate
         payload = command.envelope["payload"]
         if (
             command.envelope.get("project_id") != self.ledger.project_id

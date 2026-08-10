@@ -13,7 +13,8 @@ import research_system.cli as cli
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, ConfigurationError
+from research_system.command.service import CommandService
+from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import runtime_schema_registry
 from research_system.projection.replay import replay
@@ -368,6 +369,58 @@ def test_store_verify_restore_appends_evidence_without_cutover_and_replays(
     target_before = {
         str(path.relative_to(destination)): path.read_bytes() for path in destination.rglob("*") if path.is_file()
     }
+    source_before_late_change = ledger.snapshot()
+    receipts_before_late_change = {
+        str(path.relative_to(binding.control_root)): path.read_bytes()
+        for path in (binding.control_root / "receipts").rglob("*")
+        if path.is_file()
+    }
+    endpoint_bytes = endpoint_path.read_bytes()
+    changed = False
+
+    def change_target_after_preflight(_service: CommandService, _command: Any) -> None:
+        nonlocal changed
+        if not changed:
+            changed = True
+            endpoint_path.write_bytes(endpoint_bytes + b" ")
+
+    with monkeypatch.context() as late_change:
+        late_change.setattr(
+            CommandService,
+            "_before_restore_verification_revalidation",
+            change_target_after_preflight,
+        )
+        with pytest.raises(IntegrityError, match="changed after full preflight"):
+            cli.main(
+                [
+                    "store",
+                    "verify-restore",
+                    "--config",
+                    str(tmp_path / "binding.json"),
+                    "--command",
+                    str(command_path),
+                    "--target-root",
+                    str(destination),
+                    "--receipt",
+                    str(destination / "manifests" / "backup-receipt.json"),
+                    "--snapshot",
+                    backup_output["snapshot_path"],
+                    "--endpoint-ownership",
+                    str(endpoint_path),
+                    "--artefact-manifest",
+                    str(destination / "manifests" / "external-artefacts.json"),
+                    "--registry",
+                    str(tmp_path / "registry.yaml"),
+                ]
+            )
+    endpoint_path.write_bytes(endpoint_bytes)
+    assert ledger.snapshot() == source_before_late_change
+    assert receipts_before_late_change == {
+        str(path.relative_to(binding.control_root)): path.read_bytes()
+        for path in (binding.control_root / "receipts").rglob("*")
+        if path.is_file()
+    }
+    assert not list(destination.rglob("*.lock"))
     assert (
         cli.main(
             [

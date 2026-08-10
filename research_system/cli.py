@@ -82,6 +82,8 @@ from research_system.operations.backups import (
     BackupArtefactInput,
     BackupMaterializer,
     BackupReceipt,
+    prepare_restore_admission_before_writer_lease,
+    revalidate_restore_admission_closure,
     verify_restore_before_writer_lease,
 )
 from research_system.operations.resources import TrustedRuntimeAuthority
@@ -552,8 +554,8 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
     registry = load_evidence_store_registry(args.registry, schemas)
     target_root = args.target_root.resolve(strict=True)
 
-    def verification_provider(_command: Any, _source_snapshot: Any) -> dict[str, Any]:
-        result = verify_restore_before_writer_lease(
+    def prepare_verification() -> Any:
+        return prepare_restore_admission_before_writer_lease(
             target_root=target_root,
             receipt=receipt,
             snapshot_path=args.snapshot,
@@ -565,6 +567,10 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
             approved_witness=binding.origin_witness,
             approved_witness_path=binding.origin_witness_path,
         )
+
+    def verification_provider(_command: Any, _source_snapshot: Any) -> tuple[dict[str, Any], Callable[[], None]]:
+        admission = prepare_verification()
+        result = admission.result
         if result.status != "verified":
             raise IntegrityError(f"restore verification failed: {', '.join(result.failed_predicates)}")
         target_snapshot = EventLedger(target_root, binding.project_id, schemas).snapshot()
@@ -599,7 +605,18 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
         }
         if expected != payload:
             raise IntegrityError("restore verification payload differs from the governed preflight")
-        return expected
+
+        def revalidate() -> None:
+            current = prepare_verification()
+            if current.result != result:
+                raise IntegrityError("restore verification target changed after full preflight")
+            current_snapshot = EventLedger(target_root, binding.project_id, schemas).snapshot()
+            current_schema_ids = sorted({str(event["schema_id"]) for event in current_snapshot.events})
+            if current_schema_ids != supported_schema_ids:
+                raise IntegrityError("restore verification schema support changed after full preflight")
+            revalidate_restore_admission_closure(current)
+
+        return expected, revalidate
 
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     receipt_record = CommandService(
