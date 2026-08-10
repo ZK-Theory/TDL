@@ -9,12 +9,13 @@ import yaml
 import research_system.config as config_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ApprovedProjectBinding, ControlBinding, _canonical_local_cli_uri
-from research_system.errors import ConfigurationError
+from research_system.errors import ConfigurationError, IntegrityError
 from research_system.store.identity import (
     build_store_origin_witness,
     persist_store_origin_witness,
 )
 from research_system.store.layout import require_external_control_root
+from research_system.store.objects import write_object
 from research_system.store.schema_binding import publish_store_schema_binding_activation
 
 
@@ -84,7 +85,62 @@ def _materialized_foundation(
     return foundation_path, foundation
 
 
-def _activate_alternate_schema_root(tmp_path: Path) -> tuple[Path, dict[str, object], dict[str, object]]:
+def _materialize_schema_binding_owner_decision(
+    control_root: Path,
+    activation: dict[str, object],
+    *,
+    mutation: str | None = None,
+) -> None:
+    if mutation == "missing":
+        return
+    contract_sha256 = str(activation["contract_sha256"])
+    pack_schema_sha256 = str(activation["pack_schema_sha256"])
+    if mutation == "contract":
+        contract_sha256 = "b" * 64
+    elif mutation == "pack_schema":
+        pack_schema_sha256 = "c" * 64
+    decision = {
+        "record_type": "stephen_contract_schema_acceptance",
+        "owner_decision_id": activation["owner_decision_id"],
+        "contract_subject": {
+            "schema_id": "ars://contracts/wp6-3-tdl-private-assurance-pack",
+            "schema_version": "1.0.0",
+            "repository_path": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml",
+            "git_blob": "a" * 40,
+            "canonical_sha256": contract_sha256,
+        },
+        "pack_schema_subject": {
+            "schema_id": "ars://assurance/packs/tdl-private/1.0",
+            "schema_version": "1.0.0",
+            "repository_path": ".research-system/schemas/assurance/assurance-pack.schema.json",
+            "git_blob": "b" * 40,
+            "canonical_sha256": pack_schema_sha256,
+        },
+        "authorship_record_id": "cau_01978abc-0001-7000-8000-000000000003",
+        "authorship_record_sha256": "d" * 64,
+        "contract_review_record_id": "crv_01978abc-0001-7000-8000-000000000004",
+        "contract_review_record_sha256": "e" * 64,
+        "schema_review_record_id": "srv_01978abc-0001-7000-8000-000000000005",
+        "schema_review_record_sha256": "f" * 64,
+        "acceptor_actor_id": "act_01978abc-0001-7000-8000-000000000006",
+        "outcome": "accepted",
+        "decision_state": "active",
+        "decided_at": "2026-08-10T02:59:00Z",
+    }
+    write_object(
+        control_root,
+        "stephen_contract_schema_acceptance",
+        str(activation["owner_decision_id"]),
+        1,
+        decision,
+    )
+
+
+def _activate_alternate_schema_root(
+    tmp_path: Path,
+    *,
+    owner_decision_mutation: str | None = None,
+) -> tuple[Path, dict[str, object], dict[str, object]]:
     foundation_path, foundation = _materialized_foundation(tmp_path, include_alternate_code_root=True)
     alternate_schema = tmp_path / "alternate-code" / ".research-system" / "schemas"
     contract = alternate_schema.parent / "contracts" / "wp6-3-tdl-private-assurance-pack.yaml"
@@ -112,6 +168,11 @@ def _activate_alternate_schema_root(tmp_path: Path) -> tuple[Path, dict[str, obj
         "pack_schema_sha256": sha256_hex(pack_schema.read_bytes()),
         "activated_at": "2026-08-10T03:00:00Z",
     }
+    _materialize_schema_binding_owner_decision(
+        Path(str(foundation["control_root"])),
+        activation,
+        mutation=owner_decision_mutation,
+    )
     digest, _path = publish_store_schema_binding_activation(
         Path(str(foundation["control_root"])),
         activation,
@@ -124,6 +185,15 @@ def _activate_alternate_schema_root(tmp_path: Path) -> tuple[Path, dict[str, obj
     migrated["foundation_sha256"] = sha256_hex(canonical_bytes(migrated))
     foundation_path.write_text(yaml.safe_dump(migrated, sort_keys=False), encoding="utf-8")
     return foundation_path, migrated, activation
+
+
+@pytest.mark.parametrize("mutation", ["missing", "contract", "pack_schema"])
+def test_schema_activation_rejects_missing_or_mismatched_owner_decision(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    with pytest.raises(IntegrityError, match="owner decision"):
+        _activate_alternate_schema_root(tmp_path, owner_decision_mutation=mutation)
 
 
 def test_approved_binding_loads_foundation_pinned_witness_before_store(tmp_path: Path):
