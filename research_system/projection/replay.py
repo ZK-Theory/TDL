@@ -17,6 +17,7 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import (
     reduce_attempt,
+    reduce_artefact,
     reduce_backup,
     reduce_blocker,
     reduce_checkpoint,
@@ -728,6 +729,15 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     } or (event_type == "PartialOutcomeRecorded" and event.get("command_type") == "ClosePartial"):
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
+    elif event_type == "ScopeCompleted" and "scope_definition_ref" in event.get("payload", {}):
+        _validate_scope_completion(event["payload"])
+        streams[stream_id] = {
+            "scope_id": stream_id,
+            "status": "completed",
+            "scope_definition_ref": event["payload"]["scope_definition_ref"],
+            "member_dispositions": dict(event["payload"]["member_dispositions"]),
+            "version": event["stream_version"],
+        }
     elif event_type in {
         "ScopeDefinitionCreated",
         "ScopeDefinitionAmended",
@@ -832,76 +842,21 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             streams[stream_id] = reduce_backup(streams.get(stream_id, {}), event)
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError(str(exc)) from exc
-    elif event_type == "ArtefactRegistered":
-        payload = event["payload"]
-        manifest = payload.get("manifest") if isinstance(payload, dict) else None
-        if (
-            stream_id in streams
-            or not isinstance(manifest, dict)
-            or payload.get("new_artefact_id") != stream_id
-            or manifest.get("artefact_id") != stream_id
-            or not isinstance(manifest.get("authority"), dict)
-            or manifest["authority"].get("use_authority") != "candidate"
-            or manifest["authority"].get("regenerability") == "regenerable_verified"
-        ):
-            raise IntegrityError("invalid artefact registration transition")
-        streams[stream_id] = {
-            "artefact_id": stream_id,
-            "manifest": deepcopy(manifest),
-            "content_sha256": manifest.get("content_sha256"),
-            "use_authority": "candidate",
-            "scientific_reviews": [],
-            "version": event["stream_version"],
-        }
-    elif event_type == "ScientificReviewRecorded":
-        payload = event["payload"]
-        current = streams.get(stream_id)
-        if (
-            not isinstance(current, dict)
-            or current.get("artefact_id") != stream_id
-            or not isinstance(payload, dict)
-            or payload.get("artefact_id") != stream_id
-            or payload.get("subject_sha256") != current.get("content_sha256")
-        ):
-            raise IntegrityError("invalid scientific review transition")
-        reviews = list(current.get("scientific_reviews", []))
-        if any(review.get("review_id") == payload.get("review_id") for review in reviews):
-            raise IntegrityError("duplicate scientific review identity")
-        reviews.append(
-            {
-                **deepcopy(payload),
-                "reviewer_actor_id": event["actor_id"],
-                "event_id": event["event_id"],
-                "event_hash": event["event_hash"],
-                "recorded_at": event["recorded_at"],
-            }
-        )
-        streams[stream_id] = {
-            **current,
-            "scientific_reviews": reviews,
-            "version": event["stream_version"],
-        }
-    elif event_type == "ArtefactUseAuthoritySet":
-        payload = event["payload"]
-        current = streams.get(stream_id)
-        if (
-            not isinstance(current, dict)
-            or current.get("artefact_id") != stream_id
-            or not isinstance(payload, dict)
-            or payload.get("artefact_id") != stream_id
-            or payload.get("subject_sha256") != current.get("content_sha256")
-            or payload.get("use_authority") == "candidate"
-        ):
-            raise IntegrityError("invalid artefact use-authority transition")
-        streams[stream_id] = {
-            **current,
-            "use_authority": payload["use_authority"],
-            "consumer_predicate": payload["consumer_predicate"],
-            "authority_evidence_refs": list(payload["evidence_refs"]),
-            "authority_event_id": event["event_id"],
-            "authority_event_hash": event["event_hash"],
-            "version": event["stream_version"],
-        }
+    elif event_type in {
+        "ArtefactRegistered",
+        "ArtefactAvailabilityRecorded",
+        "ArtefactRegenerabilityRecorded",
+        "ArtefactIntegrityRecorded",
+        "StructuralValidationRecorded",
+        "ScientificReviewRecorded",
+        "ArtefactUseAuthoritySet",
+        "ArtefactSuperseded",
+        "LateArtefactAdopted",
+    }:
+        try:
+            streams[stream_id] = reduce_artefact(streams.get(stream_id, {}), event)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError(str(exc)) from exc
     elif event_type in {
         "DecisionProposed",
         "DecisionReviewRequested",
@@ -1012,15 +967,6 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             "terminal": deepcopy(payload)
             if next_state in {"failed", "expired", "superseded"}
             else (current or {}).get("terminal"),
-            "version": event["stream_version"],
-        }
-    elif event_type == "ScopeCompleted":
-        _validate_scope_completion(event["payload"])
-        streams[stream_id] = {
-            "scope_id": stream_id,
-            "status": "completed",
-            "scope_definition_ref": event["payload"]["scope_definition_ref"],
-            "member_dispositions": dict(event["payload"]["member_dispositions"]),
             "version": event["stream_version"],
         }
     elif event_type in {"EvidenceDeletionVerified", "EvidenceDeletionPending"}:

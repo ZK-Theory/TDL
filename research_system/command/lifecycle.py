@@ -332,6 +332,51 @@ EXACT_LIFECYCLE_BINDINGS.update(
             "ResolveDecision",
             "ars://core/command/ResolveDecision",
         ),
+        "ars://core/event/ArtefactRegistered": (
+            "ArtefactRegistered",
+            "RegisterArtefact",
+            "ars://core/command/RegisterArtefact",
+        ),
+        "ars://core/event/ArtefactAvailabilityRecorded": (
+            "ArtefactAvailabilityRecorded",
+            "RecordArtefactAvailability",
+            "ars://core/command/RecordArtefactAvailability",
+        ),
+        "ars://core/event/ArtefactRegenerabilityRecorded": (
+            "ArtefactRegenerabilityRecorded",
+            "RecordArtefactRegenerability",
+            "ars://core/command/RecordArtefactRegenerability",
+        ),
+        "ars://core/event/ArtefactIntegrityRecorded": (
+            "ArtefactIntegrityRecorded",
+            "RecordArtefactIntegrity",
+            "ars://core/command/RecordArtefactIntegrity",
+        ),
+        "ars://core/event/StructuralValidationRecorded": (
+            "StructuralValidationRecorded",
+            "RecordStructuralValidation",
+            "ars://core/command/RecordStructuralValidation",
+        ),
+        "ars://core/event/ScientificReviewRecorded": (
+            "ScientificReviewRecorded",
+            "RecordScientificReview",
+            "ars://core/command/RecordScientificReview",
+        ),
+        "ars://core/event/ArtefactUseAuthoritySet": (
+            "ArtefactUseAuthoritySet",
+            "SetArtefactUseAuthority",
+            "ars://core/command/SetArtefactUseAuthority",
+        ),
+        "ars://core/event/ArtefactSuperseded": (
+            "ArtefactSuperseded",
+            "SupersedeArtefact",
+            "ars://core/command/SupersedeArtefact",
+        ),
+        "ars://core/event/LateArtefactAdopted": (
+            "LateArtefactAdopted",
+            "AdoptLateArtefact",
+            "ars://core/command/AdoptLateArtefact",
+        ),
         "ars://core/event/DecisionRejected": (
             "DecisionRejected",
             "RejectDecision",
@@ -387,7 +432,7 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
 
 # These payloads are derived from their command payloads rather than copied verbatim.
 _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset(
-    {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded"}
+    {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded", "ArtefactUseAuthoritySet"}
 )
 
 

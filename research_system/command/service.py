@@ -222,9 +222,15 @@ _BACKUP_COMMAND_TYPES = frozenset({"CreateBackup"})
 _ARTEFACT_AUTHORITY_COMMAND_TYPES = frozenset(
     {
         "RegisterArtefact",
+        "RecordArtefactAvailability",
+        "RecordArtefactRegenerability",
+        "RecordArtefactIntegrity",
+        "RecordStructuralValidation",
         "RecordScientificReview",
         "ResolveDecision",
         "SetArtefactUseAuthority",
+        "SupersedeArtefact",
+        "AdoptLateArtefact",
     }
 )
 _CONTEXT_PACKET_COMMAND_TYPES = frozenset(
@@ -316,9 +322,15 @@ _COMMAND_EVENT_TYPES = {
     "ReleaseResources": "ResourcesReleased",
     "CreateBackup": "BackupCreated",
     "RegisterArtefact": "ArtefactRegistered",
+    "RecordArtefactAvailability": "ArtefactAvailabilityRecorded",
+    "RecordArtefactRegenerability": "ArtefactRegenerabilityRecorded",
+    "RecordArtefactIntegrity": "ArtefactIntegrityRecorded",
+    "RecordStructuralValidation": "StructuralValidationRecorded",
     "RecordScientificReview": "ScientificReviewRecorded",
     "ResolveDecision": "DecisionResolved",
     "SetArtefactUseAuthority": "ArtefactUseAuthoritySet",
+    "SupersedeArtefact": "ArtefactSuperseded",
+    "AdoptLateArtefact": "LateArtefactAdopted",
     "AcceptTask": "TaskAccepted",
     "RejectTask": "TaskRejected",
     "ClosePartial": "PartialOutcomeRecorded",
@@ -2326,7 +2338,16 @@ class CommandService:
             return project_id, "project_store", str(payload.get("project_id", "")), "R3"
         if command_type == "RegisterArtefact":
             return project_id, "artefact", str(payload.get("new_artefact_id", "")), "R3"
-        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+        if command_type in {
+            "RecordArtefactAvailability",
+            "RecordArtefactRegenerability",
+            "RecordArtefactIntegrity",
+            "RecordStructuralValidation",
+            "RecordScientificReview",
+            "SetArtefactUseAuthority",
+            "SupersedeArtefact",
+            "AdoptLateArtefact",
+        }:
             return project_id, "artefact", str(payload.get("artefact_id", "")), "R3"
         if command_type == "ResolveDecision":
             return project_id, "decision", str(payload.get("decision_id", "")), "R3"
@@ -4300,7 +4321,18 @@ class CommandService:
             event
             for event in snapshot.events
             if event.get("stream_id") == command.target_stream_id
-            and event.get("event_type") in {"ArtefactRegistered", "ScientificReviewRecorded", "ArtefactUseAuthoritySet"}
+            and event.get("event_type")
+            in {
+                "ArtefactRegistered",
+                "ArtefactAvailabilityRecorded",
+                "ArtefactRegenerabilityRecorded",
+                "ArtefactIntegrityRecorded",
+                "StructuralValidationRecorded",
+                "ScientificReviewRecorded",
+                "ArtefactUseAuthoritySet",
+                "ArtefactSuperseded",
+                "LateArtefactAdopted",
+            }
         ]
         registered = next(
             (event for event in artefact_events if event.get("event_type") == "ArtefactRegistered"),
@@ -4340,7 +4372,17 @@ class CommandService:
                 )
             return deepcopy(payload)
 
-        if command_type in {"RecordScientificReview", "SetArtefactUseAuthority"}:
+        artefact_transition_types = {
+            "RecordArtefactAvailability",
+            "RecordArtefactRegenerability",
+            "RecordArtefactIntegrity",
+            "RecordStructuralValidation",
+            "RecordScientificReview",
+            "SetArtefactUseAuthority",
+            "SupersedeArtefact",
+            "AdoptLateArtefact",
+        }
+        if command_type in artefact_transition_types:
             if payload.get("artefact_id") != command.target_stream_id or registered is None:
                 return rejected(
                     "artefact_not_registered",
@@ -4348,7 +4390,12 @@ class CommandService:
                 )
             registered_payload = registered.get("payload")
             manifest = registered_payload.get("manifest") if isinstance(registered_payload, dict) else None
-            if not isinstance(manifest, dict) or payload.get("subject_sha256") != manifest.get("content_sha256"):
+            supplied_sha256 = payload.get(
+                "artefact_sha256" if command_type == "AdoptLateArtefact" else "subject_sha256"
+            )
+            if command_type not in {"SupersedeArtefact"} and (
+                not isinstance(manifest, dict) or supplied_sha256 != manifest.get("content_sha256")
+            ):
                 return rejected(
                     "artefact_subject_hash_mismatch",
                     "Artefact authority transitions must bind the registered content hash.",
@@ -4357,6 +4404,8 @@ class CommandService:
             for event in artefact_events:
                 if event.get("event_type") == "ArtefactUseAuthoritySet" and isinstance(event.get("payload"), dict):
                     current_use_authority = str(event["payload"].get("use_authority", ""))
+                elif event.get("event_type") == "ArtefactSuperseded":
+                    current_use_authority = "superseded"
             if current_use_authority in {"rejected", "superseded"}:
                 return rejected(
                     "artefact_authority_terminal",
@@ -4375,19 +4424,139 @@ class CommandService:
                         "Scientific review identity is already committed.",
                     )
                 return deepcopy(payload)
+            if command_type in {
+                "RecordArtefactAvailability",
+                "RecordArtefactRegenerability",
+                "RecordArtefactIntegrity",
+                "RecordStructuralValidation",
+            }:
+                return deepcopy(payload)
+            if command_type == "SupersedeArtefact":
+                replacement_id = payload.get("replacement_artefact_id")
+                replacement = next(
+                    (
+                        event
+                        for event in snapshot.events
+                        if event.get("stream_id") == replacement_id and event.get("event_type") == "ArtefactRegistered"
+                    ),
+                    None,
+                )
+                replacement_payload = replacement.get("payload") if isinstance(replacement, dict) else None
+                replacement_manifest = (
+                    replacement_payload.get("manifest") if isinstance(replacement_payload, dict) else None
+                )
+                if (
+                    replacement_id == command.target_stream_id
+                    or not isinstance(replacement_manifest, dict)
+                    or payload.get("replacement_sha256") != replacement_manifest.get("content_sha256")
+                    or replacement_manifest.get("artefact_type") != manifest.get("artefact_type")
+                    or not payload.get("continuing_consumer_dispositions")
+                ):
+                    return rejected(
+                        "artefact_supersession_invalid",
+                        "Supersession requires a distinct registered type-compatible replacement and continuing-consumer dispositions.",
+                    )
+                cursor = replacement_id
+                seen = {command.target_stream_id}
+                while isinstance(cursor, str):
+                    if cursor in seen:
+                        return rejected("artefact_supersession_cycle", "Artefact supersession must be acyclic.")
+                    seen.add(cursor)
+                    prior = next(
+                        (
+                            event
+                            for event in snapshot.events
+                            if event.get("stream_id") == cursor and event.get("event_type") == "ArtefactSuperseded"
+                        ),
+                        None,
+                    )
+                    prior_payload = prior.get("payload") if isinstance(prior, dict) else None
+                    cursor = prior_payload.get("replacement_artefact_id") if isinstance(prior_payload, dict) else None
+                return deepcopy(payload)
+            if command_type == "AdoptLateArtefact":
+                streams = self._c1_streams(snapshot)
+                attempt = streams.get(payload.get("attempt_id"))
+                review = streams.get(payload.get("review_id"))
+                terminal = {"completed", "failed", "partial", "abandoned", "superseded"}
+                terminal_events = [
+                    event
+                    for event in snapshot.events
+                    if event.get("stream_id") == payload.get("attempt_id")
+                    and event.get("event_type")
+                    in {
+                        "AttemptCompleted",
+                        "AttemptFailed",
+                        "PartialOutcomeRecorded",
+                        "AttemptAbandoned",
+                        "AttemptSuperseded",
+                    }
+                ]
+                try:
+                    late_observed_at = datetime.fromisoformat(
+                        str(payload.get("late_observed_at")).replace("Z", "+00:00")
+                    )
+                    terminal_recorded_at = datetime.fromisoformat(
+                        str(terminal_events[-1]["recorded_at"]).replace("Z", "+00:00")
+                    )
+                except (IndexError, KeyError, ValueError):
+                    late_observed_at = terminal_recorded_at = None
+                review_request = review.get("request") if isinstance(review, dict) else None
+                review_assignment = review.get("assignment") if isinstance(review, dict) else None
+                expected_review_subject = sha256_hex(
+                    canonical_bytes(self._c1_streams(snapshot).get(command.target_stream_id, {}))
+                )
+                review_subject_pairs = (
+                    set(
+                        zip(
+                            review_request.get("subject_ids", []),
+                            review_request.get("subject_hashes", []),
+                            strict=False,
+                        )
+                    )
+                    if isinstance(review_request, dict)
+                    else set()
+                )
+                if (
+                    not isinstance(attempt, dict)
+                    or attempt.get("status") not in terminal
+                    or attempt.get("lease_id") != payload.get("lease_id")
+                    or not isinstance(review, dict)
+                    or review.get("status") != "satisfied"
+                    or (command.target_stream_id, expected_review_subject) not in review_subject_pairs
+                    or not isinstance(review_assignment, dict)
+                    or review_assignment.get("reviewer_actor_id") == manifest.get("producer_actor_id")
+                    or not payload.get("allowed_consumer_scope")
+                    or any(event.get("event_type") == "LateArtefactAdopted" for event in artefact_events)
+                    or late_observed_at is None
+                    or terminal_recorded_at is None
+                    or late_observed_at <= terminal_recorded_at
+                ):
+                    return rejected(
+                        "late_artefact_adoption_invalid",
+                        "Late adoption requires one terminal linked attempt, its lease, a satisfied review, and a non-empty consumer scope.",
+                    )
+                return deepcopy(payload)
             if payload.get("use_authority") == "candidate":
                 return rejected(
                     "invalid_artefact_authority_transition",
                     "Candidate is established only by RegisterArtefact.",
                 )
             if payload.get("use_authority") == "accepted_for_scope":
-                evidence_error = self._validate_governing_review_evidence(
+                review_binding = self._validate_governing_review_evidence(
                     command,
                     artefact_events,
                     manifest,
                 )
-                if evidence_error is not None:
-                    return rejected(*evidence_error)
+                if isinstance(review_binding, tuple):
+                    return rejected(*review_binding)
+                decision_binding = self._claim_promotion_binding(command, manifest, review_binding)
+                if isinstance(decision_binding, tuple):
+                    return rejected(*decision_binding)
+                prepared = deepcopy(payload)
+                prepared["evidence_refs"] = list(
+                    dict.fromkeys([*prepared["evidence_refs"], *review_binding, *decision_binding])
+                )
+                return prepared
             return deepcopy(payload)
 
         if command_type == "ResolveDecision":
@@ -4449,7 +4618,7 @@ class CommandService:
         command: Command,
         artefact_events: list[dict[str, Any]],
         manifest: dict[str, Any],
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str] | list[str]:
         """Resolve the accepted predicate's complete independent review set."""
         resolver = self.governing_evidence_resolver
         if resolver is None or not callable(getattr(resolver, "resolve", None)):
@@ -4490,31 +4659,44 @@ class CommandService:
                 "governing_scientific_review_missing",
                 "Accepted artefact use must bind its complete governing review evidence.",
             )
-        approved = 0
-        for event in artefact_events:
+        rows: list[dict[str, Any]] = []
+        census_rows: list[dict[str, Any]] = []
+        review_events = sorted(
+            (event for event in artefact_events if event.get("event_type") == "ScientificReviewRecorded"),
+            key=lambda event: str(event.get("payload", {}).get("review_id", "")),
+        )
+        for event in review_events:
             review = event.get("payload")
             if (
-                event.get("event_type") != "ScientificReviewRecorded"
-                or not isinstance(review, dict)
+                not isinstance(review, dict)
                 or review.get("scientific_review") != "approved"
                 or review.get("subject_sha256") != command.envelope["payload"].get("subject_sha256")
             ):
-                continue
+                return (
+                    "governing_scientific_review_blocking",
+                    "Every replay-derived governing scientific review must approve the exact subject.",
+                )
             review_id = review.get("review_id")
             review_refs = review.get("evidence_refs")
             reviewer_actor_id = event.get("actor_id")
             if (
                 not isinstance(review_id, str)
                 or not isinstance(review_refs, list)
-                or not review_refs
+                or len(review_refs) != 1
                 or review_id not in use_refs
                 or any(reference not in use_refs for reference in review_refs)
             ):
-                continue
-            matched = False
+                return (
+                    "governing_scientific_review_missing",
+                    "Accepted artefact use must bind every governing review and evidence record.",
+                )
+            matched = []
             for reference in review_refs:
                 if not isinstance(reference, str):
-                    continue
+                    return (
+                        "governing_scientific_review_invalid",
+                        "A governing scientific review record could not be resolved.",
+                    )
                 try:
                     resolution = resolver.resolve(
                         reference,
@@ -4544,17 +4726,192 @@ class CommandService:
                     < _ARTEFACT_REVIEW_INDEPENDENCE_ORDER[str(minimum_grade)]
                     or sha256_hex(canonical_bytes(record)) != resolution.canonical_sha256
                 ):
-                    continue
-                matched = True
-                break
-            if matched:
-                approved += 1
-        if approved < minimum:
+                    return (
+                        "governing_scientific_review_invalid",
+                        "Every governing scientific review record must satisfy the accepted exact-subject rules.",
+                    )
+                matched.append(resolution)
+            if len(matched) != 1:
+                return (
+                    "governing_scientific_review_invalid",
+                    "Each governing review must resolve exactly one canonical evidence record.",
+                )
+            resolution = matched[0]
+            census_rows.append(
+                {
+                    "review_id": review_id,
+                    "stream_version": event.get("stream_version"),
+                    "event_id": event.get("event_id"),
+                    "event_hash": event.get("event_hash"),
+                    "recorded_at": event.get("recorded_at"),
+                }
+            )
+            rows.append(
+                {
+                    "review_id": review_id,
+                    "artefact_stream_id": command.target_stream_id,
+                    "artefact_stream_version": event.get("stream_version"),
+                    "event_id": event.get("event_id"),
+                    "event_hash": event.get("event_hash"),
+                    "recorded_at": event.get("recorded_at"),
+                    "evidence_reference_ids": list(review_refs),
+                    "exact_record_sha256": resolution.canonical_sha256,
+                    "project_id": self.ledger.project_id,
+                    "exact_subject_sha256": review.get("subject_sha256"),
+                    "reviewer_actor_id": reviewer_actor_id,
+                    "status": resolution.record.get("status"),
+                    "eligible": resolution.record.get("eligible"),
+                    "related": resolution.record.get("related"),
+                    "independence_grade": resolution.record.get("independence_grade"),
+                }
+            )
+        if len(rows) < minimum:
             return (
                 "governing_scientific_review_missing",
                 "Accepted artefact use requires the complete independently resolved governing review set.",
             )
-        return None
+        from research_system.store.identity import load_store_manifest_unbound
+
+        snapshot = self.ledger.snapshot()
+        store_identity = self.ledger.store_identity
+        if store_identity is None:
+            store_identity = str(load_store_manifest_unbound(self.ledger.control_root)["store_identity"])
+        raw_prefix_sha256 = self.ledger.raw_prefix_sha256(snapshot.global_position)
+        set_sha256 = sha256_hex(
+            canonical_bytes(
+                {
+                    "schema_id": "ars://policy/governing-review-set-digest",
+                    "schema_version": "1.0.0",
+                    "store_identity": store_identity,
+                    "ledger_position": snapshot.global_position,
+                    "raw_prefix_sha256": raw_prefix_sha256,
+                    "scientific_review_event_census_sha256": sha256_hex(canonical_bytes(census_rows)),
+                    "reviews": rows,
+                }
+            )
+        )
+        return [
+            *(f"governing-review-id:{row['review_id']}" for row in rows),
+            *(f"governing-review-record-sha256:{row['exact_record_sha256']}" for row in rows),
+            f"governing-review-set-sha256:{set_sha256}",
+            f"store-identity:{store_identity}",
+            f"ledger-position:{snapshot.global_position}",
+            f"raw-prefix-sha256:{raw_prefix_sha256}",
+        ]
+
+    def _claim_promotion_binding(
+        self,
+        command: Command,
+        manifest: dict[str, Any],
+        review_binding: list[str],
+    ) -> tuple[str, str] | list[str]:
+        """Derive P-005 solely from verified replay when the accepted predicate requires it."""
+        from research_system.artefacts.authority import ArtefactAuthorityContractLoader
+        from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
+        from research_system.artefacts.use_resolver import predicate_reference
+
+        contract = ArtefactAuthorityContractLoader(ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT).load()
+        claim = contract.predicates_by_kind["claim_evidence"]
+        claim_reference = predicate_reference(
+            str(claim["predicate_id"]),
+            str(claim["predicate_version"]),
+            contract.predicate_sha256_by_kind["claim_evidence"],
+        )
+        if command.envelope["payload"].get("consumer_predicate") != claim_reference:
+            return []
+        snapshot = self.ledger.snapshot()
+        state = replay(
+            snapshot.events,
+            schema_registry=self.schemas,
+            authority_state_validator=self._authority_state_validator(),
+        )
+        owner_actor_id = state.get("authority_owner_actor_id")
+        root_id = state.get("authority_root_id")
+        grants = state.get("authority_grants")
+        root_grant = grants.get(root_id) if isinstance(grants, dict) else None
+        if (
+            not isinstance(owner_actor_id, str)
+            or not isinstance(root_id, str)
+            or not isinstance(root_grant, dict)
+            or root_grant.get("status") != "active"
+        ):
+            return ("claim_promotion_owner_unavailable", "P-005 requires the active replay-derived Stephen owner root.")
+        reviews = {
+            reference.partition(":")[2] for reference in review_binding if reference.startswith("governing-review-id:")
+        }
+        decisions = state.get("decisions")
+        if not isinstance(decisions, dict):
+            return ("claim_promotion_decision_missing", "P-005 requires one current replay-derived approval decision.")
+        submitted_at = datetime.fromisoformat(str(command.envelope["submitted_at"]).replace("Z", "+00:00"))
+        required_scope = f"claim_promotion:{manifest.get('authority', {}).get('accepted_scope')}"
+        active_superseded = {
+            superseded
+            for decision in decisions.values()
+            if isinstance(decision, dict) and decision.get("status") == "resolved"
+            for superseded in decision.get("superseded_decision_ids", [])
+        }
+        matches = [
+            (decision_id, decision)
+            for decision_id, decision in decisions.items()
+            if isinstance(decision_id, str)
+            and isinstance(decision, dict)
+            and decision_id not in active_superseded
+            and decision.get("decision_kind") == "claim_promotion"
+            and decision.get("status") == "resolved"
+            and decision.get("selected_option") == "approve"
+            and decision.get("effective_scope") == required_scope
+            and decision.get("deciding_actor_id") == owner_actor_id
+            and "SetArtefactUseAuthority" in decision.get("permitted_commands", [])
+            and set(decision.get("considered_review_ids", [])) == reviews
+            and decision_id in command.envelope["payload"].get("evidence_refs", [])
+            and datetime.fromisoformat(str(decision.get("effective_at")).replace("Z", "+00:00")) <= submitted_at
+            and datetime.fromisoformat(str(decision.get("expires_at")).replace("Z", "+00:00")) > submitted_at
+        ]
+        if len(matches) != 1:
+            return ("claim_promotion_decision_missing", "P-005 requires exactly one current Stephen approval decision.")
+        decision_id, decision = matches[0]
+        reviewed_subject_hashes = {
+            subject_hash
+            for review_id in decision.get("considered_review_ids", [])
+            for review in [state.get("streams", {}).get(review_id)]
+            if isinstance(review, dict)
+            for subject_id, subject_hash in zip(
+                review.get("request", {}).get("subject_ids", []),
+                review.get("request", {}).get("subject_hashes", []),
+                strict=False,
+            )
+            if subject_id == decision_id
+        }
+        if len(reviewed_subject_hashes) != 1:
+            return ("claim_promotion_subject_ambiguous", "P-005 lacks one exact reviewed decision subject hash.")
+        decision_subject_sha256 = next(iter(reviewed_subject_hashes))
+        decision_events = [
+            event
+            for event in snapshot.events
+            if event.get("stream_id") == decision_id
+            and event.get("event_type") == "DecisionResolved"
+            and event.get("actor_id") == owner_actor_id
+        ]
+        activation_events = [
+            event for event in snapshot.events if event.get("event_id") == root_grant.get("activation_event_id")
+        ]
+        if len(decision_events) != 1 or len(activation_events) != 1:
+            return ("claim_promotion_decision_ambiguous", "P-005 event or owner-root evidence is ambiguous.")
+        decision_event = decision_events[0]
+        activation_event = activation_events[0]
+        return [
+            f"decision-id:{decision_id}",
+            f"decision-event-id:{decision_event['event_id']}",
+            f"decision-event-hash:{decision_event['event_hash']}",
+            f"decision-subject-sha256:{decision_subject_sha256}",
+            f"decision-projection-sha256:{sha256_hex(canonical_bytes(decision))}",
+            f"decision-authority-grant-id:{decision_event['authority_grant_id']}",
+            f"owner-actor-id:{owner_actor_id}",
+            f"authority-root-id:{root_id}",
+            f"authority-root-grant-sha256:{root_grant['authority_grant_sha256']}",
+            f"authority-root-activation-event-id:{activation_event['event_id']}",
+            f"authority-root-activation-event-hash:{activation_event['event_hash']}",
+        ]
 
     def _ensure_artefact_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed registration."""
@@ -6451,7 +6808,9 @@ class CommandService:
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)
         elif command_type in _ARTEFACT_AUTHORITY_COMMAND_TYPES:
-            if prepared_payload is None or prepared_payload != command.envelope["payload"]:
+            if prepared_payload is None or (
+                command_type != "SetArtefactUseAuthority" and prepared_payload != command.envelope["payload"]
+            ):
                 raise IntegrityError(f"{command_type} requires its exact prepared payload")
             event_type = _COMMAND_EVENT_TYPES[command_type]
             payload = deepcopy(prepared_payload)

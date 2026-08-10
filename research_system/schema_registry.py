@@ -943,6 +943,36 @@ _RUNTIME_BINDINGS = (
         event_type="ArtefactRegistered",
         producer_command_type="RegisterArtefact",
     ),
+    SchemaBinding("ars://core/command/RecordArtefactAvailability", "1.0.0", command_type="RecordArtefactAvailability"),
+    SchemaBinding(
+        "ars://core/event/ArtefactAvailabilityRecorded",
+        "1.0.0",
+        event_type="ArtefactAvailabilityRecorded",
+        producer_command_type="RecordArtefactAvailability",
+    ),
+    SchemaBinding(
+        "ars://core/command/RecordArtefactRegenerability", "1.0.0", command_type="RecordArtefactRegenerability"
+    ),
+    SchemaBinding(
+        "ars://core/event/ArtefactRegenerabilityRecorded",
+        "1.0.0",
+        event_type="ArtefactRegenerabilityRecorded",
+        producer_command_type="RecordArtefactRegenerability",
+    ),
+    SchemaBinding("ars://core/command/RecordArtefactIntegrity", "1.0.0", command_type="RecordArtefactIntegrity"),
+    SchemaBinding(
+        "ars://core/event/ArtefactIntegrityRecorded",
+        "1.0.0",
+        event_type="ArtefactIntegrityRecorded",
+        producer_command_type="RecordArtefactIntegrity",
+    ),
+    SchemaBinding("ars://core/command/RecordStructuralValidation", "1.0.0", command_type="RecordStructuralValidation"),
+    SchemaBinding(
+        "ars://core/event/StructuralValidationRecorded",
+        "1.0.0",
+        event_type="StructuralValidationRecorded",
+        producer_command_type="RecordStructuralValidation",
+    ),
     SchemaBinding(
         "ars://core/command/RecordScientificReview",
         "1.0.0",
@@ -975,6 +1005,20 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="ArtefactUseAuthoritySet",
         producer_command_type="SetArtefactUseAuthority",
+    ),
+    SchemaBinding("ars://core/command/SupersedeArtefact", "1.0.0", command_type="SupersedeArtefact"),
+    SchemaBinding(
+        "ars://core/event/ArtefactSuperseded",
+        "1.0.0",
+        event_type="ArtefactSuperseded",
+        producer_command_type="SupersedeArtefact",
+    ),
+    SchemaBinding("ars://core/command/AdoptLateArtefact", "1.0.0", command_type="AdoptLateArtefact"),
+    SchemaBinding(
+        "ars://core/event/LateArtefactAdopted",
+        "1.0.0",
+        event_type="LateArtefactAdopted",
+        producer_command_type="AdoptLateArtefact",
     ),
     SchemaBinding("ars://core/command/RequestContextPacket", "1.0.0", command_type="RequestContextPacket"),
     SchemaBinding(

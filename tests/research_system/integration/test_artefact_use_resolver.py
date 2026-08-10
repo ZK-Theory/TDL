@@ -17,11 +17,13 @@ from tests.research_system.integration.test_artefact_authority_commands import (
     CONTENT_BYTES,
     CONTENT_SHA256,
     REVIEW_EVIDENCE_ID,
+    REVIEW_GRANT_ID,
     REVIEW_ID,
     SCOPE_ID,
     SUBJECT,
     TASK_ID,
     accepted_artefact_commands,
+    command,
 )
 
 
@@ -116,8 +118,8 @@ def test_public_resolver_reads_real_replay_and_immutable_object_state(tmp_path):
 )
 def test_public_resolver_failures_are_read_only(tmp_path, field, value, reason):
     harness = control_plane(tmp_path)
-    for command in accepted_artefact_commands(harness):
-        assert harness.service.submit(command).status == "accepted"
+    for value in accepted_artefact_commands(harness):
+        assert harness.service.submit(value).status == "accepted"
     loader = ArtefactAuthorityContractLoader(SUBJECT)
     resolver = ArtefactUseResolver(
         ledger=harness.ledger,
@@ -141,8 +143,8 @@ def test_public_resolver_failures_are_read_only(tmp_path, field, value, reason):
 
 def test_public_resolver_rejects_substituted_content_bytes_without_any_write(tmp_path):
     harness = control_plane(tmp_path)
-    for command in accepted_artefact_commands(harness):
-        assert harness.service.submit(command).status == "accepted"
+    for value in accepted_artefact_commands(harness):
+        assert harness.service.submit(value).status == "accepted"
     loader = ArtefactAuthorityContractLoader(SUBJECT)
     resolver = ArtefactUseResolver(
         ledger=harness.ledger,
@@ -160,3 +162,38 @@ def test_public_resolver_rejects_substituted_content_bytes_without_any_write(tmp
     assert denied.value.reason_code == "content_substitution"
     after = harness.ledger.snapshot()
     assert (after.global_position, after.event_hash) == (before.global_position, before.event_hash)
+
+
+def test_public_resolver_denies_a_review_added_after_the_bound_no_omission_snapshot(tmp_path):
+    harness = control_plane(tmp_path)
+    for value in accepted_artefact_commands(harness):
+        assert harness.service.submit(value).status == "accepted"
+    late_review = command(
+        command_id="cmd_019fe47a-1090-7000-8000-000000001090",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=REVIEW_GRANT_ID,
+        expected_stream_version=3,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "review_id": "rev_019fe47a-1090-7000-8000-000000001090",
+            "subject_sha256": CONTENT_SHA256,
+            "scientific_review": "approved",
+            "evidence_refs": ["arec_019fe47a-1091-7000-8000-000000001091"],
+        },
+    )
+    assert harness.service.submit(late_review).status == "accepted"
+    loader = ArtefactAuthorityContractLoader(SUBJECT)
+    resolver = ArtefactUseResolver(
+        ledger=harness.ledger,
+        objects=harness.objects,
+        schemas=harness.schemas,
+        contract_loader=loader,
+        governing_evidence=EvidenceResolver(),
+        content_reader=ContentReader(),
+    )
+
+    with pytest.raises(ArtefactUseDenied) as denied:
+        resolver.resolve(request(loader))
+
+    assert denied.value.reason_code == "governing_review_changed"

@@ -199,12 +199,19 @@ class EventLedger:
         control_root: Path,
         project_id: str,
         schemas: SchemaRegistry | None = None,
+        *,
+        store_identity: str | None = None,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
         if schemas is not None and not isinstance(schemas, SchemaRegistry):
             raise TypeError("EventLedger requires a trusted SchemaRegistry")
         self.schemas = schemas
+        if store_identity is not None and (
+            len(store_identity) != 64 or any(character not in "0123456789abcdef" for character in store_identity)
+        ):
+            raise ValueError("EventLedger store identity must be a lowercase SHA-256")
+        self.store_identity = store_identity
         self.events_root = control_root / "events" / project_id
         self.runtime_root = control_root / "runtime"
         self.events_root.mkdir(parents=True, exist_ok=True)
@@ -275,6 +282,23 @@ class EventLedger:
             fingerprint=fingerprint,
         )
         return self._snapshot
+
+    def raw_prefix_sha256(self, global_position: int) -> str:
+        """Hash exact persisted batch bytes through one atomic ledger position."""
+        snapshot = self.snapshot()
+        if type(global_position) is not int or global_position < 0 or global_position > snapshot.global_position:
+            raise ValueError("raw ledger prefix position is outside the verified snapshot")
+        prefix = bytearray()
+        for path in self._batch_paths():
+            raw = path.read_bytes()
+            positions = [
+                int(json.loads(line)["global_position"]) for line in raw.decode("utf-8").splitlines() if line.strip()
+            ]
+            if positions and max(positions) <= global_position:
+                prefix.extend(raw)
+            elif positions and min(positions) <= global_position:
+                raise ConflictError("raw ledger prefix splits one atomic event batch")
+        return sha256_hex(bytes(prefix))
 
     def _validate_event_schema(
         self,

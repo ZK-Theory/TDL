@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from research_system.artefacts.authority import (
     AcceptedArtefactAuthorityContract,
     ArtefactAuthorityContractLoader,
+    GoverningEvidenceResolution,
     GoverningEvidenceResolver,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -18,6 +19,7 @@ from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
+from research_system.store.identity import load_store_manifest_unbound
 from research_system.store.objects import ObjectStore
 
 
@@ -110,14 +112,34 @@ class ResolvedArtefactEvidence:
     predicate_id: str
     predicate_version: str
     predicate_sha256: str
-    contract_manifest_sha256: str
+    manifest_sha256: str
     authority_event_id: str
     authority_event_hash: str
     governing_review_ids: tuple[str, ...]
+    governing_review_record_sha256s: tuple[str, ...]
+    governing_review_set_sha256: str
     decision_id: str | None
+    decision_event_id: str | None
+    decision_event_hash: str | None
+    decision_projection_sha256: str | None
     canonical_manifest_bytes: bytes
     content_bytes: bytes
     manifest: Mapping[str, object]
+
+
+@dataclass(frozen=True)
+class _GoverningReviewProof:
+    review_ids: tuple[str, ...]
+    record_sha256s: tuple[str, ...]
+    set_sha256: str
+
+
+@dataclass(frozen=True)
+class _DecisionProof:
+    decision_id: str
+    event_id: str
+    event_hash: str
+    projection_sha256: str
 
 
 def predicate_reference(predicate_id: str, predicate_version: str, predicate_sha256: str) -> str:
@@ -245,18 +267,20 @@ class ArtefactUseResolver:
         ):
             _deny("predicate_not_satisfied", "artefact state does not satisfy every accepted authority dimension")
 
-        governing_review_ids = self._validate_governing_reviews(
+        governing_reviews = self._validate_governing_reviews(
             request,
             contract,
             stream,
             manifest,
+            before,
         )
-        decision_id = self._validate_decision(
+        decision = self._validate_decision(
             request,
             contract,
             state,
             stream,
-            governing_review_ids,
+            governing_reviews.review_ids,
+            before.events,
         )
         authority_event_id = stream.get("authority_event_id")
         authority_event_hash = stream.get("authority_event_hash")
@@ -294,11 +318,16 @@ class ArtefactUseResolver:
             predicate_id=request.predicate_id,
             predicate_version=request.predicate_version,
             predicate_sha256=request.predicate_sha256,
-            contract_manifest_sha256=contract.manifest_sha256,
+            manifest_sha256=contract.manifest_sha256,
             authority_event_id=authority_event_id,
             authority_event_hash=authority_event_hash,
-            governing_review_ids=governing_review_ids,
-            decision_id=decision_id,
+            governing_review_ids=governing_reviews.review_ids,
+            governing_review_record_sha256s=governing_reviews.record_sha256s,
+            governing_review_set_sha256=governing_reviews.set_sha256,
+            decision_id=decision.decision_id if decision is not None else None,
+            decision_event_id=decision.event_id if decision is not None else None,
+            decision_event_hash=decision.event_hash if decision is not None else None,
+            decision_projection_sha256=decision.projection_sha256 if decision is not None else None,
             canonical_manifest_bytes=manifest_bytes,
             content_bytes=content_bytes,
             manifest=frozen,
@@ -329,10 +358,10 @@ class ArtefactUseResolver:
             if isinstance(latest, dict):
                 current_review = latest.get("scientific_review")
         return {
-            "availability": authority.get("availability"),
-            "regenerability": authority.get("regenerability"),
-            "integrity": authority.get("integrity"),
-            "structural_validation": authority.get("structural_validation"),
+            "availability": stream.get("availability", authority.get("availability")),
+            "regenerability": stream.get("regenerability", authority.get("regenerability")),
+            "integrity": stream.get("integrity", authority.get("integrity")),
+            "structural_validation": stream.get("structural_validation", authority.get("structural_validation")),
             "scientific_review": current_review,
             "use_authority": stream.get("use_authority"),
         }
@@ -343,7 +372,8 @@ class ArtefactUseResolver:
         contract: AcceptedArtefactAuthorityContract,
         stream: Mapping[str, object],
         manifest: Mapping[str, object],
-    ) -> tuple[str, ...]:
+        snapshot: object,
+    ) -> _GoverningReviewProof:
         rule = contract.review_rules_by_kind[request.consumer_kind]
         minimum = rule.get("minimum_approved_reviews")
         minimum_grade = rule.get("minimum_independence_grade")
@@ -355,13 +385,39 @@ class ArtefactUseResolver:
         authority_refs = stream.get("authority_evidence_refs")
         if not isinstance(reviews, list) or not isinstance(authority_refs, list):
             _deny("governing_review_missing", "current authority has no replay-derived governing review set")
+        position_refs = [reference for reference in authority_refs if str(reference).startswith("ledger-position:")]
+        raw_prefix_refs = [reference for reference in authority_refs if str(reference).startswith("raw-prefix-sha256:")]
+        if len(position_refs) != 1 or len(raw_prefix_refs) != 1:
+            _deny("review_snapshot_unavailable", "current authority lacks one exact review snapshot binding")
+        try:
+            bound_position = int(str(position_refs[0]).partition(":")[2])
+        except ValueError:
+            _deny("review_snapshot_unavailable", "current authority review snapshot position is invalid")
+        bound_raw_prefix_sha256 = str(raw_prefix_refs[0]).partition(":")[2]
+        if any(
+            event.get("event_type") == "ScientificReviewRecorded"
+            and event.get("stream_id") == request.artefact_id
+            and int(event.get("global_position", 0)) > bound_position
+            for event in snapshot.events
+        ):
+            _deny("governing_review_changed", "governing reviews changed after the accepted authority snapshot")
         producer_actor = manifest.get("producer_actor_id")
-        approved: list[str] = []
-        for review in reviews:
+        all_review_ids = [
+            event.get("payload", {}).get("review_id")
+            for event in snapshot.events
+            if event.get("event_type") == "ScientificReviewRecorded" and isinstance(event.get("payload"), dict)
+        ]
+        if len(all_review_ids) != len(set(all_review_ids)):
+            _deny("governing_review_duplicate", "scientific review identity is duplicated in verified replay")
+        rows: list[dict[str, object]] = []
+        census_rows: list[dict[str, object]] = []
+        for review in sorted(
+            reviews, key=lambda item: str(item.get("review_id", "")) if isinstance(item, dict) else ""
+        ):
             if not isinstance(review, dict) or review.get("subject_sha256") != request.exact_content_sha256:
-                continue
+                _deny("governing_review_subject_mismatch", "governing review does not bind the exact artefact")
             if review.get("scientific_review") != "approved":
-                continue
+                _deny("governing_review_blocking", "every governing scientific review must be approved")
             review_id = review.get("review_id")
             reviewer_actor = review.get("reviewer_actor_id", review.get("actor_id"))
             evidence_refs = review.get("evidence_refs")
@@ -369,14 +425,14 @@ class ArtefactUseResolver:
                 not isinstance(review_id, str)
                 or not isinstance(reviewer_actor, str)
                 or not isinstance(evidence_refs, list)
-                or not evidence_refs
+                or len(evidence_refs) != 1
                 or review_id not in authority_refs
                 or any(reference not in authority_refs for reference in evidence_refs)
             ):
                 _deny("governing_review_unbound", "accepted use authority omits governing review evidence")
             if rule.get("prohibit_producer_reviewer") is True and reviewer_actor == producer_actor:
                 _deny("reviewer_not_independent", "artefact producer cannot supply its governing review")
-            matched = False
+            matched: list[GoverningEvidenceResolution] = []
             for reference_id in evidence_refs:
                 if not isinstance(reference_id, str):
                     _deny("review_evidence_invalid", "governing review evidence identity is invalid")
@@ -393,9 +449,6 @@ class ArtefactUseResolver:
                     or set(record) != _REVIEW_RECORD_FIELDS
                 ):
                     _deny("review_evidence_invalid", "governing review evidence identity is invalid")
-                if record.get("review_id") != review_id:
-                    continue
-                matched = True
                 if (
                     record.get("schema_id") != "ars://evidence/governing-scientific-review"
                     or record.get("schema_version") != "1.0.0"
@@ -409,12 +462,78 @@ class ArtefactUseResolver:
                     < _INDEPENDENCE_ORDER[minimum_grade]
                 ):
                     _deny("review_evidence_ineligible", "governing review does not satisfy accepted independence")
-            if not matched:
+                matched.append(resolution)
+            if len(matched) != 1 or matched[0].record.get("review_id") != review_id:
                 _deny("review_evidence_missing", "governing review lacks matching independent evidence")
-            approved.append(review_id)
-        if len(approved) < minimum:
+            resolution = matched[0]
+            census_rows.append(
+                {
+                    "review_id": review_id,
+                    "stream_version": review.get("stream_version"),
+                    "event_id": review.get("event_id"),
+                    "event_hash": review.get("event_hash"),
+                    "recorded_at": review.get("recorded_at"),
+                }
+            )
+            rows.append(
+                {
+                    "review_id": review_id,
+                    "artefact_stream_id": request.artefact_id,
+                    "artefact_stream_version": review.get("stream_version"),
+                    "event_id": review.get("event_id"),
+                    "event_hash": review.get("event_hash"),
+                    "recorded_at": review.get("recorded_at"),
+                    "evidence_reference_ids": list(evidence_refs),
+                    "exact_record_sha256": resolution.canonical_sha256,
+                    "project_id": request.project_id,
+                    "exact_subject_sha256": request.exact_content_sha256,
+                    "reviewer_actor_id": reviewer_actor,
+                    "status": resolution.record.get("status"),
+                    "eligible": resolution.record.get("eligible"),
+                    "related": resolution.record.get("related"),
+                    "independence_grade": resolution.record.get("independence_grade"),
+                }
+            )
+        if len(rows) < minimum:
             _deny("governing_review_incomplete", "complete governing review set is not satisfied")
-        return tuple(approved)
+        try:
+            store_identity = self.ledger.store_identity
+            if store_identity is None:
+                store_manifest = load_store_manifest_unbound(self.ledger.control_root)
+                store_identity = str(store_manifest["store_identity"])
+            raw_prefix_sha256 = self.ledger.raw_prefix_sha256(bound_position)
+        except Exception as exc:  # noqa: BLE001 - missing snapshot identity denies use
+            raise ArtefactUseDenied(
+                "review_snapshot_unavailable", "governing review snapshot identity is unavailable"
+            ) from exc
+        census_sha256 = sha256_hex(canonical_bytes(census_rows))
+        set_preimage = {
+            "schema_id": "ars://policy/governing-review-set-digest",
+            "schema_version": "1.0.0",
+            "store_identity": store_identity,
+            "ledger_position": bound_position,
+            "raw_prefix_sha256": bound_raw_prefix_sha256,
+            "scientific_review_event_census_sha256": census_sha256,
+            "reviews": rows,
+        }
+        set_sha256 = sha256_hex(canonical_bytes(set_preimage))
+        required_binding_refs = [
+            *(f"governing-review-id:{row['review_id']}" for row in rows),
+            *(f"governing-review-record-sha256:{row['exact_record_sha256']}" for row in rows),
+            f"governing-review-set-sha256:{set_sha256}",
+            f"store-identity:{store_identity}",
+            f"ledger-position:{bound_position}",
+            f"raw-prefix-sha256:{bound_raw_prefix_sha256}",
+        ]
+        if raw_prefix_sha256 != bound_raw_prefix_sha256:
+            _deny("review_snapshot_changed", "governing review raw ledger prefix no longer matches authority")
+        if any(reference not in authority_refs for reference in required_binding_refs):
+            _deny("governing_review_unbound", "current use authority omits its deterministic review-set proof")
+        return _GoverningReviewProof(
+            review_ids=tuple(str(row["review_id"]) for row in rows),
+            record_sha256s=tuple(str(row["exact_record_sha256"]) for row in rows),
+            set_sha256=set_sha256,
+        )
 
     @staticmethod
     def _validate_decision(
@@ -423,7 +542,8 @@ class ArtefactUseResolver:
         state: Mapping[str, object],
         stream: Mapping[str, object],
         governing_review_ids: tuple[str, ...],
-    ) -> str | None:
+        events: tuple[dict[str, Any], ...],
+    ) -> _DecisionProof | None:
         if request.required_decision_kind is None:
             return None
         rule = contract.decision_rules.get(request.required_decision_kind)
@@ -433,21 +553,96 @@ class ArtefactUseResolver:
         if not isinstance(rule, dict) or not isinstance(decisions, dict) or not isinstance(authority_refs, list):
             _deny("decision_missing", "current authority has no governing owner decision")
         required_scope = f"{request.required_decision_kind}:{request.scope_id}"
-        matches: list[str] = []
+        root_id = state.get("authority_root_id")
+        root_grant = (
+            state.get("authority_grants", {}).get(root_id) if isinstance(state.get("authority_grants"), dict) else None
+        )
+        if (
+            not isinstance(owner_actor, str)
+            or not isinstance(root_id, str)
+            or not isinstance(root_grant, dict)
+            or root_grant.get("status") != "active"
+        ):
+            _deny("decision_owner_unavailable", "verified replay has no unique active authority owner")
+        active_superseded = {
+            superseded
+            for candidate in decisions.values()
+            if isinstance(candidate, dict) and candidate.get("status") == "resolved"
+            for superseded in candidate.get("superseded_decision_ids", [])
+        }
+        matches: list[_DecisionProof] = []
         for decision_id, decision in decisions.items():
             if not isinstance(decision_id, str) or not isinstance(decision, dict):
                 continue
             if (
                 decision.get("status") == "resolved"
+                and decision.get("decision_kind") == request.required_decision_kind
                 and decision.get("selected_option") == rule.get("selected_option")
                 and decision.get("effective_scope") == required_scope
                 and decision.get("deciding_actor_id") == owner_actor
                 and rule.get("required_permitted_command") in decision.get("permitted_commands", [])
-                and set(governing_review_ids).issubset(decision.get("considered_review_ids", []))
+                and set(governing_review_ids) == set(decision.get("considered_review_ids", []))
                 and decision_id in authority_refs
+                and decision_id not in active_superseded
                 and _parse_utc(decision.get("effective_at"), "decision effective_at") <= request.evaluation_time
+                and _parse_utc(decision.get("expires_at"), "decision expires_at") > request.evaluation_time
             ):
-                matches.append(decision_id)
+                decision_events = [
+                    event
+                    for event in events
+                    if event.get("stream_id") == decision_id
+                    and event.get("event_type") == "DecisionResolved"
+                    and event.get("actor_id") == owner_actor
+                    and event.get("payload") == {key: decision.get(key) for key in event.get("payload", {})}
+                ]
+                if len(decision_events) != 1:
+                    _deny("decision_event_ambiguous", "governing owner decision event is missing or ambiguous")
+                decision_event = decision_events[0]
+                projection_sha256 = sha256_hex(canonical_bytes(decision))
+                reviewed_subject_hashes = {
+                    subject_hash
+                    for review_id in decision.get("considered_review_ids", [])
+                    for review in [state.get("streams", {}).get(review_id)]
+                    if isinstance(review, dict)
+                    for subject_id, subject_hash in zip(
+                        review.get("request", {}).get("subject_ids", []),
+                        review.get("request", {}).get("subject_hashes", []),
+                        strict=False,
+                    )
+                    if subject_id == decision_id
+                }
+                if len(reviewed_subject_hashes) != 1:
+                    _deny("decision_subject_ambiguous", "governing decision lacks one exact reviewed subject hash")
+                decision_subject_sha256 = next(iter(reviewed_subject_hashes))
+                activation_events = [
+                    event for event in events if event.get("event_id") == root_grant.get("activation_event_id")
+                ]
+                if len(activation_events) != 1:
+                    _deny("decision_owner_unavailable", "authority owner activation evidence is ambiguous")
+                activation_event = activation_events[0]
+                required_refs = {
+                    f"decision-id:{decision_id}",
+                    f"decision-event-id:{decision_event['event_id']}",
+                    f"decision-event-hash:{decision_event['event_hash']}",
+                    f"decision-subject-sha256:{decision_subject_sha256}",
+                    f"decision-projection-sha256:{projection_sha256}",
+                    f"decision-authority-grant-id:{decision_event['authority_grant_id']}",
+                    f"owner-actor-id:{owner_actor}",
+                    f"authority-root-id:{root_id}",
+                    f"authority-root-grant-sha256:{root_grant['authority_grant_sha256']}",
+                    f"authority-root-activation-event-id:{activation_event['event_id']}",
+                    f"authority-root-activation-event-hash:{activation_event['event_hash']}",
+                }
+                if not required_refs.issubset(set(authority_refs)):
+                    _deny("decision_unbound", "current use authority omits exact P-005 replay bindings")
+                matches.append(
+                    _DecisionProof(
+                        decision_id=decision_id,
+                        event_id=str(decision_event["event_id"]),
+                        event_hash=str(decision_event["event_hash"]),
+                        projection_sha256=projection_sha256,
+                    )
+                )
         if len(matches) != 1:
             _deny("decision_missing", "exactly one current Stephen-attributed decision is required")
         return matches[0]

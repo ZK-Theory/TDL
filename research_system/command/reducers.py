@@ -1422,6 +1422,117 @@ def reduce_message(state: dict[str, Any], event: dict[str, Any]) -> dict[str, An
     raise ValueError(f"illegal message transition: {state.get('status')} -> {event_type}")
 
 
+def reduce_artefact(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """Reduce the exact P6 artefact-authority lifecycle without rewriting history."""
+    validate_exact_lifecycle_envelope(event)
+    event_type = event["event_type"]
+    payload = event["payload"]
+    stream_id = event["stream_id"]
+    if event_type == "ArtefactRegistered":
+        manifest = payload.get("manifest") if isinstance(payload, dict) else None
+        authority = manifest.get("authority") if isinstance(manifest, dict) else None
+        if (
+            state
+            or not isinstance(authority, dict)
+            or payload.get("new_artefact_id") != stream_id
+            or manifest.get("artefact_id") != stream_id
+            or authority.get("use_authority") != "candidate"
+            or authority.get("regenerability") == "regenerable_verified"
+        ):
+            raise ValueError("invalid artefact registration transition")
+        return {
+            "artefact_id": stream_id,
+            "manifest": deepcopy(manifest),
+            "content_sha256": manifest.get("content_sha256"),
+            "availability": authority.get("availability"),
+            "regenerability": authority.get("regenerability"),
+            "integrity": authority.get("integrity"),
+            "structural_validation": authority.get("structural_validation"),
+            "scientific_reviews": [],
+            "use_authority": "candidate",
+            "late_adoptions": [],
+            "version": event["stream_version"],
+        }
+    if not state or payload.get("artefact_id") != stream_id:
+        raise ValueError(f"{event_type} artefact subject binding mismatch")
+    if state.get("use_authority") in {"rejected", "superseded"}:
+        raise ValueError("terminal artefact authority cannot transition")
+
+    dimension_events = {
+        "ArtefactAvailabilityRecorded": "availability",
+        "ArtefactRegenerabilityRecorded": "regenerability",
+        "ArtefactIntegrityRecorded": "integrity",
+        "StructuralValidationRecorded": "structural_validation",
+    }
+    if event_type in dimension_events:
+        dimension = dimension_events[event_type]
+        if payload.get("subject_sha256") != state.get("content_sha256"):
+            raise ValueError("artefact dimension subject hash mismatch")
+        evidence = list(state.get("authority_dimension_evidence", []))
+        evidence.append(
+            {
+                "dimension": dimension,
+                "value": payload[dimension],
+                "evidence_refs": list(payload["evidence_refs"]),
+                "event_id": event["event_id"],
+                "event_hash": event["event_hash"],
+            }
+        )
+        return {
+            **state,
+            dimension: payload[dimension],
+            "authority_dimension_evidence": evidence,
+            "version": event["stream_version"],
+        }
+    if event_type == "ScientificReviewRecorded":
+        if payload.get("subject_sha256") != state.get("content_sha256"):
+            raise ValueError("scientific review subject hash mismatch")
+        reviews = list(state.get("scientific_reviews", []))
+        if any(review.get("review_id") == payload.get("review_id") for review in reviews):
+            raise ValueError("duplicate scientific review identity")
+        reviews.append(
+            {
+                **deepcopy(payload),
+                "reviewer_actor_id": event["actor_id"],
+                "stream_version": event["stream_version"],
+                "event_id": event["event_id"],
+                "event_hash": event["event_hash"],
+                "recorded_at": event["recorded_at"],
+            }
+        )
+        return {**state, "scientific_reviews": reviews, "version": event["stream_version"]}
+    if event_type == "ArtefactUseAuthoritySet":
+        if payload.get("subject_sha256") != state.get("content_sha256") or payload.get("use_authority") == "candidate":
+            raise ValueError("invalid artefact use-authority transition")
+        return {
+            **state,
+            "use_authority": payload["use_authority"],
+            "consumer_predicate": payload["consumer_predicate"],
+            "authority_evidence_refs": list(payload["evidence_refs"]),
+            "authority_event_id": event["event_id"],
+            "authority_event_hash": event["event_hash"],
+            "version": event["stream_version"],
+        }
+    if event_type == "ArtefactSuperseded":
+        if payload.get("replacement_artefact_id") == stream_id:
+            raise ValueError("artefact cannot supersede itself")
+        return {
+            **state,
+            "use_authority": "superseded",
+            "supersession": deepcopy(payload),
+            "version": event["stream_version"],
+        }
+    if event_type == "LateArtefactAdopted":
+        if payload.get("artefact_sha256") != state.get("content_sha256"):
+            raise ValueError("late adoption subject hash mismatch")
+        adoptions = list(state.get("late_adoptions", []))
+        if adoptions:
+            raise ValueError("late artefact adoption is already recorded")
+        adoptions.append({**deepcopy(payload), "event_id": event["event_id"], "event_hash": event["event_hash"]})
+        return {**state, "late_adoptions": adoptions, "version": event["stream_version"]}
+    raise ValueError(f"illegal artefact transition: {state.get('use_authority')} -> {event_type}")
+
+
 def reduce_backup(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     """Project one immutable ``BackupCreated`` snapshot on its project stream."""
     validate_exact_lifecycle_envelope(event)

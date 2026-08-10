@@ -596,7 +596,7 @@ def control_plane(
         clock=clock,
         message_adapter_registry=message_adapter_registry,
     )
-    ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas)
+    ledger = EventLedger(root, project_id=PROJECT_ID, schemas=schemas, store_identity="e" * 64)
     objects = ObjectStore(root)
     receipts = ReceiptStore(root)
     service = CommandService(

@@ -1,15 +1,34 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
+from datetime import UTC, datetime
 
 from research_system.artefacts.authority import (
     AcceptedContractSubject,
     ArtefactAuthorityContractLoader,
     GoverningEvidenceResolution,
 )
-from research_system.artefacts.use_resolver import predicate_reference
+from research_system.artefacts.use_resolver import ArtefactUseRequest, ArtefactUseResolver, predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.projection.replay import replay
+from research_system.schema_registry import runtime_schema_registry
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
+from tests.research_system.factories import REPO_ROOT
+from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
+    ATTEMPT_ID as C1_ATTEMPT_ID,
+    _c1_command,
+    _c1_control_plane,
+    _command_id,
+    _seed_running_attempt,
+)
+from tests.research_system.integration.test_wp6_1_c3_completion_review_decision import (
+    ACTOR_C,
+    _record_review_verdict,
+    _request_review,
+    _submit_review_command,
+)
+from tests.research_system.integration.test_wp6_1_task_scope_lifecycle import _command as _lifecycle_command
 
 
 ARTEFACT_ID = "art_019fe47a-1000-7000-8000-000000001000"
@@ -20,6 +39,9 @@ CONTEXT_ID = "ctx_019fe47a-1004-7000-8000-000000001004"
 REVIEW_ID = "rev_019fe47a-1005-7000-8000-000000001005"
 REVIEW_GRANT_ID = "agr_019fe47a-1006-7000-8000-000000001006"
 REVIEW_EVIDENCE_ID = "arec_019fe47a-1007-7000-8000-000000001007"
+REPLACEMENT_ARTEFACT_ID = "art_019fe47a-1008-7000-8000-000000001008"
+LATE_REVIEW_ID = "rev_019fe47a-1009-7000-8000-000000001009"
+CLAIM_DECISION_ID = "dec_019fe47a-1013-7000-8000-000000001013"
 SCOPE_ID = "release:wp6.4"
 CONTENT_BYTES = canonical_bytes(
     {
@@ -30,12 +52,24 @@ CONTENT_BYTES = canonical_bytes(
 )
 CONTENT_SHA256 = sha256_hex(CONTENT_BYTES)
 SUBJECT = AcceptedContractSubject(
-    manifest_git_blob="0cd9581ca4427a8515aefd99a7a045d52452ddd3",
-    manifest_sha256="0b1f5499d631bfd113dcec0453247d68468a91a2c2bf997b295f6088ff418e6b",
+    manifest_git_blob="7af3af9fbec1e5a1427162885eaeb6a82cbfca7b",
+    manifest_sha256="b32821b6487a2d2a9941966a01dca1bdf62c3d3e57255f4c8f6933282a197ad1",
 )
+P6_COMMAND_EVENTS = {
+    "RecordArtefactAvailability": "ArtefactAvailabilityRecorded",
+    "RecordArtefactRegenerability": "ArtefactRegenerabilityRecorded",
+    "RecordArtefactIntegrity": "ArtefactIntegrityRecorded",
+    "RecordStructuralValidation": "StructuralValidationRecorded",
+    "RecordScientificReview": "ScientificReviewRecorded",
+    "SetArtefactUseAuthority": "ArtefactUseAuthoritySet",
+    "SupersedeArtefact": "ArtefactSuperseded",
+    "AdoptLateArtefact": "LateArtefactAdopted",
+}
 
 
 class StaticGoverningEvidenceResolver:
+    independence_grade = "I1"
+
     def resolve(self, reference_id, *, project_id, evaluation_time):
         record = {
             "schema_id": "ars://evidence/governing-scientific-review",
@@ -46,7 +80,7 @@ class StaticGoverningEvidenceResolver:
             "reviewer_actor_id": ACTORS["actor-a"],
             "eligible": True,
             "related": False,
-            "independence_grade": "I1",
+            "independence_grade": self.independence_grade,
             "status": "active",
         }
         assert reference_id == REVIEW_EVIDENCE_ID
@@ -124,6 +158,7 @@ def command(
     authority_grant_id: str,
     expected_stream_version: int,
     payload: dict[str, object],
+    target_stream_id: str = ARTEFACT_ID,
 ) -> dict[str, object]:
     return {
         "command_id": command_id,
@@ -134,7 +169,7 @@ def command(
         "actor_id": actor_id,
         "on_behalf_of_actor_id": None,
         "authority_grant_id": authority_grant_id,
-        "target_stream_id": ARTEFACT_ID,
+        "target_stream_id": target_stream_id,
         "expected_stream_version": expected_stream_version,
         "idempotency_key": f"06i:{command_type}:{command_id}",
         "correlation_id": "06i:real-path",
@@ -205,6 +240,595 @@ def accepted_artefact_commands(harness) -> tuple[dict[str, object], dict[str, ob
         },
     )
     return register, review, use
+
+
+def test_all_eight_p6_runtime_bindings_are_literal():
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    for command_type, event_type in P6_COMMAND_EVENTS.items():
+        command_binding = schemas.command_binding(command_type)
+        event_binding = schemas.event_binding(event_type, command_type)
+        assert command_binding is not None, command_type
+        assert event_binding is not None, event_type
+        assert command_binding.schema_id == f"ars://core/command/{command_type}"
+        assert event_binding.schema_id == f"ars://core/event/{event_type}"
+
+
+def test_four_artefact_dimensions_are_separate_durable_replayable_rows(tmp_path):
+    harness = control_plane(tmp_path)
+    grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact", *tuple(P6_COMMAND_EVENTS)[:4]),
+    )
+    register = command(
+        command_id="cmd_019fe47a-1020-7000-8000-000000001020",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant,
+        expected_stream_version=0,
+        payload={"new_artefact_id": ARTEFACT_ID, "manifest": artefact_manifest()},
+    )
+    rows = (
+        ("RecordArtefactAvailability", "availability", "available"),
+        ("RecordArtefactRegenerability", "regenerability", "regenerable_verified"),
+        ("RecordArtefactIntegrity", "integrity", "verified"),
+        ("RecordStructuralValidation", "structural_validation", "passed"),
+    )
+    assert harness.service.submit(register).status == "accepted"
+    for offset, (command_type, field, value) in enumerate(rows, start=1):
+        payload = {
+            "artefact_id": ARTEFACT_ID,
+            field: value,
+            "subject_sha256": CONTENT_SHA256,
+            "evidence_refs": [f"evidence:{field}"],
+        }
+        if command_type in {"RecordArtefactIntegrity", "RecordStructuralValidation"}:
+            payload["validator_identity"] = "validator:wp6-c3"
+        receipt = harness.service.submit(
+            command(
+                command_id=f"cmd_019fe47a-102{offset}-7000-8000-00000000102{offset}",
+                command_type=command_type,
+                actor_id=ACTORS["actor-a"],
+                authority_grant_id=grant,
+                expected_stream_version=offset,
+                payload=payload,
+            )
+        )
+        assert receipt.status == "accepted", receipt
+    projected = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][ARTEFACT_ID]
+    assert {field: projected[field] for _, field, _ in rows} == {field: value for _, field, value in rows}
+    assert len(projected["authority_dimension_evidence"]) == 4
+
+
+def test_supersession_preserves_both_manifests_and_projects_replacement(tmp_path):
+    harness = control_plane(tmp_path)
+    main_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact", "SupersedeArtefact"),
+    )
+    replacement_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=REPLACEMENT_ARTEFACT_ID,
+        command_types=("RegisterArtefact",),
+    )
+    replacement_manifest = deepcopy(artefact_manifest())
+    replacement_manifest["artefact_id"] = REPLACEMENT_ARTEFACT_ID
+    replacement_manifest["relative_path"] = "evidence/evaluation-run-replacement.json"
+    for artefact_id, manifest, grant, number in (
+        (ARTEFACT_ID, artefact_manifest(), main_grant, 1030),
+        (REPLACEMENT_ARTEFACT_ID, replacement_manifest, replacement_grant, 1031),
+    ):
+        receipt = harness.service.submit(
+            command(
+                command_id=f"cmd_019fe47a-{number}-7000-8000-00000000{number}",
+                command_type="RegisterArtefact",
+                actor_id=ACTORS["actor-a"],
+                authority_grant_id=grant,
+                expected_stream_version=0,
+                payload={"new_artefact_id": artefact_id, "manifest": manifest},
+                target_stream_id=artefact_id,
+            )
+        )
+        assert receipt.status == "accepted", receipt
+    supersede = command(
+        command_id="cmd_019fe47a-1032-7000-8000-000000001032",
+        command_type="SupersedeArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=main_grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "replacement_artefact_id": REPLACEMENT_ARTEFACT_ID,
+            "supersession_reason": "replace the bounded evaluation evidence",
+            "supersession_scope": SCOPE_ID,
+            "replacement_sha256": CONTENT_SHA256,
+            "effective_at": "2026-08-08T21:00:00Z",
+            "continuing_consumer_dispositions": ["result consumers move to replacement"],
+        },
+    )
+    assert harness.service.submit(supersede).status == "accepted"
+    projected = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"]
+    assert projected[ARTEFACT_ID]["use_authority"] == "superseded"
+    assert projected[ARTEFACT_ID]["supersession"]["replacement_artefact_id"] == REPLACEMENT_ARTEFACT_ID
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == artefact_manifest()
+    assert harness.objects.read("artefact", REPLACEMENT_ARTEFACT_ID, 1) == replacement_manifest
+
+
+def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash(tmp_path):
+    harness = _c1_control_plane(tmp_path)
+    _seed_running_attempt(harness)
+    complete = _c1_command(
+        _command_id(1040),
+        "CompleteAttempt",
+        C1_ATTEMPT_ID,
+        harness.ledger.snapshot().stream_versions[C1_ATTEMPT_ID],
+        {
+            "attempt_id": C1_ATTEMPT_ID,
+            "candidate_artefact_ids": [ARTEFACT_ID],
+            "end_evidence_refs": ["evidence:attempt-complete"],
+            "output_disposition": "retained_as_candidate",
+        },
+    )
+    assert harness.service.submit(complete).status == "accepted"
+    grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact", "AdoptLateArtefact"),
+    )
+    register = command(
+        command_id="cmd_019fe47a-1046-7000-8000-000000001046",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant,
+        expected_stream_version=0,
+        payload={
+            "new_artefact_id": ARTEFACT_ID,
+            "manifest": {**artefact_manifest(), "producer_actor_id": ACTORS["actor-a"]},
+        },
+    )
+    assert harness.service.submit(register).status == "accepted"
+    artefact_subject_hash = sha256_hex(
+        canonical_bytes(
+            replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][ARTEFACT_ID]
+        )
+    )
+    _request_review(harness, LATE_REVIEW_ID, 1041, artefact_subject_hash, subject_id=ARTEFACT_ID)
+    _record_review_verdict(harness, LATE_REVIEW_ID, artefact_subject_hash, 1042, "approve")
+    _submit_review_command(
+        harness,
+        1045,
+        "SatisfyReview",
+        LATE_REVIEW_ID,
+        {
+            "review_id": LATE_REVIEW_ID,
+            "prior_review_state": "verdict_recorded",
+            "policy_evaluation_refs": ["policy-evaluation:late-adoption"],
+            "satisfaction_gate": "late-artefact-adoption",
+        },
+    )
+    attempt = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][C1_ATTEMPT_ID]
+    adopt = command(
+        command_id="cmd_019fe47a-1047-7000-8000-000000001047",
+        command_type="AdoptLateArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "attempt_id": C1_ATTEMPT_ID,
+            "review_id": LATE_REVIEW_ID,
+            "artefact_sha256": CONTENT_SHA256,
+            "late_observed_at": "2026-08-11T00:00:00Z",
+            "lease_id": attempt["lease_id"],
+            "allowed_consumer_scope": [SCOPE_ID],
+        },
+    )
+    first = harness.service.submit(adopt)
+    assert first.status == "accepted", first
+    assert harness.service.submit(deepcopy(adopt)) == first
+    projected = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][ARTEFACT_ID]
+    assert projected["late_adoptions"][0]["review_id"] == LATE_REVIEW_ID
+
+
+def test_new_p6_precondition_failures_leave_no_event_or_object_residue(tmp_path):
+    harness = control_plane(tmp_path)
+    command_types = (
+        "RegisterArtefact",
+        "RecordArtefactAvailability",
+        "RecordArtefactRegenerability",
+        "RecordArtefactIntegrity",
+        "RecordStructuralValidation",
+        "SupersedeArtefact",
+        "AdoptLateArtefact",
+    )
+    grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=command_types,
+    )
+    register = command(
+        command_id="cmd_019fe47a-1050-7000-8000-000000001050",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant,
+        expected_stream_version=0,
+        payload={"new_artefact_id": ARTEFACT_ID, "manifest": artefact_manifest()},
+    )
+    assert harness.service.submit(register).status == "accepted"
+    before_events = tuple(harness.ledger.iter_events())
+    before_object = deepcopy(harness.objects.read("artefact", ARTEFACT_ID, 1))
+    invalid_payloads = (
+        (
+            "RecordArtefactAvailability",
+            {"availability": "available", "subject_sha256": "0" * 64, "evidence_refs": ["e:a"]},
+        ),
+        (
+            "RecordArtefactRegenerability",
+            {"regenerability": "regenerable_verified", "subject_sha256": "0" * 64, "evidence_refs": ["e:r"]},
+        ),
+        (
+            "RecordArtefactIntegrity",
+            {
+                "integrity": "verified",
+                "validator_identity": "validator:c3",
+                "subject_sha256": "0" * 64,
+                "evidence_refs": ["e:i"],
+            },
+        ),
+        (
+            "RecordStructuralValidation",
+            {
+                "structural_validation": "passed",
+                "validator_identity": "validator:c3",
+                "subject_sha256": "0" * 64,
+                "evidence_refs": ["e:s"],
+            },
+        ),
+        (
+            "SupersedeArtefact",
+            {
+                "replacement_artefact_id": REPLACEMENT_ARTEFACT_ID,
+                "supersession_reason": "missing replacement must deny",
+                "supersession_scope": SCOPE_ID,
+                "replacement_sha256": CONTENT_SHA256,
+                "effective_at": "2026-08-11T00:00:00Z",
+                "continuing_consumer_dispositions": ["no mutation"],
+            },
+        ),
+        (
+            "AdoptLateArtefact",
+            {
+                "attempt_id": C1_ATTEMPT_ID,
+                "review_id": LATE_REVIEW_ID,
+                "artefact_sha256": CONTENT_SHA256,
+                "late_observed_at": "2026-08-11T00:00:00Z",
+                "lease_id": "els_019fe47a-1051-7000-8000-000000001051",
+                "allowed_consumer_scope": [SCOPE_ID],
+            },
+        ),
+    )
+    for offset, (command_type, fields) in enumerate(invalid_payloads, start=1):
+        payload = {"artefact_id": ARTEFACT_ID, **fields}
+        rejected = harness.service.submit(
+            command(
+                command_id=f"cmd_019fe47a-105{offset}-7000-8000-00000000105{offset}",
+                command_type=command_type,
+                actor_id=ACTORS["actor-a"],
+                authority_grant_id=grant,
+                expected_stream_version=1,
+                payload=payload,
+            )
+        )
+        assert rejected.status == "rejected", (command_type, rejected)
+        assert harness.receipts.load(rejected.command_id) == rejected
+    assert tuple(harness.ledger.iter_events()) == before_events
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object
+
+
+def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_path):
+    class I2GoverningEvidenceResolver(StaticGoverningEvidenceResolver):
+        independence_grade = "I2"
+
+    base = control_plane(tmp_path)
+    harness = replace(
+        base,
+        service=base.authority_service,
+        ledger=base.authority_ledger,
+        objects=base.authority_objects,
+        receipts=base.authority_receipts,
+    )
+    harness.service.governing_evidence_resolver = I2GoverningEvidenceResolver()
+    artefact_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=ARTEFACT_ID,
+        command_types=("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
+    )
+    register = command(
+        command_id="cmd_019fe47a-1060-7000-8000-000000001060",
+        command_type="RegisterArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=artefact_grant,
+        expected_stream_version=0,
+        payload={"new_artefact_id": ARTEFACT_ID, "manifest": artefact_manifest()},
+    )
+    scientific_review = command(
+        command_id="cmd_019fe47a-1061-7000-8000-000000001061",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=artefact_grant,
+        expected_stream_version=1,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "review_id": REVIEW_ID,
+            "subject_sha256": CONTENT_SHA256,
+            "scientific_review": "approved",
+            "evidence_refs": [REVIEW_EVIDENCE_ID],
+        },
+    )
+    assert harness.service.submit(register).status == "accepted"
+    assert harness.service.submit(scientific_review).status == "accepted"
+
+    proposer_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="decision",
+        subject_id=CLAIM_DECISION_ID,
+        actor_id=ACTOR_C,
+        allowed_actor_classes=("agent",),
+        command_types=("ProposeDecision", "RequestDecisionReview"),
+        grant_id="agr_019fe47a-1162-7000-8000-000000001162",
+    )
+    propose = _lifecycle_command(
+        "cmd_019fe47a-1062-7000-8000-000000001062",
+        "ProposeDecision",
+        CLAIM_DECISION_ID,
+        0,
+        {
+            "new_decision_id": CLAIM_DECISION_ID,
+            "question": "May the exact claim evidence be promoted?",
+            "recommendation": "approve",
+            "options": ["approve", "deny"],
+            "decision_revision": 1,
+            "decision_kind": "claim_promotion",
+            "governing_evidence_refs": [REVIEW_EVIDENCE_ID],
+            "affected_task_ids": [],
+            "affected_claim_ids": [],
+            "required_authority": "Stephen",
+            "expires_at": "2026-08-12T00:00:00Z",
+            "review_date": "2026-08-10T00:00:00Z",
+            "consequences": ["only the exact accepted scope may consume the evidence"],
+        },
+    )
+    propose["actor_id"] = ACTOR_C
+    propose["authority_grant_id"] = proposer_grant
+    assert harness.service.submit(propose).status == "accepted"
+    request_decision_review = _lifecycle_command(
+        "cmd_019fe47a-1063-7000-8000-000000001063",
+        "RequestDecisionReview",
+        CLAIM_DECISION_ID,
+        1,
+        {
+            "decision_id": CLAIM_DECISION_ID,
+            "decision_revision": 1,
+            "review_requirements": ["independent exact-subject review"],
+            "governing_evidence_refs": [REVIEW_EVIDENCE_ID],
+        },
+    )
+    request_decision_review["actor_id"] = ACTOR_C
+    request_decision_review["authority_grant_id"] = proposer_grant
+    assert harness.service.submit(request_decision_review).status == "accepted"
+    decision_hash = sha256_hex(
+        canonical_bytes(
+            replay(
+                tuple(harness.ledger.iter_events()),
+                schema_registry=harness.schemas,
+                authority_state_validator=harness.authority_resolver.validate_replayed_administration_state,
+            )["streams"][CLAIM_DECISION_ID]
+        )
+    )
+
+    review_owner_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="review",
+        subject_id=REVIEW_ID,
+        command_types=("RequestReview", "AssignReview", "SatisfyReview"),
+        grant_id="agr_019fe47a-1164-7000-8000-000000001164",
+    )
+    reviewer_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="review",
+        subject_id=REVIEW_ID,
+        actor_id=ACTORS["actor-b"],
+        allowed_actor_classes=("agent",),
+        command_types=("StartReview", "RecordReviewVerdict"),
+        grant_id="agr_019fe47a-1165-7000-8000-000000001165",
+    )
+    review_commands = [
+        (
+            "RequestReview",
+            ACTORS["actor-a"],
+            review_owner_grant,
+            {
+                "new_review_id": REVIEW_ID,
+                "review_type": "software",
+                "subject_ids": [CLAIM_DECISION_ID],
+                "subject_hashes": [decision_hash],
+                "governing_refs": ["P-005", "06i"],
+                "review_questions": ["Does the decision bind the exact governing review set?"],
+                "required_evidence_refs": [REVIEW_EVIDENCE_ID],
+                "required_lanes": ["scientific", "provenance"],
+                "reviewer_capability": ["claim-promotion"],
+                "required_independence_grade": "independent_exact_subject",
+                "visibility_policy": "owner_and_reviewer",
+                "allowed_verdicts": ["accept_exact_subject", "rework_required"],
+                "satisfaction_authority": "owner",
+                "deadline": "2026-08-11T00:00:00Z",
+                "escalation_rule": "rework on any binding mismatch",
+            },
+        ),
+        (
+            "AssignReview",
+            ACTORS["actor-a"],
+            review_owner_grant,
+            {
+                "review_id": REVIEW_ID,
+                "reviewer_actor_id": ACTORS["actor-b"],
+                "computed_independence_grade": "I2",
+                "independence_evidence_refs": ["evidence:independent"],
+            },
+        ),
+        (
+            "StartReview",
+            ACTORS["actor-b"],
+            reviewer_grant,
+            {
+                "review_id": REVIEW_ID,
+                "unchanged_subject_sha256": decision_hash,
+                "visibility_policy": "owner_and_reviewer",
+            },
+        ),
+        (
+            "RecordReviewVerdict",
+            ACTORS["actor-b"],
+            reviewer_grant,
+            {
+                "review_id": REVIEW_ID,
+                "verdict": "approve",
+                "findings": [],
+                "reviewer_actor_id": ACTORS["actor-b"],
+                "required_evidence_refs": [REVIEW_EVIDENCE_ID],
+                "limitations": [],
+                "conditions": [],
+                "reviewer_profile": "independent-reviewer",
+                "reviewer_session": "session:p005",
+                "reviewer_model_metadata": "model:independent",
+                "context_manifest_id": CONTEXT_ID,
+                "context_manifest_sha256": "a" * 64,
+                "unchanged_subject_sha256": decision_hash,
+                "producing_attempt_id": ATTEMPT_ID,
+                "trace_visibility_evidence_refs": ["evidence:trace"],
+                "computed_independence_grade": "I2",
+            },
+        ),
+        (
+            "SatisfyReview",
+            ACTORS["actor-a"],
+            review_owner_grant,
+            {
+                "review_id": REVIEW_ID,
+                "prior_review_state": "verdict_recorded",
+                "policy_evaluation_refs": ["policy-evaluation:p005"],
+                "satisfaction_gate": "claim-promotion",
+            },
+        ),
+    ]
+    for offset, (command_type, actor_id, grant_id, payload) in enumerate(review_commands):
+        review_command = _lifecycle_command(
+            f"cmd_019fe47a-107{offset}-7000-8000-00000000107{offset}",
+            command_type,
+            REVIEW_ID,
+            offset,
+            payload,
+        )
+        review_command["actor_id"] = actor_id
+        review_command["authority_grant_id"] = grant_id
+        assert harness.service.submit(review_command).status == "accepted"
+
+    decision_owner_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="decision",
+        subject_id=CLAIM_DECISION_ID,
+        command_types=("ResolveDecision",),
+        grant_id="agr_019fe47a-1180-7000-8000-000000001180",
+    )
+    resolve = _lifecycle_command(
+        "cmd_019fe47a-1080-7000-8000-000000001080",
+        "ResolveDecision",
+        CLAIM_DECISION_ID,
+        2,
+        {
+            "decision_id": CLAIM_DECISION_ID,
+            "selected_option": "approve",
+            "effective_scope": f"claim_promotion:{SCOPE_ID}",
+            "effective_at": "2026-08-08T19:00:00Z",
+            "decision_revision": 1,
+            "deciding_actor_id": ACTORS["actor-a"],
+            "decision_authority_grant_id": decision_owner_grant,
+            "governing_evidence_refs": [REVIEW_EVIDENCE_ID],
+            "considered_review_ids": [REVIEW_ID],
+            "permitted_commands": ["SetArtefactUseAuthority"],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": ["subject or review change"],
+        },
+    )
+    resolve["actor_id"] = ACTORS["actor-a"]
+    resolve["authority_grant_id"] = decision_owner_grant
+    assert harness.service.submit(resolve).status == "accepted"
+
+    contract = ArtefactAuthorityContractLoader(SUBJECT).load()
+    claim, claim_sha256 = contract.predicate_for("claim_evidence")
+    use = command(
+        command_id="cmd_019fe47a-1081-7000-8000-000000001081",
+        command_type="SetArtefactUseAuthority",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=artefact_grant,
+        expected_stream_version=2,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "use_authority": "accepted_for_scope",
+            "subject_sha256": CONTENT_SHA256,
+            "consumer_predicate": predicate_reference(
+                str(claim["predicate_id"]), str(claim["predicate_version"]), claim_sha256
+            ),
+            "evidence_refs": [REVIEW_ID, REVIEW_EVIDENCE_ID, CLAIM_DECISION_ID],
+        },
+    )
+    accepted = harness.service.submit(use)
+    assert accepted.status == "accepted", accepted
+
+    class ContentReader:
+        def read(self, *, root_id: str, relative_path: str) -> bytes:
+            assert (root_id, relative_path) == ("control", "evidence/evaluation-run.json")
+            return CONTENT_BYTES
+
+    resolver = ArtefactUseResolver(
+        ledger=harness.ledger,
+        objects=harness.objects,
+        schemas=harness.schemas,
+        contract_loader=ArtefactAuthorityContractLoader(SUBJECT),
+        governing_evidence=I2GoverningEvidenceResolver(),
+        content_reader=ContentReader(),
+        authority_state_validator=harness.authority_resolver.validate_replayed_administration_state,
+    )
+    resolved = resolver.resolve(
+        ArtefactUseRequest(
+            artefact_id=ARTEFACT_ID,
+            exact_content_sha256=CONTENT_SHA256,
+            consumer_id="rm03_claim_assessment",
+            consumer_kind="claim_evidence",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            scope_id=SCOPE_ID,
+            predicate_id=str(claim["predicate_id"]),
+            predicate_version=str(claim["predicate_version"]),
+            predicate_sha256=claim_sha256,
+            evaluation_time=datetime(2026, 8, 10, 12, 0, tzinfo=UTC),
+            required_decision_kind="claim_promotion",
+        )
+    )
+    assert resolved.decision_id == CLAIM_DECISION_ID
+    assert resolved.decision_event_id
+    assert resolved.decision_event_hash
+    assert resolved.decision_projection_sha256
+    assert resolved.governing_review_ids == (REVIEW_ID,)
+    assert resolved.governing_review_set_sha256
 
 
 def test_register_review_and_use_authority_are_real_durable_commands(tmp_path):
