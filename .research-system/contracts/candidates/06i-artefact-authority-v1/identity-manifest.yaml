@@ -6,8 +6,8 @@ components:
   - component_id: artefact-authority-interface
     candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-authority-interface.v1.yaml
     canonical_path: .research-system/contracts/artefact-authority-interface.v1.yaml
-    git_blob: 4c6258a9a675ddb79f0f9d551b946b4b8f377044
-    canonical_sha256: 9024b626e281be1011704b252240ab01a1f0b82a76d9cfb944188abea39efde4
+    git_blob: 3502dad6849c183f98e9a86b9a109328236ed616
+    canonical_sha256: 03c6d5c0bc7287a5061967e147c194e168513dc1bc9621f15735e030995679f5
   - component_id: artefact-consumer-predicates
     candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-consumer-predicates.v1.yaml
     canonical_path: .research-system/policies/artefact-consumer-predicates.v1.yaml
@@ -21,5 +21,5 @@ components:
   - component_id: governing-review-set-rules
     candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/governing-review-set-rules.v1.yaml
     canonical_path: .research-system/policies/governing-review-set-rules.v1.yaml
-    git_blob: 2bcd100246c9334c6ccb15a609ebd34d2863d006
-    canonical_sha256: 49f45c6d06c386cbe6e9e1e54744c6c7a7b31ec77f5a443809e39f6fc796fb07
+    git_blob: c583668042395d1bef9b2a8485020f61f29407dd
+    canonical_sha256: 1bc6b16fd1af683fb269e6dc5baf0660eeda970ec11dac7d58419c0c1d8d4ce5
