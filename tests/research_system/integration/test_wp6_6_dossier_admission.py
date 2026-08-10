@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, replace
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 
 import pytest
@@ -30,6 +30,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
 
 
 REPO = Path(__file__).resolve().parents[3]
+CONTRACT_ROOT = REPO / ".research-system/contracts/wp6-4"
 PACKAGE = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/package-index.json"
 SCOPE = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json"
 PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json"
@@ -41,7 +42,11 @@ VAULT = Path("C:/Users/steph/TDL/vault")
 
 
 def _member(key: str, kind: str, relative_path: str, *, root_id: str = "repo") -> DossierMember:
-    root = REPO if root_id == "repo" else VAULT
+    if root_id == "repo":
+        root = CONTRACT_ROOT
+        relative_path = PurePosixPath(relative_path).relative_to(".research-system/contracts/wp6-4").as_posix()
+    else:
+        root = VAULT
     raw = (root / relative_path).read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     return DossierMember(key, kind, root_id, relative_path, len(raw), digest, f"prov:{key}", 1, digest)
@@ -75,7 +80,7 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
     )
     expected = replace(expected, content_hash=accepted_expected_set_hash(expected))
     roots = {
-        "repo": RegisteredRoot("repo", REPO, 1, registered_root_identity_hash(REPO)),
+        "repo": RegisteredRoot("repo", CONTRACT_ROOT, 1, registered_root_identity_hash(CONTRACT_ROOT)),
         "vault": RegisteredRoot("vault", VAULT, 1, registered_root_identity_hash(VAULT)),
     }
     return expected, roots
@@ -229,7 +234,7 @@ def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Pa
     for member in expected.members:
         target = tmp_path / member.relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        source_root = REPO if member.root_id == "repo" else VAULT
+        source_root = CONTRACT_ROOT if member.root_id == "repo" else VAULT
         target.write_bytes((source_root / member.relative_path).read_bytes())
     (tmp_path / expected.members[-1].relative_path).write_text("tampered", encoding="utf-8")
 

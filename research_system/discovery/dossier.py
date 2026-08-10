@@ -80,7 +80,7 @@ def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
 def registered_root_identity_hash(path: Path) -> str:
     """Hash the held physical directory identity and final path."""
 
-    anchor = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
+    anchor = _open_directory_anchor(path, reject_reparse=False, delete_protect=True)
     try:
         return _canonical_hash(
             {
@@ -140,7 +140,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
     if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
         raise DossierAdmissionRejected("path_traversal")
 
-    anchor = _open_directory_anchor(root.path, reject_reparse=False, delete_protect=False)
+    anchor = _open_directory_anchor(root.path, reject_reparse=False, delete_protect=True)
     try:
         identity_hash = _canonical_hash(
             {
@@ -153,7 +153,10 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         if identity_hash != root.registration_hash:
             raise DossierAdmissionRejected("path_registration_identity_mismatch")
         _assert_live_root(anchor, root.path)
-        _after_root_identity_check(root.path)
+        try:
+            _after_root_identity_check(root.path)
+        except OSError as exc:
+            raise DossierAdmissionRejected("path_registration_identity_changed") from exc
         root_path = anchor.final_path
         candidate = root_path.joinpath(*relative.parts)
         try:

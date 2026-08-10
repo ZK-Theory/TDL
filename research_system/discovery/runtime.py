@@ -807,7 +807,7 @@ class DiscoveryRuntime:
             root_values = accepted_paths["subject"].get("registered_roots")
             if isinstance(root_values, list):
                 path_tokens = {
-                    "$REPOSITORY_ROOT": Path("C:/Users/steph/TDL"),
+                    "$REPOSITORY_CONTRACT_ROOT": Path("C:/Users/steph/TDL/.research-system/contracts/wp6-4"),
                     "$TDA_VAULT_ROOT": Path("C:/Users/steph/TDL/vault"),
                 }
                 roots = {
