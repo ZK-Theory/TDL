@@ -24,10 +24,12 @@ from research_system.assurance.relationship_facts import (
     RelationshipEvidenceParticipant,
 )
 from research_system.assurance.runner import (
+    AssurancePackConsumptionResult,
     AssurancePackRunResult,
     AssurancePackRunnerConfig,
     SemanticRecordLocator,
     accept_assurance_pack,
+    load_assurance_pack,
     prepare_assurance_pack,
 )
 
@@ -45,11 +47,13 @@ __all__ = [
     "RelationshipEvidenceParticipant",
     "PackAcceptanceSubject",
     "PackUnconsumable",
+    "AssurancePackConsumptionResult",
     "AssurancePackRunResult",
     "AssurancePackRunnerConfig",
     "SemanticRecordLocator",
     "accept_assurance_pack",
     "git_blob_id",
+    "load_assurance_pack",
     "validate_tdl_private_pack_for_acceptance",
     "validate_tdl_private_pack_for_preparation",
     "prepare_assurance_pack",

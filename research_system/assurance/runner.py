@@ -45,11 +45,13 @@ from research_system.store.durability import fsync_directory
 
 
 __all__ = [
+    "AssurancePackConsumptionResult",
     "AssurancePackRunResult",
     "AssurancePackRunnerConfig",
     "GitCurrentReferenceResolver",
     "SemanticRecordLocator",
     "accept_assurance_pack",
+    "load_assurance_pack",
     "prepare_assurance_pack",
 ]
 
@@ -130,6 +132,20 @@ class AssurancePackRunResult:
     evidence_path: Path
     preparation_identity: str
     subject: PackAcceptanceSubject
+
+
+@dataclass(frozen=True)
+class AssurancePackConsumptionResult:
+    """Exact accepted pack returned after current point-of-use revalidation."""
+
+    run_id: str
+    phase: str
+    state: str
+    evidence_path: Path
+    acceptance_identity: str
+    subject: PackAcceptanceSubject
+    pack: Mapping[str, object]
+    raw_pack_bytes: bytes
 
 
 @dataclass(frozen=True)
@@ -1424,6 +1440,23 @@ def _load_preparation(path: Path, run_id: str) -> tuple[Mapping[str, object], st
     return evidence, preparation_identity
 
 
+def _load_acceptance(path: Path, run_id: str) -> tuple[Mapping[str, object], str]:
+    wrapper = _read_immutable(path)
+    evidence = _mapping(wrapper.get("evidence"), "acceptance evidence")
+    if wrapper.get("evidence_sha256") != _phase_evidence_identity(evidence):
+        raise PackUnconsumable("acceptance evidence identity is corrupt")
+    if evidence.get("run_id") != run_id or evidence.get("phase") != "acceptance":
+        raise PackUnconsumable("acceptance evidence is for a different run or phase")
+    if evidence.get("state") != "consumption_authorized":
+        raise PackUnconsumable("acceptance evidence does not authorize consumption")
+    acceptance_identity = _text(evidence.get("evidence_identity"), "acceptance identity")
+    if acceptance_identity != _phase_evidence_identity(
+        {key: value for key, value in evidence.items() if key != "evidence_identity"}
+    ):
+        raise PackUnconsumable("acceptance evidence identity is corrupt")
+    return evidence, acceptance_identity
+
+
 def accept_assurance_pack(
     *,
     config: AssurancePackRunnerConfig,
@@ -1595,3 +1628,143 @@ def accept_assurance_pack(
         {"evidence": evidence, "evidence_sha256": _phase_evidence_identity(evidence)},
     )
     return AssurancePackRunResult(run_id, "acceptance", "consumption_authorized", path, preparation_identity, subject)
+
+
+def load_assurance_pack(
+    *,
+    config: AssurancePackRunnerConfig,
+    candidate_path: Path,
+    evaluation_time: datetime,
+    run_id: str,
+    record_locators: Mapping[str, object],
+) -> AssurancePackConsumptionResult:
+    """Load an accepted pack only after fresh point-of-use authority checks."""
+
+    evaluation_time = _utc(evaluation_time)
+    locators = _normalise_locators(record_locators)
+    if not isinstance(config, AssurancePackRunnerConfig) or not isinstance(config.binding, ControlBinding):
+        raise PackUnconsumable("consumption requires one verified AssurancePackRunnerConfig")
+    acceptance, acceptance_identity = _load_acceptance(_run_root(config, run_id) / "acceptance.json", run_id)
+    candidate_value = _mapping(acceptance.get("candidate"), "acceptance candidate")
+    reader = _GitObjectReader(config.repository_root)
+    candidate = reader.candidate_at(
+        _text(candidate_value.get("commit"), "acceptance commit"),
+        _text(candidate_value.get("tree"), "acceptance tree"),
+        _text(candidate_value.get("repository_path"), "acceptance path"),
+        _text(candidate_value.get("git_blob"), "acceptance blob"),
+        _text(candidate_value.get("raw_sha256"), "acceptance raw SHA-256"),
+    )
+    if reader.path(candidate_path) != candidate.repository_path:
+        raise PackUnconsumable("consumption candidate path differs from immutable acceptance")
+    pack = _candidate_pack(candidate)
+    if pack.get("canonical_repository_path") != candidate.repository_path:
+        raise PackUnconsumable("candidate path is not the canonical registered pack path")
+
+    resolver = ControlStoreAuthorityResolver(config.binding)
+    facts_reader = _FactsReader(config.binding, reader)
+    records, fact_records = _resolve_phase(
+        resolver,
+        facts_reader,
+        locators,
+        config.resolved_authority_root(),
+        "consumption",
+    )
+    contract_subject, schema_subject = _subject_from_contract_acceptance(
+        _record(records, "stephen_contract_schema_acceptance")
+    )
+    contract_bytes = _accepted_git_artifact(reader, contract_subject, "accepted contract")
+    schema_bytes = _accepted_git_artifact(reader, schema_subject, "accepted pack schema")
+    contract = _parse_yaml_bytes(contract_bytes, "accepted contract")
+    _validate_required_locator_set(contract, locators, phase="acceptance", pack=pack)
+    references = GitCurrentReferenceResolver(reader).resolve(contract)
+    subject = validate_tdl_private_pack_for_acceptance(
+        accepted_upstream_contract_subject=contract_subject,
+        accepted_schema_subject=schema_subject,
+        trusted_w1_w2_content_addressed_authority_resolver=resolver,
+        independently_supplied_authority_root=config.resolved_authority_root(),
+        opaque_external_record_ids=_opaque_ids(locators, contract, phase="acceptance"),
+        current_exact_reference_snapshot=references,
+        raw_candidate_pack_bytes=candidate.raw,
+        evaluation_time=evaluation_time,
+        trusted_upstream_contract_bytes=contract_bytes,
+        trusted_schema_bytes=schema_bytes,
+    )
+    _validate_subject_records(records, contract_subject, schema_subject)
+    _validate_actor_joins(records, locators, pack)
+    _validate_contract_schema_review_relationships(records, evaluation_time)
+    _validate_relationship_facts(records, fact_records, pack, subject, evaluation_time)
+    _validate_temporal_and_identity(records, pack, subject, evaluation_time)
+    validate_tdl_private_semantics(
+        contract=contract,
+        pack=pack,
+        records=records,
+        subject=subject,
+        current_exact_reference_snapshot=references,
+        evaluation_time=evaluation_time,
+        phase="acceptance",
+    )
+    _validate_pack_review_fact_operator_provenance(records, fact_records)
+    authority = _policy_and_requirement(
+        config.binding,
+        config.resolved_authority_root(),
+        records,
+        pack,
+        evaluation_time,
+    )
+    if asdict(subject) != acceptance.get("subject"):
+        raise PackUnconsumable("consumption exact subject differs from immutable acceptance")
+    if _receipt_map(records) != acceptance.get("records"):
+        raise PackUnconsumable("external assurance records changed since acceptance")
+    if _facts_receipt_map(fact_records) != acceptance.get("relationship_evidence_facts"):
+        raise PackUnconsumable("relationship-evidence-facts changed since acceptance")
+    if asdict(authority) != acceptance.get("grant_replay_receipt"):
+        raise PackUnconsumable("replay-backed grant authority changed since acceptance")
+    reference_receipt = {key: dict(value) for key, value in sorted(references.items())}
+    if reference_receipt != acceptance.get("reference_snapshot"):
+        raise PackUnconsumable("current reference snapshot changed since acceptance")
+    if (
+        acceptance.get("project_id") != config.binding.project_id
+        or acceptance.get("store_identity") != config.binding.store_identity
+        or acceptance.get("authority_root") != config.resolved_authority_root()
+    ):
+        raise PackUnconsumable("acceptance control binding differs from current consumption binding")
+
+    evidence: dict[str, object] = {
+        "schema_id": "ars://wp6-3-authority/assurance-pack-run-evidence/1.0",
+        "schema_version": "1.0.0",
+        "run_id": run_id,
+        "phase": "consumption",
+        "state": "consumed",
+        "evaluation_time": evaluation_time.isoformat().replace("+00:00", "Z"),
+        "candidate": dict(candidate_value),
+        "subject": asdict(subject),
+        "project_id": config.binding.project_id,
+        "store_identity": config.binding.store_identity,
+        "authority_root": config.resolved_authority_root(),
+        "records": _receipt_map(records),
+        "relationship_evidence_facts": _facts_receipt_map(fact_records),
+        "grant_replay_receipt": asdict(authority),
+        "reference_snapshot": reference_receipt,
+        "prior_acceptance_identity": acceptance_identity,
+        "consumed_pack_sha256": candidate.raw_sha256,
+        "retry_idempotency": {
+            "run_id": run_id,
+            "acceptance_identity": acceptance_identity,
+            "candidate_blob": candidate.blob,
+            "candidate_raw_sha256": candidate.raw_sha256,
+        },
+    }
+    evidence_identity = _phase_evidence_identity(evidence)
+    evidence["evidence_identity"] = evidence_identity
+    path = _run_root(config, run_id) / "consumption.json"
+    _immutable_write(path, {"evidence": evidence, "evidence_sha256": _phase_evidence_identity(evidence)})
+    return AssurancePackConsumptionResult(
+        run_id,
+        "consumption",
+        "consumed",
+        path,
+        acceptance_identity,
+        subject,
+        pack,
+        candidate.raw,
+    )
