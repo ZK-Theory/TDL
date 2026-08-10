@@ -185,6 +185,18 @@ def test_unregistered_and_traversing_expected_paths_are_rejected() -> None:
             )
 
 
+def test_registered_root_physical_identity_mismatch_rejects_before_publication() -> None:
+    expected, roots = _subject()
+    replaced = {**roots, "repo": replace(roots["repo"], registration_hash="0" * 64)}
+    with pytest.raises(DossierAdmissionRejected, match="path_registration_identity_mismatch"):
+        prepare_dossier_admission(
+            expected_set=expected,
+            current_expected_set_revision=3,
+            candidate_members=expected.members,
+            registered_roots=replaced,
+        )
+
+
 def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Path) -> None:
     expected, _ = _subject()
     for member in expected.members:
