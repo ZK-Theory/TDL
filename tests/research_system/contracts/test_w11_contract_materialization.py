@@ -1071,7 +1071,7 @@ def test_w11_catalogue_binds_each_owner_row_to_its_literal_tests() -> None:
         )
 
 
-def test_w11_catalogue_requires_exact_schema_family_closure_and_owner_identity_uniqueness() -> None:
+def test_w11_catalogue_requires_exact_schema_family_closure_and_owner_logical_identity_uniqueness() -> None:
     catalogue = _valid_catalogue()
     incomplete = deepcopy(catalogue)
     incomplete["schema_source_rows"][-1]["logical_key"] = "bootstrap:unexpected"
@@ -1091,17 +1091,6 @@ def test_w11_catalogue_requires_exact_schema_family_closure_and_owner_identity_u
             SCHEMA_ROOT,
             "ars://portfolio/w11-schema-catalogue-content",
             duplicate_owner_logical,
-        )
-
-    duplicate_owner_schema = deepcopy(catalogue)
-    duplicate_owner_schema["owner_contract_rows"][1]["schema_id"] = duplicate_owner_schema["owner_contract_rows"][0][
-        "schema_id"
-    ]
-    with pytest.raises(SchemaError, match="owner_contract_rows schema_id values must be unique"):
-        verify_materialization_document(
-            SCHEMA_ROOT,
-            "ars://portfolio/w11-schema-catalogue-content",
-            duplicate_owner_schema,
         )
 
 

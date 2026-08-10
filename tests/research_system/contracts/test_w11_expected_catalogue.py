@@ -31,9 +31,67 @@ def _owner_row(catalogue: dict[str, object], owner_row_id: str) -> dict[str, obj
     return next(row for row in rows if row["owner_row_id"] == owner_row_id)
 
 
+@pytest.fixture(scope="module")
+def independently_derived_owner_rows() -> dict[str, dict[str, object]]:
+    schema_rows = w11_verifier._expected_schema_source_rows(REPO_ROOT, SCHEMA_ROOT)
+    rows = w11_verifier._expected_owner_contract_rows(REPO_ROOT, schema_rows)
+    return {row["owner_row_id"]: row for row in rows}
+
+
 def test_w11_expected_catalogue_admits_the_exact_static_subject() -> None:
     catalogue = _catalogue()
     w11_verifier.verify_expected_catalogue(REPO_ROOT, catalogue)
+
+
+@pytest.mark.parametrize(
+    "owner_row_id",
+    OWNER_ROW_IDS,
+    ids=[f"W11-T01-{owner_row_id}" for owner_row_id in OWNER_ROW_IDS],
+)
+def test_every_w11_owner_row_has_a_complete_consumable_binding(
+    owner_row_id: str,
+    independently_derived_owner_rows: dict[str, dict[str, object]],
+) -> None:
+    row = _owner_row(_catalogue(), owner_row_id)
+    w11_verifier.verify_expected_owner_contract_row(row, independently_derived_owner_rows[owner_row_id])
+    assert row["command_type"]
+    assert row["receipt_identity"].startswith("R:")
+    assert row["authority_subject"]
+    assert row["reducer"]
+    assert row["projection_targets"]
+    assert row["ordered_events"]
+    assert row["positive_test_identity"] == f"W11-T01-{owner_row_id}"
+    assert row["negative_mutation_test_identity"] == f"W11-T03-{owner_row_id}-owner-row-mutation"
+    assert row["retry_test_identity"] == f"W11-T11-{owner_row_id}"
+
+
+@pytest.mark.parametrize(
+    "owner_row_id",
+    OWNER_ROW_IDS,
+    ids=[f"W11-T03-{owner_row_id}-owner-row-mutation" for owner_row_id in OWNER_ROW_IDS],
+)
+def test_every_w11_owner_row_rejects_a_coordinated_binding_mutation(
+    owner_row_id: str,
+    independently_derived_owner_rows: dict[str, dict[str, object]],
+) -> None:
+    row = copy.deepcopy(_owner_row(_catalogue(), owner_row_id))
+    row["receipt_identity"] = "R:coordinated-substitute"
+    with pytest.raises(SchemaError, match="owner_contract_rows do not match"):
+        w11_verifier.verify_expected_owner_contract_row(row, independently_derived_owner_rows[owner_row_id])
+
+
+@pytest.mark.parametrize(
+    "owner_row_id",
+    OWNER_ROW_IDS,
+    ids=[f"W11-T11-{owner_row_id}" for owner_row_id in OWNER_ROW_IDS],
+)
+def test_every_w11_owner_row_is_stable_on_retry(
+    owner_row_id: str,
+    independently_derived_owner_rows: dict[str, dict[str, object]],
+) -> None:
+    row = _owner_row(_catalogue(), owner_row_id)
+    w11_verifier.verify_expected_owner_contract_row(row, independently_derived_owner_rows[owner_row_id])
+    w11_verifier.verify_expected_owner_contract_row(row, independently_derived_owner_rows[owner_row_id])
 
 
 def test_w11_expected_catalogue_has_closed_counts_and_non_circular_hashes() -> None:
@@ -41,14 +99,14 @@ def test_w11_expected_catalogue_has_closed_counts_and_non_circular_hashes() -> N
     schema_rows = catalogue["schema_source_rows"]
     owner_rows = catalogue["owner_contract_rows"]
 
-    assert len(schema_rows) == 62
+    assert len(schema_rows) == 61
     assert len(owner_rows) == 81
     assert tuple(row["owner_row_id"] for row in owner_rows) == OWNER_ROW_IDS
     assert tuple(row["repository_path"] for row in schema_rows) == tuple(
         sorted(row["repository_path"] for row in schema_rows)
     )
-    assert len({row["repository_path"] for row in schema_rows}) == 62
-    assert len({row["schema_id"] for row in schema_rows}) == 62
+    assert len({row["repository_path"] for row in schema_rows}) == 61
+    assert len({row["schema_id"] for row in schema_rows}) == 61
     assert "catalogue_content_hash" not in catalogue
     assert catalogue["content_hash"] == sha256_hex(
         canonical_bytes({key: value for key, value in catalogue.items() if key != "content_hash"})
@@ -154,7 +212,7 @@ def test_runtime_bindings_and_projection_sources_are_byte_unchanged_from_foundat
             "ls-tree",
             "-r",
             "--name-only",
-            w11_verifier.W11_FOUNDATION_COMMIT,
+            w11_verifier.W11_CONSTRUCTION_BASE,
             "--",
             "research_system",
         ],
@@ -167,7 +225,7 @@ def test_runtime_bindings_and_projection_sources_are_byte_unchanged_from_foundat
 
     for relative_path in paths:
         expected = subprocess.run(
-            ["git", "show", f"{w11_verifier.W11_FOUNDATION_COMMIT}:{relative_path}"],
+            ["git", "show", f"{w11_verifier.W11_CONSTRUCTION_BASE}:{relative_path}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,

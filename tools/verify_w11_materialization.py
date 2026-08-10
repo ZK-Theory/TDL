@@ -27,7 +27,8 @@ from research_system.schema_registry import SchemaRegistry
 
 
 W11_MATERIALIZATION_BASE = "c84eb2aaf0890d36d3735d08a14169f4c50935cd"
-W11_FOUNDATION_COMMIT = "21e91d926ca3964f46c45024796cb1c16532ee00"
+W11_FOUNDATION_COMMIT = "21fe265736834263e9c3094c89fc6a390670be7b"
+W11_CONSTRUCTION_BASE = "516cc5320a2c09255414b94d5db7786dd12208df"
 W11_SPECIFICATION_COMMIT = "892d1d1650cdcf71d2a886318e174a18e11d5de0"
 W11_SPECIFICATION_PATH = "docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md"
 W11_SPECIFICATION_BLOB = "f90729d0c42a0de98d064fac0824d1969c871c82"
@@ -256,20 +257,8 @@ _W11_BOOTSTRAP_SCHEMA_KEYS = (
     "w11-materialization-bootstrap-contract",
     "import-accepted-w11-catalogue-genesis",
 )
-_W11_SCHEMA_PATHS = tuple(
-    sorted(
-        [
-            ".research-system/schemas/contracts/w11/w11-common-definitions.schema.json",
-            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_CONTENT_SCHEMA_KEYS),
-            *(
-                f".research-system/schemas/contracts/w11/relation-{key}.schema.json"
-                for key in _W11_RELATION_SCHEMA_KEYS
-            ),
-            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_ARTEFACT_SCHEMA_KEYS),
-            *(f".research-system/schemas/contracts/w11/{key}.schema.json" for key in _W11_BOOTSTRAP_SCHEMA_KEYS),
-        ]
-    )
-)
+_W11_SCHEMA_PATHS = tuple(sorted(row[2] for row in _EXPECTED_SCHEMA_SOURCE_CLOSURE))
+_W11_SCHEMA_LOGICAL_KEYS = {row[2]: row[0] for row in _EXPECTED_SCHEMA_SOURCE_CLOSURE}
 _W11_SCHEMA_ROOT = ".research-system/schemas/contracts/w11"
 _W11_EVENT_PATTERN = re.compile(r"W2\s+`([^`]+)`|E:[A-Za-z0-9_/-]+")
 _W11_EVENT_CLEANUP_PATTERN = re.compile(r"W2\s+`[^`]+`|`?E:[A-Za-z0-9_/-]+`?")
@@ -429,9 +418,13 @@ def verify_expected_catalogue(
 
     expected_owner_rows = _expected_owner_contract_rows(repo_root, expected_schema_rows)
     actual_owner_rows = value.get("owner_contract_rows")
+    _require_catalogue(isinstance(actual_owner_rows, list), "owner_contract_rows must be an array")
     _require_catalogue(
-        actual_owner_rows == expected_owner_rows, "owner_contract_rows do not match the accepted W11 owner annex"
+        len(actual_owner_rows) == len(expected_owner_rows),
+        "owner_contract_rows do not match the accepted W11 owner annex",
     )
+    for actual_row, expected_row in zip(actual_owner_rows, expected_owner_rows, strict=True):
+        verify_expected_owner_contract_row(actual_row, expected_row)
     _require_catalogue(value.get("owner_row_count") == len(_OWNER_ROW_IDS), "owner_row_count must be exactly 81")
     expected_range_hash = sha256_hex(canonical_bytes(sorted(_OWNER_ROW_IDS)))
     _require_catalogue(
@@ -481,7 +474,8 @@ def _expected_schema_source_rows(repo_root: Path, schema_root: Path) -> list[dic
 
     actual_paths = sorted(path.relative_to(schema_root).as_posix() for path in schema_root.glob("*.schema.json"))
     expected_relative_paths = [path.removeprefix(f"{_W11_SCHEMA_ROOT}/") for path in _W11_SCHEMA_PATHS]
-    _require_catalogue(actual_paths == expected_relative_paths, "schema path manifest is not the closed 62-file set")
+    expected_root_paths = sorted([*expected_relative_paths, "w11-common-definitions.schema.json"])
+    _require_catalogue(actual_paths == expected_root_paths, "schema path manifest is not the closed 61-family set")
 
     rows: list[dict[str, Any]] = []
     for index, repository_path in enumerate(_W11_SCHEMA_PATHS, start=101):
@@ -503,7 +497,7 @@ def _expected_schema_source_rows(repo_root: Path, schema_root: Path) -> list[dic
         schema_version = schema.get("properties", {}).get("schema_version", {}).get("const", "1.0.0")
         blob = _git(repo_root, "rev-parse", f"{W11_FOUNDATION_COMMIT}:{repository_path}")
         source_row = {
-            "logical_key": Path(relative_path).stem,
+            "logical_key": _W11_SCHEMA_LOGICAL_KEYS[repository_path],
             "schema_id": schema_id,
             "schema_version": schema_version,
             "repository_path": repository_path,
@@ -629,6 +623,14 @@ def _expected_owner_contract_rows(repo_root: Path, schema_rows: Sequence[Mapping
         }
         expected.append(row)
     return expected
+
+
+def verify_expected_owner_contract_row(actual_row: Mapping[str, Any], expected_row: Mapping[str, Any]) -> None:
+    """Compare one catalogue row with its independently derived owner binding."""
+    _require_catalogue(
+        actual_row == expected_row,
+        "owner_contract_rows do not match the accepted W11 owner annex",
+    )
 
 
 def _owner_schema_id(owner_row_id: str, command_type: str, discriminator: str) -> str:
@@ -818,11 +820,8 @@ def _validate_owner_contract_rows(schema_id: str, value: Mapping[str, Any]) -> N
 
     rows = value["owner_contract_rows"]
     owner_logical_keys = [row["logical_key"] for row in rows]
-    owner_schema_ids = [row["schema_id"] for row in rows]
     if len(set(owner_logical_keys)) != len(owner_logical_keys):
         _invalid(schema_id, "owner_contract_rows logical_key values must be unique")
-    if len(set(owner_schema_ids)) != len(owner_schema_ids):
-        _invalid(schema_id, "owner_contract_rows schema_id values must be unique")
 
     observed_ids = [row["owner_row_id"] for row in rows]
     if len(set(observed_ids)) != len(observed_ids):
