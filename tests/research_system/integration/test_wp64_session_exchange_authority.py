@@ -13,6 +13,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, SchemaError
 from research_system.evidence.consumers import ArtefactConsumerContext
+from research_system.methods.registration import CandidateDocumentStore, CandidateRegistration
 from research_system.session_exchange import (
     EvidenceArtifact,
     SessionRecordPublicationContext,
@@ -230,7 +231,7 @@ def _policy_grant(
     policy = schemas.resolve_identity(policy_schema_id, "1.0.0")
     return {
         "schema_id": "ars://core/scoped-authority-grant",
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "authority_grant_id": grant_id,
         "actor_id": actor_id,
         "allowed_actor_classes": [actor_class],
@@ -525,8 +526,27 @@ def test_session_evidence_advances_only_from_governed_distinct_party_records(
     records = SessionEvidenceRecordStore(binding, clock=lambda: NOW)
     subject = _subject()
 
+    class AcceptedCommandService:
+        def submit(self, _command):
+            return SimpleNamespace(status="accepted")
+
     brief = prepare_session_brief(
         control_root,
+        registration=CandidateRegistration(
+            artefact_id=str(subject["brief_artifact_id"]),
+            project_id=PROJECT_ID,
+            actor_id=ACTOR_ID,
+            authority_grant_id=GRANT_ID,
+            submitted_at="2026-07-12T09:00:00Z",
+            correlation_id="wp64-session-authority-test",
+            reason="register exact owner-operated session brief",
+            manifest={
+                "artefact_id": str(subject["brief_artifact_id"]),
+                "authority": {"use_authority": "candidate"},
+            },
+        ),
+        document_store=CandidateDocumentStore(control_root),
+        command_service=AcceptedCommandService(),
         brief_artifact_id=str(subject["brief_artifact_id"]),
         handoff_id=str(subject["handoff_id"]),
         session_id=str(subject["session_id"]),
