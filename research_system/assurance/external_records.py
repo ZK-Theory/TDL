@@ -43,8 +43,8 @@ from research_system.store.objects import ObjectStore
 EXTERNAL_RECORD_KIND = "assurance_record"
 _CONTRACT_NAME = "wp6-3-tdl-private-assurance-pack.yaml"
 _SCHEMA_NAME = "wp6-3-tdl-private-assurance-pack.schema.json"
-_PARENT_SCHEMA_BLOB = "acf622b4e7ae72ab9ac58d10aac14efed04560ac"
-_PARENT_SCHEMA_SHA256 = "c6154c38bd8fa09589c2891d7771838e3561cd54df5964cd45bfc5cfce65cd8f"
+_PARENT_SCHEMA_BLOB = "5226d342d2a0d488eecee6f3f7c91b70930a41b3"
+_PARENT_SCHEMA_SHA256 = "2dcceb9dd6c79af5140665a851e75712b0b6c4cf0c8ffed3e9c7445b06aeb2fb"
 _RECORD_CLASSES = (
     "canonical_actor",
     "producer_relationship_evidence",

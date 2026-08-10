@@ -35,7 +35,7 @@ def validate_tdl_private_semantics(
     record_store, hash_manifest = _record_store(records)
     required = _required(contract)
     expected_applicability = _validate_candidate_projection(contract, required, pack, current_exact_reference_snapshot)
-    contract_review_provenance, schema_review_provenance = _validate_contract_schema_lifecycle(
+    _validate_contract_schema_lifecycle(
         required,
         pack,
         record_store,
@@ -59,8 +59,6 @@ def validate_tdl_private_semantics(
             expected_applicability,
             subject,
             requirement,
-            contract_review_provenance,
-            schema_review_provenance,
             evaluation_time,
         )
 
@@ -308,7 +306,7 @@ def _validate_contract_schema_lifecycle(
     pack: Mapping[str, object],
     record_store: Mapping[str, Mapping[str, object]],
     hash_manifest: Mapping[str, str],
-) -> tuple[Mapping[str, object], Mapping[str, object]]:
+) -> None:
     authorships = [
         record for record in record_store.values() if record.get("record_type") == "contract_schema_authorship"
     ]
@@ -347,14 +345,14 @@ def _validate_contract_schema_lifecycle(
         or schema_review.get("authorship_record_sha256") != hash_manifest.get(str(authorship_id))
     ):
         raise PackUnconsumable("contract/schema review does not bind exact authorship")
-    contract_review_provenance = _validate_review_operator_provenance(
+    _validate_review_operator_provenance(
         required,
         contract_review,
         producer_actor_id=str(authorship.get("author_actor_id")),
         reviewer_actor_id=str(contract_review.get("reviewer_actor_id")),
         label="contract",
     )
-    schema_review_provenance = _validate_review_operator_provenance(
+    _validate_review_operator_provenance(
         required,
         schema_review,
         producer_actor_id=str(authorship.get("author_actor_id")),
@@ -385,7 +383,6 @@ def _validate_contract_schema_lifecycle(
         != 5
     ):
         raise PackUnconsumable("contract authorship, reviews, owner acceptance, and production must be distinct")
-    return contract_review_provenance, schema_review_provenance
 
 
 def _requirement_content_preimage(requirement: Mapping[str, object]) -> dict[str, object]:
@@ -532,8 +529,6 @@ def _validate_external_acceptance(
     expected_applicability: set[tuple[str, str]],
     subject: PackAcceptanceSubject,
     requirement: Mapping[str, object],
-    contract_review_provenance: Mapping[str, object],
-    schema_review_provenance: Mapping[str, object],
     evaluation_time: datetime,
 ) -> None:
     pack_reviews = [
@@ -597,17 +592,6 @@ def _validate_external_acceptance(
     canonical_requirement = _mapping(requirement.get("canonical_requirement"), "canonical requirement")
     if canonical_requirement.get("task_id") != provenance.get("producer_task_id"):
         raise PackUnconsumable("pack review producer task does not match the canonical requirement task")
-    if (
-        len(
-            {
-                provenance.get("handoff_id"),
-                contract_review_provenance.get("handoff_id"),
-                schema_review_provenance.get("handoff_id"),
-            }
-        )
-        != 1
-    ):
-        raise PackUnconsumable("review provenance records do not share one stable handoff identifier")
     evidence = _mapping(required.get("external_acceptance_evidence"), "external acceptance evidence")
     declared_review_types = set(
         _sequence(evidence.get("review_provenance_required_record_types"), "review record types")

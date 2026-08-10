@@ -1155,6 +1155,47 @@ def test_acceptance_public_seam_rejects_pack_review_fact_producer_mismatch_witho
     assert not (config.binding.control_root / "runtime" / "assurance-pack-runs" / run_id / "acceptance.json").exists()
 
 
+def test_acceptance_public_seam_binds_each_party_to_its_genuine_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, candidate_path, locators, record_resolver, facts_reader, _ = _runner_inputs(tmp_path, monkeypatch)
+    run_id = "run_019fc96b-2ddc-7740-9d6c-425adf7fa3b4"
+    prepare_locators = {key: value for key, value in locators.items() if key not in runner_module._FUTURE_PREPARE_KEYS}
+    prepare_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=prepare_locators,
+    )
+
+    review = record_resolver.record_store[frozen.REVIEW_RECORD_ID]
+    reviewer_handoff = "hnd_00000000-0000-7000-8000-0000000000bb"
+    review["operator_provenance"]["handoff_id"] = reviewer_handoff
+    record_resolver.record_store[frozen.OWNER_DECISION_ID]["review_record_sha256"] = sha256_hex(canonical_bytes(review))
+
+    pack_facts = facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID]
+    pack_facts_body = deepcopy(pack_facts.record)
+    pack_facts_body["reviewer"]["stable_handoff_or_run_id"] = reviewer_handoff
+    facts_reader.facts[frozen.REVIEW_RELATIONSHIP_ID] = _FactsResolution(
+        pack_facts.record_id,
+        pack_facts.revision,
+        sha256_hex(canonical_bytes(pack_facts_body)),
+        pack_facts_body,
+    )
+
+    result = accept_assurance_pack(
+        config=config,
+        candidate_path=candidate_path,
+        evaluation_time=datetime(2026, 7, 28, 12, tzinfo=UTC),
+        run_id=run_id,
+        record_locators=locators,
+    )
+
+    assert result.phase == "acceptance"
+    assert result.state == "consumption_authorized"
+
+
 def test_changed_retry_conflicts_without_mutating_immutable_preparation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -3660,30 +3660,20 @@ def test_review_operator_outside_the_contract_operator_model_is_rejected():
         )
 
 
-def test_review_provenance_records_must_share_one_stable_handoff_id():
-    """N-3 control: `handoff_id` is bound across the review records, not merely present.
-
-    06g section 6 requires a stable handoff identifier shared by the brief and the returned
-    evidence. The contract records `handoff_binding:
-    single_stable_handoff_id_shared_by_every_review_provenance_record`; before this control the
-    field was schema-required and bound by nothing.
-
-    The divergence is introduced on the pack review because the check compares all three records;
-    mutating a contract- or schema-review record additionally invalidates the acceptance record's
-    embedded review hashes, which fails earlier for an unrelated reason.
-    """
+def test_review_provenance_records_may_retain_distinct_genuine_handoff_ids():
+    """Each independent review retains its own genuine dispatch handoff identity."""
     contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
     record_store[REVIEW_RECORD_ID]["operator_provenance"]["handoff_id"] = "hnd_00000000-0000-7000-8000-0000000000ff"
     raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
-    with pytest.raises(CandidatePackError, match="one stable handoff identifier"):
-        _validate_hypothetical_external_acceptance(
-            pack,
-            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
-            contract=contract,
-            fixture_contract_authority=contract_resolver,
-            record_store=record_store,
-            hash_manifest=hash_manifest,
-        )
+    subject = _validate_hypothetical_external_acceptance(
+        pack,
+        raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+        contract=contract,
+        fixture_contract_authority=contract_resolver,
+        record_store=record_store,
+        hash_manifest=hash_manifest,
+    )
+    assert subject.assurance_pack_id == pack["assurance_pack_id"]
 
 
 def test_lane_may_not_declare_a_fixture_catalogued_to_a_foreign_lane():

@@ -941,14 +941,22 @@ def _validate_relationship_facts(
     )
 
 
-def _check_pack_review_fact_provenance(facts: _FactsResolution, provenance: Mapping[str, object]) -> None:
+def _check_pack_review_fact_provenance(
+    facts: _FactsResolution,
+    requirement_facts: _FactsResolution,
+    provenance: Mapping[str, object],
+) -> None:
     record = facts.record
     producer = _mapping(record.get("producer"), "pack-review relationship-evidence-facts producer")
     reviewer = _mapping(record.get("reviewer"), "pack-review relationship-evidence-facts reviewer")
+    requirement_producer = _mapping(
+        requirement_facts.record.get("producer"),
+        "requirement-scope relationship-evidence-facts producer",
+    )
     if (
         producer.get("task_id") != provenance.get("producer_task_id")
         or producer.get("operator_session_id") != provenance.get("producer_session_id")
-        or producer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
+        or producer.get("stable_handoff_or_run_id") != requirement_producer.get("stable_handoff_or_run_id")
         or reviewer.get("task_id") != provenance.get("review_task_id")
         or reviewer.get("operator_session_id") != provenance.get("review_session_id")
         or reviewer.get("stable_handoff_or_run_id") != provenance.get("handoff_id")
@@ -964,7 +972,14 @@ def _validate_pack_review_fact_operator_provenance(
     facts = fact_records.get("relationship_evidence_facts:pack_review")
     if facts is None:
         raise PackUnconsumable("pack-review relationship facts are required")
-    _check_pack_review_fact_provenance(facts, _mapping(review.get("operator_provenance"), "pack review"))
+    requirement_facts = fact_records.get("relationship_evidence_facts:requirement_scope")
+    if requirement_facts is None:
+        raise PackUnconsumable("requirement-scope relationship facts are required")
+    _check_pack_review_fact_provenance(
+        facts,
+        requirement_facts,
+        _mapping(review.get("operator_provenance"), "pack review"),
+    )
 
 
 def _check_fact(
