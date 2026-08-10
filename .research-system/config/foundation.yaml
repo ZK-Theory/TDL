@@ -1,4 +1,4 @@
-schema_version: '1.0.0'
+schema_version: '1.1.0'
 project_template_alias: ars-foundation-p0
 project_id: prj_01978abc-1000-7000-8000-000000001000
 control_root: 'C:\Users\steph\TDL-ARS-WP64-Control'
@@ -41,5 +41,6 @@ code_roots:
   - 'C:\Users\steph\TDL\.apm\worktrees\wp63-tskid'
   - 'C:\Users\steph\TDL\.claude\worktrees\nervous-boyd-368c36'
   - 'C:\tmp\tdl-gate5-merged-review'
-schema_root: 'C:\Users\steph\.codex\worktrees\547f\TDL\.research-system\schemas'
-foundation_sha256: 0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22
+schema_root: 'C:\Users\steph\TDL\.research-system\schemas'
+schema_binding_activation_sha256: 95dc98f88a58924429e082ab3bee24b6c3295379803ed92fd7af8ee2e60bf756
+foundation_sha256: 06c20868cc6282357b36b4208b4c4715a605292ecd2cc3d16883c1a490867e30

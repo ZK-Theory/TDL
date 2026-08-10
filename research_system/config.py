@@ -21,6 +21,7 @@ from research_system.store.identity import (
     verify_store_identity,
 )
 from research_system.store.layout import require_existing_control_root
+from research_system.store.schema_binding import load_store_schema_binding_activation
 
 
 _FOUNDATION_REQUIRED_FIELDS = frozenset(
@@ -93,6 +94,7 @@ class ApprovedProjectBinding:
     origin_witness_sha256: str
     origin_witness: StoreOriginWitness
     foundation_sha256: str
+    schema_binding_activation_sha256: str | None = None
 
     @classmethod
     def load(cls, path: Path) -> "ApprovedProjectBinding":
@@ -113,8 +115,14 @@ class ApprovedProjectBinding:
         missing = sorted(_FOUNDATION_REQUIRED_FIELDS.difference(value))
         if missing:
             raise ConfigurationError(f"missing approved project binding fields: {', '.join(missing)}")
-        if value.get("schema_version") != "1.0.0":
+        if value.get("schema_version") not in {"1.0.0", "1.1.0"}:
             raise ConfigurationError("unsupported approved project binding schema version")
+        activation_sha256: str | None = None
+        if value.get("schema_version") == "1.1.0":
+            activation_sha256 = _foundation_digest(
+                value.get("schema_binding_activation_sha256"),
+                "schema_binding_activation_sha256",
+            )
         if value.get("control_root_required") is not True:
             raise ConfigurationError("approved control_root_required must be true")
         if value.get("canonical_hash") != "sha256":
@@ -229,8 +237,20 @@ class ApprovedProjectBinding:
         if manifest.get("code_roots") != [str(root) for root in resolved_code_roots]:
             raise ConfigurationError("materialized store code roots differ from approved project binding")
         persisted_schema_root = manifest_schema_root(manifest)
-        if persisted_schema_root is None or persisted_schema_root.resolve(strict=True) != resolved_schema_root:
+        if persisted_schema_root is None:
             raise ConfigurationError("materialized store schema root differs from approved project binding")
+        if persisted_schema_root.resolve(strict=True) != resolved_schema_root:
+            if activation_sha256 is None:
+                raise ConfigurationError("materialized store schema root differs from approved project binding")
+            try:
+                activation, activated_root = load_store_schema_binding_activation(
+                    resolved_control_root,
+                    expected_sha256=activation_sha256,
+                )
+            except (ArsError, OSError, ValueError) as exc:
+                raise ConfigurationError("approved schema binding activation is invalid") from exc
+            if activated_root != resolved_schema_root or activation["project_id"] != project_id:
+                raise ConfigurationError("approved schema binding activation differs from foundation")
         if manifest.get("endpoint_scheme") != endpoint_scheme:
             raise ConfigurationError("materialized store endpoint differs from approved project binding")
         foundation_sha256 = _foundation_digest(value["foundation_sha256"], "foundation_sha256")
@@ -251,6 +271,7 @@ class ApprovedProjectBinding:
             origin_witness_sha256,
             origin_witness,
             foundation_sha256,
+            activation_sha256,
         )
 
 
@@ -265,6 +286,7 @@ class ControlBinding:
     origin_witness_path: Path | None = None
     origin_witness_sha256: str | None = None
     origin_witness: StoreOriginWitness | None = None
+    schema_binding_activation_sha256: str | None = None
 
     @classmethod
     def load(cls, path: Path) -> "ControlBinding":
@@ -358,7 +380,15 @@ class ControlBinding:
             except FileNotFoundError as exc:
                 raise ConfigurationError("store manifest schema root is missing") from exc
             if resolved_schema_root != resolved_persisted_schema_root:
-                raise ConfigurationError("schema_root conflicts with store manifest")
+                try:
+                    _activation, activated_root = load_store_schema_binding_activation(
+                        control_root,
+                        expected_sha256=str(approved.schema_binding_activation_sha256),
+                    )
+                except (ArsError, OSError, ValueError) as exc:
+                    raise ConfigurationError("schema_root conflicts with store manifest") from exc
+                if activated_root != resolved_schema_root:
+                    raise ConfigurationError("schema_root conflicts with store manifest")
         return cls(
             tuple(resolved_code_roots),
             control_root,
@@ -369,6 +399,7 @@ class ControlBinding:
             approved.origin_witness_path,
             approved.origin_witness_sha256,
             approved.origin_witness,
+            approved.schema_binding_activation_sha256,
         )
 
 

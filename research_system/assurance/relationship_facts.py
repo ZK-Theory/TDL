@@ -31,7 +31,8 @@ from research_system.ids import validate_id
 from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.durability import fsync_directory
-from research_system.store.identity import load_store_manifest, manifest_schema_root, verify_store_identity
+from research_system.store.identity import load_store_manifest, verify_store_identity
+from research_system.store.schema_binding import verify_effective_store_schema_root
 from research_system.store.layout import (
     require_control_root_disjoint_from_code_roots,
     require_existing_control_root,
@@ -110,17 +111,17 @@ class RelationshipEvidenceFactsStore:
                 approved_witness_path=binding.origin_witness_path,
             )
             require_control_root_disjoint_from_code_roots(code_roots, control_root)
-            manifest_schema = manifest_schema_root(
-                load_store_manifest(
-                    control_root,
-                    approved_witness=binding.origin_witness,
-                    approved_witness_path=binding.origin_witness_path,
-                )
+            manifest = load_store_manifest(
+                control_root,
+                approved_witness=binding.origin_witness,
+                approved_witness_path=binding.origin_witness_path,
             )
-            if manifest_schema is not None and manifest_schema.resolve(strict=True) != binding.schema_root.resolve(
-                strict=True
-            ):
-                raise IntegrityError("binding schema root differs from store manifest")
+            verify_effective_store_schema_root(
+                control_root,
+                manifest,
+                binding.schema_root,
+                activation_sha256=binding.schema_binding_activation_sha256,
+            )
         except (OSError, KeyError, ValueError) as exc:
             raise IntegrityError("control binding is not valid for relationship-evidence facts") from exc
         self.binding = binding
