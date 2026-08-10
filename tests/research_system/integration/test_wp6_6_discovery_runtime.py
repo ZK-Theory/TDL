@@ -2,31 +2,98 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
+from datetime import UTC, datetime
+import hashlib
+import uuid
 
 import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
-from research_system.errors import IntegrityError
+from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
-from research_system.schema_registry import bundled_runtime_schema_registry
 from research_system.store.ledger import EventLedger
 from research_system.store.receipts import ReceiptStore
+from tests.research_system.factories import (
+    ACTORS,
+    PROJECT_ID,
+    activate_lifecycle_grant,
+    control_plane,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE = REPO_ROOT / ".research-system" / "evals" / "expected" / "w11-portfolio-discovery-v1.json"
-PROJECT_ID = "prj_019fed25-b33e-7740-b280-6f661aaeff58"
-ACTOR_ID = "act_019fed25-b33e-7740-b280-6f661aaeff58"
+CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
+ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
+_HARNESSES = {}
 
 
 def _runtime(tmp_path: Path) -> DiscoveryRuntime:
-    schemas = bundled_runtime_schema_registry()
-    return DiscoveryRuntime(
-        tmp_path,
-        EventLedger(tmp_path, PROJECT_ID, schemas),
-        schemas,
+    harness = _HARNESSES.get(tmp_path)
+    if harness is None:
+        harness = control_plane(tmp_path)
+        _HARNESSES[tmp_path] = harness
+    root = tmp_path / "discovery"
+    root.mkdir(exist_ok=True)
+
+    class GovernedDiscoveryRuntime(DiscoveryRuntime):
+        def submit(self, envelope):
+            value = deepcopy(envelope)
+            command_type = value["command_type"]
+            subject_kind = {
+                "ImportAcceptedW11CatalogueGenesis": "scope_definition",
+                "RegisterCandidate": "scope_definition",
+                "RequestAssay": "scope_definition",
+                "RecordAssayScore": "scope_definition",
+                "RequestDiscoveryOutcomeReview": "review",
+                "ReviewDiscoveryOutcome": "review",
+                "ProposePromotionDecision": "decision",
+                "RegisterSpikePlan": "scope_definition",
+                "ProposeSpikeExecutionDecision": "decision",
+                "StartSpike": "scope_definition",
+                "RecordSpikeVerdict": "scope_definition",
+                "RegisterDossierExpectedSetContent": "scope_definition",
+                "RegisterPathRegistrationContent": "scope_definition",
+                "ObserveW11AuthorityFile": "scope_definition",
+                "RequestW11AuthorityReview": "review",
+                "RecordW11AuthorityReview": "review",
+                "ProposeW11AuthorityDecision": "decision",
+                "ResolveDecision": "decision",
+                "AdmitResearchDossier": "scope_definition",
+            }[command_type]
+            subject_id = value["target_stream_id"]
+            if command_type in {
+                "RequestAssay",
+                "RecordAssayScore",
+                "RegisterSpikePlan",
+                "StartSpike",
+                "RecordSpikeVerdict",
+            }:
+                subject_id = value["payload"]["candidate_id"]
+            raw = bytearray(hashlib.sha256(f"{command_type}:{subject_id}".encode()).digest()[:16])
+            raw[6] = (raw[6] & 0x0F) | 0x70
+            raw[8] = (raw[8] & 0x3F) | 0x80
+            grant_id = f"agr_{uuid.UUID(bytes=bytes(raw))}"
+            activate_lifecycle_grant(
+                harness,
+                subject_kind=subject_kind,
+                subject_id=subject_id,
+                actor_id=value["actor_id"],
+                allowed_actor_classes=(("human",) if value["actor_id"] == ACTOR_ID else ("agent",)),
+                command_types=(command_type,),
+                grant_id=grant_id,
+            )
+            value["authority_grant_id"] = grant_id
+            return super().submit(value)
+
+    return GovernedDiscoveryRuntime(
+        root,
+        EventLedger(root, PROJECT_ID, harness.schemas),
+        harness.schemas,
         catalogue_path=CATALOGUE,
+        authority_resolver=harness.authority_resolver,
+        clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
     )
 
 
@@ -37,7 +104,7 @@ def _genesis() -> dict[str, object]:
         "actor_id": ACTOR_ID,
         "authority_grant_id": GRANT_ID,
         "idempotency_key": "wp6.6:w11:09be63a9",
-        "target_stream_id": "w11_catalogue",
+        "target_stream_id": CATALOGUE_STREAM_ID,
         "expected_stream_version": 0,
         "payload": {
             "accepted_commit": "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6",
@@ -99,6 +166,60 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
     assert tuple(runtime.ledger.iter_events()) == before
 
 
+def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tmp_path: Path) -> None:
+    harness = control_plane(tmp_path)
+    root = tmp_path / "governed-discovery"
+    root.mkdir()
+    runtime = DiscoveryRuntime(
+        root,
+        EventLedger(root, PROJECT_ID, harness.schemas),
+        harness.schemas,
+        catalogue_path=CATALOGUE,
+        authority_resolver=harness.authority_resolver,
+        clock=lambda: datetime(2026, 8, 2, tzinfo=UTC),
+    )
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="scope_definition",
+        subject_id=CATALOGUE_STREAM_ID,
+        command_types=("ImportAcceptedW11CatalogueGenesis",),
+    )
+
+    wrong_actor = _genesis()
+    wrong_actor["authority_grant_id"] = grant_id
+    wrong_actor["actor_id"] = ACTORS["actor-b"]
+    with pytest.raises(ArsError, match="authority actor mismatch"):
+        runtime.submit(wrong_actor)
+
+    foreign_id = "obj_019fed25-b33e-7740-b280-000000000099"
+    foreign_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="scope_definition",
+        subject_id=foreign_id,
+        command_types=("ImportAcceptedW11CatalogueGenesis",),
+    )
+    wrong_scope = _genesis()
+    wrong_scope["authority_grant_id"] = foreign_grant
+    with pytest.raises(ArsError, match="authority subject scope mismatch"):
+        runtime.submit(wrong_scope)
+
+    expired_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="scope_definition",
+        subject_id=CATALOGUE_STREAM_ID,
+        command_types=("ImportAcceptedW11CatalogueGenesis",),
+        grant_id="agr_019fed25-b33e-7740-b280-000000000098",
+        expires_at="2026-08-01T00:00:01Z",
+    )
+    expired = _genesis()
+    expired["authority_grant_id"] = expired_grant
+    with pytest.raises(ArsError, match="expired"):
+        runtime.submit(expired)
+
+    assert tuple(runtime.ledger.iter_events()) == ()
+    assert tuple(runtime.receipts.receipts_root.glob("*.json")) == ()
+
+
 def test_candidate_registration_runs_through_durable_public_seam(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff58"
@@ -150,6 +271,8 @@ def test_genesis_retry_repairs_receipt_after_committed_event(monkeypatch: pytest
 
     def interrupt_once(store: ReceiptStore, receipt: object) -> object:
         nonlocal calls
+        if store.receipts_root.parent != tmp_path / "discovery":
+            return original_write(store, receipt)  # type: ignore[arg-type]
         calls += 1
         if calls == 1:
             raise OSError("injected receipt interruption")

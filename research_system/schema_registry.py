@@ -119,6 +119,24 @@ class SchemaBinding:
 
 
 _RUNTIME_BINDINGS = (
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ImportAcceptedW11CatalogueGenesis"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterCandidate"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RequestAssay"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordAssayScore"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RequestDiscoveryOutcomeReview"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ReviewDiscoveryOutcome"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposePromotionDecision"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterSpikePlan"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeSpikeExecutionDecision"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="StartSpike"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordSpikeVerdict"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterDossierExpectedSetContent"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterPathRegistrationContent"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ObserveW11AuthorityFile"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RequestW11AuthorityReview"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordW11AuthorityReview"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeW11AuthorityDecision"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="AdmitResearchDossier"),
     SchemaBinding(
         "ars://core/event/ReviewRequested",
         "1.0.0",

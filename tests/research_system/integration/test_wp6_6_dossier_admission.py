@@ -4,6 +4,7 @@ from dataclasses import asdict, replace
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -17,13 +18,11 @@ from research_system.discovery.dossier import (
     accepted_expected_set_hash,
     prepare_dossier_admission,
 )
-from research_system.schema_registry import bundled_runtime_schema_registry
-from research_system.store.ledger import EventLedger
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
-    CATALOGUE,
-    PROJECT_ID,
+    ACTOR_ID,
     _command,
     _genesis,
+    _runtime,
 )
 
 
@@ -60,7 +59,7 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
         "expected:tda-scale:1.0.3",
         3,
         "1" * 64,
-        "dossier:tda-scale:1.0.3",
+        "obj_019fed25-b33e-7740-b280-000000000913",
         "TDA-ARS-SCALE-RESEARCH",
         "1.0.3",
         "prj_01978abc-1000-7000-8000-000000001000",
@@ -204,59 +203,26 @@ def test_real_package_retains_non_dispatchable_provider_free_identity() -> None:
     assert package["execution_authorized"] is False
 
 
-def test_real_dossier_admission_runs_through_public_durable_replayable_seam(tmp_path: Path) -> None:
-    expected, roots = _subject()
-    schemas = bundled_runtime_schema_registry()
-    runtime = DiscoveryRuntime(
-        tmp_path,
-        EventLedger(tmp_path, PROJECT_ID, schemas),
-        schemas,
-        catalogue_path=CATALOGUE,
-        accepted_expected_set=expected,
-        registered_roots=roots,
-        current_expected_set_revision=3,
-    )
-    runtime.submit(_genesis())
-    command = _command(
-        "AdmitResearchDossier",
-        expected.dossier_id,
-        0,
-        {
-            "row_id": "OR-028",
-            "dossier_id": expected.dossier_id,
-            "expected_set_id": expected.expected_set_id,
-            "candidate_members": [member.__dict__ for member in expected.members],
-        },
-    )
-
-    receipt = runtime.submit(command)
-    replayed = replay_discovery(runtime.ledger.iter_events())
-
-    assert receipt.status == "accepted"
-    assert replayed["dossiers"][expected.dossier_id]["status"] == "admitted"
-    assert len(replayed["portfolio_objects"]) == 20
-    assert len(replayed["scopes"]) == 1
-    event_types = tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1])
-    assert event_types[0] == "ResearchDossierAdmitted"
-    assert event_types.count("PortfolioObjectRegistered") == 20
-    assert event_types[-1] == "ScopeDefinitionRegistered"
-    restarted = DiscoveryRuntime(
-        tmp_path,
-        EventLedger(tmp_path, PROJECT_ID, schemas),
-        schemas,
-        catalogue_path=CATALOGUE,
-        accepted_expected_set=expected,
-        registered_roots=roots,
-        current_expected_set_revision=3,
-    )
-    assert restarted.submit(command) == receipt
-
-
 def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, object], offset: int) -> None:
     actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(5)]
+    actors[4] = ACTOR_ID
     stream_id = f"obj_019fed25-b33e-7740-b280-{offset:012d}"
+    review_id = f"rev_019fed25-b33e-7740-b280-{offset:012d}"
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
     first_row = 110 if kind == "dossier_expected_set" else 116
+    authority_file_path = PACKAGE if kind == "dossier_expected_set" else V1_INDEX.relative_to(REPO).as_posix()
+    authority_raw = (REPO / authority_file_path).read_bytes()
+    subject.update(
+        authority_file_path=authority_file_path,
+        authority_file_size=len(authority_raw),
+        authority_file_sha256=hashlib.sha256(authority_raw).hexdigest(),
+        authority_file_git_commit=subprocess.check_output(
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True
+        ).strip(),
+        authority_file_git_blob=subprocess.check_output(
+            ["git", "-C", str(REPO), "rev-parse", f"HEAD:{authority_file_path}"], text=True
+        ).strip(),
+    )
     subject["subject_sha256"] = subject_sha256(subject)
     steps = (
         (
@@ -271,11 +237,6 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
             actors[1],
             {
                 "subject_sha256": subject["subject_sha256"],
-                "repository_path": f"authority/{kind}.json",
-                "git_commit": "2" * 40,
-                "git_blob": "3" * 40,
-                "file_size": 123,
-                "file_sha256": "4" * 64,
             },
         ),
         ("RequestW11AuthorityReview", actors[2], {"reviewer_actor_id": actors[3]}),
@@ -285,7 +246,7 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
             {
                 "verdict": "approve",
                 "unchanged_subject_sha256": subject["subject_sha256"],
-                "unchanged_file_sha256": "4" * 64,
+                "unchanged_file_sha256": subject["authority_file_sha256"],
                 "reconstruction_sha256": "5" * 64,
             },
         ),
@@ -297,8 +258,14 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
         ),
     )
     for index, (command_type, actor_id, value) in enumerate(steps):
+        target_stream_id, expected_version = (
+            (stream_id, index) if index < 2 else ((review_id, index - 2) if index < 4 else (decision_id, index - 4))
+        )
         command = _command(
-            command_type, stream_id, index, {"row_id": f"OR-{first_row + index}", "authority_kind": kind, **value}
+            command_type,
+            target_stream_id,
+            expected_version,
+            {"row_id": f"OR-{first_row + index}", "authority_kind": kind, **value},
         )
         command["actor_id"] = actor_id
         assert runtime.submit(command).status == "accepted"
@@ -306,13 +273,7 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
 
 def test_authority_chains_activate_dossier_admission_without_constructor_inputs(tmp_path: Path) -> None:
     expected, roots = _subject()
-    schemas = bundled_runtime_schema_registry()
-    runtime = DiscoveryRuntime(
-        tmp_path,
-        EventLedger(tmp_path, PROJECT_ID, schemas),
-        schemas,
-        catalogue_path=CATALOGUE,
-    )
+    runtime = _runtime(tmp_path)
     runtime.submit(_genesis())
     _accept_authority(
         runtime,

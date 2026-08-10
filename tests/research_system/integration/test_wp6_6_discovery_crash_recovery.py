@@ -56,8 +56,9 @@ def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
     )
     before = tuple(runtime.ledger.iter_events())
 
-    def interrupt_before_publish(_ledger: EventLedger, _temporary: Path) -> None:
-        raise OSError("injected pre-publication interruption")
+    def interrupt_before_publish(ledger: EventLedger, _temporary: Path) -> None:
+        if ledger.control_root == tmp_path / "discovery":
+            raise OSError("injected pre-publication interruption")
 
     with monkeypatch.context() as patch:
         patch.setattr(EventLedger, "_after_batch_fsync", interrupt_before_publish)
@@ -101,8 +102,9 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
         },
     )
 
-    def interrupt_after_publish(_ledger: EventLedger, _target: Path) -> None:
-        raise OSError("injected post-publication interruption")
+    def interrupt_after_publish(ledger: EventLedger, _target: Path) -> None:
+        if ledger.control_root == tmp_path / "discovery":
+            raise OSError("injected post-publication interruption")
 
     with monkeypatch.context() as patch:
         patch.setattr(EventLedger, "_after_publish", interrupt_after_publish)
@@ -111,7 +113,7 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
 
     restarted = _runtime(tmp_path)
     batches_before_retry = tuple(restarted.ledger.iter_batches())
-    committed = batches_before_retry[-1]
+    committed = next(batch for batch in batches_before_retry if batch[0]["command_id"] == command["command_id"])
     assert tuple(event["event_type"] for event in committed) == (
         "AssayRequested",
         "AssayEvidenceCollectionOpened",

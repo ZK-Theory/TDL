@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
+from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
 from research_system.discovery.authority import prepare_authority_transition, replay_authority
@@ -18,6 +21,7 @@ from research_system.discovery.dossier import (
 from research_system.errors import ConflictError, IntegrityError
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
+from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.receipts import ReceiptStore
 
 
@@ -47,6 +51,7 @@ _COMMAND_FIELDS = {
     "expected_stream_version",
     "payload",
 }
+_CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 
 
 def _git_blob(data: bytes) -> str:
@@ -104,6 +109,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "ProposeW11AuthorityDecision",
         } or (event.get("command_type") == "ResolveDecision" and event["stream_id"] in state["authority_streams"]):
             kind = state["authority_streams"].get(event["stream_id"])
+            if kind is None and event_type == "ReviewRequested":
+                kind = "dossier_expected_set" if "W11:OR-112" in payload["governing_refs"] else "path_registration"
+                state["authority_streams"][event["stream_id"]] = kind
+            elif kind is None and event_type == "DecisionProposed":
+                kind = "dossier_expected_set" if "dossier_expected_set" in payload["question"] else "path_registration"
+                state["authority_streams"][event["stream_id"]] = kind
             current = state["authorities"].get(kind, {})
             if event_type == "ReviewRequested":
                 shadow = {
@@ -337,18 +348,18 @@ class DiscoveryRuntime:
         schemas: SchemaRegistry,
         *,
         catalogue_path: Path,
-        accepted_expected_set: AcceptedExpectedSet | None = None,
-        registered_roots: dict[str, RegisteredRoot] | None = None,
-        current_expected_set_revision: int | None = None,
+        authority_resolver: LedgerAuthorityGrantResolver,
+        clock: Callable[[], datetime],
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
         self.schemas = schemas
         self.catalogue_path = catalogue_path
         self.receipts = ReceiptStore(control_root)
-        self.accepted_expected_set = accepted_expected_set
-        self.registered_roots = registered_roots
-        self.current_expected_set_revision = current_expected_set_revision
+        if not isinstance(authority_resolver, LedgerAuthorityGrantResolver):
+            raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
+        self.authority_resolver = authority_resolver
+        self.clock = clock
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
@@ -356,6 +367,75 @@ class DiscoveryRuntime:
         command = Command(deepcopy(envelope))
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
+        with CompositeWriterLock(
+            (self.control_root, self.authority_resolver.control_root),
+            {"command_id": command.command_id},
+            lock_factory=WriterLock,
+        ):
+            self._resolve_authority(command)
+            return self._submit_authorized(command)
+
+    def _resolve_authority(self, command: Command) -> None:
+        command_type = command.envelope["command_type"]
+        binding = self.schemas.command_binding(command_type)
+        if binding is None:
+            raise IntegrityError(f"inactive Discovery command binding: {command_type}")
+        identity = self.schemas.resolve_identity(binding.schema_id, binding.schema_version)
+        subject_kind = {
+            "ImportAcceptedW11CatalogueGenesis": "scope_definition",
+            "RegisterCandidate": "scope_definition",
+            "RequestAssay": "scope_definition",
+            "RecordAssayScore": "scope_definition",
+            "RequestDiscoveryOutcomeReview": "review",
+            "ReviewDiscoveryOutcome": "review",
+            "ProposePromotionDecision": "decision",
+            "RegisterSpikePlan": "scope_definition",
+            "ProposeSpikeExecutionDecision": "decision",
+            "StartSpike": "scope_definition",
+            "RecordSpikeVerdict": "scope_definition",
+            "RegisterDossierExpectedSetContent": "scope_definition",
+            "RegisterPathRegistrationContent": "scope_definition",
+            "ObserveW11AuthorityFile": "scope_definition",
+            "RequestW11AuthorityReview": "review",
+            "RecordW11AuthorityReview": "review",
+            "ProposeW11AuthorityDecision": "decision",
+            "ResolveDecision": "decision",
+            "AdmitResearchDossier": "scope_definition",
+        }.get(command_type)
+        if subject_kind is None:
+            raise IntegrityError(f"unsupported Discovery authority command: {command_type}")
+        subject_id = command.target_stream_id
+        if command_type in {
+            "RequestAssay",
+            "RecordAssayScore",
+            "RegisterSpikePlan",
+            "StartSpike",
+            "RecordSpikeVerdict",
+        }:
+            subject_id = command.envelope["payload"].get("candidate_id")
+            if not isinstance(subject_id, str):
+                raise IntegrityError("Discovery lifecycle authority requires candidate_id")
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise IntegrityError("Discovery authority clock must return an aware datetime")
+        self.authority_resolver.resolve_lifecycle_command(
+            command.envelope["authority_grant_id"],
+            command.actor_id,
+            GrantedCommandIdentity(
+                command_type=command_type,
+                schema_id=identity.schema_id,
+                schema_version=identity.schema_version,
+                schema_sha256=identity.sha256,
+            ),
+            "R2",
+            self.ledger.project_id,
+            subject_kind,
+            subject_id,
+            now.astimezone(UTC),
+        )
+
+    def _submit_authorized(self, command: Command) -> Receipt:
+        envelope = command.envelope
         existing = self.receipts.load(command.command_id)
         if existing is not None:
             if existing.payload_hash != command.payload_hash:
@@ -445,7 +525,10 @@ class DiscoveryRuntime:
             prepared = [(event_type, command.target_stream_id, event_payload)]
         elif envelope["command_type"] == "RegisterCandidate":
             prepared = [("CandidateRegistered", command.target_stream_id, command.envelope["payload"])]
-        binding = self.schemas.resolve_identity("ars://core/command", "1.0.0")
+        command_binding = self.schemas.command_binding(envelope["command_type"])
+        if command_binding is None:
+            raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
+        binding = self.schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
         result = self.ledger.append(
             [
                 {
@@ -490,8 +573,8 @@ class DiscoveryRuntime:
         )
         return self.receipts.write(receipt)
 
-    @staticmethod
     def _prepare_authority(
+        self,
         command: Command,
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
@@ -519,6 +602,55 @@ class DiscoveryRuntime:
         transition_payload = {
             key: deepcopy(value) for key, value in payload.items() if key not in {"row_id", "authority_kind"}
         }
+        if action == "observe":
+            current = projection["authorities"].get(kind)
+            if not isinstance(current, dict):
+                raise IntegrityError("authority subject is not registered")
+            subject = current.get("subject")
+            if not isinstance(subject, dict):
+                raise IntegrityError("authority subject is invalid")
+            repository_path = subject.get("authority_file_path")
+            if not isinstance(repository_path, str) or not repository_path:
+                raise IntegrityError("authority file path is not sealed")
+            repository_root = self.catalogue_path.resolve().parents[3]
+            authority_file = (repository_root / repository_path).resolve(strict=True)
+            try:
+                authority_file.relative_to(repository_root)
+            except ValueError as exc:
+                raise IntegrityError("authority file escapes repository root") from exc
+            raw = authority_file.read_bytes()
+            file_sha256 = sha256_hex(raw)
+            relative_path = authority_file.relative_to(repository_root).as_posix()
+            try:
+                git_commit = subprocess.run(
+                    ["git", "-C", str(repository_root), "rev-parse", "HEAD"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip()
+                git_blob = subprocess.run(
+                    ["git", "-C", str(repository_root), "rev-parse", f"HEAD:{relative_path}"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip()
+            except subprocess.CalledProcessError as exc:
+                raise IntegrityError("authority file lacks current Git identity") from exc
+            if (
+                subject.get("authority_file_size") != len(raw)
+                or subject.get("authority_file_sha256") != file_sha256
+                or subject.get("authority_file_git_commit") != git_commit
+                or subject.get("authority_file_git_blob") != git_blob
+            ):
+                raise IntegrityError("authority file identity mismatch")
+            transition_payload = {
+                "subject_sha256": current["subject_sha256"],
+                "repository_path": relative_path,
+                "git_commit": git_commit,
+                "git_blob": git_blob,
+                "file_size": len(raw),
+                "file_sha256": file_sha256,
+            }
         try:
             events = prepare_authority_transition(
                 events=projection["authority_events"],
@@ -631,9 +763,9 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
-        expected = self.accepted_expected_set
-        roots = self.registered_roots
-        current_revision = self.current_expected_set_revision
+        expected: AcceptedExpectedSet | None = None
+        roots: dict[str, RegisteredRoot] | None = None
+        current_revision: int | None = None
         accepted_expected = projection["authorities"].get("dossier_expected_set")
         accepted_paths = projection["authorities"].get("path_registration")
         if accepted_expected and accepted_expected.get("status") == "accepted":
@@ -933,7 +1065,7 @@ class DiscoveryRuntime:
     ) -> tuple[str, dict[str, Any]]:
         if projection["catalogue"] is not None:
             raise IntegrityError("W11 genesis already exists")
-        if command.target_stream_id != "w11_catalogue" or command.expected_stream_version != 0:
+        if command.target_stream_id != _CATALOGUE_STREAM_ID or command.expected_stream_version != 0:
             raise IntegrityError("W11 genesis stream identity mismatch")
         if command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
