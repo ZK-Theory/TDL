@@ -8,6 +8,12 @@ from typing import Any, Iterable
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
+from research_system.discovery.dossier import (
+    AcceptedExpectedSet,
+    DossierMember,
+    RegisteredRoot,
+    prepare_dossier_admission,
+)
 from research_system.errors import ConflictError, IntegrityError
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
@@ -63,7 +69,17 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
-    state: dict[str, Any] = {"catalogue": None, "candidates": {}, "assays": {}, "reviews": {}}
+    state: dict[str, Any] = {
+        "catalogue": None,
+        "candidates": {},
+        "assays": {},
+        "spikes": {},
+        "decisions": {},
+        "reviews": {},
+        "dossiers": {},
+        "portfolio_objects": {},
+        "scopes": {},
+    }
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
@@ -166,6 +182,78 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             ):
                 raise IntegrityError("invalid Assay reviewed transition")
             assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
+        elif event_type == "DecisionProposed":
+            decision_id = payload.get("new_decision_id")
+            if not isinstance(decision_id, str) or decision_id in state["decisions"]:
+                raise IntegrityError("invalid Discovery decision proposal")
+            state["decisions"][decision_id] = {
+                "status": "proposed",
+                "kind": payload.get("discovery_kind"),
+                "version": event["stream_version"],
+            }
+        elif event_type == "DecisionResolved":
+            decision = state["decisions"].get(payload.get("decision_id"))
+            if not isinstance(decision, dict) or decision.get("status") != "proposed":
+                raise IntegrityError("invalid Discovery decision resolution")
+            decision.update(
+                status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]
+            )
+        elif event_type == "CandidatePromotionRequested":
+            state["candidates"][payload["candidate_id"]].update(
+                status="promotion_pending", decision_id=payload["decision_id"]
+            )
+        elif event_type == "CandidatePromotionApplied":
+            state["candidates"][payload["candidate_id"]].update(status="spike_planning_authorized")
+        elif event_type == "SpikePlanned":
+            spike_id = payload["spike_id"]
+            if spike_id in state["spikes"]:
+                raise IntegrityError("Spike identity collision")
+            state["spikes"][spike_id] = {**deepcopy(payload), "status": "planned", "version": event["stream_version"]}
+        elif event_type == "SpikeApprovalRequested":
+            state["spikes"][payload["spike_id"]].update(status="approval_pending")
+        elif event_type == "CandidateSpikePlanLinked":
+            state["candidates"][payload["candidate_id"]].update(
+                status="spike_approval_pending", spike_id=payload["spike_id"]
+            )
+        elif event_type == "SpikeExecutionDecisionRequested":
+            state["spikes"][payload["spike_id"]].update(decision_id=payload["decision_id"])
+        elif event_type == "SpikeAuthorized":
+            state["spikes"][payload["spike_id"]].update(status="authorized")
+        elif event_type == "CandidateSpikeAuthorized":
+            state["candidates"][payload["candidate_id"]].update(status="spike_authorized")
+        elif event_type == "SpikeStarted":
+            state["spikes"][payload["spike_id"]].update(status="running", attempt_id=payload["attempt_id"])
+        elif event_type == "CandidateSpikeStarted":
+            state["candidates"][payload["candidate_id"]].update(status="spike_running")
+        elif event_type == "SpikeVerdictRecorded":
+            state["spikes"][payload["spike_id"]].update(
+                status="verdict_recorded", verdict=payload["verdict"], verdict_sha256=payload["verdict_sha256"]
+            )
+        elif event_type == "CandidateSpikeVerdictLinked":
+            state["candidates"][payload["candidate_id"]].update(status="spike_verdict_recorded")
+        elif event_type == "SpikeReviewRequested":
+            state["spikes"][payload["spike_id"]].update(review_id=payload["review_id"], review_pending=True)
+        elif event_type == "SpikeReviewed":
+            spike = state["spikes"][payload["spike_id"]]
+            review = state["reviews"].get(payload["review_id"])
+            if not spike.get("review_pending") or review.get("status") != "satisfied":
+                raise IntegrityError("invalid Spike reviewed transition")
+            spike.update(status="reviewed", review_pending=False)
+        elif event_type == "ResearchDossierAdmitted":
+            dossier_id = payload.get("dossier_id")
+            if not isinstance(dossier_id, str) or dossier_id in state["dossiers"]:
+                raise IntegrityError("Research dossier identity collision")
+            state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
+        elif event_type == "PortfolioObjectRegistered":
+            member_key = payload.get("member_key")
+            if not isinstance(member_key, str) or member_key in state["portfolio_objects"]:
+                raise IntegrityError("Portfolio object identity collision")
+            state["portfolio_objects"][member_key] = deepcopy(payload)
+        elif event_type == "ScopeDefinitionRegistered":
+            member_key = payload.get("member_key")
+            if not isinstance(member_key, str) or member_key in state["scopes"]:
+                raise IntegrityError("Scope identity collision")
+            state["scopes"][member_key] = deepcopy(payload)
         else:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
     return state
@@ -181,12 +269,18 @@ class DiscoveryRuntime:
         schemas: SchemaRegistry,
         *,
         catalogue_path: Path,
+        accepted_expected_set: AcceptedExpectedSet | None = None,
+        registered_roots: dict[str, RegisteredRoot] | None = None,
+        current_expected_set_revision: int | None = None,
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
         self.schemas = schemas
         self.catalogue_path = catalogue_path
         self.receipts = ReceiptStore(control_root)
+        self.accepted_expected_set = accepted_expected_set
+        self.registered_roots = registered_roots
+        self.current_expected_set_revision = current_expected_set_revision
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
@@ -250,7 +344,21 @@ class DiscoveryRuntime:
             "RequestDiscoveryOutcomeReview",
             "ReviewDiscoveryOutcome",
         }:
-            prepared = self._prepare_assay(command, projection)
+            if envelope["payload"].get("row_id") in {"OR-003", "OR-004", "OR-006", "OR-034"}:
+                prepared = self._prepare_assay(command, projection)
+            else:
+                prepared = self._prepare_spike(command, projection)
+        elif envelope["command_type"] in {
+            "ProposePromotionDecision",
+            "ResolveDecision",
+            "RegisterSpikePlan",
+            "ProposeSpikeExecutionDecision",
+            "StartSpike",
+            "RecordSpikeVerdict",
+        }:
+            prepared = self._prepare_spike(command, projection)
+        elif envelope["command_type"] == "AdmitResearchDossier":
+            prepared = self._prepare_dossier(command, projection)
         else:
             raise IntegrityError(f"unsupported Discovery command: {envelope['command_type']}")
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
@@ -265,6 +373,8 @@ class DiscoveryRuntime:
                     "schema_id": {
                         "ReviewRequested": "ars://core/event/ReviewRequested",
                         "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
+                        "DecisionProposed": "ars://core/event/DecisionProposed",
+                        "DecisionResolved": "ars://core/event/DecisionResolved",
                     }.get(prepared_event_type, "ars://core/event"),
                     "schema_version": "1.0.0",
                     "stream_id": prepared_stream_id,
@@ -295,6 +405,153 @@ class DiscoveryRuntime:
             reason_code=None,
         )
         return self.receipts.write(receipt)
+
+    def _prepare_dossier(
+        self,
+        command: Command,
+        projection: dict[str, Any],
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        expected = self.accepted_expected_set
+        if expected is None or self.registered_roots is None or self.current_expected_set_revision is None:
+            raise IntegrityError("accepted dossier authority is not active")
+        payload = command.envelope["payload"]
+        if (
+            set(payload) != {"row_id", "dossier_id", "expected_set_id", "candidate_members"}
+            or payload.get("row_id") != "OR-028"
+            or payload.get("dossier_id") != expected.dossier_id
+            or payload.get("expected_set_id") != expected.expected_set_id
+            or command.target_stream_id != expected.dossier_id
+            or not isinstance(payload.get("candidate_members"), list)
+        ):
+            raise IntegrityError("invalid AdmitResearchDossier command")
+        try:
+            members = tuple(DossierMember(**member) for member in payload["candidate_members"])
+        except (TypeError, ValueError) as exc:
+            raise IntegrityError("invalid dossier candidate member") from exc
+        prepared = prepare_dossier_admission(
+            expected_set=expected,
+            current_expected_set_revision=self.current_expected_set_revision,
+            candidate_members=members,
+            registered_roots=self.registered_roots,
+            existing_identities=frozenset(
+                {
+                    *projection["dossiers"],
+                    *projection["portfolio_objects"],
+                    *projection["scopes"],
+                }
+            ),
+        )
+        result: list[tuple[str, str, dict[str, Any]]] = []
+        for event in prepared.events:
+            event_type = event["event_type"]
+            event_payload = event["payload"]
+            stream_id = (
+                expected.dossier_id if event_type == "ResearchDossierAdmitted" else str(event_payload["provenance_id"])
+            )
+            result.append((event_type, stream_id, event_payload))
+        return result
+
+    @staticmethod
+    def _prepare_spike(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+        p = command.envelope["payload"]
+        row = p.get("row_id")
+        candidate_id, spike_id, decision_id, review_id = (
+            p.get(k) for k in ("candidate_id", "spike_id", "decision_id", "review_id")
+        )
+        candidate = projection["candidates"].get(candidate_id)
+        spike = projection["spikes"].get(spike_id)
+        decision = projection["decisions"].get(decision_id)
+        ct = command.envelope["command_type"]
+
+        def out(*events: tuple[str, str]) -> list[tuple[str, str, dict[str, Any]]]:
+            return [(event, stream, deepcopy(p.get("w2_payload", p))) for event, stream in events]
+
+        if (
+            ct == "ProposePromotionDecision"
+            and row == "OR-012"
+            and candidate
+            and candidate.get("status") == "assay_scored"
+            and command.target_stream_id == decision_id
+        ):
+            return [
+                ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
+                ("CandidatePromotionRequested", candidate_id, deepcopy(p)),
+            ]
+        if (
+            ct == "ResolveDecision"
+            and row == "OR-013"
+            and decision
+            and decision.get("status") == "proposed"
+            and candidate
+            and candidate.get("status") == "promotion_pending"
+        ):
+            return [
+                ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
+                ("CandidatePromotionApplied", candidate_id, deepcopy(p)),
+            ]
+        if (
+            ct == "RegisterSpikePlan"
+            and row == "OR-014"
+            and candidate
+            and candidate.get("status") == "spike_planning_authorized"
+            and spike is None
+            and command.target_stream_id == spike_id
+        ):
+            return out(
+                ("SpikePlanned", spike_id),
+                ("SpikeApprovalRequested", spike_id),
+                ("CandidateSpikePlanLinked", candidate_id),
+            )
+        if (
+            ct == "ProposeSpikeExecutionDecision"
+            and row == "OR-015"
+            and spike
+            and spike.get("status") == "approval_pending"
+            and command.target_stream_id == decision_id
+        ):
+            return [
+                ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
+                ("SpikeExecutionDecisionRequested", spike_id, deepcopy(p)),
+            ]
+        if (
+            ct == "ResolveDecision"
+            and row == "OR-016"
+            and decision
+            and decision.get("status") == "proposed"
+            and spike
+            and spike.get("decision_id") == decision_id
+        ):
+            return [
+                ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
+                ("SpikeAuthorized", spike_id, deepcopy(p)),
+                ("CandidateSpikeAuthorized", candidate_id, deepcopy(p)),
+            ]
+        if ct == "StartSpike" and row == "OR-017" and spike and spike.get("status") == "authorized":
+            return out(("SpikeStarted", spike_id), ("CandidateSpikeStarted", candidate_id))
+        if ct == "RecordSpikeVerdict" and row == "OR-018" and spike and spike.get("status") == "running":
+            return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
+        if (
+            ct == "RequestDiscoveryOutcomeReview"
+            and row == "OR-036"
+            and spike
+            and spike.get("status") == "verdict_recorded"
+        ):
+            return [
+                ("ReviewRequested", review_id, deepcopy(p["review_contract"])),
+                ("SpikeReviewRequested", spike_id, deepcopy(p)),
+            ]
+        if (
+            ct == "ReviewDiscoveryOutcome"
+            and row == "OR-020"
+            and spike
+            and spike.get("review_pending")
+            and projection["reviews"].get(review_id, {}).get("status") == "pending"
+        ):
+            return [
+                ("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"])),
+                ("SpikeReviewed", spike_id, deepcopy(p)),
+            ]
+        raise IntegrityError(f"invalid Spike transition: {ct}/{row}")
 
     @staticmethod
     def _prepare_assay(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:

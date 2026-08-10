@@ -294,3 +294,247 @@ def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_pa
     assert projection["assays"][assay_id]["scorecard_sha256"] == "4" * 64
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == "satisfied"
+
+
+def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff68"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff69"
+    spike_id = "spk_019fed25-b33e-7740-b280-6f661aaeff6a"
+    promotion_id = "dec_019fed25-b33e-7740-b280-6f661aaeff6b"
+    execution_id = "dec_019fed25-b33e-7740-b280-6f661aaeff6c"
+    review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff6d"
+    runtime.submit(_genesis())
+    runtime.submit(
+        _command(
+            "RegisterCandidate",
+            candidate_id,
+            0,
+            {
+                "candidate_id": candidate_id,
+                "revision": 1,
+                "content_sha256": "1" * 64,
+                "source_observation_refs": ["obs:spike"],
+                "title": "Spike candidate",
+            },
+        )
+    )
+    runtime.submit(
+        _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": "1" * 64,
+                "assay_bar_acceptance_sha256": "2" * 64,
+                "producer_relation_sha256": "3" * 64,
+            },
+        )
+    )
+    runtime.submit(
+        _command(
+            "RecordAssayScore",
+            assay_id,
+            2,
+            {
+                "row_id": "OR-004",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "scorecard_sha256": "4" * 64,
+                "producer_relation_sha256": "3" * 64,
+            },
+        )
+    )
+
+    def proposed(decision_id: str, kind: str) -> dict[str, object]:
+        return {
+            "question": kind,
+            "recommendation": "approve",
+            "new_decision_id": decision_id,
+            "decision_revision": 1,
+            "decision_kind": "design_lock",
+            "options": ["approve", "reject"],
+            "governing_evidence_refs": ["evidence:exact"],
+            "affected_task_ids": [],
+            "affected_claim_ids": [],
+            "required_authority": "owner",
+            "expires_at": "2026-08-12T00:00:00Z",
+            "review_date": "2026-08-11T00:00:00Z",
+            "consequences": ["authorize next Discovery transition"],
+        }
+
+    def resolved(decision_id: str) -> dict[str, object]:
+        return {
+            "decision_id": decision_id,
+            "selected_option": "approve",
+            "effective_scope": "exact Discovery subject",
+            "decision_revision": 1,
+            "deciding_actor_id": ACTOR_ID,
+            "decision_authority_grant_id": GRANT_ID,
+            "governing_evidence_refs": ["evidence:exact"],
+            "considered_review_ids": [],
+            "effective_at": "2026-08-11T00:00:00Z",
+            "permitted_commands": ["RegisterSpikePlan"],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": [],
+        }
+
+    commands = [
+        _command(
+            "ProposePromotionDecision",
+            promotion_id,
+            0,
+            {
+                "row_id": "OR-012",
+                "candidate_id": candidate_id,
+                "decision_id": promotion_id,
+                "w2_payload": proposed(promotion_id, "promotion"),
+            },
+        ),
+        _command(
+            "ResolveDecision",
+            promotion_id,
+            1,
+            {
+                "row_id": "OR-013",
+                "candidate_id": candidate_id,
+                "decision_id": promotion_id,
+                "w2_payload": resolved(promotion_id),
+            },
+        ),
+        _command(
+            "RegisterSpikePlan",
+            spike_id,
+            0,
+            {"row_id": "OR-014", "candidate_id": candidate_id, "spike_id": spike_id, "plan_sha256": "5" * 64},
+        ),
+        _command(
+            "ProposeSpikeExecutionDecision",
+            execution_id,
+            0,
+            {
+                "row_id": "OR-015",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "decision_id": execution_id,
+                "w2_payload": proposed(execution_id, "spike_execution"),
+            },
+        ),
+        _command(
+            "ResolveDecision",
+            execution_id,
+            1,
+            {
+                "row_id": "OR-016",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "decision_id": execution_id,
+                "w2_payload": resolved(execution_id),
+            },
+        ),
+        _command(
+            "StartSpike",
+            spike_id,
+            4,
+            {
+                "row_id": "OR-017",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff6e",
+                "lease_id": "lease:exact",
+            },
+        ),
+        _command(
+            "RecordSpikeVerdict",
+            spike_id,
+            5,
+            {
+                "row_id": "OR-018",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "verdict": "PASS",
+                "verdict_sha256": "6" * 64,
+                "evidence_refs": ["evidence:provider-free"],
+            },
+        ),
+    ]
+    for command in commands:
+        assert runtime.submit(command).status == "accepted"
+    review_contract = {
+        "review_type": "provenance",
+        "new_review_id": review_id,
+        "subject_ids": [spike_id],
+        "subject_hashes": ["6" * 64],
+        "governing_refs": ["W11:OR-036"],
+        "review_questions": ["Is the exact Spike verdict supported?"],
+        "required_evidence_refs": ["evidence:provider-free"],
+        "required_lanes": ["provenance"],
+        "reviewer_capability": ["spike-independent-review"],
+        "required_independence_grade": "independent",
+        "visibility_policy": "owner-visible",
+        "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+        "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+        "deadline": "2026-08-12T00:00:00Z",
+        "escalation_rule": "owner-ruling",
+    }
+    runtime.submit(
+        _command(
+            "RequestDiscoveryOutcomeReview",
+            review_id,
+            0,
+            {
+                "row_id": "OR-036",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "review_id": review_id,
+                "subject_sha256": "6" * 64,
+                "review_contract": review_contract,
+            },
+        )
+    )
+    verdict = {
+        "review_id": review_id,
+        "verdict": "approve",
+        "findings": [],
+        "required_evidence_refs": ["evidence:provider-free"],
+        "limitations": [],
+        "conditions": [],
+        "reviewer_actor_id": ACTOR_ID,
+        "reviewer_profile": "independent-spike-reviewer",
+        "reviewer_session": "session-spike",
+        "reviewer_model_metadata": "test",
+        "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff6f",
+        "context_manifest_sha256": "7" * 64,
+        "unchanged_subject_sha256": "6" * 64,
+        "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff6e",
+        "trace_visibility_evidence_refs": ["trace:spike"],
+        "computed_independence_grade": "independent",
+    }
+    runtime.submit(
+        _command(
+            "ReviewDiscoveryOutcome",
+            review_id,
+            1,
+            {
+                "row_id": "OR-020",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "review_id": review_id,
+                "subject_sha256": "6" * 64,
+                "review_verdict": verdict,
+            },
+        )
+    )
+
+    projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
+    assert projection["spikes"][spike_id]["status"] == "reviewed"
+    assert projection["reviews"][review_id]["status"] == "satisfied"
+    assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == (
+        "ReviewVerdictRecorded",
+        "SpikeReviewed",
+    )

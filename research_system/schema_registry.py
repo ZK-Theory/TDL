@@ -265,6 +265,18 @@ _RUNTIME_BINDINGS = (
         producer_command_type="ProposeDecision",
     ),
     SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposePromotionDecision",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeSpikeExecutionDecision",
+    ),
+    SchemaBinding(
         "ars://core/command/RequestDecisionReview",
         "1.0.0",
         command_type="RequestDecisionReview",
