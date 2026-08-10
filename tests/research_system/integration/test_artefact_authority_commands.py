@@ -11,10 +11,10 @@ from research_system.artefacts.authority import (
 )
 from research_system.artefacts.use_resolver import ArtefactUseRequest, ArtefactUseResolver, predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.projection.replay import replay
 from research_system.schema_registry import runtime_schema_registry
-from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
-from tests.research_system.factories import REPO_ROOT
+from tests.research_system.factories import ACTORS, PROJECT_ID, REPO_ROOT, activate_lifecycle_grant, control_plane
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     ATTEMPT_ID as C1_ATTEMPT_ID,
     _c1_command,
@@ -356,6 +356,53 @@ def test_supersession_preserves_both_manifests_and_projects_replacement(tmp_path
     assert projected[ARTEFACT_ID]["supersession"]["replacement_artefact_id"] == REPLACEMENT_ARTEFACT_ID
     assert harness.objects.read("artefact", ARTEFACT_ID, 1) == artefact_manifest()
     assert harness.objects.read("artefact", REPLACEMENT_ARTEFACT_ID, 1) == replacement_manifest
+
+
+def test_supersession_rejects_a_non_mapping_registered_manifest(tmp_path):
+    harness = control_plane(tmp_path)
+    snapshot = harness.ledger.snapshot()
+    malformed_registration = {
+        "event_type": "ArtefactRegistered",
+        "stream_id": ARTEFACT_ID,
+        "payload": {"manifest": "not-a-manifest"},
+    }
+    replacement_manifest = deepcopy(artefact_manifest())
+    replacement_manifest["artefact_id"] = REPLACEMENT_ARTEFACT_ID
+    replacement_registration = {
+        "event_type": "ArtefactRegistered",
+        "stream_id": REPLACEMENT_ARTEFACT_ID,
+        "payload": {"manifest": replacement_manifest},
+    }
+    malformed_snapshot = replace(
+        snapshot,
+        events=(*snapshot.events, malformed_registration, replacement_registration),
+        stream_versions={**snapshot.stream_versions, ARTEFACT_ID: 1, REPLACEMENT_ARTEFACT_ID: 1},
+    )
+    envelope = command(
+        command_id="cmd_019fe47a-1033-7000-8000-000000001033",
+        command_type="SupersedeArtefact",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id="agr_019fe47a-1033-7000-8000-000000001033",
+        expected_stream_version=1,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "replacement_artefact_id": REPLACEMENT_ARTEFACT_ID,
+            "supersession_reason": "malformed source history must fail closed",
+            "supersession_scope": SCOPE_ID,
+            "replacement_sha256": CONTENT_SHA256,
+            "effective_at": "2026-08-08T21:00:00Z",
+            "continuing_consumer_dispositions": ["no consumer mutation"],
+        },
+    )
+
+    receipt = harness.service._prepare_artefact_authority_command(
+        Command(envelope),
+        malformed_snapshot,
+        1,
+    )
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "artefact_subject_hash_mismatch"
 
 
 def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash(tmp_path):

@@ -19,6 +19,7 @@ from research_system.command.lifecycle import (
 from research_system.operations.resources import RESOURCE_GRANT_V1_1_SCHEMA_VERSION
 
 _TASK_TERMINAL = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
+_ATTEMPT_TERMINAL = frozenset({"completed", "failed", "partial", "abandoned", "superseded"})
 
 
 @dataclass(frozen=True)
@@ -1070,8 +1071,8 @@ def reduce_review(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any
     if event_type == "ReviewSatisfied" and status in {"verdict_recorded", "changes_requested"}:
         if payload["prior_review_state"] != status or not payload["policy_evaluation_refs"]:
             raise ValueError("ReviewSatisfied prior-state binding mismatch")
-        if status == "changes_requested" and not payload.get("unchanged_subject_sha256"):
-            raise ValueError("ReviewSatisfied changed subject hash is absent")
+        if status == "changes_requested" and payload.get("unchanged_subject_sha256") != state.get("subject_sha256"):
+            raise ValueError("ReviewSatisfied changed subject hash mismatch")
         return {
             **state,
             "status": "satisfied",
@@ -1682,10 +1683,15 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
             "AttemptAbandoned",
             "AttemptSuperseded",
         }:
-            stream_states[event["stream_id"]] = reduce_attempt(
+            attempt_id = event["stream_id"]
+            stream_states[attempt_id] = reduce_attempt(
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
+            if stream_states[attempt_id].get("status") in _ATTEMPT_TERMINAL:
+                attempts.discard(attempt_id)
+            else:
+                attempts.add(attempt_id)
         elif event["event_type"] == "CheckpointRecorded":
             stream_states[event["stream_id"]] = reduce_checkpoint(
                 stream_states.get(event["stream_id"], {}),
@@ -1739,7 +1745,6 @@ def replay_control_plane(events: Iterable[dict[str, Any]]) -> ControlPlaneState:
                 stream_states.get(event["stream_id"], {}),
                 event,
             )
-            attempts.add(event["stream_id"])
         elif event["event_type"] in {"ResourceGrantRequested", "ResourcesReleased"}:
             stream_states[event["stream_id"]] = reduce_resource(
                 stream_states.get(event["stream_id"], {}),

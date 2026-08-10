@@ -18,8 +18,8 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
-from research_system.store.ledger import EventLedger
 from research_system.store.identity import load_store_manifest_unbound
+from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 
 

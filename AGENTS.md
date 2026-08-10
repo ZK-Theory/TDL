@@ -88,16 +88,17 @@ model and the user's exact instruction:
 - An instruction merely to create a named worktree authorizes `git worktree add`
   and environment bootstrap only. An owner instruction that explicitly calls the
   named linked worktree **writable**, directs implementation in it, or says to
-  create or use it for the assigned delivery also authorizes the requested code,
-  test, and result writes there, subject to the stated branch, scope, protected-
-  path, and owner-gate constraints.
+  create or use it for the assigned delivery grants task and scope authority for
+  the requested code, test, and result writes. It does not expand an enforced
+  filesystem sandbox; when enforcement is active, the runtime must separately
+  grant write capability for the exact linked-worktree root.
 
 1. Verify the resolved cwd, symbolic branch, HEAD, required ancestry, status,
    runtime permission profile, and the exact wording of the owner instruction.
    Do not infer a denial from contextual root lists when sandbox enforcement is
    explicitly disabled or unrestricted access is declared.
-2. If enforced roots genuinely exclude the worktree and no explicit runtime or
-   owner grant covers implementation there, route code or test remediation to a
+2. If enforced roots genuinely exclude the worktree and no explicit runtime
+   grant covers implementation there, route code or test remediation to a
    task whose workspace is that exact worktree. The owning task must verify cwd,
    branch, and edit readiness before changing files. A Manager may inspect a
    genuinely foreign, non-writable worktree read-only, but must send fixes back

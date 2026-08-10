@@ -4059,7 +4059,10 @@ class CommandService:
                     or command.actor_id == assignment.get("reviewer_actor_id")
                     or payload.get("prior_review_state") != status
                     or not payload.get("policy_evaluation_refs")
-                    or (status == "changes_requested" and not payload.get("unchanged_subject_sha256"))
+                    or (
+                        status == "changes_requested"
+                        and payload.get("unchanged_subject_sha256") != review.get("subject_sha256")
+                    )
                 ):
                     return rejected(
                         "review_satisfaction_precondition_failed",
@@ -4393,9 +4396,12 @@ class CommandService:
             supplied_sha256 = payload.get(
                 "artefact_sha256" if command_type == "AdoptLateArtefact" else "subject_sha256"
             )
-            if command_type not in {"SupersedeArtefact"} and (
-                not isinstance(manifest, dict) or supplied_sha256 != manifest.get("content_sha256")
-            ):
+            if not isinstance(manifest, dict):
+                return rejected(
+                    "artefact_subject_hash_mismatch",
+                    "Artefact authority transitions require a registered manifest.",
+                )
+            if command_type != "SupersedeArtefact" and supplied_sha256 != manifest.get("content_sha256"):
                 return rejected(
                     "artefact_subject_hash_mismatch",
                     "Artefact authority transitions must bind the registered content hash.",

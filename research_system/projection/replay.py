@@ -40,19 +40,6 @@ from research_system.command.t2 import apply_t2_event
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
 
-_ALLOWED_DISPOSITIONS = frozenset(
-    {
-        "accepted",
-        "partial_accepted",
-        "deferred",
-        "superseded",
-        "removed_by_amendment",
-        "cancelled",
-        "rejected",
-    }
-)
-
-
 _SCOPED_ACTIVATION_SCHEMA_VERSIONS = {
     ("1.0.0", "1.0.0"): LEGACY_SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
     ("1.1.0", "1.1.0"): SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
@@ -275,32 +262,6 @@ def _validate_recorded_event_schema(
         )
     elif schema_registry.contains(payload_schema):
         schema_registry.validate(payload_schema, event.get("payload"))
-
-
-def _validate_scope_completion(payload: dict[str, Any]) -> None:
-    reference = payload.get("scope_definition_ref")
-    if (
-        not isinstance(reference, dict)
-        or not reference.get("object_id")
-        or not isinstance(reference.get("revision"), int)
-        or reference["revision"] < 1
-    ):
-        raise IntegrityError("scope completion requires an exact definition revision")
-    required = payload.get("required_member_ids")
-    dispositions = payload.get("member_dispositions")
-    if not isinstance(required, list) or len(required) != len(set(required)):
-        raise IntegrityError("scope completion has invalid required members")
-    if not isinstance(dispositions, dict):
-        raise IntegrityError("scope completion requires member dispositions")
-    missing = sorted(set(required).difference(dispositions))
-    if missing:
-        raise IntegrityError(f"missing dispositions: {', '.join(missing)}")
-    extra = sorted(set(dispositions).difference(required))
-    if extra:
-        raise IntegrityError(f"unexpected dispositions: {', '.join(extra)}")
-    invalid = sorted(member for member, disposition in dispositions.items() if disposition not in _ALLOWED_DISPOSITIONS)
-    if invalid:
-        raise IntegrityError(f"invalid dispositions: {', '.join(invalid)}")
 
 
 def _validate_claim_dispatch_transaction(
@@ -729,15 +690,6 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     } or (event_type == "PartialOutcomeRecorded" and event.get("command_type") == "ClosePartial"):
         validate_task_lifecycle_event(streams, event)
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
-    elif event_type == "ScopeCompleted" and "scope_definition_ref" in event.get("payload", {}):
-        _validate_scope_completion(event["payload"])
-        streams[stream_id] = {
-            "scope_id": stream_id,
-            "status": "completed",
-            "scope_definition_ref": event["payload"]["scope_definition_ref"],
-            "member_dispositions": dict(event["payload"]["member_dispositions"]),
-            "version": event["stream_version"],
-        }
     elif event_type in {
         "ScopeDefinitionCreated",
         "ScopeDefinitionAmended",

@@ -595,6 +595,47 @@ def test_review_lifecycle_preserves_independence_and_both_satisfaction_discrimin
     assert "decision_id" not in projection["streams"][REVIEW_IDS[0]]
 
 
+def test_satisfy_changed_review_rejects_unrelated_subject_hash_without_append(tmp_path):
+    harness = control_plane(tmp_path)
+    review_id = "rev_01978abc-6456-7000-8000-000000006456"
+    _create_task(harness, TASK_REVIEW, "cmd_01978abc-6455-7000-8000-000000006455")
+    subject = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][TASK_REVIEW]
+    subject_hash = sha256_hex(canonical_bytes(subject))
+    _request_review(harness, review_id, 6456, subject_hash)
+    _record_review_verdict(harness, review_id, subject_hash, 6457, "changes_requested")
+    _submit_review_command(
+        harness,
+        6460,
+        "RequestReviewChanges",
+        review_id,
+        {
+            "review_id": review_id,
+            "policy_evaluation_refs": ["policy-evaluation:changes"],
+            "conditions": [_review_condition()],
+        },
+    )
+    command = _command(
+        "cmd_01978abc-6461-7000-8000-000000006461",
+        "SatisfyReview",
+        review_id,
+        harness.ledger.snapshot().stream_versions[review_id],
+        {
+            "review_id": review_id,
+            "prior_review_state": "changes_requested",
+            "policy_evaluation_refs": ["policy-evaluation:satisfied"],
+            "satisfaction_gate": "exact-review-gate",
+            "unchanged_subject_sha256": "b" * 64,
+        },
+    )
+    before = tuple(harness.ledger.iter_events())
+
+    receipt = harness.service.submit(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "review_satisfaction_precondition_failed"
+    assert tuple(harness.ledger.iter_events()) == before
+
+
 def _task_to_review_pending(harness, review_id: str, number: int) -> str:
     _seed_running_attempt(harness)
     before_attempt = harness.ledger.snapshot()
@@ -978,15 +1019,7 @@ def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_r
             "satisfaction_gate": "decision-review-gate",
         },
     )
-    proposer_resolution_grant = activate_lifecycle_grant(
-        harness,
-        subject_kind="decision",
-        subject_id=primary,
-        actor_id=ACTOR_C,
-        allowed_actor_classes=("agent",),
-        command_types=("ResolveDecision",),
-        grant_id="agr_01978abc-7698-7000-8000-000000007698",
-    )
+    owner_grant = scoped_lifecycle_grant_id(primary)
     invalid_resolution = _command(
         "cmd_01978abc-6698-7000-8000-000000006698",
         "ResolveDecision",
@@ -994,12 +1027,12 @@ def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_r
         harness.ledger.snapshot().stream_versions[primary],
         {
             "decision_id": primary,
-            "selected_option": "proceed",
+            "selected_option": "not-a-listed-option",
             "effective_scope": "C3 decision test only",
             "effective_at": "2026-08-09T12:00:00Z",
             "decision_revision": 1,
-            "deciding_actor_id": ACTOR_C,
-            "decision_authority_grant_id": proposer_resolution_grant,
+            "deciding_actor_id": ACTORS["actor-a"],
+            "decision_authority_grant_id": owner_grant,
             "governing_evidence_refs": ["evidence:owner-decision"],
             "considered_review_ids": [DECISION_REVIEW_ID],
             "permitted_commands": ["AmendDecision"],
@@ -1008,19 +1041,15 @@ def test_decision_rule_and_correction_rows_are_append_only_and_review_does_not_r
             "revisit_triggers": ["material subject change"],
         },
     )
-    invalid_resolution["actor_id"] = ACTOR_C
-    invalid_resolution["authority_grant_id"] = proposer_resolution_grant
+    invalid_resolution["actor_id"] = ACTORS["actor-a"]
+    invalid_resolution["authority_grant_id"] = owner_grant
     before_invalid_resolution = tuple(harness.ledger.iter_events())
 
     rejected_resolution = harness.service.submit(invalid_resolution)
 
     assert rejected_resolution.status == "rejected"
-    assert rejected_resolution.reason_code in {
-        "lifecycle_authority_unauthorized",
-        "decision_resolution_precondition_failed",
-    }
+    assert rejected_resolution.reason_code == "decision_resolution_precondition_failed"
     assert tuple(harness.ledger.iter_events()) == before_invalid_resolution
-    owner_grant = scoped_lifecycle_grant_id(primary)
     _submit_decision_command(
         harness,
         6608,

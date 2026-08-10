@@ -298,6 +298,8 @@ class EventLedger:
                 prefix.extend(raw)
             elif positions and min(positions) <= global_position:
                 raise ConflictError("raw ledger prefix splits one atomic event batch")
+            elif positions:
+                break
         return sha256_hex(bytes(prefix))
 
     def _validate_event_schema(

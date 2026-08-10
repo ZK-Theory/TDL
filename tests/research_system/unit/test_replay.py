@@ -11,6 +11,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
+from research_system.command.reducers import reduce_review
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.projection.replay import _replay, apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
@@ -294,7 +295,7 @@ def test_emitted_event_matches_frozen_schema(tmp_path):
     SchemaRegistry(Path(".research-system/schemas")).validate("ars://core/event", events[0])
 
 
-def test_s008_incomplete_scope_completion_is_rejected():
+def test_s008_legacy_scope_completion_cannot_materialize_without_open_scope():
     initial = {"streams": {}, "last_position": 0, "last_hash": "0" * 64}
     event = {
         "event_type": "ScopeCompleted",
@@ -306,9 +307,33 @@ def test_s008_incomplete_scope_completion_is_rejected():
             "member_dispositions": {"T2.1": "accepted"},
         },
     }
-    with pytest.raises(IntegrityError, match="missing dispositions: T2.2"):
+    with pytest.raises(ValueError, match="ScopeCompleted requires an open scope"):
         apply_event(initial, event)
     assert initial == {"streams": {}, "last_position": 0, "last_hash": "0" * 64}
+
+
+def test_review_satisfaction_reducer_rejects_an_unrelated_changed_subject_hash():
+    review_id = "rev_01978abc-4008-7000-8000-000000004008"
+    state = {
+        "review_id": review_id,
+        "status": "changes_requested",
+        "subject_sha256": "a" * 64,
+        "version": 4,
+    }
+    event = {
+        "event_type": "ReviewSatisfied",
+        "stream_id": review_id,
+        "stream_version": 5,
+        "payload": {
+            "review_id": review_id,
+            "prior_review_state": "changes_requested",
+            "policy_evaluation_refs": ["policy-evaluation:satisfied"],
+            "unchanged_subject_sha256": "b" * 64,
+        },
+    }
+
+    with pytest.raises(ValueError, match="changed subject hash mismatch"):
+        reduce_review(state, event)
 
 
 def test_s009_projection_rebuild_is_deterministic_and_disposable(tmp_path):
