@@ -8,6 +8,7 @@ import subprocess
 
 import pytest
 
+import research_system.discovery.dossier as dossier_module
 from research_system.discovery import DiscoveryRuntime, replay_discovery
 from research_system.discovery.authority import subject_sha256
 from research_system.discovery.dossier import (
@@ -195,6 +196,32 @@ def test_registered_root_physical_identity_mismatch_rejects_before_publication()
             candidate_members=expected.members,
             registered_roots=replaced,
         )
+
+
+def test_root_replacement_between_identity_check_and_read_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "registered"
+    displaced = tmp_path / "displaced"
+    root.mkdir()
+    (root / "member.json").write_text("original", encoding="utf-8")
+    registered = RegisteredRoot("repo", root, 1, registered_root_identity_hash(root))
+    member = DossierMember("member", "evidence", "repo", "member.json", 8, "0" * 64, "prov", 1, "0" * 64)
+    replaced = False
+
+    def replace_root(_path: Path) -> None:
+        nonlocal replaced
+        if replaced:
+            return
+        replaced = True
+        root.rename(displaced)
+        root.mkdir()
+        (root / "member.json").write_text("original", encoding="utf-8")
+
+    monkeypatch.setattr(dossier_module, "_after_root_identity_check", replace_root)
+    with pytest.raises(DossierAdmissionRejected, match="path_registration_identity_changed"):
+        dossier_module._open_registered_member(member, {"repo": registered})
 
 
 def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Path) -> None:

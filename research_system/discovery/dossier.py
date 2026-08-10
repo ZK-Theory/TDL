@@ -94,6 +94,19 @@ def registered_root_identity_hash(path: Path) -> str:
         anchor.close()
 
 
+def _after_root_identity_check(_path: Path) -> None:
+    """Fault-injection boundary after identity verification and before read."""
+
+
+def _assert_live_root(anchor: Any, path: Path) -> None:
+    observer = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
+    try:
+        if observer.identity != anchor.identity or observer.final_path != anchor.final_path:
+            raise DossierAdmissionRejected("path_registration_identity_changed")
+    finally:
+        observer.close()
+
+
 def _validate_sha256(value: str, label: str) -> None:
     if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise DossierAdmissionRejected(f"invalid_{label}")
@@ -139,6 +152,8 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         )
         if identity_hash != root.registration_hash:
             raise DossierAdmissionRejected("path_registration_identity_mismatch")
+        _assert_live_root(anchor, root.path)
+        _after_root_identity_check(root.path)
         root_path = anchor.final_path
         candidate = root_path.joinpath(*relative.parts)
         try:
@@ -155,6 +170,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
             raw = candidate.read_bytes()
         except (FileNotFoundError, IsADirectoryError, PermissionError) as exc:
             raise DossierAdmissionRejected("incomplete_package") from exc
+        _assert_live_root(anchor, root.path)
         refreshed_identity, refreshed_path = anchor.refresh()
         if refreshed_identity != anchor.identity or refreshed_path != anchor.final_path:
             raise DossierAdmissionRejected("path_registration_identity_changed")
