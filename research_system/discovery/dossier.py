@@ -65,6 +65,7 @@ class PreparedDossierAdmission:
 
 
 def _canonical_hash(value: Any) -> str:
+    """Hash one JSON-compatible value canonically."""
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     return hashlib.sha256(raw).hexdigest()
 
@@ -75,6 +76,19 @@ def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
     value = asdict(expected_set)
     value.pop("content_hash")
     return _canonical_hash(value)
+
+
+def admission_profile_hash(profile_id: str, revision: int) -> str:
+    """Bind the provider-free, non-dispatchable WP6.6 admission policy."""
+
+    return _canonical_hash(
+        {
+            "admission_profile_id": profile_id,
+            "admission_profile_revision": revision,
+            "dispatchable": False,
+            "provider_execution": "forbidden",
+        }
+    )
 
 
 def registered_root_identity_hash(path: Path) -> str:
@@ -88,6 +102,7 @@ def registered_root_identity_hash(path: Path) -> str:
                 "volume_or_device": anchor.identity.volume_or_device,
                 "file_id": anchor.identity.file_id.hex(),
                 "final_path": str(anchor.final_path).casefold(),
+                "registered_path": str(path.absolute()).casefold(),
             }
         )
     finally:
@@ -99,6 +114,7 @@ def _after_root_identity_check(_path: Path) -> None:
 
 
 def _assert_live_root(anchor: Any, path: Path) -> None:
+    """Require the live root path to retain the held physical identity."""
     observer = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
     try:
         if observer.identity != anchor.identity or observer.final_path != anchor.final_path:
@@ -108,11 +124,13 @@ def _assert_live_root(anchor: Any, path: Path) -> None:
 
 
 def _validate_sha256(value: str, label: str) -> None:
+    """Reject a malformed lowercase SHA-256 identity."""
     if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise DossierAdmissionRejected(f"invalid_{label}")
 
 
 def _unique_members(members: Iterable[DossierMember], side: str) -> dict[str, DossierMember]:
+    """Index members while rejecting duplicate keys and paths."""
     by_key: dict[str, DossierMember] = {}
     paths: set[tuple[str, str]] = set()
     for member in members:
@@ -127,6 +145,7 @@ def _unique_members(members: Iterable[DossierMember], side: str) -> dict[str, Do
 
 
 def _open_registered_member(member: DossierMember, roots: Mapping[str, RegisteredRoot]) -> bytes:
+    """Read one member through its deletion-protected registered root."""
     root = roots.get(member.root_id)
     if root is None:
         raise DossierAdmissionRejected("unregistered_root")
@@ -148,6 +167,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
                 "volume_or_device": anchor.identity.volume_or_device,
                 "file_id": anchor.identity.file_id.hex(),
                 "final_path": str(anchor.final_path).casefold(),
+                "registered_path": str(root.path.absolute()).casefold(),
             }
         )
         if identity_hash != root.registration_hash:
@@ -167,11 +187,11 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         current = root_path
         for part in relative.parts:
             current = current / part
-            if current.is_symlink():
+            if current.is_symlink() or (hasattr(current, "is_junction") and current.is_junction()):
                 raise DossierAdmissionRejected("unregistered_path_alias")
         try:
             raw = candidate.read_bytes()
-        except (FileNotFoundError, IsADirectoryError, PermissionError) as exc:
+        except (FileNotFoundError, IsADirectoryError, NotADirectoryError, PermissionError) as exc:
             raise DossierAdmissionRejected("incomplete_package") from exc
         _assert_live_root(anchor, root.path)
         refreshed_identity, refreshed_path = anchor.refresh()
@@ -200,6 +220,11 @@ def prepare_dossier_admission(
     if accepted_expected_set_hash(expected_set) != expected_set.content_hash:
         raise DossierAdmissionRejected("expected_set_hash_mismatch")
     _validate_sha256(expected_set.admission_profile_hash, "admission_profile_hash")
+    if (
+        admission_profile_hash(expected_set.admission_profile_id, expected_set.admission_profile_revision)
+        != expected_set.admission_profile_hash
+    ):
+        raise DossierAdmissionRejected("admission_profile_hash_mismatch")
     if expected_set.revision != current_expected_set_revision:
         raise DossierAdmissionRejected("stale_expected_set_revision")
     if not expected_set.members:
@@ -221,6 +246,7 @@ def prepare_dossier_admission(
         raise DossierAdmissionRejected("immutable_identity_collision")
 
     observed: list[dict[str, Any]] = []
+    verified_bytes: dict[str, bytes] = {}
     for member in expected_set.members:
         _validate_sha256(member.sha256, "member_hash")
         _validate_sha256(member.provenance_hash, "provenance_hash")
@@ -230,6 +256,7 @@ def prepare_dossier_admission(
         digest = hashlib.sha256(raw).hexdigest()
         if len(raw) != member.size_bytes or digest != member.sha256:
             raise DossierAdmissionRejected("member_content_tampered")
+        verified_bytes[member.member_key] = raw
         observed.append(
             {
                 "member_key": member.member_key,
@@ -247,12 +274,13 @@ def prepare_dossier_admission(
     package_rows = [row for row in observed if row["member_kind"] == "package_index"]
     if len(package_rows) != 1:
         raise DossierAdmissionRejected("incomplete_package")
-    package_member = expected[package_rows[0]["member_key"]]
-    package_raw = _open_registered_member(package_member, registered_roots)
+    package_raw = verified_bytes[package_rows[0]["member_key"]]
     try:
         package = json.loads(package_raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DossierAdmissionRejected("invalid_package_index") from exc
+    if not isinstance(package, dict):
+        raise DossierAdmissionRejected("invalid_package_index")
     if (
         package.get("package_id") != expected_set.package_id
         or package.get("package_version") != expected_set.package_version

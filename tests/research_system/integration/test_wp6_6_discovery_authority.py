@@ -155,6 +155,20 @@ def test_authority_rejects_related_actors_tamper_stale_collision_and_second_acce
     with pytest.raises(AuthorityRejected, match="file_identity_mismatch"):
         replay_authority(tampered)
 
+    review_tampered = list(deepcopy(events))
+    review_tampered[2]["payload"]["subject_sha256"] = "8" * 64
+    with pytest.raises(AuthorityRejected, match="subject_hash_mismatch"):
+        replay_authority(review_tampered)
+
+    with pytest.raises(AuthorityRejected, match="invalid_owner_resolution"):
+        prepare_authority_transition(
+            events=registered,
+            kind="path_registration",
+            action="resolve",
+            actor_id=OWNER,
+            payload={"decision_id": "premature", "decision": "accept", "transaction_id": "premature"},
+        )
+
     with pytest.raises(AuthorityRejected, match="already_accepted"):
         prepare_authority_transition(
             events=events,

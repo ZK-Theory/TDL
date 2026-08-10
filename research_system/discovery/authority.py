@@ -53,6 +53,7 @@ _W2_SCHEMAS = {
 
 
 def _canonical(value: object) -> bytes:
+    """Serialize one authority value deterministically."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
@@ -65,12 +66,14 @@ def subject_sha256(subject: Mapping[str, object]) -> str:
 
 
 def _sha256(value: object, label: str) -> str:
+    """Validate and return one lowercase SHA-256 value."""
     if not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise AuthorityRejected(f"invalid_{label}")
     return value
 
 
 def _event(kind: str, action: str, event_type: str, payload: Mapping[str, object]) -> dict[str, object]:
+    """Build one immutable authority transition event."""
     return {
         "owner_row_id": _ROWS[kind][action],
         "authority_kind": kind,
@@ -138,6 +141,10 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
         elif event_type == "ReviewRequested":
             if status != "observed":
                 raise AuthorityRejected("invalid_review_request_order")
+            if payload.get("subject_sha256") != current["subject_sha256"]:
+                raise AuthorityRejected("subject_hash_mismatch")
+            if payload.get("file_sha256") != current["file_sha256"]:
+                raise AuthorityRejected("file_identity_mismatch")
             reviewer = payload.get("reviewer_actor_id")
             if reviewer in {actors["author"], actors["observer"], payload.get("actor_id")}:
                 raise AuthorityRejected("actor_not_independent")
@@ -244,6 +251,8 @@ def prepare_authority_transition(
     else:
         if current is None:
             raise AuthorityRejected("authority_not_registered")
+        if current["status"] != "decision_proposed":
+            raise AuthorityRejected("invalid_owner_resolution")
         base.update(schema_id=_W2_SCHEMAS["DecisionResolved"], schema_version="1.0.0")
         resolved = _event(kind, action, "DecisionResolved", base)
         accepted_payload = {

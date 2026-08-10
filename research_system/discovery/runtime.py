@@ -4,9 +4,9 @@ import hashlib
 import json
 import subprocess
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -55,10 +55,12 @@ _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 
 
 def _git_blob(data: bytes) -> str:
+    """Return the Git blob identity for exact bytes."""
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()  # noqa: S324
 
 
 def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
+    """Validate the complete ordered Discovery event hash chain."""
     last_position = 0
     last_hash = "0" * 64
     for event in events:
@@ -73,6 +75,7 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 
 
 def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Rebuild Discovery state while rejecting malformed transitions."""
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
     state: dict[str, Any] = {
@@ -110,11 +113,29 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         } or (event.get("command_type") == "ResolveDecision" and event["stream_id"] in state["authority_streams"]):
             kind = state["authority_streams"].get(event["stream_id"])
             if kind is None and event_type == "ReviewRequested":
-                kind = "dossier_expected_set" if "W11:OR-112" in payload["governing_refs"] else "path_registration"
+                refs = payload.get("governing_refs", [])
+                kind = next(
+                    (
+                        value.removeprefix("authority-kind:")
+                        for value in refs
+                        if isinstance(value, str) and value.startswith("authority-kind:")
+                    ),
+                    None,
+                )
                 state["authority_streams"][event["stream_id"]] = kind
             elif kind is None and event_type == "DecisionProposed":
-                kind = "dossier_expected_set" if "dossier_expected_set" in payload["question"] else "path_registration"
+                refs = payload.get("governing_evidence_refs", [])
+                kind = next(
+                    (
+                        value.removeprefix("authority-kind:")
+                        for value in refs
+                        if isinstance(value, str) and value.startswith("authority-kind:")
+                    ),
+                    None,
+                )
                 state["authority_streams"][event["stream_id"]] = kind
+            if kind not in {"dossier_expected_set", "path_registration"}:
+                raise IntegrityError("missing explicit W11 authority kind")
             current = state["authorities"].get(kind, {})
             if event_type == "ReviewRequested":
                 shadow = {
@@ -278,44 +299,81 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]
             )
         elif event_type == "CandidatePromotionRequested":
-            state["candidates"][payload["candidate_id"]].update(
-                status="promotion_pending", decision_id=payload["decision_id"]
-            )
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate promotion request")
+            candidate.update(status="promotion_pending", decision_id=payload["decision_id"])
         elif event_type == "CandidatePromotionApplied":
-            state["candidates"][payload["candidate_id"]].update(status="spike_planning_authorized")
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate promotion application")
+            candidate.update(status="spike_planning_authorized")
         elif event_type == "SpikePlanned":
             spike_id = payload["spike_id"]
             if spike_id in state["spikes"]:
                 raise IntegrityError("Spike identity collision")
             state["spikes"][spike_id] = {**deepcopy(payload), "status": "planned", "version": event["stream_version"]}
         elif event_type == "SpikeApprovalRequested":
-            state["spikes"][payload["spike_id"]].update(status="approval_pending")
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike approval request")
+            spike.update(status="approval_pending")
         elif event_type == "CandidateSpikePlanLinked":
-            state["candidates"][payload["candidate_id"]].update(
-                status="spike_approval_pending", spike_id=payload["spike_id"]
-            )
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate Spike plan link")
+            candidate.update(status="spike_approval_pending", spike_id=payload["spike_id"])
         elif event_type == "SpikeExecutionDecisionRequested":
-            state["spikes"][payload["spike_id"]].update(decision_id=payload["decision_id"])
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike execution decision request")
+            spike.update(decision_id=payload["decision_id"])
         elif event_type == "SpikeAuthorized":
-            state["spikes"][payload["spike_id"]].update(status="authorized")
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike authorization")
+            spike.update(status="authorized")
         elif event_type == "CandidateSpikeAuthorized":
-            state["candidates"][payload["candidate_id"]].update(status="spike_authorized")
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate Spike authorization")
+            candidate.update(status="spike_authorized")
         elif event_type == "SpikeStarted":
-            state["spikes"][payload["spike_id"]].update(status="running", attempt_id=payload["attempt_id"])
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike start")
+            spike.update(status="running", attempt_id=payload["attempt_id"])
         elif event_type == "CandidateSpikeStarted":
-            state["candidates"][payload["candidate_id"]].update(status="spike_running")
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate Spike start")
+            candidate.update(status="spike_running")
         elif event_type == "SpikeVerdictRecorded":
-            state["spikes"][payload["spike_id"]].update(
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike verdict")
+            spike.update(
                 status="verdict_recorded", verdict=payload["verdict"], verdict_sha256=payload["verdict_sha256"]
             )
         elif event_type == "CandidateSpikeVerdictLinked":
-            state["candidates"][payload["candidate_id"]].update(status="spike_verdict_recorded")
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict):
+                raise IntegrityError("invalid Candidate Spike verdict link")
+            candidate.update(status="spike_verdict_recorded")
         elif event_type == "SpikeReviewRequested":
-            state["spikes"][payload["spike_id"]].update(review_id=payload["review_id"], review_pending=True)
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict):
+                raise IntegrityError("invalid Spike review request")
+            spike.update(review_id=payload["review_id"], review_pending=True)
         elif event_type == "SpikeReviewed":
-            spike = state["spikes"][payload["spike_id"]]
-            review = state["reviews"].get(payload["review_id"])
-            if not spike.get("review_pending") or review.get("status") != "satisfied":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            review = state["reviews"].get(payload.get("review_id"))
+            if (
+                not isinstance(spike, dict)
+                or not spike.get("review_pending")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+            ):
                 raise IntegrityError("invalid Spike reviewed transition")
             spike.update(status="reviewed", review_pending=False)
         elif event_type == "ResearchDossierAdmitted":
@@ -350,11 +408,20 @@ class DiscoveryRuntime:
         catalogue_path: Path,
         authority_resolver: LedgerAuthorityGrantResolver,
         clock: Callable[[], datetime],
+        repository_root: Path,
+        root_tokens: Mapping[str, Path],
     ) -> None:
+        """Bind the governed runtime to exact repository and root configuration."""
         self.control_root = control_root
         self.ledger = ledger
         self.schemas = schemas
         self.catalogue_path = catalogue_path
+        self.repository_root = repository_root.resolve(strict=True)
+        try:
+            catalogue_path.resolve(strict=True).relative_to(self.repository_root)
+        except ValueError as exc:
+            raise IntegrityError("catalogue path is outside configured repository root") from exc
+        self.root_tokens = {key: Path(value) for key, value in root_tokens.items()}
         self.receipts = ReceiptStore(control_root)
         if not isinstance(authority_resolver, LedgerAuthorityGrantResolver):
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
@@ -362,6 +429,7 @@ class DiscoveryRuntime:
         self.clock = clock
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
+        """Authorize and atomically submit one public Discovery command."""
         if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
             raise IntegrityError("invalid Discovery command envelope")
         command = Command(deepcopy(envelope))
@@ -376,6 +444,7 @@ class DiscoveryRuntime:
             return self._submit_authorized(command)
 
     def _resolve_authority(self, command: Command) -> None:
+        """Resolve current canonical scoped authority for one command."""
         command_type = command.envelope["command_type"]
         binding = self.schemas.command_binding(command_type)
         if binding is None:
@@ -435,6 +504,7 @@ class DiscoveryRuntime:
         )
 
     def _submit_authorized(self, command: Command) -> Receipt:
+        """Prepare, append, and receipt one already-authorized command."""
         envelope = command.envelope
         existing = self.receipts.load(command.command_id)
         if existing is not None:
@@ -482,10 +552,10 @@ class DiscoveryRuntime:
         projection = replay_discovery(snapshot.events)
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
             event_type, event_payload = self._prepare_genesis(command, projection)
+            prepared = [(event_type, command.target_stream_id, event_payload)]
         elif envelope["command_type"] == "RegisterCandidate":
-            prepared = [
-                (self._prepare_candidate(command, projection)[0], command.target_stream_id, command.envelope["payload"])
-            ]
+            event_type, event_payload = self._prepare_candidate(command, projection)
+            prepared = [(event_type, command.target_stream_id, event_payload)]
         elif envelope["command_type"] in {
             "RequestAssay",
             "RecordAssayScore",
@@ -521,10 +591,6 @@ class DiscoveryRuntime:
             prepared = self._prepare_authority(command, projection)
         else:
             raise IntegrityError(f"unsupported Discovery command: {envelope['command_type']}")
-        if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
-            prepared = [(event_type, command.target_stream_id, event_payload)]
-        elif envelope["command_type"] == "RegisterCandidate":
-            prepared = [("CandidateRegistered", command.target_stream_id, command.envelope["payload"])]
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
@@ -578,6 +644,7 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare one ordered W11 authority transition."""
         payload = command.envelope["payload"]
         row = payload.get("row_id")
         routes = {
@@ -612,7 +679,7 @@ class DiscoveryRuntime:
             repository_path = subject.get("authority_file_path")
             if not isinstance(repository_path, str) or not repository_path:
                 raise IntegrityError("authority file path is not sealed")
-            repository_root = self.catalogue_path.resolve().parents[3]
+            repository_root = self.repository_root
             lexical_path = Path(repository_path)
             if lexical_path.is_absolute() or lexical_path.as_posix() != repository_path:
                 raise IntegrityError("authority file path is not canonical")
@@ -695,13 +762,16 @@ class DiscoveryRuntime:
         def persisted_payload(event: dict[str, object]) -> dict[str, Any]:
             event_type = str(event["event_type"])
             shadow = event["payload"]
+            now = self.clock().astimezone(UTC)
+            current_time = now.isoformat().replace("+00:00", "Z")
+            deadline = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
             if event_type == "ReviewRequested":
                 return {
                     "review_type": "provenance",
                     "new_review_id": stable_id("rev", 0),
                     "subject_ids": [stable_id("obj", 3)],
                     "subject_hashes": [current["subject_sha256"]],
-                    "governing_refs": [f"W11:{event['owner_row_id']}"],
+                    "governing_refs": [f"W11:{event['owner_row_id']}", f"authority-kind:{kind}"],
                     "review_questions": [
                         "Does the exact authority subject and independently observed file identity match?"
                     ],
@@ -712,7 +782,7 @@ class DiscoveryRuntime:
                     "visibility_policy": "owner-visible",
                     "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
                     "satisfaction_authority": "ars://portfolio/policy/w11-authority-review@1.0.0",
-                    "deadline": "2026-08-12T00:00:00Z",
+                    "deadline": deadline,
                     "escalation_rule": "owner-ruling",
                 }
             if event_type == "ReviewVerdictRecorded":
@@ -742,12 +812,12 @@ class DiscoveryRuntime:
                     "options": ["accept", "reject"],
                     "decision_revision": 1,
                     "decision_kind": "design_lock",
-                    "governing_evidence_refs": [current["file_sha256"]],
+                    "governing_evidence_refs": [current["file_sha256"], f"authority-kind:{kind}"],
                     "affected_task_ids": [],
                     "affected_claim_ids": [],
                     "required_authority": "owner",
-                    "expires_at": "2026-08-12T00:00:00Z",
-                    "review_date": "2026-08-11T00:00:00Z",
+                    "expires_at": deadline,
+                    "review_date": current_time,
                     "consequences": [f"the exact {kind} subject becomes admission authority"],
                 }
             if event_type == "DecisionResolved":
@@ -755,7 +825,7 @@ class DiscoveryRuntime:
                     "decision_id": shadow["decision_id"],
                     "selected_option": shadow["decision"],
                     "effective_scope": f"exact {kind} subject",
-                    "effective_at": "2026-08-11T00:00:00Z",
+                    "effective_at": current_time,
                     "decision_revision": 1,
                     "deciding_actor_id": command.actor_id,
                     "decision_authority_grant_id": command.envelope["authority_grant_id"],
@@ -787,6 +857,7 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare real dossier admission from replayed accepted authority."""
         expected: AcceptedExpectedSet | None = None
         roots: dict[str, RegisteredRoot] | None = None
         current_revision: int | None = None
@@ -806,14 +877,13 @@ class DiscoveryRuntime:
         if accepted_paths and accepted_paths.get("status") == "accepted":
             root_values = accepted_paths["subject"].get("registered_roots")
             if isinstance(root_values, list):
-                path_tokens = {
-                    "$REPOSITORY_CONTRACT_ROOT": Path("C:/Users/steph/TDL/.research-system/contracts/wp6-4"),
-                    "$TDA_VAULT_ROOT": Path("C:/Users/steph/TDL/vault"),
-                }
+                path_tokens = self.root_tokens
+                if any(value.get("path") not in path_tokens for value in root_values):
+                    raise IntegrityError("accepted path authority contains an unconfigured root token")
                 roots = {
                     value["root_id"]: RegisteredRoot(
                         root_id=value["root_id"],
-                        path=path_tokens.get(value["path"], Path(value["path"])),
+                        path=path_tokens[value["path"]],
                         registration_revision=value["registration_revision"],
                         registration_hash=value["registration_hash"],
                         authorized=value.get("authorized", True),
@@ -861,6 +931,7 @@ class DiscoveryRuntime:
 
     @staticmethod
     def _prepare_spike(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
         row = p.get("row_id")
         candidate_id, spike_id, decision_id, review_id = (
@@ -1003,6 +1074,7 @@ class DiscoveryRuntime:
 
     @staticmethod
     def _prepare_assay(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare one Assay lifecycle transition batch."""
         payload = command.envelope["payload"]
         candidate_id = payload.get("candidate_id")
         assay_id = payload.get("assay_id")
@@ -1091,6 +1163,7 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
     ) -> tuple[str, dict[str, Any]]:
+        """Verify and prepare the one-time accepted W11 catalogue import."""
         if projection["catalogue"] is not None:
             raise IntegrityError("W11 genesis already exists")
         if command.target_stream_id != _CATALOGUE_STREAM_ID or command.expected_stream_version != 0:
@@ -1104,7 +1177,7 @@ class DiscoveryRuntime:
             or _git_blob(raw) != _ACCEPTED["catalogue_blob"]
         ):
             raise IntegrityError("catalogue identity mismatch")
-        repository_root = self.catalogue_path.resolve().parents[3]
+        repository_root = self.repository_root
         bootstrap = (
             repository_root / ".research-system" / "contracts" / "w11" / "w11-materialization-bootstrap-contract.yaml"
         )
@@ -1141,6 +1214,7 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
     ) -> tuple[str, dict[str, Any]]:
+        """Validate and prepare the thinnest Candidate registration."""
         if projection["catalogue"] is None:
             raise IntegrityError("W11 genesis is required before Candidate registration")
         payload = command.envelope["payload"]

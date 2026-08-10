@@ -4,6 +4,7 @@ from dataclasses import asdict, replace
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import os
 import subprocess
 
 import pytest
@@ -17,6 +18,7 @@ from research_system.discovery.dossier import (
     DossierMember,
     RegisteredRoot,
     accepted_expected_set_hash,
+    admission_profile_hash,
     prepare_dossier_admission,
     registered_root_identity_hash,
 )
@@ -38,7 +40,8 @@ FIXTURE_PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-f
 V1_INDEX = REPO / ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json"
 DOSSIER_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json"
 PATH_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
-VAULT = Path("C:/Users/steph/TDL/vault")
+TDA_RUNTIME_ROOT = Path(os.environ.get("TDL_REPOSITORY_ROOT", Path.home() / "TDL"))
+VAULT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
 
 
 def _member(key: str, kind: str, relative_path: str, *, root_id: str = "repo") -> DossierMember:
@@ -75,7 +78,7 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
         "prj_01978abc-1000-7000-8000-000000001000",
         "profile:wp6.6:dossier-admission",
         1,
-        "2" * 64,
+        admission_profile_hash("profile:wp6.6:dossier-admission", 1),
         members,
     )
     expected = replace(expected, content_hash=accepted_expected_set_hash(expected))
@@ -341,6 +344,12 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             "scope_id": expected.dossier_id,
             "owner_requirement_refs": ["W11:OR-110-115"],
             "content_sha256": expected.content_hash,
+            "admission_profile_decision": {
+                "dispatchable": False,
+                "profile_id": expected.admission_profile_id,
+                "profile_revision": expected.admission_profile_revision,
+                "provider_execution": "forbidden",
+            },
             "expected_set": json.loads(json.dumps(asdict(expected))),
         },
         710,
@@ -357,6 +366,8 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             "owner_requirement_refs": ["W11:OR-116-121"],
             "content_sha256": "8" * 64,
             "collision_status": "no_collision",
+            "environment_scope": "owner-accepted-stephen-windows-tda-runtime",
+            "identity_scheme": "windows-file-id-v1",
             "registered_roots": json.loads((REPO / PATH_AUTHORITY).read_bytes())["registered_roots"],
         },
         720,

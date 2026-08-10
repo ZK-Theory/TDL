@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from datetime import UTC, datetime
 import hashlib
+import os
 import uuid
 
 import pytest
@@ -22,6 +23,8 @@ from tests.research_system.factories import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+TDA_RUNTIME_ROOT = Path(os.environ.get("TDL_REPOSITORY_ROOT", Path.home() / "TDL"))
+TDA_VAULT_ROOT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
 CATALOGUE = REPO_ROOT / ".research-system" / "evals" / "expected" / "w11-portfolio-discovery-v1.json"
 CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 ACTOR_ID = ACTORS["actor-a"]
@@ -94,6 +97,11 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
         catalogue_path=CATALOGUE,
         authority_resolver=harness.authority_resolver,
         clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
+        repository_root=REPO_ROOT,
+        root_tokens={
+            "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
+            "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
+        },
     )
 
 
@@ -177,6 +185,11 @@ def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tm
         catalogue_path=CATALOGUE,
         authority_resolver=harness.authority_resolver,
         clock=lambda: datetime(2026, 8, 2, tzinfo=UTC),
+        repository_root=REPO_ROOT,
+        root_tokens={
+            "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
+            "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
+        },
     )
     grant_id = activate_lifecycle_grant(
         harness,
