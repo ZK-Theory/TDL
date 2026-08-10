@@ -69,6 +69,14 @@ assurance_requirement_allocations:
     acceptance_record_id: ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141
     acceptance_record_path: external-control://accepted_assurance_requirement/ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141/1
     acceptance_record_sha256: 2eb97a540a0d39446f22000e1f8c778f0dd014471d73648d826a4dcc100c0548
+    acceptance_state: superseded
+  - id_kind: assurance_requirement
+    assurance_requirement_id: asr_019fa9de-c8a4-7ded-a0e8-41407ec0df34
+    revision: 3
+    prospective_producer_actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
+    acceptance_record_id: ard_019fe9d3-ad95-798c-bdf5-f919a562ab15
+    acceptance_record_path: external-control://accepted_assurance_requirement/ard_019fe9d3-ad95-798c-bdf5-f919a562ab15/1
+    acceptance_record_sha256: a08cbf326393357d7cd516aed2b06a046cd2cf6310b472f63608ec313309560d
     acceptance_state: active
 
 # Identities the external record schemas require that are NOT yet allocated.

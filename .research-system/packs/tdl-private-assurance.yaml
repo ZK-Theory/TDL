@@ -21,9 +21,9 @@ schema_reference:
   canonical_sha256: 1cac93d2ba0a8bb594b8bee9770039ed02798dfa9878019a23bd22ba56af38f6
 assurance_requirement_reference:
   assurance_requirement_id: asr_019fa9de-c8a4-7ded-a0e8-41407ec0df34
-  revision: 2
-  acceptance_record_id: ard_019fe9ac-9ef7-7448-ba5c-30a8694e3141
-  acceptance_record_sha256: 2eb97a540a0d39446f22000e1f8c778f0dd014471d73648d826a4dcc100c0548
+  revision: 3
+  acceptance_record_id: ard_019fe9d3-ad95-798c-bdf5-f919a562ab15
+  acceptance_record_sha256: a08cbf326393357d7cd516aed2b06a046cd2cf6310b472f63608ec313309560d
   prospective_producer_actor_id: act_019fa9de-c8a4-7ca5-9e03-8da0c2159a4b
 source_authority:
   accepted_plan_revision: fe5f1d40bc8f05f061317c677b5891cea0711249
