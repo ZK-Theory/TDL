@@ -120,6 +120,18 @@ class SchemaBinding:
 
 _RUNTIME_BINDINGS = (
     SchemaBinding(
+        "ars://core/event/ReviewRequested",
+        "1.0.0",
+        event_type="ReviewRequested",
+        producer_command_type="RequestDiscoveryOutcomeReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/ReviewVerdictRecorded",
+        "1.0.0",
+        event_type="ReviewVerdictRecorded",
+        producer_command_type="ReviewDiscoveryOutcome",
+    ),
+    SchemaBinding(
         "ars://core/command/CreateScopeDefinition",
         "1.0.0",
         command_type="CreateScopeDefinition",

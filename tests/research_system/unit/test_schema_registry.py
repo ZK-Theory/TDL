@@ -520,6 +520,24 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
     assert registry.event_binding("BackupCreated", "WrongProducer") is None
     assert registry.event_binding("BackupCreated", None) is None
     assert registry.has_producer_bindings("BackupCreated")
+    assert registry.event_binding(
+        "ReviewRequested",
+        "RequestDiscoveryOutcomeReview",
+    ) == SchemaBinding(
+        "ars://core/event/ReviewRequested",
+        "1.0.0",
+        event_type="ReviewRequested",
+        producer_command_type="RequestDiscoveryOutcomeReview",
+    )
+    assert registry.event_binding(
+        "ReviewVerdictRecorded",
+        "ReviewDiscoveryOutcome",
+    ) == SchemaBinding(
+        "ars://core/event/ReviewVerdictRecorded",
+        "1.0.0",
+        event_type="ReviewVerdictRecorded",
+        producer_command_type="ReviewDiscoveryOutcome",
+    )
     assert (
         registry.resolve_identity("ars://core/command/CreateBackup", "1.0.0").sha256
         == "16fe11c88fbfce48185fa666be93978f02416013addf83a4c2c3634884292a24"
@@ -567,7 +585,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    assert len(bindings) == 218
+    assert len(bindings) == 220
     assert bindings == tuple(
         sorted(
             bindings,

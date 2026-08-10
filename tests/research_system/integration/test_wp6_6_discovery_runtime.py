@@ -55,6 +55,24 @@ def _genesis() -> dict[str, object]:
     }
 
 
+def _command(
+    command_type: str,
+    target_stream_id: str,
+    expected_stream_version: int,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "command_id": new_id("command"),
+        "command_type": command_type,
+        "actor_id": ACTOR_ID,
+        "authority_grant_id": GRANT_ID,
+        "idempotency_key": f"wp6.6:{command_type}:{target_stream_id}:{expected_stream_version}",
+        "target_stream_id": target_stream_id,
+        "expected_stream_version": expected_stream_version,
+        "payload": payload,
+    }
+
+
 def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     command = _genesis()
@@ -145,3 +163,134 @@ def test_genesis_retry_repairs_receipt_after_committed_event(monkeypatch: pytest
     repaired = _runtime(tmp_path).submit(command)
     assert repaired.status == "accepted"
     assert len(tuple(runtime.ledger.iter_events())) == 1
+
+
+def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff58"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff59"
+    review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5a"
+    runtime.submit(_genesis())
+    runtime.submit(
+        _command(
+            "RegisterCandidate",
+            candidate_id,
+            0,
+            {
+                "candidate_id": candidate_id,
+                "revision": 1,
+                "content_sha256": "1" * 64,
+                "source_observation_refs": ["obs:tda-scale:v1"],
+                "title": "TDA-scale dossier candidate",
+            },
+        )
+    )
+
+    requested = runtime.submit(
+        _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": "1" * 64,
+                "assay_bar_acceptance_sha256": "2" * 64,
+                "producer_relation_sha256": "3" * 64,
+            },
+        )
+    )
+    scored = runtime.submit(
+        _command(
+            "RecordAssayScore",
+            assay_id,
+            2,
+            {
+                "row_id": "OR-004",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "scorecard_sha256": "4" * 64,
+                "producer_relation_sha256": "3" * 64,
+            },
+        )
+    )
+    review_requested = runtime.submit(
+        _command(
+            "RequestDiscoveryOutcomeReview",
+            review_id,
+            0,
+            {
+                "row_id": "OR-034",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "review_id": review_id,
+                "subject_sha256": "4" * 64,
+                "review_contract": {
+                    "review_type": "provenance",
+                    "new_review_id": review_id,
+                    "subject_ids": [assay_id],
+                    "subject_hashes": ["4" * 64],
+                    "governing_refs": ["W11:OR-034"],
+                    "review_questions": ["Does the exact Assay evidence satisfy the accepted bar?"],
+                    "required_evidence_refs": ["scorecard:exact"],
+                    "required_lanes": ["provenance"],
+                    "reviewer_capability": ["assay-independent-review"],
+                    "required_independence_grade": "independent",
+                    "visibility_policy": "owner-visible",
+                    "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+                    "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+                    "deadline": "2026-08-11T20:00:00Z",
+                    "escalation_rule": "owner-ruling",
+                },
+            },
+        )
+    )
+    reviewed = runtime.submit(
+        _command(
+            "ReviewDiscoveryOutcome",
+            review_id,
+            1,
+            {
+                "row_id": "OR-006",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "review_id": review_id,
+                "subject_sha256": "4" * 64,
+                "verdict": "approve",
+                "review_verdict": {
+                    "review_id": review_id,
+                    "verdict": "approve",
+                    "findings": [],
+                    "required_evidence_refs": ["scorecard:exact"],
+                    "limitations": [],
+                    "conditions": [],
+                    "reviewer_actor_id": "act_019fed25-b33e-7740-b280-6f661aaeff5b",
+                    "reviewer_profile": "independent-assay-reviewer",
+                    "reviewer_session": "session-wp66-assay-review",
+                    "reviewer_model_metadata": "independent-test-reviewer",
+                    "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff5c",
+                    "context_manifest_sha256": "5" * 64,
+                    "unchanged_subject_sha256": "4" * 64,
+                    "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff5d",
+                    "trace_visibility_evidence_refs": ["trace:assay-review"],
+                    "computed_independence_grade": "independent",
+                },
+            },
+        )
+    )
+
+    assert [requested.status, scored.status, review_requested.status, reviewed.status] == ["accepted"] * 4
+    batches = tuple(runtime.ledger.iter_batches())
+    assert [tuple(event["event_type"] for event in batch) for batch in batches[-4:]] == [
+        ("AssayRequested", "AssayEvidenceCollectionOpened", "CandidateAssayRequested"),
+        ("AssayScored", "CandidateAssayLinked"),
+        ("ReviewRequested", "AssayOutcomeReviewRequested"),
+        ("ReviewVerdictRecorded", "AssayReviewed"),
+    ]
+    projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
+    assert projection["assays"][assay_id]["status"] == "reviewed"
+    assert projection["assays"][assay_id]["scorecard_sha256"] == "4" * 64
+    assert projection["candidates"][candidate_id]["status"] == "assay_scored"
+    assert projection["reviews"][review_id]["status"] == "satisfied"

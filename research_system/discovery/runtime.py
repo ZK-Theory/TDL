@@ -63,7 +63,7 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
-    state: dict[str, Any] = {"catalogue": None, "candidates": {}}
+    state: dict[str, Any] = {"catalogue": None, "candidates": {}, "assays": {}, "reviews": {}}
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
@@ -78,6 +78,94 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if not isinstance(candidate_id, str) or candidate_id in state["candidates"]:
                 raise IntegrityError("Candidate identity collision")
             state["candidates"][candidate_id] = {**deepcopy(payload), "status": "registered", "version": 1}
+        elif event_type == "AssayRequested":
+            assay_id = payload.get("assay_id")
+            candidate_id = payload.get("candidate_id")
+            if (
+                not isinstance(assay_id, str)
+                or assay_id in state["assays"]
+                or state["candidates"].get(candidate_id, {}).get("status") != "registered"
+            ):
+                raise IntegrityError("invalid Assay request transition")
+            state["assays"][assay_id] = {
+                "assay_id": assay_id,
+                "candidate_id": candidate_id,
+                "candidate_revision": payload["candidate_revision"],
+                "candidate_sha256": payload["candidate_sha256"],
+                "assay_bar_acceptance_sha256": payload["assay_bar_acceptance_sha256"],
+                "producer_relation_sha256": payload["producer_relation_sha256"],
+                "status": "requested",
+                "version": event["stream_version"],
+            }
+        elif event_type == "AssayEvidenceCollectionOpened":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if not isinstance(assay, dict) or assay.get("status") != "requested":
+                raise IntegrityError("invalid Assay evidence transition")
+            assay.update(status="evidence_collecting", version=event["stream_version"])
+        elif event_type == "CandidateAssayRequested":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "registered":
+                raise IntegrityError("invalid Candidate Assay transition")
+            candidate.update(status="assay_pending", assay_id=payload["assay_id"], version=event["stream_version"])
+        elif event_type == "AssayScored":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if (
+                not isinstance(assay, dict)
+                or assay.get("status") != "evidence_collecting"
+                or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+            ):
+                raise IntegrityError("invalid Assay score transition")
+            assay.update(
+                status="scored",
+                scorecard_sha256=payload["scorecard_sha256"],
+                version=event["stream_version"],
+            )
+        elif event_type == "CandidateAssayLinked":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "assay_pending":
+                raise IntegrityError("invalid Candidate Assay score transition")
+            candidate.update(
+                status="assay_scored",
+                scorecard_sha256=payload["scorecard_sha256"],
+                version=event["stream_version"],
+            )
+        elif event_type == "ReviewRequested":
+            review_id = payload.get("new_review_id")
+            if not isinstance(review_id, str) or review_id in state["reviews"]:
+                raise IntegrityError("invalid Discovery review request")
+            state["reviews"][review_id] = {
+                "review_id": review_id,
+                "subject_sha256": payload["subject_hashes"][0],
+                "status": "pending",
+                "version": event["stream_version"],
+            }
+        elif event_type == "AssayOutcomeReviewRequested":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if not isinstance(assay, dict) or assay.get("status") != "scored":
+                raise IntegrityError("invalid Assay outcome review request")
+            assay.update(review_id=payload["review_id"], review_pending=True, version=event["stream_version"])
+        elif event_type == "ReviewVerdictRecorded":
+            review = state["reviews"].get(payload.get("review_id"))
+            if (
+                not isinstance(review, dict)
+                or review.get("status") != "pending"
+                or review.get("subject_sha256") != payload.get("unchanged_subject_sha256")
+                or payload.get("verdict") != "approve"
+            ):
+                raise IntegrityError("invalid Discovery review verdict")
+            review.update(status="satisfied", verdict="approve", version=event["stream_version"])
+        elif event_type == "AssayReviewed":
+            assay = state["assays"].get(payload.get("assay_id"))
+            review = state["reviews"].get(payload.get("review_id"))
+            if (
+                not isinstance(assay, dict)
+                or not assay.get("review_pending")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+                or assay.get("scorecard_sha256") != payload.get("subject_sha256")
+            ):
+                raise IntegrityError("invalid Assay reviewed transition")
+            assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
         else:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
     return state
@@ -120,12 +208,20 @@ class DiscoveryRuntime:
         if committed is not None:
             if committed.get("command_payload_hash") != command.payload_hash:
                 raise ConflictError("committed command payload mismatch")
+            transaction_events = tuple(
+                event for event in snapshot.events if event.get("transaction_id") == committed["transaction_id"]
+            )
+            target_versions = [
+                event["stream_version"]
+                for event in transaction_events
+                if event.get("stream_id") == command.target_stream_id
+            ]
             receipt = Receipt(
                 status="accepted",
                 command_id=command.command_id,
                 payload_hash=command.payload_hash,
                 event_batch_id=committed["transaction_id"],
-                observed_stream_version=committed["stream_version"],
+                observed_stream_version=max(target_versions),
                 reason_code=None,
             )
             return self.receipts.write(receipt)
@@ -145,17 +241,33 @@ class DiscoveryRuntime:
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
             event_type, event_payload = self._prepare_genesis(command, projection)
         elif envelope["command_type"] == "RegisterCandidate":
-            event_type, event_payload = self._prepare_candidate(command, projection)
+            prepared = [
+                (self._prepare_candidate(command, projection)[0], command.target_stream_id, command.envelope["payload"])
+            ]
+        elif envelope["command_type"] in {
+            "RequestAssay",
+            "RecordAssayScore",
+            "RequestDiscoveryOutcomeReview",
+            "ReviewDiscoveryOutcome",
+        }:
+            prepared = self._prepare_assay(command, projection)
         else:
             raise IntegrityError(f"unsupported Discovery command: {envelope['command_type']}")
+        if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
+            prepared = [(event_type, command.target_stream_id, event_payload)]
+        elif envelope["command_type"] == "RegisterCandidate":
+            prepared = [("CandidateRegistered", command.target_stream_id, command.envelope["payload"])]
         binding = self.schemas.resolve_identity("ars://core/command", "1.0.0")
         result = self.ledger.append(
             [
                 {
-                    "event_type": event_type,
-                    "schema_id": "ars://core/event",
+                    "event_type": prepared_event_type,
+                    "schema_id": {
+                        "ReviewRequested": "ars://core/event/ReviewRequested",
+                        "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
+                    }.get(prepared_event_type, "ars://core/event"),
                     "schema_version": "1.0.0",
-                    "stream_id": command.target_stream_id,
+                    "stream_id": prepared_stream_id,
                     "command_id": command.command_id,
                     "command_type": envelope["command_type"],
                     "command_schema_id": binding.schema_id,
@@ -168,8 +280,9 @@ class DiscoveryRuntime:
                     "actor_id": command.actor_id,
                     "authority_grant_id": envelope["authority_grant_id"],
                     "occurred_at": None,
-                    "payload": event_payload,
+                    "payload": prepared_payload,
                 }
+                for prepared_event_type, prepared_stream_id, prepared_payload in prepared
             ],
             snapshot=snapshot,
         )
@@ -182,6 +295,91 @@ class DiscoveryRuntime:
             reason_code=None,
         )
         return self.receipts.write(receipt)
+
+    @staticmethod
+    def _prepare_assay(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+        payload = command.envelope["payload"]
+        candidate_id = payload.get("candidate_id")
+        assay_id = payload.get("assay_id")
+        review_id = payload.get("review_id")
+        candidate = projection["candidates"].get(candidate_id)
+        assay = projection["assays"].get(assay_id)
+        review = projection["reviews"].get(review_id)
+        command_type = command.envelope["command_type"]
+        if command_type == "RequestAssay":
+            if (
+                payload.get("row_id") != "OR-003"
+                or command.target_stream_id != assay_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "registered"
+                or candidate.get("revision") != payload.get("candidate_revision")
+                or candidate.get("content_sha256") != payload.get("candidate_sha256")
+                or assay is not None
+            ):
+                raise IntegrityError("invalid RequestAssay transition")
+            return [
+                ("AssayRequested", assay_id, deepcopy(payload)),
+                ("AssayEvidenceCollectionOpened", assay_id, deepcopy(payload)),
+                ("CandidateAssayRequested", candidate_id, deepcopy(payload)),
+            ]
+        if command_type == "RecordAssayScore":
+            if (
+                payload.get("row_id") != "OR-004"
+                or command.target_stream_id != assay_id
+                or not isinstance(assay, dict)
+                or assay.get("status") != "evidence_collecting"
+                or assay.get("candidate_id") != candidate_id
+                or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_pending"
+            ):
+                raise IntegrityError("invalid RecordAssayScore transition")
+            return [
+                ("AssayScored", assay_id, deepcopy(payload)),
+                ("CandidateAssayLinked", candidate_id, deepcopy(payload)),
+            ]
+        if command_type == "RequestDiscoveryOutcomeReview":
+            review_contract = payload.get("review_contract")
+            if (
+                payload.get("row_id") != "OR-034"
+                or command.target_stream_id != review_id
+                or review is not None
+                or not isinstance(assay, dict)
+                or assay.get("status") != "scored"
+                or assay.get("scorecard_sha256") != payload.get("subject_sha256")
+                or not isinstance(review_contract, dict)
+                or review_contract.get("new_review_id") != review_id
+                or review_contract.get("subject_ids") != [assay_id]
+                or review_contract.get("subject_hashes") != [payload.get("subject_sha256")]
+            ):
+                raise IntegrityError("invalid RequestDiscoveryOutcomeReview transition")
+            return [
+                ("ReviewRequested", review_id, deepcopy(review_contract)),
+                ("AssayOutcomeReviewRequested", assay_id, deepcopy(payload)),
+            ]
+        if command_type == "ReviewDiscoveryOutcome":
+            review_verdict = payload.get("review_verdict")
+            if (
+                payload.get("row_id") != "OR-006"
+                or command.target_stream_id != review_id
+                or payload.get("verdict") != "approve"
+                or not isinstance(review_verdict, dict)
+                or review_verdict.get("review_id") != review_id
+                or review_verdict.get("verdict") != "approve"
+                or review_verdict.get("unchanged_subject_sha256") != payload.get("subject_sha256")
+                or not isinstance(review, dict)
+                or review.get("status") != "pending"
+                or review.get("subject_sha256") != payload.get("subject_sha256")
+                or not isinstance(assay, dict)
+                or not assay.get("review_pending")
+                or assay.get("review_id") != review_id
+            ):
+                raise IntegrityError("invalid ReviewDiscoveryOutcome transition")
+            return [
+                ("ReviewVerdictRecorded", review_id, deepcopy(review_verdict)),
+                ("AssayReviewed", assay_id, deepcopy(payload)),
+            ]
+        raise IntegrityError(f"unsupported Assay command: {command_type}")
 
     def _prepare_genesis(
         self,
