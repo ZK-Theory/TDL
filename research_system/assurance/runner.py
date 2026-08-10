@@ -579,10 +579,17 @@ def _accepted_git_artifact(reader: _GitObjectReader, subject: Mapping[str, objec
 
 def _pack_subject_dict(subject: PackAcceptanceSubject) -> dict[str, object]:
     return {
-        "pack_git_blob": subject.pack_git_blob,
-        "pack_raw_sha256": subject.pack_raw_sha256,
+        "pack_id": subject.pack_id,
         "assurance_pack_id": subject.assurance_pack_id,
         "assurance_pack_revision": subject.assurance_pack_revision,
+        "canonical_repository_path": subject.canonical_repository_path,
+        "pack_git_blob": subject.pack_git_blob,
+        "pack_raw_sha256": subject.pack_raw_sha256,
+        "schema_id": subject.schema_id,
+        "schema_version": subject.schema_version,
+        "schema_repository_path": subject.schema_repository_path,
+        "schema_git_blob": subject.schema_git_blob,
+        "schema_canonical_sha256": subject.schema_canonical_sha256,
     }
 
 

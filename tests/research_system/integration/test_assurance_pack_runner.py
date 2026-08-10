@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from research_system.assurance import PackUnconsumable
-from research_system.assurance.external_records import ExternalRecordResolution
+from research_system.assurance.external_records import ExternalRecordResolution, ExternalRecordSchemaCatalogue
 from research_system.assurance.pack_loader import _revalidate_references
 from research_system.assurance.runner import (
     AssurancePackRunnerConfig,
@@ -386,6 +386,20 @@ def _runner_inputs(
     ):
         locators[f"canonical_actor:{actor_id}"] = SemanticRecordLocator("canonical_actor", actor_id)
     return config, candidate_path, locators, record_resolver, facts_reader, authority
+
+
+def test_acceptance_records_bind_authoritative_schema_valid_pack_subject(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, _, record_resolver, _, _ = _runner_inputs(tmp_path, monkeypatch)
+    catalogue = ExternalRecordSchemaCatalogue(REPOSITORY_ROOT / ".research-system" / "schemas")
+
+    for record_class, record_id in (
+        ("independent_pack_review", frozen.REVIEW_RECORD_ID),
+        ("stephen_owner_acceptance", frozen.OWNER_DECISION_ID),
+    ):
+        catalogue.validate(record_class, record_id, record_resolver.record_store[record_id])
 
 
 def _semantic_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
