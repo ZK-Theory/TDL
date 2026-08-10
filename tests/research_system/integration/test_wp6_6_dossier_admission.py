@@ -18,6 +18,7 @@ from research_system.discovery.dossier import (
     accepted_expected_set_hash,
     prepare_dossier_admission,
 )
+from research_system.errors import IntegrityError
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     ACTOR_ID,
     _command,
@@ -32,6 +33,8 @@ SCOPE = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definit
 PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json"
 FIXTURE_PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json"
 V1_INDEX = REPO / ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json"
+DOSSIER_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json"
+PATH_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
 VAULT = Path("C:/Users/steph/TDL/vault")
 
 
@@ -210,7 +213,7 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
     review_id = f"rev_019fed25-b33e-7740-b280-{offset:012d}"
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
     first_row = 110 if kind == "dossier_expected_set" else 116
-    authority_file_path = PACKAGE if kind == "dossier_expected_set" else V1_INDEX.relative_to(REPO).as_posix()
+    authority_file_path = DOSSIER_AUTHORITY if kind == "dossier_expected_set" else PATH_AUTHORITY
     authority_raw = (REPO / authority_file_path).read_bytes()
     subject.update(
         authority_file_path=authority_file_path,
@@ -305,7 +308,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             "registered_roots": [
                 {
                     **asdict(root),
-                    "path": str(root.path),
+                    "path": "$REPOSITORY_ROOT" if root.root_id == "repo" else "$TDA_VAULT_ROOT",
                 }
                 for root in roots.values()
             ],
@@ -331,3 +334,63 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     assert replayed["authorities"]["dossier_expected_set"]["status"] == "accepted"
     assert replayed["authorities"]["path_registration"]["status"] == "accepted"
     assert replayed["dossiers"][expected.dossier_id]["member_count"] == 21
+
+
+@pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set"])
+def test_public_observation_rejects_authority_content_not_serialized_by_git_bytes(
+    tmp_path: Path,
+    attack: str,
+) -> None:
+    expected, _ = _subject()
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    subject = {
+        "authority_kind": "dossier_expected_set",
+        "record_id": expected.expected_set_id,
+        "record_revision": expected.revision,
+        "project_id": expected.project_id,
+        "scope_id": expected.dossier_id,
+        "owner_requirement_refs": ["W11:OR-110-115"],
+        "content_sha256": expected.content_hash,
+        "expected_set": json.loads(json.dumps(asdict(expected))),
+    }
+    authority_path = DOSSIER_AUTHORITY
+    if attack == "unrelated_tracked_file":
+        authority_path = PACKAGE
+    else:
+        subject["expected_set"]["package_version"] = "fabricated"  # type: ignore[index]
+    raw = (REPO / authority_path).read_bytes()
+    subject.update(
+        authority_file_path=authority_path,
+        authority_file_size=len(raw),
+        authority_file_sha256=hashlib.sha256(raw).hexdigest(),
+        authority_file_git_commit=subprocess.check_output(
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True
+        ).strip(),
+        authority_file_git_blob=subprocess.check_output(
+            ["git", "-C", str(REPO), "rev-parse", f"HEAD:{authority_path}"], text=True
+        ).strip(),
+    )
+    subject["subject_sha256"] = subject_sha256(subject)
+    stream_id = "obj_019fed25-b33e-7740-b280-000000000730"
+    register = _command(
+        "RegisterDossierExpectedSetContent",
+        stream_id,
+        0,
+        {"row_id": "OR-110", "authority_kind": "dossier_expected_set", "subject": subject},
+    )
+    assert runtime.submit(register).status == "accepted"
+    observe = _command(
+        "ObserveW11AuthorityFile",
+        stream_id,
+        1,
+        {
+            "row_id": "OR-111",
+            "authority_kind": "dossier_expected_set",
+            "subject_sha256": subject["subject_sha256"],
+        },
+    )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="content does not match registered subject"):
+        runtime.submit(observe)
+    assert tuple(runtime.ledger.iter_events()) == before

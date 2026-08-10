@@ -613,6 +613,9 @@ class DiscoveryRuntime:
             if not isinstance(repository_path, str) or not repository_path:
                 raise IntegrityError("authority file path is not sealed")
             repository_root = self.catalogue_path.resolve().parents[3]
+            lexical_path = Path(repository_path)
+            if lexical_path.is_absolute() or lexical_path.as_posix() != repository_path:
+                raise IntegrityError("authority file path is not canonical")
             authority_file = (repository_root / repository_path).resolve(strict=True)
             try:
                 authority_file.relative_to(repository_root)
@@ -621,6 +624,8 @@ class DiscoveryRuntime:
             raw = authority_file.read_bytes()
             file_sha256 = sha256_hex(raw)
             relative_path = authority_file.relative_to(repository_root).as_posix()
+            if relative_path != repository_path:
+                raise IntegrityError("authority file path alias is forbidden")
             try:
                 git_commit = subprocess.run(
                     ["git", "-C", str(repository_root), "rev-parse", "HEAD"],
@@ -629,13 +634,32 @@ class DiscoveryRuntime:
                     text=True,
                 ).stdout.strip()
                 git_blob = subprocess.run(
-                    ["git", "-C", str(repository_root), "rev-parse", f"HEAD:{relative_path}"],
+                    ["git", "-C", str(repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
                     check=True,
                     capture_output=True,
                     text=True,
                 ).stdout.strip()
+                committed_raw = subprocess.run(
+                    ["git", "-C", str(repository_root), "show", f"{git_commit}:{relative_path}"],
+                    check=True,
+                    capture_output=True,
+                ).stdout
             except subprocess.CalledProcessError as exc:
                 raise IntegrityError("authority file lacks current Git identity") from exc
+            computed_blob = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()  # noqa: S324
+            if committed_raw != raw or computed_blob != git_blob:
+                raise IntegrityError("authority file differs from captured Git bytes")
+            try:
+                serialized_subject = json.loads(committed_raw)
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise IntegrityError("authority file is not canonical JSON content") from exc
+            semantic_subject = {
+                key: value
+                for key, value in subject.items()
+                if key != "subject_sha256" and not key.startswith("authority_file_")
+            }
+            if serialized_subject != semantic_subject:
+                raise IntegrityError("authority file content does not match registered subject")
             if (
                 subject.get("authority_file_size") != len(raw)
                 or subject.get("authority_file_sha256") != file_sha256
@@ -782,10 +806,14 @@ class DiscoveryRuntime:
         if accepted_paths and accepted_paths.get("status") == "accepted":
             root_values = accepted_paths["subject"].get("registered_roots")
             if isinstance(root_values, list):
+                path_tokens = {
+                    "$REPOSITORY_ROOT": self.catalogue_path.resolve().parents[3],
+                    "$TDA_VAULT_ROOT": Path("C:/Users/steph/TDL/vault"),
+                }
                 roots = {
                     value["root_id"]: RegisteredRoot(
                         root_id=value["root_id"],
-                        path=Path(value["path"]),
+                        path=path_tokens.get(value["path"], Path(value["path"])),
                         registration_revision=value["registration_revision"],
                         registration_hash=value["registration_hash"],
                         authorized=value.get("authorized", True),
