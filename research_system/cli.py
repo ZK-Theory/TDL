@@ -8,7 +8,7 @@ import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
@@ -782,61 +782,72 @@ def _print_context_receipt(value: Any) -> None:
         _print_json(asdict(value))
     elif isinstance(value, dict):
         _print_json(value)
+    elif hasattr(value, "status"):
+        _print_json({"status": str(value.status)})
     else:
-        _print_json({"status": str(getattr(value, "status", value))})
+        raise ArsError("context lifecycle receipt is not serializable")
+
+
+def _required_context_input(source: Mapping[str, Any], key: str) -> Any:
+    try:
+        return source[key]
+    except KeyError as exc:
+        raise ArsError(f"context packet input is missing required field: {key}") from exc
 
 
 def context_packet_transition(args: argparse.Namespace) -> int:
     """Dispatch one named context-packet lifecycle operation."""
-    lifecycle = _context_packet_runtime(args)
-    source = _read_json(args.input)
     action = args.context_packet_action
-    if action == "request":
-        receipt = lifecycle.request(source["payload"])
-    elif action == "begin-compilation":
-        receipt = lifecycle.begin_compilation(source["payload"])
-    elif action == "complete-compilation":
-        receipt = lifecycle.complete_compilation(
-            source["payload"],
-            packet=source["packet"],
-            manifest=source["manifest"],
-        )
-    elif action == "validate":
+    if action == "validate":
         raise ArsError(
             "context validation requires an in-process service-sealed W4/W7 dispatch; "
             "caller-supplied validation or provider-template fields are forbidden"
         )
+    lifecycle = _context_packet_runtime(args)
+    source = _read_json(args.input)
+    if not isinstance(source, dict):
+        raise ArsError("context packet input must be a JSON object")
+    if action == "request":
+        receipt = lifecycle.request(_required_context_input(source, "payload"))
+    elif action == "begin-compilation":
+        receipt = lifecycle.begin_compilation(_required_context_input(source, "payload"))
+    elif action == "complete-compilation":
+        receipt = lifecycle.complete_compilation(
+            _required_context_input(source, "payload"),
+            packet=_required_context_input(source, "packet"),
+            manifest=_required_context_input(source, "manifest"),
+        )
     elif action == "issue":
-        receipt = lifecycle.issue(lifecycle.recover_validated(str(source["context_id"])))
+        receipt = lifecycle.issue(lifecycle.recover_validated(str(_required_context_input(source, "context_id"))))
     elif action == "deliver":
-        compiled = lifecycle.recover_compiled(str(source["context_id"]))
+        compiled = lifecycle.recover_compiled(str(_required_context_input(source, "context_id")))
         receipt = lifecycle.record_delivery(
             compiled,
-            recipient_id=str(source["recipient_id"]),
-            recipient_session_id=str(source["recipient_session_id"]),
-            adapter_id=str(source["adapter_id"]),
-            delivered_sha256=str(source["delivered_sha256"]),
+            recipient_id=str(_required_context_input(source, "recipient_id")),
+            recipient_session_id=str(_required_context_input(source, "recipient_session_id")),
+            adapter_id=str(_required_context_input(source, "adapter_id")),
+            delivered_sha256=str(_required_context_input(source, "delivered_sha256")),
         )
     elif action == "fail":
         receipt = lifecycle.fail(
-            context_id=str(source["context_id"]),
-            request_id=str(source["request_id"]),
-            lifecycle_phase=str(source["lifecycle_phase"]),
-            failure_code=str(source["failure_code"]),
+            context_id=str(_required_context_input(source, "context_id")),
+            request_id=str(_required_context_input(source, "request_id")),
+            lifecycle_phase=str(_required_context_input(source, "lifecycle_phase")),
+            failure_code=str(_required_context_input(source, "failure_code")),
             packet_revision=source.get("packet_revision"),
             packet_sha256=source.get("packet_sha256"),
         )
     elif action == "expire":
         receipt = lifecycle.expire(
-            lifecycle.recover_compiled(str(source["context_id"])),
-            str(source["reason"]),
+            lifecycle.recover_compiled(str(_required_context_input(source, "context_id"))),
+            str(_required_context_input(source, "reason")),
         )
     elif action == "supersede":
         receipt = lifecycle.supersede(
-            lifecycle.recover_compiled(str(source["context_id"])),
-            replacement_context_id=str(source["replacement_context_id"]),
-            replacement_packet_sha256=str(source["replacement_packet_sha256"]),
-            reason=str(source["reason"]),
+            lifecycle.recover_compiled(str(_required_context_input(source, "context_id"))),
+            replacement_context_id=str(_required_context_input(source, "replacement_context_id")),
+            replacement_packet_sha256=str(_required_context_input(source, "replacement_packet_sha256")),
+            reason=str(_required_context_input(source, "reason")),
         )
     else:  # pragma: no cover - argparse owns the closed action set
         raise ArsError(f"unsupported context packet action: {action}")

@@ -31,7 +31,13 @@ class FileSourceResolver:
                 value = json.loads(raw)
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise ArsError(f"direct source authority is unavailable: {source_id}") from exc
-            if canonical_bytes(value) != raw or not isinstance(value, dict):
+            if not isinstance(value, dict):
+                raise ArsError(f"direct source authority is not canonical: {source_id}")
+            try:
+                canonical = canonical_bytes(value)
+            except (TypeError, ValueError) as exc:
+                raise ArsError(f"direct source authority is not canonical: {source_id}") from exc
+            if canonical != raw:
                 raise ArsError(f"direct source authority is not canonical: {source_id}")
             required = {
                 "source_id",

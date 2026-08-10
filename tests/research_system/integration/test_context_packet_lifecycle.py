@@ -338,26 +338,42 @@ def test_cli_parser_exposes_exact_nine_context_lifecycle_operations() -> None:
     assert observed == expected
 
 
-def test_cli_validate_rejects_caller_built_w4_w7_fields_before_service_access(monkeypatch) -> None:
+def test_cli_validate_rejects_caller_built_w4_w7_fields_before_any_access(monkeypatch, capsys) -> None:
     from research_system import cli
 
-    class BombLifecycle:
-        def __getattr__(self, name):
-            raise AssertionError(f"CLI reached lifecycle service method: {name}")
+    effects: list[str] = []
 
-    monkeypatch.setattr(cli, "_context_packet_runtime", lambda _args: BombLifecycle())
-    monkeypatch.setattr(
-        cli,
-        "_read_json",
-        lambda _path: {
-            "context_id": new_id("context"),
-            "validation_evidence": {"route_decision_id": "caller-route"},
-            "provider_template": {"operation": "caller-built"},
-        },
+    def bomb_runtime(_args):
+        effects.append("runtime")
+        raise AssertionError("CLI constructed the context lifecycle runtime")
+
+    def bomb_read(_path):
+        effects.append("input")
+        raise AssertionError("CLI read caller-supplied validation input")
+
+    monkeypatch.setattr(cli, "_context_packet_runtime", bomb_runtime)
+    monkeypatch.setattr(cli, "_read_json", bomb_read)
+
+    result = cli.main(
+        [
+            "context-packet",
+            "validate",
+            "--config",
+            "unreachable-config.json",
+            "--input",
+            "unreachable-input.json",
+            "--actor-id",
+            "actor-1",
+            "--authority-grant-id",
+            "grant-1",
+            "--writer-id",
+            "writer-1",
+        ]
     )
-    args = SimpleNamespace(context_packet_action="validate", input="ignored")
-    with pytest.raises(ArsError, match="caller-supplied.*forbidden"):
-        cli.context_packet_transition(args)
+
+    assert result == 1
+    assert effects == []
+    assert "caller-supplied validation or provider-template fields are forbidden" in capsys.readouterr().err
 
 
 def test_w4_route_rejects_missing_or_foreign_capability_before_evidence(tmp_path) -> None:
@@ -447,6 +463,117 @@ def test_coordinator_rejects_foreign_capability_before_any_issue_side_effect(tmp
     with pytest.raises(ArsError, match="missing or forged"):
         issue_lifecycle_dispatch(dispatch, foreign, bomb, bomb, bomb)
     assert bomb.calls == 0
+
+
+def test_provider_receipt_replay_skips_provider_reinvocation() -> None:
+    from research_system.adapters.base import ProviderCommand, ProviderReceipt
+    from research_system.command.models import Receipt
+    from research_system.operations.coordinator import _issue_bound_template
+
+    command = ProviderCommand(
+        "pcmd-replayed",
+        1,
+        "a" * 64,
+        "fake",
+        "model",
+        "profile",
+        "adapter-v1",
+        "b" * 64,
+        "c" * 64,
+        "d" * 64,
+        "replay-key",
+        "deliver_context",
+        30,
+        {},
+        True,
+    )
+    provider_receipt = ProviderReceipt(
+        command.provider_command_id,
+        command.revision,
+        command.revision_hash,
+        command.provider,
+        command.model,
+        command.profile_id,
+        command.adapter_revision,
+        command.policy_hash,
+        command.context_hash,
+        "provider-request",
+        "response",
+        "complete",
+        True,
+        command.context_hash,
+        (),
+        None,
+        0,
+        None,
+    )
+    receipts = iter(
+        [
+            Receipt("accepted", "grant", "e" * 64, "batch-1", 1),
+            Receipt("accepted", "lease", "f" * 64, "batch-2", 2),
+            Receipt("replayed", "issued", "1" * 64, "batch-3", 3),
+        ]
+    )
+    terminal_receipt = Receipt("replayed", "terminal", "2" * 64, "batch-4", 4)
+
+    class Commands:
+        def submit(self, _command):
+            return next(receipts)
+
+    class Operations:
+        def build_request(self, _issued, binding):
+            return binding
+
+        def request_grant_command(self, request):
+            return dict(request)
+
+        def load_grant(self, _receipt):
+            return {"grant": "recorded"}
+
+        def claim_lease_command(self, grant, attempt_id):
+            return {**grant, "attempt_id": attempt_id}
+
+        def load_lease(self, _receipt):
+            return {"lease": "recorded"}
+
+        def load_provider_receipt(self, lease, observed_command):
+            assert lease == {"lease": "recorded"}
+            assert observed_command == command
+            return provider_receipt, terminal_receipt
+
+        def record_provider_receipt_command(self, _lease, _provider_receipt):
+            raise AssertionError("replayed provider receipt was recorded again")
+
+    class Adapter:
+        def build_command_from_template(self, *_args):
+            return command
+
+        def record_issue_command(self, _command):
+            return {"command": "issued"}
+
+        def issue(self, *_args):
+            raise AssertionError("provider was reinvoked during replay")
+
+    issued = SimpleNamespace(template=SimpleNamespace(sha256="3" * 64), attempt_id="attempt-1")
+    assert _issue_bound_template(issued, object(), Adapter(), Operations(), Commands()) == (
+        command,
+        provider_receipt,
+        terminal_receipt,
+    )
+
+
+def test_s016_evidence_identity_check_is_explicit(monkeypatch) -> None:
+    from research_system.evals import lifecycle as lifecycle_module
+    from research_system.evals.executors.release_tranche import execute_s016
+
+    def probe_plan(self, _compiled, **kwargs):
+        wrong_request = SimpleNamespace(task_id="unexpected-task")
+        kwargs["provider_evidence"].hard_gate_failures(wrong_request, kwargs["candidates"][0])
+        raise AssertionError("evidence identity check did not fail closed")
+
+    monkeypatch.setattr(lifecycle_module.EvaluationLifecycleRuntime, "plan", probe_plan)
+    with pytest.raises(ValueError, match="unexpected route request"):
+        execute_s016("known_good", {"contract": "x", "action": {"required_risk": "R3", "required_independence": "I3"}})
 
 
 def test_w4_no_route_is_one_compiled_phase_lifecycle_failure(tmp_path) -> None:

@@ -362,7 +362,9 @@ def _execute_through_lifecycle_provider(row, payload, execute) -> tuple[dict, di
             }
             return TransportResult("terminal", json.dumps(response, sort_keys=True), "", "fake-request", 0)
 
-        _issued, _command, receipt = runtime.issue(
+        declared_tokens = row.exact_tokens if row.exact_tokens is not None else row.evaluated_tokens
+        token_count = 1 if declared_tokens is None else declared_tokens
+        _issued, command, receipt = runtime.issue(
             dispatch,
             binding=EvaluationProviderBinding(
                 provider=provider,
@@ -372,8 +374,8 @@ def _execute_through_lifecycle_provider(row, payload, execute) -> tuple[dict, di
                 policy_hash="b" * 64,
                 parity_evidence_hash="c" * 64,
                 currentness_evidence_hash="d" * 64,
-                count=row.exact_tokens or row.evaluated_tokens or 1,
-                usable_capacity=max(100, (row.exact_tokens or row.evaluated_tokens or 1) * 2),
+                count=token_count,
+                usable_capacity=max(100, token_count * 2),
             ),
             transport_result=terminal,
             managed_content=canonical_bytes(payload).decode("utf-8"),
@@ -385,8 +387,8 @@ def _execute_through_lifecycle_provider(row, payload, execute) -> tuple[dict, di
             "provider": receipt.provider,
             "adapter_revision": receipt.adapter_revision,
             "output_refs": list(receipt.output_refs),
-            "argv": ["fake-evaluation-provider"],
-            "timeout_ms": 30_000,
+            "argv": list(runtime.provider_argv),
+            "timeout_ms": int(command.timeout_s * 1000),
         }
     finally:
         runtime.close()

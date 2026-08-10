@@ -47,9 +47,10 @@ class ContextCommandWriter(Protocol):
 class ContextLifecycleFailure(ArsError):
     """A terminal lifecycle failure carrying its original durable receipt."""
 
-    def __init__(self, message: str, receipt: Any) -> None:
+    def __init__(self, message: str, receipt: Any, detail: Any = None) -> None:
         super().__init__(message)
         self.receipt = receipt
+        self.detail = detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,7 +419,7 @@ class ContextLifecycleService:
                 packet_revision=compiled.revision,
                 packet_sha256=compiled.packet_sha256,
             )
-            raise ContextLifecycleFailure("no eligible route", receipt)
+            raise ContextLifecycleFailure("no eligible route", receipt, planned)
         return LifecycleBoundDispatch(
             attempt_id=planned.attempt_id,
             assurance_requirement_id=planned.assurance_requirement_id,
@@ -489,6 +490,11 @@ class ContextLifecycleService:
         packet_revision = int(value["packet_revision"])
         manifest_id = str(value["manifest_object_id"])
         manifest_revision = int(value["manifest_revision"])
+        try:
+            packet_sha256 = sha256_hex(canonical_bytes(packet_value))
+            manifest_sha256 = sha256_hex(canonical_bytes(manifest_value))
+        except (TypeError, ValueError) as exc:
+            raise ArsError("context completion objects are not canonical") from exc
         if (
             packet_value.get("context_id") != context_id
             or packet_value.get("request_id") != request_id
@@ -498,8 +504,8 @@ class ContextLifecycleService:
             or manifest_value.get("request_id") != request_id
             or manifest_value.get("packet_object_id") != packet_id
             or manifest_value.get("packet_revision") != packet_revision
-            or sha256_hex(canonical_bytes(packet_value)) != value.get("packet_sha256")
-            or sha256_hex(canonical_bytes(manifest_value)) != value.get("manifest_sha256")
+            or packet_sha256 != value.get("packet_sha256")
+            or manifest_sha256 != value.get("manifest_sha256")
         ):
             raise ArsError("context completion objects do not match the transition evidence")
         self.objects.write("context", packet_id, packet_revision, packet_value)
