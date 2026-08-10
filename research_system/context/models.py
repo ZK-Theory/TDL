@@ -13,6 +13,10 @@ class SourceFragment:
     mandatory: bool
     content: str
     content_hash: str
+    direct: bool = True
+    current: bool = True
+    superseded: bool = False
+    sensitivity_class: str = "internal"
 
 
 @dataclass(frozen=True)

@@ -104,6 +104,7 @@ _CALLER_PROVENANCE_FIELDS = frozenset(
         "command_schema_id",
         "command_schema_version",
         "command_schema_sha256",
+        "context_lifecycle_submission_key",
     }
 )
 _TASK_TERMINAL_STATES = frozenset({"accepted", "rejected", "partial", "cancelled", "superseded"})
@@ -692,6 +693,7 @@ class CommandService:
                 self._t2_authority_identity,
             ) = self._freeze_t2_authority_root(t2_authority_resolver)
         self._view: _CommandView | None = None
+        self._context_lifecycle_submission_key = object()
         self.deletion_manifest_authorizer: (
             Callable[
                 [dict[str, Any], str, str],
@@ -1319,6 +1321,11 @@ class CommandService:
             raise ArsError("CommandService.submit requires its guarded continuations")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
             return submit_t2(self, envelope)
+        if (
+            envelope.get("command_type") in _CONTEXT_PACKET_COMMAND_TYPES
+            and envelope.get("context_lifecycle_submission_key") is not self._context_lifecycle_submission_key
+        ):
+            raise ArsError("Context packet commands must be submitted through ContextLifecycleService")
         validated_envelope = {key: value for key, value in envelope.items() if key not in _CALLER_PROVENANCE_FIELDS}
         schema_id = str(validated_envelope.get("schema_id", ""))
         schema_version = str(validated_envelope.get("schema_version", ""))

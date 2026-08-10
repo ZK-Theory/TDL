@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from research_system.errors import ArsError
-from research_system.routing.engine import PreparedDispatch, select_route
+from research_system.routing.engine import _DispatchPlan, _select_route
 from research_system.routing.models import RouteRequest
 
 
@@ -13,10 +13,7 @@ def assert_requirement_current(task, requirement) -> None:
     if checker is not None:
         current = checker(requirement)
     else:
-        current = (
-            requirement.task_id == task.task_id
-            and requirement.task_revision == task.revision
-        )
+        current = requirement.task_id == task.task_id and requirement.task_revision == task.revision
     if not current:
         raise ArsError("assurance_requirement_stale")
 
@@ -61,7 +58,7 @@ def build_route_request(task, requirement, compiled) -> RouteRequest:
     )
 
 
-def plan_dispatch(
+def _plan_dispatch(
     task,
     attempt_id,
     requirement,
@@ -78,12 +75,10 @@ def plan_dispatch(
     if reference_gate is not None:
         reference_gate()
     preliminary = bind_pre_route_evidence(provider_evidence, operational_evidence)
-    route = select_route(
-        build_route_request(task, requirement, compiled), candidates, preliminary
-    )
+    route = _select_route(build_route_request(task, requirement, compiled), candidates, preliminary)
     if route["kind"] == "failure":
         return route
-    return PreparedDispatch(
+    return _DispatchPlan(
         attempt_id=attempt_id,
         assurance_requirement_id=requirement.assurance_requirement_id,
         assurance_requirement_hash=requirement.content_hash,

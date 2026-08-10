@@ -9,17 +9,23 @@ from pathlib import Path
 
 import yaml
 
-from research_system.adapters.base import ProviderCommand, TransportResult
-from research_system.adapters.claude import build_claude_adapter
-from research_system.adapters.codex import build_codex_adapter
+from research_system.adapters.base import TransportResult
 from research_system.adapters.fake import FakeTransport
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.evals.coverage import P0Coverage
+from research_system.evals.adapter_scientific_runner import (
+    execute_adapter_scientific_variant,
+)
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.executors import require_executor
+from research_system.evals.lifecycle import (
+    EvaluationLifecycleRuntime,
+    EvaluationProviderBinding,
+)
 from research_system.evals.fixture_package import validate_fixture_package
 from research_system.evals.models import GraderResult
 from research_system.ids import new_id
+from research_system.routing.engine import RouteCandidate
 
 _FIELDS = (
     "fixture_id",
@@ -285,71 +291,105 @@ def build_observed_assertion_evidence(
     return tuple(values)
 
 
-def _execute_through_fake_provider(
-    row: Gate5VariantRow,
-    payload: dict,
-    execute: Callable[[str, dict], dict],
-    fake_transport_factory: Callable[[list[TransportResult]], FakeTransport],
-) -> tuple[dict, dict]:
+def _execute_without_provider(row, payload, execute) -> tuple[dict, dict]:
     execution_payload = dict(payload)
     execution_payload["_provider_variant"] = row.provider_variant
-    observed = execute("known_good", execution_payload)
-    observed_hash = sha256_hex(canonical_bytes(observed))
+    return execute.execute_raw("known_good", execution_payload), {
+        "execution_class": "pure_observation",
+        "provider": None,
+        "adapter_revision": None,
+        "output_refs": [],
+        "argv": [],
+        "timeout_ms": 0,
+    }
+
+
+def _execute_through_lifecycle_provider(row, payload, execute) -> tuple[dict, dict]:
     provider = "fake-claude" if row.provider_variant.startswith("fake-claude") else "fake-codex"
-    context_hash = sha256_hex(canonical_bytes(payload))
-    command = ProviderCommand(
-        provider_command_id=f"pcmd_{row.variant_id}",
-        revision=1,
-        revision_hash="a" * 64,
-        provider=provider,
-        model="fake-model",
-        profile_id="gate5-variant-parity",
-        adapter_revision=row.provider_variant,
-        policy_hash="b" * 64,
-        context_hash=context_hash,
-        rendered_payload_hash=context_hash,
-        idempotency_key=row.variant_id,
-        operation="evaluate_gate5_fixture",
-        timeout_s=1.0,
-        wrapper_accounting={
-            "method": "fake-gate5-v1",
-            "raw_capacity": 1,
-            "fixed_overhead": 0,
-            "managed_tokens": 1,
-            "reserved_variable_tokens": 0,
-            "segments": {"managed": "managed"},
-        },
-        authorized=True,
-    )
-    response = {
-        "provider": command.provider,
-        "model": command.model,
-        "profile_id": command.profile_id,
-        "adapter_revision": command.adapter_revision,
-        "command_revision": command.revision,
-        "command_revision_hash": command.revision_hash,
-        "delivered_context_hash": command.context_hash,
-        "response_id": f"fake-response:{row.variant_id}",
-        "output_refs": [f"decision:{observed_hash}"],
-    }
-    transport = fake_transport_factory(
-        [TransportResult("terminal", json.dumps(response, sort_keys=True), "", "fake-request", 0)]
-    )
-    if not isinstance(transport, FakeTransport):
-        raise TypeError("injected FakeTransport required")
-    adapter = build_claude_adapter(transport) if provider == "fake-claude" else build_codex_adapter(transport)
-    receipt = adapter.issue(command, canonical_bytes(payload).decode("utf-8"))
-    expected_ref = (f"decision:{observed_hash}",)
-    if not receipt.complete or receipt.output_refs != expected_ref or len(transport.invocations) != 1:
-        raise ValueError("fake provider execution did not produce bound terminal evidence")
-    invocation = transport.invocations[0]
-    return observed, {
-        "provider": receipt.provider,
-        "adapter_revision": receipt.adapter_revision,
-        "output_refs": list(receipt.output_refs),
-        "argv": list(invocation[0]),
-        "timeout_ms": int(invocation[1] * 1000),
-    }
+
+    class Task:
+        task_id = f"task-variant-{row.fixture_id}"
+        revision = 1
+        route_request_id = f"route-variant-{row.fixture_id}-{row.variant_id}"
+
+    class Requirement:
+        assurance_requirement_id = f"requirement-variant-{row.fixture_id}"
+        content_hash = "a" * 64
+        task_id = Task.task_id
+        task_revision = Task.revision
+
+    class Evidence:
+        routing_evidence_snapshot_id = f"snapshot-{row.variant_id}"
+        evidence_id = f"evidence-{row.variant_id}"
+        content_hash = "b" * 64
+        expires_at = "2030-01-01T00:00:00Z"
+
+        def validate_pre_route(self):
+            return None
+
+        def hard_gate_failures(self, request, candidate):
+            del request, candidate
+            return ()
+
+    runtime = EvaluationLifecycleRuntime(writer_id=f"variant-{row.fixture_id}")
+    try:
+        compiled = runtime.compile(canonical_bytes(payload).decode("utf-8"))
+        dispatch = runtime.plan(
+            compiled,
+            task=Task(),
+            attempt_id=f"attempt-{row.variant_id}",
+            requirement=Requirement(),
+            candidates=[RouteCandidate("gate5-variant-parity", 1, 1, 0, 100, 1, 1)],
+            provider_evidence=Evidence(),
+            operational_evidence=Evidence(),
+        )
+        execution_payload = dict(payload)
+        execution_payload["_provider_variant"] = row.provider_variant
+        observed = execute.execute_raw("known_good", execution_payload)
+        observed_hash = sha256_hex(canonical_bytes(observed))
+
+        def terminal(command):
+            response = {
+                "provider": command.provider,
+                "model": command.model,
+                "profile_id": command.profile_id,
+                "adapter_revision": command.adapter_revision,
+                "command_revision": command.revision,
+                "command_revision_hash": command.revision_hash,
+                "delivered_context_hash": command.context_hash,
+                "response_id": f"fake-response:{row.variant_id}",
+                "output_refs": [f"decision:{observed_hash}"],
+            }
+            return TransportResult("terminal", json.dumps(response, sort_keys=True), "", "fake-request", 0)
+
+        _issued, _command, receipt = runtime.issue(
+            dispatch,
+            binding=EvaluationProviderBinding(
+                provider=provider,
+                model="fake-model",
+                adapter_revision=row.provider_variant,
+                operation="evaluate_gate5_fixture",
+                policy_hash="b" * 64,
+                parity_evidence_hash="c" * 64,
+                currentness_evidence_hash="d" * 64,
+                count=row.exact_tokens or row.evaluated_tokens or 1,
+                usable_capacity=max(100, (row.exact_tokens or row.evaluated_tokens or 1) * 2),
+            ),
+            transport_result=terminal,
+            managed_content=canonical_bytes(payload).decode("utf-8"),
+        )
+        if not receipt.complete:
+            raise ValueError("lifecycle provider execution did not produce terminal evidence")
+        return observed, {
+            "execution_class": "lifecycle_required",
+            "provider": receipt.provider,
+            "adapter_revision": receipt.adapter_revision,
+            "output_refs": list(receipt.output_refs),
+            "argv": ["fake-evaluation-provider"],
+            "timeout_ms": 30_000,
+        }
+    finally:
+        runtime.close()
 
 
 def execute_gate5_variant_rows_twice(
@@ -413,18 +453,18 @@ def execute_gate5_variant_rows_twice(
         property_name = str(post["assertions"][0]["property"])
         expected_evidence = post["assertions"][0]["expected_evidence"]
         execute = require_executor(row.fixture_id)
-        first_observed, first_receipt = _execute_through_fake_provider(
-            row,
-            stimulus["payload"],
-            execute,
-            fake_transport_factory,
-        )
-        second_observed, second_receipt = _execute_through_fake_provider(
-            row,
-            stimulus["payload"],
-            execute,
-            fake_transport_factory,
-        )
+
+        def runner():
+            if execute.execution_class == "lifecycle_required":
+                return _execute_through_lifecycle_provider(row, stimulus["payload"], execute)
+            if execute.execution_class == "adapter_scientific":
+                return execute_adapter_scientific_variant(row, stimulus["payload"], execute, fake_transport_factory)
+            if execute.execution_class == "pure_observation":
+                return _execute_without_provider(row, stimulus["payload"], execute)
+            raise FixtureDefinitionError("unknown executor execution class")
+
+        first_observed, first_receipt = runner()
+        second_observed, second_receipt = runner()
         if first_observed != second_observed:
             raise ValueError("variant repeat mismatch")
         expected_evidence_hash = sha256_hex(canonical_bytes(expected_evidence))

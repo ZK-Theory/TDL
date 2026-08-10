@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Iterable, Mapping, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.context.sources import SourceResolver, resolve_sources
 from research_system.errors import ArsError, IntegrityError
 
 
@@ -161,6 +162,7 @@ def resolve_context_packet_for_consumer(
     control_store_identity: str,
     source_position: int,
     source_hash: str,
+    source_resolver: SourceResolver,
 ) -> ResolvedContextPacket:
     """Resolve only an exact delivered, current packet from verified ledger state."""
     if evaluation_time.tzinfo is None:
@@ -224,6 +226,20 @@ def resolve_context_packet_for_consumer(
         raise ArsError("control-store identity changed since compilation")
     if manifest.get("source_position") != source_position or manifest.get("source_hash") != source_hash:
         raise ArsError("context currency source changed since compilation")
+    source_manifest = manifest.get("included")
+    if not isinstance(source_manifest, list) or not source_manifest:
+        raise IntegrityError("context source manifest is unavailable")
+    source_ids = {str(item.get("source_id")) for item in source_manifest}
+    current_sources = resolve_sources(source_resolver, source_ids)
+    current_by_id = {source.source_id: source for source in current_sources}
+    for item in source_manifest:
+        source_id = str(item.get("source_id"))
+        current_source = current_by_id[source_id]
+        if (
+            str(item.get("revision")) != current_source.revision
+            or item.get("content_hash") != current_source.content_hash
+        ):
+            raise ArsError(f"direct source changed since compilation: {source_id}")
     expires_at = manifest.get("expires_at")
     if expires_at is not None and evaluation_time.astimezone(UTC) >= _parse_z(expires_at, "expires_at"):
         raise ArsError("context packet has expired")

@@ -19,6 +19,7 @@ from research_system.cli import main
 from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
+from research_system.context.sources import FileSourceResolver
 from research_system.context.tokenizers import ReferenceRegexV1
 from research_system.errors import SchemaError
 from research_system.evidence.consumers import ArtefactEvidenceConsumers
@@ -370,6 +371,21 @@ def _deliver_real_context(harness):
     )
     lifecycle = ContextLifecycleService(harness.objects, writer, writer_id="rm03-production")
     content = "governing exact methods brief context"
+    source_record = {
+        "source_id": "method-source",
+        "revision": "1",
+        "authority_rank": 10,
+        "mandatory": True,
+        "content": content,
+        "content_hash": sha256_hex(content.encode()),
+        "direct": True,
+        "current": True,
+        "superseded": False,
+        "sensitivity_class": "internal",
+    }
+    source_path = FileSourceResolver(harness.objects.control_root / "context-sources").record_path("method-source")
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_bytes(canonical_bytes(source_record))
     compiled = lifecycle.compile_packet(
         request={
             "request_id": "rm03-context-request",
@@ -412,7 +428,11 @@ def _deliver_real_context(harness):
             "cumulative_addendum_bytes": 0,
             "expires_at": "2030-01-01T00:00:00Z",
         },
-        fragments=[SourceFragment("method-source", "1", 10, True, content, sha256_hex(content.encode()))],
+        source_resolver=SimpleNamespace(
+            resolve=lambda source_ids: (
+                SourceFragment("method-source", "1", 10, True, content, sha256_hex(content.encode())),
+            )
+        ),
         profile=ContextProfile("bounded-r2", 100),
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},

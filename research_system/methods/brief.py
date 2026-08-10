@@ -85,6 +85,7 @@ def export_brief(
     context_resolver: Callable[..., Any],
     context_events: Callable[[], Iterable[dict[str, Any]]],
     context_objects: Any,
+    context_source_resolver: Any,
     artefact_consumers: ArtefactEvidenceConsumers,
     methods_pack: MethodsPack,
     schema_registry: SchemaRegistry,
@@ -100,6 +101,9 @@ def export_brief(
     context_args = deepcopy(request["context"])
     context_args["events"] = tuple(context_events())
     context_args["objects"] = context_objects
+    if context_source_resolver is None:
+        raise ArsError("authoritative context source resolver is required")
+    context_args["source_resolver"] = context_source_resolver
     first_context = context_resolver(**context_args)
     purpose = str(request["brief_purpose"])
     resolved: list[Any] = []

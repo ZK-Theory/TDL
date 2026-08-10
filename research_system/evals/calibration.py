@@ -78,21 +78,23 @@ def _expected_evidence(root: Path, name: str) -> dict[str, Any]:
 
 
 def _decision(
-    subject: str, verdict: str, reason: str, observed: dict[str, Any],
+    subject: str,
+    verdict: str,
+    reason: str,
+    observed: dict[str, Any],
     repetition: int,
 ) -> CalibrationDecision:
     evidence_hash = sha256_hex(canonical_bytes(observed))
     normalized = canonical_bytes(
-        {"subject": subject, "verdict": verdict, "reason": reason,
-         "evidence_hash": evidence_hash}
+        {"subject": subject, "verdict": verdict, "reason": reason, "evidence_hash": evidence_hash}
     )
-    return CalibrationDecision(
-        subject, repetition, verdict, reason, evidence_hash, normalized
-    )
+    return CalibrationDecision(subject, repetition, verdict, reason, evidence_hash, normalized)
 
 
 def _execute_twice(
-    subject: str, payload: dict[str, Any], expected: dict[str, Any],
+    subject: str,
+    payload: dict[str, Any],
+    expected: dict[str, Any],
     execute: FixtureExecutor,
 ) -> tuple[CalibrationDecision, ...]:
     decisions = []
@@ -100,10 +102,7 @@ def _execute_twice(
         observed = execute(subject, dict(payload))
         if observed == expected:
             verdict = "fail" if subject == "known_bad" else "pass"
-            reason = (
-                "intended_failure" if subject == "known_bad"
-                else "control_satisfied"
-            )
+            reason = "intended_failure" if subject == "known_bad" else "control_satisfied"
         else:
             verdict, reason = "fixture_error", "unexpected_calibration_outcome"
         decisions.append(_decision(subject, verdict, reason, observed, repetition))
@@ -111,8 +110,10 @@ def _execute_twice(
 
 
 def _execute_mutation(
-    mutation_id: str, payload: dict[str, Any],
-    pre_expected: dict[str, Any], post_expected: dict[str, Any],
+    mutation_id: str,
+    payload: dict[str, Any],
+    pre_expected: dict[str, Any],
+    post_expected: dict[str, Any],
     execute: FixtureExecutor,
 ) -> MutationCalibration:
     decisions = []
@@ -129,7 +130,9 @@ def _execute_mutation(
 
 
 def calibrate_fixture(
-    fixture_id: str, *, fixture_root: Path | str,
+    fixture_id: str,
+    *,
+    fixture_root: Path | str,
     execute: FixtureExecutor | None = None,
 ) -> PairedCalibration:
     """Execute known-bad, known-good, and every declared mutation twice.
@@ -143,21 +146,28 @@ def calibrate_fixture(
     payload = dict(_load(root / "input" / "stimulus.json")["payload"])
     pre_expected = _expected_evidence(root, "pre-control.json")
     post_expected = _expected_evidence(root, "post-control.json")
-    executor = execute if execute is not None else require_executor(fixture_id)
+    if execute is not None:
+        executor = execute
+    else:
+        registration = require_executor(fixture_id)
+        if registration.execution_class == "lifecycle_required":
+            from research_system.evals.lifecycle import execute_lifecycle_fixture
+
+            def executor(subject, selected_payload):
+                return execute_lifecycle_fixture(registration, subject, selected_payload)
+        else:
+            executor = registration
     known_bad = _execute_twice("known_bad", payload, pre_expected, executor)
     known_good = _execute_twice("known_good", payload, post_expected, executor)
     mutations = tuple(
-        _execute_mutation(
-            mutation_id, payload, pre_expected, post_expected, executor
-        )
+        _execute_mutation(mutation_id, payload, pre_expected, post_expected, executor)
         for mutation_id in definition["mutation_ids"]
     )
-    live_classes = {
-        row["grader_class"] for row in definition["required_graders"]
-    }.intersection({"M", "H"})
+    live_classes = {row["grader_class"] for row in definition["required_graders"]}.intersection({"M", "H"})
     blocking = "unable_to_grade" if live_classes else None
     error_decisions = (
-        *known_bad, *known_good,
+        *known_bad,
+        *known_good,
         *(item for mutation in mutations for item in mutation.decisions),
     )
     if any(item.verdict == "fixture_error" for item in error_decisions):

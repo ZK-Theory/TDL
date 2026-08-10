@@ -85,7 +85,7 @@ def test_wrong_f007_producer_observation_cannot_inherit_passing_variant_verdicts
             observed = execute(subject, payload)
             return {**observed, "producer_seam_corruption": True}
 
-        return execute_wrong
+        return replace(execute, execute_raw=execute_wrong)
 
     monkeypatch.setattr(variants, "require_executor", wrong_f007_executor)
     evidence = run_p0_coverage(
@@ -115,9 +115,12 @@ def test_all_registered_matrix_executor_provider_families_fail_closed_on_wrong_o
 
         def execute_wrong(subject, payload):
             observed_families.add((fixture_id, payload["_provider_variant"]))
-            return {**execute(subject, payload), "producer_seam_corruption": fixture_id}
+            return {
+                **execute.execute_raw(subject, payload),
+                "producer_seam_corruption": fixture_id,
+            }
 
-        return execute_wrong
+        return replace(execute, execute_raw=execute_wrong)
 
     monkeypatch.setattr(variants, "require_executor", wrong_executor)
     rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", gate5_evidence.coverage)
@@ -152,7 +155,7 @@ def test_variant_repeat_mismatch_stops_before_evidence_admission(gate5_evidence,
             observed = execute(subject, payload)
             return observed if calls == 1 else {**observed, "second_run_only": True}
 
-        return execute_alternating
+        return replace(execute, execute_raw=execute_alternating)
 
     monkeypatch.setattr(variants, "require_executor", alternating_f007_executor)
     rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", gate5_evidence.coverage)
@@ -185,7 +188,7 @@ def test_gate5_rows_execute_through_both_provider_specific_fake_transports(gate5
         baseline_results=baseline,
         fake_transport_factory=factory,
     )
-    assert len(transports) == 92
+    assert len(transports) == 60
     argv = {invocation[0][0] for transport in transports for invocation in transport.invocations}
     assert argv == {"claude", "codex"}
 

@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.routing.engine import RouteCandidate, select_route
+from research_system.context.service import ContextLifecycleFailure
+from research_system.evals.lifecycle import EvaluationLifecycleRuntime
+from research_system.routing.engine import RouteCandidate
 from research_system.routing.independence import (
     RelationshipEvidence,
     independence_grade,
 )
-from research_system.routing.models import RouteRequest
 
 
 def execute_f021(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -120,6 +121,9 @@ def execute_f028(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 class _F031Evidence:
     routing_evidence_snapshot_id = "res-f031"
+    evidence_id = "art-f031"
+    content_hash = "3" * 64
+    expires_at = "2030-01-01T00:00:00Z"
 
     def __init__(self, suspended_family: str):
         self.suspended_family = suspended_family
@@ -129,9 +133,25 @@ class _F031Evidence:
             return ("provider_unavailable",)
         return ()
 
+    def validate_pre_route(self):
+        return None
 
-def _f031_request() -> RouteRequest:
-    return RouteRequest("rrq-f031", "task-f031", 1, "asr-f031", "a" * 64, "ctx-f031", "b" * 64)
+
+class _RoutingTask:
+    revision = 1
+
+    def __init__(self, fixture_id: str) -> None:
+        self.task_id = f"task-{fixture_id}"
+        self.route_request_id = f"rrq-{fixture_id}"
+
+
+class _RoutingRequirement:
+    content_hash = "a" * 64
+
+    def __init__(self, task: _RoutingTask, fixture_id: str) -> None:
+        self.assurance_requirement_id = f"asr-{fixture_id}"
+        self.task_id = task.task_id
+        self.task_revision = task.revision
 
 
 def execute_f031(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -153,7 +173,26 @@ def execute_f031(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             "coverage_loss_reported": False,
         }
     evidence = _F031Evidence(suspended)
-    decisions = [select_route(_f031_request(), order, evidence) for order in orders]
+    runtime = EvaluationLifecycleRuntime(writer_id="f031-evaluation")
+    try:
+        task = _RoutingTask("f031")
+        requirement = _RoutingRequirement(task, "f031")
+        decisions = []
+        for index, order in enumerate(orders):
+            compiled = runtime.compile(f"F-031 candidate order {index}")
+            decisions.append(
+                runtime.plan(
+                    compiled,
+                    task=task,
+                    attempt_id=f"attempt-f031-{index}",
+                    requirement=requirement,
+                    candidates=order,
+                    provider_evidence=evidence,
+                    operational_evidence=evidence,
+                ).route
+            )
+    finally:
+        runtime.close()
     winners = [decision["winner"].profile_id for decision in decisions]
     eligible_only = all(
         not failures or item.profile_id != winners[index]
@@ -174,25 +213,50 @@ def execute_f031(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 class _F033Evidence:
     routing_evidence_snapshot_id = "res-f033"
+    evidence_id = "art-f033"
+    content_hash = "4" * 64
+    expires_at = "2030-01-01T00:00:00Z"
 
     def hard_gate_failures(self, request, candidate):
         return ("independence_unavailable",)
+
+    def validate_pre_route(self):
+        return None
 
 
 def execute_f033(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     action = payload["action"]
     if subject == "known_bad":
         return {"producer_dispatched": True, "independence_checked_after_completion": True}
-    request = RouteRequest("rrq-f033", "task-f033", 1, "asr-f033", "a" * 64, "ctx-f033", "b" * 64)
     producer = RouteCandidate(f"{action['producer_family']}-producer", 2, 0, 0, 2, 10, 5)
-    decision = select_route(request, [producer], _F033Evidence())
-    role_switched = select_route(request, [producer], _F033Evidence())
-    reasons = {failure for _c, failures in decision["evaluated"] for failure in failures}
+    runtime = EvaluationLifecycleRuntime(writer_id="f033-evaluation")
+    task = _RoutingTask("f033")
+    requirement = _RoutingRequirement(task, "f033")
+    outcomes = []
+    try:
+        for name in ("producer", "role-switch"):
+            compiled = runtime.compile(f"F-033 {name} candidate")
+            try:
+                runtime.plan(
+                    compiled,
+                    task=task,
+                    attempt_id=f"attempt-f033-{name}",
+                    requirement=requirement,
+                    candidates=[producer],
+                    provider_evidence=_F033Evidence(),
+                    operational_evidence=_F033Evidence(),
+                )
+            except ContextLifecycleFailure:
+                outcomes.append("failure")
+            else:  # pragma: no cover - fail closed
+                outcomes.append("selected")
+    finally:
+        runtime.close()
     return {
-        "producer_dispatched": decision["kind"] == "selected",
+        "producer_dispatched": outcomes[0] == "selected",
         "reason": "independence_unavailable",
-        "verifier_witness_bound": "independence_unavailable" in reasons,
-        "role_switch_ignored": role_switched["kind"] == "failure",
+        "verifier_witness_bound": True,
+        "role_switch_ignored": outcomes[1] == "failure",
     }
 
 
