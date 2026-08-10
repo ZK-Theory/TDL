@@ -1,0 +1,119 @@
+{
+  "schema_id": "ars://contracts/wp6-4/tda-scale-package-index",
+  "schema_version": "1.0.2",
+  "package_id": "TDA-ARS-SCALE-RESEARCH",
+  "package_version": "1.0.2",
+  "lifecycle_status": "produced_unreviewed",
+  "admission_status": "pending_wp6_6",
+  "dispatchable": false,
+  "execution_authorized": false,
+  "candidate_base_git_commit": "4773e90981dce739c1761b9cbd68ad6768085b86",
+  "self_identity_binding": "final_exact_git_subject_preflight_sha256_and_external_review_envelope_required",
+  "external_vault_root": "C:\\Users\\steph\\Documents\\TDA-Research",
+  "external_vault_git_status": "not_a_git_repository_raw_identity_only",
+  "project_binding": {
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
+    "foundation_semantic_sha256": "0bf677dd17fc3e3e97d757d7637253a39116aed14d93cc64f6b274228e42dc22"
+  },
+  "predecessor_package": {
+    "package_version": "1.0.1",
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json",
+    "git_commit": "321885a519ce539a6340729f42caed83eb6abf0b",
+    "raw_bytes": 10430,
+    "raw_sha256": "394f1c133cbc6835cc4fc76a9f15eb020fe7a68d10c12527a7d6a54021156f72",
+    "git_blob_id": "f45ede46b9132faad3d0912b30b6cca612e7626f"
+  },
+  "reused_components": [
+    {
+      "component_id": "SCALE01-SCOPE-DEFINITION-BLUEPRINT",
+      "component_version": "1.0.1",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+      "raw_bytes": 1014,
+      "raw_sha256": "0c36e3e3368eaefe1905509d2a0271b2f16bb0170eec709ef9e6f7b6b1ddccf5",
+      "git_blob_id": "aa929c72cc590bcc928fdc972d9d73f68d6a17cb",
+      "reuse_reason": "WP6.6 expected-set and cardinality authority remain pending, so the empty non-dispatchable blueprint is unchanged."
+    },
+    {
+      "component_id": "SCALE01-FIXTURE-PREFLIGHT-EVIDENCE",
+      "component_version": "1.0.1",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json",
+      "raw_bytes": 6118,
+      "raw_sha256": "6d97d806dba636d13e3e628957bee9dac04d2b844df3fe9a8f111b00d1f2bcbd",
+      "git_blob_id": "063a5b87ed07da4af1cef183e288e422193cc94b",
+      "reuse_reason": "The immutable six-fixture observation and real A8 recovery evidence are reused; current tracked text is clean and Git-blob equal despite checkout-dependent raw EOL bytes, while binary and untracked raw identities remain equal."
+    }
+  ],
+  "changed_components": [
+    {
+      "component_id": "SCALE01-GATE6-PREFLIGHT",
+      "component_version": "1.0.2",
+      "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
+      "raw_bytes": 7399,
+      "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
+      "git_blob_id": "156e19a5ccc0c41a0b09a344d1a7d346ade27438",
+      "identity_stage": "content_addressed_precommit"
+    }
+  ],
+  "source_dependencies": [
+    {
+      "schema_id": "ars://core/command/CreateScopeDefinition",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/core/commands/create_scope_definition.schema.json",
+      "git_commit": "4773e90981dce739c1761b9cbd68ad6768085b86",
+      "raw_bytes": 16949,
+      "raw_sha256": "0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856",
+      "git_blob_id": "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1"
+    },
+    {
+      "schema_id": "ars://portfolio/research-dossier-manifest",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/contracts/w11/research-dossier-manifest.schema.json",
+      "git_commit": "4773e90981dce739c1761b9cbd68ad6768085b86",
+      "raw_bytes": 8118,
+      "raw_sha256": "ebba2bae34833237a5bb1dde06bcb598258b52f325635237378e7b8fdcf7e987",
+      "git_blob_id": "5cc93fe457c3f540bc2bea8d19e5c92d9c801675"
+    },
+    {
+      "schema_id": "ars://portfolio/dossier-expected-set-content",
+      "schema_version": "1.0.0",
+      "repository_path": ".research-system/schemas/contracts/w11/dossier-expected-set-content.schema.json",
+      "git_commit": "4773e90981dce739c1761b9cbd68ad6768085b86",
+      "raw_bytes": 10518,
+      "raw_sha256": "543002112c8d9ace692f15d2d0e6a3a3f2747a01e405ced717c94c1b3f3bcc0d",
+      "git_blob_id": "caa26760e10f2ff04078940ef63ebe0c84944b95"
+    }
+  ],
+  "scope_validation": {
+    "status": "passed_reused_unchanged",
+    "payload_repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json",
+    "payload_raw_sha256": "0c36e3e3368eaefe1905509d2a0271b2f16bb0170eec709ef9e6f7b6b1ddccf5",
+    "schema_repository_path": ".research-system/schemas/core/commands/create_scope_definition.schema.json",
+    "schema_git_blob_id": "a8ffbd7c607bbeb523074a2a96d63ab87bf67af1",
+    "schema_raw_sha256": "0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856"
+  },
+  "preflight_closure": {
+    "repository_path": ".research-system/contracts/wp6-4/tda-scale-v1.0.2/scale01-gate6-preflight.json",
+    "raw_sha256": "cd6196b95a44ab423ed970002850f98b8c7846f89c82517bcad33f341777dc82",
+    "foundation_and_real_a8": "satisfied",
+    "kan68_a7_genuine_distinct_party_acceptance": "satisfied",
+    "provider_free_operator_session": "satisfied",
+    "wp6_6_expected_set_and_read_only_admission": "pending",
+    "d_g6_5": "pending"
+  },
+  "cardinality_authority": {
+    "authority": "wp6_6_dossier_expected_set",
+    "status": "pending",
+    "exact_ref": null,
+    "object_count": null,
+    "scope_count": null,
+    "edge_count": null,
+    "relationship_count": null
+  },
+  "claims": {
+    "research_claim": null,
+    "pilot_claim": null,
+    "result_claim": null
+  },
+  "supersession_policy": "immutable_supersede_never_mutate"
+}
