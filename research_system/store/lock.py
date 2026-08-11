@@ -691,6 +691,13 @@ def open_registered_root_anchor(path: Path, *, delete_protect: bool) -> _Directo
     Registered roots may themselves be junctions, so this purpose-named seam
     follows the root alias while retaining the physical identity handle.
     Nested member aliases remain the caller's responsibility to reject.
+
+    Args:
+        path: Registered root path whose physical directory is opened.
+        delete_protect: Whether the held anchor prevents replacement while open.
+
+    Returns:
+        A physical directory anchor for the registered root.
     """
 
     return _open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)
