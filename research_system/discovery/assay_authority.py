@@ -39,6 +39,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
         "contents": {},
         "observations": {},
         "status": "empty",
+        "history": [],
     }
     actors: set[object] = set()
     for raw_event in events:
@@ -52,11 +53,24 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
 
         if event_type in {"AssayRubricContentRegistered", "AssayEvidenceScopeContentRegistered"}:
             kind = "rubric" if event_type == "AssayRubricContentRegistered" else "scope"
-            if kind in state["contents"] or state["status"] not in {"empty", "content_registered"}:
-                raise AssayAuthorityRejected("identity_collision")
             content = payload.get("content")
             if not isinstance(content, dict):
                 raise AssayAuthorityRejected("invalid_content")
+            if state["status"] == "stale":
+                if kind != "rubric":
+                    raise AssayAuthorityRejected("invalid_successor_order")
+                prior_revision = state["contents"].get(kind, {}).get("content", {}).get("record_revision")
+                if not isinstance(prior_revision, int) or not isinstance(content.get("record_revision"), int):
+                    raise AssayAuthorityRejected("stale_revision")
+                if content["record_revision"] <= prior_revision:
+                    raise AssayAuthorityRejected("stale_revision")
+                history = state["history"]
+                history.append({key: deepcopy(value) for key, value in state.items() if key != "history"})
+                state.clear()
+                state.update(contents={}, observations={}, status="empty", history=history)
+                actors.clear()
+            if kind in state["contents"] or state["status"] not in {"empty", "content_registered"}:
+                raise AssayAuthorityRejected("identity_collision")
             digest = _digest(content.get("content_hash"), "content_hash")
             if content_sha256(content) != digest or payload.get("content_sha256") != digest:
                 raise AssayAuthorityRejected("content_hash_mismatch")

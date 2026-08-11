@@ -143,6 +143,41 @@ def _valid_promotion_options(value: Any) -> bool:
     )
 
 
+def _valid_spike_execution_proposal(value: Any) -> bool:
+    """Return whether a Spike execution proposal carries the closed option set."""
+
+    return bool(
+        isinstance(value, Mapping)
+        and value.get("recommendation") in {"approve", "reject"}
+        and isinstance(value.get("options"), list)
+        and len(value["options"]) == 2
+        and set(value["options"]) == {"approve", "reject"}
+    )
+
+
+def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
+    """Return whether any immutable Discovery aggregate already owns an identity."""
+
+    return bool(
+        (state.get("catalogue") is not None and identity == _CATALOGUE_STREAM_ID)
+        or any(
+            identity in state.get(collection, {})
+            for collection in (
+                "source_observations",
+                "candidates",
+                "assays",
+                "spikes",
+                "decisions",
+                "reviews",
+                "dossiers",
+                "portfolio_objects",
+                "scopes",
+                "authority_streams",
+            )
+        )
+    )
+
+
 def _spike_execution_ids_available(
     spikes: Mapping[str, Mapping[str, Any]],
     spike_id: Any,
@@ -321,24 +356,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
 
     def aggregate_identity_exists(identity: Any) -> bool:
         """Return whether an immutable identity is already owned by any Discovery aggregate."""
-        return bool(
-            (state["catalogue"] is not None and identity == _CATALOGUE_STREAM_ID)
-            or any(
-                identity in state[collection]
-                for collection in (
-                    "source_observations",
-                    "candidates",
-                    "assays",
-                    "spikes",
-                    "decisions",
-                    "reviews",
-                    "dossiers",
-                    "portfolio_objects",
-                    "scopes",
-                    "authority_streams",
-                )
-            )
-        )
+        return _discovery_identity_exists(state, identity)
 
     for event in ordered:
         event_type = event.get("event_type")
@@ -573,7 +591,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             state["catalogue"] = deepcopy(payload)
         elif event_type == "ScoutObservationIngested":
             observation_id = required_string("observation_id")
-            if observation_id in state["source_observations"]:
+            if _discovery_identity_exists(state, observation_id):
                 raise IntegrityError("source observation identity collision")
             batch = payload.get("batch")
             dedup_keys = payload.get("normalized_dedup_keys")
@@ -598,7 +616,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             observations = payload.get("source_observation_refs")
             if (
                 not isinstance(candidate_id, str)
-                or candidate_id in state["candidates"]
+                or _discovery_identity_exists(state, candidate_id)
                 or not isinstance(observations, list)
                 or not observations
                 or not all(isinstance(item, str) and item for item in observations)
@@ -1091,7 +1109,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_approval_pending", spike_id=required_string("spike_id"))
         elif event_type == "SpikeExecutionDecisionRequested":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict):
+            decision = state["decisions"].get(payload.get("decision_id"))
+            if (
+                not isinstance(spike, dict)
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or not _valid_spike_execution_proposal(payload.get("w2_payload"))
+                or payload["w2_payload"].get("new_decision_id") != payload.get("decision_id")
+            ):
                 raise IntegrityError("invalid Spike execution decision request")
             spike.update(decision_id=required_string("decision_id"))
         elif event_type == "SpikeAuthorized":
@@ -1102,6 +1127,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or spike.get("decision_id") != payload.get("decision_id")
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
+                or decision.get("selected_option") != "approve"
             ):
                 raise IntegrityError("invalid Spike authorization")
             spike.update(status="authorized")
@@ -1814,6 +1840,9 @@ class DiscoveryRuntime:
         kind, action = routes[row]
         if payload.get("authority_kind") != kind:
             raise IntegrityError("W11 authority kind mismatch")
+        current_authority = projection["authorities"].get(kind, {})
+        if action == "record_review" and command.target_stream_id != current_authority.get("review_id"):
+            raise IntegrityError("W11 authority review stream mismatch")
         transition_payload = {
             key: deepcopy(value) for key, value in payload.items() if key not in {"row_id", "authority_kind"}
         }
@@ -2049,6 +2078,7 @@ class DiscoveryRuntime:
                 or not path
                 or command.target_stream_id != content.get("record_id")
                 or content.get("created_by_actor_id") != command.actor_id
+                or (state.get("status") == "stale" and kind != "rubric")
             ):
                 raise IntegrityError("invalid Assay-bar content registration")
             try:
@@ -2057,7 +2087,7 @@ class DiscoveryRuntime:
                 raise IntegrityError("invalid Assay-bar content") from exc
             if assay_content_sha256(content) != content.get("content_hash"):
                 raise IntegrityError("Assay-bar content hash mismatch")
-            if kind in state["contents"]:
+            if kind in state["contents"] and state.get("status") != "stale":
                 raise IntegrityError("Assay-bar content identity collision")
             if kind == "scope":
                 rubric = state["contents"].get("rubric")
@@ -2197,6 +2227,7 @@ class DiscoveryRuntime:
             if (
                 command.envelope["command_type"] != "RecordW11AuthorityReview"
                 or state.get("status") != "review_requested"
+                or command.target_stream_id != state.get("review_id")
             ):
                 raise IntegrityError("invalid Assay-bar review verdict")
             shadow = {
@@ -2633,6 +2664,7 @@ class DiscoveryRuntime:
             and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
+            and _valid_spike_execution_proposal(p["w2_payload"])
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -2652,6 +2684,7 @@ class DiscoveryRuntime:
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
+            and p["w2_payload"]["selected_option"] in decision.get("options", ())
         ):
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -3682,7 +3715,8 @@ class DiscoveryRuntime:
                 set(blueprint) != {"candidate_id", "revision", "content_sha256", "source_observation_refs", "title"}
                 or not isinstance(candidate_id, str)
                 or candidate_id in seen_candidates
-                or candidate_id in projection["candidates"]
+                or _discovery_identity_exists(projection, candidate_id)
+                or candidate_id == observation_id
                 or blueprint.get("revision") != 1
                 or not isinstance(blueprint.get("title"), str)
                 or not blueprint["title"]

@@ -703,6 +703,12 @@ def open_registered_root_anchor(path: Path, *, delete_protect: bool) -> _Directo
     return _open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)
 
 
+def open_registered_member_directory_anchor(path: Path) -> _DirectoryAnchor:
+    """Open one non-reparse member directory with replacement protection."""
+
+    return _open_directory_anchor(path, reject_reparse=True, delete_protect=True)
+
+
 def _root_sort_key(path: Path) -> tuple[str, str]:
     normalized = os.path.normcase(str(path))
     display = normalized

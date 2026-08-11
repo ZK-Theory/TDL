@@ -93,6 +93,7 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
         "profile:wp6.6:dossier-admission",
         1,
         admission_profile_hash("profile:wp6.6:dossier-admission", 1),
+        _canonical_hash(_candidate_manifest(members)),
         members,
     )
     expected = replace(expected, content_hash=accepted_expected_set_hash(expected))
@@ -293,6 +294,7 @@ def test_package_manifest_must_describe_the_exact_admitted_member_closure() -> N
     manifest["components"] = manifest["components"][:-1]
     manifest["component_count"] = len(manifest["components"])
     manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
 
     with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
         _admit_with_default_manifest(
@@ -333,8 +335,45 @@ def test_semantic_blueprint_substitution_rejects_before_publication(
     manifest = _candidate_manifest(expected.members)
     mutation(manifest[family][0])
     manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
     with pytest.raises(DossierAdmissionRejected, match=reason):
         _admit_with_default_manifest(
+            expected_set=expected,
+            current_expected_set_revision=3,
+            candidate_members=expected.members,
+            candidate_manifest=manifest,
+            registered_roots=roots,
+        )
+
+
+def test_coordinated_semantic_manifest_substitution_rejects_against_external_expected_hash() -> None:
+    expected, roots = _subject()
+    manifest = _candidate_manifest(expected.members)
+    object_row = manifest["object_blueprints"][0]
+    object_row["portfolio_kind"] = "attacker-selected-kind"
+    object_preimage = {
+        key: value for key, value in object_row.items() if key not in {"blueprint_hash", "expected_content_hash"}
+    }
+    substituted_hash = _canonical_hash(object_preimage)
+    original_hash = object_row["expected_content_hash"]
+    object_row.update(blueprint_hash=substituted_hash, expected_content_hash=substituted_hash)
+    for edge in manifest["dependency_edges"]:
+        for endpoint in (edge["from_key"], edge["to_key"]):
+            if endpoint["content_hash"] == original_hash:
+                endpoint["content_hash"] = substituted_hash
+        edge["expected_content_hash"] = _canonical_hash(
+            {key: value for key, value in edge.items() if key != "expected_content_hash"}
+        )
+    for relationship in manifest["relationships"]:
+        members = relationship["ordered_member_keys_with_revisions_hashes"]
+        for member in members:
+            if member["content_hash"] == original_hash:
+                member["content_hash"] = substituted_hash
+        relationship["relation_hash"] = _canonical_hash(members)
+    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+
+    with pytest.raises(DossierAdmissionRejected, match="semantic_expected_set_mismatch"):
+        _prepare_dossier_admission(
             expected_set=expected,
             current_expected_set_revision=3,
             candidate_members=expected.members,
@@ -351,6 +390,7 @@ def test_materialized_identity_cannot_collide_with_dossier_identity() -> None:
     edge_preimage = {key: value for key, value in edge_row.items() if key != "expected_content_hash"}
     edge_row["expected_content_hash"] = _canonical_hash(edge_preimage)
     manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
     with pytest.raises(DossierAdmissionRejected, match="immutable_identity_collision"):
         _admit_with_default_manifest(
             expected_set=expected,
@@ -450,6 +490,46 @@ def test_registered_root_physical_identity_mismatch_rejects_before_publication()
             current_expected_set_revision=3,
             candidate_members=expected.members,
             registered_roots=replaced,
+        )
+
+
+def test_intermediate_directory_swap_cannot_escape_held_registered_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "registered"
+    nested = root / "nested"
+    external = tmp_path / "external"
+    nested.mkdir(parents=True)
+    external.mkdir()
+    raw = b"exact member bytes"
+    (nested / "member.bin").write_bytes(raw)
+    (external / "member.bin").write_bytes(raw)
+    member = DossierMember(
+        "member",
+        "evidence",
+        "root",
+        "nested/member.bin",
+        len(raw),
+        hashlib.sha256(raw).hexdigest(),
+        "prov:member",
+        1,
+        hashlib.sha256(raw).hexdigest(),
+    )
+    displaced = root / "displaced"
+
+    def swap_parent(_candidate: Path) -> None:
+        nested.rename(displaced)
+        try:
+            nested.symlink_to(external, target_is_directory=True)
+        except OSError:
+            displaced.rename(nested)
+            raise
+
+    monkeypatch.setattr(dossier_module, "_after_member_path_check", swap_parent)
+    with pytest.raises(DossierAdmissionRejected, match="path_identity_unproven|path_registration_identity_changed"):
+        dossier_module._open_registered_member(
+            member,
+            {"root": RegisteredRoot("root", root, 1, registered_root_identity_hash(root))},
         )
 
 
@@ -566,7 +646,7 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
     actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(5)]
     actors[4] = ACTOR_ID
     stream_id = f"obj_019fed25-b33e-7740-b280-{offset:012d}"
-    review_id = f"rev_019fed25-b33e-7740-b280-{offset:012d}"
+    review_id = f"rev_019fed25-b33e-7740-b280-{1100 if kind == 'dossier_expected_set' else 1200:012d}"
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
     first_row = 110 if kind == "dossier_expected_set" else 116
     authority_file_path = DOSSIER_AUTHORITY if kind == "dossier_expected_set" else PATH_AUTHORITY
@@ -627,6 +707,11 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
             {"row_id": f"OR-{first_row + index}", "authority_kind": kind, **value},
         )
         command["actor_id"] = actor_id
+        if index == 3:
+            wrong_stream = deepcopy(command)
+            wrong_stream["target_stream_id"] = f"rev_019fed25-b33e-7740-b280-{offset + 999:012d}"
+            with pytest.raises(IntegrityError, match="W11 authority review stream mismatch"):
+                runtime._prepare_authority(Command(wrong_stream), replay_discovery(runtime.ledger.iter_events()))
         assert runtime.submit(command).status == "accepted"
     accepted_type = "DossierExpectedSetAccepted" if kind == "dossier_expected_set" else "PathRegistrationAccepted"
     accepted_event = next(
@@ -700,7 +785,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     manifest["component_count"] -= 1
     manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
     before = tuple(runtime.ledger.iter_events())
-    with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
+    with pytest.raises(DossierAdmissionRejected, match="semantic_expected_set_mismatch"):
         runtime.submit(incomplete_manifest)
     assert tuple(runtime.ledger.iter_events()) == before
 
@@ -898,6 +983,7 @@ def test_dossier_runtime_rejects_materialization_identity_used_by_existing_aggre
         manifest["closure_hash"] = _canonical_hash(
             {key: value for key, value in manifest.items() if key != "closure_hash"}
         )
+        expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
         catalogue = {"status": "imported"}
     runtime = _runtime(tmp_path)
     projection = {

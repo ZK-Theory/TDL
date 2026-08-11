@@ -252,6 +252,26 @@ def _ingest_candidate(
     return candidate_sha256
 
 
+def test_scout_observation_rejects_candidate_identity_from_any_existing_aggregate(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    shared_id = "obj_019fed25-b33e-7740-b280-6f661aaeff98"
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Scout Candidate blueprint"):
+        _ingest_candidate(runtime, shared_id, observation_id=shared_id, title="Colliding Candidate")
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff99"
+    _ingest_candidate(runtime, candidate_id, observation_id=shared_id, title="Distinct Candidate")
+    tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    candidate_event = next(event for event in tampered if event["event_type"] == "CandidateRegistered")
+    candidate_event["stream_id"] = shared_id
+    candidate_event["stream_version"] = 2
+    candidate_event["payload"]["candidate_id"] = shared_id
+    with pytest.raises(IntegrityError, match="Candidate identity collision"):
+        replay_discovery(_rehash_events(tampered))
+
+
 def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
     rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
@@ -351,6 +371,13 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
             ]
         command = _command(command_type, stream_id, version, payload)
         command["actor_id"] = actor_id
+        if payload["row_id"] == "OR-106":
+            wrong_stream = deepcopy(command)
+            wrong_stream["target_stream_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
+            with pytest.raises(IntegrityError, match="invalid Assay-bar review verdict"):
+                runtime._prepare_assay_bar_authority(
+                    Command(wrong_stream), replay_discovery(runtime.ledger.iter_events())
+                )
         assert runtime.submit(command).status == "accepted"
     bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     assert bar["status"] == "accepted"
@@ -1038,6 +1065,29 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
         runtime.submit(request(bar_sha256, producer_sha256))
     assert tuple(runtime.ledger.iter_events()) == before
 
+    rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    rubric.update(record_revision=2, supersedes_revision=1)
+    rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in rubric.items() if key != "content_hash"})
+    )
+    successor = _command(
+        "RegisterAssayRubricContent",
+        rubric["record_id"],
+        2,
+        {
+            "row_id": "OR-101",
+            "authority_kind": "assay_bar",
+            "content": rubric,
+            "authority_file_path": ASSAY_RUBRIC_PATH,
+        },
+    )
+    successor["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(successor).status == "accepted"
+    successor_state = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    assert successor_state["status"] == "content_registered"
+    assert successor_state["contents"]["rubric"]["content"]["record_revision"] == 2
+    assert successor_state["history"][0]["status"] == "stale"
+
 
 @pytest.mark.parametrize(
     ("command_type", "replacement_actor", "message"),
@@ -1720,6 +1770,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 runtime.submit(substituted_decision)
             assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-015":
+            for invalid_payload in (
+                {**deepcopy(command["payload"]["w2_payload"]), "options": []},
+                {**deepcopy(command["payload"]["w2_payload"]), "recommendation": "defer"},
+            ):
+                malformed_options = deepcopy(command)
+                malformed_options["payload"]["w2_payload"] = invalid_payload
+                before = tuple(runtime.ledger.iter_events())
+                with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                    runtime.submit(malformed_options)
+                assert tuple(runtime.ledger.iter_events()) == before
             reused_decision = _command(
                 "ProposeSpikeExecutionDecision",
                 promotion_id,
@@ -1753,6 +1813,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
+        if row_id == "OR-016":
+            invalid_projection = replay_discovery(runtime.ledger.iter_events())
+            invalid_projection["decisions"][execution_id]["options"] = ["reject"]
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime._prepare_spike(Command(command), invalid_projection)
         if row_id == "OR-013":
             legacy_approval = deepcopy(command)
             legacy_approval["payload"]["w2_payload"]["selected_option"] = "approve"
@@ -1843,6 +1908,20 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 application_event["payload"]["next_candidate_state"] = next_state
                 terminal_projection = replay_discovery(_rehash_events(terminal))
                 assert terminal_projection["candidates"][candidate_id]["status"] == next_state
+    invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    proposal_event = next(
+        event
+        for event in invalid_execution_options
+        if event["event_type"] == "DecisionProposed" and event["stream_id"] == execution_id
+    )
+    request_event = next(
+        event for event in invalid_execution_options if event["event_type"] == "SpikeExecutionDecisionRequested"
+    )
+    for payload in (proposal_event["payload"], request_event["payload"]["w2_payload"]):
+        payload["options"] = ["reject"]
+        payload["recommendation"] = "reject"
+    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+        replay_discovery(_rehash_events(invalid_execution_options))
     if spike_verdict == "PARTIAL":
         operational = replay_control_plane(runtime._operational_events())
         assert operational.stream_states[attempt_id]["status"] == "partial"

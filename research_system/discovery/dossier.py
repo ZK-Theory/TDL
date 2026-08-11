@@ -16,7 +16,8 @@ from pathlib import Path, PurePosixPath
 import stat
 from typing import Any
 
-from research_system.store.lock import open_registered_root_anchor
+from research_system.errors import ConflictError
+from research_system.store.lock import open_registered_member_directory_anchor, open_registered_root_anchor
 
 
 class DossierAdmissionRejected(ValueError):
@@ -57,6 +58,7 @@ class AcceptedExpectedSet:
     admission_profile_id: str
     admission_profile_revision: int
     admission_profile_hash: str
+    manifest_sha256: str
     members: tuple[DossierMember, ...]
 
 
@@ -143,6 +145,10 @@ def _after_member_identity_check(_path: Path) -> None:
     """Fault-injection boundary after member identity capture and before open."""
 
 
+def _after_member_path_check(_path: Path) -> None:
+    """Fault-injection boundary after anchored traversal and before member stat."""
+
+
 def _assert_live_root(anchor: Any, path: Path) -> None:
     """Require the live root path to retain the held physical identity."""
     observer = open_registered_root_anchor(path, delete_protect=False)
@@ -208,22 +214,30 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         except OSError as exc:
             raise DossierAdmissionRejected("path_registration_identity_changed") from exc
         root_path = anchor.final_path
-        candidate = root_path.joinpath(*relative.parts)
+        directory_anchors: list[Any] = []
         try:
-            candidate.relative_to(root_path)
-        except ValueError as exc:
-            raise DossierAdmissionRejected("path_escape") from exc
-
-        current = root_path
-        for part in relative.parts:
-            current = current / part
+            parent_path = root_path
+            for part in relative.parts[:-1]:
+                child_path = parent_path / part
+                try:
+                    child_anchor = open_registered_member_directory_anchor(child_path)
+                except ConflictError as exc:
+                    raise DossierAdmissionRejected("incomplete_package") from exc
+                directory_anchors.append(child_anchor)
+                if _lexical_normalized_path(child_anchor.final_path) != _lexical_normalized_path(child_path):
+                    raise DossierAdmissionRejected("unregistered_path_alias")
+                parent_path = child_anchor.final_path
+            candidate = parent_path / relative.parts[-1]
             try:
-                is_alias = current.is_symlink() or current.is_junction()
+                candidate.relative_to(root_path)
+                is_alias = candidate.is_symlink() or candidate.is_junction()
+            except ValueError as exc:
+                raise DossierAdmissionRejected("path_escape") from exc
             except OSError as exc:
                 raise DossierAdmissionRejected("incomplete_package") from exc
             if is_alias:
                 raise DossierAdmissionRejected("unregistered_path_alias")
-        try:
+            _after_member_path_check(candidate)
             before = candidate.stat(follow_symlinks=False)
             if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
                 raise DossierAdmissionRejected("path_identity_unproven")
@@ -246,12 +260,19 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
                 linked.st_nlink,
             ) != (opened.st_dev, opened.st_ino, 1):
                 raise DossierAdmissionRejected("path_identity_unproven")
+            for directory_anchor in directory_anchors:
+                refreshed_identity, refreshed_path = directory_anchor.refresh()
+                if refreshed_identity != directory_anchor.identity or refreshed_path != directory_anchor.final_path:
+                    raise DossierAdmissionRejected("path_registration_identity_changed")
         except DossierAdmissionRejected:
             raise
         except (FileNotFoundError, IsADirectoryError, NotADirectoryError) as exc:
             raise DossierAdmissionRejected("incomplete_package") from exc
         except OSError as exc:
             raise DossierAdmissionRejected("path_identity_unproven") from exc
+        finally:
+            for directory_anchor in reversed(directory_anchors):
+                directory_anchor.close()
         _assert_live_root(anchor, root.path)
         refreshed_identity, refreshed_path = anchor.refresh()
         if refreshed_identity != anchor.identity or refreshed_path != anchor.final_path:
@@ -293,6 +314,7 @@ def prepare_dossier_admission(
     if accepted_expected_set_hash(expected_set) != expected_set.content_hash:
         raise DossierAdmissionRejected("expected_set_hash_mismatch")
     _validate_sha256(expected_set.admission_profile_hash, "admission_profile_hash")
+    _validate_sha256(expected_set.manifest_sha256, "manifest_hash")
     if (
         admission_profile_hash(expected_set.admission_profile_id, expected_set.admission_profile_revision)
         != expected_set.admission_profile_hash
@@ -370,6 +392,8 @@ def prepare_dossier_admission(
     edges = candidate_manifest.get("dependency_edges")
     relationships = candidate_manifest.get("relationships")
     families = (components, sources, objects, scopes, edges, relationships)
+    if _canonical_hash(dict(candidate_manifest)) != expected_set.manifest_sha256:
+        raise DossierAdmissionRejected("semantic_expected_set_mismatch")
     if (
         candidate_manifest.get("schema_id") != "ars://portfolio/research-dossier-manifest"
         or candidate_manifest.get("schema_version") != "1.0.0"
