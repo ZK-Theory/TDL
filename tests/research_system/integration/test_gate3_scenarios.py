@@ -1,4 +1,5 @@
 from research_system.evals.scenarios import FoundationPorts, run_gate3_scenario
+from research_system.evals.lifecycle import EvaluationLifecycleRuntime
 
 
 class RecordingFoundation(FoundationPorts):
@@ -52,10 +53,33 @@ def test_scenario_a_actors_derive_from_distinct_family_route_records():
     assert result.producer_actor_id != result.verifier_actor_id
     assert result.producer_actor_id.startswith("actor-claude")
     assert result.verifier_actor_id.startswith("actor-codex")
-    assert result.event_types.index("RouteSelected") < result.event_types.index(
-        "ProviderCommandIssued"
-    )
+    assert result.event_types.index("RouteSelected") < result.event_types.index("ProviderCommandIssued")
     assert result.provider_command_count == 1
+
+
+def test_scenario_a_provider_command_count_is_derived_from_recorded_issue_events(monkeypatch):
+    from research_system.evals import scenarios
+
+    original_submit = scenarios._ScenarioContextWriter.submit_context
+
+    def submit_twice_when_issued(self, **kwargs):
+        result = original_submit(self, **kwargs)
+        if kwargs["command_type"] == "IssueContextPacket":
+            self.events.append(dict(self.events[-1]))
+        return result
+
+    monkeypatch.setattr(scenarios._ScenarioContextWriter, "submit_context", submit_twice_when_issued)
+
+    result = run_gate3_scenario("A")
+
+    assert result.event_types.count("ProviderCommandIssued") == 2
+    assert result.provider_command_count == 2
+
+
+def test_evaluation_lifecycle_runtime_retains_its_class_docstring():
+    assert EvaluationLifecycleRuntime.__doc__ == (
+        "Own one durable temporary lifecycle store for a bounded evaluation run."
+    )
 
 
 def test_scenario_b_reroute_reevaluates_and_preserves_the_request():
@@ -63,5 +87,7 @@ def test_scenario_b_reroute_reevaluates_and_preserves_the_request():
     assert result.original_requirement_id == result.reroute_requirement_id
     assert result.provider_command_count == 0
     assert result.event_types == (
-        "RouteSelectionFailed", "RerouteEvaluated", "RouteSelected",
+        "RouteSelectionFailed",
+        "RerouteEvaluated",
+        "RouteSelected",
     )

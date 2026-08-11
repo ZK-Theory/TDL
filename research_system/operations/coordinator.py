@@ -48,7 +48,26 @@ class OperationsIssuePort(Protocol):
         self,
         lease: Mapping[str, Any],
         provider_command: ProviderCommand,
-    ) -> tuple[ProviderReceipt, Receipt] | None: ...
+    ) -> tuple[ProviderReceipt, Receipt] | None:
+        """Load a receipt only for the exact active lease and provider command.
+
+        Implementations must validate that ``lease`` is current and authorized for
+        the issued attempt, then match every field of ``provider_command`` against
+        the stored command before returning its provider and terminal receipts.
+
+        Args:
+            lease: Revalidated execution lease governing provider issue.
+            provider_command: Exact command whose durable result may be replayed.
+
+        Returns:
+            The command-bound provider and terminal receipts, or ``None`` when no
+            receipt has been recorded for that exact lease and command.
+
+        Raises:
+            ArsError: If a stored receipt exists but its lease or command binding
+                is not exact.
+        """
+        ...
 
     def record_provider_receipt_command(
         self, lease: Mapping[str, Any], provider_receipt: ProviderReceipt
@@ -57,6 +76,28 @@ class OperationsIssuePort(Protocol):
 
 class CommandServicePort(Protocol):
     def submit(self, command: dict[str, Any]) -> Receipt: ...
+
+
+def _validate_recovered_provider_receipt(
+    provider_command: ProviderCommand,
+    provider_receipt: ProviderReceipt,
+) -> None:
+    command_binding_matches = all(
+        (
+            provider_receipt.provider_command_id == provider_command.provider_command_id,
+            provider_receipt.command_revision == provider_command.revision,
+            provider_receipt.command_revision_hash == provider_command.revision_hash,
+            provider_receipt.provider == provider_command.provider,
+            provider_receipt.model == provider_command.model,
+            provider_receipt.profile_id == provider_command.profile_id,
+            provider_receipt.adapter_revision == provider_command.adapter_revision,
+            provider_receipt.policy_hash == provider_command.policy_hash,
+            provider_receipt.context_hash == provider_command.context_hash,
+            not provider_receipt.complete or provider_receipt.delivered_context_hash == provider_command.context_hash,
+        )
+    )
+    if not command_binding_matches:
+        raise ArsError("recovered provider receipt does not match issued command")
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +155,7 @@ def _issue_bound_template(
         ).receipt
     else:
         provider_receipt, terminal_receipt = recovered
+        _validate_recovered_provider_receipt(provider_command, provider_receipt)
     return provider_command, provider_receipt, terminal_receipt
 
 

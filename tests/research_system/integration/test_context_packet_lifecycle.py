@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 import json
 from types import SimpleNamespace
@@ -376,6 +377,69 @@ def test_cli_validate_rejects_caller_built_w4_w7_fields_before_any_access(monkey
     assert "caller-supplied validation or provider-template fields are forbidden" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("action", "source", "invalid_field"),
+    [
+        ("request", {"payload": "not-an-object"}, "payload"),
+        ("begin-compilation", {"payload": []}, "payload"),
+        (
+            "complete-compilation",
+            {"payload": {}, "packet": "not-an-object", "manifest": {}},
+            "packet",
+        ),
+        (
+            "complete-compilation",
+            {"payload": {}, "packet": {}, "manifest": None},
+            "manifest",
+        ),
+    ],
+)
+def test_cli_rejects_non_object_lifecycle_inputs_before_service_call(
+    monkeypatch,
+    capsys,
+    action,
+    source,
+    invalid_field,
+) -> None:
+    from research_system import cli
+
+    calls = []
+
+    class Lifecycle:
+        def request(self, *_args, **_kwargs):
+            calls.append("request")
+
+        def begin_compilation(self, *_args, **_kwargs):
+            calls.append("begin_compilation")
+
+        def complete_compilation(self, *_args, **_kwargs):
+            calls.append("complete_compilation")
+
+    monkeypatch.setattr(cli, "_context_packet_runtime", lambda _args: Lifecycle())
+    monkeypatch.setattr(cli, "_read_json", lambda _path: source)
+
+    result = cli.main(
+        [
+            "context-packet",
+            action,
+            "--config",
+            "config.json",
+            "--input",
+            "input.json",
+            "--actor-id",
+            "actor-1",
+            "--authority-grant-id",
+            "grant-1",
+            "--writer-id",
+            "writer-1",
+        ]
+    )
+
+    assert result == 1
+    assert calls == []
+    assert f"context packet input field must be a JSON object: {invalid_field}" in capsys.readouterr().err
+
+
 def test_w4_route_rejects_missing_or_foreign_capability_before_evidence(tmp_path) -> None:
     first = ContextLifecycleService(ObjectStore(tmp_path / "first"), RecordingContextWriter(), writer_id="writer-1")
     second = ContextLifecycleService(ObjectStore(tmp_path / "second"), RecordingContextWriter(), writer_id="writer-2")
@@ -507,20 +571,25 @@ def test_provider_receipt_replay_skips_provider_reinvocation() -> None:
         0,
         None,
     )
-    receipts = iter(
-        [
-            Receipt("accepted", "grant", "e" * 64, "batch-1", 1),
-            Receipt("accepted", "lease", "f" * 64, "batch-2", 2),
-            Receipt("replayed", "issued", "1" * 64, "batch-3", 3),
-        ]
-    )
     terminal_receipt = Receipt("replayed", "terminal", "2" * 64, "batch-4", 4)
 
     class Commands:
+        def __init__(self):
+            self.receipts = iter(
+                [
+                    Receipt("accepted", "grant", "e" * 64, "batch-1", 1),
+                    Receipt("accepted", "lease", "f" * 64, "batch-2", 2),
+                    Receipt("replayed", "issued", "1" * 64, "batch-3", 3),
+                ]
+            )
+
         def submit(self, _command):
-            return next(receipts)
+            return next(self.receipts)
 
     class Operations:
+        def __init__(self, recovered):
+            self.recovered = recovered
+
         def build_request(self, _issued, binding):
             return binding
 
@@ -539,7 +608,7 @@ def test_provider_receipt_replay_skips_provider_reinvocation() -> None:
         def load_provider_receipt(self, lease, observed_command):
             assert lease == {"lease": "recorded"}
             assert observed_command == command
-            return provider_receipt, terminal_receipt
+            return self.recovered, terminal_receipt
 
         def record_provider_receipt_command(self, _lease, _provider_receipt):
             raise AssertionError("replayed provider receipt was recorded again")
@@ -555,11 +624,33 @@ def test_provider_receipt_replay_skips_provider_reinvocation() -> None:
             raise AssertionError("provider was reinvoked during replay")
 
     issued = SimpleNamespace(template=SimpleNamespace(sha256="3" * 64), attempt_id="attempt-1")
-    assert _issue_bound_template(issued, object(), Adapter(), Operations(), Commands()) == (
+    assert _issue_bound_template(issued, object(), Adapter(), Operations(provider_receipt), Commands()) == (
         command,
         provider_receipt,
         terminal_receipt,
     )
+
+    mismatches = {
+        "provider_command_id": "pcmd-foreign",
+        "command_revision": 2,
+        "command_revision_hash": "9" * 64,
+        "provider": "foreign-provider",
+        "model": "foreign-model",
+        "profile_id": "foreign-profile",
+        "adapter_revision": "foreign-adapter",
+        "policy_hash": "8" * 64,
+        "context_hash": "7" * 64,
+        "delivered_context_hash": "6" * 64,
+    }
+    for field, value in mismatches.items():
+        with pytest.raises(ArsError, match="recovered provider receipt does not match issued command"):
+            _issue_bound_template(
+                issued,
+                object(),
+                Adapter(),
+                Operations(replace(provider_receipt, **{field: value})),
+                Commands(),
+            )
 
 
 def test_s016_evidence_identity_check_is_explicit(monkeypatch) -> None:
