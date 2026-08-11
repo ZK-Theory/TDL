@@ -426,6 +426,14 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
         )
         command["actor_id"] = actor_id
         assert runtime.submit(command).status == "accepted"
+    accepted_type = "DossierExpectedSetAccepted" if kind == "dossier_expected_set" else "PathRegistrationAccepted"
+    accepted_event = next(
+        event
+        for event in reversed(tuple(runtime.ledger.iter_events()))
+        if event["payload"].get("authority_event_type") == accepted_type
+    )
+    authority = replay_discovery(runtime.ledger.iter_events())["authorities"][kind]
+    assert authority["transaction_id"] == accepted_event["transaction_id"]
 
 
 def test_authority_chains_activate_dossier_admission_without_constructor_inputs(tmp_path: Path) -> None:

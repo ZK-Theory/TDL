@@ -213,7 +213,7 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "RecordSpikeVerdict": "scope_definition",
     "RegisterAssayRubricContent": "scope_definition",
     "RegisterAssayEvidenceScopeContent": "scope_definition",
-    "RecordAssayBarStaleness": "scope_definition",
+    "RecordAssayBarStaleness": "decision",
     "RegisterDossierExpectedSetContent": "scope_definition",
     "RegisterPathRegistrationContent": "scope_definition",
     "ObserveW11AuthorityFile": "scope_definition",

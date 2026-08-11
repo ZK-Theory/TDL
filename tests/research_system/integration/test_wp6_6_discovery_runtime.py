@@ -88,7 +88,7 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
                 "RecordSpikeVerdict": "scope_definition",
                 "RegisterAssayRubricContent": "scope_definition",
                 "RegisterAssayEvidenceScopeContent": "scope_definition",
-                "RecordAssayBarStaleness": "scope_definition",
+                "RecordAssayBarStaleness": "decision",
                 "RegisterDossierExpectedSetContent": "scope_definition",
                 "RegisterPathRegistrationContent": "scope_definition",
                 "ObserveW11AuthorityFile": "scope_definition",
@@ -776,7 +776,11 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     if verdict == "approve":
         for tampered_verdict in ("approve", "approve_with_conditions"):
             events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
-            verdict_event = next(event for event in events if event["event_type"] == "ReviewVerdictRecorded")
+            verdict_event = next(
+                event
+                for event in events
+                if event["event_type"] == "ReviewVerdictRecorded" and event["payload"].get("review_id") == review_id
+            )
             verdict_event["actor_id"] = ACTOR_ID
             verdict_event["payload"]["reviewer_actor_id"] = ACTOR_ID
             verdict_event["payload"]["verdict"] = tampered_verdict
@@ -794,6 +798,72 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             )
             with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
                 replay_discovery(_rehash_events(events))
+
+
+def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff60"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff61"
+    runtime.submit(_genesis())
+    runtime.submit(
+        _command(
+            "RegisterCandidate",
+            candidate_id,
+            0,
+            {
+                "candidate_id": candidate_id,
+                "revision": 1,
+                "content_sha256": "1" * 64,
+                "source_observation_refs": ["obs:assay-authority"],
+                "title": "Assay authority candidate",
+            },
+        )
+    )
+
+    def request(bar_hash: str, producer_hash: str) -> dict[str, object]:
+        return _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": "1" * 64,
+                "assay_bar_acceptance_sha256": bar_hash,
+                "producer_relation_sha256": producer_hash,
+            },
+        )
+
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RequestAssay transition"):
+        runtime.submit(request("2" * 64, "3" * 64))
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RequestAssay transition"):
+        runtime.submit(request("f" * 64, producer_sha256))
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    stale = _command(
+        "RecordAssayBarStaleness",
+        "dec_019fed25-b33e-7740-b280-000000000107",
+        3,
+        {
+            "row_id": "OR-109",
+            "authority_kind": "assay_bar",
+            "acceptance_sha256": bar_sha256,
+            "trigger_evidence_refs": ["evidence:rubric-superseded"],
+        },
+    )
+    stale["actor_id"] = ASSAY_AUTHORITY_ACTORS[1]
+    assert runtime.submit(stale).status == "accepted"
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RequestAssay transition"):
+        runtime.submit(request(bar_sha256, producer_sha256))
+    assert tuple(runtime.ledger.iter_events()) == before
 
 
 @pytest.mark.parametrize(("spike_verdict", "verdict_row"), [("PASS", "OR-018"), ("PARTIAL", "OR-019")])
@@ -1237,7 +1307,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             runtime.operational_ledger = canonical_ledger
         assert runtime.submit(command).status == "accepted"
     if spike_verdict == "PARTIAL":
-        operational = replay_control_plane(runtime.operational_ledger.snapshot().events)
+        operational = replay_control_plane(runtime._operational_events())
         assert operational.stream_states[attempt_id]["status"] == "partial"
         assert operational.stream_states[lease_id]["status"] == "released"
         partial_batch = tuple(

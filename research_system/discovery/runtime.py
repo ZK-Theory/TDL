@@ -828,7 +828,7 @@ class DiscoveryRuntime:
             "RecordSpikeVerdict": "scope_definition",
             "RegisterAssayRubricContent": "scope_definition",
             "RegisterAssayEvidenceScopeContent": "scope_definition",
-            "RecordAssayBarStaleness": "scope_definition",
+            "RecordAssayBarStaleness": "decision",
             "RegisterDossierExpectedSetContent": "scope_definition",
             "RegisterPathRegistrationContent": "scope_definition",
             "ObserveW11AuthorityFile": "scope_definition",
@@ -1960,7 +1960,7 @@ class DiscoveryRuntime:
 
     def _valid_live_spike_lease(self, payload: dict[str, Any], command: Command) -> bool:
         """Resolve the current operational Attempt/Lease relation under the shared writer lock."""
-        state = replay_control_plane(self.operational_ledger.snapshot().events)
+        state = replay_control_plane(self._operational_events())
         attempt = state.stream_states.get(payload.get("attempt_id"))
         lease = state.stream_states.get(payload.get("lease_id"))
         if not isinstance(lease, dict):
@@ -1989,7 +1989,7 @@ class DiscoveryRuntime:
         """Return the exact current running Attempt and active Lease for a Spike."""
 
         try:
-            state = replay_control_plane(self.operational_ledger.snapshot().events)
+            state = replay_control_plane(self._operational_events())
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError("invalid operational Attempt or Lease history") from exc
         attempt = state.stream_states.get(spike.get("attempt_id"))
@@ -2005,6 +2005,16 @@ class DiscoveryRuntime:
         ):
             raise IntegrityError("invalid Spike operational closure")
         return attempt, lease
+
+    def _operational_events(self) -> tuple[dict[str, Any], ...]:
+        """Select canonical control-plane events from the shared atomic ledger."""
+
+        return tuple(
+            event
+            for event in self.operational_ledger.snapshot().events
+            if event.get("command_type") not in _DISCOVERY_COMMAND_TYPES
+            or event.get("event_type") in {"PartialOutcomeRecorded", "LeaseReleased"}
+        )
 
     def _valid_spike_plan(
         self,
