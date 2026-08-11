@@ -6,9 +6,11 @@ import pytest
 
 from research_system.errors import ArsError
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
 
 def test_context_service_has_no_provider_or_eval_execution_imports() -> None:
-    source = Path("research_system/context/service.py").read_text(encoding="utf-8")
+    source = (REPO_ROOT / "research_system/context/service.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     imports = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names} | {
         node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module is not None
@@ -27,17 +29,24 @@ def test_legacy_public_routing_and_dispatch_constructors_are_absent() -> None:
 
 
 def test_private_capability_and_dispatch_mints_have_one_first_party_owner() -> None:
-    roots = tuple(Path("research_system").rglob("*.py"))
-    capability_owners = [path for path in roots if "_CAPABILITY_MINT_KEY" in path.read_text(encoding="utf-8")]
-    dispatch_constructors = [path for path in roots if "LifecycleBoundDispatch(" in path.read_text(encoding="utf-8")]
-    assert capability_owners == [Path("research_system/context/service.py")]
-    assert dispatch_constructors == [Path("research_system/context/service.py")]
+    roots = tuple((REPO_ROOT / "research_system").rglob("*.py"))
+    sources = {path: path.read_text(encoding="utf-8") for path in roots}
+    capability_owners = [
+        path.relative_to(REPO_ROOT).as_posix() for path, source in sources.items() if "_CAPABILITY_MINT_KEY" in source
+    ]
+    dispatch_constructors = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path, source in sources.items()
+        if "LifecycleBoundDispatch(" in source
+    ]
+    assert capability_owners == ["research_system/context/service.py"]
+    assert dispatch_constructors == ["research_system/context/service.py"]
 
 
 def test_provider_command_construction_is_closed_to_typed_runners() -> None:
     constructors = {
-        path.as_posix()
-        for path in Path("research_system").rglob("*.py")
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "research_system").rglob("*.py")
         if "ProviderCommand(" in path.read_text(encoding="utf-8")
     }
     assert constructors == {
@@ -46,7 +55,7 @@ def test_provider_command_construction_is_closed_to_typed_runners() -> None:
         "research_system/evals/lifecycle.py",
         "research_system/evals/scenarios.py",
     }
-    assert "ProviderCommand" not in Path("research_system/evals/variants.py").read_text(encoding="utf-8")
+    assert "ProviderCommand" not in (REPO_ROOT / "research_system/evals/variants.py").read_text(encoding="utf-8")
 
 
 def test_parser_derived_eval_roots_have_exact_fail_closed_classification() -> None:
@@ -105,7 +114,7 @@ def test_eval_validate_parser_root_cannot_reach_execution_or_provider_seams(monk
     monkeypatch.setattr(routing, "_select_route", forbidden)
     monkeypatch.setattr(coordinator, "issue_lifecycle_dispatch", forbidden)
     monkeypatch.setattr(provider.ProviderAdapter, "issue", forbidden)
-    catalogue = Path(".research-system/evals/catalogue.yaml").resolve()
+    catalogue = REPO_ROOT / ".research-system/evals/catalogue.yaml"
     assert cli.main(["eval", "validate", "--catalogue", str(catalogue)]) == 0
 
 

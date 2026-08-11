@@ -1031,12 +1031,15 @@ required capabilities are owned where they are consumed:
 `0137d2caadd8b80d7c133bf63fe5f6bea065cf2d` and tree
 `ee7d5109719565d1911da7f9000798973859aedf`, as recorded in
 `reviews/rm-lane-pr198-g-rm-3-owner-acceptance-2026-07-31.md`. No repeat suite
-review or owner acceptance is required for those bytes. G-RM-12, G-RM-13 and
-G-RM-14 remain open for their future exact candidates/runs.<br>
+review or owner acceptance is required for those bytes. This historical
+statement is superseded for 06i and 06j by their later accepted and integrated
+exact subjects; G-RM-13 remains separate for its later manuscript-specific
+run.<br>
 **Integration consequence:** RM-00 remains the obligation and gate crosswalk,
 not a live parallel campaign. Executable work is tracked beneath KAN-65,
-KAN-57 and KAN-22. Gate 6 cannot close while the WP6.1/WP6.4 obligations above
-remain absent; the Gate 9 manuscript pilot does not block Gate 6.<br>
+KAN-57 and KAN-22. WP6.3 and WP6.4 are integrated. Gate 6 still requires WP6.1
+R1, the final WP6.1 proof and final assembled Gate 6 acceptance; the Gate 9
+manuscript pilot does not block Gate 6.<br>
 **Boundary:** This decision reorganises and makes already-required work
 visible. It does not accept an unbuilt runtime, satisfy a future exact-subject
 owner gate, authorize an external session, execute returned content, promote a
@@ -1064,16 +1067,24 @@ with raw SHA-256
 `64f9ab15db7d07d12f0d9dd32866a955bcf00cabee94d03292024ca0440bd68d6`.
 Fresh-process load and replay succeed after the original Source is unavailable.
 
-The current WP6.4 integrated candidate also runs the owner-operated public
-brief-out/evidence-back path through real 06j context authority, RM-02 assets,
-06i artefact-use resolution and RM-04 candidate registration, with restart and
-replay equality. TDA-scale v1.0.1 and SCALE-01 preflight are materialized and
-remain `pending_wp6_6`, so no pilot dispatch is implied. KAN-57 remains open
-until the integrated candidate passes final exact-subject review, lands on
-`main`, receives the exact remaining owner dispositions, and Jira is read back.
-KAN-68 remains explicitly owned by its active WP6.3 completion lane. No provider
+WP6.3 and WP6.4 are now integrated on `main`. PR #239 merged the final WP6.4
+artifact subject `056cd683be21b7046c3943208e3ba8e9898051dc` as
+`b61dddec8f2ba0a7e456b1e3a57d265db1f60caf`; its candidate and merge tree are
+`2c29ba05e10c93f20e9d0a28fe7f548b960c3255`. The capability runs the
+owner-operated public brief-out/evidence-back path through real 06j context
+authority, RM-02 assets, 06i artefact-use resolution and RM-04 candidate
+registration, with restart and replay equality, governed backup creation, and
+restore verification before writer-lease authorization.
+
+D-G6-5 is accepted. The protected SCALE-01 v1.0.3 package and preflight remain
+`pending_wp6_6`, `dispatchable: false` and `execution_authorized: false`; their
+accepted bytes are unchanged. WP6.1 C1–C3 plus 06h, 06i and 06j are integrated.
+WP6.1 R1 and the final WP6.1 proof remain, followed by final assembled Gate 6
+acceptance. WP6.5 is independent under P-042/06g, while WP6.6 dossier admission
+and WP6.7 legacy consolidation retain their separate gates. No provider
 invocation, credentials, returned-content execution, result promotion, claim
-promotion, or pilot dispatch is authorized by this status record.
+promotion, research execution or pilot dispatch is authorized by this status
+record.
 
 ## W11 specification status (non-decision)
 
