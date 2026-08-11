@@ -695,6 +695,13 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     with pytest.raises(IntegrityError, match="materialization closure mismatch"):
         replay_discovery(_rehash_ledger(omitted))
 
+    relationship_omitted = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    admission = next(event for event in relationship_omitted if event["event_type"] == "ResearchDossierAdmitted")
+    admission["payload"]["relationships"] = []
+    admission["payload"]["relationship_count"] = 0
+    with pytest.raises(IntegrityError, match="materialization closure mismatch"):
+        replay_discovery(_rehash_ledger(relationship_omitted))
+
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])
 @pytest.mark.integration

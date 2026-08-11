@@ -994,10 +994,73 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             for value in state["portfolio_objects"].values()
         )
         scope_count = sum(value.get("dossier_id") == dossier_id for value in state["scopes"].values())
+        semantic_identities: dict[str, tuple[int, str]] = {}
+        semantic_identity_collision = False
+        for value in state["portfolio_objects"].values():
+            blueprint = value.get("blueprint")
+            if (
+                value.get("dossier_id") == dossier_id
+                and value.get("portfolio_kind") != "dependency_edge"
+                and isinstance(blueprint, dict)
+                and isinstance(blueprint.get("object_key"), str)
+            ):
+                if blueprint["object_key"] in semantic_identities:
+                    semantic_identity_collision = True
+                semantic_identities[blueprint["object_key"]] = (
+                    value.get("record_revision"),
+                    value.get("content_sha256"),
+                )
+        for value in state["scopes"].values():
+            blueprint = value.get("blueprint")
+            if (
+                value.get("dossier_id") == dossier_id
+                and isinstance(blueprint, dict)
+                and isinstance(blueprint.get("scope_key"), str)
+            ):
+                if blueprint["scope_key"] in semantic_identities:
+                    semantic_identity_collision = True
+                semantic_identities[blueprint["scope_key"]] = (
+                    value.get("scope_revision"),
+                    value.get("content_sha256"),
+                )
+        relationships = dossier.get("relationships")
+        relationship_keys: set[str] = set()
+        valid_relationships = isinstance(relationships, list) and bool(relationships)
+        if valid_relationships:
+            for relationship in relationships:
+                if not isinstance(relationship, dict):
+                    valid_relationships = False
+                    break
+                relationship_key = relationship.get("relationship_key")
+                members = relationship.get("ordered_member_keys_with_revisions_hashes")
+                if (
+                    not isinstance(relationship_key, str)
+                    or relationship_key in relationship_keys
+                    or not isinstance(members, list)
+                    or not members
+                    or not isinstance(relationship.get("relationship_kind"), str)
+                    or not isinstance(relationship.get("relation_schema_id"), str)
+                    or not isinstance(relationship.get("relation_schema_version"), str)
+                    or any(
+                        not isinstance(member, dict)
+                        or not isinstance(member.get("key"), str)
+                        or (member.get("revision"), member.get("content_hash"))
+                        != semantic_identities.get(member.get("key"))
+                        for member in members
+                    )
+                    or {member["key"] for member in members} != set(semantic_identities)
+                    or relationship.get("relation_hash") != sha256_hex(canonical_bytes(members))
+                ):
+                    valid_relationships = False
+                    break
+                relationship_keys.add(relationship_key)
         if (
             dossier.get("object_count") != object_count
             or dossier.get("edge_count") != edge_count
             or dossier.get("scope_count") != scope_count
+            or dossier.get("relationship_count") != len(relationship_keys)
+            or not valid_relationships
+            or semantic_identity_collision
         ):
             raise IntegrityError("Research dossier materialization closure mismatch")
     return state

@@ -607,6 +607,7 @@ def prepare_dossier_admission(
         "object_count": len(materialized_objects),
         "scope_count": len(materialized_scopes),
         "edge_count": len(materialized_edges),
+        "relationship_count": len(relationships),
         "relationships": deepcopy(relationships),
         "ownership_effect": "successor_owned_new_objects_only",
         "provider_execution": "forbidden",
