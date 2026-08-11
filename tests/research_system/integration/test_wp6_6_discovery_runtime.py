@@ -175,6 +175,48 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
     assert tuple(runtime.ledger.iter_events()) == before
 
 
+@pytest.mark.parametrize("missing", ["repository", "catalogue"])
+def test_runtime_configuration_path_failures_are_integrity_errors(tmp_path: Path, missing: str) -> None:
+    harness = control_plane(tmp_path)
+    root = tmp_path / "discovery-path-error"
+    root.mkdir()
+    repository_root = tmp_path / "missing-repository" if missing == "repository" else REPO_ROOT
+    catalogue_path = tmp_path / "missing-catalogue.json" if missing == "catalogue" else CATALOGUE
+    with pytest.raises(IntegrityError, match="repository root is unavailable|catalogue path is unavailable"):
+        DiscoveryRuntime(
+            root,
+            EventLedger(root, PROJECT_ID, harness.schemas),
+            harness.schemas,
+            catalogue_path=catalogue_path,
+            authority_resolver=harness.authority_resolver,
+            clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
+            repository_root=repository_root,
+            root_tokens={},
+        )
+
+
+@pytest.mark.parametrize("unavailable", ["catalogue", "bootstrap"])
+def test_genesis_read_failures_are_integrity_errors_and_atomic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unavailable: str
+) -> None:
+    runtime = _runtime(tmp_path)
+    if unavailable == "catalogue":
+        runtime.catalogue_path = tmp_path / "missing-catalogue.json"
+    else:
+        original_read_bytes = Path.read_bytes
+
+        def fail_bootstrap(path: Path) -> bytes:
+            if path.name == "w11-materialization-bootstrap-contract.yaml":
+                raise PermissionError("injected bootstrap read failure")
+            return original_read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", fail_bootstrap)
+
+    with pytest.raises(IntegrityError, match=f"{unavailable} .*unavailable"):
+        runtime.submit(_genesis())
+    assert tuple(runtime.ledger.iter_events()) == ()
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -191,6 +233,20 @@ def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, me
     }
     event["event_hash"] = sha256_hex(canonical_bytes(event))
     with pytest.raises(IntegrityError, match=message):
+        replay_discovery((event,))
+
+
+def test_replay_rejects_unsupported_authority_event_type_as_integrity_error() -> None:
+    event = {
+        "event_type": "CandidateRegistered",
+        "command_type": "RequestW11AuthorityReview",
+        "stream_id": "rev_019fed25-b33e-7740-b280-6f661aaeff90",
+        "payload": {"governing_refs": ["authority-kind:dossier_expected_set"]},
+        "global_position": 1,
+        "previous_event_hash": "0" * 64,
+    }
+    event["event_hash"] = sha256_hex(canonical_bytes(event))
+    with pytest.raises(IntegrityError, match="unsupported W11 authority event type"):
         replay_discovery((event,))
 
 
@@ -675,7 +731,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         ),
     ]
-    for command in commands:
+    for index, command in enumerate(commands):
+        if index in {0, 3}:
+            malformed = deepcopy(command)
+            malformed["payload"].pop("w2_payload")
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(malformed)
+            assert tuple(runtime.ledger.iter_events()) == before
         assert runtime.submit(command).status == "accepted"
     review_contract = {
         "review_type": "provenance",

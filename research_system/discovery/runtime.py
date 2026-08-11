@@ -52,6 +52,7 @@ _COMMAND_FIELDS = {
     "payload",
 }
 _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
+_GIT_TIMEOUT_SECONDS = 10
 
 
 def _git_blob(data: bytes) -> str:
@@ -138,6 +139,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "RecordW11AuthorityReview",
             "ProposeW11AuthorityDecision",
         } or (event.get("command_type") == "ResolveDecision" and event["stream_id"] in state["authority_streams"]):
+            if event_type not in {
+                "ReviewRequested",
+                "ReviewVerdictRecorded",
+                "DecisionProposed",
+                "DecisionResolved",
+            }:
+                raise IntegrityError("unsupported W11 authority event type")
             kind = state["authority_streams"].get(event["stream_id"])
             if kind is None and event_type == "ReviewRequested":
                 refs = payload.get("governing_refs", [])
@@ -227,7 +235,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         elif event_type == "CandidateRegistered":
             if state["catalogue"] is None:
                 raise IntegrityError("Candidate event predates W11 genesis")
-            candidate_id = payload.get("candidate_id") if isinstance(payload, dict) else None
+            candidate_id = payload.get("candidate_id")
             if not isinstance(candidate_id, str) or candidate_id in state["candidates"]:
                 raise IntegrityError("Candidate identity collision")
             state["candidates"][candidate_id] = {**deepcopy(payload), "status": "registered", "version": 1}
@@ -457,9 +465,16 @@ class DiscoveryRuntime:
         self.ledger = ledger
         self.schemas = schemas
         self.catalogue_path = catalogue_path
-        self.repository_root = repository_root.resolve(strict=True)
         try:
-            catalogue_path.resolve(strict=True).relative_to(self.repository_root)
+            self.repository_root = repository_root.resolve(strict=True)
+        except OSError as exc:
+            raise IntegrityError("configured repository root is unavailable") from exc
+        try:
+            resolved_catalogue = catalogue_path.resolve(strict=True)
+        except OSError as exc:
+            raise IntegrityError("catalogue path is unavailable") from exc
+        try:
+            resolved_catalogue.relative_to(self.repository_root)
         except ValueError as exc:
             raise IntegrityError("catalogue path is outside configured repository root") from exc
         self.root_tokens = {key: Path(value) for key, value in root_tokens.items()}
@@ -740,19 +755,22 @@ class DiscoveryRuntime:
                     check=True,
                     capture_output=True,
                     text=True,
+                    timeout=_GIT_TIMEOUT_SECONDS,
                 ).stdout.strip()
                 git_blob = subprocess.run(
                     ["git", "-C", str(repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
                     check=True,
                     capture_output=True,
                     text=True,
+                    timeout=_GIT_TIMEOUT_SECONDS,
                 ).stdout.strip()
                 committed_raw = subprocess.run(
                     ["git", "-C", str(repository_root), "show", f"{git_commit}:{relative_path}"],
                     check=True,
                     capture_output=True,
+                    timeout=_GIT_TIMEOUT_SECONDS,
                 ).stdout
-            except subprocess.CalledProcessError as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
                 raise IntegrityError("authority file lacks current Git identity") from exc
             computed_blob = _git_blob(raw)
             if committed_raw != raw or computed_blob != git_blob:
@@ -921,6 +939,17 @@ class DiscoveryRuntime:
         if accepted_paths and accepted_paths.get("status") == "accepted":
             root_values = accepted_paths["subject"].get("registered_roots")
             if isinstance(root_values, list):
+                required_root_fields = {
+                    "path",
+                    "root_id",
+                    "registration_revision",
+                    "registration_hash",
+                    "authorized",
+                }
+                if any(
+                    not isinstance(value, Mapping) or not required_root_fields.issubset(value) for value in root_values
+                ):
+                    raise IntegrityError("accepted path authority contains an invalid registered root")
                 path_tokens = self.root_tokens
                 if any(value.get("path") not in path_tokens for value in root_values):
                     raise IntegrityError("accepted path authority contains an unconfigured root token")
@@ -995,6 +1024,7 @@ class DiscoveryRuntime:
             and candidate
             and candidate.get("status") == "assay_scored"
             and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -1036,6 +1066,7 @@ class DiscoveryRuntime:
             and spike
             and spike.get("status") == "approval_pending"
             and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -1214,7 +1245,10 @@ class DiscoveryRuntime:
             raise IntegrityError("W11 genesis stream identity mismatch")
         if command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
-        raw = self.catalogue_path.read_bytes()
+        try:
+            raw = self.catalogue_path.read_bytes()
+        except OSError as exc:
+            raise IntegrityError("catalogue path is unavailable") from exc
         if (
             len(raw) != _ACCEPTED["catalogue_bytes"]
             or sha256_hex(raw) != _ACCEPTED["catalogue_sha256"]
@@ -1225,7 +1259,10 @@ class DiscoveryRuntime:
         bootstrap = (
             repository_root / ".research-system" / "contracts" / "w11" / "w11-materialization-bootstrap-contract.yaml"
         )
-        bootstrap_raw = bootstrap.read_bytes()
+        try:
+            bootstrap_raw = bootstrap.read_bytes()
+        except OSError as exc:
+            raise IntegrityError("bootstrap contract is unavailable") from exc
         if (
             sha256_hex(bootstrap_raw) != _ACCEPTED["bootstrap_sha256"]
             or _git_blob(bootstrap_raw) != _ACCEPTED["bootstrap_blob"]

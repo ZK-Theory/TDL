@@ -10,6 +10,8 @@ import subprocess
 import pytest
 
 import research_system.discovery.dossier as dossier_module
+import research_system.discovery.runtime as runtime_module
+from research_system.command.models import Command
 from research_system.discovery import DiscoveryRuntime, replay_discovery
 from research_system.discovery.authority import subject_sha256
 from research_system.discovery.dossier import (
@@ -421,10 +423,11 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     assert replayed["dossiers"][expected.dossier_id]["member_count"] == 21
 
 
-@pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set"])
+@pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])
 def test_public_observation_rejects_authority_content_not_serialized_by_git_bytes(
     tmp_path: Path,
     attack: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     expected, _ = _subject()
     runtime = _runtime(tmp_path)
@@ -442,7 +445,7 @@ def test_public_observation_rejects_authority_content_not_serialized_by_git_byte
     authority_path = DOSSIER_AUTHORITY
     if attack == "unrelated_tracked_file":
         authority_path = PACKAGE
-    else:
+    elif attack == "altered_expected_set":
         subject["expected_set"]["package_version"] = "fabricated"  # type: ignore[index]
     raw = (REPO / authority_path).read_bytes()
     subject.update(
@@ -476,6 +479,58 @@ def test_public_observation_rejects_authority_content_not_serialized_by_git_byte
         },
     )
     before = tuple(runtime.ledger.iter_events())
-    with pytest.raises(IntegrityError, match="content does not match registered subject"):
+    expected_error = "content does not match registered subject"
+    if attack == "git_timeout":
+        monkeypatch.setattr(
+            runtime_module.subprocess,
+            "run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(args[0], 10)),
+        )
+        expected_error = "authority file lacks current Git identity"
+    with pytest.raises(IntegrityError, match=expected_error):
         runtime.submit(observe)
     assert tuple(runtime.ledger.iter_events()) == before
+
+
+@pytest.mark.parametrize(
+    "invalid_root",
+    [
+        None,
+        {},
+        {"path": "$TDA_VAULT_ROOT"},
+        {"path": "$TDA_VAULT_ROOT", "root_id": "vault", "registration_revision": 1, "registration_hash": "0" * 64},
+    ],
+)
+def test_dossier_runtime_rejects_malformed_registered_root_before_field_access(
+    tmp_path: Path, invalid_root: object
+) -> None:
+    expected, _ = _subject()
+    runtime = _runtime(tmp_path)
+    projection = {
+        "authorities": {
+            "dossier_expected_set": {
+                "status": "accepted",
+                "subject": {"expected_set": json.loads(json.dumps(asdict(expected)))},
+            },
+            "path_registration": {
+                "status": "accepted",
+                "subject": {"registered_roots": [invalid_root]},
+            },
+        }
+    }
+    command = Command(
+        _command(
+            "AdmitResearchDossier",
+            expected.dossier_id,
+            0,
+            {
+                "row_id": "OR-028",
+                "dossier_id": expected.dossier_id,
+                "expected_set_id": expected.expected_set_id,
+                "candidate_members": [asdict(member) for member in expected.members],
+            },
+        )
+    )
+
+    with pytest.raises(IntegrityError, match="invalid registered root"):
+        runtime._prepare_dossier(command, projection)
