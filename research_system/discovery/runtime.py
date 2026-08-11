@@ -13,6 +13,10 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
 from research_system.command.reducers import replay_control_plane
 from research_system.discovery.authority import prepare_authority_transition, replay_authority
+from research_system.discovery.assay_authority import (
+    content_sha256 as assay_content_sha256,
+    replay_assay_bar_authority,
+)
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierMember,
@@ -54,6 +58,30 @@ _COMMAND_FIELDS = {
 }
 _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 _GIT_TIMEOUT_SECONDS = 10
+_DISCOVERY_COMMAND_TYPES = {
+    "ImportAcceptedW11CatalogueGenesis",
+    "RegisterCandidate",
+    "RequestAssay",
+    "RecordAssayScore",
+    "RequestDiscoveryOutcomeReview",
+    "ReviewDiscoveryOutcome",
+    "ProposePromotionDecision",
+    "RegisterSpikePlan",
+    "ProposeSpikeExecutionDecision",
+    "StartSpike",
+    "RecordSpikeVerdict",
+    "RegisterAssayRubricContent",
+    "RegisterAssayEvidenceScopeContent",
+    "RecordAssayBarStaleness",
+    "RegisterDossierExpectedSetContent",
+    "RegisterPathRegistrationContent",
+    "ObserveW11AuthorityFile",
+    "RequestW11AuthorityReview",
+    "RecordW11AuthorityReview",
+    "ProposeW11AuthorityDecision",
+    "ResolveDecision",
+    "AdmitResearchDossier",
+}
 
 
 def _git_blob(data: bytes) -> str:
@@ -112,7 +140,17 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 
 
 def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    """Rebuild Discovery state while rejecting malformed transitions."""
+    """Rebuild Discovery state while rejecting malformed transitions.
+
+    Args:
+        events: Ordered persisted events from one Discovery ledger.
+
+    Returns:
+        The deterministic Discovery projection reconstructed from ``events``.
+
+    Raises:
+        IntegrityError: If the event chain, payload, authority relation, or lifecycle transition is malformed.
+    """
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
     state: dict[str, Any] = {
@@ -128,12 +166,21 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "authority_events": [],
         "authorities": {},
         "authority_streams": {},
+        "assay_bar_authority_events": [],
+        "assay_bar_authority": {"contents": {}, "observations": {}, "status": "empty"},
     }
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
         if not isinstance(payload, dict):
             raise IntegrityError("Discovery event payload must be an object")
+        if event.get("command_type") not in _DISCOVERY_COMMAND_TYPES:
+            continue
+        if event_type in {"PartialOutcomeRecorded", "LeaseReleased"}:
+            # OR-019 closes the canonical operational Attempt and Lease in the
+            # same ledger transaction as its Discovery relations. Their state
+            # is reduced by replay_control_plane, not by this projection.
+            continue
 
         def required_string(key: str) -> str:
             value = payload.get(key)
@@ -157,14 +204,31 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             authority_payload = payload.get("authority_payload")
             if not isinstance(authority_payload, dict):
                 raise IntegrityError("Discovery event payload requires authority_payload")
+            authority_payload = deepcopy(authority_payload)
+            if payload.get("authority_event_type") in {
+                "DecisionResolved",
+                "DossierExpectedSetAccepted",
+                "PathRegistrationAccepted",
+                "AssayBarAccepted",
+            }:
+                authority_payload["transaction_id"] = event.get("transaction_id")
+            authority_kind = required_string("authority_kind")
             authority_event = {
                 "owner_row_id": required_string("owner_row_id"),
-                "authority_kind": required_string("authority_kind"),
+                "authority_kind": authority_kind,
                 "event_type": required_string("authority_event_type"),
-                "payload": deepcopy(authority_payload),
+                "payload": authority_payload,
             }
+            if authority_kind == "assay_bar":
+                state["assay_bar_authority_events"].append(authority_event)
+                state["authority_streams"][event["stream_id"]] = authority_kind
+                try:
+                    state["assay_bar_authority"] = replay_assay_bar_authority(state["assay_bar_authority_events"])
+                except ValueError as exc:
+                    raise IntegrityError(str(exc)) from exc
+                continue
             state["authority_events"].append(authority_event)
-            state["authority_streams"][event["stream_id"]] = required_string("authority_kind")
+            state["authority_streams"][event["stream_id"]] = authority_kind
             state["authorities"] = replay_authority(state["authority_events"])
             continue
         if event.get("command_type") in {
@@ -202,8 +266,82 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                     None,
                 )
                 state["authority_streams"][event["stream_id"]] = kind
-            if kind not in {"dossier_expected_set", "path_registration"}:
+            if kind not in {"dossier_expected_set", "path_registration", "assay_bar"}:
                 raise IntegrityError("missing explicit W11 authority kind")
+            if kind == "assay_bar":
+                current = state["assay_bar_authority"]
+                if event_type == "ReviewRequested":
+                    reviewer_capability = payload.get("reviewer_capability")
+                    governing_refs = payload.get("governing_refs")
+                    producer_value = (
+                        next(
+                            (
+                                value.removeprefix("prospective-producer:")
+                                for value in governing_refs
+                                if isinstance(value, str) and value.startswith("prospective-producer:")
+                            ),
+                            None,
+                        )
+                        if isinstance(governing_refs, list)
+                        else None
+                    )
+                    try:
+                        prospective_producer_ref = json.loads(producer_value) if producer_value is not None else None
+                    except json.JSONDecodeError as exc:
+                        raise IntegrityError("invalid Assay-bar producer relation") from exc
+                    if (
+                        not isinstance(reviewer_capability, list)
+                        or not reviewer_capability
+                        or not isinstance(reviewer_capability[0], str)
+                        or not isinstance(prospective_producer_ref, dict)
+                    ):
+                        raise IntegrityError("invalid Assay-bar review request")
+                    shadow = {
+                        "actor_id": event["actor_id"],
+                        "reviewer_actor_id": reviewer_capability[0],
+                        "review_id": required_string("new_review_id"),
+                        "subject_sha256": required_string_list("subject_hashes")[0],
+                        "prospective_producer_ref": prospective_producer_ref,
+                    }
+                elif event_type == "ReviewVerdictRecorded":
+                    shadow = {
+                        "actor_id": event["actor_id"],
+                        "verdict": required_string("verdict"),
+                        "unchanged_subject_sha256": required_string("unchanged_subject_sha256"),
+                        "reconstruction_sha256": required_string("context_manifest_sha256"),
+                    }
+                elif event_type == "DecisionProposed":
+                    shadow = {
+                        "actor_id": event["actor_id"],
+                        "decision_id": required_string("new_decision_id"),
+                        "proposed_decision": required_string("recommendation"),
+                        "subject_sha256": current.get("subject_sha256"),
+                    }
+                else:
+                    shadow = {
+                        "actor_id": event["actor_id"],
+                        "decision_id": required_string("decision_id"),
+                        "decision": required_string("selected_option"),
+                        "transaction_id": event.get("transaction_id"),
+                    }
+                state["assay_bar_authority_events"].append(
+                    {
+                        "owner_row_id": {
+                            "ReviewRequested": "OR-105",
+                            "ReviewVerdictRecorded": "OR-106",
+                            "DecisionProposed": "OR-107",
+                            "DecisionResolved": "OR-108",
+                        }[event_type],
+                        "authority_kind": kind,
+                        "event_type": event_type,
+                        "payload": shadow,
+                    }
+                )
+                try:
+                    state["assay_bar_authority"] = replay_assay_bar_authority(state["assay_bar_authority_events"])
+                except ValueError as exc:
+                    raise IntegrityError(str(exc)) from exc
+                continue
             current = state["authorities"].get(kind, {})
             if event_type == "ReviewRequested":
                 reviewer_capability = payload.get("reviewer_capability")
@@ -237,14 +375,11 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                     "file_sha256": current.get("file_sha256"),
                 }
             else:
-                conditions = payload.get("conditions")
-                if not isinstance(conditions, list) or not conditions or not isinstance(conditions[0], str):
-                    raise IntegrityError("Discovery event payload requires conditions")
                 shadow = {
                     "actor_id": event["actor_id"],
                     "decision_id": required_string("decision_id"),
                     "decision": required_string("selected_option"),
-                    "transaction_id": conditions[0],
+                    "transaction_id": event.get("transaction_id"),
                 }
             state["authority_events"].append(
                 {
@@ -288,6 +423,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "candidate_sha256": required_string("candidate_sha256"),
                 "assay_bar_acceptance_sha256": required_string("assay_bar_acceptance_sha256"),
                 "producer_relation_sha256": required_string("producer_relation_sha256"),
+                "producer_actor_id": required_string("producer_actor_id"),
                 "status": "requested",
                 "version": event["stream_version"],
             }
@@ -598,7 +734,23 @@ class DiscoveryRuntime:
         root_tokens: Mapping[str, Path],
         operational_ledger: EventLedger,
     ) -> None:
-        """Bind the governed runtime to exact repository and root configuration."""
+        """Bind the governed runtime to exact repository and root configuration.
+
+        Args:
+            control_root: Discovery receipt and writer-lock root.
+            ledger: Durable Discovery event ledger.
+            schemas: Active schema registry used for command and event identities.
+            catalogue_path: Exact accepted W11 catalogue path.
+            authority_resolver: Canonical current-grant resolver.
+            clock: Trusted timezone-aware runtime clock.
+            repository_root: Repository root containing the accepted catalogue and authority files.
+            root_tokens: Accepted dossier path tokens and their configured physical roots.
+            operational_ledger: Canonical same-project Attempt and Lease ledger.
+
+        Raises:
+            IntegrityError: If configured paths, project identity, or runtime bindings are inconsistent.
+            TypeError: If a canonical authority resolver or concrete operational ledger is not supplied.
+        """
         self.control_root = control_root
         self.ledger = ledger
         self.schemas = schemas
@@ -620,6 +772,8 @@ class DiscoveryRuntime:
             raise TypeError("DiscoveryRuntime requires a concrete operational EventLedger")
         if operational_ledger.project_id != ledger.project_id:
             raise IntegrityError("operational ledger project mismatch")
+        if operational_ledger is not ledger:
+            raise IntegrityError("Discovery and operational state require one atomic ledger")
         self.operational_ledger = operational_ledger
         self.receipts = ReceiptStore(control_root)
         if not isinstance(authority_resolver, LedgerAuthorityGrantResolver):
@@ -628,7 +782,18 @@ class DiscoveryRuntime:
         self.clock = clock
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
-        """Authorize and atomically submit one public Discovery command."""
+        """Authorize and atomically submit one public Discovery command.
+
+        Args:
+            envelope: Complete governed command envelope.
+
+        Returns:
+            Durable accepted, rejected, or conflict receipt for the exact command.
+
+        Raises:
+            ConflictError: If a committed receipt or writer state conflicts with the command identity.
+            IntegrityError: If authority, payload, replay state, or the requested transition is invalid.
+        """
         if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
             raise IntegrityError("invalid Discovery command envelope")
         command = Command(deepcopy(envelope))
@@ -661,6 +826,9 @@ class DiscoveryRuntime:
             "ProposeSpikeExecutionDecision": "decision",
             "StartSpike": "scope_definition",
             "RecordSpikeVerdict": "scope_definition",
+            "RegisterAssayRubricContent": "scope_definition",
+            "RegisterAssayEvidenceScopeContent": "scope_definition",
+            "RecordAssayBarStaleness": "scope_definition",
             "RegisterDossierExpectedSetContent": "scope_definition",
             "RegisterPathRegistrationContent": "scope_definition",
             "ObserveW11AuthorityFile": "scope_definition",
@@ -777,6 +945,26 @@ class DiscoveryRuntime:
             prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] == "AdmitResearchDossier":
             prepared = self._prepare_dossier(command, projection)
+        elif (
+            envelope["command_type"]
+            in {
+                "RegisterAssayRubricContent",
+                "RegisterAssayEvidenceScopeContent",
+                "RecordAssayBarStaleness",
+            }
+            or (
+                envelope["command_type"]
+                in {
+                    "ObserveW11AuthorityFile",
+                    "RequestW11AuthorityReview",
+                    "RecordW11AuthorityReview",
+                    "ProposeW11AuthorityDecision",
+                }
+                and envelope["payload"].get("row_id") in {"OR-103", "OR-104", "OR-105", "OR-106", "OR-107"}
+            )
+            or (envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") == "OR-108")
+        ):
+            prepared = self._prepare_assay_bar_authority(command, projection)
         elif envelope["command_type"] in {
             "RegisterDossierExpectedSetContent",
             "RegisterPathRegistrationContent",
@@ -804,6 +992,8 @@ class DiscoveryRuntime:
                             "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
                             "DecisionProposed": "ars://core/event/DecisionProposed",
                             "DecisionResolved": "ars://core/event/DecisionResolved",
+                            "PartialOutcomeRecorded": "ars://core/event/PartialOutcomeRecorded",
+                            "LeaseReleased": "ars://core/event/LeaseReleased",
                         }.get(prepared_event_type, "ars://core/event")
                         if "authority_event_type" not in prepared_payload
                         else "ars://core/event"
@@ -1038,7 +1228,7 @@ class DiscoveryRuntime:
                     "considered_review_ids": [current["review_id"]],
                     "permitted_commands": ["AdmitResearchDossier"],
                     "superseded_decision_ids": [],
-                    "conditions": [shadow["transaction_id"]],
+                    "conditions": [],
                     "revisit_triggers": ["authority subject changes"],
                 }
             return {
@@ -1056,6 +1246,418 @@ class DiscoveryRuntime:
             )
             for event in events
         ]
+
+    def _prepare_assay_bar_authority(
+        self,
+        command: Command,
+        projection: dict[str, Any],
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare the exact OR-101--OR-109 Assay-bar authority transition."""
+
+        payload = command.envelope["payload"]
+        row = payload.get("row_id")
+        state = projection["assay_bar_authority"]
+        if payload.get("authority_kind") != "assay_bar":
+            raise IntegrityError("Assay-bar authority kind mismatch")
+
+        def wrapped(event_type: str, shadow: Mapping[str, Any]) -> tuple[str, str, dict[str, Any]]:
+            return (
+                event_type,
+                command.target_stream_id,
+                {
+                    "owner_row_id": row,
+                    "authority_kind": "assay_bar",
+                    "authority_event_type": event_type,
+                    "authority_payload": deepcopy(dict(shadow)),
+                },
+            )
+
+        if row in {"OR-101", "OR-102"}:
+            expected_command = "RegisterAssayRubricContent" if row == "OR-101" else "RegisterAssayEvidenceScopeContent"
+            kind = "rubric" if row == "OR-101" else "scope"
+            event_type = "AssayRubricContentRegistered" if kind == "rubric" else "AssayEvidenceScopeContentRegistered"
+            content = payload.get("content")
+            path = payload.get("authority_file_path")
+            schema_id = (
+                "ars://portfolio/assay-rubric-content"
+                if kind == "rubric"
+                else "ars://portfolio/assay-evidence-scope-content"
+            )
+            if (
+                command.envelope["command_type"] != expected_command
+                or not isinstance(content, dict)
+                or not isinstance(path, str)
+                or not path
+                or command.target_stream_id != content.get("record_id")
+                or content.get("created_by_actor_id") != command.actor_id
+            ):
+                raise IntegrityError("invalid Assay-bar content registration")
+            try:
+                self.schemas.validate(schema_id, content, schema_version="1.0.0")
+            except SchemaError as exc:
+                raise IntegrityError("invalid Assay-bar content") from exc
+            if assay_content_sha256(content) != content.get("content_hash"):
+                raise IntegrityError("Assay-bar content hash mismatch")
+            if kind in state["contents"]:
+                raise IntegrityError("Assay-bar content identity collision")
+            if kind == "scope":
+                rubric = state["contents"].get("rubric")
+                if not isinstance(rubric, dict) or content.get("rubric_ref") != {
+                    "id": rubric["content"]["record_id"],
+                    "record_revision": rubric["content"]["record_revision"],
+                    "content_hash": rubric["content_sha256"],
+                }:
+                    raise IntegrityError("Assay scope does not bind the current rubric")
+            shadow = {
+                "content": deepcopy(content),
+                "content_sha256": content["content_hash"],
+                "authority_file_path": path,
+                "actor_id": command.actor_id,
+            }
+            try:
+                replay_assay_bar_authority(
+                    (
+                        *projection["assay_bar_authority_events"],
+                        {
+                            "owner_row_id": row,
+                            "authority_kind": "assay_bar",
+                            "event_type": event_type,
+                            "payload": shadow,
+                        },
+                    )
+                )
+            except ValueError as exc:
+                raise IntegrityError(str(exc)) from exc
+            return [wrapped(event_type, shadow)]
+
+        if row in {"OR-103", "OR-104"}:
+            kind = "rubric" if row == "OR-103" else "scope"
+            content_state = state["contents"].get(kind)
+            if command.envelope["command_type"] != "ObserveW11AuthorityFile" or not isinstance(content_state, dict):
+                raise IntegrityError("Assay-bar content is not registered")
+            observation = self._observe_assay_authority_content(content_state)
+            shadow = {"content_kind": kind, "actor_id": command.actor_id, **observation}
+            try:
+                replay_assay_bar_authority(
+                    (
+                        *projection["assay_bar_authority_events"],
+                        {
+                            "owner_row_id": row,
+                            "authority_kind": "assay_bar",
+                            "event_type": "W11AuthorityFileObserved",
+                            "payload": shadow,
+                        },
+                    )
+                )
+            except ValueError as exc:
+                raise IntegrityError(str(exc)) from exc
+            return [wrapped("W11AuthorityFileObserved", shadow)]
+
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise IntegrityError("Discovery authority clock must return an aware datetime")
+        current_time = now.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        deadline = (now.astimezone(UTC) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+
+        if row == "OR-105":
+            producer_ref = payload.get("prospective_producer_ref")
+            reviewer = payload.get("reviewer_actor_id")
+            if (
+                command.envelope["command_type"] != "RequestW11AuthorityReview"
+                or state.get("status") != "observed"
+                or not isinstance(producer_ref, dict)
+                or not isinstance(reviewer, str)
+            ):
+                raise IntegrityError("invalid Assay-bar review request")
+            subject = {
+                "rubric_sha256": state["contents"]["rubric"]["content_sha256"],
+                "scope_sha256": state["contents"]["scope"]["content_sha256"],
+                "rubric_file_sha256": state["observations"]["rubric"]["file_sha256"],
+                "scope_file_sha256": state["observations"]["scope"]["file_sha256"],
+                "prospective_producer_ref": producer_ref,
+            }
+            subject_hash = sha256_hex(canonical_bytes(subject))
+            shadow = {
+                "actor_id": command.actor_id,
+                "reviewer_actor_id": reviewer,
+                "review_id": command.target_stream_id,
+                "subject_sha256": subject_hash,
+                "prospective_producer_ref": deepcopy(producer_ref),
+            }
+            try:
+                replay_assay_bar_authority(
+                    (
+                        *projection["assay_bar_authority_events"],
+                        {
+                            "owner_row_id": row,
+                            "authority_kind": "assay_bar",
+                            "event_type": "ReviewRequested",
+                            "payload": shadow,
+                        },
+                    )
+                )
+            except ValueError as exc:
+                raise IntegrityError(str(exc)) from exc
+            return [
+                (
+                    "ReviewRequested",
+                    command.target_stream_id,
+                    {
+                        "review_type": "provenance",
+                        "new_review_id": command.target_stream_id,
+                        "subject_ids": [
+                            state["contents"]["rubric"]["content"]["record_id"],
+                            state["contents"]["scope"]["content"]["record_id"],
+                        ],
+                        "subject_hashes": [subject_hash],
+                        "governing_refs": [
+                            "W11:OR-105",
+                            "authority-kind:assay_bar",
+                            "prospective-producer:" + json.dumps(producer_ref, sort_keys=True, separators=(",", ":")),
+                        ],
+                        "review_questions": [
+                            "Does the exact Assay bar bind both observed contents and producer relation?"
+                        ],
+                        "required_evidence_refs": [
+                            state["observations"]["rubric"]["file_sha256"],
+                            state["observations"]["scope"]["file_sha256"],
+                        ],
+                        "required_lanes": ["provenance"],
+                        "reviewer_capability": [reviewer],
+                        "required_independence_grade": "independent",
+                        "visibility_policy": "owner-visible",
+                        "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+                        "satisfaction_authority": "ars://portfolio/policy/w11-authority-review@1.0.0",
+                        "deadline": deadline,
+                        "escalation_rule": "owner-ruling",
+                    },
+                )
+            ]
+
+        if row == "OR-106":
+            if (
+                command.envelope["command_type"] != "RecordW11AuthorityReview"
+                or state.get("status") != "review_requested"
+            ):
+                raise IntegrityError("invalid Assay-bar review verdict")
+            shadow = {
+                "actor_id": command.actor_id,
+                "verdict": payload.get("verdict"),
+                "unchanged_subject_sha256": payload.get("unchanged_subject_sha256"),
+                "reconstruction_sha256": payload.get("reconstruction_sha256"),
+            }
+            try:
+                replay_assay_bar_authority(
+                    (
+                        *projection["assay_bar_authority_events"],
+                        {
+                            "owner_row_id": row,
+                            "authority_kind": "assay_bar",
+                            "event_type": "ReviewVerdictRecorded",
+                            "payload": shadow,
+                        },
+                    )
+                )
+            except ValueError as exc:
+                raise IntegrityError(str(exc)) from exc
+            return [
+                (
+                    "ReviewVerdictRecorded",
+                    command.target_stream_id,
+                    {
+                        "review_id": state["review_id"],
+                        "verdict": payload.get("verdict"),
+                        "findings": [],
+                        "required_evidence_refs": [state["subject_sha256"]],
+                        "limitations": [],
+                        "conditions": [],
+                        "reviewer_actor_id": command.actor_id,
+                        "reviewer_profile": "independent-assay-bar-reviewer",
+                        "reviewer_session": "session-assay-bar",
+                        "reviewer_model_metadata": "independent-runtime-review",
+                        "context_manifest_id": "ctx_019fed25-b33e-7740-b280-000000000105",
+                        "context_manifest_sha256": payload.get("reconstruction_sha256"),
+                        "unchanged_subject_sha256": payload.get("unchanged_subject_sha256"),
+                        "producing_attempt_id": "att_019fed25-b33e-7740-b280-000000000106",
+                        "trace_visibility_evidence_refs": [state["subject_sha256"]],
+                        "computed_independence_grade": "independent",
+                    },
+                )
+            ]
+
+        if row == "OR-107":
+            if command.envelope["command_type"] != "ProposeW11AuthorityDecision" or state.get("status") != "reviewed":
+                raise IntegrityError("invalid Assay-bar decision proposal")
+            shadow = {
+                "actor_id": command.actor_id,
+                "decision_id": command.target_stream_id,
+                "proposed_decision": payload.get("proposed_decision"),
+                "subject_sha256": state["subject_sha256"],
+            }
+            try:
+                replay_assay_bar_authority(
+                    (
+                        *projection["assay_bar_authority_events"],
+                        {
+                            "owner_row_id": row,
+                            "authority_kind": "assay_bar",
+                            "event_type": "DecisionProposed",
+                            "payload": shadow,
+                        },
+                    )
+                )
+            except ValueError as exc:
+                raise IntegrityError(str(exc)) from exc
+            return [
+                (
+                    "DecisionProposed",
+                    command.target_stream_id,
+                    {
+                        "new_decision_id": command.target_stream_id,
+                        "question": "Accept the exact current Assay bar?",
+                        "recommendation": payload.get("proposed_decision"),
+                        "options": ["accept", "reject"],
+                        "decision_revision": 1,
+                        "decision_kind": "design_lock",
+                        "governing_evidence_refs": [state["subject_sha256"], "authority-kind:assay_bar"],
+                        "affected_task_ids": [],
+                        "affected_claim_ids": [],
+                        "required_authority": "owner",
+                        "expires_at": deadline,
+                        "review_date": current_time,
+                        "consequences": ["the exact Assay bar becomes current collection authority"],
+                    },
+                )
+            ]
+
+        if row == "OR-108":
+            if (
+                command.envelope["command_type"] != "ResolveDecision"
+                or state.get("status") != "decision_proposed"
+                or payload.get("decision_id") != state.get("decision_id")
+                or payload.get("decision") != "accept"
+            ):
+                raise IntegrityError("invalid Assay-bar owner resolution")
+            resolved = {
+                "decision_id": state["decision_id"],
+                "selected_option": "accept",
+                "effective_scope": "exact current Assay bar",
+                "effective_at": current_time,
+                "decision_revision": 1,
+                "deciding_actor_id": command.actor_id,
+                "decision_authority_grant_id": command.envelope["authority_grant_id"],
+                "governing_evidence_refs": [state["subject_sha256"]],
+                "considered_review_ids": [state["review_id"]],
+                "permitted_commands": ["RequestAssay"],
+                "superseded_decision_ids": [],
+                "conditions": [],
+                "revisit_triggers": ["rubric, scope, or producer relation changes"],
+            }
+            acceptance = {
+                "subject_sha256": state["subject_sha256"],
+                "rubric_ref": {
+                    "id": state["contents"]["rubric"]["content"]["record_id"],
+                    "record_revision": state["contents"]["rubric"]["content"]["record_revision"],
+                    "content_hash": state["contents"]["rubric"]["content_sha256"],
+                },
+                "scope_ref": {
+                    "id": state["contents"]["scope"]["content"]["record_id"],
+                    "record_revision": state["contents"]["scope"]["content"]["record_revision"],
+                    "content_hash": state["contents"]["scope"]["content_sha256"],
+                },
+                "rubric_file_sha256": state["observations"]["rubric"]["file_sha256"],
+                "scope_file_sha256": state["observations"]["scope"]["file_sha256"],
+                "review_id": state["review_id"],
+                "decision_id": state["decision_id"],
+                "required_axis_set_hash": state["contents"]["rubric"]["content"]["required_axis_set_hash"],
+                "scope_closure_hash": state["contents"]["scope"]["content"]["scope_closure_algorithm_hash"],
+                "prospective_producer_ref": deepcopy(state["prospective_producer_ref"]),
+                "producer_relation_sha256": state["producer_relation_sha256"],
+                "acceptor_actor_id": command.actor_id,
+            }
+            return [
+                ("DecisionResolved", command.target_stream_id, resolved),
+                wrapped("AssayBarAccepted", acceptance),
+            ]
+
+        if row == "OR-109":
+            if (
+                command.envelope["command_type"] != "RecordAssayBarStaleness"
+                or state.get("status") != "accepted"
+                or payload.get("acceptance_sha256") != state.get("acceptance_sha256")
+                or not isinstance(payload.get("trigger_evidence_refs"), list)
+                or not payload["trigger_evidence_refs"]
+            ):
+                raise IntegrityError("invalid Assay-bar staleness transition")
+            return [
+                wrapped(
+                    "AssayBarStaled",
+                    {
+                        "acceptance_sha256": state["acceptance_sha256"],
+                        "trigger_evidence_refs": deepcopy(payload["trigger_evidence_refs"]),
+                        "effective_at": current_time,
+                        "actor_id": command.actor_id,
+                    },
+                )
+            ]
+        raise IntegrityError("invalid Assay-bar authority row")
+
+    def _observe_assay_authority_content(self, content_state: Mapping[str, Any]) -> dict[str, Any]:
+        """Observe one registered Assay authority file at an exact Git commit:path."""
+
+        repository_path = content_state.get("authority_file_path")
+        content = content_state.get("content")
+        if not isinstance(repository_path, str) or not isinstance(content, dict):
+            raise IntegrityError("invalid Assay authority content state")
+        lexical_path = Path(repository_path)
+        if lexical_path.is_absolute() or lexical_path.as_posix() != repository_path:
+            raise IntegrityError("authority file path is not canonical")
+        try:
+            authority_file = (self.repository_root / repository_path).resolve(strict=True)
+            authority_file.relative_to(self.repository_root)
+            raw = authority_file.read_bytes()
+        except (OSError, ValueError) as exc:
+            raise IntegrityError("authority file is unavailable") from exc
+        try:
+            git_commit = subprocess.run(
+                ["git", "-C", str(self.repository_root), "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_SECONDS,
+            ).stdout.strip()
+            relative_path = authority_file.relative_to(self.repository_root).as_posix()
+            git_blob = subprocess.run(
+                ["git", "-C", str(self.repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_SECONDS,
+            ).stdout.strip()
+            committed_raw = subprocess.run(
+                ["git", "-C", str(self.repository_root), "show", f"{git_commit}:{relative_path}"],
+                check=True,
+                capture_output=True,
+                timeout=_GIT_TIMEOUT_SECONDS,
+            ).stdout
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            raise IntegrityError("authority file lacks current Git identity") from exc
+        if committed_raw != raw or _git_blob(raw) != git_blob:
+            raise IntegrityError("authority file differs from captured Git bytes")
+        try:
+            serialized = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("authority file is not canonical JSON content") from exc
+        if serialized != content:
+            raise IntegrityError("authority file content does not match registered content")
+        return {
+            "content_sha256": content_state["content_sha256"],
+            "repository_path": relative_path,
+            "git_commit": git_commit,
+            "git_blob": git_blob,
+            "file_size": len(raw),
+            "file_sha256": sha256_hex(raw),
+        }
 
     def _prepare_dossier(
         self,
@@ -1273,6 +1875,11 @@ class DiscoveryRuntime:
             if (p.get("verdict") == "PARTIAL") != (row == "OR-019"):
                 raise IntegrityError("invalid Spike transition")
             if row == "OR-019":
+                attempt, lease = self._live_spike_operational_pair(spike)
+                now = self.clock()
+                if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+                    raise IntegrityError("Discovery operational clock must return an aware datetime")
+                artifact = p["verdict_artifact"]
                 closure_payload = {
                     **deepcopy(p),
                     "attempt_id": spike.get("attempt_id"),
@@ -1280,6 +1887,31 @@ class DiscoveryRuntime:
                 }
                 return [
                     ("SpikePartialRecorded", spike_id, deepcopy(p)),
+                    (
+                        "PartialOutcomeRecorded",
+                        str(attempt["attempt_id"]),
+                        {
+                            "attempt_id": attempt["attempt_id"],
+                            "completed_obligations": [artifact["completed_scope"]],
+                            "unmet_obligations": [artifact["unmet_scope"]],
+                            "candidate_artefact_ids": [p["verdict_sha256"]],
+                            "stop_cause": "spike_partial",
+                            "restrictions": list(
+                                dict.fromkeys([*artifact["limitations"], *artifact["prohibited_inferences"]])
+                            ),
+                            "subject_kind": "attempt",
+                        },
+                    ),
+                    (
+                        "LeaseReleased",
+                        str(lease["lease_id"]),
+                        {
+                            "lease_id": lease["lease_id"],
+                            "release_reason": "spike_partial",
+                            "holder_actor_id": lease["holder_actor_id"],
+                            "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                        },
+                    ),
                     ("SpikeAttemptClosed", spike_id, closure_payload),
                     ("SpikeLeaseReleased", spike_id, deepcopy(closure_payload)),
                     ("CandidateSpikePartialLinked", candidate_id, deepcopy(p)),
@@ -1343,6 +1975,7 @@ class DiscoveryRuntime:
         return bool(
             isinstance(attempt, dict)
             and attempt.get("status") == "running"
+            and payload.get("attempt_sha256") == sha256_hex(canonical_bytes(attempt))
             and attempt.get("lease_id") == payload.get("lease_id")
             and isinstance(lease, dict)
             and lease.get("status") == "active"
@@ -1351,6 +1984,27 @@ class DiscoveryRuntime:
             and expires_at > now.astimezone(UTC)
             and payload.get("resource_grant_id") == lease.get("resource_grant_id")
         )
+
+    def _live_spike_operational_pair(self, spike: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Return the exact current running Attempt and active Lease for a Spike."""
+
+        try:
+            state = replay_control_plane(self.operational_ledger.snapshot().events)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError("invalid operational Attempt or Lease history") from exc
+        attempt = state.stream_states.get(spike.get("attempt_id"))
+        lease = state.stream_states.get(spike.get("lease_id"))
+        if (
+            not isinstance(attempt, dict)
+            or attempt.get("status") != "running"
+            or sha256_hex(canonical_bytes(attempt)) != spike.get("attempt_sha256")
+            or attempt.get("lease_id") != spike.get("lease_id")
+            or not isinstance(lease, dict)
+            or lease.get("status") != "active"
+            or lease.get("attempt_id") != spike.get("attempt_id")
+        ):
+            raise IntegrityError("invalid Spike operational closure")
+        return attempt, lease
 
     def _valid_spike_plan(
         self,
@@ -1435,8 +2089,9 @@ class DiscoveryRuntime:
                 and all(value.get("status") == "not_triggered" for value in kills)
             )
         elif artifact.get("verdict") == "FAIL":
-            truth_table = any(value.get("status") == "failed" for value in failure) or any(
-                value.get("status") == "triggered" for value in kills
+            truth_table = not has_unknown and (
+                any(value.get("status") == "failed" for value in failure)
+                or any(value.get("status") == "triggered" for value in kills)
             )
         else:
             truth_table = bool(
@@ -1460,6 +2115,8 @@ class DiscoveryRuntime:
         review = projection["reviews"].get(review_id)
         command_type = command.envelope["command_type"]
         if command_type == "RequestAssay":
+            bar = projection["assay_bar_authority"]
+            producer_ref = bar.get("prospective_producer_ref") if isinstance(bar, dict) else None
             if (
                 payload.get("row_id") != "OR-003"
                 or command.target_stream_id != assay_id
@@ -1468,12 +2125,18 @@ class DiscoveryRuntime:
                 or candidate.get("revision") != payload.get("candidate_revision")
                 or candidate.get("content_sha256") != payload.get("candidate_sha256")
                 or assay is not None
+                or bar.get("status") != "accepted"
+                or payload.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
+                or payload.get("producer_relation_sha256") != bar.get("producer_relation_sha256")
+                or not isinstance(producer_ref, dict)
+                or not isinstance(producer_ref.get("id"), str)
             ):
                 raise IntegrityError("invalid RequestAssay transition")
+            request_payload = {**deepcopy(payload), "producer_actor_id": producer_ref["id"]}
             return [
-                ("AssayRequested", assay_id, deepcopy(payload)),
-                ("AssayEvidenceCollectionOpened", assay_id, deepcopy(payload)),
-                ("CandidateAssayRequested", candidate_id, deepcopy(payload)),
+                ("AssayRequested", assay_id, deepcopy(request_payload)),
+                ("AssayEvidenceCollectionOpened", assay_id, deepcopy(request_payload)),
+                ("CandidateAssayRequested", candidate_id, deepcopy(request_payload)),
             ]
         if command_type == "RecordAssayScore":
             if (
@@ -1483,6 +2146,7 @@ class DiscoveryRuntime:
                 or assay.get("status") != "evidence_collecting"
                 or assay.get("candidate_id") != candidate_id
                 or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+                or assay.get("producer_actor_id") != command.actor_id
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_pending"
                 or not isinstance(payload.get("scorecard_artifact"), dict)

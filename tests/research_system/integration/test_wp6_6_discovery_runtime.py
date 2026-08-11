@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from datetime import UTC, datetime
 import hashlib
+import json
 import os
 import uuid
 
@@ -11,6 +12,7 @@ import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.reducers import replay_control_plane
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
 from research_system.store.ledger import EventLedger
@@ -38,6 +40,9 @@ CATALOGUE = REPO_ROOT / ".research-system" / "evals" / "expected" / "w11-portfol
 CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
+ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
+ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
+ASSAY_AUTHORITY_ACTORS = tuple(f"act_019fed25-b33e-7740-b280-{number:012d}" for number in range(201, 206))
 _HARNESSES = {}
 
 
@@ -81,6 +86,9 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
                 "ProposeSpikeExecutionDecision": "decision",
                 "StartSpike": "scope_definition",
                 "RecordSpikeVerdict": "scope_definition",
+                "RegisterAssayRubricContent": "scope_definition",
+                "RegisterAssayEvidenceScopeContent": "scope_definition",
+                "RecordAssayBarStaleness": "scope_definition",
                 "RegisterDossierExpectedSetContent": "scope_definition",
                 "RegisterPathRegistrationContent": "scope_definition",
                 "ObserveW11AuthorityFile": "scope_definition",
@@ -117,7 +125,7 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
 
     return GovernedDiscoveryRuntime(
         root,
-        EventLedger(root, PROJECT_ID, harness.schemas),
+        harness.ledger,
         harness.schemas,
         catalogue_path=CATALOGUE,
         authority_resolver=harness.authority_resolver,
@@ -172,6 +180,110 @@ def _command(
         "expected_stream_version": expected_stream_version,
         "payload": payload,
     }
+
+
+def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
+    rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+    observer, proposer, reviewer, owner = ASSAY_AUTHORITY_ACTORS[:4]
+    review_id = "rev_019fed25-b33e-7740-b280-000000000105"
+    decision_id = "dec_019fed25-b33e-7740-b280-000000000107"
+    producer_ref = {"id": ACTOR_ID, "record_revision": 1, "content_hash": "3" * 64}
+    steps = (
+        (
+            "RegisterAssayRubricContent",
+            ACTOR_ID,
+            rubric["record_id"],
+            0,
+            {
+                "row_id": "OR-101",
+                "authority_kind": "assay_bar",
+                "content": rubric,
+                "authority_file_path": ASSAY_RUBRIC_PATH,
+            },
+        ),
+        (
+            "RegisterAssayEvidenceScopeContent",
+            ACTOR_ID,
+            scope["record_id"],
+            0,
+            {
+                "row_id": "OR-102",
+                "authority_kind": "assay_bar",
+                "content": scope,
+                "authority_file_path": ASSAY_SCOPE_PATH,
+            },
+        ),
+        (
+            "ObserveW11AuthorityFile",
+            observer,
+            rubric["record_id"],
+            1,
+            {"row_id": "OR-103", "authority_kind": "assay_bar"},
+        ),
+        (
+            "ObserveW11AuthorityFile",
+            observer,
+            scope["record_id"],
+            1,
+            {"row_id": "OR-104", "authority_kind": "assay_bar"},
+        ),
+        (
+            "RequestW11AuthorityReview",
+            proposer,
+            review_id,
+            0,
+            {
+                "row_id": "OR-105",
+                "authority_kind": "assay_bar",
+                "reviewer_actor_id": reviewer,
+                "prospective_producer_ref": producer_ref,
+            },
+        ),
+        (
+            "RecordW11AuthorityReview",
+            reviewer,
+            review_id,
+            1,
+            {
+                "row_id": "OR-106",
+                "authority_kind": "assay_bar",
+                "verdict": "approve",
+                "unchanged_subject_sha256": None,
+                "reconstruction_sha256": "5" * 64,
+            },
+        ),
+        (
+            "ProposeW11AuthorityDecision",
+            proposer,
+            decision_id,
+            0,
+            {"row_id": "OR-107", "authority_kind": "assay_bar", "proposed_decision": "accept"},
+        ),
+        (
+            "ResolveDecision",
+            owner,
+            decision_id,
+            1,
+            {
+                "row_id": "OR-108",
+                "authority_kind": "assay_bar",
+                "decision_id": decision_id,
+                "decision": "accept",
+            },
+        ),
+    )
+    for command_type, actor_id, stream_id, version, payload in steps:
+        if payload["row_id"] == "OR-106":
+            payload["unchanged_subject_sha256"] = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"][
+                "subject_sha256"
+            ]
+        command = _command(command_type, stream_id, version, payload)
+        command["actor_id"] = actor_id
+        assert runtime.submit(command).status == "accepted"
+    bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    assert bar["status"] == "accepted"
+    return bar["acceptance_sha256"], bar["producer_relation_sha256"]
 
 
 def _scorecard(candidate_id: str, assay_id: str, candidate_sha256: str, relation_sha256: str) -> dict[str, object]:
@@ -250,7 +362,7 @@ def test_runtime_configuration_path_failures_are_integrity_errors(tmp_path: Path
     with pytest.raises(IntegrityError, match=expected_message):
         DiscoveryRuntime(
             root,
-            EventLedger(root, PROJECT_ID, harness.schemas),
+            harness.ledger,
             harness.schemas,
             catalogue_path=catalogue_path,
             authority_resolver=harness.authority_resolver,
@@ -293,6 +405,7 @@ def test_genesis_read_failures_are_integrity_errors_and_atomic(
 def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, message: str) -> None:
     event = {
         "event_type": "SpikePlanned",
+        "command_type": "RegisterSpikePlan",
         "payload": payload,
         "global_position": 1,
         "previous_event_hash": "0" * 64,
@@ -341,6 +454,7 @@ def test_replay_rejects_ledger_derived_missing_fields_as_integrity_error(
             },
         )
     )
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
     runtime.submit(
         _command(
             "RequestAssay",
@@ -352,8 +466,8 @@ def test_replay_rejects_ledger_derived_missing_fields_as_integrity_error(
                 "assay_id": assay_id,
                 "candidate_revision": 1,
                 "candidate_sha256": "1" * 64,
-                "assay_bar_acceptance_sha256": "2" * 64,
-                "producer_relation_sha256": "3" * 64,
+                "assay_bar_acceptance_sha256": bar_sha256,
+                "producer_relation_sha256": producer_sha256,
             },
         )
     )
@@ -378,7 +492,7 @@ def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tm
     root.mkdir()
     runtime = DiscoveryRuntime(
         root,
-        EventLedger(root, PROJECT_ID, harness.schemas),
+        harness.ledger,
         harness.schemas,
         catalogue_path=CATALOGUE,
         authority_resolver=harness.authority_resolver,
@@ -537,6 +651,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         )
     )
 
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, producer_sha256)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
+
     requested = runtime.submit(
         _command(
             "RequestAssay",
@@ -548,8 +666,8 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "assay_id": assay_id,
                 "candidate_revision": 1,
                 "candidate_sha256": "1" * 64,
-                "assay_bar_acceptance_sha256": "2" * 64,
-                "producer_relation_sha256": "3" * 64,
+                "assay_bar_acceptance_sha256": bar_sha256,
+                "producer_relation_sha256": producer_sha256,
             },
         )
     )
@@ -564,7 +682,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "assay_id": assay_id,
                 "scorecard_sha256": scorecard_sha256,
                 "scorecard_artifact": scorecard,
-                "producer_relation_sha256": "3" * 64,
+                "producer_relation_sha256": producer_sha256,
             },
         )
     )
@@ -711,6 +829,9 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         )
     )
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, producer_sha256)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(
         _command(
             "RequestAssay",
@@ -722,8 +843,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "assay_id": assay_id,
                 "candidate_revision": 1,
                 "candidate_sha256": "1" * 64,
-                "assay_bar_acceptance_sha256": "2" * 64,
-                "producer_relation_sha256": "3" * 64,
+                "assay_bar_acceptance_sha256": bar_sha256,
+                "producer_relation_sha256": producer_sha256,
             },
         )
     )
@@ -738,7 +859,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "assay_id": assay_id,
                 "scorecard_sha256": scorecard_sha256,
                 "scorecard_artifact": scorecard,
-                "producer_relation_sha256": "3" * 64,
+                "producer_relation_sha256": producer_sha256,
             },
         )
     )
@@ -1074,6 +1195,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(unevaluated)
             assert tuple(runtime.ledger.iter_events()) == before
+            incomplete_fail = deepcopy(command)
+            incomplete_artifact = incomplete_fail["payload"]["verdict_artifact"]
+            incomplete_artifact["verdict"] = "FAIL"
+            incomplete_artifact["success_predicates"][0]["status"] = "unable_to_evaluate"
+            incomplete_artifact["failure_predicates"][0]["status"] = "failed"
+            incomplete_fail["payload"]["verdict"] = "FAIL"
+            incomplete_fail["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(incomplete_artifact))
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(incomplete_fail)
+            assert tuple(runtime.ledger.iter_events()) == before
         if row_id in {"OR-018", "OR-019"}:
             mismatched_row = deepcopy(command)
             mismatched_row["payload"]["row_id"] = "OR-019" if row_id == "OR-018" else "OR-018"
@@ -1082,6 +1213,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 runtime.submit(mismatched_row)
             assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-017":
+            invented_hash = deepcopy(command)
+            invented_hash["payload"]["attempt_sha256"] = "f" * 64
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(invented_hash)
+            assert tuple(runtime.ledger.iter_events()) == before
             foreign = deepcopy(command)
             foreign["payload"]["resource_grant_id"] = "rgr_019fed25-b33e-7740-b280-ffffffffffff"
             before = tuple(runtime.ledger.iter_events())
@@ -1097,6 +1234,22 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             assert tuple(runtime.ledger.iter_events()) == before
             runtime.operational_ledger = canonical_ledger
         assert runtime.submit(command).status == "accepted"
+    if spike_verdict == "PARTIAL":
+        operational = replay_control_plane(runtime.operational_ledger.snapshot().events)
+        assert operational.stream_states[attempt_id]["status"] == "partial"
+        assert operational.stream_states[lease_id]["status"] == "released"
+        partial_batch = tuple(
+            event for event in runtime.ledger.iter_events() if event["command_id"] == commands[-1]["command_id"]
+        )
+        assert {event["event_type"] for event in partial_batch} == {
+            "SpikePartialRecorded",
+            "PartialOutcomeRecorded",
+            "LeaseReleased",
+            "SpikeAttemptClosed",
+            "SpikeLeaseReleased",
+            "CandidateSpikePartialLinked",
+        }
+        assert len({event["transaction_id"] for event in partial_batch}) == 1
     review_contract = {
         "review_type": "provenance",
         "new_review_id": review_id,

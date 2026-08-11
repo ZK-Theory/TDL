@@ -124,7 +124,7 @@ def test_authority_positive_path_is_ordered_w2_ready_and_replay_equivalent(
     assert events[3]["payload"]["schema_id"] == "ars://core/event/ReviewVerdictRecorded"
     assert events[4]["payload"]["schema_id"] == "ars://core/event/DecisionProposed"
     assert events[5]["payload"]["schema_id"] == "ars://core/event/DecisionResolved"
-    assert events[-1]["payload"]["transaction_id"] == f"txn_{kind}"
+    assert "transaction_id" not in events[-1]["payload"]
 
 
 def test_authority_rejects_related_actors_tamper_stale_collision_and_second_acceptance() -> None:

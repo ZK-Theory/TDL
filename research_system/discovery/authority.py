@@ -253,6 +253,7 @@ def prepare_authority_transition(
             raise AuthorityRejected("authority_not_registered")
         if current["status"] != "decision_proposed":
             raise AuthorityRejected("invalid_owner_resolution")
+        base.pop("transaction_id", None)
         base.update(schema_id=_W2_SCHEMAS["DecisionResolved"], schema_version="1.0.0")
         resolved = _event(kind, action, "DecisionResolved", base)
         accepted_payload = {
@@ -263,7 +264,6 @@ def prepare_authority_transition(
             "file_sha256": current["file_sha256"],
             "review_verdict": deepcopy(current["review_verdict"]),
             "decision_id": base.get("decision_id"),
-            "transaction_id": base.get("transaction_id"),
             "acceptor_actor_id": actor_id,
         }
         prepared = (resolved, _event(kind, action, _ACCEPTED[kind], accepted_payload))
