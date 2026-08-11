@@ -1015,6 +1015,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
                 or not _valid_revisit_proposal(payload.get("w2_payload"), payload.get("review_id"))
+                or payload["w2_payload"].get("new_decision_id") != payload.get("decision_id")
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
                 or decision.get("options") != payload["w2_payload"].get("options")

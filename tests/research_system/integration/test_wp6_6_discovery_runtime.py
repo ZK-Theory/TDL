@@ -1421,6 +1421,12 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     )
     with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
         replay_discovery(_rehash_events(tampered))
+    tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["w2_payload"][
+        "new_decision_id"
+    ] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
+    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+        replay_discovery(_rehash_events(tampered))
     cross_candidate_review = [deepcopy(event) for event in runtime.ledger.iter_events()]
     reviewed_index = next(
         index for index, event in enumerate(cross_candidate_review) if event["event_type"] == "AssayPartialReviewed"
