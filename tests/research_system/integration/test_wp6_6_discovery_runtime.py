@@ -263,7 +263,24 @@ def test_scout_observation_rejects_candidate_identity_from_any_existing_aggregat
     assert tuple(runtime.ledger.iter_events()) == before
 
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff99"
-    _ingest_candidate(runtime, candidate_id, observation_id=shared_id, title="Distinct Candidate")
+    candidate_sha256 = _ingest_candidate(runtime, candidate_id, observation_id=shared_id, title="Distinct Candidate")
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="Candidate identity collision"):
+        runtime.submit(
+            _command(
+                "RegisterCandidate",
+                shared_id,
+                1,
+                {
+                    "candidate_id": shared_id,
+                    "revision": 1,
+                    "content_sha256": candidate_sha256,
+                    "source_observation_refs": [shared_id],
+                    "title": "Standalone colliding Candidate",
+                },
+            )
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
     tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     candidate_event = next(event for event in tampered if event["event_type"] == "CandidateRegistered")
     candidate_event["stream_id"] = shared_id
@@ -403,41 +420,62 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
     return bar["acceptance_sha256"], bar["producer_relation_sha256"]
 
 
-def _scorecard(candidate_id: str, assay_id: str, candidate_sha256: str, relation_sha256: str) -> dict[str, object]:
-    ref = {"id": "evidence:exact", "record_revision": 1, "content_hash": "6" * 64}
+def _scorecard(
+    runtime: DiscoveryRuntime,
+    candidate_id: str,
+    assay_id: str,
+    candidate_sha256: str,
+    relation_sha256: str,
+) -> dict[str, object]:
+    projection = replay_discovery(runtime.ledger.iter_events())
+    bar = projection["assay_bar_authority"]
+    acceptance = bar["acceptance"]
+    rubric = bar["contents"]["rubric"]["content"]
+    scope = bar["contents"]["scope"]["content"]
+    assay = projection["assays"][assay_id]
+    file_refs = [
+        _ref(rubric["record_id"], rubric["record_revision"], bar["observations"]["rubric"]["file_sha256"]),
+        _ref(scope["record_id"], scope["record_revision"], bar["observations"]["scope"]["file_sha256"]),
+    ]
+    producer_ref = acceptance["prospective_producer_ref"]
+    evidence_row = scope["evidence_rows"][0]
     return {
         "schema_id": "ars://portfolio/assay-scorecard",
         "schema_version": "1.0.0",
         "candidate_ref": {"id": candidate_id, "record_revision": 1, "content_hash": candidate_sha256},
         "assay_id": assay_id,
-        "assay_requested_event_ref": ref,
+        "assay_requested_event_ref": _ref(assay_id, assay["request_version"], assay["requested_event_hash"]),
         "assay_relation_hash": relation_sha256,
-        "rubric_ref": ref,
-        "scope_ref": ref,
-        "assay_bar_acceptance_ref": ref,
-        "file_observation_refs": [ref, {**ref, "id": "evidence:scope"}],
-        "producer_relation_ref": ref,
+        "rubric_ref": acceptance["rubric_ref"],
+        "scope_ref": acceptance["scope_ref"],
+        "assay_bar_acceptance_ref": _ref(acceptance["decision_id"], 1, bar["acceptance_sha256"]),
+        "file_observation_refs": file_refs,
+        "producer_relation_ref": producer_ref,
         "axis_results": [
             {
-                "axis_id": "closure",
+                "axis_id": "identity",
                 "axis_kind": "gate",
                 "value": True,
                 "rationale": "Exact fixture evidence closes the declared axis.",
-                "evidence_refs": [ref],
+                "evidence_refs": file_refs,
                 "unmet_condition_codes": [],
-                "validator_id": "validator:closure",
-                "validator_hash": "7" * 64,
+                "validator_id": evidence_row["validator_id"],
+                "validator_hash": evidence_row["validator_hash"],
             }
         ],
-        "required_axis_set_hash": "8" * 64,
-        "observed_axis_set_hash": "8" * 64,
+        "required_axis_set_hash": acceptance["required_axis_set_hash"],
+        "observed_axis_set_hash": sha256_hex(canonical_bytes(["identity"])),
         "mechanical_recommendation": "PROMOTE",
-        "rule_evaluation_ref": ref,
+        "rule_evaluation_ref": _ref(
+            rubric["rule_evaluation_algorithm_id"],
+            1,
+            rubric["rule_evaluation_algorithm_hash"],
+        ),
         "limitations": [],
         "prohibited_inferences": ["The scorecard does not itself authorize promotion."],
         "producer_actor_id": ACTOR_ID,
-        "producer_profile_ref": ref,
-        "producer_context_ref": ref,
+        "producer_profile_ref": producer_ref,
+        "producer_context_ref": producer_ref,
         "review_requirements": ["independent-review"],
     }
 
@@ -856,9 +894,6 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     )
 
     bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
-    scorecard = _scorecard(candidate_id, assay_id, candidate_sha256, producer_sha256)
-    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
-
     requested = runtime.submit(
         _command(
             "RequestAssay",
@@ -875,6 +910,29 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             },
         )
     )
+    scorecard = _scorecard(runtime, candidate_id, assay_id, candidate_sha256, producer_sha256)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
+    invented_axis = deepcopy(scorecard)
+    invented_axis["axis_results"][0]["axis_id"] = "invented"
+    invented_axis["observed_axis_set_hash"] = sha256_hex(canonical_bytes(["invented"]))
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RecordAssayScore transition"):
+        runtime.submit(
+            _command(
+                "RecordAssayScore",
+                assay_id,
+                2,
+                {
+                    "row_id": "OR-004",
+                    "candidate_id": candidate_id,
+                    "assay_id": assay_id,
+                    "scorecard_sha256": sha256_hex(canonical_bytes(invented_axis)),
+                    "scorecard_artifact": invented_axis,
+                    "producer_relation_sha256": producer_sha256,
+                },
+            )
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
     scored = runtime.submit(
         _command(
             "RecordAssayScore",
@@ -890,6 +948,16 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             },
         )
     )
+    rehashed_invented_axis = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    scored_event = next(event for event in rehashed_invented_axis if event["event_type"] == "AssayScored")
+    scored_event["payload"]["scorecard_artifact"]["axis_results"][0]["axis_id"] = "invented"
+    scored_event["payload"]["scorecard_artifact"]["observed_axis_set_hash"] = sha256_hex(canonical_bytes(["invented"]))
+    substituted_scorecard_hash = sha256_hex(canonical_bytes(scored_event["payload"]["scorecard_artifact"]))
+    for event in rehashed_invented_axis:
+        if event["command_id"] == scored_event["command_id"]:
+            event["payload"]["scorecard_sha256"] = substituted_scorecard_hash
+    with pytest.raises(IntegrityError, match="invalid Assay score transition"):
+        replay_discovery(_rehash_events(rehashed_invented_axis))
     review_request_command = _command(
         "RequestDiscoveryOutcomeReview",
         review_id,
@@ -1575,7 +1643,9 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     lease_id = C1_LEASE_ID
     resource_grant_id = C1_RESOURCE_GRANT_ID
     _seed_running_attempt(_HARNESSES[tmp_path])
-    attempt_sha256 = sha256_hex(canonical_bytes(_HARNESSES[tmp_path].replay().stream_states[attempt_id]))
+    operational_state = _HARNESSES[tmp_path].replay().stream_states
+    attempt_sha256 = sha256_hex(canonical_bytes(operational_state[attempt_id]))
+    resource_state = operational_state[resource_grant_id]
     runtime.submit(_genesis())
     candidate_sha256 = _ingest_candidate(
         runtime,
@@ -1584,8 +1654,6 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         title="Spike candidate",
     )
     bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
-    scorecard = _scorecard(candidate_id, assay_id, candidate_sha256, producer_sha256)
-    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(
         _command(
             "RequestAssay",
@@ -1602,6 +1670,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         )
     )
+    scorecard = _scorecard(runtime, candidate_id, assay_id, candidate_sha256, producer_sha256)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(
         _command(
             "RecordAssayScore",
@@ -1798,6 +1868,21 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "outcome_to_next_step": {"PASS": "review"},
     }
     plan_sha256 = sha256_hex(canonical_bytes(plan_artifact))
+    plan_ref = _ref(spike_id, 1, plan_sha256)
+    execution_authority_relation = {
+        "schema_id": "ars://portfolio/relation/spike-execution-authority",
+        "schema_version": "1.0.0",
+        "relation_kind": "spike_execution_authority",
+        "decision_id": execution_id,
+        "spike_ref": plan_ref,
+        "candidate_ref": candidate_ref,
+        "plan_ref": plan_ref,
+        "resource_ref": _ref(resource_grant_id, 1, sha256_hex(canonical_bytes(resource_state))),
+        "route_ref": plan_ref,
+        "assurance_ref": assay_ref,
+        "selected_option": "AUTHORIZE",
+        "actor_id": ACTOR_ID,
+    }
     verdict_artifact = {
         "schema_id": "ars://portfolio/spike-verdict",
         "schema_version": "1.0.0",
@@ -1884,6 +1969,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "spike_id": spike_id,
                 "decision_id": execution_id,
                 "w2_payload": proposed(execution_id, "spike_execution"),
+                "execution_authority_relation": execution_authority_relation,
             },
         ),
         _command(
@@ -1896,6 +1982,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "spike_id": spike_id,
                 "decision_id": execution_id,
                 "w2_payload": resolved(execution_id),
+                "execution_authority_relation": execution_authority_relation,
             },
         ),
         _command(
@@ -1968,6 +2055,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 with pytest.raises(IntegrityError, match="invalid Spike transition"):
                     runtime.submit(malformed_options)
                 assert tuple(runtime.ledger.iter_events()) == before
+            foreign_resource = deepcopy(command)
+            foreign_resource["payload"]["execution_authority_relation"]["resource_ref"]["content_hash"] = "f" * 64
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(foreign_resource)
+            assert tuple(runtime.ledger.iter_events()) == before
             reused_decision = _command(
                 "ProposeSpikeExecutionDecision",
                 promotion_id,
@@ -2006,6 +2099,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             invalid_projection["decisions"][execution_id]["options"] = ["reject"]
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime._prepare_spike(Command(command), invalid_projection)
+            foreign_relation = deepcopy(command)
+            foreign_relation["payload"]["execution_authority_relation"]["route_ref"]["content_hash"] = "f" * 64
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(foreign_relation)
+            assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-013":
             legacy_approval = deepcopy(command)
             legacy_approval["payload"]["w2_payload"]["selected_option"] = "approve"
@@ -2103,6 +2202,27 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 application_event["payload"]["next_candidate_state"] = next_state
                 terminal_projection = replay_discovery(_rehash_events(terminal))
                 assert terminal_projection["candidates"][candidate_id]["status"] == next_state
+    invented_evidence = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    verdict_events = [
+        event
+        for event in invented_evidence
+        if event.get("command_type") == "RecordSpikeVerdict"
+        and isinstance(event.get("payload", {}).get("verdict_artifact"), dict)
+    ]
+    foreign_ref = _ref("obj_019fed25-b33e-7740-b280-ffffffffffff", 1, "f" * 64)
+    for event in verdict_events:
+        artifact = event["payload"]["verdict_artifact"]
+        artifact["artefact_refs"] = [foreign_ref]
+        artifact["validation_refs"] = [foreign_ref]
+        for result in [
+            *artifact["success_predicates"],
+            *artifact["failure_predicates"],
+            *artifact["kill_conditions"],
+        ]:
+            result["evidence_refs"] = [foreign_ref]
+        event["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(artifact))
+    with pytest.raises(IntegrityError, match="invalid Spike (partial )?verdict"):
+        replay_discovery(_rehash_events(invented_evidence))
     invalid_promotion_relation = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     promotion_request = next(
         event
@@ -2113,6 +2233,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     promotion_request["payload"]["promotion_relation"]["candidate_ref"]["content_hash"] = "f" * 64
     with pytest.raises(IntegrityError, match="invalid Candidate promotion request"):
         replay_discovery(_rehash_events(invalid_promotion_relation))
+    invalid_execution_relation = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(
+        event
+        for event in invalid_execution_relation
+        if event["event_type"] == "SpikeExecutionDecisionRequested" and event["stream_id"] == spike_id
+    )["payload"]["execution_authority_relation"]["route_ref"]["content_hash"] = "f" * 64
+    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+        replay_discovery(_rehash_events(invalid_execution_relation))
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
         event
@@ -2461,6 +2589,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         assert retried["spikes"][retry_spike_id]["status"] == "approval_pending"
         assert retried["candidates"][candidate_id]["status"] == "spike_approval_pending"
         retry_execution_id = "dec_019fed25-b33e-7740-b280-6f661aaeff73"
+        retry_plan_ref = _ref(retry_spike_id, 1, retry_plan_sha256)
+        retry_execution_relation = {
+            **deepcopy(execution_authority_relation),
+            "decision_id": retry_execution_id,
+            "spike_ref": retry_plan_ref,
+            "plan_ref": retry_plan_ref,
+            "route_ref": retry_plan_ref,
+        }
         runtime.submit(
             _command(
                 "ProposeSpikeExecutionDecision",
@@ -2472,29 +2608,53 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                     "spike_id": retry_spike_id,
                     "decision_id": retry_execution_id,
                     "w2_payload": proposed(retry_execution_id, "spike_retry_execution"),
+                    "execution_authority_relation": retry_execution_relation,
                 },
             )
         )
+        cancellation_projection = replay_discovery(runtime.ledger.iter_events())
+        execution_decision = cancellation_projection["decisions"][retry_execution_id]
         cancellation_artifact = {
+            "spike_id": retry_spike_id,
+            "candidate_ref": candidate_ref,
+            "plan_ref": retry_plan_ref,
+            "attempt_ref": None,
+            "lease_ref": None,
+            "execution_proposal_ref": _ref(
+                retry_execution_id,
+                execution_decision["proposal_version"],
+                execution_decision["proposal_event_hash"],
+            ),
             "reason": "owner stops the retry before execution",
-            "evidence_refs": [revisit_id],
+            "evidence_refs": [candidate_ref],
+            "completed_scope": [],
+            "unmet_scope": ["execution cancelled before start"],
+            "restrictions": ["no_promotion"],
         }
         cancellation_sha256 = sha256_hex(canonical_bytes(cancellation_artifact))
-        runtime.submit(
-            _command(
-                "CancelDiscoveryEvaluation",
-                retry_spike_id,
-                3,
-                {
-                    "row_id": "OR-022",
-                    "evaluation_kind": "spike",
-                    "candidate_id": candidate_id,
-                    "spike_id": retry_spike_id,
-                    "cancellation_sha256": cancellation_sha256,
-                    "cancellation_artifact": cancellation_artifact,
-                },
-            )
+        cancellation_command = _command(
+            "CancelDiscoveryEvaluation",
+            retry_spike_id,
+            3,
+            {
+                "row_id": "OR-022",
+                "evaluation_kind": "spike",
+                "candidate_id": candidate_id,
+                "spike_id": retry_spike_id,
+                "cancellation_sha256": cancellation_sha256,
+                "cancellation_artifact": cancellation_artifact,
+            },
         )
+        empty_reason = deepcopy(cancellation_command)
+        empty_reason["payload"]["cancellation_artifact"]["reason"] = ""
+        empty_reason["payload"]["cancellation_sha256"] = sha256_hex(
+            canonical_bytes(empty_reason["payload"]["cancellation_artifact"])
+        )
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Spike cancellation transition"):
+            runtime.submit(empty_reason)
+        assert tuple(runtime.ledger.iter_events()) == before
+        runtime.submit(cancellation_command)
         cancelled = replay_discovery(runtime.ledger.iter_events())
         assert cancelled["spikes"][retry_spike_id]["status"] == "cancelled"
         assert cancelled["candidates"][candidate_id]["status"] == "spike_cancelled"
@@ -2529,6 +2689,25 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         )["payload"]["cancellation_sha256"] = "f" * 64
         with pytest.raises(IntegrityError, match="invalid Spike execution proposal cancellation"):
             replay_discovery(_rehash_events(substituted_hash))
+        substituted_subject = tuple(deepcopy(event) for event in cancellation_events)
+        cancellation_event = next(
+            event
+            for event in substituted_subject
+            if event["event_type"] == "SpikeCancelled" and event["stream_id"] == retry_spike_id
+        )
+        cancellation_event["payload"]["cancellation_artifact"]["plan_ref"]["content_hash"] = "f" * 64
+        substituted_cancellation_hash = sha256_hex(
+            canonical_bytes(cancellation_event["payload"]["cancellation_artifact"])
+        )
+        for event in substituted_subject:
+            if event["command_id"] == cancellation_event["command_id"]:
+                event["payload"]["cancellation_sha256"] = substituted_cancellation_hash
+                if isinstance(event["payload"].get("cancellation_artifact"), dict):
+                    event["payload"]["cancellation_artifact"] = deepcopy(
+                        cancellation_event["payload"]["cancellation_artifact"]
+                    )
+        with pytest.raises(IntegrityError, match="invalid Spike cancellation"):
+            replay_discovery(_rehash_events(substituted_subject))
         cancellation_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff74"
         cancellation_contract = deepcopy(review_contract)
         cancellation_contract.update(

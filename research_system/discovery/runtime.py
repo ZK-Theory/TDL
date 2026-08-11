@@ -340,6 +340,333 @@ def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
     )
 
 
+def _projection_record_ref_matches(state: Mapping[str, Any], value: Any) -> bool:
+    """Resolve one immutable Discovery evidence reference from replayed state."""
+
+    if not isinstance(value, Mapping) or set(value) != {"id", "record_revision", "content_hash"}:
+        return False
+    record_id = value.get("id")
+    record: Mapping[str, Any] | None = None
+    revision: Any = None
+    content_hash: Any = None
+    for collection in ("source_observations", "candidates", "assays", "spikes", "decisions", "reviews"):
+        candidate = state.get(collection, {}).get(record_id)
+        if isinstance(candidate, Mapping):
+            record = candidate
+            if collection == "source_observations":
+                revision = candidate.get("version")
+                content_hash = candidate.get("content_sha256")
+            elif collection == "candidates":
+                revision = candidate.get("revision")
+                content_hash = candidate.get("content_sha256")
+            elif collection == "assays":
+                revision = 1
+                content_hash = _aggregate_content_hash(candidate)
+            elif collection == "spikes":
+                revision = 1
+                content_hash = candidate.get("verdict_sha256", candidate.get("plan_sha256"))
+            elif collection == "decisions":
+                revision = candidate.get("proposal_version")
+                content_hash = candidate.get("proposal_event_hash")
+            else:
+                revision = candidate.get("version")
+                content_hash = candidate.get("verdict_event_hash", candidate.get("request_event_hash"))
+            break
+    return bool(
+        record is not None and value == _record_ref(record_id, revision, content_hash) and isinstance(content_hash, str)
+    )
+
+
+def _axis_set_hash(axis_ids: Iterable[str]) -> str:
+    """Return the canonical P0 multiset hash for an observed axis closure."""
+
+    return sha256_hex(canonical_bytes(sorted(axis_ids)))
+
+
+def _assay_scorecard_matches(
+    artifact: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    assay: Mapping[str, Any],
+    bar: Mapping[str, Any],
+    actor_id: Any,
+) -> bool:
+    """Bind an Assay scorecard to its frozen accepted bar and evidence closure."""
+
+    acceptance = bar.get("acceptance")
+    contents = bar.get("contents")
+    observations = bar.get("observations")
+    if (
+        not isinstance(acceptance, Mapping)
+        or not isinstance(contents, Mapping)
+        or not isinstance(observations, Mapping)
+    ):
+        return False
+    rubric_state = contents.get("rubric")
+    scope_state = contents.get("scope")
+    rubric_observation = observations.get("rubric")
+    scope_observation = observations.get("scope")
+    if not all(
+        isinstance(value, Mapping) for value in (rubric_state, scope_state, rubric_observation, scope_observation)
+    ):
+        return False
+    rubric = rubric_state.get("content")
+    scope = scope_state.get("content")
+    if not isinstance(rubric, Mapping) or not isinstance(scope, Mapping):
+        return False
+    axis_definitions = rubric.get("axis_definitions")
+    axis_results = artifact.get("axis_results")
+    evidence_rows = scope.get("evidence_rows")
+    if (
+        not isinstance(axis_definitions, list)
+        or not isinstance(axis_results, list)
+        or not isinstance(evidence_rows, list)
+        or len(axis_results) != len(axis_definitions)
+        or len(evidence_rows) != len(axis_definitions)
+    ):
+        return False
+    expected_file_refs = [
+        _record_ref(
+            rubric.get("record_id"),
+            rubric.get("record_revision"),
+            rubric_observation.get("file_sha256"),
+        ),
+        _record_ref(
+            scope.get("record_id"),
+            scope.get("record_revision"),
+            scope_observation.get("file_sha256"),
+        ),
+    ]
+    for definition, result, evidence_row in zip(axis_definitions, axis_results, evidence_rows, strict=True):
+        if not all(isinstance(value, Mapping) for value in (definition, result, evidence_row)):
+            return False
+        value = result.get("value")
+        allowed = definition.get("allowed_set")
+        minimum = definition.get("minimum")
+        maximum = definition.get("maximum")
+        if (
+            result.get("axis_id") != definition.get("axis_id")
+            or result.get("axis_kind") != definition.get("axis_kind")
+            or result.get("validator_id") != evidence_row.get("validator_id")
+            or result.get("validator_hash") != evidence_row.get("validator_hash")
+            or result.get("evidence_refs") != expected_file_refs
+            or (isinstance(allowed, list) and value not in allowed)
+            or (isinstance(minimum, (int, float)) and (not isinstance(value, (int, float)) or value < minimum))
+            or (isinstance(maximum, (int, float)) and (not isinstance(value, (int, float)) or value > maximum))
+        ):
+            return False
+    axis_ids = [definition.get("axis_id") for definition in axis_definitions]
+    expected_candidate = _record_ref(
+        payload.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256")
+    )
+    expected_acceptance = _record_ref(acceptance.get("decision_id"), 1, bar.get("acceptance_sha256"))
+    expected_request = _record_ref(
+        payload.get("assay_id"), assay.get("request_version"), assay.get("requested_event_hash")
+    )
+    expected_rule = _record_ref(
+        rubric.get("rule_evaluation_algorithm_id"),
+        1,
+        rubric.get("rule_evaluation_algorithm_hash"),
+    )
+    required_results = [
+        result
+        for definition, result in zip(axis_definitions, axis_results, strict=True)
+        if definition.get("required") is True
+    ]
+    recommendation = "PROMOTE" if all(result.get("value") is True for result in required_results) else "KILL"
+    producer_ref = acceptance.get("prospective_producer_ref")
+    return bool(
+        bar.get("status") == "accepted"
+        and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
+        and artifact.get("candidate_ref") == expected_candidate
+        and artifact.get("assay_id") == payload.get("assay_id")
+        and artifact.get("assay_requested_event_ref") == expected_request
+        and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
+        and artifact.get("rubric_ref") == acceptance.get("rubric_ref")
+        and artifact.get("scope_ref") == acceptance.get("scope_ref")
+        and artifact.get("assay_bar_acceptance_ref") == expected_acceptance
+        and artifact.get("file_observation_refs") == expected_file_refs
+        and artifact.get("producer_relation_ref") == producer_ref
+        and artifact.get("producer_profile_ref") == producer_ref
+        and artifact.get("producer_context_ref") == producer_ref
+        and artifact.get("required_axis_set_hash") == acceptance.get("required_axis_set_hash")
+        and artifact.get("observed_axis_set_hash") == _axis_set_hash(axis_ids)
+        and artifact.get("mechanical_recommendation") == recommendation
+        and artifact.get("rule_evaluation_ref") == expected_rule
+        and artifact.get("producer_actor_id") == actor_id
+        and sha256_hex(canonical_bytes(artifact)) == payload.get("scorecard_sha256")
+    )
+
+
+def _spike_execution_relation_matches(
+    relation: Any,
+    *,
+    candidate: Mapping[str, Any],
+    assay: Mapping[str, Any],
+    spike: Mapping[str, Any],
+    decision_id: Any,
+) -> bool:
+    """Bind the complete Spike execution subject to its plan and assurance."""
+
+    plan_ref = _record_ref(spike.get("spike_id"), 1, spike.get("plan_sha256"))
+    return bool(
+        isinstance(relation, Mapping)
+        and relation.get("schema_id") == "ars://portfolio/relation/spike-execution-authority"
+        and relation.get("schema_version") == "1.0.0"
+        and relation.get("relation_kind") == "spike_execution_authority"
+        and relation.get("decision_id") == decision_id
+        and relation.get("spike_ref") == plan_ref
+        and relation.get("candidate_ref")
+        == _record_ref(candidate.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256"))
+        and relation.get("plan_ref") == plan_ref
+        and relation.get("route_ref") == plan_ref
+        and relation.get("assurance_ref") == _record_ref(assay.get("assay_id"), 1, assay.get("scorecard_sha256"))
+        and relation.get("selected_option") == "AUTHORIZE"
+        and isinstance(relation.get("actor_id"), str)
+    )
+
+
+def _spike_verdict_matches(
+    artifact: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    assay: Mapping[str, Any],
+    spike: Mapping[str, Any],
+    state: Mapping[str, Any],
+) -> bool:
+    """Resolve every Spike verdict relationship, predicate and evidence ref."""
+
+    plan = spike.get("plan_artifact")
+    if not isinstance(plan, Mapping):
+        return False
+    expected_candidate = _record_ref(
+        payload.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256")
+    )
+    evidence_refs = [
+        *artifact.get("artefact_refs", ()),
+        *artifact.get("validation_refs", ()),
+        *(
+            ref
+            for result in [
+                *artifact.get("success_predicates", ()),
+                *artifact.get("failure_predicates", ()),
+                *artifact.get("kill_conditions", ()),
+            ]
+            if isinstance(result, Mapping)
+            for ref in result.get("evidence_refs", ())
+        ),
+    ]
+    relationships_match = (
+        artifact.get("spike_id") == payload.get("spike_id")
+        and artifact.get("candidate_ref") == expected_candidate
+        and artifact.get("originating_assay_ref", {}).get("id") == candidate.get("assay_id")
+        and artifact.get("originating_assay_ref", {}).get("content_hash") == assay.get("scorecard_sha256")
+        and artifact.get("spike_plan_ref") == _record_ref(payload.get("spike_id"), 1, spike.get("plan_sha256"))
+        and artifact.get("attempt_ref") == _record_ref(spike.get("attempt_id"), 1, spike.get("attempt_sha256"))
+        and artifact.get("verdict") == payload.get("verdict")
+        and sha256_hex(canonical_bytes(artifact)) == payload.get("verdict_sha256")
+        and bool(artifact.get("artefact_refs"))
+        and bool(artifact.get("validation_refs"))
+        and bool(evidence_refs)
+        and all(_projection_record_ref_matches(state, ref) for ref in evidence_refs)
+        and any("dispatch" in value.casefold() for value in artifact.get("prohibited_inferences", ()))
+    )
+    success = artifact.get("success_predicates", [])
+    failure = artifact.get("failure_predicates", [])
+    kills = artifact.get("kill_conditions", [])
+    if not all(isinstance(value, Mapping) for value in [*success, *failure, *kills]):
+        return False
+    has_unknown = any(value.get("status") == "unable_to_evaluate" for value in [*success, *failure, *kills])
+    predicate_closure = (
+        [value.get("predicate") for value in success] == plan.get("success_predicates")
+        and [value.get("predicate") for value in failure] == plan.get("failure_predicates")
+        and [value.get("condition") for value in kills] == plan.get("kill_conditions")
+    )
+    if artifact.get("verdict") == "PASS":
+        truth_table = (
+            not has_unknown
+            and bool(success)
+            and all(value.get("status") == "passed" for value in success)
+            and all(value.get("status") != "failed" for value in failure)
+            and all(value.get("status") == "not_triggered" for value in kills)
+        )
+    elif artifact.get("verdict") == "FAIL":
+        truth_table = not has_unknown and (
+            any(value.get("status") == "failed" for value in failure)
+            or any(value.get("status") == "triggered" for value in kills)
+        )
+    else:
+        truth_table = bool(
+            has_unknown
+            and artifact.get("completed_scope")
+            and artifact.get("unmet_scope")
+            and artifact.get("limitations")
+            and artifact.get("mechanical_recommendation") != "PROMOTE"
+        )
+    return bool(relationships_match and predicate_closure and truth_table)
+
+
+def _spike_cancellation_matches(
+    artifact: Any,
+    *,
+    payload: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    spike: Mapping[str, Any],
+    decision: Mapping[str, Any] | None,
+    state: Mapping[str, Any],
+) -> bool:
+    """Validate the closed Spike cancellation subject and its immutable evidence."""
+
+    if not isinstance(artifact, Mapping) or set(artifact) != {
+        "spike_id",
+        "candidate_ref",
+        "plan_ref",
+        "attempt_ref",
+        "lease_ref",
+        "execution_proposal_ref",
+        "reason",
+        "evidence_refs",
+        "completed_scope",
+        "unmet_scope",
+        "restrictions",
+    }:
+        return False
+    running = spike.get("status") == "running"
+    proposal_ref = (
+        _record_ref(
+            spike.get("decision_id"),
+            decision.get("proposal_version"),
+            decision.get("proposal_event_hash"),
+        )
+        if isinstance(decision, Mapping)
+        and decision.get("status") in {"proposed", "cancellation_pending", "candidate_cancellation_pending"}
+        else None
+    )
+    evidence_refs = artifact.get("evidence_refs")
+    return bool(
+        artifact.get("spike_id") == payload.get("spike_id")
+        and artifact.get("candidate_ref")
+        == _record_ref(candidate.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256"))
+        and artifact.get("plan_ref") == _record_ref(spike.get("spike_id"), 1, spike.get("plan_sha256"))
+        and artifact.get("attempt_ref")
+        == (_record_ref(spike.get("attempt_id"), 1, spike.get("attempt_sha256")) if running else None)
+        and artifact.get("lease_ref")
+        == (_record_ref(spike.get("lease_id"), 1, spike.get("lease_sha256")) if running else None)
+        and artifact.get("execution_proposal_ref") == proposal_ref
+        and isinstance(artifact.get("reason"), str)
+        and bool(artifact["reason"])
+        and isinstance(evidence_refs, list)
+        and bool(evidence_refs)
+        and all(_projection_record_ref_matches(state, ref) for ref in evidence_refs)
+        and isinstance(artifact.get("completed_scope"), list)
+        and isinstance(artifact.get("unmet_scope"), list)
+        and bool(artifact["unmet_scope"])
+        and isinstance(artifact.get("restrictions"), list)
+        and "no_promotion" in artifact["restrictions"]
+        and sha256_hex(canonical_bytes(artifact)) == payload.get("cancellation_sha256")
+    )
+
+
 def _spike_execution_ids_available(
     spikes: Mapping[str, Mapping[str, Any]],
     spike_id: Any,
@@ -773,6 +1100,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             state["source_observations"][observation_id] = {
                 **deepcopy(payload),
                 "global_position": event["global_position"],
+                "version": event["stream_version"],
             }
         elif event_type == "CandidateRegistered":
             if state["catalogue"] is None:
@@ -812,6 +1140,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "assay_bar_acceptance_sha256": required_string("assay_bar_acceptance_sha256"),
                 "producer_relation_sha256": required_string("producer_relation_sha256"),
                 "producer_actor_id": required_string("producer_actor_id"),
+                "request_version": event["stream_version"],
+                "requested_event_hash": event.get("event_hash"),
                 "status": "requested",
                 "version": event["stream_version"],
             }
@@ -837,17 +1167,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(artifact, dict)
                 or assay.get("status") != "evidence_collecting"
                 or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
-                or artifact.get("candidate_ref")
-                != {
-                    "id": payload.get("candidate_id"),
-                    "record_revision": candidate.get("revision"),
-                    "content_hash": candidate.get("content_sha256"),
-                }
-                or artifact.get("assay_id") != payload.get("assay_id")
-                or artifact.get("assay_relation_hash") != assay.get("producer_relation_sha256")
-                or artifact.get("producer_actor_id") != event.get("actor_id")
-                or artifact.get("required_axis_set_hash") != artifact.get("observed_axis_set_hash")
-                or sha256_hex(canonical_bytes(artifact)) != payload.get("scorecard_sha256")
+                or not _assay_scorecard_matches(
+                    artifact,
+                    payload,
+                    candidate,
+                    assay,
+                    state["assay_bar_authority"],
+                    event.get("actor_id"),
+                )
             ):
                 raise IntegrityError("invalid Assay score transition")
             assay.update(
@@ -1117,6 +1444,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "decision_kind": required_string("decision_kind"),
                 "recommendation": required_string("recommendation"),
                 "options": options,
+                "proposal_event_hash": event.get("event_hash"),
+                "proposal_version": event["stream_version"],
                 "version": event["stream_version"],
             }
         elif event_type == "DecisionResolved":
@@ -1335,15 +1664,29 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         elif event_type == "SpikeExecutionDecisionRequested":
             spike = state["spikes"].get(payload.get("spike_id"))
             decision = state["decisions"].get(payload.get("decision_id"))
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            assay = state["assays"].get(candidate.get("assay_id")) if isinstance(candidate, Mapping) else None
             if (
                 not isinstance(spike, dict)
                 or not isinstance(decision, dict)
+                or not isinstance(candidate, dict)
+                or not isinstance(assay, dict)
                 or decision.get("status") != "proposed"
                 or not _valid_spike_execution_proposal(payload.get("w2_payload"))
                 or payload["w2_payload"].get("new_decision_id") != payload.get("decision_id")
+                or not _spike_execution_relation_matches(
+                    payload.get("execution_authority_relation"),
+                    candidate=candidate,
+                    assay=assay,
+                    spike=spike,
+                    decision_id=payload.get("decision_id"),
+                )
             ):
                 raise IntegrityError("invalid Spike execution decision request")
-            spike.update(decision_id=required_string("decision_id"))
+            spike.update(
+                decision_id=required_string("decision_id"),
+                execution_authority_relation=deepcopy(payload["execution_authority_relation"]),
+            )
         elif event_type == "SpikeAuthorized":
             spike = state["spikes"].get(payload.get("spike_id"))
             decision = state["decisions"].get(payload.get("decision_id"))
@@ -1353,6 +1696,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
                 or decision.get("selected_option") != "approve"
+                or payload.get("execution_authority_relation") != spike.get("execution_authority_relation")
+                or spike.get("execution_authority_relation", {}).get("actor_id") != event.get("actor_id")
             ):
                 raise IntegrityError("invalid Spike authorization")
             spike.update(status="authorized")
@@ -1374,6 +1719,9 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                     attempt_id,
                     lease_id,
                 )
+                or payload.get("execution_authority_relation") != spike.get("execution_authority_relation")
+                or spike.get("execution_authority_relation", {}).get("resource_ref", {}).get("id")
+                != payload.get("resource_grant_id")
             ):
                 raise IntegrityError("invalid Spike start")
             spike.update(
@@ -1381,6 +1729,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 attempt_id=attempt_id,
                 attempt_sha256=required_string("attempt_sha256"),
                 lease_id=lease_id,
+                lease_sha256=required_string("lease_sha256"),
                 lease_status="active",
             )
         elif event_type == "CandidateSpikeStarted":
@@ -1390,7 +1739,17 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_running")
         elif event_type == "SpikeVerdictRecorded":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict) or spike.get("status") != "running":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            assay = state["assays"].get(candidate.get("assay_id")) if isinstance(candidate, Mapping) else None
+            artifact = payload.get("verdict_artifact")
+            if (
+                not isinstance(spike, dict)
+                or not isinstance(candidate, dict)
+                or not isinstance(assay, dict)
+                or not isinstance(artifact, dict)
+                or spike.get("status") != "running"
+                or not _spike_verdict_matches(artifact, payload, candidate, assay, spike, state)
+            ):
                 raise IntegrityError("invalid Spike verdict")
             spike.update(
                 status="verdict_recorded",
@@ -1400,7 +1759,17 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
         elif event_type == "SpikePartialRecorded":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict) or spike.get("status") != "running":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            assay = state["assays"].get(candidate.get("assay_id")) if isinstance(candidate, Mapping) else None
+            artifact = payload.get("verdict_artifact")
+            if (
+                not isinstance(spike, dict)
+                or not isinstance(candidate, dict)
+                or not isinstance(assay, dict)
+                or not isinstance(artifact, dict)
+                or spike.get("status") != "running"
+                or not _spike_verdict_matches(artifact, payload, candidate, assay, spike, state)
+            ):
                 raise IntegrityError("invalid Spike partial verdict")
             spike.update(
                 status="partial_recorded",
@@ -1495,10 +1864,21 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike.update(status="partial_reviewed", review_pending=False)
         elif event_type == "SpikeCancelled":
             spike = state["spikes"].get(payload.get("spike_id"))
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            decision = state["decisions"].get(spike.get("decision_id")) if isinstance(spike, Mapping) else None
             if (
                 not isinstance(spike, dict)
+                or not isinstance(candidate, dict)
                 or event.get("stream_id") != payload.get("spike_id")
                 or spike.get("status") not in {"planned", "approval_pending", "authorized", "running"}
+                or not _spike_cancellation_matches(
+                    payload.get("cancellation_artifact"),
+                    payload=payload,
+                    candidate=candidate,
+                    spike=spike,
+                    decision=decision,
+                    state=state,
+                )
             ):
                 raise IntegrityError("invalid Spike cancellation")
             decision = state["decisions"].get(spike.get("decision_id"))
@@ -2823,6 +3203,42 @@ class DiscoveryRuntime:
             return False
         return _revisit_relation_matches(relation, **expected)
 
+    def _valid_spike_execution_relation(
+        self,
+        relation: Any,
+        *,
+        candidate: Mapping[str, Any],
+        assay: Mapping[str, Any],
+        spike: Mapping[str, Any],
+        decision_id: Any,
+    ) -> bool:
+        """Validate the accepted execution subject and current resource identity."""
+
+        if not isinstance(relation, dict):
+            return False
+        try:
+            self.schemas.validate(
+                "ars://portfolio/relation/spike-execution-authority",
+                relation,
+                schema_version="1.0.0",
+            )
+            operational = replay_control_plane(self._operational_events())
+        except (SchemaError, KeyError, TypeError, ValueError):
+            return False
+        resource_ref = relation.get("resource_ref")
+        resource = operational.stream_states.get(resource_ref.get("id")) if isinstance(resource_ref, Mapping) else None
+        return bool(
+            isinstance(resource, Mapping)
+            and resource_ref == _record_ref(resource_ref.get("id"), 1, sha256_hex(canonical_bytes(resource)))
+            and _spike_execution_relation_matches(
+                relation,
+                candidate=candidate,
+                assay=assay,
+                spike=spike,
+                decision_id=decision_id,
+            )
+        )
+
     def _prepare_spike(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
@@ -2945,6 +3361,14 @@ class DiscoveryRuntime:
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
             and _valid_spike_execution_proposal(p["w2_payload"])
+            and isinstance(assay, dict)
+            and self._valid_spike_execution_relation(
+                p.get("execution_authority_relation"),
+                candidate=candidate,
+                assay=assay,
+                spike=spike,
+                decision_id=decision_id,
+            )
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -2965,6 +3389,8 @@ class DiscoveryRuntime:
             and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
             and p["w2_payload"]["selected_option"] in decision.get("options", ())
+            and p.get("execution_authority_relation") == spike.get("execution_authority_relation")
+            and spike.get("execution_authority_relation", {}).get("actor_id") == command.actor_id
         ):
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -2991,8 +3417,22 @@ class DiscoveryRuntime:
                 p.get("lease_id"),
             )
             and self._valid_live_spike_lease(p, command)
+            and isinstance(spike.get("execution_authority_relation"), Mapping)
+            and spike["execution_authority_relation"].get("resource_ref", {}).get("id") == p.get("resource_grant_id")
         ):
-            return out(("SpikeStarted", spike_id), ("CandidateSpikeStarted", candidate_id))
+            operational = replay_control_plane(self._operational_events())
+            lease = operational.stream_states.get(p.get("lease_id"))
+            if not isinstance(lease, Mapping):
+                raise IntegrityError("invalid Spike transition")
+            start_payload = {
+                **deepcopy(p),
+                "lease_sha256": sha256_hex(canonical_bytes(lease)),
+                "execution_authority_relation": deepcopy(spike["execution_authority_relation"]),
+            }
+            return [
+                ("SpikeStarted", spike_id, deepcopy(start_payload)),
+                ("CandidateSpikeStarted", candidate_id, deepcopy(start_payload)),
+            ]
         if (
             ct == "RecordSpikeVerdict"
             and row in {"OR-018", "OR-019"}
@@ -3003,7 +3443,7 @@ class DiscoveryRuntime:
             and candidate.get("status") == "spike_running"
             and command.target_stream_id == spike_id
             and isinstance(p.get("verdict_artifact"), dict)
-            and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike)
+            and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike, projection)
         ):
             if (p.get("verdict") == "PARTIAL") != (row == "OR-019"):
                 raise IntegrityError("invalid Spike transition")
@@ -3061,8 +3501,14 @@ class DiscoveryRuntime:
                 or command.target_stream_id != spike_id
                 or p.get("evaluation_kind") != "spike"
                 or not isinstance(artifact, dict)
-                or not isinstance(artifact.get("reason"), str)
-                or sha256_hex(canonical_bytes(artifact)) != p.get("cancellation_sha256")
+                or not _spike_cancellation_matches(
+                    artifact,
+                    payload=p,
+                    candidate=candidate,
+                    spike=spike,
+                    decision=projection["decisions"].get(spike.get("decision_id")),
+                    state=projection,
+                )
             ):
                 raise IntegrityError("invalid Spike cancellation transition")
             events: list[tuple[str, str, dict[str, Any]]] = []
@@ -3465,6 +3911,7 @@ class DiscoveryRuntime:
         candidate: dict[str, Any],
         assay: dict[str, Any] | None,
         spike: dict[str, Any],
+        projection: dict[str, Any],
     ) -> bool:
         """Validate exact evidence relationships and the PASS/FAIL truth table."""
 
@@ -3472,59 +3919,9 @@ class DiscoveryRuntime:
             self.schemas.validate("ars://portfolio/spike-verdict", artifact, schema_version="1.0.0")
         except SchemaError as exc:
             raise IntegrityError("invalid Spike verdict artifact") from exc
-        plan = spike.get("plan_artifact")
-        if not isinstance(plan, dict) or not isinstance(assay, dict):
+        if not isinstance(assay, dict):
             return False
-        expected_candidate = {
-            "id": payload.get("candidate_id"),
-            "record_revision": candidate.get("revision"),
-            "content_hash": candidate.get("content_sha256"),
-        }
-        relationships_match = (
-            artifact.get("spike_id") == payload.get("spike_id")
-            and artifact.get("candidate_ref") == expected_candidate
-            and artifact.get("originating_assay_ref", {}).get("id") == candidate.get("assay_id")
-            and artifact.get("originating_assay_ref", {}).get("content_hash") == assay.get("scorecard_sha256")
-            and artifact.get("spike_plan_ref", {}).get("id") == payload.get("spike_id")
-            and artifact.get("spike_plan_ref", {}).get("content_hash") == spike.get("plan_sha256")
-            and artifact.get("attempt_ref", {}).get("id") == spike.get("attempt_id")
-            and artifact.get("attempt_ref", {}).get("content_hash") == spike.get("attempt_sha256")
-            and artifact.get("verdict") == payload.get("verdict")
-            and sha256_hex(canonical_bytes(artifact)) == payload.get("verdict_sha256")
-            and bool(artifact.get("validation_refs"))
-            and any("dispatch" in value.casefold() for value in artifact.get("prohibited_inferences", ()))
-        )
-        success = artifact.get("success_predicates", [])
-        failure = artifact.get("failure_predicates", [])
-        kills = artifact.get("kill_conditions", [])
-        has_unknown = any(value.get("status") == "unable_to_evaluate" for value in [*success, *failure, *kills])
-        predicate_closure = (
-            [value.get("predicate") for value in success] == plan.get("success_predicates")
-            and [value.get("predicate") for value in failure] == plan.get("failure_predicates")
-            and [value.get("condition") for value in kills] == plan.get("kill_conditions")
-        )
-        if artifact.get("verdict") == "PASS":
-            truth_table = (
-                not has_unknown
-                and bool(success)
-                and all(value.get("status") == "passed" for value in success)
-                and all(value.get("status") != "failed" for value in failure)
-                and all(value.get("status") == "not_triggered" for value in kills)
-            )
-        elif artifact.get("verdict") == "FAIL":
-            truth_table = not has_unknown and (
-                any(value.get("status") == "failed" for value in failure)
-                or any(value.get("status") == "triggered" for value in kills)
-            )
-        else:
-            truth_table = bool(
-                has_unknown
-                and artifact.get("completed_scope")
-                and artifact.get("unmet_scope")
-                and artifact.get("limitations")
-                and artifact.get("mechanical_recommendation") != "PROMOTE"
-            )
-        return bool(relationships_match and predicate_closure and truth_table)
+        return _spike_verdict_matches(artifact, payload, candidate, assay, spike, projection)
 
     def _prepare_assay(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Assay lifecycle transition batch."""
@@ -3600,7 +3997,14 @@ class DiscoveryRuntime:
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_pending"
                 or not isinstance(payload.get("scorecard_artifact"), dict)
-                or not self._valid_assay_scorecard(payload["scorecard_artifact"], payload, candidate, assay, command)
+                or not self._valid_assay_scorecard(
+                    payload["scorecard_artifact"],
+                    payload,
+                    candidate,
+                    assay,
+                    projection["assay_bar_authority"],
+                    command,
+                )
             ):
                 raise IntegrityError("invalid RecordAssayScore transition")
             return [
@@ -3833,6 +4237,7 @@ class DiscoveryRuntime:
         payload: dict[str, Any],
         candidate: dict[str, Any],
         assay: dict[str, Any],
+        bar: dict[str, Any],
         command: Command,
     ) -> bool:
         """Validate and bind the exact Assay scorecard before publication."""
@@ -3840,19 +4245,7 @@ class DiscoveryRuntime:
             self.schemas.validate("ars://portfolio/assay-scorecard", artifact, schema_version="1.0.0")
         except SchemaError as exc:
             raise IntegrityError("invalid Assay scorecard artifact") from exc
-        expected_candidate = {
-            "id": payload.get("candidate_id"),
-            "record_revision": candidate.get("revision"),
-            "content_hash": candidate.get("content_sha256"),
-        }
-        return bool(
-            artifact.get("candidate_ref") == expected_candidate
-            and artifact.get("assay_id") == payload.get("assay_id")
-            and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
-            and artifact.get("producer_actor_id") == command.actor_id
-            and artifact.get("required_axis_set_hash") == artifact.get("observed_axis_set_hash")
-            and sha256_hex(canonical_bytes(artifact)) == payload.get("scorecard_sha256")
-        )
+        return _assay_scorecard_matches(artifact, payload, candidate, assay, bar, command.actor_id)
 
     def _valid_assay_partial(
         self,
@@ -3975,7 +4368,7 @@ class DiscoveryRuntime:
             or not all(isinstance(item, str) and item for item in observations)
         ):
             raise IntegrityError("invalid Candidate registration")
-        if command.target_stream_id in projection["candidates"]:
+        if _discovery_identity_exists(projection, command.target_stream_id):
             raise IntegrityError("Candidate identity collision")
         multiset_hash = _source_observation_multiset_hash(observations, projection["source_observations"])
         if digest != multiset_hash:
