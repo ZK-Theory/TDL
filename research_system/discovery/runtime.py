@@ -780,8 +780,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Candidate Assay review transition")
             candidate.update(status="assay_revisit_eligible", version=event["stream_version"])
         elif event_type == "DecisionProposed":
-            decision_id = payload.get("new_decision_id")
-            if not isinstance(decision_id, str) or decision_id in state["decisions"]:
+            decision_id = required_string("new_decision_id")
+            if event["stream_id"] != decision_id or decision_id in state["decisions"]:
                 raise IntegrityError("invalid Discovery decision proposal")
             state["decisions"][decision_id] = {
                 "status": "proposed",
@@ -789,8 +789,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "version": event["stream_version"],
             }
         elif event_type == "DecisionResolved":
-            decision = state["decisions"].get(payload.get("decision_id"))
-            if not isinstance(decision, dict) or decision.get("status") != "proposed":
+            decision_id = required_string("decision_id")
+            decision = state["decisions"].get(decision_id)
+            if (
+                event["stream_id"] != decision_id
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+            ):
                 raise IntegrityError("invalid Discovery decision resolution")
             decision.update(
                 status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]

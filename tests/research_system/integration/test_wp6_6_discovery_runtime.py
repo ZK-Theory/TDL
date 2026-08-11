@@ -1869,6 +1869,18 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         )["payload"]["next_candidate_state"] = "spike_planning_authorized"
         with pytest.raises(IntegrityError, match="invalid Candidate promotion application"):
             replay_discovery(_rehash_events(tampered))
+        for event_type, identity_field, message in (
+            ("DecisionProposed", "new_decision_id", "invalid Discovery decision proposal"),
+            ("DecisionResolved", "decision_id", "invalid Discovery decision resolution"),
+        ):
+            tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+            next(
+                event
+                for event in tampered
+                if event["event_type"] == event_type and event["stream_id"] == post_promotion_id
+            )["payload"][identity_field] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
+            with pytest.raises(IntegrityError, match=message):
+                replay_discovery(_rehash_events(tampered))
     if spike_verdict == "PARTIAL":
         revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff71"
         revisit_proposal = proposed(revisit_id, "spike_revisit")
