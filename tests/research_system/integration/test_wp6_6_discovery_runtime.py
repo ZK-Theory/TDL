@@ -58,6 +58,21 @@ def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, obj
     return rehashed
 
 
+def _reindex_and_rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    """Rebuild positions and transaction cardinalities for a semantic deletion attack."""
+
+    reindexed = tuple(deepcopy(events))
+    transaction_events: dict[object, list[dict[str, object]]] = {}
+    for global_position, event in enumerate(reindexed, start=1):
+        event["global_position"] = global_position
+        transaction_events.setdefault(event.get("transaction_id"), []).append(event)
+    for members in transaction_events.values():
+        for transaction_index, event in enumerate(members, start=1):
+            event["transaction_index"] = transaction_index
+            event["transaction_count"] = len(members)
+    return _rehash_events(reindexed)
+
+
 def _runtime(tmp_path: Path) -> DiscoveryRuntime:
     harness = _HARNESSES.get(tmp_path)
     if harness is None:
@@ -1848,6 +1863,31 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "SpikeCancelled",
             "CandidateEvaluationCancelled",
         )
+        cancellation_events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        for missing_event_type in (
+            "SpikeExecutionProposalSupersededByCancellation",
+            "SpikeCancelled",
+            "CandidateEvaluationCancelled",
+        ):
+            missing_pair_member = tuple(
+                event
+                for event in cancellation_events
+                if not (
+                    event["event_type"] == missing_event_type
+                    and event["transaction_id"] == cancellation_events[-1]["transaction_id"]
+                )
+            )
+            with pytest.raises(IntegrityError, match="cancellation"):
+                replay_discovery(_reindex_and_rehash_events(missing_pair_member))
+        substituted_hash = tuple(deepcopy(event) for event in cancellation_events)
+        next(
+            event
+            for event in substituted_hash
+            if event["event_type"] == "SpikeExecutionProposalSupersededByCancellation"
+            and event["stream_id"] == retry_execution_id
+        )["payload"]["cancellation_sha256"] = "f" * 64
+        with pytest.raises(IntegrityError, match="invalid Spike execution proposal cancellation"):
+            replay_discovery(_rehash_events(substituted_hash))
         cancellation_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff74"
         cancellation_contract = deepcopy(review_contract)
         cancellation_contract.update(

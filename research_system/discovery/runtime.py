@@ -622,6 +622,29 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict) or payload.get("evaluation_kind") not in {"assay", "spike"}:
                 raise IntegrityError("invalid Candidate evaluation cancellation")
+            if payload.get("evaluation_kind") == "spike":
+                spike = state["spikes"].get(payload.get("spike_id"))
+                decision = state["decisions"].get(spike.get("decision_id")) if isinstance(spike, dict) else None
+                if (
+                    not isinstance(spike, dict)
+                    or spike.get("candidate_id") != payload.get("candidate_id")
+                    or spike.get("status") != "cancelled"
+                ):
+                    raise IntegrityError("invalid Candidate evaluation cancellation")
+                if (
+                    spike.get("decision_id") is not None
+                    and isinstance(decision, dict)
+                    and decision.get("status") in {"cancellation_pending", "candidate_cancellation_pending"}
+                ):
+                    if (
+                        decision.get("status") != "candidate_cancellation_pending"
+                        or decision.get("cancellation_candidate_id") != payload.get("candidate_id")
+                        or decision.get("cancellation_spike_id") != payload.get("spike_id")
+                        or decision.get("cancellation_sha256") != payload.get("cancellation_sha256")
+                        or decision.get("cancellation_transaction_id") != event.get("transaction_id")
+                    ):
+                        raise IntegrityError("invalid Spike execution proposal cancellation")
+                    decision.update(status="superseded_by_cancellation")
             candidate.update(
                 status=f"{payload['evaluation_kind']}_cancelled",
                 version=event["stream_version"],
@@ -782,9 +805,18 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or spike.get("status") != "approval_pending"
                 or spike.get("decision_id") != payload.get("decision_id")
                 or spike.get("candidate_id") != payload.get("candidate_id")
+                or event.get("stream_id") != payload.get("decision_id")
+                or not isinstance(event.get("transaction_id"), str)
             ):
                 raise IntegrityError("invalid Spike execution proposal cancellation")
-            decision.update(status="superseded_by_cancellation", version=event["stream_version"])
+            decision.update(
+                status="cancellation_pending",
+                cancellation_candidate_id=required_string("candidate_id"),
+                cancellation_spike_id=required_string("spike_id"),
+                cancellation_sha256=required_string("cancellation_sha256"),
+                cancellation_transaction_id=event.get("transaction_id"),
+                version=event["stream_version"],
+            )
         elif event_type in {"AssayRevisitRequested", "SpikeRevisitRequested"}:
             collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
             subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
@@ -1018,13 +1050,24 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike.update(status="partial_reviewed", review_pending=False)
         elif event_type == "SpikeCancelled":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict) or spike.get("status") not in {
-                "planned",
-                "approval_pending",
-                "authorized",
-                "running",
-            }:
+            if (
+                not isinstance(spike, dict)
+                or event.get("stream_id") != payload.get("spike_id")
+                or spike.get("status") not in {"planned", "approval_pending", "authorized", "running"}
+            ):
                 raise IntegrityError("invalid Spike cancellation")
+            decision = state["decisions"].get(spike.get("decision_id"))
+            if spike.get("status") == "approval_pending" and spike.get("decision_id") is not None:
+                if (
+                    not isinstance(decision, dict)
+                    or decision.get("status") != "cancellation_pending"
+                    or decision.get("cancellation_candidate_id") != payload.get("candidate_id")
+                    or decision.get("cancellation_spike_id") != payload.get("spike_id")
+                    or decision.get("cancellation_sha256") != payload.get("cancellation_sha256")
+                    or decision.get("cancellation_transaction_id") != event.get("transaction_id")
+                ):
+                    raise IntegrityError("invalid Spike execution proposal cancellation")
+                decision.update(status="candidate_cancellation_pending")
             spike.update(
                 status="cancelled",
                 outcome_sha256=required_string("cancellation_sha256"),
@@ -1116,6 +1159,11 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             state["scopes"][scope_id] = deepcopy(payload)
         else:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
+    if any(
+        decision.get("status") in {"cancellation_pending", "candidate_cancellation_pending"}
+        for decision in state["decisions"].values()
+    ):
+        raise IntegrityError("incomplete Spike execution proposal cancellation")
     for dossier_id, dossier in state["dossiers"].items():
         object_count = sum(
             value.get("dossier_id") == dossier_id and value.get("portfolio_kind") != "dependency_edge"
