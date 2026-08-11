@@ -33,6 +33,18 @@ GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
 _HARNESSES = {}
 
 
+def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    rehashed = tuple(deepcopy(events))
+    previous_hash = "0" * 64
+    for event in rehashed:
+        event["previous_event_hash"] = previous_hash
+        unsigned = dict(event)
+        unsigned.pop("event_hash", None)
+        event["event_hash"] = sha256_hex(canonical_bytes(unsigned))
+        previous_hash = event["event_hash"]
+    return rehashed
+
+
 def _runtime(tmp_path: Path) -> DiscoveryRuntime:
     harness = _HARNESSES.get(tmp_path)
     if harness is None:
@@ -583,6 +595,27 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assert projection["assays"][assay_id]["scorecard_sha256"] == "4" * 64
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == review_status
+    if verdict == "approve":
+        for tampered_verdict in ("approve", "approve_with_conditions"):
+            events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+            verdict_event = next(event for event in events if event["event_type"] == "ReviewVerdictRecorded")
+            verdict_event["actor_id"] = ACTOR_ID
+            verdict_event["payload"]["reviewer_actor_id"] = ACTOR_ID
+            verdict_event["payload"]["verdict"] = tampered_verdict
+            verdict_event["payload"]["conditions"] = (
+                [
+                    {
+                        "gate_disposition": "non_blocking",
+                        "owner_actor_id": ACTOR_ID,
+                        "policy_id": "policy:assay-review",
+                        "evidence_refs": ["scorecard:exact"],
+                    }
+                ]
+                if tampered_verdict == "approve_with_conditions"
+                else []
+            )
+            with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+                replay_discovery(_rehash_events(events))
 
 
 def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path: Path) -> None:
@@ -1038,3 +1071,27 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "ReviewVerdictRecorded",
         "SpikeReviewed",
     )
+    for tampered_verdict in ("approve", "approve_with_conditions"):
+        events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        verdict_event = next(
+            event
+            for event in events
+            if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == review_id
+        )
+        verdict_event["actor_id"] = ACTOR_ID
+        verdict_event["payload"]["reviewer_actor_id"] = ACTOR_ID
+        verdict_event["payload"]["verdict"] = tampered_verdict
+        verdict_event["payload"]["conditions"] = (
+            [
+                {
+                    "gate_disposition": "non_blocking",
+                    "owner_actor_id": ACTOR_ID,
+                    "policy_id": "policy:spike-review",
+                    "evidence_refs": ["evidence:provider-free"],
+                }
+            ]
+            if tampered_verdict == "approve_with_conditions"
+            else []
+        )
+        with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+            replay_discovery(_rehash_events(events))

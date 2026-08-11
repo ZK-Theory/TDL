@@ -327,10 +327,20 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
         elif event_type == "ReviewRequested":
             review_id = payload.get("new_review_id")
-            if not isinstance(review_id, str) or review_id in state["reviews"]:
+            subject_ids = required_string_list("subject_ids")
+            if not isinstance(review_id, str) or review_id in state["reviews"] or len(subject_ids) != 1:
                 raise IntegrityError("invalid Discovery review request")
+            subject_id = subject_ids[0]
+            if subject_id.startswith("asy_"):
+                subject_kind = "assay"
+            elif subject_id.startswith("spk_"):
+                subject_kind = "spike"
+            else:
+                raise IntegrityError("invalid Discovery review subject")
             state["reviews"][review_id] = {
                 "review_id": review_id,
+                "subject_id": subject_id,
+                "subject_kind": subject_kind,
                 "subject_sha256": required_string_list("subject_hashes")[0],
                 "allowed_verdicts": required_string_list("allowed_verdicts"),
                 "request_actor_id": event.get("actor_id"),
@@ -344,17 +354,31 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
         elif event_type == "ReviewVerdictRecorded":
             review = state["reviews"].get(payload.get("review_id"))
+            reviewer_actor_id = required_string("reviewer_actor_id")
+            subject_collection = {
+                "assay": state["assays"],
+                "spike": state["spikes"],
+            }.get(review.get("subject_kind") if isinstance(review, dict) else None)
+            subject = (
+                subject_collection.get(review.get("subject_id"))
+                if isinstance(subject_collection, dict) and isinstance(review, dict)
+                else None
+            )
             if (
                 not isinstance(review, dict)
+                or not isinstance(subject, dict)
                 or review.get("status") != "pending"
                 or review.get("subject_sha256") != payload.get("unchanged_subject_sha256")
                 or payload.get("verdict") not in review.get("allowed_verdicts", ())
+                or reviewer_actor_id != event.get("actor_id")
+                or reviewer_actor_id == review.get("request_actor_id")
+                or reviewer_actor_id == subject.get("producer_actor_id")
             ):
                 raise IntegrityError("invalid Discovery review verdict")
             review.update(
                 status=_review_policy_status(payload),
                 verdict=required_string("verdict"),
-                reviewer_actor_id=required_string("reviewer_actor_id"),
+                reviewer_actor_id=reviewer_actor_id,
                 version=event["stream_version"],
             )
         elif event_type == "AssayReviewed":
