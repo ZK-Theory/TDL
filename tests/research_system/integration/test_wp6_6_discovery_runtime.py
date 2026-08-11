@@ -194,6 +194,62 @@ def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, me
         replay_discovery((event,))
 
 
+@pytest.mark.parametrize(
+    ("event_type", "missing_field"),
+    [("AssayRequested", "candidate_revision"), ("CandidateAssayRequested", "assay_id")],
+)
+def test_replay_rejects_ledger_derived_missing_fields_as_integrity_error(
+    tmp_path: Path, event_type: str, missing_field: str
+) -> None:
+    runtime = _runtime(tmp_path)
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff80"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff81"
+    runtime.submit(_genesis())
+    runtime.submit(
+        _command(
+            "RegisterCandidate",
+            candidate_id,
+            0,
+            {
+                "candidate_id": candidate_id,
+                "revision": 1,
+                "content_sha256": "1" * 64,
+                "source_observation_refs": ["obs:malformed-replay"],
+                "title": "Malformed replay probe",
+            },
+        )
+    )
+    runtime.submit(
+        _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": "1" * 64,
+                "assay_bar_acceptance_sha256": "2" * 64,
+                "producer_relation_sha256": "3" * 64,
+            },
+        )
+    )
+    events = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    for event in events:
+        if event["event_type"] == event_type:
+            event["payload"].pop(missing_field)
+        event["previous_event_hash"] = (
+            events[event["global_position"] - 2]["event_hash"] if event["global_position"] > 1 else "0" * 64
+        )
+        unsigned = dict(event)
+        unsigned.pop("event_hash", None)
+        event["event_hash"] = sha256_hex(canonical_bytes(unsigned))
+
+    with pytest.raises(IntegrityError, match=f"requires {missing_field}"):
+        replay_discovery(events)
+
+
 def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tmp_path: Path) -> None:
     harness = control_plane(tmp_path)
     root = tmp_path / "governed-discovery"

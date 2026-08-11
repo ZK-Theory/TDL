@@ -107,6 +107,18 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError(f"Discovery event payload requires {key}")
             return value
 
+        def required_int(key: str) -> int:
+            value = payload.get(key)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise IntegrityError(f"Discovery event payload requires {key}")
+            return value
+
+        def required_string_list(key: str) -> list[str]:
+            value = payload.get(key)
+            if not isinstance(value, list) or not value or not all(isinstance(item, str) for item in value):
+                raise IntegrityError(f"Discovery event payload requires {key}")
+            return value
+
         if "authority_event_type" in payload:
             authority_payload = payload.get("authority_payload")
             if not isinstance(authority_payload, dict):
@@ -231,10 +243,10 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             state["assays"][assay_id] = {
                 "assay_id": assay_id,
                 "candidate_id": candidate_id,
-                "candidate_revision": payload["candidate_revision"],
-                "candidate_sha256": payload["candidate_sha256"],
-                "assay_bar_acceptance_sha256": payload["assay_bar_acceptance_sha256"],
-                "producer_relation_sha256": payload["producer_relation_sha256"],
+                "candidate_revision": required_int("candidate_revision"),
+                "candidate_sha256": required_string("candidate_sha256"),
+                "assay_bar_acceptance_sha256": required_string("assay_bar_acceptance_sha256"),
+                "producer_relation_sha256": required_string("producer_relation_sha256"),
                 "status": "requested",
                 "version": event["stream_version"],
             }
@@ -247,7 +259,9 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict) or candidate.get("status") != "registered":
                 raise IntegrityError("invalid Candidate Assay transition")
-            candidate.update(status="assay_pending", assay_id=payload["assay_id"], version=event["stream_version"])
+            candidate.update(
+                status="assay_pending", assay_id=required_string("assay_id"), version=event["stream_version"]
+            )
         elif event_type == "AssayScored":
             assay = state["assays"].get(payload.get("assay_id"))
             if (
@@ -258,7 +272,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Assay score transition")
             assay.update(
                 status="scored",
-                scorecard_sha256=payload["scorecard_sha256"],
+                scorecard_sha256=required_string("scorecard_sha256"),
                 version=event["stream_version"],
             )
         elif event_type == "CandidateAssayLinked":
@@ -267,7 +281,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Candidate Assay score transition")
             candidate.update(
                 status="assay_scored",
-                scorecard_sha256=payload["scorecard_sha256"],
+                scorecard_sha256=required_string("scorecard_sha256"),
                 version=event["stream_version"],
             )
         elif event_type == "ReviewRequested":
@@ -276,7 +290,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Discovery review request")
             state["reviews"][review_id] = {
                 "review_id": review_id,
-                "subject_sha256": payload["subject_hashes"][0],
+                "subject_sha256": required_string_list("subject_hashes")[0],
                 "status": "pending",
                 "version": event["stream_version"],
             }
@@ -284,7 +298,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             assay = state["assays"].get(payload.get("assay_id"))
             if not isinstance(assay, dict) or assay.get("status") != "scored":
                 raise IntegrityError("invalid Assay outcome review request")
-            assay.update(review_id=payload["review_id"], review_pending=True, version=event["stream_version"])
+            assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
         elif event_type == "ReviewVerdictRecorded":
             review = state["reviews"].get(payload.get("review_id"))
             if (
