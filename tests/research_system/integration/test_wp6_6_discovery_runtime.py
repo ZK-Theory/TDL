@@ -11,6 +11,7 @@ import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.reducers import ControlPlaneState
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
 from research_system.store.ledger import EventLedger
@@ -31,6 +32,7 @@ CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
 _HARNESSES = {}
+_OPERATIONAL_STATES: dict[Path, ControlPlaneState] = {}
 
 
 def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
@@ -50,6 +52,7 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
     if harness is None:
         harness = control_plane(tmp_path)
         _HARNESSES[tmp_path] = harness
+        _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(frozenset(), {})
     root = tmp_path / "discovery"
     root.mkdir(exist_ok=True)
 
@@ -115,6 +118,8 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
             "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
             "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
         },
+        operational_control_root=harness.ledger.control_root,
+        operational_state_provider=lambda: _OPERATIONAL_STATES[tmp_path],
     )
 
 
@@ -161,6 +166,45 @@ def _command(
     }
 
 
+def _scorecard(candidate_id: str, assay_id: str, candidate_sha256: str, relation_sha256: str) -> dict[str, object]:
+    ref = {"id": "evidence:exact", "record_revision": 1, "content_hash": "6" * 64}
+    return {
+        "schema_id": "ars://portfolio/assay-scorecard",
+        "schema_version": "1.0.0",
+        "candidate_ref": {"id": candidate_id, "record_revision": 1, "content_hash": candidate_sha256},
+        "assay_id": assay_id,
+        "assay_requested_event_ref": ref,
+        "assay_relation_hash": relation_sha256,
+        "rubric_ref": ref,
+        "scope_ref": ref,
+        "assay_bar_acceptance_ref": ref,
+        "file_observation_refs": [ref, {**ref, "id": "evidence:scope"}],
+        "producer_relation_ref": ref,
+        "axis_results": [
+            {
+                "axis_id": "closure",
+                "axis_kind": "gate",
+                "value": True,
+                "rationale": "Exact fixture evidence closes the declared axis.",
+                "evidence_refs": [ref],
+                "unmet_condition_codes": [],
+                "validator_id": "validator:closure",
+                "validator_hash": "7" * 64,
+            }
+        ],
+        "required_axis_set_hash": "8" * 64,
+        "observed_axis_set_hash": "8" * 64,
+        "mechanical_recommendation": "PROMOTE",
+        "rule_evaluation_ref": ref,
+        "limitations": [],
+        "prohibited_inferences": ["The scorecard does not itself authorize promotion."],
+        "producer_actor_id": ACTOR_ID,
+        "producer_profile_ref": ref,
+        "producer_context_ref": ref,
+        "review_requirements": ["independent-review"],
+    }
+
+
 def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     command = _genesis()
@@ -204,6 +248,8 @@ def test_runtime_configuration_path_failures_are_integrity_errors(tmp_path: Path
             clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
             repository_root=repository_root,
             root_tokens={},
+            operational_control_root=harness.ledger.control_root,
+            operational_state_provider=harness.replay,
         )
 
 
@@ -334,6 +380,8 @@ def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tm
             "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
             "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
         },
+        operational_control_root=harness.ledger.control_root,
+        operational_state_provider=harness.replay,
     )
     grant_id = activate_lifecycle_grant(
         harness,
@@ -464,6 +512,8 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff59"
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5a"
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff5b"
+    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, "3" * 64)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(_genesis())
     runtime.submit(
         _command(
@@ -505,7 +555,8 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "row_id": "OR-004",
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
-                "scorecard_sha256": "4" * 64,
+                "scorecard_sha256": scorecard_sha256,
+                "scorecard_artifact": scorecard,
                 "producer_relation_sha256": "3" * 64,
             },
         )
@@ -520,12 +571,12 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "review_id": review_id,
-                "subject_sha256": "4" * 64,
+                "subject_sha256": scorecard_sha256,
                 "review_contract": {
                     "review_type": "provenance",
                     "new_review_id": review_id,
                     "subject_ids": [assay_id],
-                    "subject_hashes": ["4" * 64],
+                    "subject_hashes": [scorecard_sha256],
                     "governing_refs": ["W11:OR-034"],
                     "review_questions": ["Does the exact Assay evidence satisfy the accepted bar?"],
                     "required_evidence_refs": ["scorecard:exact"],
@@ -557,7 +608,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             "candidate_id": candidate_id,
             "assay_id": assay_id,
             "review_id": review_id,
-            "subject_sha256": "4" * 64,
+            "subject_sha256": scorecard_sha256,
             "verdict": verdict,
             "review_verdict": {
                 "review_id": review_id,
@@ -572,7 +623,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "reviewer_model_metadata": "independent-test-reviewer",
                 "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff5c",
                 "context_manifest_sha256": "5" * 64,
-                "unchanged_subject_sha256": "4" * 64,
+                "unchanged_subject_sha256": scorecard_sha256,
                 "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff5d",
                 "trace_visibility_evidence_refs": ["trace:assay-review"],
                 "computed_independence_grade": "independent",
@@ -592,7 +643,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     ]
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
     assert projection["assays"][assay_id]["status"] == assay_status
-    assert projection["assays"][assay_id]["scorecard_sha256"] == "4" * 64
+    assert projection["assays"][assay_id]["scorecard_sha256"] == scorecard_sha256
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == review_status
     if verdict == "approve":
@@ -618,7 +669,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 replay_discovery(_rehash_events(events))
 
 
-def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path: Path) -> None:
+@pytest.mark.parametrize(("spike_verdict", "verdict_row"), [("PASS", "OR-018"), ("PARTIAL", "OR-019")])
+def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+    tmp_path: Path, spike_verdict: str, verdict_row: str
+) -> None:
     runtime = _runtime(tmp_path)
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff68"
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff69"
@@ -630,6 +684,24 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff71"
     attempt_id = "att_019fed25-b33e-7740-b280-6f661aaeff6e"
     attempt_sha256 = "8" * 64
+    lease_id = "lease:exact"
+    resource_grant_id = "resource-grant:exact"
+    _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(
+        frozenset({attempt_id}),
+        {
+            attempt_id: {"attempt_id": attempt_id, "status": "running", "lease_id": lease_id},
+            lease_id: {
+                "lease_id": lease_id,
+                "status": "active",
+                "attempt_id": attempt_id,
+                "holder_actor_id": ACTOR_ID,
+                "resource_grant_id": resource_grant_id,
+                "expires_at": "2026-08-02T00:00:00Z",
+            },
+        },
+    )
+    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, "3" * 64)
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(_genesis())
     runtime.submit(
         _command(
@@ -670,7 +742,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "row_id": "OR-004",
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
-                "scorecard_sha256": "4" * 64,
+                "scorecard_sha256": scorecard_sha256,
+                "scorecard_artifact": scorecard,
                 "producer_relation_sha256": "3" * 64,
             },
         )
@@ -701,12 +774,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "review_id": assay_review_id,
-                "subject_sha256": "4" * 64,
+                "subject_sha256": scorecard_sha256,
                 "review_contract": {
                     "review_type": "provenance",
                     "new_review_id": assay_review_id,
                     "subject_ids": [assay_id],
-                    "subject_hashes": ["4" * 64],
+                    "subject_hashes": [scorecard_sha256],
                     "governing_refs": ["W11:OR-034"],
                     "review_questions": ["Is the scorecard exact?"],
                     "required_evidence_refs": ["scorecard:exact"],
@@ -738,7 +811,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "candidate_id": candidate_id,
             "assay_id": assay_id,
             "review_id": assay_review_id,
-            "subject_sha256": "4" * 64,
+            "subject_sha256": scorecard_sha256,
             "verdict": "approve",
             "review_verdict": {
                 "review_id": assay_review_id,
@@ -753,7 +826,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "reviewer_model_metadata": "test",
                 "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff72",
                 "context_manifest_sha256": "7" * 64,
-                "unchanged_subject_sha256": "4" * 64,
+                "unchanged_subject_sha256": scorecard_sha256,
                 "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff73",
                 "trace_visibility_evidence_refs": ["trace:assay"],
                 "computed_independence_grade": "independent",
@@ -819,7 +892,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         }
 
     candidate_ref = {"id": candidate_id, "record_revision": 1, "content_hash": "1" * 64}
-    assay_ref = {"id": assay_id, "record_revision": 1, "content_hash": "4" * 64}
+    assay_ref = {"id": assay_id, "record_revision": 1, "content_hash": scorecard_sha256}
     plan_artifact = {
         "schema_id": "ars://portfolio/spike-plan",
         "schema_version": "1.0.0",
@@ -858,7 +931,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "originating_assay_ref": assay_ref,
         "spike_plan_ref": {"id": spike_id, "record_revision": 1, "content_hash": plan_sha256},
         "attempt_ref": {"id": attempt_id, "record_revision": 1, "content_hash": attempt_sha256},
-        "verdict": "PASS",
+        "verdict": spike_verdict,
         "success_predicates": [{"predicate": "closure holds", "status": "passed", "evidence_refs": [candidate_ref]}],
         "failure_predicates": [{"predicate": "closure fails", "status": "passed", "evidence_refs": [candidate_ref]}],
         "kill_conditions": [
@@ -871,12 +944,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         ],
         "artefact_refs": [candidate_ref],
         "validation_refs": [candidate_ref],
-        "completed_scope": "The declared scope completed.",
-        "unmet_scope": "None.",
-        "limitations": [],
-        "mechanical_recommendation": "NONE",
+        "completed_scope": "The evaluable declared scope completed.",
+        "unmet_scope": "One predicate remains unevaluated." if spike_verdict == "PARTIAL" else "None.",
+        "limitations": ["One predicate could not be evaluated."] if spike_verdict == "PARTIAL" else [],
+        "mechanical_recommendation": "PARK" if spike_verdict == "PARTIAL" else "NONE",
         "prohibited_inferences": ["This verdict does not authorize dispatch."],
     }
+    if spike_verdict == "PARTIAL":
+        verdict_artifact["success_predicates"][0]["status"] = "unable_to_evaluate"
     verdict_sha256 = sha256_hex(canonical_bytes(verdict_artifact))
 
     commands = [
@@ -948,7 +1023,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "spike_id": spike_id,
                 "attempt_id": attempt_id,
                 "attempt_sha256": attempt_sha256,
-                "lease_id": "lease:exact",
+                "lease_id": lease_id,
+                "resource_grant_id": resource_grant_id,
             },
         ),
         _command(
@@ -956,10 +1032,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             spike_id,
             5,
             {
-                "row_id": "OR-018",
+                "row_id": verdict_row,
                 "candidate_id": candidate_id,
                 "spike_id": spike_id,
-                "verdict": "PASS",
+                "verdict": spike_verdict,
                 "verdict_sha256": verdict_sha256,
                 "verdict_artifact": verdict_artifact,
                 "evidence_refs": ["evidence:provider-free"],
@@ -981,7 +1057,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
-        if index == 6:
+        if index in {1, 4}:
+            substituted = deepcopy(command)
+            substituted["payload"]["w2_payload"]["decision_id"] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(substituted)
+            assert tuple(runtime.ledger.iter_events()) == before
+        if index == 6 and spike_verdict == "PASS":
             unevaluated = deepcopy(command)
             unevaluated_artifact = unevaluated["payload"]["verdict_artifact"]
             unevaluated_artifact["success_predicates"][0]["status"] = "unable_to_evaluate"
@@ -990,6 +1073,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(unevaluated)
             assert tuple(runtime.ledger.iter_events()) == before
+        if index == 5:
+            live_state = _OPERATIONAL_STATES[tmp_path]
+            expired = deepcopy(live_state.stream_states)
+            expired[lease_id]["expires_at"] = "2026-07-31T00:00:00Z"
+            _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(live_state.active_attempt_ids, expired)
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(command)
+            assert tuple(runtime.ledger.iter_events()) == before
+            _OPERATIONAL_STATES[tmp_path] = live_state
         assert runtime.submit(command).status == "accepted"
     review_contract = {
         "review_type": "provenance",
@@ -1067,10 +1160,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
     assert projection["spikes"][spike_id]["status"] == "reviewed"
     assert projection["reviews"][review_id]["status"] == "satisfied"
-    assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == (
-        "ReviewVerdictRecorded",
-        "SpikeReviewed",
-    )
+    expected_review_events = ("ReviewVerdictRecorded", "SpikeReviewed")
+    if spike_verdict == "PARTIAL":
+        expected_review_events += ("CandidateSpikePartialReviewed",)
+        assert projection["candidates"][candidate_id]["status"] == "spike_revisit_pending"
+    assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == expected_review_events
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(

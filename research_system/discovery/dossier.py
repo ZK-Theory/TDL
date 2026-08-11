@@ -331,6 +331,14 @@ def prepare_dossier_admission(
         raise DossierAdmissionRejected("stale_package_identity")
     if package.get("execution_authorized") is not False or package.get("dispatchable") is not False:
         raise DossierAdmissionRejected("provider_execution_boundary_violated")
+    manifest_members = package.get("members")
+    admitted_members = [row for row in observed if row["member_kind"] != "package_index"]
+    if (
+        not isinstance(manifest_members, list)
+        or package.get("member_count") != len(manifest_members)
+        or manifest_members != admitted_members
+    ):
+        raise DossierAdmissionRejected("package_manifest_closure_mismatch")
 
     closure_hash = _canonical_hash(observed)
     base = {

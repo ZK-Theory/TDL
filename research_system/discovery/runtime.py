@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterable, Mapping
 from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
+from research_system.command.reducers import ControlPlaneState
 from research_system.discovery.authority import prepare_authority_transition, replay_authority
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
@@ -473,11 +474,26 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 verdict_sha256=required_string("verdict_sha256"),
                 producer_actor_id=event.get("actor_id"),
             )
+        elif event_type == "SpikePartialRecorded":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict) or spike.get("status") != "running":
+                raise IntegrityError("invalid Spike partial verdict")
+            spike.update(
+                status="partial_recorded",
+                verdict=required_string("verdict"),
+                verdict_sha256=required_string("verdict_sha256"),
+                producer_actor_id=event.get("actor_id"),
+            )
         elif event_type == "CandidateSpikeVerdictLinked":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
                 raise IntegrityError("invalid Candidate Spike verdict link")
             candidate.update(status="spike_verdict_recorded")
+        elif event_type == "CandidateSpikePartialLinked":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "spike_running":
+                raise IntegrityError("invalid Candidate Spike partial link")
+            candidate.update(status="spike_partial_recorded")
         elif event_type == "SpikeReviewRequested":
             spike = state["spikes"].get(payload.get("spike_id"))
             if not isinstance(spike, dict):
@@ -494,6 +510,11 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             ):
                 raise IntegrityError("invalid Spike reviewed transition")
             spike.update(status="reviewed", review_pending=False)
+        elif event_type == "CandidateSpikePartialReviewed":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "spike_partial_recorded":
+                raise IntegrityError("invalid Candidate Spike partial review")
+            candidate.update(status="spike_revisit_pending")
         elif event_type == "ResearchDossierAdmitted":
             dossier_id = payload.get("dossier_id")
             if not isinstance(dossier_id, str) or dossier_id in state["dossiers"]:
@@ -528,6 +549,8 @@ class DiscoveryRuntime:
         clock: Callable[[], datetime],
         repository_root: Path,
         root_tokens: Mapping[str, Path],
+        operational_control_root: Path,
+        operational_state_provider: Callable[[], ControlPlaneState],
     ) -> None:
         """Bind the governed runtime to exact repository and root configuration."""
         self.control_root = control_root
@@ -547,6 +570,8 @@ class DiscoveryRuntime:
         except ValueError as exc:
             raise IntegrityError("catalogue path is outside configured repository root") from exc
         self.root_tokens = {key: Path(value) for key, value in root_tokens.items()}
+        self.operational_control_root = operational_control_root
+        self.operational_state_provider = operational_state_provider
         self.receipts = ReceiptStore(control_root)
         if not isinstance(authority_resolver, LedgerAuthorityGrantResolver):
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
@@ -561,7 +586,7 @@ class DiscoveryRuntime:
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
         with CompositeWriterLock(
-            (self.control_root, self.authority_resolver.control_root),
+            (self.control_root, self.authority_resolver.control_root, self.operational_control_root),
             {"command_id": command.command_id},
             lock_factory=WriterLock,
         ):
@@ -1110,6 +1135,7 @@ class DiscoveryRuntime:
             and candidate.get("status") == "promotion_pending"
             and candidate.get("decision_id") == decision_id
             and command.target_stream_id == decision_id
+            and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
             return [
@@ -1155,6 +1181,7 @@ class DiscoveryRuntime:
             and candidate
             and candidate.get("status") == "spike_approval_pending"
             and command.target_stream_id == decision_id
+            and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
             return [
@@ -1175,11 +1202,12 @@ class DiscoveryRuntime:
             and isinstance(p.get("attempt_sha256"), str)
             and len(p["attempt_sha256"]) == 64
             and isinstance(p.get("lease_id"), str)
+            and self._valid_live_spike_lease(p, command)
         ):
             return out(("SpikeStarted", spike_id), ("CandidateSpikeStarted", candidate_id))
         if (
             ct == "RecordSpikeVerdict"
-            and row == "OR-018"
+            and row in {"OR-018", "OR-019"}
             and spike
             and spike.get("status") == "running"
             and spike.get("candidate_id") == candidate_id
@@ -1189,12 +1217,14 @@ class DiscoveryRuntime:
             and isinstance(p.get("verdict_artifact"), dict)
             and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike)
         ):
+            if row == "OR-019":
+                return out(("SpikePartialRecorded", spike_id), ("CandidateSpikePartialLinked", candidate_id))
             return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
         if (
             ct == "RequestDiscoveryOutcomeReview"
             and row == "OR-036"
             and spike
-            and spike.get("status") == "verdict_recorded"
+            and spike.get("status") in {"verdict_recorded", "partial_recorded"}
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == review_id
             and projection["reviews"].get(review_id) is None
@@ -1226,8 +1256,38 @@ class DiscoveryRuntime:
             events = [("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"]))]
             if _review_policy_status(p["review_verdict"]) == "satisfied":
                 events.append(("SpikeReviewed", spike_id, deepcopy(p)))
+                if spike.get("status") == "partial_recorded":
+                    events.append(("CandidateSpikePartialReviewed", candidate_id, deepcopy(p)))
             return events
         raise IntegrityError(f"invalid Spike transition: {ct}/{row}")
+
+    def _valid_live_spike_lease(self, payload: dict[str, Any], command: Command) -> bool:
+        """Resolve the current operational Attempt/Lease relation under the shared writer lock."""
+        state = self.operational_state_provider()
+        if not isinstance(state, ControlPlaneState):
+            raise IntegrityError("invalid operational state provider")
+        attempt = state.stream_states.get(payload.get("attempt_id"))
+        lease = state.stream_states.get(payload.get("lease_id"))
+        if not isinstance(lease, dict):
+            return False
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise IntegrityError("Discovery operational clock must return an aware datetime")
+        try:
+            expires_at = datetime.fromisoformat(str(lease.get("expires_at")).replace("Z", "+00:00"))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise IntegrityError("invalid operational lease expiry") from exc
+        return bool(
+            isinstance(attempt, dict)
+            and attempt.get("status") == "running"
+            and attempt.get("lease_id") == payload.get("lease_id")
+            and isinstance(lease, dict)
+            and lease.get("status") == "active"
+            and lease.get("attempt_id") == payload.get("attempt_id")
+            and lease.get("holder_actor_id") == command.actor_id
+            and expires_at > now.astimezone(UTC)
+            and payload.get("resource_grant_id") == lease.get("resource_grant_id")
+        )
 
     def _valid_spike_plan(
         self,
@@ -1298,11 +1358,11 @@ class DiscoveryRuntime:
         success = artifact.get("success_predicates", [])
         failure = artifact.get("failure_predicates", [])
         kills = artifact.get("kill_conditions", [])
+        has_unknown = any(value.get("status") == "unable_to_evaluate" for value in [*success, *failure, *kills])
         predicate_closure = (
             [value.get("predicate") for value in success] == plan.get("success_predicates")
             and [value.get("predicate") for value in failure] == plan.get("failure_predicates")
             and [value.get("condition") for value in kills] == plan.get("kill_conditions")
-            and not any(value.get("status") == "unable_to_evaluate" for value in [*success, *failure, *kills])
         )
         if artifact.get("verdict") == "PASS":
             truth_table = (
@@ -1316,11 +1376,17 @@ class DiscoveryRuntime:
                 value.get("status") == "triggered" for value in kills
             )
         else:
-            truth_table = False
+            truth_table = bool(
+                has_unknown
+                and artifact.get("completed_scope")
+                and artifact.get("unmet_scope")
+                and artifact.get("limitations")
+                and artifact.get("mechanical_recommendation") != "PROMOTE"
+                and not any(value.get("status") == "triggered" for value in kills)
+            )
         return bool(relationships_match and predicate_closure and truth_table)
 
-    @staticmethod
-    def _prepare_assay(command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+    def _prepare_assay(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Assay lifecycle transition batch."""
         payload = command.envelope["payload"]
         candidate_id = payload.get("candidate_id")
@@ -1356,6 +1422,8 @@ class DiscoveryRuntime:
                 or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_pending"
+                or not isinstance(payload.get("scorecard_artifact"), dict)
+                or not self._valid_assay_scorecard(payload["scorecard_artifact"], payload, candidate, assay, command)
             ):
                 raise IntegrityError("invalid RecordAssayScore transition")
             return [
@@ -1407,6 +1475,33 @@ class DiscoveryRuntime:
                 events.append(("AssayReviewed", assay_id, deepcopy(payload)))
             return events
         raise IntegrityError(f"unsupported Assay command: {command_type}")
+
+    def _valid_assay_scorecard(
+        self,
+        artifact: dict[str, Any],
+        payload: dict[str, Any],
+        candidate: dict[str, Any],
+        assay: dict[str, Any],
+        command: Command,
+    ) -> bool:
+        """Validate and bind the exact Assay scorecard before publication."""
+        try:
+            self.schemas.validate("ars://portfolio/assay-scorecard", artifact, schema_version="1.0.0")
+        except SchemaError as exc:
+            raise IntegrityError("invalid Assay scorecard artifact") from exc
+        expected_candidate = {
+            "id": payload.get("candidate_id"),
+            "record_revision": candidate.get("revision"),
+            "content_hash": candidate.get("content_sha256"),
+        }
+        return bool(
+            artifact.get("candidate_ref") == expected_candidate
+            and artifact.get("assay_id") == payload.get("assay_id")
+            and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
+            and artifact.get("producer_actor_id") == command.actor_id
+            and artifact.get("required_axis_set_hash") == artifact.get("observed_axis_set_hash")
+            and sha256_hex(canonical_bytes(artifact)) == payload.get("scorecard_sha256")
+        )
 
     def _prepare_genesis(
         self,

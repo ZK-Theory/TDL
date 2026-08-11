@@ -11,6 +11,7 @@ import pytest
 
 import research_system.discovery.dossier as dossier_module
 import research_system.discovery.runtime as runtime_module
+from research_system.canonical import canonical_bytes
 from research_system.command.models import Command
 from research_system.discovery import DiscoveryRuntime, replay_discovery
 from research_system.discovery.authority import subject_sha256
@@ -35,7 +36,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
 
 REPO = Path(__file__).resolve().parents[3]
 CONTRACT_ROOT = REPO / ".research-system/contracts/wp6-4"
-PACKAGE = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/package-index.json"
+PACKAGE = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/wp6-6-research-dossier-admission-manifest.json"
 SCOPE = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-scope-definition-blueprint.json"
 PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json"
 FIXTURE_PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-fixture-preflight-evidence.json"
@@ -124,6 +125,34 @@ def test_real_tda_scale_dossier_prepares_deterministic_provider_free_atomic_batc
     assert [event["event_type"] for event in first.events].count("PortfolioObjectRegistered") == 20
     assert [event["event_type"] for event in first.events].count("ScopeDefinitionRegistered") == 1
     assert len(first.observed_members) == 21
+
+
+def test_package_manifest_must_describe_the_exact_admitted_member_closure(tmp_path: Path) -> None:
+    expected, roots = _subject()
+    package = json.loads((CONTRACT_ROOT / expected.members[0].relative_path).read_bytes())
+    package["members"] = package["members"][:-1]
+    package["member_count"] = len(package["members"])
+    tampered_path = tmp_path / "package.json"
+    tampered_path.write_bytes(canonical_bytes(package))
+    raw = tampered_path.read_bytes()
+    member = replace(
+        expected.members[0],
+        root_id="tampered-package",
+        relative_path="package.json",
+        size_bytes=len(raw),
+        sha256=hashlib.sha256(raw).hexdigest(),
+        provenance_hash=hashlib.sha256(raw).hexdigest(),
+    )
+    attacked = _rehash(replace(expected, members=(member, *expected.members[1:])))
+    roots["tampered-package"] = RegisteredRoot("tampered-package", tmp_path, 1, registered_root_identity_hash(tmp_path))
+
+    with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
+        prepare_dossier_admission(
+            expected_set=attacked,
+            current_expected_set_revision=3,
+            candidate_members=attacked.members,
+            registered_roots=roots,
+        )
 
 
 @pytest.mark.parametrize(
@@ -319,7 +348,8 @@ def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Pa
 def test_real_package_retains_non_dispatchable_provider_free_identity() -> None:
     package = json.loads((REPO / PACKAGE).read_bytes())
     assert package["package_id"] == "TDA-ARS-SCALE-RESEARCH"
-    assert package["admission_status"] == "pending_wp6_6"
+    assert package["schema_id"] == "ars://portfolio/research-dossier-admission-manifest"
+    assert package["member_count"] == len(package["members"]) == 20
     assert package["dispatchable"] is False
     assert package["execution_authorized"] is False
 
