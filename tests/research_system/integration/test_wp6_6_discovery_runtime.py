@@ -390,6 +390,13 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
                 runtime._prepare_assay_bar_authority(
                     Command(wrong_stream), replay_discovery(runtime.ledger.iter_events())
                 )
+        if payload["row_id"] == "OR-108":
+            wrong_stream = deepcopy(command)
+            wrong_stream["target_stream_id"] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
+            with pytest.raises(IntegrityError, match="invalid Assay-bar owner resolution"):
+                runtime._prepare_assay_bar_authority(
+                    Command(wrong_stream), replay_discovery(runtime.ledger.iter_events())
+                )
         assert runtime.submit(command).status == "accepted"
     bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     assert bar["status"] == "accepted"
@@ -1309,20 +1316,42 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         "review_date": "2026-08-11T00:00:00Z",
         "consequences": ["authorize exact retry"],
     }
-    runtime.submit(
-        _command(
-            "ProposeRevisitDecision",
-            revisit_id,
-            0,
-            {
-                "row_id": "OR-009",
-                "candidate_id": candidate_id,
-                "assay_id": assay_id,
-                "decision_id": revisit_id,
-                "w2_payload": proposal,
-            },
-        )
+    proposal_command = _command(
+        "ProposeRevisitDecision",
+        revisit_id,
+        0,
+        {
+            "row_id": "OR-009",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "decision_id": revisit_id,
+            "w2_payload": proposal,
+        },
     )
+    for mutation in ("foreign_review", "empty_options", "unbound_review"):
+        invalid = deepcopy(proposal_command)
+        if mutation == "foreign_review":
+            invalid["payload"]["review_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
+        elif mutation == "empty_options":
+            invalid["payload"]["w2_payload"]["options"] = []
+        else:
+            invalid["payload"]["w2_payload"]["governing_evidence_refs"] = []
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Assay revisit proposal"):
+            runtime.submit(invalid)
+        assert tuple(runtime.ledger.iter_events()) == before
+    parked_projection = replay_discovery(runtime.ledger.iter_events())
+    parked_projection["assays"][assay_id]["status"] = "reviewed"
+    parked_projection["candidates"][candidate_id]["status"] = "parked"
+    assert [
+        event_type for event_type, _, _ in runtime._prepare_assay(Command(proposal_command), parked_projection)
+    ] == [
+        "DecisionProposed",
+        "AssayRevisitRequested",
+        "CandidateAssayRevisitRequested",
+    ]
+    runtime.submit(proposal_command)
     resolution = {
         "decision_id": revisit_id,
         "selected_option": "RETRY",
@@ -1386,6 +1415,12 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         )
         with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
             replay_discovery(_rehash_events(tampered))
+    tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["review_id"] = (
+        "rev_019fed25-b33e-7740-b280-ffffffffffff"
+    )
+    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+        replay_discovery(_rehash_events(tampered))
     cross_candidate_review = [deepcopy(event) for event in runtime.ledger.iter_events()]
     reviewed_index = next(
         index for index, event in enumerate(cross_candidate_review) if event["event_type"] == "AssayPartialReviewed"
@@ -1400,7 +1435,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         for event in excluded_option
         if event["event_type"] == "DecisionProposed" and event["stream_id"] == revisit_id
     )["payload"]["options"] = ["PARK", "KILL"]
-    with pytest.raises(IntegrityError, match="invalid Discovery decision resolution"):
+    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
         replay_discovery(_rehash_events(excluded_option))
 
 
@@ -2153,21 +2188,45 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     if spike_verdict == "PARTIAL":
         revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff71"
         revisit_proposal = proposed(revisit_id, "spike_revisit")
+        revisit_proposal["recommendation"] = "RETRY"
         revisit_proposal["options"] = ["RETRY", "PARK", "KILL"]
-        runtime.submit(
-            _command(
-                "ProposeRevisitDecision",
-                revisit_id,
-                0,
-                {
-                    "row_id": "OR-023",
-                    "candidate_id": candidate_id,
-                    "spike_id": spike_id,
-                    "decision_id": revisit_id,
-                    "w2_payload": revisit_proposal,
-                },
-            )
+        revisit_proposal["governing_evidence_refs"] = [review_id]
+        revisit_command = _command(
+            "ProposeRevisitDecision",
+            revisit_id,
+            0,
+            {
+                "row_id": "OR-023",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "review_id": review_id,
+                "decision_id": revisit_id,
+                "w2_payload": revisit_proposal,
+            },
         )
+        for mutation in ("foreign_review", "empty_options", "unbound_review"):
+            invalid = deepcopy(revisit_command)
+            if mutation == "foreign_review":
+                invalid["payload"]["review_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
+            elif mutation == "empty_options":
+                invalid["payload"]["w2_payload"]["options"] = []
+            else:
+                invalid["payload"]["w2_payload"]["governing_evidence_refs"] = []
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike revisit proposal"):
+                runtime.submit(invalid)
+            assert tuple(runtime.ledger.iter_events()) == before
+        parked_projection = replay_discovery(runtime.ledger.iter_events())
+        parked_projection["spikes"][spike_id]["status"] = "reviewed"
+        parked_projection["candidates"][candidate_id]["status"] = "parked"
+        assert [
+            event_type for event_type, _, _ in runtime._prepare_spike(Command(revisit_command), parked_projection)
+        ] == [
+            "DecisionProposed",
+            "SpikeRevisitRequested",
+            "CandidateSpikeRevisitRequested",
+        ]
+        runtime.submit(revisit_command)
         revisit_resolution = resolved(revisit_id)
         revisit_resolution["selected_option"] = "RETRY"
         runtime.submit(

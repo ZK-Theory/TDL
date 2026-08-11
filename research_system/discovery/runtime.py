@@ -155,6 +155,22 @@ def _valid_spike_execution_proposal(value: Any) -> bool:
     )
 
 
+def _valid_revisit_proposal(value: Any, review_id: Any) -> bool:
+    """Return whether a revisit proposal carries the closed option set."""
+
+    return bool(
+        isinstance(value, Mapping)
+        and isinstance(review_id, str)
+        and value.get("recommendation") in {"RETRY", "PARK", "KILL"}
+        and isinstance(value.get("options"), list)
+        and len(value["options"]) == 3
+        and all(isinstance(option, str) for option in value["options"])
+        and set(value["options"]) == {"RETRY", "PARK", "KILL"}
+        and isinstance(value.get("governing_evidence_refs"), list)
+        and review_id in value["governing_evidence_refs"]
+    )
+
+
 def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
     """Return whether any immutable Discovery aggregate already owns an identity."""
 
@@ -989,17 +1005,26 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
             subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
             subject = collection.get(subject_id)
+            review = state["reviews"].get(payload.get("review_id"))
+            decision = state["decisions"].get(payload.get("decision_id"))
             if (
                 not isinstance(subject, dict)
                 or subject.get("candidate_id") != payload.get("candidate_id")
-                or subject.get("status") not in {"partial_reviewed", "cancellation_reviewed", "reviewed"}
+                or subject.get("status") not in {"partial_reviewed", "cancellation_reviewed", "reviewed", "parked"}
+                or subject.get("review_id") != payload.get("review_id")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+                or not _valid_revisit_proposal(payload.get("w2_payload"), payload.get("review_id"))
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or decision.get("options") != payload["w2_payload"].get("options")
             ):
                 raise IntegrityError("invalid Discovery revisit request")
             subject.update(status="revisit_pending", decision_id=required_string("decision_id"))
         elif event_type in {"CandidateAssayRevisitRequested", "CandidateSpikeRevisitRequested"}:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
-            if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_revisit_eligible":
+            if not isinstance(candidate, dict) or candidate.get("status") not in {f"{kind}_revisit_eligible", "parked"}:
                 raise IntegrityError("invalid Candidate revisit request")
             candidate.update(status=f"{kind}_revisit_pending", decision_id=required_string("decision_id"))
         elif event_type in {"AssayRevisitResolved", "SpikeRevisitResolved"}:
@@ -2324,6 +2349,7 @@ class DiscoveryRuntime:
             if (
                 command.envelope["command_type"] != "ResolveDecision"
                 or state.get("status") != "decision_proposed"
+                or command.target_stream_id != state.get("decision_id")
                 or payload.get("decision_id") != state.get("decision_id")
                 or payload.get("decision") != "accept"
             ):
@@ -3003,15 +3029,19 @@ class DiscoveryRuntime:
                 ("CandidatePromotionApplied", candidate_id, applied_payload),
             ]
         if ct == "ProposeRevisitDecision" and row == "OR-023":
+            review = projection["reviews"].get(p.get("review_id"))
             if (
                 not isinstance(spike, dict)
-                or spike.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or spike.get("status") not in {"reviewed", "partial_reviewed", "cancellation_reviewed", "parked"}
                 or spike.get("candidate_id") != candidate_id
+                or spike.get("review_id") != p.get("review_id")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
                 or not isinstance(candidate, dict)
-                or candidate.get("status") != "spike_revisit_eligible"
+                or candidate.get("status") not in {"spike_revisit_eligible", "parked"}
                 or projection["decisions"].get(decision_id) is not None
                 or command.target_stream_id != decision_id
-                or not isinstance(p.get("w2_payload"), dict)
+                or not _valid_revisit_proposal(p.get("w2_payload"), p.get("review_id"))
                 or p["w2_payload"].get("new_decision_id") != decision_id
             ):
                 raise IntegrityError("invalid Spike revisit proposal")
@@ -3455,16 +3485,20 @@ class DiscoveryRuntime:
             return events
         if command_type == "ProposeRevisitDecision":
             decision_id = payload.get("decision_id")
+            review = projection["reviews"].get(payload.get("review_id"))
             if (
                 payload.get("row_id") != "OR-009"
                 or command.target_stream_id != decision_id
                 or projection["decisions"].get(decision_id) is not None
                 or not isinstance(assay, dict)
-                or assay.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or assay.get("status") not in {"reviewed", "partial_reviewed", "cancellation_reviewed", "parked"}
                 or assay.get("candidate_id") != candidate_id
+                or assay.get("review_id") != payload.get("review_id")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
                 or not isinstance(candidate, dict)
-                or candidate.get("status") != "assay_revisit_eligible"
-                or not isinstance(payload.get("w2_payload"), dict)
+                or candidate.get("status") not in {"assay_revisit_eligible", "parked"}
+                or not _valid_revisit_proposal(payload.get("w2_payload"), payload.get("review_id"))
                 or payload["w2_payload"].get("new_decision_id") != decision_id
             ):
                 raise IntegrityError("invalid Assay revisit proposal")
