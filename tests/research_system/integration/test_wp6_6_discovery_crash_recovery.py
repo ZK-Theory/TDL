@@ -10,6 +10,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     _accept_assay_bar,
     _command,
     _genesis,
+    _ingest_candidate,
     _runtime,
 )
 
@@ -18,29 +19,21 @@ def _registered_runtime(tmp_path: Path):
     runtime = _runtime(tmp_path)
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff68"
     runtime.submit(_genesis())
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            candidate_id,
-            0,
-            {
-                "candidate_id": candidate_id,
-                "revision": 1,
-                "content_sha256": "a" * 64,
-                "source_observation_refs": ["obs:tda-scale:crash-proof"],
-                "title": "Crash-safe TDA-scale Candidate",
-            },
-        )
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff67",
+        title="Crash-safe TDA-scale Candidate",
     )
     acceptance_sha256, producer_relation_sha256 = _accept_assay_bar(runtime)
-    return runtime, candidate_id, acceptance_sha256, producer_relation_sha256
+    return runtime, candidate_id, candidate_sha256, acceptance_sha256, producer_relation_sha256
 
 
 def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    runtime, candidate_id, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
+    runtime, candidate_id, candidate_sha256, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff69"
     command = _command(
         "RequestAssay",
@@ -51,7 +44,7 @@ def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
             "candidate_id": candidate_id,
             "assay_id": assay_id,
             "candidate_revision": 1,
-            "candidate_sha256": "a" * 64,
+            "candidate_sha256": candidate_sha256,
             "assay_bar_acceptance_sha256": acceptance_sha256,
             "producer_relation_sha256": producer_relation_sha256,
         },
@@ -88,7 +81,7 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    runtime, candidate_id, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
+    runtime, candidate_id, candidate_sha256, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff6a"
     command = _command(
         "RequestAssay",
@@ -99,7 +92,7 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
             "candidate_id": candidate_id,
             "assay_id": assay_id,
             "candidate_revision": 1,
-            "candidate_sha256": "a" * 64,
+            "candidate_sha256": candidate_sha256,
             "assay_bar_acceptance_sha256": acceptance_sha256,
             "producer_relation_sha256": producer_relation_sha256,
         },

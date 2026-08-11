@@ -120,9 +120,13 @@ class SchemaBinding:
 
 _RUNTIME_BINDINGS = (
     SchemaBinding("ars://core/command", "1.0.0", command_type="ImportAcceptedW11CatalogueGenesis"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="IngestScoutObservationBatch"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterCandidate"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RequestAssay"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RecordAssayScore"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordAssayPartial"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="CancelDiscoveryEvaluation"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeRevisitDecision"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RequestDiscoveryOutcomeReview"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="ReviewDiscoveryOutcome"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="ProposePromotionDecision"),
@@ -144,6 +148,18 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="LeaseReleased",
         producer_command_type="RecordSpikeVerdict",
+    ),
+    SchemaBinding(
+        "ars://core/event/PartialOutcomeRecorded",
+        "1.0.0",
+        event_type="PartialOutcomeRecorded",
+        producer_command_type="CancelDiscoveryEvaluation",
+    ),
+    SchemaBinding(
+        "ars://core/event/LeaseReleased",
+        "1.0.0",
+        event_type="LeaseReleased",
+        producer_command_type="CancelDiscoveryEvaluation",
     ),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterDossierExpectedSetContent"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterPathRegistrationContent"),
@@ -175,6 +191,12 @@ _RUNTIME_BINDINGS = (
         "1.0.0",
         event_type="ReviewVerdictRecorded",
         producer_command_type="RecordW11AuthorityReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeRevisitDecision",
     ),
     SchemaBinding(
         "ars://core/command/CreateScopeDefinition",

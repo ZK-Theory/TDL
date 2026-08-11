@@ -77,7 +77,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
             content_state = state["contents"].get(kind)
             if not isinstance(content_state, dict) or kind in state["observations"]:
                 raise AssayAuthorityRejected("invalid_observation_order")
-            if payload.get("actor_id") == content_state.get("author_actor_id"):
+            if payload.get("actor_id") in actors:
                 raise AssayAuthorityRejected("actor_not_independent")
             if payload.get("content_sha256") != content_state.get("content_sha256"):
                 raise AssayAuthorityRejected("content_hash_mismatch")
@@ -135,6 +135,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 state["status"] != "reviewed"
                 or payload.get("proposed_decision") != "accept"
                 or payload.get("subject_sha256") != state.get("subject_sha256")
+                or payload.get("actor_id") in actors
             ):
                 raise AssayAuthorityRejected("invalid_decision_proposal")
             state.update(status="decision_proposed", decision_id=payload.get("decision_id"))

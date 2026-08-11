@@ -42,7 +42,7 @@ ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
 ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
 ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
-ASSAY_AUTHORITY_ACTORS = tuple(f"act_019fed25-b33e-7740-b280-{number:012d}" for number in range(201, 206))
+ASSAY_AUTHORITY_ACTORS = tuple(f"act_019fed25-b33e-7740-b280-{number:012d}" for number in range(201, 207))
 _HARNESSES = {}
 
 
@@ -76,9 +76,13 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
             command_type = value["command_type"]
             subject_kind = {
                 "ImportAcceptedW11CatalogueGenesis": "scope_definition",
+                "IngestScoutObservationBatch": "scope_definition",
                 "RegisterCandidate": "scope_definition",
                 "RequestAssay": "scope_definition",
                 "RecordAssayScore": "scope_definition",
+                "RecordAssayPartial": "scope_definition",
+                "CancelDiscoveryEvaluation": "scope_definition",
+                "ProposeRevisitDecision": "decision",
                 "RequestDiscoveryOutcomeReview": "review",
                 "ReviewDiscoveryOutcome": "review",
                 "ProposePromotionDecision": "decision",
@@ -102,6 +106,8 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
             if command_type in {
                 "RequestAssay",
                 "RecordAssayScore",
+                "RecordAssayPartial",
+                "CancelDiscoveryEvaluation",
                 "RegisterSpikePlan",
                 "StartSpike",
                 "RecordSpikeVerdict",
@@ -182,11 +188,57 @@ def _command(
     }
 
 
+def _ingest_candidate(
+    runtime: DiscoveryRuntime,
+    candidate_id: str,
+    *,
+    observation_id: str,
+    title: str,
+) -> str:
+    batch = {
+        "schema_id": "ars://portfolio/scout-observation-batch",
+        "schema_version": "1.0.0",
+        "source_query": f"exact:{observation_id}",
+        "source_version": "1",
+        "observed_at": "2026-08-01T00:00:00Z",
+        "returned_identifiers": [observation_id],
+        "normalized_dedup_keys": [observation_id.casefold()],
+        "raw_source_refs": [{"ref_kind": "external", "locator": observation_id, "content_hash": "9" * 64}],
+        "matching_facts": [title],
+        "omissions_or_errors": [],
+        "viability_judgment_absent": True,
+    }
+    batch_sha256 = sha256_hex(canonical_bytes(batch))
+    candidate_sha256 = sha256_hex(canonical_bytes([{"observation_id": observation_id, "content_sha256": batch_sha256}]))
+    runtime.submit(
+        _command(
+            "IngestScoutObservationBatch",
+            observation_id,
+            0,
+            {
+                "row_id": "OR-029",
+                "observation_id": observation_id,
+                "batch": batch,
+                "batch_sha256": batch_sha256,
+                "candidate_blueprints": [
+                    {
+                        "candidate_id": candidate_id,
+                        "revision": 1,
+                        "content_sha256": candidate_sha256,
+                        "source_observation_refs": [observation_id],
+                        "title": title,
+                    }
+                ],
+            },
+        )
+    )
+    return candidate_sha256
+
+
 def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
     rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
-    observer, proposer, reviewer = ASSAY_AUTHORITY_ACTORS[:3]
-    author = ASSAY_AUTHORITY_ACTORS[4]
+    rubric_observer, scope_observer, requester, reviewer, author, decision_proposer = ASSAY_AUTHORITY_ACTORS
     owner = ACTOR_ID
     review_id = "rev_019fed25-b33e-7740-b280-000000000105"
     decision_id = "dec_019fed25-b33e-7740-b280-000000000107"
@@ -218,21 +270,21 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
         ),
         (
             "ObserveW11AuthorityFile",
-            observer,
+            rubric_observer,
             rubric["record_id"],
             1,
             {"row_id": "OR-103", "authority_kind": "assay_bar"},
         ),
         (
             "ObserveW11AuthorityFile",
-            observer,
+            scope_observer,
             scope["record_id"],
             1,
             {"row_id": "OR-104", "authority_kind": "assay_bar"},
         ),
         (
             "RequestW11AuthorityReview",
-            proposer,
+            requester,
             review_id,
             0,
             {
@@ -257,7 +309,7 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
         ),
         (
             "ProposeW11AuthorityDecision",
-            proposer,
+            decision_proposer,
             decision_id,
             0,
             {"row_id": "OR-107", "authority_kind": "assay_bar", "proposed_decision": "accept"},
@@ -442,19 +494,11 @@ def test_replay_rejects_ledger_derived_missing_fields_as_integrity_error(
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff80"
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff81"
     runtime.submit(_genesis())
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            candidate_id,
-            0,
-            {
-                "candidate_id": candidate_id,
-                "revision": 1,
-                "content_sha256": "1" * 64,
-                "source_observation_refs": ["obs:malformed-replay"],
-                "title": "Malformed replay probe",
-            },
-        )
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff82",
+        title="Malformed replay probe",
     )
     bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
     runtime.submit(
@@ -467,7 +511,7 @@ def test_replay_rejects_ledger_derived_missing_fields_as_integrity_error(
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "candidate_revision": 1,
-                "candidate_sha256": "1" * 64,
+                "candidate_sha256": candidate_sha256,
                 "assay_bar_acceptance_sha256": bar_sha256,
                 "producer_relation_sha256": producer_sha256,
             },
@@ -563,7 +607,7 @@ def test_candidate_registration_runs_through_durable_public_seam(tmp_path: Path)
             "candidate_id": candidate_id,
             "revision": 1,
             "content_sha256": "1" * 64,
-            "source_observation_refs": ["obs:tda-scale:v1"],
+            "source_observation_refs": ["obj_019fed25-b33e-7740-b280-6f661aaeff57"],
             "title": "TDA-scale dossier candidate",
         },
     }
@@ -573,6 +617,25 @@ def test_candidate_registration_runs_through_durable_public_seam(tmp_path: Path)
     assert tuple(runtime.ledger.iter_events()) == ()
 
     runtime.submit(_genesis())
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="source observation is not registered"):
+        runtime.submit(candidate)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        "obj_019fed25-b33e-7740-b280-6f661aaeff56",
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff57",
+        title="Observation bootstrap candidate",
+    )
+    fabricated = deepcopy(candidate)
+    fabricated["payload"]["content_sha256"] = "f" * 64
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="content hash does not match resolved observations"):
+        runtime.submit(fabricated)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    candidate["payload"]["content_sha256"] = candidate_sha256
     receipt = runtime.submit(candidate)
     duplicate = runtime.submit(deepcopy(candidate))
 
@@ -583,9 +646,10 @@ def test_candidate_registration_runs_through_durable_public_seam(tmp_path: Path)
     assert projection["candidates"][candidate_id] == {
         "candidate_id": candidate_id,
         "revision": 1,
-        "content_sha256": "1" * 64,
+        "content_sha256": candidate_sha256,
+        "source_observation_multiset_hash": candidate_sha256,
         "status": "registered",
-        "source_observation_refs": ["obs:tda-scale:v1"],
+        "source_observation_refs": ["obj_019fed25-b33e-7740-b280-6f661aaeff57"],
         "title": "TDA-scale dossier candidate",
         "version": 1,
     }
@@ -635,26 +699,16 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff59"
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5a"
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff5b"
-    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, "3" * 64)
-    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(_genesis())
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            candidate_id,
-            0,
-            {
-                "candidate_id": candidate_id,
-                "revision": 1,
-                "content_sha256": "1" * 64,
-                "source_observation_refs": ["obs:tda-scale:v1"],
-                "title": "TDA-scale dossier candidate",
-            },
-        )
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff5c",
+        title="TDA-scale dossier candidate",
     )
 
     bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
-    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, producer_sha256)
+    scorecard = _scorecard(candidate_id, assay_id, candidate_sha256, producer_sha256)
     scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
 
     requested = runtime.submit(
@@ -667,7 +721,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "candidate_revision": 1,
-                "candidate_sha256": "1" * 64,
+                "candidate_sha256": candidate_sha256,
                 "assay_bar_acceptance_sha256": bar_sha256,
                 "producer_relation_sha256": producer_sha256,
             },
@@ -805,19 +859,11 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff60"
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff61"
     runtime.submit(_genesis())
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            candidate_id,
-            0,
-            {
-                "candidate_id": candidate_id,
-                "revision": 1,
-                "content_sha256": "1" * 64,
-                "source_observation_refs": ["obs:assay-authority"],
-                "title": "Assay authority candidate",
-            },
-        )
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff62",
+        title="Assay authority candidate",
     )
 
     def request(bar_hash: str, producer_hash: str) -> dict[str, object]:
@@ -830,7 +876,7 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "candidate_revision": 1,
-                "candidate_sha256": "1" * 64,
+                "candidate_sha256": candidate_sha256,
                 "assay_bar_acceptance_sha256": bar_hash,
                 "producer_relation_sha256": producer_hash,
             },
@@ -866,6 +912,240 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     assert tuple(runtime.ledger.iter_events()) == before
 
 
+@pytest.mark.parametrize(
+    ("command_type", "replacement_actor", "message"),
+    [
+        ("ObserveW11AuthorityFile", ASSAY_AUTHORITY_ACTORS[0], "actor_not_independent"),
+        ("ProposeW11AuthorityDecision", ASSAY_AUTHORITY_ACTORS[2], "invalid_decision_proposal"),
+    ],
+)
+def test_assay_authority_replay_rejects_accumulated_actor_reuse(
+    tmp_path: Path,
+    command_type: str,
+    replacement_actor: str,
+    message: str,
+) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_assay_bar(runtime)
+    events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    matching = [event for event in events if event.get("command_type") == command_type]
+    target = matching[-1]
+    target["actor_id"] = replacement_actor
+    authority_payload = target["payload"].get("authority_payload")
+    if isinstance(authority_payload, dict):
+        authority_payload["actor_id"] = replacement_actor
+    with pytest.raises(IntegrityError, match=message):
+        replay_discovery(_rehash_events(events))
+
+
+def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff80"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff81"
+    retry_assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff82"
+    review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff83"
+    revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff84"
+    reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff85"
+    runtime.submit(_genesis())
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff86",
+        title="Partial Assay candidate",
+    )
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    runtime.submit(
+        _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": candidate_sha256,
+                "assay_bar_acceptance_sha256": bar_sha256,
+                "producer_relation_sha256": producer_sha256,
+            },
+        )
+    )
+    partial_artifact = {
+        "completed_scope": ["candidate identity"],
+        "unmet_scope": ["remaining assay axes"],
+        "limitations": ["incomplete axis closure"],
+        "mechanical_recommendation": "PARK",
+    }
+    partial_sha256 = sha256_hex(canonical_bytes(partial_artifact))
+    runtime.submit(
+        _command(
+            "RecordAssayPartial",
+            assay_id,
+            2,
+            {
+                "row_id": "OR-005",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "producer_relation_sha256": producer_sha256,
+                "partial_sha256": partial_sha256,
+                "partial_artifact": partial_artifact,
+            },
+        )
+    )
+    review_contract = {
+        "review_type": "provenance",
+        "new_review_id": review_id,
+        "subject_ids": [assay_id],
+        "subject_hashes": [partial_sha256],
+        "governing_refs": ["W11:OR-035"],
+        "review_questions": ["Is the exact partial Assay outcome supported?"],
+        "required_evidence_refs": ["assay-partial:exact"],
+        "required_lanes": ["provenance"],
+        "reviewer_capability": ["assay-independent-review"],
+        "required_independence_grade": "independent",
+        "visibility_policy": "owner-visible",
+        "allowed_verdicts": ["approve", "changes_requested", "reject"],
+        "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+        "deadline": "2026-08-12T00:00:00Z",
+        "escalation_rule": "owner-ruling",
+    }
+    runtime.submit(
+        _command(
+            "RequestDiscoveryOutcomeReview",
+            review_id,
+            0,
+            {
+                "row_id": "OR-035",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "review_id": review_id,
+                "subject_sha256": partial_sha256,
+                "review_contract": review_contract,
+            },
+        )
+    )
+    review_verdict = {
+        "review_id": review_id,
+        "verdict": "approve",
+        "findings": [],
+        "required_evidence_refs": ["assay-partial:exact"],
+        "limitations": [],
+        "conditions": [],
+        "reviewer_actor_id": reviewer_id,
+        "reviewer_profile": "independent-assay-reviewer",
+        "reviewer_session": "session-partial-assay",
+        "reviewer_model_metadata": "test",
+        "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff87",
+        "context_manifest_sha256": "8" * 64,
+        "unchanged_subject_sha256": partial_sha256,
+        "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff88",
+        "trace_visibility_evidence_refs": ["trace:partial-assay"],
+        "computed_independence_grade": "independent",
+    }
+    review = _command(
+        "ReviewDiscoveryOutcome",
+        review_id,
+        1,
+        {
+            "row_id": "OR-007",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": partial_sha256,
+            "verdict": "approve",
+            "review_verdict": review_verdict,
+        },
+    )
+    review["actor_id"] = reviewer_id
+    runtime.submit(review)
+    proposal = {
+        "question": "Retry the exact partial Assay?",
+        "recommendation": "RETRY",
+        "new_decision_id": revisit_id,
+        "decision_revision": 1,
+        "decision_kind": "design_lock",
+        "options": ["RETRY", "PARK", "KILL"],
+        "governing_evidence_refs": [review_id],
+        "affected_task_ids": [],
+        "affected_claim_ids": [],
+        "required_authority": "owner",
+        "expires_at": "2026-08-12T00:00:00Z",
+        "review_date": "2026-08-11T00:00:00Z",
+        "consequences": ["authorize exact retry"],
+    }
+    runtime.submit(
+        _command(
+            "ProposeRevisitDecision",
+            revisit_id,
+            0,
+            {
+                "row_id": "OR-009",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "decision_id": revisit_id,
+                "w2_payload": proposal,
+            },
+        )
+    )
+    resolution = {
+        "decision_id": revisit_id,
+        "selected_option": "RETRY",
+        "effective_scope": "exact partial Assay",
+        "decision_revision": 1,
+        "deciding_actor_id": ACTOR_ID,
+        "decision_authority_grant_id": GRANT_ID,
+        "governing_evidence_refs": [review_id],
+        "considered_review_ids": [review_id],
+        "effective_at": "2026-08-11T00:00:00Z",
+        "permitted_commands": ["RequestAssay"],
+        "superseded_decision_ids": [],
+        "conditions": [],
+        "revisit_triggers": [],
+    }
+    runtime.submit(
+        _command(
+            "ResolveDecision",
+            revisit_id,
+            1,
+            {
+                "row_id": "OR-010",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "decision_id": revisit_id,
+                "w2_payload": resolution,
+            },
+        )
+    )
+    runtime.submit(
+        _command(
+            "RequestAssay",
+            retry_assay_id,
+            0,
+            {
+                "row_id": "OR-011",
+                "candidate_id": candidate_id,
+                "old_assay_id": assay_id,
+                "assay_id": retry_assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": candidate_sha256,
+                "assay_bar_acceptance_sha256": bar_sha256,
+                "producer_relation_sha256": producer_sha256,
+            },
+        )
+    )
+    projection = replay_discovery(runtime.ledger.iter_events())
+    assert projection["assays"][assay_id]["status"] == "superseded"
+    assert projection["assays"][retry_assay_id]["status"] == "evidence_collecting"
+    assert projection["candidates"][candidate_id]["status"] == "assay_pending"
+    assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == (
+        "AssayRequested",
+        "AssayEvidenceCollectionOpened",
+        "AssaySuperseded",
+        "CandidateAssayRetryStarted",
+    )
+
+
 @pytest.mark.parametrize(("spike_verdict", "verdict_row"), [("PASS", "OR-018"), ("PARTIAL", "OR-019")])
 def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
     tmp_path: Path, spike_verdict: str, verdict_row: str
@@ -884,25 +1164,15 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     resource_grant_id = C1_RESOURCE_GRANT_ID
     _seed_running_attempt(_HARNESSES[tmp_path])
     attempt_sha256 = sha256_hex(canonical_bytes(_HARNESSES[tmp_path].replay().stream_states[attempt_id]))
-    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, "3" * 64)
-    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(_genesis())
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            candidate_id,
-            0,
-            {
-                "candidate_id": candidate_id,
-                "revision": 1,
-                "content_sha256": "1" * 64,
-                "source_observation_refs": ["obs:spike"],
-                "title": "Spike candidate",
-            },
-        )
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff75",
+        title="Spike candidate",
     )
     bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
-    scorecard = _scorecard(candidate_id, assay_id, "1" * 64, producer_sha256)
+    scorecard = _scorecard(candidate_id, assay_id, candidate_sha256, producer_sha256)
     scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(
         _command(
@@ -914,7 +1184,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "candidate_id": candidate_id,
                 "assay_id": assay_id,
                 "candidate_revision": 1,
-                "candidate_sha256": "1" * 64,
+                "candidate_sha256": candidate_sha256,
                 "assay_bar_acceptance_sha256": bar_sha256,
                 "producer_relation_sha256": producer_sha256,
             },
@@ -1029,19 +1299,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     assert tuple(runtime.ledger.iter_events()) == before
     runtime.submit(assay_review)
     foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff74"
-    runtime.submit(
-        _command(
-            "RegisterCandidate",
-            foreign_candidate_id,
-            0,
-            {
-                "candidate_id": foreign_candidate_id,
-                "revision": 1,
-                "content_sha256": "a" * 64,
-                "source_observation_refs": ["obs:foreign"],
-                "title": "Foreign candidate",
-            },
-        )
+    _ingest_candidate(
+        runtime,
+        foreign_candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff76",
+        title="Foreign candidate",
     )
 
     def proposed(decision_id: str, kind: str) -> dict[str, object]:
@@ -1078,7 +1340,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "revisit_triggers": [],
         }
 
-    candidate_ref = {"id": candidate_id, "record_revision": 1, "content_hash": "1" * 64}
+    candidate_ref = {"id": candidate_id, "record_revision": 1, "content_hash": candidate_sha256}
     assay_ref = {"id": assay_id, "record_revision": 1, "content_hash": scorecard_sha256}
     plan_artifact = {
         "schema_id": "ars://portfolio/spike-plan",
@@ -1327,7 +1589,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "new_review_id": review_id,
         "subject_ids": [spike_id],
         "subject_hashes": [verdict_sha256],
-        "governing_refs": ["W11:OR-036"],
+        "governing_refs": ["W11:OR-037" if spike_verdict == "PARTIAL" else "W11:OR-036"],
         "review_questions": ["Is the exact Spike verdict supported?"],
         "required_evidence_refs": ["evidence:provider-free"],
         "required_lanes": ["provenance"],
@@ -1352,7 +1614,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             review_id,
             0,
             {
-                "row_id": "OR-036",
+                "row_id": "OR-037" if spike_verdict == "PARTIAL" else "OR-036",
                 "candidate_id": candidate_id,
                 "spike_id": spike_id,
                 "review_id": review_id,
@@ -1384,7 +1646,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         review_id,
         1,
         {
-            "row_id": "OR-020",
+            "row_id": "OR-021" if spike_verdict == "PARTIAL" else "OR-020",
             "candidate_id": candidate_id,
             "spike_id": spike_id,
             "review_id": review_id,
@@ -1396,15 +1658,101 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     runtime.submit(spike_review)
 
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
-    assert projection["spikes"][spike_id]["status"] == "reviewed"
+    assert projection["spikes"][spike_id]["status"] == (
+        "partial_reviewed" if spike_verdict == "PARTIAL" else "reviewed"
+    )
     assert projection["reviews"][review_id]["status"] == "satisfied"
-    expected_review_events = ("ReviewVerdictRecorded", "SpikeReviewed")
+    expected_review_events = (
+        ("ReviewVerdictRecorded", "SpikePartialReviewed", "CandidateSpikePartialReviewed")
+        if spike_verdict == "PARTIAL"
+        else ("ReviewVerdictRecorded", "SpikeReviewed")
+    )
     if spike_verdict == "PARTIAL":
-        expected_review_events += ("CandidateSpikePartialReviewed",)
-        assert projection["candidates"][candidate_id]["status"] == "spike_revisit_pending"
+        assert projection["candidates"][candidate_id]["status"] == "spike_revisit_eligible"
         assert projection["spikes"][spike_id]["attempt_status"] == "partial"
         assert projection["spikes"][spike_id]["lease_status"] == "released"
     assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == expected_review_events
+    if spike_verdict == "PARTIAL":
+        revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff71"
+        revisit_proposal = proposed(revisit_id, "spike_revisit")
+        revisit_proposal["options"] = ["RETRY", "PARK", "KILL"]
+        runtime.submit(
+            _command(
+                "ProposeRevisitDecision",
+                revisit_id,
+                0,
+                {
+                    "row_id": "OR-023",
+                    "candidate_id": candidate_id,
+                    "spike_id": spike_id,
+                    "decision_id": revisit_id,
+                    "w2_payload": revisit_proposal,
+                },
+            )
+        )
+        revisit_resolution = resolved(revisit_id)
+        revisit_resolution["selected_option"] = "RETRY"
+        runtime.submit(
+            _command(
+                "ResolveDecision",
+                revisit_id,
+                1,
+                {
+                    "row_id": "OR-024",
+                    "candidate_id": candidate_id,
+                    "spike_id": spike_id,
+                    "decision_id": revisit_id,
+                    "w2_payload": revisit_resolution,
+                },
+            )
+        )
+        retry_spike_id = "spk_019fed25-b33e-7740-b280-6f661aaeff72"
+        retry_plan = deepcopy(plan_artifact)
+        retry_plan["spike_id"] = retry_spike_id
+        retry_plan["assay_promotion_decision_ref"]["id"] = revisit_id
+        retry_plan_sha256 = sha256_hex(canonical_bytes(retry_plan))
+        runtime.submit(
+            _command(
+                "RegisterSpikePlan",
+                retry_spike_id,
+                0,
+                {
+                    "row_id": "OR-025",
+                    "candidate_id": candidate_id,
+                    "old_spike_id": spike_id,
+                    "spike_id": retry_spike_id,
+                    "plan_sha256": retry_plan_sha256,
+                    "plan_artifact": retry_plan,
+                },
+            )
+        )
+        retried = replay_discovery(runtime.ledger.iter_events())
+        assert retried["spikes"][spike_id]["status"] == "superseded"
+        assert retried["spikes"][retry_spike_id]["status"] == "approval_pending"
+        assert retried["candidates"][candidate_id]["status"] == "spike_approval_pending"
+        cancellation_artifact = {
+            "reason": "owner stops the retry before execution",
+            "evidence_refs": [revisit_id],
+        }
+        cancellation_sha256 = sha256_hex(canonical_bytes(cancellation_artifact))
+        runtime.submit(
+            _command(
+                "CancelDiscoveryEvaluation",
+                retry_spike_id,
+                2,
+                {
+                    "row_id": "OR-022",
+                    "evaluation_kind": "spike",
+                    "candidate_id": candidate_id,
+                    "spike_id": retry_spike_id,
+                    "cancellation_sha256": cancellation_sha256,
+                    "cancellation_artifact": cancellation_artifact,
+                },
+            )
+        )
+        cancelled = replay_discovery(runtime.ledger.iter_events())
+        assert cancelled["spikes"][retry_spike_id]["status"] == "cancelled"
+        assert cancelled["candidates"][candidate_id]["status"] == "spike_cancelled"
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(

@@ -7,12 +7,13 @@ import json
 from pathlib import Path, PurePosixPath
 import os
 import subprocess
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
 import research_system.discovery.dossier as dossier_module
 import research_system.discovery.runtime as runtime_module
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.discovery import DiscoveryRuntime, replay_discovery
 from research_system.discovery.authority import subject_sha256
@@ -105,16 +106,150 @@ def _rehash(expected: AcceptedExpectedSet) -> AcceptedExpectedSet:
     return replace(expected, content_hash=accepted_expected_set_hash(replace(expected, content_hash="0" * 64)))
 
 
+def _canonical_hash(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def _rehash_ledger(events: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+    previous_hash = "0" * 64
+    for position, event in enumerate(events, start=1):
+        event["global_position"] = position
+        event["previous_event_hash"] = previous_hash
+        unsigned = dict(event)
+        unsigned.pop("event_hash", None)
+        event["event_hash"] = sha256_hex(canonical_bytes(unsigned))
+        previous_hash = event["event_hash"]
+    return tuple(events)
+
+
 def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]:
-    rows = [asdict(member) for member in members if member.member_kind != "package_index"]
-    return {
-        "schema_id": "ars://portfolio/research-dossier-admission-manifest",
-        "schema_version": "1.0.0",
-        "package_id": "TDA-ARS-SCALE-RESEARCH",
-        "package_version": "1.0.3",
-        "member_count": len(rows),
-        "members": rows,
+    component_members = [member for member in members if member.member_kind == "component"]
+    source_members = [member for member in members if member.member_kind in {"package_index", "evidence"}]
+    components = [
+        {
+            "component_key": member.member_key,
+            "component_kind": "immutable_programme_source",
+            "schema_id": "ars://portfolio/source-component",
+            "schema_version": "1.0.0",
+            "root_id": member.root_id,
+            "relative_path_or_object_ref": member.relative_path,
+            "size_bytes": member.size_bytes,
+            "sha256": member.sha256,
+            "required": True,
+            "dependency_keys": [],
+            "permitted_consumers": ["portfolio-admission"],
+            "confidentiality_class": "internal",
+        }
+        for member in component_members
+    ]
+    sources = [
+        {
+            "source_key": member.member_key,
+            "source_kind": member.member_kind,
+            "schema_or_media_type": "application/json",
+            "root_id": member.root_id,
+            "relative_path_or_locator": member.relative_path,
+            "size_bytes": member.size_bytes,
+            "sha256": member.sha256,
+            "source_authority_class": "independently_observed",
+            "required": True,
+            "permitted_consumers": ["portfolio-admission"],
+            "confidentiality_class": "internal",
+            "independent_resolution_policy_id": "policy:wp6.6:registered-path-read",
+            "independent_resolution_policy_hash": "7" * 64,
+        }
+        for member in source_members
+    ]
+    objects: list[dict[str, object]] = []
+    object_refs: dict[str, dict[str, object]] = {}
+    for index, member in enumerate(component_members, start=1):
+        row: dict[str, object] = {
+            "object_key": member.member_key,
+            "portfolio_kind": "programme" if member.member_key == "MASTER-PROGRAMME" else "candidate_definition",
+            "schema_id": "ars://portfolio/object",
+            "schema_version": "1.0.0",
+            "proposed_record_id": f"obj_019fed25-b33e-7740-b280-{1000 + index:012d}",
+            "proposed_revision": 1,
+            "source_keys": [member.member_key],
+            "permitted_consumers": ["portfolio-catalogue"],
+        }
+        digest = _canonical_hash(row)
+        row.update(blueprint_hash=digest, expected_content_hash=digest)
+        objects.append(row)
+        object_refs[member.member_key] = {"key": member.member_key, "revision": 1, "content_hash": digest}
+    scope_row: dict[str, object] = {
+        "scope_key": "tda-scale-programme",
+        "scope_schema_id": "ars://portfolio/scope-definition",
+        "scope_schema_version": "1.0.0",
+        "proposed_scope_id": "obj_019fed25-b33e-7740-b280-000000001999",
+        "proposed_revision": 1,
+        "governing_object_keys": [member.member_key for member in component_members],
+        "permitted_consumers": ["portfolio-catalogue"],
     }
+    scope_digest = _canonical_hash(scope_row)
+    scope_row.update(blueprint_hash=scope_digest, expected_content_hash=scope_digest)
+    scope_ref = {"key": "tda-scale-programme", "revision": 1, "content_hash": scope_digest}
+    edges: list[dict[str, object]] = []
+    master = component_members[0]
+    for index, member in enumerate(component_members[1:], start=1):
+        edge: dict[str, object] = {
+            "edge_key": f"{master.member_key}-contains-{member.member_key}",
+            "edge_type": "contains",
+            "proposed_edge_id": f"obj_019fed25-b33e-7740-b280-{2000 + index:012d}",
+            "proposed_revision": 1,
+            "from_key": object_refs[master.member_key],
+            "to_key": object_refs[member.member_key],
+            "required": True,
+            "satisfaction_predicate_ref_or_null": None,
+            "effective_scope_key": "tda-scale-programme",
+        }
+        edge["expected_content_hash"] = _canonical_hash(edge)
+        edges.append(edge)
+    relationship_members = deepcopy([*object_refs.values(), scope_ref])
+    relationships = [
+        {
+            "relationship_key": "tda-scale-programme-closure",
+            "relationship_kind": "contains",
+            "ordered_member_keys_with_revisions_hashes": relationship_members,
+            "relation_schema_id": "ars://portfolio/relation/dossier-six-family-closure",
+            "relation_schema_version": "1.0.0",
+            "relation_hash": _canonical_hash(relationship_members),
+        }
+    ]
+    manifest: dict[str, object] = {
+        "schema_id": "ars://portfolio/research-dossier-manifest",
+        "schema_version": "1.0.0",
+        "dossier_logical_id": "obj_019fed25-b33e-7740-b280-000000000913",
+        "dossier_revision": 1,
+        "package_version": "1.0.3",
+        "purpose": "Provider-free admission of the exact TDA-scale programme dossier.",
+        "author": "WP6.6 Portfolio Steward",
+        "created_at": "2026-08-01T00:00:00Z",
+        "governing_decisions": [],
+        "component_count": len(components),
+        "components": components,
+        "source_dependency_count": len(sources),
+        "source_dependencies": sources,
+        "object_blueprints": objects,
+        "scope_definition_blueprints": [scope_row],
+        "dependency_edges": edges,
+        "relationships": relationships,
+        "object_count": len(objects),
+        "scope_count": 1,
+        "edge_count": len(edges),
+        "relationship_count": 1,
+        "admission_profile_ref": {
+            "id": "profile:wp6.6:dossier-admission",
+            "record_revision": 1,
+            "content_hash": admission_profile_hash("profile:wp6.6:dossier-admission", 1),
+        },
+        "ownership_declarations": ["Successor owns only newly materialized semantic records."],
+        "prohibited_adoption_claims": ["No source component is itself a portfolio object."],
+    }
+    manifest["closure_hash"] = _canonical_hash(manifest)
+    return manifest
 
 
 def _admit_with_default_manifest(**kwargs: Any) -> PreparedDossierAdmission:
@@ -141,18 +276,63 @@ def test_real_tda_scale_dossier_prepares_deterministic_provider_free_atomic_batc
     assert first == second
     assert first.events[0]["event_type"] == "ResearchDossierAdmitted"
     assert first.events[0]["payload"]["provider_execution"] == "forbidden"
-    assert [event["event_type"] for event in first.events].count("PortfolioObjectRegistered") == 20
+    object_events = [event for event in first.events if event["event_type"] == "PortfolioObjectRegistered"]
+    assert len(object_events) == 33
     assert [event["event_type"] for event in first.events].count("ScopeDefinitionRegistered") == 1
     assert len(first.observed_members) == 21
+    assert all(event["payload"]["record_id"].startswith("obj_") for event in object_events)
+    assert not {member.member_key for member in expected.members} & {
+        event["payload"]["record_id"] for event in object_events
+    }
 
 
 def test_package_manifest_must_describe_the_exact_admitted_member_closure() -> None:
     expected, roots = _subject()
     manifest = _candidate_manifest(expected.members)
-    manifest["members"] = manifest["members"][:-1]
-    manifest["member_count"] = len(manifest["members"])
+    manifest["components"] = manifest["components"][:-1]
+    manifest["component_count"] = len(manifest["components"])
+    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
 
     with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
+        _admit_with_default_manifest(
+            expected_set=expected,
+            current_expected_set_revision=3,
+            candidate_members=expected.members,
+            candidate_manifest=manifest,
+            registered_roots=roots,
+        )
+
+
+@pytest.mark.parametrize(
+    ("family", "mutation", "reason"),
+    [
+        (
+            "object_blueprints",
+            lambda row: row.__setitem__("proposed_record_id", "obj_019fed25-b33e-7740-b280-ffffffffffff"),
+            "invalid_object_blueprint",
+        ),
+        (
+            "dependency_edges",
+            lambda row: row.__setitem__("to_key", deepcopy(row["from_key"])),
+            "invalid_dependency_edge",
+        ),
+        (
+            "relationships",
+            lambda row: row["ordered_member_keys_with_revisions_hashes"][0].__setitem__("content_hash", "f" * 64),
+            "invalid_relationship",
+        ),
+    ],
+)
+def test_semantic_blueprint_substitution_rejects_before_publication(
+    family: str,
+    mutation: Callable[[dict[str, Any]], None],
+    reason: str,
+) -> None:
+    expected, roots = _subject()
+    manifest = _candidate_manifest(expected.members)
+    mutation(manifest[family][0])
+    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    with pytest.raises(DossierAdmissionRejected, match=reason):
         _admit_with_default_manifest(
             expected_set=expected,
             current_expected_set_revision=3,
@@ -493,10 +673,10 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     )
 
     incomplete_manifest = deepcopy(command)
-    incomplete_manifest["payload"]["candidate_manifest"]["members"] = incomplete_manifest["payload"][
-        "candidate_manifest"
-    ]["members"][:-1]
-    incomplete_manifest["payload"]["candidate_manifest"]["member_count"] -= 1
+    manifest = incomplete_manifest["payload"]["candidate_manifest"]
+    manifest["components"] = manifest["components"][:-1]
+    manifest["component_count"] -= 1
+    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
     before = tuple(runtime.ledger.iter_events())
     with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
         runtime.submit(incomplete_manifest)
@@ -509,6 +689,11 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     assert replayed["authorities"]["dossier_expected_set"]["status"] == "accepted"
     assert replayed["authorities"]["path_registration"]["status"] == "accepted"
     assert replayed["dossiers"][expected.dossier_id]["member_count"] == 21
+
+    omitted = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    omitted.remove(next(event for event in omitted if event["event_type"] == "PortfolioObjectRegistered"))
+    with pytest.raises(IntegrityError, match="materialization closure mismatch"):
+        replay_discovery(_rehash_ledger(omitted))
 
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])

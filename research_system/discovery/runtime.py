@@ -19,6 +19,7 @@ from research_system.discovery.assay_authority import (
 )
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
+    DossierAdmissionRejected,
     DossierMember,
     RegisteredRoot,
     prepare_dossier_admission,
@@ -60,9 +61,13 @@ _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 _GIT_TIMEOUT_SECONDS = 10
 _DISCOVERY_COMMAND_TYPES = {
     "ImportAcceptedW11CatalogueGenesis",
+    "IngestScoutObservationBatch",
     "RegisterCandidate",
     "RequestAssay",
     "RecordAssayScore",
+    "RecordAssayPartial",
+    "CancelDiscoveryEvaluation",
+    "ProposeRevisitDecision",
     "RequestDiscoveryOutcomeReview",
     "ReviewDiscoveryOutcome",
     "ProposePromotionDecision",
@@ -90,6 +95,18 @@ def _git_blob(data: bytes) -> str:
         b"blob " + str(len(data)).encode("ascii") + b"\0" + data,
         usedforsecurity=False,
     ).hexdigest()
+
+
+def _source_observation_multiset_hash(observation_ids: list[str], observations: Mapping[str, Mapping[str, Any]]) -> str:
+    """Hash an exact sorted multiset of resolved source-observation identities."""
+
+    resolved = []
+    for observation_id in sorted(observation_ids):
+        observation = observations.get(observation_id)
+        if not isinstance(observation, Mapping) or not isinstance(observation.get("content_sha256"), str):
+            raise IntegrityError("Candidate source observation is not registered")
+        resolved.append({"observation_id": observation_id, "content_sha256": observation["content_sha256"]})
+    return sha256_hex(canonical_bytes(resolved))
 
 
 def _review_policy_status(payload: Mapping[str, Any]) -> str:
@@ -155,6 +172,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
     _validate_hash_chain(ordered)
     state: dict[str, Any] = {
         "catalogue": None,
+        "source_observations": {},
         "candidates": {},
         "assays": {},
         "spikes": {},
@@ -400,12 +418,45 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if state["catalogue"] is not None:
                 raise IntegrityError("W11 genesis appears more than once")
             state["catalogue"] = deepcopy(payload)
+        elif event_type == "ScoutObservationIngested":
+            observation_id = required_string("observation_id")
+            if observation_id in state["source_observations"]:
+                raise IntegrityError("source observation identity collision")
+            batch = payload.get("batch")
+            dedup_keys = payload.get("normalized_dedup_keys")
+            if (
+                not isinstance(batch, dict)
+                or not isinstance(dedup_keys, list)
+                or not dedup_keys
+                or not all(isinstance(value, str) and value for value in dedup_keys)
+                or len(dedup_keys) != len(set(dedup_keys))
+                or required_string("content_sha256") != sha256_hex(canonical_bytes(batch))
+                or any(
+                    set(dedup_keys) & set(existing.get("normalized_dedup_keys", []))
+                    for existing in state["source_observations"].values()
+                )
+            ):
+                raise IntegrityError("invalid Scout observation event")
+            state["source_observations"][observation_id] = deepcopy(payload)
         elif event_type == "CandidateRegistered":
             if state["catalogue"] is None:
                 raise IntegrityError("Candidate event predates W11 genesis")
             candidate_id = payload.get("candidate_id")
-            if not isinstance(candidate_id, str) or candidate_id in state["candidates"]:
+            observations = payload.get("source_observation_refs")
+            if (
+                not isinstance(candidate_id, str)
+                or candidate_id in state["candidates"]
+                or not isinstance(observations, list)
+                or not observations
+                or not all(isinstance(item, str) and item for item in observations)
+            ):
                 raise IntegrityError("Candidate identity collision")
+            multiset_hash = _source_observation_multiset_hash(observations, state["source_observations"])
+            if (
+                payload.get("source_observation_multiset_hash") != multiset_hash
+                or payload.get("content_sha256") != multiset_hash
+            ):
+                raise IntegrityError("Candidate source observation identity mismatch")
             state["candidates"][candidate_id] = {**deepcopy(payload), "status": "registered", "version": 1}
         elif event_type == "AssayRequested":
             assay_id = payload.get("assay_id")
@@ -413,7 +464,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(assay_id, str)
                 or assay_id in state["assays"]
-                or state["candidates"].get(candidate_id, {}).get("status") != "registered"
+                or state["candidates"].get(candidate_id, {}).get("status")
+                not in {"registered", "assay_retry_authorized"}
             ):
                 raise IntegrityError("invalid Assay request transition")
             state["assays"][assay_id] = {
@@ -477,6 +529,39 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 scorecard_sha256=required_string("scorecard_sha256"),
                 version=event["stream_version"],
             )
+        elif event_type == "AssayPartialRecorded":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if not isinstance(assay, dict) or assay.get("status") != "evidence_collecting":
+                raise IntegrityError("invalid Assay partial transition")
+            assay.update(
+                status="partial_recorded",
+                outcome_sha256=required_string("partial_sha256"),
+                producer_actor_id=event.get("actor_id"),
+                version=event["stream_version"],
+            )
+        elif event_type == "CandidateAssayPartialLinked":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "assay_pending":
+                raise IntegrityError("invalid Candidate Assay partial transition")
+            candidate.update(status="assay_partial_recorded", version=event["stream_version"])
+        elif event_type == "AssayCancelled":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if not isinstance(assay, dict) or assay.get("status") not in {"requested", "evidence_collecting"}:
+                raise IntegrityError("invalid Assay cancellation")
+            assay.update(
+                status="cancelled",
+                outcome_sha256=required_string("cancellation_sha256"),
+                producer_actor_id=event.get("actor_id"),
+                version=event["stream_version"],
+            )
+        elif event_type == "CandidateEvaluationCancelled":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or payload.get("evaluation_kind") not in {"assay", "spike"}:
+                raise IntegrityError("invalid Candidate evaluation cancellation")
+            candidate.update(
+                status=f"{payload['evaluation_kind']}_cancelled",
+                version=event["stream_version"],
+            )
         elif event_type == "ReviewRequested":
             review_id = payload.get("new_review_id")
             subject_ids = required_string_list("subject_ids")
@@ -499,9 +584,18 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "status": "pending",
                 "version": event["stream_version"],
             }
-        elif event_type == "AssayOutcomeReviewRequested":
+        elif event_type in {
+            "AssayOutcomeReviewRequested",
+            "AssayPartialReviewRequested",
+            "AssayCancellationReviewRequested",
+        }:
             assay = state["assays"].get(payload.get("assay_id"))
-            if not isinstance(assay, dict) or assay.get("status") != "scored":
+            expected_status = {
+                "AssayOutcomeReviewRequested": "scored",
+                "AssayPartialReviewRequested": "partial_recorded",
+                "AssayCancellationReviewRequested": "cancelled",
+            }[event_type]
+            if not isinstance(assay, dict) or assay.get("status") != expected_status:
                 raise IntegrityError("invalid Assay outcome review request")
             assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
         elif event_type == "ReviewVerdictRecorded":
@@ -545,6 +639,31 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             ):
                 raise IntegrityError("invalid Assay reviewed transition")
             assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
+        elif event_type in {"AssayPartialReviewed", "AssayCancellationReviewed"}:
+            assay = state["assays"].get(payload.get("assay_id"))
+            review = state["reviews"].get(payload.get("review_id"))
+            expected_status = "partial_recorded" if event_type == "AssayPartialReviewed" else "cancelled"
+            if (
+                not isinstance(assay, dict)
+                or assay.get("status") != expected_status
+                or not assay.get("review_pending")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+            ):
+                raise IntegrityError("invalid Assay reviewed transition")
+            assay.update(
+                status="partial_reviewed" if event_type == "AssayPartialReviewed" else "cancellation_reviewed",
+                review_pending=False,
+                version=event["stream_version"],
+            )
+        elif event_type in {"CandidateAssayPartialReviewed", "CandidateAssayCancellationReviewed"}:
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            expected_status = (
+                "assay_partial_recorded" if event_type == "CandidateAssayPartialReviewed" else "assay_cancelled"
+            )
+            if not isinstance(candidate, dict) or candidate.get("status") != expected_status:
+                raise IntegrityError("invalid Candidate Assay review transition")
+            candidate.update(status="assay_revisit_eligible", version=event["stream_version"])
         elif event_type == "DecisionProposed":
             decision_id = payload.get("new_decision_id")
             if not isinstance(decision_id, str) or decision_id in state["decisions"]:
@@ -561,6 +680,65 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             decision.update(
                 status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]
             )
+        elif event_type in {"AssayRevisitRequested", "SpikeRevisitRequested"}:
+            collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
+            subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
+            subject = collection.get(subject_id)
+            if not isinstance(subject, dict) or subject.get("status") not in {
+                "partial_reviewed",
+                "cancellation_reviewed",
+                "reviewed",
+            }:
+                raise IntegrityError("invalid Discovery revisit request")
+            subject.update(status="revisit_pending", decision_id=required_string("decision_id"))
+        elif event_type in {"CandidateAssayRevisitRequested", "CandidateSpikeRevisitRequested"}:
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
+            if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_revisit_eligible":
+                raise IntegrityError("invalid Candidate revisit request")
+            candidate.update(status=f"{kind}_revisit_pending", decision_id=required_string("decision_id"))
+        elif event_type in {"AssayRevisitResolved", "SpikeRevisitResolved"}:
+            collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
+            subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
+            subject = collection.get(subject_id)
+            decision = state["decisions"].get(payload.get("decision_id"))
+            selected = required_string("selected_option")
+            if (
+                not isinstance(subject, dict)
+                or subject.get("status") != "revisit_pending"
+                or not isinstance(decision, dict)
+                or decision.get("status") != "resolved"
+                or decision.get("selected_option") != selected
+                or selected not in {"RETRY", "PARK", "KILL"}
+            ):
+                raise IntegrityError("invalid Discovery revisit resolution")
+            subject.update(status={"RETRY": "retry_authorized", "PARK": "parked", "KILL": "killed"}[selected])
+        elif event_type in {"CandidateAssayRevisitResolved", "CandidateSpikeRevisitResolved"}:
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
+            selected = required_string("selected_option")
+            if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_revisit_pending":
+                raise IntegrityError("invalid Candidate revisit resolution")
+            candidate.update(
+                status={"RETRY": f"{kind}_retry_authorized", "PARK": "parked", "KILL": "killed"}.get(selected)
+            )
+            if candidate.get("status") is None:
+                raise IntegrityError("invalid Candidate revisit option")
+        elif event_type in {"AssaySuperseded", "SpikeSuperseded"}:
+            collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
+            subject_id = payload.get("old_assay_id") if event_type.startswith("Assay") else payload.get("old_spike_id")
+            subject = collection.get(subject_id)
+            if not isinstance(subject, dict) or subject.get("status") != "retry_authorized":
+                raise IntegrityError("invalid Discovery retry supersession")
+            subject.update(status="superseded")
+        elif event_type in {"CandidateAssayRetryStarted", "CandidateSpikeRetryStarted"}:
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
+            new_id = payload.get("assay_id") if kind == "assay" else payload.get("spike_id")
+            if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_retry_authorized":
+                raise IntegrityError("invalid Candidate retry transition")
+            candidate.update(status=f"{kind}_pending" if kind == "assay" else "spike_approval_pending")
+            candidate[f"{kind}_id"] = new_id
         elif event_type == "CandidatePromotionRequested":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
@@ -653,16 +831,16 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike = state["spikes"].get(payload.get("spike_id"))
             if (
                 not isinstance(spike, dict)
-                or spike.get("status") != "partial_recorded"
+                or spike.get("status") not in {"partial_recorded", "cancelled"}
                 or spike.get("attempt_id") != payload.get("attempt_id")
             ):
                 raise IntegrityError("invalid Spike attempt closure")
-            spike.update(attempt_status="partial")
+            spike.update(attempt_status="cancelled" if spike.get("status") == "cancelled" else "partial")
         elif event_type == "SpikeLeaseReleased":
             spike = state["spikes"].get(payload.get("spike_id"))
             if (
                 not isinstance(spike, dict)
-                or spike.get("attempt_status") != "partial"
+                or spike.get("attempt_status") not in {"partial", "cancelled"}
                 or payload.get("lease_id") != spike.get("lease_id")
             ):
                 raise IntegrityError("invalid Spike lease release")
@@ -677,9 +855,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if not isinstance(candidate, dict) or candidate.get("status") != "spike_running":
                 raise IntegrityError("invalid Candidate Spike partial link")
             candidate.update(status="spike_partial_recorded")
-        elif event_type == "SpikeReviewRequested":
+        elif event_type in {"SpikeReviewRequested", "SpikePartialReviewRequested", "SpikeCancellationReviewRequested"}:
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict):
+            expected_status = {
+                "SpikeReviewRequested": "verdict_recorded",
+                "SpikePartialReviewRequested": "partial_recorded",
+                "SpikeCancellationReviewRequested": "cancelled",
+            }[event_type]
+            if not isinstance(spike, dict) or spike.get("status") != expected_status:
                 raise IntegrityError("invalid Spike review request")
             spike.update(review_id=required_string("review_id"), review_pending=True)
         elif event_type == "SpikeReviewed":
@@ -697,24 +880,126 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict) or candidate.get("status") != "spike_partial_recorded":
                 raise IntegrityError("invalid Candidate Spike partial review")
-            candidate.update(status="spike_revisit_pending")
+            candidate.update(status="spike_revisit_eligible")
+        elif event_type == "SpikePartialReviewed":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            review = state["reviews"].get(payload.get("review_id"))
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") != "partial_recorded"
+                or not spike.get("review_pending")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+            ):
+                raise IntegrityError("invalid Spike partial review")
+            spike.update(status="partial_reviewed", review_pending=False)
+        elif event_type == "SpikeCancelled":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if not isinstance(spike, dict) or spike.get("status") not in {
+                "planned",
+                "approval_pending",
+                "authorized",
+                "running",
+            }:
+                raise IntegrityError("invalid Spike cancellation")
+            spike.update(
+                status="cancelled",
+                outcome_sha256=required_string("cancellation_sha256"),
+                producer_actor_id=event.get("actor_id"),
+            )
+        elif event_type == "SpikeCancellationReviewed":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            review = state["reviews"].get(payload.get("review_id"))
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") != "cancelled"
+                or not spike.get("review_pending")
+                or not isinstance(review, dict)
+                or review.get("status") != "satisfied"
+            ):
+                raise IntegrityError("invalid Spike cancellation review")
+            spike.update(status="cancellation_reviewed", review_pending=False)
+        elif event_type == "CandidateSpikeCancellationReviewed":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            if not isinstance(candidate, dict) or candidate.get("status") != "spike_cancelled":
+                raise IntegrityError("invalid Candidate Spike cancellation review")
+            candidate.update(status="spike_revisit_eligible")
         elif event_type == "ResearchDossierAdmitted":
             dossier_id = payload.get("dossier_id")
             if not isinstance(dossier_id, str) or dossier_id in state["dossiers"]:
                 raise IntegrityError("Research dossier identity collision")
             state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
         elif event_type == "PortfolioObjectRegistered":
-            member_key = payload.get("member_key")
-            if not isinstance(member_key, str) or member_key in state["portfolio_objects"]:
+            record_id = payload.get("record_id")
+            blueprint = payload.get("blueprint")
+            if isinstance(blueprint, dict) and "proposed_edge_id" in blueprint:
+                blueprint_preimage = {
+                    key: deepcopy(value) for key, value in blueprint.items() if key != "expected_content_hash"
+                }
+            elif isinstance(blueprint, dict):
+                blueprint_preimage = {
+                    key: deepcopy(value)
+                    for key, value in blueprint.items()
+                    if key not in {"blueprint_hash", "expected_content_hash"}
+                }
+            else:
+                blueprint_preimage = {}
+            blueprint_hash = sha256_hex(canonical_bytes(blueprint_preimage))
+            if (
+                not isinstance(record_id, str)
+                or record_id in state["portfolio_objects"]
+                or not isinstance(blueprint, dict)
+                or blueprint.get("proposed_record_id", blueprint.get("proposed_edge_id")) != record_id
+                or payload.get("record_revision") != 1
+                or payload.get("content_sha256") != blueprint_hash
+                or blueprint.get("expected_content_hash") != blueprint_hash
+                or ("proposed_record_id" in blueprint and blueprint.get("blueprint_hash") != blueprint_hash)
+            ):
                 raise IntegrityError("Portfolio object identity collision")
-            state["portfolio_objects"][member_key] = deepcopy(payload)
+            state["portfolio_objects"][record_id] = deepcopy(payload)
         elif event_type == "ScopeDefinitionRegistered":
-            member_key = payload.get("member_key")
-            if not isinstance(member_key, str) or member_key in state["scopes"]:
+            scope_id = payload.get("scope_id")
+            blueprint = payload.get("blueprint")
+            blueprint_preimage = (
+                {
+                    key: deepcopy(value)
+                    for key, value in blueprint.items()
+                    if key not in {"blueprint_hash", "expected_content_hash"}
+                }
+                if isinstance(blueprint, dict)
+                else {}
+            )
+            blueprint_hash = sha256_hex(canonical_bytes(blueprint_preimage))
+            if (
+                not isinstance(scope_id, str)
+                or scope_id in state["scopes"]
+                or not isinstance(blueprint, dict)
+                or blueprint.get("proposed_scope_id") != scope_id
+                or payload.get("scope_revision") != 1
+                or payload.get("content_sha256") != blueprint_hash
+                or blueprint.get("blueprint_hash") != blueprint_hash
+                or blueprint.get("expected_content_hash") != blueprint_hash
+            ):
                 raise IntegrityError("Scope identity collision")
-            state["scopes"][member_key] = deepcopy(payload)
+            state["scopes"][scope_id] = deepcopy(payload)
         else:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
+    for dossier_id, dossier in state["dossiers"].items():
+        object_count = sum(
+            value.get("dossier_id") == dossier_id and value.get("portfolio_kind") != "dependency_edge"
+            for value in state["portfolio_objects"].values()
+        )
+        edge_count = sum(
+            value.get("dossier_id") == dossier_id and value.get("portfolio_kind") == "dependency_edge"
+            for value in state["portfolio_objects"].values()
+        )
+        scope_count = sum(value.get("dossier_id") == dossier_id for value in state["scopes"].values())
+        if (
+            dossier.get("object_count") != object_count
+            or dossier.get("edge_count") != edge_count
+            or dossier.get("scope_count") != scope_count
+        ):
+            raise IntegrityError("Research dossier materialization closure mismatch")
     return state
 
 
@@ -816,9 +1101,13 @@ class DiscoveryRuntime:
         identity = self.schemas.resolve_identity(binding.schema_id, binding.schema_version)
         subject_kind = {
             "ImportAcceptedW11CatalogueGenesis": "scope_definition",
+            "IngestScoutObservationBatch": "scope_definition",
             "RegisterCandidate": "scope_definition",
             "RequestAssay": "scope_definition",
             "RecordAssayScore": "scope_definition",
+            "RecordAssayPartial": "scope_definition",
+            "CancelDiscoveryEvaluation": "scope_definition",
+            "ProposeRevisitDecision": "decision",
             "RequestDiscoveryOutcomeReview": "review",
             "ReviewDiscoveryOutcome": "review",
             "ProposePromotionDecision": "decision",
@@ -844,6 +1133,8 @@ class DiscoveryRuntime:
         if command_type in {
             "RequestAssay",
             "RecordAssayScore",
+            "RecordAssayPartial",
+            "CancelDiscoveryEvaluation",
             "RegisterSpikePlan",
             "StartSpike",
             "RecordSpikeVerdict",
@@ -920,16 +1211,35 @@ class DiscoveryRuntime:
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
             event_type, event_payload = self._prepare_genesis(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
+        elif envelope["command_type"] == "IngestScoutObservationBatch":
+            prepared = self._prepare_scout_observation(command, projection)
         elif envelope["command_type"] == "RegisterCandidate":
             event_type, event_payload = self._prepare_candidate(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
         elif envelope["command_type"] in {
             "RequestAssay",
             "RecordAssayScore",
+            "RecordAssayPartial",
+            "CancelDiscoveryEvaluation",
+            "ProposeRevisitDecision",
             "RequestDiscoveryOutcomeReview",
             "ReviewDiscoveryOutcome",
-        }:
-            if envelope["payload"].get("row_id") in {"OR-003", "OR-004", "OR-006", "OR-034"}:
+        } or (envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") == "OR-010"):
+            if envelope["payload"].get("row_id") in {
+                "OR-003",
+                "OR-004",
+                "OR-005",
+                "OR-006",
+                "OR-007",
+                "OR-008",
+                "OR-009",
+                "OR-010",
+                "OR-011",
+                "OR-034",
+                "OR-035",
+                "OR-038",
+                "OR-039",
+            }:
                 prepared = self._prepare_assay(command, projection)
             else:
                 prepared = self._prepare_spike(command, projection)
@@ -939,8 +1249,11 @@ class DiscoveryRuntime:
             "ProposeSpikeExecutionDecision",
             "StartSpike",
             "RecordSpikeVerdict",
+            "CancelDiscoveryEvaluation",
+            "ProposeRevisitDecision",
         } or (
-            envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") in {"OR-013", "OR-016"}
+            envelope["command_type"] == "ResolveDecision"
+            and envelope["payload"].get("row_id") in {"OR-013", "OR-016", "OR-024"}
         ):
             prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] == "AdmitResearchDossier":
@@ -1725,6 +2038,14 @@ class DiscoveryRuntime:
             members = tuple(DossierMember(**member) for member in payload["candidate_members"])
         except (TypeError, ValueError) as exc:
             raise IntegrityError("invalid dossier candidate member") from exc
+        try:
+            self.schemas.validate(
+                "ars://portfolio/research-dossier-manifest",
+                payload["candidate_manifest"],
+                schema_version="1.0.0",
+            )
+        except SchemaError as exc:
+            raise DossierAdmissionRejected("invalid_research_dossier_manifest") from exc
         prepared = prepare_dossier_admission(
             expected_set=expected,
             current_expected_set_revision=current_revision,
@@ -1743,9 +2064,13 @@ class DiscoveryRuntime:
         for event in prepared.events:
             event_type = event["event_type"]
             event_payload = event["payload"]
-            stream_id = (
-                expected.dossier_id if event_type == "ResearchDossierAdmitted" else str(event_payload["provenance_id"])
-            )
+            stream_id = {
+                "ResearchDossierAdmitted": expected.dossier_id,
+                "PortfolioObjectRegistered": event_payload.get("record_id"),
+                "ScopeDefinitionRegistered": event_payload.get("scope_id"),
+            }.get(event_type)
+            if not isinstance(stream_id, str):
+                raise IntegrityError("dossier event lacks immutable stream identity")
             result.append((event_type, stream_id, event_payload))
         return result
 
@@ -1798,14 +2123,30 @@ class DiscoveryRuntime:
             ]
         if (
             ct == "RegisterSpikePlan"
-            and row == "OR-014"
+            and row in {"OR-014", "OR-025"}
             and candidate
-            and candidate.get("status") == "spike_planning_authorized"
+            and candidate.get("status")
+            == ("spike_planning_authorized" if row == "OR-014" else "spike_retry_authorized")
             and spike is None
             and command.target_stream_id == spike_id
             and isinstance(p.get("plan_artifact"), dict)
             and self._valid_spike_plan(p["plan_artifact"], p, candidate, assay)
         ):
+            if row == "OR-025":
+                old_spike_id = p.get("old_spike_id")
+                old_spike = projection["spikes"].get(old_spike_id)
+                if (
+                    not isinstance(old_spike, dict)
+                    or old_spike.get("status") != "retry_authorized"
+                    or candidate.get("spike_id") != old_spike_id
+                ):
+                    raise IntegrityError("invalid Spike retry transition")
+                return out(
+                    ("SpikePlanned", spike_id),
+                    ("SpikeApprovalRequested", spike_id),
+                    ("SpikeSuperseded", old_spike_id),
+                    ("CandidateSpikeRetryStarted", candidate_id),
+                )
             return out(
                 ("SpikePlanned", spike_id),
                 ("SpikeApprovalRequested", spike_id),
@@ -1917,11 +2258,72 @@ class DiscoveryRuntime:
                     ("CandidateSpikePartialLinked", candidate_id, deepcopy(p)),
                 ]
             return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
+        if ct == "CancelDiscoveryEvaluation" and row == "OR-022":
+            artifact = p.get("cancellation_artifact")
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") not in {"planned", "approval_pending", "authorized", "running"}
+                or spike.get("candidate_id") != candidate_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") not in {"spike_approval_pending", "spike_authorized", "spike_running"}
+                or command.target_stream_id != spike_id
+                or p.get("evaluation_kind") != "spike"
+                or not isinstance(artifact, dict)
+                or not isinstance(artifact.get("reason"), str)
+                or sha256_hex(canonical_bytes(artifact)) != p.get("cancellation_sha256")
+            ):
+                raise IntegrityError("invalid Spike cancellation transition")
+            events: list[tuple[str, str, dict[str, Any]]] = [("SpikeCancelled", spike_id, deepcopy(p))]
+            if spike.get("status") == "running":
+                attempt, lease = self._live_spike_operational_pair(spike)
+                now = self.clock()
+                if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+                    raise IntegrityError("Discovery operational clock must return an aware datetime")
+                events.extend(
+                    [
+                        (
+                            "PartialOutcomeRecorded",
+                            str(attempt["attempt_id"]),
+                            {
+                                "attempt_id": attempt["attempt_id"],
+                                "completed_obligations": list(artifact.get("completed_scope", [])),
+                                "unmet_obligations": list(artifact.get("unmet_scope", ["cancelled"])),
+                                "candidate_artefact_ids": [p["cancellation_sha256"]],
+                                "stop_cause": "discovery_evaluation_cancelled",
+                                "restrictions": list(artifact.get("restrictions", ["no_promotion"])),
+                                "subject_kind": "attempt",
+                            },
+                        ),
+                        (
+                            "LeaseReleased",
+                            str(lease["lease_id"]),
+                            {
+                                "lease_id": lease["lease_id"],
+                                "release_reason": "discovery_evaluation_cancelled",
+                                "holder_actor_id": lease["holder_actor_id"],
+                                "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                            },
+                        ),
+                        (
+                            "SpikeAttemptClosed",
+                            spike_id,
+                            {**deepcopy(p), "attempt_id": spike.get("attempt_id"), "lease_id": spike.get("lease_id")},
+                        ),
+                        (
+                            "SpikeLeaseReleased",
+                            spike_id,
+                            {**deepcopy(p), "attempt_id": spike.get("attempt_id"), "lease_id": spike.get("lease_id")},
+                        ),
+                    ]
+                )
+            events.append(("CandidateEvaluationCancelled", candidate_id, deepcopy(p)))
+            return events
         if (
             ct == "RequestDiscoveryOutcomeReview"
-            and row == "OR-036"
+            and row in {"OR-036", "OR-037", "OR-040"}
             and spike
-            and spike.get("status") in {"verdict_recorded", "partial_recorded"}
+            and spike.get("status")
+            == {"OR-036": "verdict_recorded", "OR-037": "partial_recorded", "OR-040": "cancelled"}[row]
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == review_id
             and projection["reviews"].get(review_id) is None
@@ -1932,11 +2334,19 @@ class DiscoveryRuntime:
         ):
             return [
                 ("ReviewRequested", review_id, deepcopy(p["review_contract"])),
-                ("SpikeReviewRequested", spike_id, deepcopy(p)),
+                (
+                    {
+                        "OR-036": "SpikeReviewRequested",
+                        "OR-037": "SpikePartialReviewRequested",
+                        "OR-040": "SpikeCancellationReviewRequested",
+                    }[row],
+                    spike_id,
+                    deepcopy(p),
+                ),
             ]
         if (
             ct == "ReviewDiscoveryOutcome"
-            and row == "OR-020"
+            and row in {"OR-020", "OR-021", "OR-041"}
             and spike
             and spike.get("review_pending")
             and spike.get("candidate_id") == candidate_id
@@ -1952,10 +2362,65 @@ class DiscoveryRuntime:
         ):
             events = [("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"]))]
             if _review_policy_status(p["review_verdict"]) == "satisfied":
-                events.append(("SpikeReviewed", spike_id, deepcopy(p)))
-                if spike.get("status") == "partial_recorded":
-                    events.append(("CandidateSpikePartialReviewed", candidate_id, deepcopy(p)))
+                if row == "OR-020" and spike.get("status") == "verdict_recorded":
+                    events.append(("SpikeReviewed", spike_id, deepcopy(p)))
+                elif row == "OR-021" and spike.get("status") == "partial_recorded":
+                    events.extend(
+                        [
+                            ("SpikePartialReviewed", spike_id, deepcopy(p)),
+                            ("CandidateSpikePartialReviewed", candidate_id, deepcopy(p)),
+                        ]
+                    )
+                elif row == "OR-041" and spike.get("status") == "cancelled":
+                    events.extend(
+                        [
+                            ("SpikeCancellationReviewed", spike_id, deepcopy(p)),
+                            ("CandidateSpikeCancellationReviewed", candidate_id, deepcopy(p)),
+                        ]
+                    )
+                else:
+                    raise IntegrityError("invalid Spike review row binding")
             return events
+        if ct == "ProposeRevisitDecision" and row == "OR-023":
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "spike_revisit_eligible"
+                or projection["decisions"].get(decision_id) is not None
+                or command.target_stream_id != decision_id
+                or not isinstance(p.get("w2_payload"), dict)
+                or p["w2_payload"].get("new_decision_id") != decision_id
+            ):
+                raise IntegrityError("invalid Spike revisit proposal")
+            return [
+                ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
+                ("SpikeRevisitRequested", spike_id, deepcopy(p)),
+                ("CandidateSpikeRevisitRequested", candidate_id, deepcopy(p)),
+            ]
+        if ct == "ResolveDecision" and row == "OR-024":
+            w2_payload = p.get("w2_payload")
+            if (
+                not isinstance(w2_payload, dict)
+                or w2_payload.get("decision_id") != decision_id
+                or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or not isinstance(spike, dict)
+                or spike.get("status") != "revisit_pending"
+                or spike.get("decision_id") != decision_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "spike_revisit_pending"
+                or candidate.get("decision_id") != decision_id
+                or command.target_stream_id != decision_id
+            ):
+                raise IntegrityError("invalid Spike revisit resolution")
+            resolved_payload = {**deepcopy(p), "selected_option": w2_payload["selected_option"]}
+            return [
+                ("DecisionResolved", decision_id, deepcopy(w2_payload)),
+                ("SpikeRevisitResolved", spike_id, deepcopy(resolved_payload)),
+                ("CandidateSpikeRevisitResolved", candidate_id, deepcopy(resolved_payload)),
+            ]
         raise IntegrityError(f"invalid Spike transition: {ct}/{row}")
 
     def _valid_live_spike_lease(self, payload: dict[str, Any], command: Command) -> bool:
@@ -2125,6 +2590,34 @@ class DiscoveryRuntime:
         review = projection["reviews"].get(review_id)
         command_type = command.envelope["command_type"]
         if command_type == "RequestAssay":
+            if payload.get("row_id") == "OR-011":
+                old_assay_id = payload.get("old_assay_id")
+                old_assay = projection["assays"].get(old_assay_id)
+                bar = projection["assay_bar_authority"]
+                producer_ref = bar.get("prospective_producer_ref") if isinstance(bar, dict) else None
+                if (
+                    command.target_stream_id != assay_id
+                    or not isinstance(assay_id, str)
+                    or assay is not None
+                    or not isinstance(old_assay, dict)
+                    or old_assay.get("status") != "retry_authorized"
+                    or not isinstance(candidate, dict)
+                    or candidate.get("status") != "assay_retry_authorized"
+                    or candidate.get("assay_id") != old_assay_id
+                    or bar.get("status") != "accepted"
+                    or payload.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
+                    or payload.get("producer_relation_sha256") != bar.get("producer_relation_sha256")
+                    or not isinstance(producer_ref, dict)
+                    or not isinstance(producer_ref.get("id"), str)
+                ):
+                    raise IntegrityError("invalid RequestAssay retry transition")
+                retry_payload = {**deepcopy(payload), "producer_actor_id": producer_ref["id"]}
+                return [
+                    ("AssayRequested", assay_id, deepcopy(retry_payload)),
+                    ("AssayEvidenceCollectionOpened", assay_id, deepcopy(retry_payload)),
+                    ("AssaySuperseded", old_assay_id, deepcopy(retry_payload)),
+                    ("CandidateAssayRetryStarted", candidate_id, deepcopy(retry_payload)),
+                ]
             bar = projection["assay_bar_authority"]
             producer_ref = bar.get("prospective_producer_ref") if isinstance(bar, dict) else None
             if (
@@ -2167,15 +2660,67 @@ class DiscoveryRuntime:
                 ("AssayScored", assay_id, deepcopy(payload)),
                 ("CandidateAssayLinked", candidate_id, deepcopy(payload)),
             ]
+        if command_type == "RecordAssayPartial":
+            artifact = payload.get("partial_artifact")
+            if (
+                payload.get("row_id") != "OR-005"
+                or command.target_stream_id != assay_id
+                or not isinstance(assay, dict)
+                or assay.get("status") != "evidence_collecting"
+                or assay.get("candidate_id") != candidate_id
+                or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+                or assay.get("producer_actor_id") != command.actor_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_pending"
+                or not isinstance(artifact, dict)
+                or not artifact.get("completed_scope")
+                or not artifact.get("unmet_scope")
+                or artifact.get("mechanical_recommendation") == "PROMOTE"
+                or sha256_hex(canonical_bytes(artifact)) != payload.get("partial_sha256")
+            ):
+                raise IntegrityError("invalid RecordAssayPartial transition")
+            return [
+                ("AssayPartialRecorded", assay_id, deepcopy(payload)),
+                ("CandidateAssayPartialLinked", candidate_id, deepcopy(payload)),
+            ]
+        if command_type == "CancelDiscoveryEvaluation":
+            artifact = payload.get("cancellation_artifact")
+            if (
+                payload.get("row_id") != "OR-008"
+                or command.target_stream_id != assay_id
+                or not isinstance(assay, dict)
+                or assay.get("status") not in {"requested", "evidence_collecting"}
+                or assay.get("candidate_id") != candidate_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_pending"
+                or payload.get("evaluation_kind") != "assay"
+                or not isinstance(artifact, dict)
+                or not isinstance(artifact.get("reason"), str)
+                or sha256_hex(canonical_bytes(artifact)) != payload.get("cancellation_sha256")
+            ):
+                raise IntegrityError("invalid Assay cancellation transition")
+            return [
+                ("AssayCancelled", assay_id, deepcopy(payload)),
+                ("CandidateEvaluationCancelled", candidate_id, deepcopy(payload)),
+            ]
         if command_type == "RequestDiscoveryOutcomeReview":
             review_contract = payload.get("review_contract")
+            row = payload.get("row_id")
+            expected_status = {"OR-034": "scored", "OR-035": "partial_recorded", "OR-038": "cancelled"}.get(row)
+            subject_sha256 = (
+                assay.get("scorecard_sha256")
+                if expected_status == "scored" and isinstance(assay, dict)
+                else assay.get("outcome_sha256")
+                if isinstance(assay, dict)
+                else None
+            )
             if (
-                payload.get("row_id") != "OR-034"
+                expected_status is None
                 or command.target_stream_id != review_id
                 or review is not None
                 or not isinstance(assay, dict)
-                or assay.get("status") != "scored"
-                or assay.get("scorecard_sha256") != payload.get("subject_sha256")
+                or assay.get("status") != expected_status
+                or subject_sha256 != payload.get("subject_sha256")
                 or not isinstance(review_contract, dict)
                 or review_contract.get("new_review_id") != review_id
                 or review_contract.get("subject_ids") != [assay_id]
@@ -2184,12 +2729,22 @@ class DiscoveryRuntime:
                 raise IntegrityError("invalid RequestDiscoveryOutcomeReview transition")
             return [
                 ("ReviewRequested", review_id, deepcopy(review_contract)),
-                ("AssayOutcomeReviewRequested", assay_id, deepcopy(payload)),
+                (
+                    {
+                        "OR-034": "AssayOutcomeReviewRequested",
+                        "OR-035": "AssayPartialReviewRequested",
+                        "OR-038": "AssayCancellationReviewRequested",
+                    }[row],
+                    assay_id,
+                    deepcopy(payload),
+                ),
             ]
         if command_type == "ReviewDiscoveryOutcome":
             review_verdict = payload.get("review_verdict")
+            row = payload.get("row_id")
+            expected_status = {"OR-006": "scored", "OR-007": "partial_recorded", "OR-039": "cancelled"}.get(row)
             if (
-                payload.get("row_id") != "OR-006"
+                expected_status is None
                 or command.target_stream_id != review_id
                 or not isinstance(review_verdict, dict)
                 or review_verdict.get("review_id") != review_id
@@ -2204,13 +2759,74 @@ class DiscoveryRuntime:
                 or not isinstance(assay, dict)
                 or not assay.get("review_pending")
                 or assay.get("review_id") != review_id
+                or assay.get("status") != expected_status
                 or assay.get("producer_actor_id") == command.actor_id
             ):
                 raise IntegrityError("invalid ReviewDiscoveryOutcome transition")
             events = [("ReviewVerdictRecorded", review_id, deepcopy(review_verdict))]
             if _review_policy_status(review_verdict) == "satisfied":
-                events.append(("AssayReviewed", assay_id, deepcopy(payload)))
+                if row == "OR-006":
+                    events.append(("AssayReviewed", assay_id, deepcopy(payload)))
+                elif row == "OR-007":
+                    events.extend(
+                        [
+                            ("AssayPartialReviewed", assay_id, deepcopy(payload)),
+                            ("CandidateAssayPartialReviewed", candidate_id, deepcopy(payload)),
+                        ]
+                    )
+                else:
+                    events.extend(
+                        [
+                            ("AssayCancellationReviewed", assay_id, deepcopy(payload)),
+                            ("CandidateAssayCancellationReviewed", candidate_id, deepcopy(payload)),
+                        ]
+                    )
             return events
+        if command_type == "ProposeRevisitDecision":
+            decision_id = payload.get("decision_id")
+            if (
+                payload.get("row_id") != "OR-009"
+                or command.target_stream_id != decision_id
+                or projection["decisions"].get(decision_id) is not None
+                or not isinstance(assay, dict)
+                or assay.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_revisit_eligible"
+                or not isinstance(payload.get("w2_payload"), dict)
+                or payload["w2_payload"].get("new_decision_id") != decision_id
+            ):
+                raise IntegrityError("invalid Assay revisit proposal")
+            return [
+                ("DecisionProposed", decision_id, deepcopy(payload["w2_payload"])),
+                ("AssayRevisitRequested", assay_id, deepcopy(payload)),
+                ("CandidateAssayRevisitRequested", candidate_id, deepcopy(payload)),
+            ]
+        if command_type == "ResolveDecision":
+            decision_id = payload.get("decision_id")
+            w2_payload = payload.get("w2_payload")
+            decision = projection["decisions"].get(decision_id)
+            if (
+                payload.get("row_id") != "OR-010"
+                or command.target_stream_id != decision_id
+                or not isinstance(w2_payload, dict)
+                or w2_payload.get("decision_id") != decision_id
+                or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or not isinstance(assay, dict)
+                or assay.get("status") != "revisit_pending"
+                or assay.get("decision_id") != decision_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_revisit_pending"
+                or candidate.get("decision_id") != decision_id
+            ):
+                raise IntegrityError("invalid Assay revisit resolution")
+            resolved_payload = {**deepcopy(payload), "selected_option": w2_payload["selected_option"]}
+            return [
+                ("DecisionResolved", decision_id, deepcopy(w2_payload)),
+                ("AssayRevisitResolved", assay_id, deepcopy(resolved_payload)),
+                ("CandidateAssayRevisitResolved", candidate_id, deepcopy(resolved_payload)),
+            ]
         raise IntegrityError(f"unsupported Assay command: {command_type}")
 
     def _valid_assay_scorecard(
@@ -2297,8 +2913,8 @@ class DiscoveryRuntime:
             },
         )
 
-    @staticmethod
     def _prepare_candidate(
+        self,
         command: Command,
         projection: dict[str, Any],
     ) -> tuple[str, dict[str, Any]]:
@@ -2324,4 +2940,92 @@ class DiscoveryRuntime:
             raise IntegrityError("invalid Candidate registration")
         if command.target_stream_id in projection["candidates"]:
             raise IntegrityError("Candidate identity collision")
-        return "CandidateRegistered", deepcopy(payload)
+        multiset_hash = _source_observation_multiset_hash(observations, projection["source_observations"])
+        if digest != multiset_hash:
+            raise IntegrityError("Candidate content hash does not match resolved observations")
+        return "CandidateRegistered", {**deepcopy(payload), "source_observation_multiset_hash": multiset_hash}
+
+    def _prepare_scout_observation(
+        self,
+        command: Command,
+        projection: dict[str, Any],
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        """Ingest one exact Scout observation batch and its explicit Candidates."""
+
+        if projection["catalogue"] is None:
+            raise IntegrityError("W11 genesis is required before Scout observation ingestion")
+        payload = command.envelope["payload"]
+        required = {"row_id", "observation_id", "batch", "batch_sha256", "candidate_blueprints"}
+        observation_id = payload.get("observation_id")
+        batch = payload.get("batch")
+        blueprints = payload.get("candidate_blueprints")
+        if (
+            set(payload) != required
+            or payload.get("row_id") != "OR-029"
+            or observation_id != command.target_stream_id
+            or not isinstance(observation_id, str)
+            or not isinstance(batch, dict)
+            or not isinstance(blueprints, list)
+            or not blueprints
+            or observation_id in projection["source_observations"]
+        ):
+            raise IntegrityError("invalid Scout observation ingestion")
+        try:
+            self.schemas.validate("ars://portfolio/scout-observation-batch", batch, schema_version="1.0.0")
+        except SchemaError as exc:
+            raise IntegrityError("invalid Scout observation batch") from exc
+        batch_sha256 = sha256_hex(canonical_bytes(batch))
+        dedup_keys = batch.get("normalized_dedup_keys")
+        if (
+            payload.get("batch_sha256") != batch_sha256
+            or not isinstance(dedup_keys, list)
+            or not dedup_keys
+            or len(dedup_keys) != len(set(dedup_keys))
+            or any(
+                set(dedup_keys) & set(existing.get("normalized_dedup_keys", []))
+                for existing in projection["source_observations"].values()
+            )
+        ):
+            raise IntegrityError("Scout observation identity or alias collision")
+        observed = {
+            **projection["source_observations"],
+            observation_id: {"content_sha256": batch_sha256, "normalized_dedup_keys": deepcopy(dedup_keys)},
+        }
+        candidate_events: list[tuple[str, str, dict[str, Any]]] = []
+        seen_candidates: set[str] = set()
+        for blueprint in blueprints:
+            if not isinstance(blueprint, dict):
+                raise IntegrityError("invalid Scout Candidate blueprint")
+            candidate_id = blueprint.get("candidate_id")
+            refs = blueprint.get("source_observation_refs")
+            if (
+                set(blueprint) != {"candidate_id", "revision", "content_sha256", "source_observation_refs", "title"}
+                or not isinstance(candidate_id, str)
+                or candidate_id in seen_candidates
+                or candidate_id in projection["candidates"]
+                or blueprint.get("revision") != 1
+                or not isinstance(blueprint.get("title"), str)
+                or not blueprint["title"]
+                or not isinstance(refs, list)
+                or observation_id not in refs
+            ):
+                raise IntegrityError("invalid Scout Candidate blueprint")
+            multiset_hash = _source_observation_multiset_hash(refs, observed)
+            if blueprint.get("content_sha256") != multiset_hash:
+                raise IntegrityError("Scout Candidate content hash does not match observations")
+            seen_candidates.add(candidate_id)
+            candidate_events.append(
+                (
+                    "CandidateRegistered",
+                    candidate_id,
+                    {**deepcopy(blueprint), "source_observation_multiset_hash": multiset_hash},
+                )
+            )
+        observation_payload = {
+            "row_id": "OR-029",
+            "observation_id": observation_id,
+            "batch": deepcopy(batch),
+            "content_sha256": batch_sha256,
+            "normalized_dedup_keys": deepcopy(dedup_keys),
+        }
+        return [("ScoutObservationIngested", observation_id, observation_payload), *candidate_events]
