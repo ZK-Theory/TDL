@@ -185,14 +185,16 @@ def _command(
 def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
     rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
-    observer, proposer, reviewer, owner = ASSAY_AUTHORITY_ACTORS[:4]
+    observer, proposer, reviewer = ASSAY_AUTHORITY_ACTORS[:3]
+    author = ASSAY_AUTHORITY_ACTORS[4]
+    owner = ACTOR_ID
     review_id = "rev_019fed25-b33e-7740-b280-000000000105"
     decision_id = "dec_019fed25-b33e-7740-b280-000000000107"
     producer_ref = {"id": ACTOR_ID, "record_revision": 1, "content_hash": "3" * 64}
     steps = (
         (
             "RegisterAssayRubricContent",
-            ACTOR_ID,
+            author,
             rubric["record_id"],
             0,
             {
@@ -204,7 +206,7 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
         ),
         (
             "RegisterAssayEvidenceScopeContent",
-            ACTOR_ID,
+            author,
             scope["record_id"],
             0,
             {
