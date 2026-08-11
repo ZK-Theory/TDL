@@ -10,6 +10,7 @@ import uuid
 import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
 from research_system.store.ledger import EventLedger
@@ -172,6 +173,25 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
     with pytest.raises(IntegrityError, match="catalogue identity mismatch"):
         runtime.submit(tampered)
     assert tuple(runtime.ledger.iter_events()) == before
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "payload must be an object"),
+        ({"authority_event_type": "ReviewRequested"}, "requires authority_payload"),
+    ],
+)
+def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, message: str) -> None:
+    event = {
+        "event_type": "SpikePlanned",
+        "payload": payload,
+        "global_position": 1,
+        "previous_event_hash": "0" * 64,
+    }
+    event["event_hash"] = sha256_hex(canonical_bytes(event))
+    with pytest.raises(IntegrityError, match=message):
+        replay_discovery((event,))
 
 
 def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tmp_path: Path) -> None:

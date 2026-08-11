@@ -56,7 +56,10 @@ _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 
 def _git_blob(data: bytes) -> str:
     """Return the Git blob identity for exact bytes."""
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()  # noqa: S324
+    return hashlib.sha1(
+        b"blob " + str(len(data)).encode("ascii") + b"\0" + data,
+        usedforsecurity=False,
+    ).hexdigest()
 
 
 def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
@@ -95,15 +98,27 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
-        if isinstance(payload, dict) and "authority_event_type" in payload:
+        if not isinstance(payload, dict):
+            raise IntegrityError("Discovery event payload must be an object")
+
+        def required_string(key: str) -> str:
+            value = payload.get(key)
+            if not isinstance(value, str):
+                raise IntegrityError(f"Discovery event payload requires {key}")
+            return value
+
+        if "authority_event_type" in payload:
+            authority_payload = payload.get("authority_payload")
+            if not isinstance(authority_payload, dict):
+                raise IntegrityError("Discovery event payload requires authority_payload")
             authority_event = {
-                "owner_row_id": payload["owner_row_id"],
-                "authority_kind": payload["authority_kind"],
-                "event_type": payload["authority_event_type"],
-                "payload": deepcopy(payload["authority_payload"]),
+                "owner_row_id": required_string("owner_row_id"),
+                "authority_kind": required_string("authority_kind"),
+                "event_type": required_string("authority_event_type"),
+                "payload": deepcopy(authority_payload),
             }
             state["authority_events"].append(authority_event)
-            state["authority_streams"][event["stream_id"]] = payload["authority_kind"]
+            state["authority_streams"][event["stream_id"]] = required_string("authority_kind")
             state["authorities"] = replay_authority(state["authority_events"])
             continue
         if event.get("command_type") in {
@@ -138,35 +153,45 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("missing explicit W11 authority kind")
             current = state["authorities"].get(kind, {})
             if event_type == "ReviewRequested":
+                reviewer_capability = payload.get("reviewer_capability")
+                if (
+                    not isinstance(reviewer_capability, list)
+                    or not reviewer_capability
+                    or not isinstance(reviewer_capability[0], str)
+                ):
+                    raise IntegrityError("Discovery event payload requires reviewer_capability")
                 shadow = {
                     "actor_id": event["actor_id"],
-                    "reviewer_actor_id": payload["reviewer_capability"][0],
-                    "review_id": payload["new_review_id"],
+                    "reviewer_actor_id": reviewer_capability[0],
+                    "review_id": required_string("new_review_id"),
                     "subject_sha256": current.get("subject_sha256"),
                     "file_sha256": current.get("file_sha256"),
                 }
             elif event_type == "ReviewVerdictRecorded":
                 shadow = {
                     "actor_id": event["actor_id"],
-                    "verdict": payload["verdict"],
-                    "unchanged_subject_sha256": payload["unchanged_subject_sha256"],
+                    "verdict": required_string("verdict"),
+                    "unchanged_subject_sha256": required_string("unchanged_subject_sha256"),
                     "unchanged_file_sha256": current.get("file_sha256"),
-                    "reconstruction_sha256": payload["context_manifest_sha256"],
+                    "reconstruction_sha256": required_string("context_manifest_sha256"),
                 }
             elif event_type == "DecisionProposed":
                 shadow = {
                     "actor_id": event["actor_id"],
-                    "decision_id": payload["new_decision_id"],
-                    "proposed_decision": payload["recommendation"],
+                    "decision_id": required_string("new_decision_id"),
+                    "proposed_decision": required_string("recommendation"),
                     "subject_sha256": current.get("subject_sha256"),
                     "file_sha256": current.get("file_sha256"),
                 }
             else:
+                conditions = payload.get("conditions")
+                if not isinstance(conditions, list) or not conditions or not isinstance(conditions[0], str):
+                    raise IntegrityError("Discovery event payload requires conditions")
                 shadow = {
                     "actor_id": event["actor_id"],
-                    "decision_id": payload["decision_id"],
-                    "decision": payload["selected_option"],
-                    "transaction_id": payload["conditions"][0],
+                    "decision_id": required_string("decision_id"),
+                    "decision": required_string("selected_option"),
+                    "transaction_id": conditions[0],
                 }
             state["authority_events"].append(
                 {
@@ -302,14 +327,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
                 raise IntegrityError("invalid Candidate promotion request")
-            candidate.update(status="promotion_pending", decision_id=payload["decision_id"])
+            candidate.update(status="promotion_pending", decision_id=required_string("decision_id"))
         elif event_type == "CandidatePromotionApplied":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
                 raise IntegrityError("invalid Candidate promotion application")
             candidate.update(status="spike_planning_authorized")
         elif event_type == "SpikePlanned":
-            spike_id = payload["spike_id"]
+            spike_id = required_string("spike_id")
             if spike_id in state["spikes"]:
                 raise IntegrityError("Spike identity collision")
             state["spikes"][spike_id] = {**deepcopy(payload), "status": "planned", "version": event["stream_version"]}
@@ -322,12 +347,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
                 raise IntegrityError("invalid Candidate Spike plan link")
-            candidate.update(status="spike_approval_pending", spike_id=payload["spike_id"])
+            candidate.update(status="spike_approval_pending", spike_id=required_string("spike_id"))
         elif event_type == "SpikeExecutionDecisionRequested":
             spike = state["spikes"].get(payload.get("spike_id"))
             if not isinstance(spike, dict):
                 raise IntegrityError("invalid Spike execution decision request")
-            spike.update(decision_id=payload["decision_id"])
+            spike.update(decision_id=required_string("decision_id"))
         elif event_type == "SpikeAuthorized":
             spike = state["spikes"].get(payload.get("spike_id"))
             if not isinstance(spike, dict):
@@ -342,7 +367,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike = state["spikes"].get(payload.get("spike_id"))
             if not isinstance(spike, dict):
                 raise IntegrityError("invalid Spike start")
-            spike.update(status="running", attempt_id=payload["attempt_id"])
+            spike.update(status="running", attempt_id=required_string("attempt_id"))
         elif event_type == "CandidateSpikeStarted":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
@@ -353,7 +378,9 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if not isinstance(spike, dict):
                 raise IntegrityError("invalid Spike verdict")
             spike.update(
-                status="verdict_recorded", verdict=payload["verdict"], verdict_sha256=payload["verdict_sha256"]
+                status="verdict_recorded",
+                verdict=required_string("verdict"),
+                verdict_sha256=required_string("verdict_sha256"),
             )
         elif event_type == "CandidateSpikeVerdictLinked":
             candidate = state["candidates"].get(payload.get("candidate_id"))
@@ -364,7 +391,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike = state["spikes"].get(payload.get("spike_id"))
             if not isinstance(spike, dict):
                 raise IntegrityError("invalid Spike review request")
-            spike.update(review_id=payload["review_id"], review_pending=True)
+            spike.update(review_id=required_string("review_id"), review_pending=True)
         elif event_type == "SpikeReviewed":
             spike = state["spikes"].get(payload.get("spike_id"))
             review = state["reviews"].get(payload.get("review_id"))
@@ -713,7 +740,7 @@ class DiscoveryRuntime:
                 ).stdout
             except subprocess.CalledProcessError as exc:
                 raise IntegrityError("authority file lacks current Git identity") from exc
-            computed_blob = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()  # noqa: S324
+            computed_blob = _git_blob(raw)
             if committed_raw != raw or computed_blob != git_blob:
                 raise IntegrityError("authority file differs from captured Git bytes")
             try:
@@ -753,6 +780,10 @@ class DiscoveryRuntime:
         except ValueError as exc:
             raise IntegrityError(str(exc)) from exc
         current = projection["authorities"].get(kind, {})
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise IntegrityError("Discovery authority clock must return an aware datetime")
+        normalized_now = now.astimezone(UTC)
 
         def stable_id(prefix: str, suffix: int) -> str:
             return (
@@ -762,9 +793,8 @@ class DiscoveryRuntime:
         def persisted_payload(event: dict[str, object]) -> dict[str, Any]:
             event_type = str(event["event_type"])
             shadow = event["payload"]
-            now = self.clock().astimezone(UTC)
-            current_time = now.isoformat().replace("+00:00", "Z")
-            deadline = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+            current_time = normalized_now.isoformat().replace("+00:00", "Z")
+            deadline = (normalized_now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
             if event_type == "ReviewRequested":
                 return {
                     "review_type": "provenance",
@@ -886,7 +916,7 @@ class DiscoveryRuntime:
                         path=path_tokens[value["path"]],
                         registration_revision=value["registration_revision"],
                         registration_hash=value["registration_hash"],
-                        authorized=value.get("authorized", True),
+                        authorized=value["authorized"],
                     )
                     for value in root_values
                 }

@@ -42,10 +42,13 @@ DOSSIER_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-dossier-expected
 PATH_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
 TDA_RUNTIME_ROOT = Path(os.environ.get("TDL_REPOSITORY_ROOT", Path.home() / "TDL"))
 VAULT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
-pytestmark = pytest.mark.skipif(
-    not VAULT.exists() or not CONTRACT_ROOT.exists(),
-    reason="real TDA dossier roots are not configured in this environment",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not VAULT.exists() or not CONTRACT_ROOT.exists(),
+        reason="real TDA dossier roots are not configured in this environment",
+    ),
+]
 
 
 def _member(key: str, kind: str, relative_path: str, *, root_id: str = "repo") -> DossierMember:
@@ -233,6 +236,27 @@ def test_root_replacement_between_identity_check_and_read_is_rejected(
 
     monkeypatch.setattr(dossier_module, "_after_root_identity_check", replace_root)
     with pytest.raises(DossierAdmissionRejected, match="path_registration_identity_changed"):
+        dossier_module._open_registered_member(member, {"repo": registered})
+
+
+def test_alias_probe_oserror_is_mapped_to_incomplete_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "registered"
+    root.mkdir()
+    (root / "member.json").write_text("content", encoding="utf-8")
+    registered = RegisteredRoot("repo", root, 1, registered_root_identity_hash(root))
+    member = DossierMember("member", "evidence", "repo", "member.json", 7, "0" * 64, "prov", 1, "0" * 64)
+    original = Path.is_symlink
+
+    def fail_probe(path: Path) -> bool:
+        if path.name == "member.json":
+            raise OSError("injected alias probe failure")
+        return original(path)
+
+    monkeypatch.setattr(Path, "is_symlink", fail_probe)
+    with pytest.raises(DossierAdmissionRejected, match="incomplete_package"):
         dossier_module._open_registered_member(member, {"repo": registered})
 
 

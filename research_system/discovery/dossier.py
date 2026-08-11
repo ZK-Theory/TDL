@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from dataclasses import asdict
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
@@ -91,6 +92,12 @@ def admission_profile_hash(profile_id: str, revision: int) -> str:
     )
 
 
+def _lexical_normalized_path(path: Path) -> str:
+    """Normalize dot segments without resolving links or junctions."""
+
+    return os.path.normpath(os.path.abspath(path)).casefold()
+
+
 def registered_root_identity_hash(path: Path) -> str:
     """Hash the held physical directory identity and final path."""
 
@@ -102,7 +109,7 @@ def registered_root_identity_hash(path: Path) -> str:
                 "volume_or_device": anchor.identity.volume_or_device,
                 "file_id": anchor.identity.file_id.hex(),
                 "final_path": str(anchor.final_path).casefold(),
-                "registered_path": str(path.absolute()).casefold(),
+                "registered_path": _lexical_normalized_path(path),
             }
         )
     finally:
@@ -167,7 +174,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
                 "volume_or_device": anchor.identity.volume_or_device,
                 "file_id": anchor.identity.file_id.hex(),
                 "final_path": str(anchor.final_path).casefold(),
-                "registered_path": str(root.path.absolute()).casefold(),
+                "registered_path": _lexical_normalized_path(root.path),
             }
         )
         if identity_hash != root.registration_hash:
@@ -187,7 +194,11 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         current = root_path
         for part in relative.parts:
             current = current / part
-            if current.is_symlink() or (hasattr(current, "is_junction") and current.is_junction()):
+            try:
+                is_alias = current.is_symlink() or current.is_junction()
+            except OSError as exc:
+                raise DossierAdmissionRejected("incomplete_package") from exc
+            if is_alias:
                 raise DossierAdmissionRejected("unregistered_path_alias")
         try:
             raw = candidate.read_bytes()
@@ -246,7 +257,7 @@ def prepare_dossier_admission(
         raise DossierAdmissionRejected("immutable_identity_collision")
 
     observed: list[dict[str, Any]] = []
-    verified_bytes: dict[str, bytes] = {}
+    package_raw: bytes | None = None
     for member in expected_set.members:
         _validate_sha256(member.sha256, "member_hash")
         _validate_sha256(member.provenance_hash, "provenance_hash")
@@ -256,7 +267,8 @@ def prepare_dossier_admission(
         digest = hashlib.sha256(raw).hexdigest()
         if len(raw) != member.size_bytes or digest != member.sha256:
             raise DossierAdmissionRejected("member_content_tampered")
-        verified_bytes[member.member_key] = raw
+        if member.member_kind == "package_index":
+            package_raw = raw
         observed.append(
             {
                 "member_key": member.member_key,
@@ -274,7 +286,8 @@ def prepare_dossier_admission(
     package_rows = [row for row in observed if row["member_kind"] == "package_index"]
     if len(package_rows) != 1:
         raise DossierAdmissionRejected("incomplete_package")
-    package_raw = verified_bytes[package_rows[0]["member_key"]]
+    if package_raw is None:
+        raise DossierAdmissionRejected("incomplete_package")
     try:
         package = json.loads(package_raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
