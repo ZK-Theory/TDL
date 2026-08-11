@@ -7,6 +7,7 @@ import json
 from pathlib import Path, PurePosixPath
 import os
 import subprocess
+from typing import Any
 
 import pytest
 
@@ -19,6 +20,7 @@ from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierAdmissionRejected,
     DossierMember,
+    PreparedDossierAdmission,
     RegisteredRoot,
     accepted_expected_set_hash,
     admission_profile_hash,
@@ -115,7 +117,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
     }
 
 
-def prepare_dossier_admission(**kwargs):
+def _admit_with_default_manifest(**kwargs: Any) -> PreparedDossierAdmission:
     kwargs.setdefault("candidate_manifest", _candidate_manifest(kwargs["candidate_members"]))
     return _prepare_dossier_admission(**kwargs)
 
@@ -123,13 +125,13 @@ def prepare_dossier_admission(**kwargs):
 def test_real_tda_scale_dossier_prepares_deterministic_provider_free_atomic_batch() -> None:
     expected, roots = _subject()
 
-    first = prepare_dossier_admission(
+    first = _admit_with_default_manifest(
         expected_set=expected,
         current_expected_set_revision=3,
         candidate_members=tuple(expected.members),
         registered_roots=roots,
     )
-    second = prepare_dossier_admission(
+    second = _admit_with_default_manifest(
         expected_set=expected,
         current_expected_set_revision=3,
         candidate_members=tuple(expected.members),
@@ -151,7 +153,7 @@ def test_package_manifest_must_describe_the_exact_admitted_member_closure() -> N
     manifest["member_count"] = len(manifest["members"])
 
     with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
-        prepare_dossier_admission(
+        _admit_with_default_manifest(
             expected_set=expected,
             current_expected_set_revision=3,
             candidate_members=expected.members,
@@ -185,7 +187,7 @@ def test_package_manifest_must_describe_the_exact_admitted_member_closure() -> N
 def test_candidate_missing_extra_duplicate_tamper_or_traversal_rejects_without_output(mutation, reason) -> None:
     expected, roots = _subject()
     with pytest.raises(DossierAdmissionRejected, match=reason):
-        prepare_dossier_admission(
+        _admit_with_default_manifest(
             expected_set=expected,
             current_expected_set_revision=3,
             candidate_members=mutation(expected),
@@ -217,7 +219,7 @@ def test_stale_collision_unauthorized_and_incomplete_inputs_reject_before_public
         }
         arguments.update(overrides)
         with pytest.raises(DossierAdmissionRejected, match=reason):
-            prepare_dossier_admission(**arguments)
+            _admit_with_default_manifest(**arguments)
 
 
 def test_unregistered_and_traversing_expected_paths_are_rejected() -> None:
@@ -229,7 +231,7 @@ def test_unregistered_and_traversing_expected_paths_are_rejected() -> None:
     for attacked_member, reason in attacks:
         attacked = _rehash(replace(expected, members=(attacked_member, *expected.members[1:])))
         with pytest.raises(DossierAdmissionRejected, match=reason):
-            prepare_dossier_admission(
+            _admit_with_default_manifest(
                 expected_set=attacked,
                 current_expected_set_revision=3,
                 candidate_members=attacked.members,
@@ -241,7 +243,7 @@ def test_registered_root_physical_identity_mismatch_rejects_before_publication()
     expected, roots = _subject()
     replaced = {**roots, "repo": replace(roots["repo"], registration_hash="0" * 64)}
     with pytest.raises(DossierAdmissionRejected, match="path_registration_identity_mismatch"):
-        prepare_dossier_admission(
+        _admit_with_default_manifest(
             expected_set=expected,
             current_expected_set_revision=3,
             candidate_members=expected.members,
@@ -339,7 +341,7 @@ def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Pa
     (tmp_path / expected.members[-1].relative_path).write_text("tampered", encoding="utf-8")
 
     with pytest.raises(DossierAdmissionRejected, match="member_content_tampered"):
-        prepare_dossier_admission(
+        _admit_with_default_manifest(
             expected_set=expected,
             current_expected_set_revision=3,
             candidate_members=tuple(expected.members),
@@ -502,6 +504,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
 
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])
+@pytest.mark.integration
 def test_public_observation_rejects_authority_content_not_serialized_by_git_bytes(
     tmp_path: Path,
     attack: str,

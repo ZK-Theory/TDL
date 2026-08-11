@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterable, Mapping
 from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
-from research_system.command.reducers import ControlPlaneState
+from research_system.command.reducers import replay_control_plane
 from research_system.discovery.authority import prepare_authority_transition, replay_authority
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
@@ -495,7 +495,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_running")
         elif event_type == "SpikeVerdictRecorded":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict):
+            if not isinstance(spike, dict) or spike.get("status") != "running":
                 raise IntegrityError("invalid Spike verdict")
             spike.update(
                 status="verdict_recorded",
@@ -596,8 +596,7 @@ class DiscoveryRuntime:
         clock: Callable[[], datetime],
         repository_root: Path,
         root_tokens: Mapping[str, Path],
-        operational_control_root: Path,
-        operational_state_provider: Callable[[], ControlPlaneState],
+        operational_ledger: EventLedger,
     ) -> None:
         """Bind the governed runtime to exact repository and root configuration."""
         self.control_root = control_root
@@ -617,8 +616,11 @@ class DiscoveryRuntime:
         except ValueError as exc:
             raise IntegrityError("catalogue path is outside configured repository root") from exc
         self.root_tokens = {key: Path(value) for key, value in root_tokens.items()}
-        self.operational_control_root = operational_control_root
-        self.operational_state_provider = operational_state_provider
+        if type(operational_ledger) is not EventLedger:
+            raise TypeError("DiscoveryRuntime requires a concrete operational EventLedger")
+        if operational_ledger.project_id != ledger.project_id:
+            raise IntegrityError("operational ledger project mismatch")
+        self.operational_ledger = operational_ledger
         self.receipts = ReceiptStore(control_root)
         if not isinstance(authority_resolver, LedgerAuthorityGrantResolver):
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
@@ -633,7 +635,7 @@ class DiscoveryRuntime:
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
         with CompositeWriterLock(
-            (self.control_root, self.authority_resolver.control_root, self.operational_control_root),
+            (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
             {"command_id": command.command_id},
             lock_factory=WriterLock,
         ):
@@ -1184,6 +1186,7 @@ class DiscoveryRuntime:
             and candidate.get("status") == "promotion_pending"
             and candidate.get("decision_id") == decision_id
             and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
@@ -1230,6 +1233,7 @@ class DiscoveryRuntime:
             and candidate
             and candidate.get("status") == "spike_approval_pending"
             and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
@@ -1266,6 +1270,8 @@ class DiscoveryRuntime:
             and isinstance(p.get("verdict_artifact"), dict)
             and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike)
         ):
+            if (p.get("verdict") == "PARTIAL") != (row == "OR-019"):
+                raise IntegrityError("invalid Spike transition")
             if row == "OR-019":
                 closure_payload = {
                     **deepcopy(p),
@@ -1322,9 +1328,7 @@ class DiscoveryRuntime:
 
     def _valid_live_spike_lease(self, payload: dict[str, Any], command: Command) -> bool:
         """Resolve the current operational Attempt/Lease relation under the shared writer lock."""
-        state = self.operational_state_provider()
-        if not isinstance(state, ControlPlaneState):
-            raise IntegrityError("invalid operational state provider")
+        state = replay_control_plane(self.operational_ledger.snapshot().events)
         attempt = state.stream_states.get(payload.get("attempt_id"))
         lease = state.stream_states.get(payload.get("lease_id"))
         if not isinstance(lease, dict):

@@ -11,7 +11,6 @@ import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.command.reducers import ControlPlaneState
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
 from research_system.store.ledger import EventLedger
@@ -21,6 +20,14 @@ from tests.research_system.factories import (
     PROJECT_ID,
     activate_lifecycle_grant,
     control_plane,
+)
+from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
+    ATTEMPT_ID as C1_ATTEMPT_ID,
+    LEASE_ID as C1_LEASE_ID,
+    RESOURCE_GRANT_ID as C1_RESOURCE_GRANT_ID,
+    C1_NOW,
+    C1_TRUSTED_RUNTIME_AUTHORITY,
+    _seed_running_attempt,
 )
 
 
@@ -32,7 +39,6 @@ CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
 _HARNESSES = {}
-_OPERATIONAL_STATES: dict[Path, ControlPlaneState] = {}
 
 
 def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
@@ -50,9 +56,12 @@ def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, obj
 def _runtime(tmp_path: Path) -> DiscoveryRuntime:
     harness = _HARNESSES.get(tmp_path)
     if harness is None:
-        harness = control_plane(tmp_path)
+        harness = control_plane(
+            tmp_path,
+            clock=lambda: C1_NOW,
+            trusted_runtime_authority_provider=lambda: C1_TRUSTED_RUNTIME_AUTHORITY,
+        )
         _HARNESSES[tmp_path] = harness
-        _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(frozenset(), {})
     root = tmp_path / "discovery"
     root.mkdir(exist_ok=True)
 
@@ -118,8 +127,7 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
             "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
             "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
         },
-        operational_control_root=harness.ledger.control_root,
-        operational_state_provider=lambda: _OPERATIONAL_STATES[tmp_path],
+        operational_ledger=harness.ledger,
     )
 
 
@@ -238,7 +246,8 @@ def test_runtime_configuration_path_failures_are_integrity_errors(tmp_path: Path
     root.mkdir()
     repository_root = tmp_path / "missing-repository" if missing == "repository" else REPO_ROOT
     catalogue_path = tmp_path / "missing-catalogue.json" if missing == "catalogue" else CATALOGUE
-    with pytest.raises(IntegrityError, match="repository root is unavailable|catalogue path is unavailable"):
+    expected_message = "repository root is unavailable" if missing == "repository" else "catalogue path is unavailable"
+    with pytest.raises(IntegrityError, match=expected_message):
         DiscoveryRuntime(
             root,
             EventLedger(root, PROJECT_ID, harness.schemas),
@@ -248,8 +257,7 @@ def test_runtime_configuration_path_failures_are_integrity_errors(tmp_path: Path
             clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
             repository_root=repository_root,
             root_tokens={},
-            operational_control_root=harness.ledger.control_root,
-            operational_state_provider=harness.replay,
+            operational_ledger=harness.ledger,
         )
 
 
@@ -380,8 +388,7 @@ def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tm
             "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
             "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
         },
-        operational_control_root=harness.ledger.control_root,
-        operational_state_provider=harness.replay,
+        operational_ledger=harness.ledger,
     )
     grant_id = activate_lifecycle_grant(
         harness,
@@ -682,24 +689,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff6d"
     assay_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff70"
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff71"
-    attempt_id = "att_019fed25-b33e-7740-b280-6f661aaeff6e"
-    attempt_sha256 = "8" * 64
-    lease_id = "lease:exact"
-    resource_grant_id = "resource-grant:exact"
-    _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(
-        frozenset({attempt_id}),
-        {
-            attempt_id: {"attempt_id": attempt_id, "status": "running", "lease_id": lease_id},
-            lease_id: {
-                "lease_id": lease_id,
-                "status": "active",
-                "attempt_id": attempt_id,
-                "holder_actor_id": ACTOR_ID,
-                "resource_grant_id": resource_grant_id,
-                "expires_at": "2026-08-02T00:00:00Z",
-            },
-        },
-    )
+    attempt_id = C1_ATTEMPT_ID
+    lease_id = C1_LEASE_ID
+    resource_grant_id = C1_RESOURCE_GRANT_ID
+    _seed_running_attempt(_HARNESSES[tmp_path])
+    attempt_sha256 = sha256_hex(canonical_bytes(_HARNESSES[tmp_path].replay().stream_states[attempt_id]))
     scorecard = _scorecard(candidate_id, assay_id, "1" * 64, "3" * 64)
     scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
     runtime.submit(_genesis())
@@ -1042,29 +1036,36 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         ),
     ]
-    for index, command in enumerate(commands):
-        if index in {0, 3}:
+    for command in commands:
+        row_id = command["payload"]["row_id"]
+        if row_id in {"OR-012", "OR-015"}:
             malformed = deepcopy(command)
             malformed["payload"].pop("w2_payload")
             before = tuple(runtime.ledger.iter_events())
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(malformed)
             assert tuple(runtime.ledger.iter_events()) == before
-        if index == 3:
+        if row_id == "OR-015":
             substituted = deepcopy(command)
             substituted["payload"]["candidate_id"] = foreign_candidate_id
             before = tuple(runtime.ledger.iter_events())
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
-        if index in {1, 4}:
+        if row_id in {"OR-013", "OR-016"}:
+            malformed = deepcopy(command)
+            malformed["payload"]["w2_payload"] = []
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(malformed)
+            assert tuple(runtime.ledger.iter_events()) == before
             substituted = deepcopy(command)
             substituted["payload"]["w2_payload"]["decision_id"] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
             before = tuple(runtime.ledger.iter_events())
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
-        if index == 6 and spike_verdict == "PASS":
+        if row_id == "OR-018" and spike_verdict == "PASS":
             unevaluated = deepcopy(command)
             unevaluated_artifact = unevaluated["payload"]["verdict_artifact"]
             unevaluated_artifact["success_predicates"][0]["status"] = "unable_to_evaluate"
@@ -1073,16 +1074,28 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(unevaluated)
             assert tuple(runtime.ledger.iter_events()) == before
-        if index == 5:
-            live_state = _OPERATIONAL_STATES[tmp_path]
-            expired = deepcopy(live_state.stream_states)
-            expired[lease_id]["expires_at"] = "2026-07-31T00:00:00Z"
-            _OPERATIONAL_STATES[tmp_path] = ControlPlaneState(live_state.active_attempt_ids, expired)
+        if row_id in {"OR-018", "OR-019"}:
+            mismatched_row = deepcopy(command)
+            mismatched_row["payload"]["row_id"] = "OR-019" if row_id == "OR-018" else "OR-018"
             before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(mismatched_row)
+            assert tuple(runtime.ledger.iter_events()) == before
+        if row_id == "OR-017":
+            foreign = deepcopy(command)
+            foreign["payload"]["resource_grant_id"] = "rgr_019fed25-b33e-7740-b280-ffffffffffff"
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(foreign)
+            assert tuple(runtime.ledger.iter_events()) == before
+            canonical_ledger = runtime.operational_ledger
+            empty_root = tmp_path / "empty-operational"
+            empty_root.mkdir()
+            runtime.operational_ledger = EventLedger(empty_root, PROJECT_ID, _HARNESSES[tmp_path].schemas)
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(command)
             assert tuple(runtime.ledger.iter_events()) == before
-            _OPERATIONAL_STATES[tmp_path] = live_state
+            runtime.operational_ledger = canonical_ledger
         assert runtime.submit(command).status == "accepted"
     review_contract = {
         "review_type": "provenance",
