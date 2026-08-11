@@ -28,7 +28,7 @@
 4. [WP6.2 — historical live-capability plan](06b-wp6-2-live-capability-plan.md) (direct-provider execution deferred by P-042)
 5. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 
-**Current WP6.1 execution control:** [06o capability-campaign plan](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md) remains the campaign authority. C1, C2 and C3 are integrated, as are 06h, 06i and 06j after the accepted 06j remediation on current `main`. WP6.1 remains incomplete: R1 and the final assembled WP6.1 proof are the remaining capability work. The fixed pre-C1 `104/19/85` baseline and `23/28/32/2` allocation remain historical allocation authorities, not the current completion account.
+**Current WP6.1 execution control:** [06o capability-campaign plan](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md) remains the campaign authority. C1, C2, C3 and R1 are integrated, as are 06h, 06i and 06j after the accepted 06j remediation on current `main`. The accepted final assembled WP6.1 proof records all 104 normative catalogue rows as actively bound with zero remaining; this closes WP6.1's production scope but does not authorize live restore, WP6.6/WP6.7, provider execution, pilot execution or Gate 6 acceptance. The fixed pre-C1 `104/19/85` baseline and `23/28/32/2` allocation remain historical allocation authorities, not the current completion account.
 
 6. [WP6.2 historical 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
 7. [WP6.2 historical P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
@@ -49,8 +49,9 @@ WP6.4 and Gate 6. WP6.3 and WP6.4 are integrated; WP6.4's D-G6-5 decision is
 accepted and its SCALE-01 v1.0.3 package remains `pending_wp6_6`,
 `dispatchable: false` and `execution_authorized: false`. WP6.5 remains an
 independent specification lane under P-042/06g. WP6.6 dossier admission and
-WP6.7 legacy consolidation retain their separate gates. Gate 6 still requires
-WP6.1 R1, the final WP6.1 proof and final assembled Gate 6 acceptance. ARS does
+WP6.7 legacy consolidation retain their separate gates. The remaining Gate 6
+path is WP6.6 dossier admission and final assembled Gate 6 acceptance; WP6.7
+remains a separately gated legacy-consolidation sequence. ARS does
 not invoke Claude or Codex or handle their OAuth credentials.
 
 ## Research Methods obligations — integrated by P-047, **WP6.4 production path integrated**

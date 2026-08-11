@@ -179,9 +179,9 @@ class _W7Adapter:
 
 
 class EvaluationLifecycleRuntime:
-    provider_argv = ("fake-evaluation-provider",)
-
     """Own one durable temporary lifecycle store for a bounded evaluation run."""
+
+    provider_argv = ("fake-evaluation-provider",)
 
     def __init__(self, *, writer_id: str = "evaluation-lifecycle") -> None:
         self._temporary = TemporaryDirectory()

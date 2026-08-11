@@ -899,6 +899,13 @@ def _required_context_input(source: Mapping[str, Any], key: str) -> Any:
         raise ArsError(f"context packet input is missing required field: {key}") from exc
 
 
+def _required_context_mapping(source: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = _required_context_input(source, key)
+    if not isinstance(value, Mapping):
+        raise ArsError(f"context packet input field must be a JSON object: {key}")
+    return value
+
+
 def context_packet_transition(args: argparse.Namespace) -> int:
     """Dispatch one named context-packet lifecycle operation."""
     action = args.context_packet_action
@@ -912,14 +919,14 @@ def context_packet_transition(args: argparse.Namespace) -> int:
     if not isinstance(source, dict):
         raise ArsError("context packet input must be a JSON object")
     if action == "request":
-        receipt = lifecycle.request(_required_context_input(source, "payload"))
+        receipt = lifecycle.request(_required_context_mapping(source, "payload"))
     elif action == "begin-compilation":
-        receipt = lifecycle.begin_compilation(_required_context_input(source, "payload"))
+        receipt = lifecycle.begin_compilation(_required_context_mapping(source, "payload"))
     elif action == "complete-compilation":
         receipt = lifecycle.complete_compilation(
-            _required_context_input(source, "payload"),
-            packet=_required_context_input(source, "packet"),
-            manifest=_required_context_input(source, "manifest"),
+            _required_context_mapping(source, "payload"),
+            packet=_required_context_mapping(source, "packet"),
+            manifest=_required_context_mapping(source, "manifest"),
         )
     elif action == "issue":
         receipt = lifecycle.issue(lifecycle.recover_validated(str(_required_context_input(source, "context_id"))))
