@@ -171,6 +171,152 @@ def _valid_revisit_proposal(value: Any, review_id: Any) -> bool:
     )
 
 
+def _record_ref(record_id: Any, revision: Any, content_hash: Any) -> dict[str, Any]:
+    """Build the exact immutable record reference used by W11 relations."""
+
+    return {"id": record_id, "record_revision": revision, "content_hash": content_hash}
+
+
+def _review_ref(review: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the immutable reference to a satisfied review verdict."""
+
+    return _record_ref(review.get("review_id"), review.get("version"), review.get("verdict_event_hash"))
+
+
+def _aggregate_content_hash(aggregate: Mapping[str, Any]) -> Any:
+    """Return the exact terminal evidence hash for an Assay or Spike."""
+
+    return aggregate.get("scorecard_sha256", aggregate.get("verdict_sha256", aggregate.get("outcome_sha256")))
+
+
+def _promotion_relation_matches(
+    relation: Any,
+    *,
+    decision_id: Any,
+    candidate: Mapping[str, Any],
+    aggregate_id: Any,
+    aggregate: Mapping[str, Any],
+    review: Mapping[str, Any],
+    gate: str,
+    recommendation: Any,
+    actor_id: Any,
+) -> bool:
+    """Validate the strict W11 discovery-promotion companion relation."""
+
+    next_state = {
+        "PROMOTE": {
+            "assay_to_spike": "spike_planning_authorized",
+            "spike_to_preregistration": "preregistration_authorized",
+        }.get(gate),
+        "PARK": "parked",
+        "KILL": "killed",
+    }.get(recommendation)
+    evidence_hash = _aggregate_content_hash(aggregate)
+    expected_aggregate_ref = _record_ref(aggregate_id, aggregate.get("version"), evidence_hash)
+    expected_review_ref = _review_ref(review)
+    return bool(
+        isinstance(relation, Mapping)
+        and set(relation)
+        == {
+            "schema_id",
+            "schema_version",
+            "relation_kind",
+            "decision_id",
+            "candidate_ref",
+            "gate",
+            "aggregate_ref",
+            "aggregate_relation_hash",
+            "evidence_ref",
+            "selected_option",
+            "next_candidate_state",
+            "rationale",
+            "considered_evidence_refs",
+            "conditions",
+            "effective_scope",
+            "revisit_triggers",
+            "actor_id",
+        }
+        and relation.get("schema_id") == "ars://portfolio/relation/discovery-promotion"
+        and relation.get("schema_version") == "1.0.0"
+        and relation.get("relation_kind") == "discovery_promotion"
+        and relation.get("decision_id") == decision_id
+        and relation.get("candidate_ref")
+        == _record_ref(candidate.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256"))
+        and relation.get("gate") == gate
+        and relation.get("aggregate_ref") == expected_aggregate_ref
+        and relation.get("aggregate_relation_hash")
+        == aggregate.get("producer_relation_sha256", aggregate.get("plan_sha256"))
+        and relation.get("evidence_ref") == expected_aggregate_ref
+        and relation.get("selected_option") == recommendation
+        and relation.get("next_candidate_state") == next_state
+        and isinstance(relation.get("rationale"), str)
+        and bool(relation["rationale"])
+        and relation.get("considered_evidence_refs") == [expected_review_ref]
+        and isinstance(relation.get("conditions"), list)
+        and isinstance(relation.get("effective_scope"), str)
+        and bool(relation["effective_scope"])
+        and isinstance(relation.get("revisit_triggers"), list)
+        and relation.get("actor_id") == actor_id
+        and review.get("status") == "satisfied"
+    )
+
+
+def _revisit_relation_matches(
+    relation: Any,
+    *,
+    decision_id: Any,
+    candidate: Mapping[str, Any],
+    aggregate_id: Any,
+    aggregate: Mapping[str, Any],
+    review: Mapping[str, Any],
+    observations: Mapping[str, Any],
+    recommendation: Any,
+    actor_id: Any,
+) -> bool:
+    """Validate a discovery-revisit relation and its later objective evidence."""
+
+    predicate_ref = relation.get("satisfied_revisit_predicate_ref") if isinstance(relation, Mapping) else None
+    predicate = observations.get(predicate_ref.get("id")) if isinstance(predicate_ref, Mapping) else None
+    review_position = review.get("verdict_global_position")
+    parked_position = candidate.get("parked_at_global_position")
+    threshold = max(
+        review_position if isinstance(review_position, int) else -1,
+        parked_position if isinstance(parked_position, int) else -1,
+    )
+    return bool(
+        isinstance(relation, Mapping)
+        and set(relation)
+        == {
+            "schema_id",
+            "schema_version",
+            "relation_kind",
+            "decision_id",
+            "candidate_ref",
+            "prior_aggregate_ref",
+            "prior_outcome_review_ref",
+            "satisfied_revisit_predicate_ref",
+            "selected_option",
+            "actor_id",
+        }
+        and relation.get("schema_id") == "ars://portfolio/relation/discovery-revisit"
+        and relation.get("schema_version") == "1.0.0"
+        and relation.get("relation_kind") == "discovery_revisit"
+        and relation.get("decision_id") == decision_id
+        and relation.get("candidate_ref")
+        == _record_ref(candidate.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256"))
+        and relation.get("prior_aggregate_ref")
+        == _record_ref(aggregate_id, aggregate.get("version"), _aggregate_content_hash(aggregate))
+        and relation.get("prior_outcome_review_ref") == _review_ref(review)
+        and isinstance(predicate, Mapping)
+        and predicate_ref == _record_ref(predicate_ref.get("id"), 1, predicate.get("content_sha256"))
+        and predicate_ref.get("id") not in {candidate.get("candidate_id"), aggregate_id, review.get("review_id")}
+        and isinstance(predicate.get("global_position"), int)
+        and predicate["global_position"] > threshold
+        and relation.get("selected_option") == recommendation
+        and relation.get("actor_id") == actor_id
+    )
+
+
 def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
     """Return whether any immutable Discovery aggregate already owns an identity."""
 
@@ -624,7 +770,10 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 )
             ):
                 raise IntegrityError("invalid Scout observation event")
-            state["source_observations"][observation_id] = deepcopy(payload)
+            state["source_observations"][observation_id] = {
+                **deepcopy(payload),
+                "global_position": event["global_position"],
+            }
         elif event_type == "CandidateRegistered":
             if state["catalogue"] is None:
                 raise IntegrityError("Candidate event predates W11 genesis")
@@ -902,6 +1051,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 reviewer_actor_id=reviewer_actor_id,
                 verdict_event_id=event.get("event_id"),
                 verdict_event_hash=event.get("event_hash"),
+                verdict_global_position=event.get("global_position"),
                 version=event["stream_version"],
             )
         elif event_type == "AssayReviewed":
@@ -964,6 +1114,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             state["decisions"][decision_id] = {
                 "status": "proposed",
                 "kind": payload.get("discovery_kind"),
+                "decision_kind": required_string("decision_kind"),
+                "recommendation": required_string("recommendation"),
                 "options": options,
                 "version": event["stream_version"],
             }
@@ -1007,6 +1159,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             subject = collection.get(subject_id)
             review = state["reviews"].get(payload.get("review_id"))
             decision = state["decisions"].get(payload.get("decision_id"))
+            candidate = state["candidates"].get(payload.get("candidate_id"))
             if (
                 not isinstance(subject, dict)
                 or subject.get("candidate_id") != payload.get("candidate_id")
@@ -1019,9 +1172,25 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
                 or decision.get("options") != payload["w2_payload"].get("options")
+                or not isinstance(candidate, dict)
+                or not _revisit_relation_matches(
+                    payload.get("revisit_relation"),
+                    decision_id=payload.get("decision_id"),
+                    candidate=candidate,
+                    aggregate_id=subject_id,
+                    aggregate=subject,
+                    review=review,
+                    observations=state["source_observations"],
+                    recommendation=payload["w2_payload"].get("recommendation"),
+                    actor_id=event.get("actor_id"),
+                )
             ):
                 raise IntegrityError("invalid Discovery revisit request")
-            subject.update(status="revisit_pending", decision_id=required_string("decision_id"))
+            subject.update(
+                status="revisit_pending",
+                decision_id=required_string("decision_id"),
+                revisit_relation=deepcopy(payload["revisit_relation"]),
+            )
         elif event_type in {"CandidateAssayRevisitRequested", "CandidateSpikeRevisitRequested"}:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
@@ -1045,6 +1214,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             ):
                 raise IntegrityError("invalid Discovery revisit resolution")
             subject.update(status={"RETRY": "retry_authorized", "PARK": "parked", "KILL": "killed"}[selected])
+            if selected == "PARK":
+                subject["parked_at_global_position"] = event["global_position"]
         elif event_type in {"CandidateAssayRevisitResolved", "CandidateSpikeRevisitResolved"}:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
@@ -1056,6 +1227,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
             if candidate.get("status") is None:
                 raise IntegrityError("invalid Candidate revisit option")
+            if selected == "PARK":
+                candidate["parked_at_global_position"] = event["global_position"]
         elif event_type in {"AssaySuperseded", "SpikeSuperseded"}:
             collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
             subject_id = payload.get("old_assay_id") if event_type.startswith("Assay") else payload.get("old_spike_id")
@@ -1079,14 +1252,37 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "assay_to_spike": "assay_scored",
                 "spike_to_preregistration": "spike_verdict_recorded",
             }.get(gate)
+            aggregate_id = (
+                candidate.get("assay_id" if gate == "assay_to_spike" else "spike_id")
+                if isinstance(candidate, dict)
+                else None
+            )
+            aggregate = (
+                state["assays"].get(aggregate_id) if gate == "assay_to_spike" else state["spikes"].get(aggregate_id)
+            )
+            review = state["reviews"].get(payload.get("review_id"))
             if (
                 not isinstance(candidate, dict)
                 or candidate.get("status") != expected_status
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
                 or not _valid_promotion_options(decision.get("options"))
+                or not isinstance(aggregate, dict)
+                or not isinstance(review, dict)
+                or not _promotion_relation_matches(
+                    payload.get("promotion_relation"),
+                    decision_id=payload.get("decision_id"),
+                    candidate=candidate,
+                    aggregate_id=aggregate_id,
+                    aggregate=aggregate,
+                    review=review,
+                    gate=gate,
+                    recommendation=decision.get("recommendation"),
+                    actor_id=event.get("actor_id"),
+                )
             ):
                 raise IntegrityError("invalid Candidate promotion request")
+            decision.update(kind="discovery_promotion", promotion_relation=deepcopy(payload["promotion_relation"]))
             candidate.update(
                 status="promotion_pending",
                 decision_id=required_string("decision_id"),
@@ -1114,10 +1310,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or next_state != expected_next_state
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
+                or decision.get("kind") != "discovery_promotion"
                 or decision.get("selected_option") != selected_option
             ):
                 raise IntegrityError("invalid Candidate promotion application")
             candidate.update(status=next_state)
+            if selected_option == "PARK":
+                candidate["parked_at_global_position"] = event["global_position"]
         elif event_type == "SpikePlanned":
             spike_id = required_string("spike_id")
             if spike_id in state["spikes"]:
@@ -1977,7 +2176,7 @@ class DiscoveryRuntime:
             if event_type == "ReviewRequested":
                 return {
                     "review_type": "provenance",
-                    "new_review_id": stable_id("rev", 0),
+                    "new_review_id": command.target_stream_id,
                     "subject_ids": [stable_id("obj", 3)],
                     "subject_hashes": [current["subject_sha256"]],
                     "governing_refs": [f"W11:{event['owner_row_id']}", f"authority-kind:{kind}"],
@@ -2586,6 +2785,44 @@ class DiscoveryRuntime:
             result.append((event_type, stream_id, event_payload))
         return result
 
+    def _valid_promotion_relation(
+        self,
+        relation: Any,
+        **expected: Any,
+    ) -> bool:
+        """Validate the accepted schema and exact promotion subject joins."""
+
+        if not isinstance(relation, dict):
+            return False
+        try:
+            self.schemas.validate(
+                "ars://portfolio/relation/discovery-promotion",
+                relation,
+                schema_version="1.0.0",
+            )
+        except SchemaError:
+            return False
+        return _promotion_relation_matches(relation, **expected)
+
+    def _valid_revisit_relation(
+        self,
+        relation: Any,
+        **expected: Any,
+    ) -> bool:
+        """Validate the accepted schema and exact revisit predicate joins."""
+
+        if not isinstance(relation, dict):
+            return False
+        try:
+            self.schemas.validate(
+                "ars://portfolio/relation/discovery-revisit",
+                relation,
+                schema_version="1.0.0",
+            )
+        except SchemaError:
+            return False
+        return _revisit_relation_matches(relation, **expected)
+
     def _prepare_spike(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
@@ -2609,11 +2846,26 @@ class DiscoveryRuntime:
             and candidate.get("status") == "assay_scored"
             and isinstance(assay, dict)
             and assay.get("status") == "reviewed"
+            and p.get("review_id") == assay.get("review_id")
+            and isinstance(projection["reviews"].get(p.get("review_id")), dict)
+            and projection["reviews"][p["review_id"]].get("status") == "satisfied"
             and command.target_stream_id == decision_id
             and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
+            and p["w2_payload"].get("decision_kind") == "design_lock"
             and _valid_promotion_options(p["w2_payload"].get("options"))
+            and self._valid_promotion_relation(
+                p.get("promotion_relation"),
+                decision_id=decision_id,
+                candidate=candidate,
+                aggregate_id=assay.get("assay_id"),
+                aggregate=assay,
+                review=projection["reviews"][p["review_id"]],
+                gate="assay_to_spike",
+                recommendation=p["w2_payload"].get("recommendation"),
+                actor_id=command.actor_id,
+            )
         ):
             promotion_payload = {**deepcopy(p), "promotion_gate": "assay_to_spike"}
             return [
@@ -2625,6 +2877,7 @@ class DiscoveryRuntime:
             and row == "OR-013"
             and decision
             and decision.get("status") == "proposed"
+            and decision.get("kind") == "discovery_promotion"
             and candidate
             and candidate.get("status") == "promotion_pending"
             and candidate.get("decision_id") == decision_id
@@ -2985,7 +3238,19 @@ class DiscoveryRuntime:
             and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
+            and p["w2_payload"].get("decision_kind") == "design_lock"
             and _valid_promotion_options(p["w2_payload"].get("options"))
+            and self._valid_promotion_relation(
+                p.get("promotion_relation"),
+                decision_id=decision_id,
+                candidate=candidate,
+                aggregate_id=spike_id,
+                aggregate=spike,
+                review=projection["reviews"][p["review_id"]],
+                gate="spike_to_preregistration",
+                recommendation=p["w2_payload"].get("recommendation"),
+                actor_id=command.actor_id,
+            )
         ):
             promotion_payload = {**deepcopy(p), "promotion_gate": "spike_to_preregistration"}
             return [
@@ -2997,6 +3262,7 @@ class DiscoveryRuntime:
             and row == "OR-027"
             and isinstance(decision, dict)
             and decision.get("status") == "proposed"
+            and decision.get("kind") == "discovery_promotion"
             and isinstance(candidate, dict)
             and candidate.get("status") == "promotion_pending"
             and candidate.get("promotion_gate") == "spike_to_preregistration"
@@ -3044,6 +3310,17 @@ class DiscoveryRuntime:
                 or command.target_stream_id != decision_id
                 or not _valid_revisit_proposal(p.get("w2_payload"), p.get("review_id"))
                 or p["w2_payload"].get("new_decision_id") != decision_id
+                or not self._valid_revisit_relation(
+                    p.get("revisit_relation"),
+                    decision_id=decision_id,
+                    candidate=candidate,
+                    aggregate_id=spike_id,
+                    aggregate=spike,
+                    review=review,
+                    observations=projection["source_observations"],
+                    recommendation=p["w2_payload"].get("recommendation"),
+                    actor_id=command.actor_id,
+                )
             ):
                 raise IntegrityError("invalid Spike revisit proposal")
             return [
@@ -3228,7 +3505,8 @@ class DiscoveryRuntime:
         )
         if artifact.get("verdict") == "PASS":
             truth_table = (
-                bool(success)
+                not has_unknown
+                and bool(success)
                 and all(value.get("status") == "passed" for value in success)
                 and all(value.get("status") != "failed" for value in failure)
                 and all(value.get("status") == "not_triggered" for value in kills)
@@ -3501,6 +3779,17 @@ class DiscoveryRuntime:
                 or candidate.get("status") not in {"assay_revisit_eligible", "parked"}
                 or not _valid_revisit_proposal(payload.get("w2_payload"), payload.get("review_id"))
                 or payload["w2_payload"].get("new_decision_id") != decision_id
+                or not self._valid_revisit_relation(
+                    payload.get("revisit_relation"),
+                    decision_id=decision_id,
+                    candidate=candidate,
+                    aggregate_id=assay_id,
+                    aggregate=assay,
+                    review=review,
+                    observations=projection["source_observations"],
+                    recommendation=payload["w2_payload"].get("recommendation"),
+                    actor_id=command.actor_id,
+                )
             ):
                 raise IntegrityError("invalid Assay revisit proposal")
             return [

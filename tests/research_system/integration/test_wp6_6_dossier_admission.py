@@ -646,7 +646,7 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
     actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(5)]
     actors[4] = ACTOR_ID
     stream_id = f"obj_019fed25-b33e-7740-b280-{offset:012d}"
-    review_id = f"rev_019fed25-b33e-7740-b280-{1100 if kind == 'dossier_expected_set' else 1200:012d}"
+    review_id = f"rev_019fed25-b33e-7740-b280-{offset + 99:012d}"
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
     first_row = 110 if kind == "dossier_expected_set" else 116
     authority_file_path = DOSSIER_AUTHORITY if kind == "dossier_expected_set" else PATH_AUTHORITY

@@ -442,6 +442,90 @@ def _scorecard(candidate_id: str, assay_id: str, candidate_sha256: str, relation
     }
 
 
+def _ref(record_id: object, revision: object, content_hash: object) -> dict[str, object]:
+    return {"id": record_id, "record_revision": revision, "content_hash": content_hash}
+
+
+def _promotion_relation(
+    runtime: DiscoveryRuntime,
+    *,
+    decision_id: str,
+    candidate_id: str,
+    aggregate_id: str,
+    review_id: str,
+    gate: str,
+    recommendation: str = "PROMOTE",
+) -> dict[str, object]:
+    projection = replay_discovery(runtime.ledger.iter_events())
+    candidate = projection["candidates"][candidate_id]
+    aggregate = projection["assays" if gate == "assay_to_spike" else "spikes"][aggregate_id]
+    review = projection["reviews"][review_id]
+    evidence_hash = aggregate.get("scorecard_sha256", aggregate.get("verdict_sha256"))
+    aggregate_ref = _ref(aggregate_id, aggregate["version"], evidence_hash)
+    return {
+        "schema_id": "ars://portfolio/relation/discovery-promotion",
+        "schema_version": "1.0.0",
+        "relation_kind": "discovery_promotion",
+        "decision_id": decision_id,
+        "candidate_ref": _ref(candidate_id, candidate["revision"], candidate["content_sha256"]),
+        "gate": gate,
+        "aggregate_ref": aggregate_ref,
+        "aggregate_relation_hash": aggregate.get("producer_relation_sha256", aggregate.get("plan_sha256")),
+        "evidence_ref": aggregate_ref,
+        "selected_option": recommendation,
+        "next_candidate_state": {
+            "PROMOTE": {
+                "assay_to_spike": "spike_planning_authorized",
+                "spike_to_preregistration": "preregistration_authorized",
+            }[gate],
+            "PARK": "parked",
+            "KILL": "killed",
+        }[recommendation],
+        "rationale": "The exact reviewed evidence supports this governed recommendation.",
+        "considered_evidence_refs": [
+            _ref(review_id, review["version"], review["verdict_event_hash"]),
+        ],
+        "conditions": [],
+        "effective_scope": f"{gate}:{candidate_id}",
+        "revisit_triggers": ["new objective evidence"],
+        "actor_id": ACTOR_ID,
+    }
+
+
+def _revisit_relation(
+    runtime: DiscoveryRuntime,
+    *,
+    decision_id: str,
+    candidate_id: str,
+    aggregate_id: str,
+    review_id: str,
+    predicate_observation_id: str,
+    recommendation: str = "RETRY",
+) -> dict[str, object]:
+    projection = replay_discovery(runtime.ledger.iter_events())
+    candidate = projection["candidates"][candidate_id]
+    collection = "assays" if aggregate_id.startswith("asy_") else "spikes"
+    aggregate = projection[collection][aggregate_id]
+    review = projection["reviews"][review_id]
+    predicate = projection["source_observations"][predicate_observation_id]
+    aggregate_hash = aggregate.get(
+        "scorecard_sha256",
+        aggregate.get("verdict_sha256", aggregate.get("outcome_sha256")),
+    )
+    return {
+        "schema_id": "ars://portfolio/relation/discovery-revisit",
+        "schema_version": "1.0.0",
+        "relation_kind": "discovery_revisit",
+        "decision_id": decision_id,
+        "candidate_ref": _ref(candidate_id, candidate["revision"], candidate["content_sha256"]),
+        "prior_aggregate_ref": _ref(aggregate_id, aggregate["version"], aggregate_hash),
+        "prior_outcome_review_ref": _ref(review_id, review["version"], review["verdict_event_hash"]),
+        "satisfied_revisit_predicate_ref": _ref(predicate_observation_id, 1, predicate["content_sha256"]),
+        "selected_option": recommendation,
+        "actor_id": ACTOR_ID,
+    }
+
+
 def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     command = _genesis()
@@ -1143,6 +1227,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff83"
     revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff84"
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff85"
+    predicate_observation_id = "obj_019fed25-b33e-7740-b280-6f661aaeff8b"
     runtime.submit(_genesis())
     candidate_sha256 = _ingest_candidate(
         runtime,
@@ -1301,6 +1386,12 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         runtime.submit(foreign_candidate_review)
     assert tuple(runtime.ledger.iter_events()) == before
     runtime.submit(review)
+    _ingest_candidate(
+        runtime,
+        "obj_019fed25-b33e-7740-b280-6f661aaeff8c",
+        observation_id=predicate_observation_id,
+        title="Objective Assay revisit evidence",
+    )
     proposal = {
         "question": "Retry the exact partial Assay?",
         "recommendation": "RETRY",
@@ -1327,16 +1418,26 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
             "review_id": review_id,
             "decision_id": revisit_id,
             "w2_payload": proposal,
+            "revisit_relation": _revisit_relation(
+                runtime,
+                decision_id=revisit_id,
+                candidate_id=candidate_id,
+                aggregate_id=assay_id,
+                review_id=review_id,
+                predicate_observation_id=predicate_observation_id,
+            ),
         },
     )
-    for mutation in ("foreign_review", "empty_options", "unbound_review"):
+    for mutation in ("foreign_review", "empty_options", "unbound_review", "foreign_predicate"):
         invalid = deepcopy(proposal_command)
         if mutation == "foreign_review":
             invalid["payload"]["review_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
         elif mutation == "empty_options":
             invalid["payload"]["w2_payload"]["options"] = []
-        else:
+        elif mutation == "unbound_review":
             invalid["payload"]["w2_payload"]["governing_evidence_refs"] = []
+        else:
+            invalid["payload"]["revisit_relation"]["satisfied_revisit_predicate_ref"]["id"] = review_id
         before = tuple(runtime.ledger.iter_events())
         with pytest.raises(IntegrityError, match="invalid Assay revisit proposal"):
             runtime.submit(invalid)
@@ -1344,6 +1445,8 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     parked_projection = replay_discovery(runtime.ledger.iter_events())
     parked_projection["assays"][assay_id]["status"] = "reviewed"
     parked_projection["candidates"][candidate_id]["status"] = "parked"
+    predicate_position = parked_projection["source_observations"][predicate_observation_id]["global_position"]
+    parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position - 1
     assert [
         event_type for event_type, _, _ in runtime._prepare_assay(Command(proposal_command), parked_projection)
     ] == [
@@ -1351,6 +1454,9 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         "AssayRevisitRequested",
         "CandidateAssayRevisitRequested",
     ]
+    parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position
+    with pytest.raises(IntegrityError, match="invalid Assay revisit proposal"):
+        runtime._prepare_assay(Command(proposal_command), parked_projection)
     runtime.submit(proposal_command)
     resolution = {
         "decision_id": revisit_id,
@@ -1427,6 +1533,12 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     ] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
     with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
         replay_discovery(_rehash_events(tampered))
+    tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["revisit_relation"][
+        "satisfied_revisit_predicate_ref"
+    ]["content_hash"] = "f" * 64
+    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+        replay_discovery(_rehash_events(tampered))
     cross_candidate_review = [deepcopy(event) for event in runtime.ledger.iter_events()]
     reviewed_index = next(
         index for index, event in enumerate(cross_candidate_review) if event["event_type"] == "AssayPartialReviewed"
@@ -1458,6 +1570,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff6d"
     assay_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff70"
     reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff71"
+    predicate_observation_id = "obj_019fed25-b33e-7740-b280-6f661aaeff77"
     attempt_id = C1_ATTEMPT_ID
     lease_id = C1_LEASE_ID
     resource_grant_id = C1_RESOURCE_GRANT_ID
@@ -1726,7 +1839,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "row_id": "OR-012",
                 "candidate_id": candidate_id,
                 "decision_id": promotion_id,
+                "review_id": assay_review_id,
                 "w2_payload": promotion_proposed(promotion_id, "assay_to_spike"),
+                "promotion_relation": _promotion_relation(
+                    runtime,
+                    decision_id=promotion_id,
+                    candidate_id=candidate_id,
+                    aggregate_id=assay_id,
+                    review_id=assay_review_id,
+                    gate="assay_to_spike",
+                ),
             },
         ),
         _command(
@@ -1822,6 +1944,19 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted_decision)
             assert tuple(runtime.ledger.iter_events()) == before
+        if row_id == "OR-012":
+            for mutation in ("missing_relation", "foreign_candidate", "generic_decision"):
+                invalid_promotion = deepcopy(command)
+                if mutation == "missing_relation":
+                    invalid_promotion["payload"].pop("promotion_relation")
+                elif mutation == "foreign_candidate":
+                    invalid_promotion["payload"]["promotion_relation"]["candidate_ref"]["content_hash"] = "f" * 64
+                else:
+                    invalid_promotion["payload"]["w2_payload"]["decision_kind"] = "claim_promotion"
+                before = tuple(runtime.ledger.iter_events())
+                with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                    runtime.submit(invalid_promotion)
+                assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-015":
             for invalid_payload in (
                 {**deepcopy(command["payload"]["w2_payload"]), "options": []},
@@ -1886,6 +2021,13 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             before = tuple(runtime.ledger.iter_events())
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(unevaluated)
+            assert tuple(runtime.ledger.iter_events()) == before
+            unknown_failure = deepcopy(command)
+            unknown_failure_artifact = unknown_failure["payload"]["verdict_artifact"]
+            unknown_failure_artifact["failure_predicates"][0]["status"] = "unable_to_evaluate"
+            unknown_failure["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(unknown_failure_artifact))
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(unknown_failure)
             assert tuple(runtime.ledger.iter_events()) == before
             incomplete_fail = deepcopy(command)
             incomplete_artifact = incomplete_fail["payload"]["verdict_artifact"]
@@ -1961,6 +2103,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 application_event["payload"]["next_candidate_state"] = next_state
                 terminal_projection = replay_discovery(_rehash_events(terminal))
                 assert terminal_projection["candidates"][candidate_id]["status"] == next_state
+    invalid_promotion_relation = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    promotion_request = next(
+        event
+        for event in invalid_promotion_relation
+        if event["event_type"] == "CandidatePromotionRequested"
+        and event["payload"].get("promotion_gate") == "assay_to_spike"
+    )
+    promotion_request["payload"]["promotion_relation"]["candidate_ref"]["content_hash"] = "f" * 64
+    with pytest.raises(IntegrityError, match="invalid Candidate promotion request"):
+        replay_discovery(_rehash_events(invalid_promotion_relation))
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
         event
@@ -2113,6 +2265,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "review_id": review_id,
                 "verdict_sha256": verdict_sha256,
                 "w2_payload": promotion_proposed(post_promotion_id, "spike_to_preregistration"),
+                "promotion_relation": _promotion_relation(
+                    runtime,
+                    decision_id=post_promotion_id,
+                    candidate_id=candidate_id,
+                    aggregate_id=spike_id,
+                    review_id=review_id,
+                    gate="spike_to_preregistration",
+                ),
             },
         )
         reused_decision = _command(
@@ -2134,6 +2294,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         before = tuple(runtime.ledger.iter_events())
         with pytest.raises(IntegrityError, match="invalid Spike transition"):
             runtime.submit(foreign_verdict)
+        assert tuple(runtime.ledger.iter_events()) == before
+        foreign_relation = deepcopy(post_promotion)
+        foreign_relation["payload"]["promotion_relation"]["aggregate_ref"]["content_hash"] = "f" * 64
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Spike transition"):
+            runtime.submit(foreign_relation)
         assert tuple(runtime.ledger.iter_events()) == before
         foreign_decision = deepcopy(post_promotion)
         foreign_decision["payload"]["w2_payload"]["new_decision_id"] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
@@ -2192,6 +2358,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match=message):
                 replay_discovery(_rehash_events(tampered))
     if spike_verdict == "PARTIAL":
+        _ingest_candidate(
+            runtime,
+            "obj_019fed25-b33e-7740-b280-6f661aaeff78",
+            observation_id=predicate_observation_id,
+            title="Objective Spike revisit evidence",
+        )
         revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff71"
         revisit_proposal = proposed(revisit_id, "spike_revisit")
         revisit_proposal["recommendation"] = "RETRY"
@@ -2208,16 +2380,26 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "review_id": review_id,
                 "decision_id": revisit_id,
                 "w2_payload": revisit_proposal,
+                "revisit_relation": _revisit_relation(
+                    runtime,
+                    decision_id=revisit_id,
+                    candidate_id=candidate_id,
+                    aggregate_id=spike_id,
+                    review_id=review_id,
+                    predicate_observation_id=predicate_observation_id,
+                ),
             },
         )
-        for mutation in ("foreign_review", "empty_options", "unbound_review"):
+        for mutation in ("foreign_review", "empty_options", "unbound_review", "foreign_predicate"):
             invalid = deepcopy(revisit_command)
             if mutation == "foreign_review":
                 invalid["payload"]["review_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
             elif mutation == "empty_options":
                 invalid["payload"]["w2_payload"]["options"] = []
-            else:
+            elif mutation == "unbound_review":
                 invalid["payload"]["w2_payload"]["governing_evidence_refs"] = []
+            else:
+                invalid["payload"]["revisit_relation"]["satisfied_revisit_predicate_ref"]["id"] = review_id
             before = tuple(runtime.ledger.iter_events())
             with pytest.raises(IntegrityError, match="invalid Spike revisit proposal"):
                 runtime.submit(invalid)
@@ -2225,6 +2407,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         parked_projection = replay_discovery(runtime.ledger.iter_events())
         parked_projection["spikes"][spike_id]["status"] = "reviewed"
         parked_projection["candidates"][candidate_id]["status"] = "parked"
+        predicate_position = parked_projection["source_observations"][predicate_observation_id]["global_position"]
+        parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position - 1
         assert [
             event_type for event_type, _, _ in runtime._prepare_spike(Command(revisit_command), parked_projection)
         ] == [
@@ -2232,6 +2416,9 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "SpikeRevisitRequested",
             "CandidateSpikeRevisitRequested",
         ]
+        parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position
+        with pytest.raises(IntegrityError, match="invalid Spike revisit proposal"):
+            runtime._prepare_spike(Command(revisit_command), parked_projection)
         runtime.submit(revisit_command)
         revisit_resolution = resolved(revisit_id)
         revisit_resolution["selected_option"] = "RETRY"
