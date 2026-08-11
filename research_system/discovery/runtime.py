@@ -1538,23 +1538,24 @@ class DiscoveryRuntime:
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
         binding = self.schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
-        result = self.ledger.append(
-            [
+
+        def event_schema(event_type: str, payload: Mapping[str, Any]) -> tuple[str, str]:
+            """Resolve an exact producer binding, falling back only for Discovery shadow events."""
+
+            if "authority_event_type" not in payload:
+                event_binding = self.schemas.event_binding(event_type, envelope["command_type"])
+                if event_binding is not None:
+                    return event_binding.schema_id, event_binding.schema_version
+            return "ars://core/event", "1.0.0"
+
+        event_records = []
+        for prepared_event_type, prepared_stream_id, prepared_payload in prepared:
+            schema_id, schema_version = event_schema(prepared_event_type, prepared_payload)
+            event_records.append(
                 {
                     "event_type": prepared_event_type,
-                    "schema_id": (
-                        {
-                            "ReviewRequested": "ars://core/event/ReviewRequested",
-                            "ReviewVerdictRecorded": "ars://core/event/ReviewVerdictRecorded",
-                            "DecisionProposed": "ars://core/event/DecisionProposed",
-                            "DecisionResolved": "ars://core/event/DecisionResolved",
-                            "PartialOutcomeRecorded": "ars://core/event/PartialOutcomeRecorded",
-                            "LeaseReleased": "ars://core/event/LeaseReleased",
-                        }.get(prepared_event_type, "ars://core/event")
-                        if "authority_event_type" not in prepared_payload
-                        else "ars://core/event"
-                    ),
-                    "schema_version": "1.0.0",
+                    "schema_id": schema_id,
+                    "schema_version": schema_version,
                     "stream_id": prepared_stream_id,
                     "command_id": command.command_id,
                     "command_type": envelope["command_type"],
@@ -1570,10 +1571,8 @@ class DiscoveryRuntime:
                     "occurred_at": None,
                     "payload": prepared_payload,
                 }
-                for prepared_event_type, prepared_stream_id, prepared_payload in prepared
-            ],
-            snapshot=snapshot,
-        )
+            )
+        result = self.ledger.append(event_records, snapshot=snapshot)
         receipt = Receipt(
             status="accepted",
             command_id=command.command_id,

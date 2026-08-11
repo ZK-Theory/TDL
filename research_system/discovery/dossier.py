@@ -6,17 +6,17 @@ events atomically after applying its own stream/version and authority fences.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
-from typing import Any, Iterable, Mapping
+from typing import Any
 
-from research_system.store.lock import _open_directory_anchor
+from research_system.store.lock import open_registered_root_anchor
 
 
 class DossierAdmissionRejected(ValueError):
@@ -74,7 +74,14 @@ def _canonical_hash(value: Any) -> str:
 
 
 def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
-    """Bind every immutable expected-side field except the digest itself."""
+    """Bind every immutable expected-side field except the digest itself.
+
+    Args:
+        expected_set: Independently authored expected dossier subject.
+
+    Returns:
+        Lowercase SHA-256 digest of the canonical expected-side preimage.
+    """
 
     value = asdict(expected_set)
     value.pop("content_hash")
@@ -101,9 +108,19 @@ def _lexical_normalized_path(path: Path) -> str:
 
 
 def registered_root_identity_hash(path: Path) -> str:
-    """Hash the held physical directory identity and final path."""
+    """Hash the held physical directory identity and final path.
 
-    anchor = _open_directory_anchor(path, reject_reparse=False, delete_protect=True)
+    Args:
+        path: Lexical path of the explicitly registered directory root.
+
+    Returns:
+        Lowercase SHA-256 digest binding lexical and physical root identity.
+
+    Raises:
+        OSError: If the operating system cannot establish a held directory identity.
+    """
+
+    anchor = open_registered_root_anchor(path, delete_protect=True)
     try:
         return _canonical_hash(
             {
@@ -128,7 +145,7 @@ def _after_member_identity_check(_path: Path) -> None:
 
 def _assert_live_root(anchor: Any, path: Path) -> None:
     """Require the live root path to retain the held physical identity."""
-    observer = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
+    observer = open_registered_root_anchor(path, delete_protect=False)
     try:
         if observer.identity != anchor.identity or observer.final_path != anchor.final_path:
             raise DossierAdmissionRejected("path_registration_identity_changed")
@@ -172,7 +189,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
     if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
         raise DossierAdmissionRejected("path_traversal")
 
-    anchor = _open_directory_anchor(root.path, reject_reparse=False, delete_protect=True)
+    anchor = open_registered_root_anchor(root.path, delete_protect=True)
     try:
         identity_hash = _canonical_hash(
             {
@@ -255,8 +272,21 @@ def prepare_dossier_admission(
 ) -> PreparedDossierAdmission:
     """Validate an exact dossier and return its deterministic atomic event batch.
 
-    ``candidate_members`` is intentionally distinct from ``expected_set.members``:
-    the accepted side must originate outside the candidate producer.
+    Args:
+        expected_set: Independently accepted expected-side subject.
+        current_expected_set_revision: Currently authorized expected-set revision.
+        candidate_members: Candidate physical member descriptors, kept distinct
+            from the independently authored expected members.
+        candidate_manifest: Closed semantic dossier manifest supplied for admission.
+        registered_roots: Current authorized physical roots keyed by root identity.
+        existing_identities: Immutable identities already published by Discovery.
+
+    Returns:
+        Fully validated in-memory event batch ready for one atomic append.
+
+    Raises:
+        DossierAdmissionRejected: If authority, physical identity, content,
+            provenance, semantic closure, or immutable identity validation fails.
     """
 
     _validate_sha256(expected_set.content_hash, "expected_set_hash")

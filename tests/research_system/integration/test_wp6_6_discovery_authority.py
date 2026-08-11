@@ -17,6 +17,7 @@ OBSERVER = "act_observer"
 REVIEWER = "act_reviewer"
 PROPOSER = "act_proposer"
 OWNER = "act_stephen"
+pytestmark = pytest.mark.integration
 
 
 def _subject(kind: str) -> dict[str, object]:

@@ -7,10 +7,10 @@ event tuples that the runtime can append as one authorized transaction.
 
 from __future__ import annotations
 
-import hashlib
-import json
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
-from typing import Iterable, Mapping
+
+from research_system.canonical import canonical_bytes, sha256_hex
 
 
 class AuthorityRejected(ValueError):
@@ -52,17 +52,12 @@ _W2_SCHEMAS = {
 }
 
 
-def _canonical(value: object) -> bytes:
-    """Serialize one authority value deterministically."""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-
-
 def subject_sha256(subject: Mapping[str, object]) -> str:
     """Hash the complete authority subject, excluding only its digest field."""
 
     preimage = dict(subject)
     preimage.pop("subject_sha256", None)
-    return hashlib.sha256(_canonical(preimage)).hexdigest()
+    return sha256_hex(canonical_bytes(preimage))
 
 
 def _sha256(value: object, label: str) -> str:

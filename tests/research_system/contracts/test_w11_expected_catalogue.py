@@ -249,3 +249,15 @@ def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() 
         event_type="ReviewVerdictRecorded",
         producer_command_type="ReviewDiscoveryOutcome",
     )
+    assert registry.event_binding("DecisionProposed", "ProposeW11AuthorityDecision") == SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeW11AuthorityDecision",
+    )
+    assert registry.event_binding("DecisionResolved", "ResolveDecision") == SchemaBinding(
+        "ars://core/event/DecisionResolved",
+        "1.0.0",
+        event_type="DecisionResolved",
+        producer_command_type="ResolveDecision",
+    )

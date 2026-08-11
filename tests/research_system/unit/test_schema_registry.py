@@ -538,6 +538,10 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
         event_type="ReviewVerdictRecorded",
         producer_command_type="ReviewDiscoveryOutcome",
     )
+    assert registry.event_binding("ReviewRequested", "WrongProducer") is None
+    assert registry.event_binding("ReviewRequested", None) is None
+    assert registry.event_binding("ReviewVerdictRecorded", "WrongProducer") is None
+    assert registry.event_binding("ReviewVerdictRecorded", None) is None
     assert (
         registry.resolve_identity("ars://core/command/CreateBackup", "1.0.0").sha256
         == "16fe11c88fbfce48185fa666be93978f02416013addf83a4c2c3634884292a24"

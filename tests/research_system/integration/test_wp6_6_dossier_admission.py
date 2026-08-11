@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import asdict, replace
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import os
+from pathlib import Path, PurePosixPath
 import subprocess
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -103,7 +104,7 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
 
 
 def _rehash(expected: AcceptedExpectedSet) -> AcceptedExpectedSet:
-    return replace(expected, content_hash=accepted_expected_set_hash(replace(expected, content_hash="0" * 64)))
+    return replace(expected, content_hash=accepted_expected_set_hash(expected))
 
 
 def _canonical_hash(value: object) -> str:
@@ -382,7 +383,10 @@ def test_materialized_identity_cannot_collide_with_dossier_identity() -> None:
         ),
     ],
 )
-def test_candidate_missing_extra_duplicate_tamper_or_traversal_rejects_without_output(mutation, reason) -> None:
+def test_candidate_missing_extra_duplicate_tamper_or_traversal_rejects_without_output(
+    mutation: Callable[[AcceptedExpectedSet], tuple[DossierMember, ...]],
+    reason: str,
+) -> None:
     expected, roots = _subject()
     with pytest.raises(DossierAdmissionRejected, match=reason):
         _admit_with_default_manifest(

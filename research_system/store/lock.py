@@ -685,6 +685,17 @@ def _open_directory_anchor(
     )
 
 
+def open_registered_root_anchor(path: Path, *, delete_protect: bool) -> _DirectoryAnchor:
+    """Open the physical anchor for an explicitly registered root.
+
+    Registered roots may themselves be junctions, so this purpose-named seam
+    follows the root alias while retaining the physical identity handle.
+    Nested member aliases remain the caller's responsibility to reject.
+    """
+
+    return _open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)
+
+
 def _root_sort_key(path: Path) -> tuple[str, str]:
     normalized = os.path.normcase(str(path))
     display = normalized
