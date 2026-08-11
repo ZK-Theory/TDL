@@ -856,3 +856,49 @@ def test_dossier_runtime_rejects_malformed_registered_root_before_field_access(
 
     with pytest.raises(IntegrityError, match="invalid registered root"):
         runtime._prepare_dossier(command, projection)
+
+
+def test_dossier_runtime_rejects_materialization_identity_used_by_existing_candidate(tmp_path: Path) -> None:
+    expected, _ = _subject()
+    manifest = _candidate_manifest(expected.members)
+    collision_id = manifest["object_blueprints"][0]["proposed_record_id"]
+    runtime = _runtime(tmp_path)
+    projection = {
+        "source_observations": {},
+        "candidates": {collision_id: {"status": "registered"}},
+        "assays": {},
+        "spikes": {},
+        "decisions": {},
+        "reviews": {},
+        "dossiers": {},
+        "portfolio_objects": {},
+        "scopes": {},
+        "authority_streams": {},
+        "authorities": {
+            "dossier_expected_set": {
+                "status": "accepted",
+                "subject": {"expected_set": json.loads(json.dumps(asdict(expected)))},
+            },
+            "path_registration": {
+                "status": "accepted",
+                "subject": {"registered_roots": json.loads((REPO / PATH_AUTHORITY).read_bytes())["registered_roots"]},
+            },
+        },
+    }
+    command = Command(
+        _command(
+            "AdmitResearchDossier",
+            expected.dossier_id,
+            0,
+            {
+                "row_id": "OR-028",
+                "dossier_id": expected.dossier_id,
+                "expected_set_id": expected.expected_set_id,
+                "candidate_members": [asdict(member) for member in expected.members],
+                "candidate_manifest": manifest,
+            },
+        )
+    )
+
+    with pytest.raises(DossierAdmissionRejected, match="immutable_identity_collision"):
+        runtime._prepare_dossier(command, projection)

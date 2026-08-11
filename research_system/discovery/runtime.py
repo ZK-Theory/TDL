@@ -87,6 +87,60 @@ _DISCOVERY_COMMAND_TYPES = {
     "ResolveDecision",
     "AdmitResearchDossier",
 }
+_ASSAY_PARTIAL_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "assay_id",
+        "candidate_ref",
+        "rubric_ref",
+        "scope_ref",
+        "assay_bar_acceptance_ref",
+        "assay_relation_hash",
+        "completed_axes",
+        "completed_evidence",
+        "unmet_axes",
+        "unmet_evidence",
+        "reason_codes",
+        "limitations",
+        "revisit_requirements",
+        "mechanical_recommendation",
+    }
+)
+
+
+def _valid_assay_partial_shape(artifact: Mapping[str, Any]) -> bool:
+    """Validate the closed non-reference shape of an Assay Partial artifact."""
+    list_fields = (
+        "completed_axes",
+        "completed_evidence",
+        "unmet_axes",
+        "unmet_evidence",
+        "reason_codes",
+        "limitations",
+        "revisit_requirements",
+    )
+    return bool(
+        set(artifact) == _ASSAY_PARTIAL_FIELDS
+        and artifact.get("schema_id") == "ars://portfolio/assay-partial"
+        and artifact.get("schema_version") == "1.0.0"
+        and all(
+            isinstance(artifact.get(field), list) and all(isinstance(value, str) for value in artifact[field])
+            for field in list_fields
+        )
+        and all(artifact.get(field) for field in ("unmet_axes", "reason_codes", "revisit_requirements"))
+        and artifact.get("mechanical_recommendation") in {"PARK", "KILL", "UNABLE_TO_SCORE"}
+    )
+
+
+def _valid_promotion_options(value: Any) -> bool:
+    """Return whether a proposal carries the exact PromotionDecision option set."""
+    return bool(
+        isinstance(value, list)
+        and len(value) == 3
+        and all(isinstance(option, str) for option in value)
+        and set(value) == {"PROMOTE", "PARK", "KILL"}
+    )
 
 
 def _git_blob(data: bytes) -> str:
@@ -595,7 +649,42 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
         elif event_type == "AssayPartialRecorded":
             assay = state["assays"].get(payload.get("assay_id"))
-            if not isinstance(assay, dict) or assay.get("status") != "evidence_collecting":
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            artifact = payload.get("partial_artifact")
+            bar = state["assay_bar_authority"]
+            acceptance = bar.get("acceptance") if isinstance(bar, dict) else None
+            expected_acceptance = (
+                {
+                    "id": acceptance.get("decision_id"),
+                    "record_revision": 1,
+                    "content_hash": bar.get("acceptance_sha256"),
+                }
+                if isinstance(acceptance, dict)
+                else None
+            )
+            if (
+                not isinstance(assay, dict)
+                or not isinstance(candidate, dict)
+                or not isinstance(artifact, dict)
+                or not isinstance(acceptance, dict)
+                or not _valid_assay_partial_shape(artifact)
+                or assay.get("status") != "evidence_collecting"
+                or assay.get("producer_actor_id") != event.get("actor_id")
+                or bar.get("status") != "accepted"
+                or assay.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
+                or artifact.get("candidate_ref")
+                != {
+                    "id": payload.get("candidate_id"),
+                    "record_revision": candidate.get("revision"),
+                    "content_hash": candidate.get("content_sha256"),
+                }
+                or artifact.get("assay_id") != payload.get("assay_id")
+                or artifact.get("rubric_ref") != acceptance.get("rubric_ref")
+                or artifact.get("scope_ref") != acceptance.get("scope_ref")
+                or artifact.get("assay_bar_acceptance_ref") != expected_acceptance
+                or artifact.get("assay_relation_hash") != assay.get("producer_relation_sha256")
+                or sha256_hex(canonical_bytes(artifact)) != payload.get("partial_sha256")
+            ):
                 raise IntegrityError("invalid Assay partial transition")
             assay.update(
                 status="partial_recorded",
@@ -785,25 +874,31 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="assay_revisit_eligible", version=event["stream_version"])
         elif event_type == "DecisionProposed":
             decision_id = required_string("new_decision_id")
-            if event["stream_id"] != decision_id or decision_id in state["decisions"]:
+            options = required_string_list("options")
+            if (
+                event["stream_id"] != decision_id
+                or decision_id in state["decisions"]
+                or len(set(options)) != len(options)
+            ):
                 raise IntegrityError("invalid Discovery decision proposal")
             state["decisions"][decision_id] = {
                 "status": "proposed",
                 "kind": payload.get("discovery_kind"),
+                "options": options,
                 "version": event["stream_version"],
             }
         elif event_type == "DecisionResolved":
             decision_id = required_string("decision_id")
             decision = state["decisions"].get(decision_id)
+            selected_option = required_string("selected_option")
             if (
                 event["stream_id"] != decision_id
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
+                or selected_option not in decision.get("options", ())
             ):
                 raise IntegrityError("invalid Discovery decision resolution")
-            decision.update(
-                status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]
-            )
+            decision.update(status="resolved", selected_option=selected_option, version=event["stream_version"])
         elif event_type == "SpikeExecutionProposalSupersededByCancellation":
             decision = state["decisions"].get(payload.get("decision_id"))
             spike = state["spikes"].get(payload.get("spike_id"))
@@ -888,12 +983,19 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate[f"{kind}_id"] = new_id
         elif event_type == "CandidatePromotionRequested":
             candidate = state["candidates"].get(payload.get("candidate_id"))
+            decision = state["decisions"].get(payload.get("decision_id"))
             gate = required_string("promotion_gate")
             expected_status = {
                 "assay_to_spike": "assay_scored",
                 "spike_to_preregistration": "spike_verdict_recorded",
             }.get(gate)
-            if not isinstance(candidate, dict) or candidate.get("status") != expected_status:
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != expected_status
+                or not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or not _valid_promotion_options(decision.get("options"))
+            ):
                 raise IntegrityError("invalid Candidate promotion request")
             candidate.update(
                 status="promotion_pending",
@@ -904,19 +1006,25 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             decision = state["decisions"].get(payload.get("decision_id"))
             gate = required_string("promotion_gate")
+            selected_option = required_string("selected_option")
             next_state = required_string("next_candidate_state")
+            expected_next_state = {
+                "PROMOTE": {
+                    "assay_to_spike": "spike_planning_authorized",
+                    "spike_to_preregistration": "preregistration_authorized",
+                }.get(gate),
+                "PARK": "parked",
+                "KILL": "killed",
+            }.get(selected_option)
             if (
                 not isinstance(candidate, dict)
                 or candidate.get("status") != "promotion_pending"
                 or candidate.get("decision_id") != payload.get("decision_id")
                 or candidate.get("promotion_gate") != gate
-                or next_state
-                != {
-                    "assay_to_spike": "spike_planning_authorized",
-                    "spike_to_preregistration": "preregistration_authorized",
-                }.get(gate)
+                or next_state != expected_next_state
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
+                or decision.get("selected_option") != selected_option
             ):
                 raise IntegrityError("invalid Candidate promotion application")
             candidate.update(status=next_state)
@@ -2344,9 +2452,16 @@ class DiscoveryRuntime:
             registered_roots=roots,
             existing_identities=frozenset(
                 {
+                    *projection["source_observations"],
+                    *projection["candidates"],
+                    *projection["assays"],
+                    *projection["spikes"],
+                    *projection["decisions"],
+                    *projection["reviews"],
                     *projection["dossiers"],
                     *projection["portfolio_objects"],
                     *projection["scopes"],
+                    *projection["authority_streams"],
                 }
             ),
         )
@@ -2391,6 +2506,7 @@ class DiscoveryRuntime:
             and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
+            and _valid_promotion_options(p["w2_payload"].get("options"))
         ):
             promotion_payload = {**deepcopy(p), "promotion_gate": "assay_to_spike"}
             return [
@@ -2408,12 +2524,19 @@ class DiscoveryRuntime:
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
-            and p.get("w2_payload", {}).get("selected_option") == "approve"
+            and p["w2_payload"].get("selected_option") in {"PROMOTE", "PARK", "KILL"}
+            and p["w2_payload"]["selected_option"] in decision.get("options", ())
         ):
+            selected_option = p["w2_payload"]["selected_option"]
             applied_payload = {
                 **deepcopy(p),
                 "promotion_gate": "assay_to_spike",
-                "next_candidate_state": "spike_planning_authorized",
+                "selected_option": selected_option,
+                "next_candidate_state": {
+                    "PROMOTE": "spike_planning_authorized",
+                    "PARK": "parked",
+                    "KILL": "killed",
+                }[selected_option],
             }
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -2746,6 +2869,7 @@ class DiscoveryRuntime:
             and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
+            and _valid_promotion_options(p["w2_payload"].get("options"))
         ):
             promotion_payload = {**deepcopy(p), "promotion_gate": "spike_to_preregistration"}
             return [
@@ -2771,12 +2895,19 @@ class DiscoveryRuntime:
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("decision_id") == decision_id
-            and p["w2_payload"].get("selected_option") == "approve"
+            and p["w2_payload"].get("selected_option") in {"PROMOTE", "PARK", "KILL"}
+            and p["w2_payload"]["selected_option"] in decision.get("options", ())
         ):
+            selected_option = p["w2_payload"]["selected_option"]
             applied_payload = {
                 **deepcopy(p),
                 "promotion_gate": "spike_to_preregistration",
-                "next_candidate_state": "preregistration_authorized",
+                "selected_option": selected_option,
+                "next_candidate_state": {
+                    "PROMOTE": "preregistration_authorized",
+                    "PARK": "parked",
+                    "KILL": "killed",
+                }[selected_option],
             }
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -2808,6 +2939,7 @@ class DiscoveryRuntime:
                 or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
+                or w2_payload.get("selected_option") not in decision.get("options", ())
                 or not isinstance(spike, dict)
                 or spike.get("status") != "revisit_pending"
                 or spike.get("candidate_id") != candidate_id
@@ -3090,10 +3222,13 @@ class DiscoveryRuntime:
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_pending"
                 or not isinstance(artifact, dict)
-                or not artifact.get("completed_scope")
-                or not artifact.get("unmet_scope")
-                or artifact.get("mechanical_recommendation") == "PROMOTE"
-                or sha256_hex(canonical_bytes(artifact)) != payload.get("partial_sha256")
+                or not self._valid_assay_partial(
+                    artifact,
+                    payload,
+                    candidate,
+                    assay,
+                    projection["assay_bar_authority"],
+                )
             ):
                 raise IntegrityError("invalid RecordAssayPartial transition")
             return [
@@ -3253,6 +3388,7 @@ class DiscoveryRuntime:
                 or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
+                or w2_payload.get("selected_option") not in decision.get("options", ())
                 or not isinstance(assay, dict)
                 or assay.get("status") != "revisit_pending"
                 or assay.get("candidate_id") != candidate_id
@@ -3295,6 +3431,45 @@ class DiscoveryRuntime:
             and artifact.get("producer_actor_id") == command.actor_id
             and artifact.get("required_axis_set_hash") == artifact.get("observed_axis_set_hash")
             and sha256_hex(canonical_bytes(artifact)) == payload.get("scorecard_sha256")
+        )
+
+    def _valid_assay_partial(
+        self,
+        artifact: dict[str, Any],
+        payload: dict[str, Any],
+        candidate: dict[str, Any],
+        assay: dict[str, Any],
+        bar: dict[str, Any],
+    ) -> bool:
+        """Validate and bind the exact Assay Partial artifact before publication."""
+        try:
+            self.schemas.validate("ars://portfolio/assay-partial", artifact, schema_version="1.0.0")
+        except SchemaError as exc:
+            raise IntegrityError("invalid Assay Partial artifact") from exc
+        acceptance = bar.get("acceptance")
+        if not isinstance(acceptance, dict):
+            return False
+        expected_candidate = {
+            "id": payload.get("candidate_id"),
+            "record_revision": candidate.get("revision"),
+            "content_hash": candidate.get("content_sha256"),
+        }
+        expected_acceptance = {
+            "id": acceptance.get("decision_id"),
+            "record_revision": 1,
+            "content_hash": bar.get("acceptance_sha256"),
+        }
+        return bool(
+            _valid_assay_partial_shape(artifact)
+            and bar.get("status") == "accepted"
+            and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
+            and artifact.get("candidate_ref") == expected_candidate
+            and artifact.get("assay_id") == payload.get("assay_id")
+            and artifact.get("rubric_ref") == acceptance.get("rubric_ref")
+            and artifact.get("scope_ref") == acceptance.get("scope_ref")
+            and artifact.get("assay_bar_acceptance_ref") == expected_acceptance
+            and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
+            and sha256_hex(canonical_bytes(artifact)) == payload.get("partial_sha256")
         )
 
     def _prepare_genesis(

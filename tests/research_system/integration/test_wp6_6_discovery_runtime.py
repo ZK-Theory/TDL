@@ -1097,28 +1097,61 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
             },
         )
     )
+    bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     partial_artifact = {
-        "completed_scope": ["candidate identity"],
-        "unmet_scope": ["remaining assay axes"],
+        "schema_id": "ars://portfolio/assay-partial",
+        "schema_version": "1.0.0",
+        "assay_id": assay_id,
+        "candidate_ref": {"id": candidate_id, "record_revision": 1, "content_hash": candidate_sha256},
+        "rubric_ref": deepcopy(bar["acceptance"]["rubric_ref"]),
+        "scope_ref": deepcopy(bar["acceptance"]["scope_ref"]),
+        "assay_bar_acceptance_ref": {
+            "id": bar["acceptance"]["decision_id"],
+            "record_revision": 1,
+            "content_hash": bar_sha256,
+        },
+        "assay_relation_hash": producer_sha256,
+        "completed_axes": ["candidate identity"],
+        "completed_evidence": ["evidence:candidate-identity"],
+        "unmet_axes": ["remaining assay axes"],
+        "unmet_evidence": [],
+        "reason_codes": ["incomplete_axis_closure"],
         "limitations": ["incomplete axis closure"],
+        "revisit_requirements": ["complete the remaining assay axes"],
         "mechanical_recommendation": "PARK",
     }
     partial_sha256 = sha256_hex(canonical_bytes(partial_artifact))
-    runtime.submit(
-        _command(
-            "RecordAssayPartial",
-            assay_id,
-            2,
-            {
-                "row_id": "OR-005",
-                "candidate_id": candidate_id,
-                "assay_id": assay_id,
-                "producer_relation_sha256": producer_sha256,
-                "partial_sha256": partial_sha256,
-                "partial_artifact": partial_artifact,
-            },
-        )
+    partial_command = _command(
+        "RecordAssayPartial",
+        assay_id,
+        2,
+        {
+            "row_id": "OR-005",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "producer_relation_sha256": producer_sha256,
+            "partial_sha256": partial_sha256,
+            "partial_artifact": partial_artifact,
+        },
     )
+    foreign_partial = deepcopy(partial_command)
+    foreign_partial["payload"]["partial_artifact"]["candidate_ref"]["id"] = "obj_019fed25-b33e-7740-b280-ffffffffffff"
+    foreign_partial["payload"]["partial_sha256"] = sha256_hex(
+        canonical_bytes(foreign_partial["payload"]["partial_artifact"])
+    )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RecordAssayPartial transition"):
+        runtime.submit(foreign_partial)
+    assert tuple(runtime.ledger.iter_events()) == before
+    runtime.submit(partial_command)
+    replay_foreign_partial = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    for event in replay_foreign_partial:
+        if event["command_id"] != partial_command["command_id"]:
+            continue
+        event["payload"]["partial_artifact"]["candidate_ref"]["id"] = "obj_019fed25-b33e-7740-b280-ffffffffffff"
+        event["payload"]["partial_sha256"] = sha256_hex(canonical_bytes(event["payload"]["partial_artifact"]))
+    with pytest.raises(IntegrityError, match="invalid Assay partial transition"):
+        replay_discovery(_rehash_events(replay_foreign_partial))
     review_contract = {
         "review_type": "provenance",
         "new_review_id": review_id,
@@ -1277,6 +1310,14 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         )
         with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
             replay_discovery(_rehash_events(tampered))
+    excluded_option = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(
+        event
+        for event in excluded_option
+        if event["event_type"] == "DecisionProposed" and event["stream_id"] == revisit_id
+    )["payload"]["options"] = ["PARK", "KILL"]
+    with pytest.raises(IntegrityError, match="invalid Discovery decision resolution"):
+        replay_discovery(_rehash_events(excluded_option))
 
 
 @pytest.mark.parametrize(("spike_verdict", "verdict_row"), [("PASS", "OR-018"), ("PARTIAL", "OR-019")])
@@ -1473,6 +1514,20 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "revisit_triggers": [],
         }
 
+    def promotion_proposed(decision_id: str, gate: str) -> dict[str, object]:
+        value = proposed(decision_id, gate)
+        value.update(
+            recommendation="PROMOTE",
+            decision_kind="design_lock",
+            options=["PROMOTE", "PARK", "KILL"],
+        )
+        return value
+
+    def promotion_resolved(decision_id: str) -> dict[str, object]:
+        value = resolved(decision_id)
+        value["selected_option"] = "PROMOTE"
+        return value
+
     candidate_ref = {"id": candidate_id, "record_revision": 1, "content_hash": candidate_sha256}
     assay_ref = {"id": assay_id, "record_revision": 1, "content_hash": scorecard_sha256}
     plan_artifact = {
@@ -1546,7 +1601,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "row_id": "OR-012",
                 "candidate_id": candidate_id,
                 "decision_id": promotion_id,
-                "w2_payload": proposed(promotion_id, "promotion"),
+                "w2_payload": promotion_proposed(promotion_id, "assay_to_spike"),
             },
         ),
         _command(
@@ -1557,7 +1612,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "row_id": "OR-013",
                 "candidate_id": candidate_id,
                 "decision_id": promotion_id,
-                "w2_payload": resolved(promotion_id),
+                "w2_payload": promotion_resolved(promotion_id),
             },
         ),
         _command(
@@ -1676,6 +1731,13 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
+        if row_id == "OR-013":
+            legacy_approval = deepcopy(command)
+            legacy_approval["payload"]["w2_payload"]["selected_option"] = "approve"
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(legacy_approval)
+            assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-018" and spike_verdict == "PASS":
             unevaluated = deepcopy(command)
             unevaluated_artifact = unevaluated["payload"]["verdict_artifact"]
@@ -1732,6 +1794,25 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             assert tuple(runtime.ledger.iter_events()) == before
             runtime.operational_ledger = canonical_ledger
         assert runtime.submit(command).status == "accepted"
+        if row_id == "OR-013":
+            for selected_option, next_state in (("PARK", "parked"), ("KILL", "killed")):
+                terminal = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+                resolution_event = next(
+                    event
+                    for event in terminal
+                    if event["event_type"] == "DecisionResolved" and event["stream_id"] == promotion_id
+                )
+                application_event = next(
+                    event
+                    for event in terminal
+                    if event["event_type"] == "CandidatePromotionApplied"
+                    and event["payload"].get("decision_id") == promotion_id
+                )
+                resolution_event["payload"]["selected_option"] = selected_option
+                application_event["payload"]["selected_option"] = selected_option
+                application_event["payload"]["next_candidate_state"] = next_state
+                terminal_projection = replay_discovery(_rehash_events(terminal))
+                assert terminal_projection["candidates"][candidate_id]["status"] == next_state
     if spike_verdict == "PARTIAL":
         operational = replay_control_plane(runtime._operational_events())
         assert operational.stream_states[attempt_id]["status"] == "partial"
@@ -1869,7 +1950,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "decision_id": post_promotion_id,
                 "review_id": review_id,
                 "verdict_sha256": verdict_sha256,
-                "w2_payload": proposed(post_promotion_id, "spike_to_preregistration"),
+                "w2_payload": promotion_proposed(post_promotion_id, "spike_to_preregistration"),
             },
         )
         reused_decision = _command(
@@ -1879,7 +1960,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             {
                 **deepcopy(post_promotion["payload"]),
                 "decision_id": execution_id,
-                "w2_payload": proposed(execution_id, "spike_to_preregistration"),
+                "w2_payload": promotion_proposed(execution_id, "spike_to_preregistration"),
             },
         )
         before = tuple(runtime.ledger.iter_events())
@@ -1910,7 +1991,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                     "decision_id": post_promotion_id,
                     "review_id": review_id,
                     "verdict_sha256": verdict_sha256,
-                    "w2_payload": resolved(post_promotion_id),
+                    "w2_payload": promotion_resolved(post_promotion_id),
                 },
             )
         )
