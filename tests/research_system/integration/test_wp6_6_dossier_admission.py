@@ -42,6 +42,10 @@ DOSSIER_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-dossier-expected
 PATH_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
 TDA_RUNTIME_ROOT = Path(os.environ.get("TDL_REPOSITORY_ROOT", Path.home() / "TDL"))
 VAULT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
+pytestmark = pytest.mark.skipif(
+    not VAULT.exists() or not CONTRACT_ROOT.exists(),
+    reason="real TDA dossier roots are not configured in this environment",
+)
 
 
 def _member(key: str, kind: str, relative_path: str, *, root_id: str = "repo") -> DossierMember:
