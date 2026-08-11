@@ -879,20 +879,38 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate[f"{kind}_id"] = new_id
         elif event_type == "CandidatePromotionRequested":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            gate = required_string("promotion_gate")
+            expected_status = {
+                "assay_to_spike": "assay_scored",
+                "spike_to_preregistration": "spike_verdict_recorded",
+            }.get(gate)
+            if not isinstance(candidate, dict) or candidate.get("status") != expected_status:
                 raise IntegrityError("invalid Candidate promotion request")
-            candidate.update(status="promotion_pending", decision_id=required_string("decision_id"))
+            candidate.update(
+                status="promotion_pending",
+                decision_id=required_string("decision_id"),
+                promotion_gate=gate,
+            )
         elif event_type == "CandidatePromotionApplied":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             decision = state["decisions"].get(payload.get("decision_id"))
+            gate = required_string("promotion_gate")
+            next_state = required_string("next_candidate_state")
             if (
                 not isinstance(candidate, dict)
+                or candidate.get("status") != "promotion_pending"
                 or candidate.get("decision_id") != payload.get("decision_id")
+                or candidate.get("promotion_gate") != gate
+                or next_state
+                != {
+                    "assay_to_spike": "spike_planning_authorized",
+                    "spike_to_preregistration": "preregistration_authorized",
+                }.get(gate)
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
             ):
                 raise IntegrityError("invalid Candidate promotion application")
-            candidate.update(status="spike_planning_authorized")
+            candidate.update(status=next_state)
         elif event_type == "SpikePlanned":
             spike_id = required_string("spike_id")
             if spike_id in state["spikes"]:
@@ -1496,7 +1514,7 @@ class DiscoveryRuntime:
             "ProposeRevisitDecision",
         } or (
             envelope["command_type"] == "ResolveDecision"
-            and envelope["payload"].get("row_id") in {"OR-013", "OR-016", "OR-024"}
+            and envelope["payload"].get("row_id") in {"OR-013", "OR-016", "OR-024", "OR-027"}
         ):
             prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] == "AdmitResearchDossier":
@@ -2359,10 +2377,12 @@ class DiscoveryRuntime:
             and assay.get("status") == "reviewed"
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
+            and p["w2_payload"].get("new_decision_id") == decision_id
         ):
+            promotion_payload = {**deepcopy(p), "promotion_gate": "assay_to_spike"}
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
-                ("CandidatePromotionRequested", candidate_id, deepcopy(p)),
+                ("CandidatePromotionRequested", candidate_id, promotion_payload),
             ]
         if (
             ct == "ResolveDecision"
@@ -2377,9 +2397,14 @@ class DiscoveryRuntime:
             and p.get("w2_payload", {}).get("decision_id") == decision_id
             and p.get("w2_payload", {}).get("selected_option") == "approve"
         ):
+            applied_payload = {
+                **deepcopy(p),
+                "promotion_gate": "assay_to_spike",
+                "next_candidate_state": "spike_planning_authorized",
+            }
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
-                ("CandidatePromotionApplied", candidate_id, deepcopy(p)),
+                ("CandidatePromotionApplied", candidate_id, applied_payload),
             ]
         if (
             ct == "RegisterSpikePlan"
@@ -2420,6 +2445,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
+            and p["w2_payload"].get("new_decision_id") == decision_id
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -2476,7 +2502,7 @@ class DiscoveryRuntime:
             if (p.get("verdict") == "PARTIAL") != (row == "OR-019"):
                 raise IntegrityError("invalid Spike transition")
             if row == "OR-019":
-                attempt, lease = self._live_spike_operational_pair(spike)
+                attempt, lease = self._live_spike_operational_pair(spike, require_unexpired=True)
                 now = self.clock()
                 if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
                     raise IntegrityError("Discovery operational clock must return an aware datetime")
@@ -2685,6 +2711,58 @@ class DiscoveryRuntime:
                 else:
                     raise IntegrityError("invalid Spike review row binding")
             return events
+        if (
+            ct == "ProposePromotionDecision"
+            and row == "OR-026"
+            and isinstance(candidate, dict)
+            and candidate.get("status") == "spike_verdict_recorded"
+            and candidate.get("spike_id") == spike_id
+            and isinstance(spike, dict)
+            and spike.get("status") == "reviewed"
+            and spike.get("candidate_id") == candidate_id
+            and spike.get("verdict") == "PASS"
+            and p.get("verdict_sha256") == spike.get("verdict_sha256")
+            and p.get("review_id") == spike.get("review_id")
+            and projection["reviews"].get(p.get("review_id"), {}).get("status") == "satisfied"
+            and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
+            and p["w2_payload"].get("new_decision_id") == decision_id
+        ):
+            promotion_payload = {**deepcopy(p), "promotion_gate": "spike_to_preregistration"}
+            return [
+                ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
+                ("CandidatePromotionRequested", candidate_id, promotion_payload),
+            ]
+        if (
+            ct == "ResolveDecision"
+            and row == "OR-027"
+            and isinstance(decision, dict)
+            and decision.get("status") == "proposed"
+            and isinstance(candidate, dict)
+            and candidate.get("status") == "promotion_pending"
+            and candidate.get("promotion_gate") == "spike_to_preregistration"
+            and candidate.get("decision_id") == decision_id
+            and candidate.get("spike_id") == spike_id
+            and isinstance(spike, dict)
+            and spike.get("status") == "reviewed"
+            and spike.get("candidate_id") == candidate_id
+            and spike.get("verdict") == "PASS"
+            and p.get("verdict_sha256") == spike.get("verdict_sha256")
+            and p.get("review_id") == spike.get("review_id")
+            and command.target_stream_id == decision_id
+            and isinstance(p.get("w2_payload"), dict)
+            and p["w2_payload"].get("decision_id") == decision_id
+            and p["w2_payload"].get("selected_option") == "approve"
+        ):
+            applied_payload = {
+                **deepcopy(p),
+                "promotion_gate": "spike_to_preregistration",
+                "next_candidate_state": "preregistration_authorized",
+            }
+            return [
+                ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
+                ("CandidatePromotionApplied", candidate_id, applied_payload),
+            ]
         if ct == "ProposeRevisitDecision" and row == "OR-023":
             if (
                 not isinstance(spike, dict)
@@ -2756,7 +2834,12 @@ class DiscoveryRuntime:
             and payload.get("resource_grant_id") == lease.get("resource_grant_id")
         )
 
-    def _live_spike_operational_pair(self, spike: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _live_spike_operational_pair(
+        self,
+        spike: Mapping[str, Any],
+        *,
+        require_unexpired: bool = False,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Return the exact current running Attempt and active Lease for a Spike."""
 
         try:
@@ -2775,6 +2858,16 @@ class DiscoveryRuntime:
             or lease.get("attempt_id") != spike.get("attempt_id")
         ):
             raise IntegrityError("invalid Spike operational closure")
+        if require_unexpired:
+            now = self.clock()
+            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+                raise IntegrityError("Discovery operational clock must return an aware datetime")
+            try:
+                expires_at = datetime.fromisoformat(str(lease.get("expires_at")).replace("Z", "+00:00"))
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise IntegrityError("invalid operational lease expiry") from exc
+            if expires_at <= now.astimezone(UTC):
+                raise IntegrityError("invalid Spike operational closure")
         return attempt, lease
 
     def _operational_events(self) -> tuple[dict[str, Any], ...]:
@@ -2881,7 +2974,6 @@ class DiscoveryRuntime:
                 and artifact.get("unmet_scope")
                 and artifact.get("limitations")
                 and artifact.get("mechanical_recommendation") != "PROMOTE"
-                and not any(value.get("status") == "triggered" for value in kills)
             )
         return bool(relationships_match and predicate_closure and truth_table)
 
