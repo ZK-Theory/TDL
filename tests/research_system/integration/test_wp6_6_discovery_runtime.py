@@ -211,6 +211,7 @@ def _ingest_candidate(
     *,
     observation_id: str,
     title: str,
+    expected_stream_version: int = 0,
 ) -> str:
     batch = {
         "schema_id": "ars://portfolio/scout-observation-batch",
@@ -231,7 +232,7 @@ def _ingest_candidate(
         _command(
             "IngestScoutObservationBatch",
             observation_id,
-            0,
+            expected_stream_version,
             {
                 "row_id": "OR-029",
                 "observation_id": observation_id,
@@ -270,6 +271,17 @@ def test_scout_observation_rejects_candidate_identity_from_any_existing_aggregat
     candidate_event["payload"]["candidate_id"] = shared_id
     with pytest.raises(IntegrityError, match="Candidate identity collision"):
         replay_discovery(_rehash_events(tampered))
+
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Scout observation ingestion"):
+        _ingest_candidate(
+            runtime,
+            "obj_019fed25-b33e-7740-b280-6f661aaeff97",
+            observation_id=candidate_id,
+            title="Observation colliding with existing Candidate",
+            expected_stream_version=1,
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
 
 
 def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:

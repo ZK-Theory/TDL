@@ -3680,7 +3680,7 @@ class DiscoveryRuntime:
             or not isinstance(batch, dict)
             or not isinstance(blueprints, list)
             or not blueprints
-            or observation_id in projection["source_observations"]
+            or _discovery_identity_exists(projection, observation_id)
         ):
             raise IntegrityError("invalid Scout observation ingestion")
         try:
