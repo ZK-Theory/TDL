@@ -15,6 +15,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
+from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
@@ -704,6 +705,7 @@ def test_genesis_retry_repairs_receipt_after_committed_event(monkeypatch: pytest
 )
 def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     verdict: str,
     review_status: str,
     assay_status: str,
@@ -757,44 +759,66 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             },
         )
     )
-    review_requested = runtime.submit(
-        _command(
-            "RequestDiscoveryOutcomeReview",
-            review_id,
-            0,
-            {
-                "row_id": "OR-034",
-                "candidate_id": candidate_id,
-                "assay_id": assay_id,
-                "review_id": review_id,
-                "subject_sha256": scorecard_sha256,
-                "review_contract": {
-                    "review_type": "provenance",
-                    "new_review_id": review_id,
-                    "subject_ids": [assay_id],
-                    "subject_hashes": [scorecard_sha256],
-                    "governing_refs": ["W11:OR-034"],
-                    "review_questions": ["Does the exact Assay evidence satisfy the accepted bar?"],
-                    "required_evidence_refs": ["scorecard:exact"],
-                    "required_lanes": ["provenance"],
-                    "reviewer_capability": ["assay-independent-review"],
-                    "required_independence_grade": "independent",
-                    "visibility_policy": "owner-visible",
-                    "allowed_verdicts": [
-                        "approve",
-                        "approve_with_conditions",
-                        "changes_requested",
-                        "reject",
-                        "unable_to_verify",
-                        "withdrawn",
-                    ],
-                    "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
-                    "deadline": "2026-08-11T20:00:00Z",
-                    "escalation_rule": "owner-ruling",
-                },
+    review_request_command = _command(
+        "RequestDiscoveryOutcomeReview",
+        review_id,
+        0,
+        {
+            "row_id": "OR-034",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": scorecard_sha256,
+            "review_contract": {
+                "review_type": "provenance",
+                "new_review_id": review_id,
+                "subject_ids": [assay_id],
+                "subject_hashes": [scorecard_sha256],
+                "governing_refs": ["W11:OR-034"],
+                "review_questions": ["Does the exact Assay evidence satisfy the accepted bar?"],
+                "required_evidence_refs": ["scorecard:exact"],
+                "required_lanes": ["provenance"],
+                "reviewer_capability": ["assay-independent-review"],
+                "required_independence_grade": "independent",
+                "visibility_policy": "owner-visible",
+                "allowed_verdicts": [
+                    "approve",
+                    "approve_with_conditions",
+                    "changes_requested",
+                    "reject",
+                    "unable_to_verify",
+                    "withdrawn",
+                ],
+                "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+                "deadline": "2026-08-11T20:00:00Z",
+                "escalation_rule": "owner-ruling",
             },
-        )
+        },
     )
+    original_event_binding = SchemaRegistry.event_binding
+
+    def missing_exact_producer_binding(
+        schemas: SchemaRegistry,
+        event_type: str,
+        producer_command_type: str | None = None,
+    ):
+        if (event_type, producer_command_type) == (
+            "ReviewRequested",
+            "RequestDiscoveryOutcomeReview",
+        ):
+            return None
+        return original_event_binding(schemas, event_type, producer_command_type)
+
+    with monkeypatch.context() as patch_context:
+        patch_context.setattr(SchemaRegistry, "event_binding", missing_exact_producer_binding)
+        with pytest.raises(
+            IntegrityError,
+            match=("inactive Discovery event producer binding: ReviewRequested/RequestDiscoveryOutcomeReview"),
+        ):
+            runtime.submit(review_request_command)
+    assert runtime.receipts.load(review_request_command["command_id"]) is None
+    assert all(event["command_id"] != review_request_command["command_id"] for event in runtime.ledger.iter_events())
+    review_requested = runtime.submit(review_request_command)
     review_command = _command(
         "ReviewDiscoveryOutcome",
         review_id,
