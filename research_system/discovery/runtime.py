@@ -305,6 +305,28 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "assay_bar_authority_events": [],
         "assay_bar_authority": {"contents": {}, "observations": {}, "status": "empty"},
     }
+
+    def aggregate_identity_exists(identity: Any) -> bool:
+        """Return whether an immutable identity is already owned by any Discovery aggregate."""
+        return bool(
+            (state["catalogue"] is not None and identity == _CATALOGUE_STREAM_ID)
+            or any(
+                identity in state[collection]
+                for collection in (
+                    "source_observations",
+                    "candidates",
+                    "assays",
+                    "spikes",
+                    "decisions",
+                    "reviews",
+                    "dossiers",
+                    "portfolio_objects",
+                    "scopes",
+                    "authority_streams",
+                )
+            )
+        )
+
     for event in ordered:
         event_type = event.get("event_type")
         payload = event.get("payload")
@@ -1230,12 +1252,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_revisit_eligible")
         elif event_type == "ResearchDossierAdmitted":
             dossier_id = payload.get("dossier_id")
-            if (
-                not isinstance(dossier_id, str)
-                or dossier_id in state["dossiers"]
-                or dossier_id in state["portfolio_objects"]
-                or dossier_id in state["scopes"]
-            ):
+            if not isinstance(dossier_id, str) or aggregate_identity_exists(dossier_id):
                 raise IntegrityError("Research dossier identity collision")
             state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
         elif event_type == "PortfolioObjectRegistered":
@@ -1256,9 +1273,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             blueprint_hash = sha256_hex(canonical_bytes(blueprint_preimage))
             if (
                 not isinstance(record_id, str)
-                or record_id in state["portfolio_objects"]
-                or record_id in state["dossiers"]
-                or record_id in state["scopes"]
+                or aggregate_identity_exists(record_id)
                 or not isinstance(blueprint, dict)
                 or blueprint.get("proposed_record_id", blueprint.get("proposed_edge_id")) != record_id
                 or payload.get("record_revision") != 1
@@ -1283,9 +1298,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             blueprint_hash = sha256_hex(canonical_bytes(blueprint_preimage))
             if (
                 not isinstance(scope_id, str)
-                or scope_id in state["scopes"]
-                or scope_id in state["dossiers"]
-                or scope_id in state["portfolio_objects"]
+                or aggregate_identity_exists(scope_id)
                 or not isinstance(blueprint, dict)
                 or blueprint.get("proposed_scope_id") != scope_id
                 or payload.get("scope_revision") != 1
@@ -2452,6 +2465,7 @@ class DiscoveryRuntime:
             registered_roots=roots,
             existing_identities=frozenset(
                 {
+                    *({_CATALOGUE_STREAM_ID} if projection["catalogue"] is not None else set()),
                     *projection["source_observations"],
                     *projection["candidates"],
                     *projection["assays"],

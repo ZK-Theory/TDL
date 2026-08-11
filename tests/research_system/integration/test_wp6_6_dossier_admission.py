@@ -742,6 +742,25 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
         replay_discovery(_rehash_ledger(cross_namespace))
 
+    catalogue_collision = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    object_event = next(
+        event
+        for event in catalogue_collision
+        if event["event_type"] == "PortfolioObjectRegistered"
+        and event["payload"]["portfolio_kind"] == "dependency_edge"
+    )
+    blueprint = object_event["payload"]["blueprint"]
+    catalogue_id = "obj_019fed25-b33e-7740-b280-000000000001"
+    object_event["stream_id"] = catalogue_id
+    object_event["payload"]["record_id"] = catalogue_id
+    blueprint["proposed_edge_id"] = catalogue_id
+    blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
+    blueprint_hash = _canonical_hash(blueprint_preimage)
+    blueprint["expected_content_hash"] = blueprint_hash
+    object_event["payload"]["content_sha256"] = blueprint_hash
+    with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
+        replay_discovery(_rehash_ledger(catalogue_collision))
+
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])
 @pytest.mark.integration
@@ -858,14 +877,33 @@ def test_dossier_runtime_rejects_malformed_registered_root_before_field_access(
         runtime._prepare_dossier(command, projection)
 
 
-def test_dossier_runtime_rejects_materialization_identity_used_by_existing_candidate(tmp_path: Path) -> None:
+@pytest.mark.parametrize("identity_owner", ["candidate", "catalogue"])
+def test_dossier_runtime_rejects_materialization_identity_used_by_existing_aggregate(
+    tmp_path: Path, identity_owner: str
+) -> None:
     expected, _ = _subject()
     manifest = _candidate_manifest(expected.members)
-    collision_id = manifest["object_blueprints"][0]["proposed_record_id"]
+    candidates = {}
+    catalogue = None
+    if identity_owner == "candidate":
+        collision_id = manifest["object_blueprints"][0]["proposed_record_id"]
+        candidates[collision_id] = {"status": "registered"}
+    else:
+        collision_id = "obj_019fed25-b33e-7740-b280-000000000001"
+        edge = manifest["dependency_edges"][0]
+        edge["proposed_edge_id"] = collision_id
+        edge["expected_content_hash"] = _canonical_hash(
+            {key: value for key, value in edge.items() if key != "expected_content_hash"}
+        )
+        manifest["closure_hash"] = _canonical_hash(
+            {key: value for key, value in manifest.items() if key != "closure_hash"}
+        )
+        catalogue = {"status": "imported"}
     runtime = _runtime(tmp_path)
     projection = {
+        "catalogue": catalogue,
         "source_observations": {},
-        "candidates": {collision_id: {"status": "registered"}},
+        "candidates": candidates,
         "assays": {},
         "spikes": {},
         "decisions": {},
