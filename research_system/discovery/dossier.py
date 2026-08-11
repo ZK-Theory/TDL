@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import stat
 from typing import Any, Iterable, Mapping
 
 from research_system.store.lock import _open_directory_anchor
@@ -120,6 +121,10 @@ def _after_root_identity_check(_path: Path) -> None:
     """Fault-injection boundary after identity verification and before read."""
 
 
+def _after_member_identity_check(_path: Path) -> None:
+    """Fault-injection boundary after member identity capture and before open."""
+
+
 def _assert_live_root(anchor: Any, path: Path) -> None:
     """Require the live root path to retain the held physical identity."""
     observer = _open_directory_anchor(path, reject_reparse=False, delete_protect=False)
@@ -201,9 +206,34 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
             if is_alias:
                 raise DossierAdmissionRejected("unregistered_path_alias")
         try:
-            raw = candidate.read_bytes()
-        except (FileNotFoundError, IsADirectoryError, NotADirectoryError, PermissionError) as exc:
+            before = candidate.stat(follow_symlinks=False)
+            if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+                raise DossierAdmissionRejected("path_identity_unproven")
+            _after_member_identity_check(candidate)
+            with candidate.open("rb") as handle:
+                opened = os.fstat(handle.fileno())
+                if (
+                    not stat.S_ISREG(opened.st_mode)
+                    or opened.st_nlink != 1
+                    or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+                ):
+                    raise DossierAdmissionRejected("path_identity_unproven")
+                raw = handle.read()
+                after = os.fstat(handle.fileno())
+            linked = candidate.stat(follow_symlinks=False)
+            stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns", "st_nlink")
+            if any(getattr(after, field) != getattr(opened, field) for field in stable_fields) or (
+                linked.st_dev,
+                linked.st_ino,
+                linked.st_nlink,
+            ) != (opened.st_dev, opened.st_ino, 1):
+                raise DossierAdmissionRejected("path_identity_unproven")
+        except DossierAdmissionRejected:
+            raise
+        except (FileNotFoundError, IsADirectoryError, NotADirectoryError) as exc:
             raise DossierAdmissionRejected("incomplete_package") from exc
+        except OSError as exc:
+            raise DossierAdmissionRejected("path_identity_unproven") from exc
         _assert_live_root(anchor, root.path)
         refreshed_identity, refreshed_path = anchor.refresh()
         if refreshed_identity != anchor.identity or refreshed_path != anchor.final_path:

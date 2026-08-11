@@ -262,6 +262,39 @@ def test_alias_probe_oserror_is_mapped_to_incomplete_package(
         dossier_module._open_registered_member(member, {"repo": registered})
 
 
+def test_hardlinked_member_is_rejected_as_unproven_identity(tmp_path: Path) -> None:
+    root = tmp_path / "registered"
+    root.mkdir()
+    source = root / "source.json"
+    source.write_text("exact", encoding="utf-8")
+    os.link(source, root / "member.json")
+    registered = RegisteredRoot("repo", root, 1, registered_root_identity_hash(root))
+    member = DossierMember("member", "evidence", "repo", "member.json", 5, "0" * 64, "prov", 1, "0" * 64)
+
+    with pytest.raises(DossierAdmissionRejected, match="path_identity_unproven"):
+        dossier_module._open_registered_member(member, {"repo": registered})
+
+
+def test_member_swap_after_identity_capture_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "registered"
+    root.mkdir()
+    candidate = root / "member.json"
+    candidate.write_text("exact", encoding="utf-8")
+    registered = RegisteredRoot("repo", root, 1, registered_root_identity_hash(root))
+    member = DossierMember("member", "evidence", "repo", "member.json", 5, "0" * 64, "prov", 1, "0" * 64)
+
+    def swap_member(path: Path) -> None:
+        path.rename(root / "displaced.json")
+        path.write_text("exact", encoding="utf-8")
+
+    monkeypatch.setattr(dossier_module, "_after_member_identity_check", swap_member)
+    with pytest.raises(DossierAdmissionRejected, match="path_identity_unproven"):
+        dossier_module._open_registered_member(member, {"repo": registered})
+
+
 def test_observed_content_tamper_is_rejected_without_an_event_batch(tmp_path: Path) -> None:
     expected, _ = _subject()
     for member in expected.members:

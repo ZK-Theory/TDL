@@ -433,11 +433,25 @@ def test_genesis_retry_repairs_receipt_after_committed_event(monkeypatch: pytest
     assert len(tuple(runtime.ledger.iter_events())) == 1
 
 
-def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("verdict", "review_status", "assay_status", "terminal_events"),
+    [
+        ("approve", "satisfied", "reviewed", ("ReviewVerdictRecorded", "AssayReviewed")),
+        ("changes_requested", "changes_requested", "scored", ("ReviewVerdictRecorded",)),
+    ],
+)
+def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
+    tmp_path: Path,
+    verdict: str,
+    review_status: str,
+    assay_status: str,
+    terminal_events: tuple[str, ...],
+) -> None:
     runtime = _runtime(tmp_path)
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff58"
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff59"
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5a"
+    reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff5b"
     runtime.submit(_genesis())
     runtime.submit(
         _command(
@@ -507,7 +521,14 @@ def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_pa
                     "reviewer_capability": ["assay-independent-review"],
                     "required_independence_grade": "independent",
                     "visibility_policy": "owner-visible",
-                    "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+                    "allowed_verdicts": [
+                        "approve",
+                        "approve_with_conditions",
+                        "changes_requested",
+                        "reject",
+                        "unable_to_verify",
+                        "withdrawn",
+                    ],
                     "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
                     "deadline": "2026-08-11T20:00:00Z",
                     "escalation_rule": "owner-ruling",
@@ -515,39 +536,39 @@ def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_pa
             },
         )
     )
-    reviewed = runtime.submit(
-        _command(
-            "ReviewDiscoveryOutcome",
-            review_id,
-            1,
-            {
-                "row_id": "OR-006",
-                "candidate_id": candidate_id,
-                "assay_id": assay_id,
+    review_command = _command(
+        "ReviewDiscoveryOutcome",
+        review_id,
+        1,
+        {
+            "row_id": "OR-006",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": "4" * 64,
+            "verdict": verdict,
+            "review_verdict": {
                 "review_id": review_id,
-                "subject_sha256": "4" * 64,
-                "verdict": "approve",
-                "review_verdict": {
-                    "review_id": review_id,
-                    "verdict": "approve",
-                    "findings": [],
-                    "required_evidence_refs": ["scorecard:exact"],
-                    "limitations": [],
-                    "conditions": [],
-                    "reviewer_actor_id": "act_019fed25-b33e-7740-b280-6f661aaeff5b",
-                    "reviewer_profile": "independent-assay-reviewer",
-                    "reviewer_session": "session-wp66-assay-review",
-                    "reviewer_model_metadata": "independent-test-reviewer",
-                    "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff5c",
-                    "context_manifest_sha256": "5" * 64,
-                    "unchanged_subject_sha256": "4" * 64,
-                    "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff5d",
-                    "trace_visibility_evidence_refs": ["trace:assay-review"],
-                    "computed_independence_grade": "independent",
-                },
+                "verdict": verdict,
+                "findings": [],
+                "required_evidence_refs": ["scorecard:exact"],
+                "limitations": [],
+                "conditions": [],
+                "reviewer_actor_id": reviewer_id,
+                "reviewer_profile": "independent-assay-reviewer",
+                "reviewer_session": "session-wp66-assay-review",
+                "reviewer_model_metadata": "independent-test-reviewer",
+                "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff5c",
+                "context_manifest_sha256": "5" * 64,
+                "unchanged_subject_sha256": "4" * 64,
+                "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff5d",
+                "trace_visibility_evidence_refs": ["trace:assay-review"],
+                "computed_independence_grade": "independent",
             },
-        )
+        },
     )
+    review_command["actor_id"] = reviewer_id
+    reviewed = runtime.submit(review_command)
 
     assert [requested.status, scored.status, review_requested.status, reviewed.status] == ["accepted"] * 4
     batches = tuple(runtime.ledger.iter_batches())
@@ -555,13 +576,13 @@ def test_assay_positive_lifecycle_is_atomic_durable_and_replay_equivalent(tmp_pa
         ("AssayRequested", "AssayEvidenceCollectionOpened", "CandidateAssayRequested"),
         ("AssayScored", "CandidateAssayLinked"),
         ("ReviewRequested", "AssayOutcomeReviewRequested"),
-        ("ReviewVerdictRecorded", "AssayReviewed"),
+        terminal_events,
     ]
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
-    assert projection["assays"][assay_id]["status"] == "reviewed"
+    assert projection["assays"][assay_id]["status"] == assay_status
     assert projection["assays"][assay_id]["scorecard_sha256"] == "4" * 64
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
-    assert projection["reviews"][review_id]["status"] == "satisfied"
+    assert projection["reviews"][review_id]["status"] == review_status
 
 
 def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path: Path) -> None:
@@ -572,6 +593,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     promotion_id = "dec_019fed25-b33e-7740-b280-6f661aaeff6b"
     execution_id = "dec_019fed25-b33e-7740-b280-6f661aaeff6c"
     review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff6d"
+    assay_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff70"
+    reviewer_id = "act_019fed25-b33e-7740-b280-6f661aaeff71"
+    attempt_id = "att_019fed25-b33e-7740-b280-6f661aaeff6e"
+    attempt_sha256 = "8" * 64
     runtime.submit(_genesis())
     runtime.submit(
         _command(
@@ -617,6 +642,114 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         )
     )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        runtime.submit(
+            _command(
+                "ProposePromotionDecision",
+                promotion_id,
+                0,
+                {
+                    "row_id": "OR-012",
+                    "candidate_id": candidate_id,
+                    "decision_id": promotion_id,
+                    "w2_payload": {},
+                },
+            )
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
+    runtime.submit(
+        _command(
+            "RequestDiscoveryOutcomeReview",
+            assay_review_id,
+            0,
+            {
+                "row_id": "OR-034",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "review_id": assay_review_id,
+                "subject_sha256": "4" * 64,
+                "review_contract": {
+                    "review_type": "provenance",
+                    "new_review_id": assay_review_id,
+                    "subject_ids": [assay_id],
+                    "subject_hashes": ["4" * 64],
+                    "governing_refs": ["W11:OR-034"],
+                    "review_questions": ["Is the scorecard exact?"],
+                    "required_evidence_refs": ["scorecard:exact"],
+                    "required_lanes": ["provenance"],
+                    "reviewer_capability": ["assay-independent-review"],
+                    "required_independence_grade": "independent",
+                    "visibility_policy": "owner-visible",
+                    "allowed_verdicts": [
+                        "approve",
+                        "approve_with_conditions",
+                        "changes_requested",
+                        "reject",
+                        "unable_to_verify",
+                        "withdrawn",
+                    ],
+                    "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+                    "deadline": "2026-08-12T00:00:00Z",
+                    "escalation_rule": "owner-ruling",
+                },
+            },
+        )
+    )
+    assay_review = _command(
+        "ReviewDiscoveryOutcome",
+        assay_review_id,
+        1,
+        {
+            "row_id": "OR-006",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": assay_review_id,
+            "subject_sha256": "4" * 64,
+            "verdict": "approve",
+            "review_verdict": {
+                "review_id": assay_review_id,
+                "verdict": "approve",
+                "findings": [],
+                "required_evidence_refs": ["scorecard:exact"],
+                "limitations": [],
+                "conditions": [],
+                "reviewer_actor_id": reviewer_id,
+                "reviewer_profile": "independent-assay-reviewer",
+                "reviewer_session": "session-spike-assay",
+                "reviewer_model_metadata": "test",
+                "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff72",
+                "context_manifest_sha256": "7" * 64,
+                "unchanged_subject_sha256": "4" * 64,
+                "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff73",
+                "trace_visibility_evidence_refs": ["trace:assay"],
+                "computed_independence_grade": "independent",
+            },
+        },
+    )
+    assay_review["actor_id"] = reviewer_id
+    impersonated_review = deepcopy(assay_review)
+    impersonated_review["payload"]["review_verdict"]["reviewer_actor_id"] = ACTOR_ID
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid ReviewDiscoveryOutcome transition"):
+        runtime.submit(impersonated_review)
+    assert tuple(runtime.ledger.iter_events()) == before
+    runtime.submit(assay_review)
+    foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff74"
+    runtime.submit(
+        _command(
+            "RegisterCandidate",
+            foreign_candidate_id,
+            0,
+            {
+                "candidate_id": foreign_candidate_id,
+                "revision": 1,
+                "content_sha256": "a" * 64,
+                "source_observation_refs": ["obs:foreign"],
+                "title": "Foreign candidate",
+            },
+        )
+    )
 
     def proposed(decision_id: str, kind: str) -> dict[str, object]:
         return {
@@ -652,6 +785,67 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "revisit_triggers": [],
         }
 
+    candidate_ref = {"id": candidate_id, "record_revision": 1, "content_hash": "1" * 64}
+    assay_ref = {"id": assay_id, "record_revision": 1, "content_hash": "4" * 64}
+    plan_artifact = {
+        "schema_id": "ars://portfolio/spike-plan",
+        "schema_version": "1.0.0",
+        "spike_id": spike_id,
+        "candidate_ref": candidate_ref,
+        "originating_assay_ref": assay_ref,
+        "source_scorecard_refs": [assay_ref],
+        "assay_promotion_decision_ref": {
+            "id": promotion_id,
+            "record_revision": 1,
+            "content_hash": "9" * 64,
+        },
+        "required_approving_authority": "Stephen",
+        "time_resource_box": {"time_limit_seconds": 60, "worker_limit": 1, "network_access": False},
+        "question": "Does the bounded provider-free predicate hold?",
+        "scope": "Provider-free lifecycle proof.",
+        "inputs": ["fixture:exact"],
+        "method_or_object": "No-provider validation",
+        "baselines": [],
+        "null_or_comparator": None,
+        "success_predicates": ["closure holds"],
+        "failure_predicates": ["closure fails"],
+        "kill_conditions": ["identity mismatch"],
+        "partial_rules": ["unable to evaluate is partial"],
+        "planned_contracts": ["W11:OR-018"],
+        "outputs": ["spike verdict"],
+        "prohibited_work": ["provider execution"],
+        "outcome_to_next_step": {"PASS": "review"},
+    }
+    plan_sha256 = sha256_hex(canonical_bytes(plan_artifact))
+    verdict_artifact = {
+        "schema_id": "ars://portfolio/spike-verdict",
+        "schema_version": "1.0.0",
+        "spike_id": spike_id,
+        "candidate_ref": candidate_ref,
+        "originating_assay_ref": assay_ref,
+        "spike_plan_ref": {"id": spike_id, "record_revision": 1, "content_hash": plan_sha256},
+        "attempt_ref": {"id": attempt_id, "record_revision": 1, "content_hash": attempt_sha256},
+        "verdict": "PASS",
+        "success_predicates": [{"predicate": "closure holds", "status": "passed", "evidence_refs": [candidate_ref]}],
+        "failure_predicates": [{"predicate": "closure fails", "status": "passed", "evidence_refs": [candidate_ref]}],
+        "kill_conditions": [
+            {
+                "condition": "identity mismatch",
+                "status": "not_triggered",
+                "evidence_refs": [candidate_ref],
+                "consequence": "stop",
+            }
+        ],
+        "artefact_refs": [candidate_ref],
+        "validation_refs": [candidate_ref],
+        "completed_scope": "The declared scope completed.",
+        "unmet_scope": "None.",
+        "limitations": [],
+        "mechanical_recommendation": "NONE",
+        "prohibited_inferences": ["This verdict does not authorize dispatch."],
+    }
+    verdict_sha256 = sha256_hex(canonical_bytes(verdict_artifact))
+
     commands = [
         _command(
             "ProposePromotionDecision",
@@ -679,7 +873,13 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "RegisterSpikePlan",
             spike_id,
             0,
-            {"row_id": "OR-014", "candidate_id": candidate_id, "spike_id": spike_id, "plan_sha256": "5" * 64},
+            {
+                "row_id": "OR-014",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "plan_sha256": plan_sha256,
+                "plan_artifact": plan_artifact,
+            },
         ),
         _command(
             "ProposeSpikeExecutionDecision",
@@ -713,7 +913,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "row_id": "OR-017",
                 "candidate_id": candidate_id,
                 "spike_id": spike_id,
-                "attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff6e",
+                "attempt_id": attempt_id,
+                "attempt_sha256": attempt_sha256,
                 "lease_id": "lease:exact",
             },
         ),
@@ -726,7 +927,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "candidate_id": candidate_id,
                 "spike_id": spike_id,
                 "verdict": "PASS",
-                "verdict_sha256": "6" * 64,
+                "verdict_sha256": verdict_sha256,
+                "verdict_artifact": verdict_artifact,
                 "evidence_refs": ["evidence:provider-free"],
             },
         ),
@@ -739,12 +941,28 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(malformed)
             assert tuple(runtime.ledger.iter_events()) == before
+        if index == 3:
+            substituted = deepcopy(command)
+            substituted["payload"]["candidate_id"] = foreign_candidate_id
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(substituted)
+            assert tuple(runtime.ledger.iter_events()) == before
+        if index == 6:
+            unevaluated = deepcopy(command)
+            unevaluated_artifact = unevaluated["payload"]["verdict_artifact"]
+            unevaluated_artifact["success_predicates"][0]["status"] = "unable_to_evaluate"
+            unevaluated["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(unevaluated_artifact))
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(unevaluated)
+            assert tuple(runtime.ledger.iter_events()) == before
         assert runtime.submit(command).status == "accepted"
     review_contract = {
         "review_type": "provenance",
         "new_review_id": review_id,
         "subject_ids": [spike_id],
-        "subject_hashes": ["6" * 64],
+        "subject_hashes": [verdict_sha256],
         "governing_refs": ["W11:OR-036"],
         "review_questions": ["Is the exact Spike verdict supported?"],
         "required_evidence_refs": ["evidence:provider-free"],
@@ -752,7 +970,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "reviewer_capability": ["spike-independent-review"],
         "required_independence_grade": "independent",
         "visibility_policy": "owner-visible",
-        "allowed_verdicts": ["approve", "changes_requested", "reject", "unable_to_verify"],
+        "allowed_verdicts": [
+            "approve",
+            "approve_with_conditions",
+            "changes_requested",
+            "reject",
+            "unable_to_verify",
+            "withdrawn",
+        ],
         "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
         "deadline": "2026-08-12T00:00:00Z",
         "escalation_rule": "owner-ruling",
@@ -767,7 +992,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "candidate_id": candidate_id,
                 "spike_id": spike_id,
                 "review_id": review_id,
-                "subject_sha256": "6" * 64,
+                "subject_sha256": verdict_sha256,
                 "review_contract": review_contract,
             },
         )
@@ -779,32 +1004,32 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         "required_evidence_refs": ["evidence:provider-free"],
         "limitations": [],
         "conditions": [],
-        "reviewer_actor_id": ACTOR_ID,
+        "reviewer_actor_id": reviewer_id,
         "reviewer_profile": "independent-spike-reviewer",
         "reviewer_session": "session-spike",
         "reviewer_model_metadata": "test",
         "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff6f",
         "context_manifest_sha256": "7" * 64,
-        "unchanged_subject_sha256": "6" * 64,
-        "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff6e",
+        "unchanged_subject_sha256": verdict_sha256,
+        "producing_attempt_id": attempt_id,
         "trace_visibility_evidence_refs": ["trace:spike"],
         "computed_independence_grade": "independent",
     }
-    runtime.submit(
-        _command(
-            "ReviewDiscoveryOutcome",
-            review_id,
-            1,
-            {
-                "row_id": "OR-020",
-                "candidate_id": candidate_id,
-                "spike_id": spike_id,
-                "review_id": review_id,
-                "subject_sha256": "6" * 64,
-                "review_verdict": verdict,
-            },
-        )
+    spike_review = _command(
+        "ReviewDiscoveryOutcome",
+        review_id,
+        1,
+        {
+            "row_id": "OR-020",
+            "candidate_id": candidate_id,
+            "spike_id": spike_id,
+            "review_id": review_id,
+            "subject_sha256": verdict_sha256,
+            "review_verdict": verdict,
+        },
     )
+    spike_review["actor_id"] = reviewer_id
+    runtime.submit(spike_review)
 
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
     assert projection["spikes"][spike_id]["status"] == "reviewed"
