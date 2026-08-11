@@ -926,7 +926,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_revisit_eligible")
         elif event_type == "ResearchDossierAdmitted":
             dossier_id = payload.get("dossier_id")
-            if not isinstance(dossier_id, str) or dossier_id in state["dossiers"]:
+            if (
+                not isinstance(dossier_id, str)
+                or dossier_id in state["dossiers"]
+                or dossier_id in state["portfolio_objects"]
+                or dossier_id in state["scopes"]
+            ):
                 raise IntegrityError("Research dossier identity collision")
             state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
         elif event_type == "PortfolioObjectRegistered":
@@ -948,6 +953,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(record_id, str)
                 or record_id in state["portfolio_objects"]
+                or record_id in state["dossiers"]
+                or record_id in state["scopes"]
                 or not isinstance(blueprint, dict)
                 or blueprint.get("proposed_record_id", blueprint.get("proposed_edge_id")) != record_id
                 or payload.get("record_revision") != 1
@@ -973,6 +980,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(scope_id, str)
                 or scope_id in state["scopes"]
+                or scope_id in state["dossiers"]
+                or scope_id in state["portfolio_objects"]
                 or not isinstance(blueprint, dict)
                 or blueprint.get("proposed_scope_id") != scope_id
                 or payload.get("scope_revision") != 1

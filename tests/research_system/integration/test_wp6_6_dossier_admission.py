@@ -342,6 +342,24 @@ def test_semantic_blueprint_substitution_rejects_before_publication(
         )
 
 
+def test_materialized_identity_cannot_collide_with_dossier_identity() -> None:
+    expected, roots = _subject()
+    manifest = _candidate_manifest(expected.members)
+    edge_row = manifest["dependency_edges"][0]
+    edge_row["proposed_edge_id"] = expected.dossier_id
+    edge_preimage = {key: value for key, value in edge_row.items() if key != "expected_content_hash"}
+    edge_row["expected_content_hash"] = _canonical_hash(edge_preimage)
+    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    with pytest.raises(DossierAdmissionRejected, match="immutable_identity_collision"):
+        _admit_with_default_manifest(
+            expected_set=expected,
+            current_expected_set_revision=3,
+            candidate_members=expected.members,
+            candidate_manifest=manifest,
+            registered_roots=roots,
+        )
+
+
 @pytest.mark.parametrize(
     ("mutation", "reason"),
     [
@@ -701,6 +719,24 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     admission["payload"]["relationship_count"] = 0
     with pytest.raises(IntegrityError, match="materialization closure mismatch"):
         replay_discovery(_rehash_ledger(relationship_omitted))
+
+    cross_namespace = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    object_event = next(
+        event
+        for event in cross_namespace
+        if event["event_type"] == "PortfolioObjectRegistered"
+        and event["payload"]["portfolio_kind"] == "dependency_edge"
+    )
+    blueprint = object_event["payload"]["blueprint"]
+    object_event["stream_id"] = expected.dossier_id
+    object_event["payload"]["record_id"] = expected.dossier_id
+    blueprint["proposed_edge_id"] = expected.dossier_id
+    blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
+    blueprint_hash = _canonical_hash(blueprint_preimage)
+    blueprint["expected_content_hash"] = blueprint_hash
+    object_event["payload"]["content_sha256"] = blueprint_hash
+    with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
+        replay_discovery(_rehash_ledger(cross_namespace))
 
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])

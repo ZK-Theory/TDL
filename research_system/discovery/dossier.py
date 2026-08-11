@@ -585,6 +585,8 @@ def prepare_dossier_admission(
     ):
         raise DossierAdmissionRejected("invalid_relationship")
 
+    if protected_identities & record_ids:
+        raise DossierAdmissionRejected("immutable_identity_collision")
     protected_identities.update(record_ids)
     if protected_identities & existing_identities:
         raise DossierAdmissionRejected("immutable_identity_collision")
