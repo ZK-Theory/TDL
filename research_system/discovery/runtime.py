@@ -143,6 +143,19 @@ def _valid_promotion_options(value: Any) -> bool:
     )
 
 
+def _spike_execution_ids_available(
+    spikes: Mapping[str, Mapping[str, Any]],
+    spike_id: Any,
+    attempt_id: Any,
+    lease_id: Any,
+) -> bool:
+    """Return whether an Attempt and Lease are unused by every other Spike."""
+    return all(
+        current_id == spike_id or (spike.get("attempt_id") != attempt_id and spike.get("lease_id") != lease_id)
+        for current_id, spike in spikes.items()
+    )
+
+
 def _git_blob(data: bytes) -> str:
     """Return the Git blob identity for exact bytes."""
     return hashlib.sha1(
@@ -876,6 +889,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(assay, dict)
                 or assay.get("status") != expected_status
+                or assay.get("candidate_id") != payload.get("candidate_id")
                 or not assay.get("review_pending")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
@@ -888,10 +902,20 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
         elif event_type in {"CandidateAssayPartialReviewed", "CandidateAssayCancellationReviewed"}:
             candidate = state["candidates"].get(payload.get("candidate_id"))
+            assay = state["assays"].get(payload.get("assay_id"))
             expected_status = (
                 "assay_partial_recorded" if event_type == "CandidateAssayPartialReviewed" else "assay_cancelled"
             )
-            if not isinstance(candidate, dict) or candidate.get("status") != expected_status:
+            expected_assay_status = (
+                "partial_reviewed" if event_type == "CandidateAssayPartialReviewed" else "cancellation_reviewed"
+            )
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != expected_status
+                or not isinstance(assay, dict)
+                or assay.get("candidate_id") != payload.get("candidate_id")
+                or assay.get("status") != expected_assay_status
+            ):
                 raise IntegrityError("invalid Candidate Assay review transition")
             candidate.update(status="assay_revisit_eligible", version=event["stream_version"])
         elif event_type == "DecisionProposed":
@@ -1088,13 +1112,24 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="spike_authorized")
         elif event_type == "SpikeStarted":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict):
+            attempt_id = required_string("attempt_id")
+            lease_id = required_string("lease_id")
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") != "authorized"
+                or not _spike_execution_ids_available(
+                    state["spikes"],
+                    payload.get("spike_id"),
+                    attempt_id,
+                    lease_id,
+                )
+            ):
                 raise IntegrityError("invalid Spike start")
             spike.update(
                 status="running",
-                attempt_id=required_string("attempt_id"),
+                attempt_id=attempt_id,
                 attempt_sha256=required_string("attempt_sha256"),
-                lease_id=required_string("lease_id"),
+                lease_id=lease_id,
                 lease_status="active",
             )
         elif event_type == "CandidateSpikeStarted":
@@ -2535,6 +2570,7 @@ class DiscoveryRuntime:
             and candidate
             and candidate.get("status") == "promotion_pending"
             and candidate.get("decision_id") == decision_id
+            and candidate.get("promotion_gate") == "assay_to_spike"
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
@@ -2635,6 +2671,12 @@ class DiscoveryRuntime:
             and isinstance(p.get("attempt_sha256"), str)
             and len(p["attempt_sha256"]) == 64
             and isinstance(p.get("lease_id"), str)
+            and _spike_execution_ids_available(
+                projection["spikes"],
+                spike_id,
+                p.get("attempt_id"),
+                p.get("lease_id"),
+            )
             and self._valid_live_spike_lease(p, command)
         ):
             return out(("SpikeStarted", spike_id), ("CandidateSpikeStarted", candidate_id))
@@ -3330,6 +3372,11 @@ class DiscoveryRuntime:
             review_verdict = payload.get("review_verdict")
             row = payload.get("row_id")
             expected_status = {"OR-006": "scored", "OR-007": "partial_recorded", "OR-039": "cancelled"}.get(row)
+            expected_candidate_status = {
+                "OR-006": "assay_scored",
+                "OR-007": "assay_partial_recorded",
+                "OR-039": "assay_cancelled",
+            }.get(row)
             if (
                 expected_status is None
                 or command.target_stream_id != review_id
@@ -3345,10 +3392,13 @@ class DiscoveryRuntime:
                 or review_verdict.get("verdict") not in review.get("allowed_verdicts", ())
                 or review_verdict.get("computed_independence_grade") != review.get("required_independence_grade")
                 or not isinstance(assay, dict)
+                or assay.get("candidate_id") != candidate_id
                 or not assay.get("review_pending")
                 or assay.get("review_id") != review_id
                 or assay.get("status") != expected_status
                 or assay.get("producer_actor_id") == command.actor_id
+                or not isinstance(candidate, dict)
+                or candidate.get("status") != expected_candidate_status
             ):
                 raise IntegrityError("invalid ReviewDiscoveryOutcome transition")
             events = [("ReviewVerdictRecorded", review_id, deepcopy(review_verdict))]

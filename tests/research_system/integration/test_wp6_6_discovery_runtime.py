@@ -12,6 +12,7 @@ import pytest
 
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.reducers import replay_control_plane
 from research_system.errors import ArsError, IntegrityError
 from research_system.ids import new_id
@@ -1217,6 +1218,19 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         },
     )
     review["actor_id"] = reviewer_id
+    foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff89"
+    _ingest_candidate(
+        runtime,
+        foreign_candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff8a",
+        title="Foreign Partial Assay candidate",
+    )
+    foreign_candidate_review = deepcopy(review)
+    foreign_candidate_review["payload"]["candidate_id"] = foreign_candidate_id
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid ReviewDiscoveryOutcome transition"):
+        runtime.submit(foreign_candidate_review)
+    assert tuple(runtime.ledger.iter_events()) == before
     runtime.submit(review)
     proposal = {
         "question": "Retry the exact partial Assay?",
@@ -1310,6 +1324,14 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         )
         with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
             replay_discovery(_rehash_events(tampered))
+    cross_candidate_review = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    reviewed_index = next(
+        index for index, event in enumerate(cross_candidate_review) if event["event_type"] == "AssayPartialReviewed"
+    )
+    cross_candidate_review = cross_candidate_review[: reviewed_index + 1]
+    cross_candidate_review[-1]["payload"]["candidate_id"] = foreign_candidate_id
+    with pytest.raises(IntegrityError, match="invalid Assay reviewed transition"):
+        replay_discovery(_rehash_events(cross_candidate_review))
     excluded_option = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(
         event
@@ -1773,6 +1795,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             assert tuple(runtime.ledger.iter_events()) == before
             runtime.clock = current_clock
         if row_id == "OR-017":
+            reused_projection = replay_discovery(runtime.ledger.iter_events())
+            reused_projection["spikes"]["spk_019fed25-b33e-7740-b280-ffffffffffff"] = {
+                "status": "running",
+                "attempt_id": command["payload"]["attempt_id"],
+                "lease_id": command["payload"]["lease_id"],
+            }
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime._prepare_spike(Command(command), reused_projection)
             invented_hash = deepcopy(command)
             invented_hash["payload"]["attempt_sha256"] = "f" * 64
             before = tuple(runtime.ledger.iter_events())
@@ -1979,22 +2009,27 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             runtime.submit(foreign_decision)
         assert tuple(runtime.ledger.iter_events()) == before
         runtime.submit(post_promotion)
-        runtime.submit(
-            _command(
-                "ResolveDecision",
-                post_promotion_id,
-                1,
-                {
-                    "row_id": "OR-027",
-                    "candidate_id": candidate_id,
-                    "spike_id": spike_id,
-                    "decision_id": post_promotion_id,
-                    "review_id": review_id,
-                    "verdict_sha256": verdict_sha256,
-                    "w2_payload": promotion_resolved(post_promotion_id),
-                },
-            )
+        post_resolution = _command(
+            "ResolveDecision",
+            post_promotion_id,
+            1,
+            {
+                "row_id": "OR-027",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "decision_id": post_promotion_id,
+                "review_id": review_id,
+                "verdict_sha256": verdict_sha256,
+                "w2_payload": promotion_resolved(post_promotion_id),
+            },
         )
+        wrong_gate_resolution = deepcopy(post_resolution)
+        wrong_gate_resolution["payload"]["row_id"] = "OR-013"
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Spike transition"):
+            runtime.submit(wrong_gate_resolution)
+        assert tuple(runtime.ledger.iter_events()) == before
+        runtime.submit(post_resolution)
         promoted = replay_discovery(runtime.ledger.iter_events())
         assert promoted["candidates"][candidate_id]["status"] == "preregistration_authorized"
         assert [
