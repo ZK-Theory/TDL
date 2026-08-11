@@ -305,10 +305,25 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             )
         elif event_type == "AssayScored":
             assay = state["assays"].get(payload.get("assay_id"))
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            artifact = payload.get("scorecard_artifact")
             if (
                 not isinstance(assay, dict)
+                or not isinstance(candidate, dict)
+                or not isinstance(artifact, dict)
                 or assay.get("status") != "evidence_collecting"
                 or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+                or artifact.get("candidate_ref")
+                != {
+                    "id": payload.get("candidate_id"),
+                    "record_revision": candidate.get("revision"),
+                    "content_hash": candidate.get("content_sha256"),
+                }
+                or artifact.get("assay_id") != payload.get("assay_id")
+                or artifact.get("assay_relation_hash") != assay.get("producer_relation_sha256")
+                or artifact.get("producer_actor_id") != event.get("actor_id")
+                or artifact.get("required_axis_set_hash") != artifact.get("observed_axis_set_hash")
+                or sha256_hex(canonical_bytes(artifact)) != payload.get("scorecard_sha256")
             ):
                 raise IntegrityError("invalid Assay score transition")
             assay.update(
@@ -417,7 +432,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate.update(status="promotion_pending", decision_id=required_string("decision_id"))
         elif event_type == "CandidatePromotionApplied":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            decision = state["decisions"].get(payload.get("decision_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("decision_id") != payload.get("decision_id")
+                or not isinstance(decision, dict)
+                or decision.get("status") != "resolved"
+            ):
                 raise IntegrityError("invalid Candidate promotion application")
             candidate.update(status="spike_planning_authorized")
         elif event_type == "SpikePlanned":
@@ -442,7 +463,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             spike.update(decision_id=required_string("decision_id"))
         elif event_type == "SpikeAuthorized":
             spike = state["spikes"].get(payload.get("spike_id"))
-            if not isinstance(spike, dict):
+            decision = state["decisions"].get(payload.get("decision_id"))
+            if (
+                not isinstance(spike, dict)
+                or spike.get("decision_id") != payload.get("decision_id")
+                or not isinstance(decision, dict)
+                or decision.get("status") != "resolved"
+            ):
                 raise IntegrityError("invalid Spike authorization")
             spike.update(status="authorized")
         elif event_type == "CandidateSpikeAuthorized":
@@ -458,6 +485,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 status="running",
                 attempt_id=required_string("attempt_id"),
                 attempt_sha256=required_string("attempt_sha256"),
+                lease_id=required_string("lease_id"),
+                lease_status="active",
             )
         elif event_type == "CandidateSpikeStarted":
             candidate = state["candidates"].get(payload.get("candidate_id"))
@@ -484,6 +513,24 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 verdict_sha256=required_string("verdict_sha256"),
                 producer_actor_id=event.get("actor_id"),
             )
+        elif event_type == "SpikeAttemptClosed":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if (
+                not isinstance(spike, dict)
+                or spike.get("status") != "partial_recorded"
+                or spike.get("attempt_id") != payload.get("attempt_id")
+            ):
+                raise IntegrityError("invalid Spike attempt closure")
+            spike.update(attempt_status="partial")
+        elif event_type == "SpikeLeaseReleased":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if (
+                not isinstance(spike, dict)
+                or spike.get("attempt_status") != "partial"
+                or payload.get("lease_id") != spike.get("lease_id")
+            ):
+                raise IntegrityError("invalid Spike lease release")
+            spike.update(lease_status="released")
         elif event_type == "CandidateSpikeVerdictLinked":
             candidate = state["candidates"].get(payload.get("candidate_id"))
             if not isinstance(candidate, dict):
@@ -1220,7 +1267,17 @@ class DiscoveryRuntime:
             and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike)
         ):
             if row == "OR-019":
-                return out(("SpikePartialRecorded", spike_id), ("CandidateSpikePartialLinked", candidate_id))
+                closure_payload = {
+                    **deepcopy(p),
+                    "attempt_id": spike.get("attempt_id"),
+                    "lease_id": spike.get("lease_id"),
+                }
+                return [
+                    ("SpikePartialRecorded", spike_id, deepcopy(p)),
+                    ("SpikeAttemptClosed", spike_id, closure_payload),
+                    ("SpikeLeaseReleased", spike_id, deepcopy(closure_payload)),
+                    ("CandidateSpikePartialLinked", candidate_id, deepcopy(p)),
+                ]
             return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
         if (
             ct == "RequestDiscoveryOutcomeReview"

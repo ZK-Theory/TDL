@@ -1164,6 +1164,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     if spike_verdict == "PARTIAL":
         expected_review_events += ("CandidateSpikePartialReviewed",)
         assert projection["candidates"][candidate_id]["status"] == "spike_revisit_pending"
+        assert projection["spikes"][spike_id]["attempt_status"] == "partial"
+        assert projection["spikes"][spike_id]["lease_status"] == "released"
     assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == expected_review_events
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())

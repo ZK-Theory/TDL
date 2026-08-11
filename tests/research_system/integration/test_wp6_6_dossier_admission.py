@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -480,6 +481,16 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             "candidate_manifest": _candidate_manifest(expected.members),
         },
     )
+
+    incomplete_manifest = deepcopy(command)
+    incomplete_manifest["payload"]["candidate_manifest"]["members"] = incomplete_manifest["payload"][
+        "candidate_manifest"
+    ]["members"][:-1]
+    incomplete_manifest["payload"]["candidate_manifest"]["member_count"] -= 1
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
+        runtime.submit(incomplete_manifest)
+    assert tuple(runtime.ledger.iter_events()) == before
 
     receipt = runtime.submit(command)
     replayed = replay_discovery(runtime.ledger.iter_events())
