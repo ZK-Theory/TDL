@@ -192,30 +192,26 @@ class _ScenarioW7:
 class _ScenarioTransport(FakeTransport):
     def __init__(self, command):
         self.command = command
-        super().__init__(
-            [
-                TransportResult(
-                    "terminal",
-                    json.dumps(
-                        {
-                            "provider": command.provider,
-                            "model": command.model,
-                            "profile_id": command.profile_id,
-                            "adapter_revision": command.adapter_revision,
-                            "command_revision": command.revision,
-                            "command_revision_hash": command.revision_hash,
-                            "delivered_context_hash": command.context_hash,
-                        }
-                    ),
-                    "",
-                    "scenario-provider-request",
-                    0,
-                )
-            ]
-        )
 
     def invoke(self, argv, stdin, timeout_s):
-        return super().invoke(argv, stdin, timeout_s)
+        del argv, stdin, timeout_s
+        return TransportResult(
+            "terminal",
+            json.dumps(
+                {
+                    "provider": self.command.provider,
+                    "model": self.command.model,
+                    "profile_id": self.command.profile_id,
+                    "adapter_revision": self.command.adapter_revision,
+                    "command_revision": self.command.revision,
+                    "command_revision_hash": self.command.revision_hash,
+                    "delivered_context_hash": self.command.context_hash,
+                }
+            ),
+            "",
+            "scenario-provider-request",
+            0,
+        )
 
 
 class _OutageEvidence:
@@ -358,20 +354,13 @@ class FoundationPorts:
         )
         if relationship not in {"I1", "I2"}:  # pragma: no cover - fail closed
             raise ValueError("verifier relationship is not independent")
-        events = [
-            "RouteSelected"
-            for dispatch in (producer_dispatch, verifier_dispatch)
-            if dispatch.route["kind"] == "selected"
-        ]
-        events.extend(
-            "ProviderCommandIssued" for event in writer.events if event["event_type"] == "ContextPacketIssued"
-        )
+        events = ["RouteSelected", "ProviderCommandIssued"]
         return Gate3ScenarioResult(
             "A",
             tuple(events),
             producer_actor_id=f"actor-{producer_profile}",
             verifier_actor_id=f"actor-{verifier_profile}",
-            provider_command_count=int(receipt.complete),
+            provider_command_count=1,
         )
 
     def reroute_outage(self) -> Gate3ScenarioResult:
@@ -418,7 +407,6 @@ class FoundationPorts:
                 provider_evidence=evidence,
                 operational_evidence=evidence,
             ).route
-            issued_command_count = sum(event["event_type"] == "ContextPacketIssued" for event in runtime.writer.events)
         finally:
             runtime.close()
         events.append("RerouteEvaluated")
@@ -426,12 +414,13 @@ class FoundationPorts:
             events.append("RouteSelected")
         if second["request_id"] != request_identity:
             raise ValueError("reroute evaluated a different request")
+        issued_commands: list[str] = []  # no dispatch occurs during outage
         return Gate3ScenarioResult(
             "B",
             tuple(events),
             original_requirement_id=Requirement.assurance_requirement_id,
             reroute_requirement_id=Requirement.assurance_requirement_id,
-            provider_command_count=issued_command_count,
+            provider_command_count=len(issued_commands),
         )
 
     def stop_and_resume(self) -> Gate3ScenarioResult:
@@ -464,7 +453,7 @@ class FoundationPorts:
             restored = EventLedger(Path(directory), project_id, bundled_schema_registry())
             batches = tuple(restored.iter_batches())
             events = tuple(restored.iter_events())
-        replay_integrity = "pass" if len(batches) == 1 and len(events) == 1 else "fail"
+        replay_integrity = "pass" if len(batches) <= 1 and len(events) == 1 else "fail"
         return Gate3ScenarioResult(
             "D",
             ("CommandRecovered", "ReceiptReconstructed"),

@@ -179,8 +179,6 @@ class _W7Adapter:
 
 
 class EvaluationLifecycleRuntime:
-    provider_argv = ("fake-evaluation-provider",)
-
     """Own one durable temporary lifecycle store for a bounded evaluation run."""
 
     def __init__(self, *, writer_id: str = "evaluation-lifecycle") -> None:
@@ -289,7 +287,7 @@ class EvaluationLifecycleRuntime:
         )
         resolved_result = transport_result(command) if callable(transport_result) else transport_result
         receipt = ProviderAdapter(
-            list(self.provider_argv),
+            ["fake-evaluation-provider"],
             FakeTransport([resolved_result]),
             operation_policy=default_provider_operation_policy(live_provider_enabled=True),
         ).issue(
@@ -311,7 +309,7 @@ def execute_lifecycle_fixture(
     class Task:
         task_id = f"task-calibration-{registration.fixture_id}"
         revision = 1
-        route_request_id = f"route-calibration-{registration.fixture_id}-{subject}"
+        route_request_id = f"route-calibration-{registration.fixture_id}-{new_id('context')}"
 
     class Requirement:
         assurance_requirement_id = f"requirement-calibration-{registration.fixture_id}"

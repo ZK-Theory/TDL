@@ -123,7 +123,7 @@ def _activate_backup_grant(tmp_path: Path) -> tuple[ControlBinding, EventLedger]
     verify_identity = schemas.resolve_identity(verify_binding.schema_id, verify_binding.schema_version)
     grant = {
         "schema_id": "ars://core/scoped-authority-grant",
-        "schema_version": "2.1.0",
+        "schema_version": "2.0.0",
         "authority_grant_id": GRANT_ID,
         "actor_id": ACTOR_ID,
         "allowed_actor_classes": ["human"],

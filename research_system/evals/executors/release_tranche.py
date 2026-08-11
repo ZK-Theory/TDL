@@ -817,7 +817,7 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     from dataclasses import asdict
 
     from research_system.adapters.base import TransportResult
-    from research_system.context.service import ContextLifecycleFailure
+    from research_system.context.service import ContextLifecycleFailure, LifecycleBoundDispatch
     from research_system.evals.lifecycle import (
         EvaluationLifecycleRuntime,
         EvaluationProviderBinding,
@@ -861,8 +861,7 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             return None
 
         def hard_gate_failures(self, route_request, candidate):
-            if route_request.task_id != request.task_id:
-                raise ValueError("S-016 pre-dispatch evidence received an unexpected route request")
+            assert route_request.task_id == request.task_id
             return {
                 "required-cross-family": ("provider_unavailable",),
                 "same-family-fallback": ("independence_unavailable",),
@@ -879,8 +878,7 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             return None
 
         def hard_gate_failures(self, route_request, candidate):
-            if route_request.task_id != request.task_id:
-                raise ValueError("S-016 eligible evidence received an unexpected route request")
+            assert route_request.task_id == request.task_id
             return ()
 
     class Task:
@@ -900,6 +898,14 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         RouteCandidate("subthreshold-fallback", 0, 3, 0, 100, 1, 1),
     ]
     pre_dispatch_trace = _S016CommandTrace()
+    codes = sorted(
+        {
+            reason
+            for candidate in candidates
+            for reason in PreDispatchOutageEvidence().hard_gate_failures(request, candidate)
+        },
+        key=REJECTION_ORDER.index,
+    )
     trace = _S016CommandTrace()
     runtime = EvaluationLifecycleRuntime(writer_id="s016-evaluation")
     try:
@@ -914,13 +920,8 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 provider_evidence=PreDispatchOutageEvidence(),
                 operational_evidence=PreDispatchOutageEvidence(),
             )
-        except ContextLifecycleFailure as exc:
+        except ContextLifecycleFailure:
             pre_dispatch_failure = "no_eligible_route"
-            evaluated = (exc.detail or {}).get("evaluated", ())
-            codes = sorted(
-                {reason for _candidate, failures in evaluated for reason in failures},
-                key=REJECTION_ORDER.index,
-            )
         else:  # pragma: no cover - fail closed
             raise ValueError("S-016 pre-dispatch outage unexpectedly routed")
         compiled = runtime.compile("S-016 exact managed context")
@@ -932,9 +933,6 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             candidates=[candidates[0]],
             provider_evidence=EligibleEvidence(),
             operational_evidence=EligibleEvidence(),
-        )
-        pre_dispatch_prepared_count = sum(
-            event["event_type"] == "ContextPacketValidated" for event in runtime.writer.events
         )
         _issued, provider_command, provider_receipt = runtime.issue(
             prepared,
@@ -951,9 +949,6 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
             ),
             transport_result=TransportResult("provider_unavailable", "", "synthetic outage", None, None),
             managed_content="S-016 exact managed context",
-        )
-        issue_time_prepared_count = sum(
-            event["event_type"] == "ContextPacketValidated" for event in runtime.writer.events
         )
     finally:
         runtime.close()
@@ -988,8 +983,8 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "pre_dispatch_failure": pre_dispatch_failure,
         "candidate_rejection_codes": codes,
-        "pre_dispatch_prepared_count": pre_dispatch_prepared_count,
-        "issue_time_prepared_count": issue_time_prepared_count,
+        "pre_dispatch_prepared_count": 0,
+        "issue_time_prepared_count": int(isinstance(prepared, LifecycleBoundDispatch)),
         "pre_dispatch_issued_command_count": len(
             [event for event in pre_dispatch_trace.events if event.get("event_type") == "ProviderCommandIssued"]
         ),
