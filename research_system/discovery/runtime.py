@@ -141,6 +141,70 @@ def _review_policy_status(payload: Mapping[str, Any]) -> str:
     raise IntegrityError("invalid Discovery review verdict policy")
 
 
+def _valid_review_supersession(
+    relation: object,
+    prior_review: object,
+    new_subject_sha256: object,
+    new_required_evidence_refs: object,
+) -> bool:
+    """Validate the closed W11 relation for replacing a non-satisfying review."""
+
+    if not isinstance(relation, Mapping) or not isinstance(prior_review, Mapping):
+        return False
+    changed_refs = relation.get("changed_evidence_refs")
+    delta_scope = relation.get("accepted_delta_scope")
+    mode = relation.get("mode")
+    prior_status = prior_review.get("status")
+    prior_subject = prior_review.get("subject_sha256")
+    prior_evidence_refs = prior_review.get("required_evidence_refs")
+    same_subject = new_subject_sha256 == prior_subject
+    if (
+        prior_status not in {"changes_requested", "verdict_recorded", "withdrawn"}
+        or relation.get("prior_review_id") != prior_review.get("review_id")
+        or relation.get("prior_request_event_id") != prior_review.get("request_event_id")
+        or relation.get("prior_request_event_hash") != prior_review.get("request_event_hash")
+        or relation.get("prior_verdict_event_id") != prior_review.get("verdict_event_id")
+        or relation.get("prior_verdict_event_hash") != prior_review.get("verdict_event_hash")
+        or relation.get("prior_subject_sha256") != prior_subject
+        or relation.get("new_subject_sha256") != new_subject_sha256
+        or not isinstance(changed_refs, list)
+        or not changed_refs
+        or not all(isinstance(ref, str) and ref for ref in changed_refs)
+        or len(set(changed_refs)) != len(changed_refs)
+        or not isinstance(prior_evidence_refs, list)
+        or not isinstance(new_required_evidence_refs, list)
+        or set(changed_refs) & set(prior_evidence_refs)
+        or set(new_required_evidence_refs) != {*prior_evidence_refs, *changed_refs}
+        or not isinstance(relation.get("reason"), str)
+        or not relation["reason"]
+        or not isinstance(relation.get("proposed_reviewer_relation"), str)
+        or not relation["proposed_reviewer_relation"]
+        or mode not in {"superseding_subject", "bounded_delta"}
+        or (same_subject and prior_status != "withdrawn")
+        or (prior_review.get("verdict") == "reject" and mode != "superseding_subject")
+    ):
+        return False
+    if mode == "bounded_delta":
+        return bool(
+            relation.get("unchanged_base_sha256") == prior_subject
+            and isinstance(delta_scope, list)
+            and delta_scope
+            and all(isinstance(item, str) and item for item in delta_scope)
+            and len(set(delta_scope)) == len(delta_scope)
+            and new_subject_sha256
+            == sha256_hex(
+                canonical_bytes(
+                    {
+                        "unchanged_base_sha256": prior_subject,
+                        "accepted_delta_scope": delta_scope,
+                        "changed_evidence_refs": changed_refs,
+                    }
+                )
+            )
+        )
+    return relation.get("unchanged_base_sha256") is None and relation.get("accepted_delta_scope") is None
+
+
 def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
     """Validate the complete ordered Discovery event hash chain."""
     last_position = 0
@@ -565,7 +629,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         elif event_type == "ReviewRequested":
             review_id = payload.get("new_review_id")
             subject_ids = required_string_list("subject_ids")
-            if not isinstance(review_id, str) or review_id in state["reviews"] or len(subject_ids) != 1:
+            subject_hashes = required_string_list("subject_hashes")
+            if (
+                not isinstance(review_id, str)
+                or review_id in state["reviews"]
+                or len(subject_ids) != 1
+                or len(subject_hashes) != 1
+            ):
                 raise IntegrityError("invalid Discovery review request")
             subject_id = subject_ids[0]
             if subject_id.startswith("asy_"):
@@ -578,9 +648,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "review_id": review_id,
                 "subject_id": subject_id,
                 "subject_kind": subject_kind,
-                "subject_sha256": required_string_list("subject_hashes")[0],
+                "subject_sha256": subject_hashes[0],
                 "allowed_verdicts": required_string_list("allowed_verdicts"),
+                "required_evidence_refs": required_string_list("required_evidence_refs"),
                 "request_actor_id": event.get("actor_id"),
+                "request_event_id": event.get("event_id"),
+                "request_event_hash": event.get("event_hash"),
                 "status": "pending",
                 "version": event["stream_version"],
             }
@@ -597,6 +670,23 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             }[event_type]
             if not isinstance(assay, dict) or assay.get("status") != expected_status:
                 raise IntegrityError("invalid Assay outcome review request")
+            review = state["reviews"].get(payload.get("review_id"))
+            prior_review = state["reviews"].get(assay.get("review_id"))
+            relation = payload.get("review_subject_supersession")
+            if not isinstance(review, dict):
+                raise IntegrityError("invalid Assay outcome review request")
+            if assay.get("review_id") is None:
+                if relation is not None:
+                    raise IntegrityError("invalid Assay review supersession")
+            elif not _valid_review_supersession(
+                relation,
+                prior_review,
+                review.get("subject_sha256"),
+                review.get("required_evidence_refs"),
+            ):
+                raise IntegrityError("invalid Assay review supersession")
+            else:
+                prior_review.update(status="superseded", superseded_by_review_id=review["review_id"])
             assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
         elif event_type == "ReviewVerdictRecorded":
             review = state["reviews"].get(payload.get("review_id"))
@@ -625,6 +715,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 status=_review_policy_status(payload),
                 verdict=required_string("verdict"),
                 reviewer_actor_id=reviewer_actor_id,
+                verdict_event_id=event.get("event_id"),
+                verdict_event_hash=event.get("event_hash"),
                 version=event["stream_version"],
             )
         elif event_type == "AssayReviewed":
@@ -635,7 +727,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not assay.get("review_pending")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
-                or assay.get("scorecard_sha256") != payload.get("subject_sha256")
+                or review.get("subject_sha256") != payload.get("subject_sha256")
             ):
                 raise IntegrityError("invalid Assay reviewed transition")
             assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
@@ -680,15 +772,28 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             decision.update(
                 status="resolved", selected_option=payload.get("selected_option"), version=event["stream_version"]
             )
+        elif event_type == "SpikeExecutionProposalSupersededByCancellation":
+            decision = state["decisions"].get(payload.get("decision_id"))
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if (
+                not isinstance(decision, dict)
+                or decision.get("status") != "proposed"
+                or not isinstance(spike, dict)
+                or spike.get("status") != "approval_pending"
+                or spike.get("decision_id") != payload.get("decision_id")
+                or spike.get("candidate_id") != payload.get("candidate_id")
+            ):
+                raise IntegrityError("invalid Spike execution proposal cancellation")
+            decision.update(status="superseded_by_cancellation", version=event["stream_version"])
         elif event_type in {"AssayRevisitRequested", "SpikeRevisitRequested"}:
             collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
             subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
             subject = collection.get(subject_id)
-            if not isinstance(subject, dict) or subject.get("status") not in {
-                "partial_reviewed",
-                "cancellation_reviewed",
-                "reviewed",
-            }:
+            if (
+                not isinstance(subject, dict)
+                or subject.get("candidate_id") != payload.get("candidate_id")
+                or subject.get("status") not in {"partial_reviewed", "cancellation_reviewed", "reviewed"}
+            ):
                 raise IntegrityError("invalid Discovery revisit request")
             subject.update(status="revisit_pending", decision_id=required_string("decision_id"))
         elif event_type in {"CandidateAssayRevisitRequested", "CandidateSpikeRevisitRequested"}:
@@ -706,6 +811,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(subject, dict)
                 or subject.get("status") != "revisit_pending"
+                or subject.get("candidate_id") != payload.get("candidate_id")
                 or not isinstance(decision, dict)
                 or decision.get("status") != "resolved"
                 or decision.get("selected_option") != selected
@@ -864,6 +970,23 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             }[event_type]
             if not isinstance(spike, dict) or spike.get("status") != expected_status:
                 raise IntegrityError("invalid Spike review request")
+            review = state["reviews"].get(payload.get("review_id"))
+            prior_review = state["reviews"].get(spike.get("review_id"))
+            relation = payload.get("review_subject_supersession")
+            if not isinstance(review, dict):
+                raise IntegrityError("invalid Spike review request")
+            if spike.get("review_id") is None:
+                if relation is not None:
+                    raise IntegrityError("invalid Spike review supersession")
+            elif not _valid_review_supersession(
+                relation,
+                prior_review,
+                review.get("subject_sha256"),
+                review.get("required_evidence_refs"),
+            ):
+                raise IntegrityError("invalid Spike review supersession")
+            else:
+                prior_review.update(status="superseded", superseded_by_review_id=review["review_id"])
             spike.update(review_id=required_string("review_id"), review_pending=True)
         elif event_type == "SpikeReviewed":
             spike = state["spikes"].get(payload.get("spike_id"))
@@ -2345,7 +2468,22 @@ class DiscoveryRuntime:
                 or sha256_hex(canonical_bytes(artifact)) != p.get("cancellation_sha256")
             ):
                 raise IntegrityError("invalid Spike cancellation transition")
-            events: list[tuple[str, str, dict[str, Any]]] = [("SpikeCancelled", spike_id, deepcopy(p))]
+            events: list[tuple[str, str, dict[str, Any]]] = []
+            execution_decision = projection["decisions"].get(spike.get("decision_id"))
+            if isinstance(execution_decision, dict) and execution_decision.get("status") == "proposed":
+                events.append(
+                    (
+                        "SpikeExecutionProposalSupersededByCancellation",
+                        str(spike["decision_id"]),
+                        {
+                            "candidate_id": candidate_id,
+                            "spike_id": spike_id,
+                            "decision_id": spike["decision_id"],
+                            "cancellation_sha256": p["cancellation_sha256"],
+                        },
+                    )
+                )
+            events.append(("SpikeCancelled", spike_id, deepcopy(p)))
             if spike.get("status") == "running":
                 attempt, lease = self._live_spike_operational_pair(spike)
                 now = self.clock()
@@ -2390,6 +2528,29 @@ class DiscoveryRuntime:
                 )
             events.append(("CandidateEvaluationCancelled", candidate_id, deepcopy(p)))
             return events
+        spike_review_subject = (
+            spike.get("outcome_sha256")
+            if row in {"OR-040", "OR-041"} and isinstance(spike, dict)
+            else spike.get("verdict_sha256")
+            if isinstance(spike, dict)
+            else None
+        )
+        prior_spike_review = projection["reviews"].get(spike.get("review_id")) if isinstance(spike, dict) else None
+        spike_supersession = p.get("review_subject_supersession")
+        spike_review_contract = p.get("review_contract")
+        valid_spike_review_relation = bool(
+            isinstance(spike, dict)
+            and isinstance(spike_review_contract, Mapping)
+            and (
+                (spike.get("review_id") is None and spike_supersession is None)
+                or _valid_review_supersession(
+                    spike_supersession,
+                    prior_spike_review,
+                    p.get("subject_sha256"),
+                    spike_review_contract.get("required_evidence_refs"),
+                )
+            )
+        )
         if (
             ct == "RequestDiscoveryOutcomeReview"
             and row in {"OR-036", "OR-037", "OR-040"}
@@ -2399,10 +2560,15 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == review_id
             and projection["reviews"].get(review_id) is None
-            and p.get("subject_sha256") == spike.get("verdict_sha256")
-            and p.get("review_contract", {}).get("new_review_id") == review_id
-            and p.get("review_contract", {}).get("subject_ids") == [spike_id]
-            and p.get("review_contract", {}).get("subject_hashes") == [spike.get("verdict_sha256")]
+            and valid_spike_review_relation
+            and (
+                p.get("subject_sha256") == spike_review_subject
+                or isinstance(spike_supersession, Mapping)
+                and spike_supersession.get("prior_subject_sha256") == spike_review_subject
+            )
+            and spike_review_contract.get("new_review_id") == review_id
+            and spike_review_contract.get("subject_ids") == [spike_id]
+            and spike_review_contract.get("subject_hashes") == [p.get("subject_sha256")]
         ):
             return [
                 ("ReviewRequested", review_id, deepcopy(p["review_contract"])),
@@ -2424,13 +2590,14 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and projection["reviews"].get(review_id, {}).get("status") == "pending"
             and command.target_stream_id == review_id
-            and p.get("subject_sha256") == spike.get("verdict_sha256")
+            and p.get("subject_sha256") == projection["reviews"][review_id].get("subject_sha256")
             and isinstance(p.get("review_verdict"), dict)
             and p["review_verdict"].get("reviewer_actor_id") == command.actor_id
             and projection["reviews"][review_id].get("request_actor_id") != command.actor_id
             and spike.get("producer_actor_id") != command.actor_id
             and p["review_verdict"].get("verdict") in projection["reviews"][review_id].get("allowed_verdicts", ())
-            and p.get("review_verdict", {}).get("unchanged_subject_sha256") == spike.get("verdict_sha256")
+            and p.get("review_verdict", {}).get("unchanged_subject_sha256")
+            == projection["reviews"][review_id].get("subject_sha256")
         ):
             events = [("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"]))]
             if _review_policy_status(p["review_verdict"]) == "satisfied":
@@ -2457,6 +2624,7 @@ class DiscoveryRuntime:
             if (
                 not isinstance(spike, dict)
                 or spike.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or spike.get("candidate_id") != candidate_id
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "spike_revisit_eligible"
                 or projection["decisions"].get(decision_id) is not None
@@ -2480,6 +2648,7 @@ class DiscoveryRuntime:
                 or decision.get("status") != "proposed"
                 or not isinstance(spike, dict)
                 or spike.get("status") != "revisit_pending"
+                or spike.get("candidate_id") != candidate_id
                 or spike.get("decision_id") != decision_id
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "spike_revisit_pending"
@@ -2779,12 +2948,26 @@ class DiscoveryRuntime:
             review_contract = payload.get("review_contract")
             row = payload.get("row_id")
             expected_status = {"OR-034": "scored", "OR-035": "partial_recorded", "OR-038": "cancelled"}.get(row)
-            subject_sha256 = (
+            current_subject_sha256 = (
                 assay.get("scorecard_sha256")
                 if expected_status == "scored" and isinstance(assay, dict)
                 else assay.get("outcome_sha256")
                 if isinstance(assay, dict)
                 else None
+            )
+            prior_review = projection["reviews"].get(assay.get("review_id")) if isinstance(assay, dict) else None
+            supersession = payload.get("review_subject_supersession")
+            valid_review_relation = bool(
+                isinstance(assay, dict)
+                and (
+                    (assay.get("review_id") is None and supersession is None)
+                    or _valid_review_supersession(
+                        supersession,
+                        prior_review,
+                        payload.get("subject_sha256"),
+                        review_contract.get("required_evidence_refs") if isinstance(review_contract, Mapping) else None,
+                    )
+                )
             )
             if (
                 expected_status is None
@@ -2792,7 +2975,14 @@ class DiscoveryRuntime:
                 or review is not None
                 or not isinstance(assay, dict)
                 or assay.get("status") != expected_status
-                or subject_sha256 != payload.get("subject_sha256")
+                or not valid_review_relation
+                or (
+                    current_subject_sha256 != payload.get("subject_sha256")
+                    and (
+                        not isinstance(supersession, Mapping)
+                        or supersession.get("prior_subject_sha256") != current_subject_sha256
+                    )
+                )
                 or not isinstance(review_contract, dict)
                 or review_contract.get("new_review_id") != review_id
                 or review_contract.get("subject_ids") != [assay_id]
@@ -2862,6 +3052,7 @@ class DiscoveryRuntime:
                 or projection["decisions"].get(decision_id) is not None
                 or not isinstance(assay, dict)
                 or assay.get("status") not in {"partial_reviewed", "cancellation_reviewed"}
+                or assay.get("candidate_id") != candidate_id
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_revisit_eligible"
                 or not isinstance(payload.get("w2_payload"), dict)
@@ -2887,6 +3078,7 @@ class DiscoveryRuntime:
                 or decision.get("status") != "proposed"
                 or not isinstance(assay, dict)
                 or assay.get("status") != "revisit_pending"
+                or assay.get("candidate_id") != candidate_id
                 or assay.get("decision_id") != decision_id
                 or not isinstance(candidate, dict)
                 or candidate.get("status") != "assay_revisit_pending"

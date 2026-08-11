@@ -827,6 +827,73 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assert projection["assays"][assay_id]["scorecard_sha256"] == scorecard_sha256
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == review_status
+    if verdict == "changes_requested":
+        replacement_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5e"
+        prior = projection["reviews"][review_id]
+        delta_scope = ["scorecard:resolved-provenance-gap"]
+        changed_refs = ["scorecard:replacement-evidence"]
+        replacement_subject_sha256 = sha256_hex(
+            canonical_bytes(
+                {
+                    "unchanged_base_sha256": scorecard_sha256,
+                    "accepted_delta_scope": delta_scope,
+                    "changed_evidence_refs": changed_refs,
+                }
+            )
+        )
+        original_contract = next(
+            event["payload"]
+            for event in runtime.ledger.iter_events()
+            if event["event_type"] == "ReviewRequested" and event["stream_id"] == review_id
+        )
+        replacement_contract = deepcopy(original_contract)
+        replacement_contract.update(
+            new_review_id=replacement_review_id,
+            subject_hashes=[replacement_subject_sha256],
+            required_evidence_refs=[*original_contract["required_evidence_refs"], *changed_refs],
+        )
+        replacement_payload = {
+            "row_id": "OR-034",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": replacement_review_id,
+            "subject_sha256": replacement_subject_sha256,
+            "review_contract": replacement_contract,
+            "review_subject_supersession": {
+                "prior_review_id": review_id,
+                "prior_request_event_id": prior["request_event_id"],
+                "prior_request_event_hash": prior["request_event_hash"],
+                "prior_verdict_event_id": prior["verdict_event_id"],
+                "prior_verdict_event_hash": prior["verdict_event_hash"],
+                "prior_subject_sha256": scorecard_sha256,
+                "new_subject_sha256": replacement_subject_sha256,
+                "changed_evidence_refs": changed_refs,
+                "reason": "address the exact requested provenance evidence gap",
+                "proposed_reviewer_relation": "independent-assay-replacement-reviewer",
+                "mode": "bounded_delta",
+                "unchanged_base_sha256": scorecard_sha256,
+                "accepted_delta_scope": delta_scope,
+            },
+        }
+        missing_relation = deepcopy(replacement_payload)
+        missing_relation.pop("review_subject_supersession")
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid RequestDiscoveryOutcomeReview transition"):
+            runtime.submit(_command("RequestDiscoveryOutcomeReview", replacement_review_id, 0, missing_relation))
+        assert tuple(runtime.ledger.iter_events()) == before
+        runtime.submit(_command("RequestDiscoveryOutcomeReview", replacement_review_id, 0, replacement_payload))
+        superseded = replay_discovery(runtime.ledger.iter_events())
+        assert superseded["reviews"][review_id]["status"] == "superseded"
+        assert superseded["reviews"][replacement_review_id]["status"] == "pending"
+        tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        next(
+            event
+            for event in tampered
+            if event["event_type"] == "AssayOutcomeReviewRequested"
+            and event["payload"].get("review_id") == replacement_review_id
+        )["payload"].pop("review_subject_supersession")
+        with pytest.raises(IntegrityError, match="invalid Assay review supersession"):
+            replay_discovery(_rehash_events(tampered))
     if verdict == "approve":
         for tampered_verdict in ("approve", "approve_with_conditions"):
             events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -1144,6 +1211,13 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         "AssaySuperseded",
         "CandidateAssayRetryStarted",
     )
+    for event_type in ("AssayRevisitRequested", "AssayRevisitResolved"):
+        tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        next(event for event in tampered if event["event_type"] == event_type)["payload"]["candidate_id"] = (
+            "obj_019fed25-b33e-7740-b280-ffffffffffff"
+        )
+        with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
+            replay_discovery(_rehash_events(tampered))
 
 
 @pytest.mark.parametrize(("spike_verdict", "verdict_row"), [("PASS", "OR-018"), ("PARTIAL", "OR-019")])
@@ -1730,6 +1804,21 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         assert retried["spikes"][spike_id]["status"] == "superseded"
         assert retried["spikes"][retry_spike_id]["status"] == "approval_pending"
         assert retried["candidates"][candidate_id]["status"] == "spike_approval_pending"
+        retry_execution_id = "dec_019fed25-b33e-7740-b280-6f661aaeff73"
+        runtime.submit(
+            _command(
+                "ProposeSpikeExecutionDecision",
+                retry_execution_id,
+                0,
+                {
+                    "row_id": "OR-015",
+                    "candidate_id": candidate_id,
+                    "spike_id": retry_spike_id,
+                    "decision_id": retry_execution_id,
+                    "w2_payload": proposed(retry_execution_id, "spike_retry_execution"),
+                },
+            )
+        )
         cancellation_artifact = {
             "reason": "owner stops the retry before execution",
             "evidence_refs": [revisit_id],
@@ -1739,7 +1828,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             _command(
                 "CancelDiscoveryEvaluation",
                 retry_spike_id,
-                2,
+                3,
                 {
                     "row_id": "OR-022",
                     "evaluation_kind": "spike",
@@ -1753,6 +1842,68 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         cancelled = replay_discovery(runtime.ledger.iter_events())
         assert cancelled["spikes"][retry_spike_id]["status"] == "cancelled"
         assert cancelled["candidates"][candidate_id]["status"] == "spike_cancelled"
+        assert cancelled["decisions"][retry_execution_id]["status"] == "superseded_by_cancellation"
+        assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == (
+            "SpikeExecutionProposalSupersededByCancellation",
+            "SpikeCancelled",
+            "CandidateEvaluationCancelled",
+        )
+        cancellation_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff74"
+        cancellation_contract = deepcopy(review_contract)
+        cancellation_contract.update(
+            new_review_id=cancellation_review_id,
+            subject_ids=[retry_spike_id],
+            subject_hashes=[cancellation_sha256],
+            governing_refs=["W11:OR-040"],
+            review_questions=["Is the exact Spike cancellation supported?"],
+            required_evidence_refs=["evidence:spike-cancellation"],
+        )
+        runtime.submit(
+            _command(
+                "RequestDiscoveryOutcomeReview",
+                cancellation_review_id,
+                0,
+                {
+                    "row_id": "OR-040",
+                    "candidate_id": candidate_id,
+                    "spike_id": retry_spike_id,
+                    "review_id": cancellation_review_id,
+                    "subject_sha256": cancellation_sha256,
+                    "review_contract": cancellation_contract,
+                },
+            )
+        )
+        cancellation_verdict = deepcopy(verdict)
+        cancellation_verdict.update(
+            review_id=cancellation_review_id,
+            required_evidence_refs=["evidence:spike-cancellation"],
+            unchanged_subject_sha256=cancellation_sha256,
+        )
+        cancellation_review = _command(
+            "ReviewDiscoveryOutcome",
+            cancellation_review_id,
+            1,
+            {
+                "row_id": "OR-041",
+                "candidate_id": candidate_id,
+                "spike_id": retry_spike_id,
+                "review_id": cancellation_review_id,
+                "subject_sha256": cancellation_sha256,
+                "review_verdict": cancellation_verdict,
+            },
+        )
+        cancellation_review["actor_id"] = reviewer_id
+        runtime.submit(cancellation_review)
+        cancellation_reviewed = replay_discovery(runtime.ledger.iter_events())
+        assert cancellation_reviewed["spikes"][retry_spike_id]["status"] == "cancellation_reviewed"
+        assert cancellation_reviewed["candidates"][candidate_id]["status"] == "spike_revisit_eligible"
+        for event_type in ("SpikeRevisitRequested", "SpikeRevisitResolved"):
+            tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+            next(event for event in tampered if event["event_type"] == event_type)["payload"]["candidate_id"] = (
+                "obj_019fed25-b33e-7740-b280-ffffffffffff"
+            )
+            with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
+                replay_discovery(_rehash_events(tampered))
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(
