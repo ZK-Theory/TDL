@@ -1061,12 +1061,13 @@ class DiscoveryRuntime:
             raise IntegrityError("accepted dossier authority is not active")
         payload = command.envelope["payload"]
         if (
-            set(payload) != {"row_id", "dossier_id", "expected_set_id", "candidate_members"}
+            set(payload) != {"row_id", "dossier_id", "expected_set_id", "candidate_members", "candidate_manifest"}
             or payload.get("row_id") != "OR-028"
             or payload.get("dossier_id") != expected.dossier_id
             or payload.get("expected_set_id") != expected.expected_set_id
             or command.target_stream_id != expected.dossier_id
             or not isinstance(payload.get("candidate_members"), list)
+            or not isinstance(payload.get("candidate_manifest"), dict)
         ):
             raise IntegrityError("invalid AdmitResearchDossier command")
         try:
@@ -1077,6 +1078,7 @@ class DiscoveryRuntime:
             expected_set=expected,
             current_expected_set_revision=current_revision,
             candidate_members=members,
+            candidate_manifest=payload["candidate_manifest"],
             registered_roots=roots,
             existing_identities=frozenset(
                 {

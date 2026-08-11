@@ -248,6 +248,7 @@ def prepare_dossier_admission(
     expected_set: AcceptedExpectedSet,
     current_expected_set_revision: int,
     candidate_members: tuple[DossierMember, ...],
+    candidate_manifest: Mapping[str, Any],
     registered_roots: Mapping[str, RegisteredRoot],
     existing_identities: frozenset[str] = frozenset(),
 ) -> PreparedDossierAdmission:
@@ -331,11 +332,15 @@ def prepare_dossier_admission(
         raise DossierAdmissionRejected("stale_package_identity")
     if package.get("execution_authorized") is not False or package.get("dispatchable") is not False:
         raise DossierAdmissionRejected("provider_execution_boundary_violated")
-    manifest_members = package.get("members")
+    manifest_members = candidate_manifest.get("members")
     admitted_members = [row for row in observed if row["member_kind"] != "package_index"]
     if (
-        not isinstance(manifest_members, list)
-        or package.get("member_count") != len(manifest_members)
+        candidate_manifest.get("schema_id") != "ars://portfolio/research-dossier-admission-manifest"
+        or candidate_manifest.get("schema_version") != "1.0.0"
+        or candidate_manifest.get("package_id") != expected_set.package_id
+        or candidate_manifest.get("package_version") != expected_set.package_version
+        or not isinstance(manifest_members, list)
+        or candidate_manifest.get("member_count") != len(manifest_members)
         or manifest_members != admitted_members
     ):
         raise DossierAdmissionRejected("package_manifest_closure_mismatch")
@@ -354,6 +359,7 @@ def prepare_dossier_admission(
         "admission_profile_hash": expected_set.admission_profile_hash,
         "member_count": len(observed),
         "member_closure_hash": closure_hash,
+        "candidate_manifest_hash": _canonical_hash(candidate_manifest),
         "ownership_effect": "successor_owned_new_objects_only",
         "provider_execution": "forbidden",
     }
