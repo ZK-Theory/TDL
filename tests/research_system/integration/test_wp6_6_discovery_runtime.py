@@ -796,6 +796,12 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         },
     )
     original_event_binding = SchemaRegistry.event_binding
+    spoofed_shadow = deepcopy(review_request_command)
+    spoofed_shadow["payload"]["review_contract"]["authority_event_type"] = "ReviewRequested"
+    with pytest.raises(IntegrityError, match="invalid Discovery authority shadow payload"):
+        runtime.submit(spoofed_shadow)
+    assert runtime.receipts.load(review_request_command["command_id"]) is None
+    assert all(event["command_id"] != review_request_command["command_id"] for event in runtime.ledger.iter_events())
 
     def missing_exact_producer_binding(
         schemas: SchemaRegistry,

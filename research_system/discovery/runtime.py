@@ -1542,8 +1542,21 @@ class DiscoveryRuntime:
         def event_schema(event_type: str, payload: Mapping[str, Any]) -> tuple[str, str]:
             """Resolve an exact producer binding, falling back only for Discovery shadow events."""
 
-            if "authority_event_type" in payload:
+            shadow_keys = {
+                "owner_row_id",
+                "authority_kind",
+                "authority_event_type",
+                "authority_payload",
+            }
+            is_authority_shadow = (
+                set(payload) == shadow_keys
+                and payload.get("authority_event_type") == event_type
+                and isinstance(payload.get("authority_payload"), Mapping)
+            )
+            if is_authority_shadow:
                 return "ars://core/event", "1.0.0"
+            if "authority_event_type" in payload:
+                raise IntegrityError("invalid Discovery authority shadow payload")
             event_binding = self.schemas.event_binding(event_type, envelope["command_type"])
             if event_binding is not None:
                 return event_binding.schema_id, event_binding.schema_version
