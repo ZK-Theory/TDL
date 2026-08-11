@@ -857,6 +857,12 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         },
     )
     review_command["actor_id"] = reviewer_id
+    insufficient_independence = deepcopy(review_command)
+    insufficient_independence["payload"]["review_verdict"]["computed_independence_grade"] = "related"
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid ReviewDiscoveryOutcome transition"):
+        runtime.submit(insufficient_independence)
+    assert tuple(runtime.ledger.iter_events()) == before
     reviewed = runtime.submit(review_command)
 
     assert [requested.status, scored.status, review_requested.status, reviewed.status] == ["accepted"] * 4
@@ -872,6 +878,14 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assert projection["assays"][assay_id]["scorecard_sha256"] == scorecard_sha256
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == review_status
+    tampered_grade = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(
+        event
+        for event in tampered_grade
+        if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == review_id
+    )["payload"]["computed_independence_grade"] = "related"
+    with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+        replay_discovery(_rehash_events(tampered_grade))
     if verdict == "changes_requested":
         replacement_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff5e"
         prior = projection["reviews"][review_id]
@@ -1629,6 +1643,20 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 runtime.submit(substituted_decision)
             assert tuple(runtime.ledger.iter_events()) == before
         if row_id == "OR-015":
+            reused_decision = _command(
+                "ProposeSpikeExecutionDecision",
+                promotion_id,
+                2,
+                {
+                    **deepcopy(command["payload"]),
+                    "decision_id": promotion_id,
+                    "w2_payload": proposed(promotion_id, "spike_execution"),
+                },
+            )
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(IntegrityError, match="invalid Spike transition"):
+                runtime.submit(reused_decision)
+            assert tuple(runtime.ledger.iter_events()) == before
             substituted = deepcopy(command)
             substituted["payload"]["candidate_id"] = foreign_candidate_id
             before = tuple(runtime.ledger.iter_events())
@@ -1791,6 +1819,17 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         },
     )
     spike_review["actor_id"] = reviewer_id
+    mismatched_review = deepcopy(spike_review)
+    mismatched_review["payload"]["review_verdict"]["review_id"] = assay_review_id
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        runtime.submit(mismatched_review)
+    assert tuple(runtime.ledger.iter_events()) == before
+    insufficient_independence = deepcopy(spike_review)
+    insufficient_independence["payload"]["review_verdict"]["computed_independence_grade"] = "related"
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        runtime.submit(insufficient_independence)
+    assert tuple(runtime.ledger.iter_events()) == before
     runtime.submit(spike_review)
 
     projection = replay_discovery(_runtime(tmp_path).ledger.iter_events())
@@ -1808,6 +1847,15 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         assert projection["spikes"][spike_id]["attempt_status"] == "partial"
         assert projection["spikes"][spike_id]["lease_status"] == "released"
     assert tuple(event["event_type"] for event in tuple(runtime.ledger.iter_batches())[-1]) == expected_review_events
+    tampered_review = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(
+        event
+        for event in tampered_review
+        if event["event_type"] in {"SpikeReviewed", "SpikePartialReviewed", "SpikeCancellationReviewed"}
+        and event["stream_id"] == spike_id
+    )["payload"]["review_id"] = assay_review_id
+    with pytest.raises(IntegrityError, match="invalid Spike .*review"):
+        replay_discovery(_rehash_events(tampered_review))
     if spike_verdict == "PASS":
         post_promotion_id = "dec_019fed25-b33e-7740-b280-6f661aaeff74"
         post_promotion = _command(
@@ -1824,6 +1872,20 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "w2_payload": proposed(post_promotion_id, "spike_to_preregistration"),
             },
         )
+        reused_decision = _command(
+            "ProposePromotionDecision",
+            execution_id,
+            2,
+            {
+                **deepcopy(post_promotion["payload"]),
+                "decision_id": execution_id,
+                "w2_payload": proposed(execution_id, "spike_to_preregistration"),
+            },
+        )
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Spike transition"):
+            runtime.submit(reused_decision)
+        assert tuple(runtime.ledger.iter_events()) == before
         foreign_verdict = deepcopy(post_promotion)
         foreign_verdict["payload"]["verdict_sha256"] = "f" * 64
         before = tuple(runtime.ledger.iter_events())

@@ -674,6 +674,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "subject_sha256": subject_hashes[0],
                 "allowed_verdicts": required_string_list("allowed_verdicts"),
                 "required_evidence_refs": required_string_list("required_evidence_refs"),
+                "required_independence_grade": required_string("required_independence_grade"),
                 "request_actor_id": event.get("actor_id"),
                 "request_event_id": event.get("event_id"),
                 "request_event_hash": event.get("event_hash"),
@@ -712,7 +713,8 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 prior_review.update(status="superseded", superseded_by_review_id=review["review_id"])
             assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
         elif event_type == "ReviewVerdictRecorded":
-            review = state["reviews"].get(payload.get("review_id"))
+            review_id = required_string("review_id")
+            review = state["reviews"].get(review_id)
             reviewer_actor_id = required_string("reviewer_actor_id")
             subject_collection = {
                 "assay": state["assays"],
@@ -726,12 +728,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(review, dict)
                 or not isinstance(subject, dict)
+                or event["stream_id"] != review_id
                 or review.get("status") != "pending"
                 or review.get("subject_sha256") != payload.get("unchanged_subject_sha256")
                 or payload.get("verdict") not in review.get("allowed_verdicts", ())
                 or reviewer_actor_id != event.get("actor_id")
                 or reviewer_actor_id == review.get("request_actor_id")
                 or reviewer_actor_id == subject.get("producer_actor_id")
+                or payload.get("computed_independence_grade") != review.get("required_independence_grade")
             ):
                 raise IntegrityError("invalid Discovery review verdict")
             review.update(
@@ -1049,6 +1053,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if (
                 not isinstance(spike, dict)
                 or not spike.get("review_pending")
+                or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
             ):
@@ -1066,6 +1071,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 not isinstance(spike, dict)
                 or spike.get("status") != "partial_recorded"
                 or not spike.get("review_pending")
+                or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
             ):
@@ -1103,6 +1109,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 not isinstance(spike, dict)
                 or spike.get("status") != "cancelled"
                 or not spike.get("review_pending")
+                or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
             ):
@@ -2381,6 +2388,7 @@ class DiscoveryRuntime:
             and isinstance(assay, dict)
             and assay.get("status") == "reviewed"
             and command.target_stream_id == decision_id
+            and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
         ):
@@ -2449,6 +2457,7 @@ class DiscoveryRuntime:
             and spike.get("status") == "approval_pending"
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == decision_id
+            and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
         ):
@@ -2683,14 +2692,18 @@ class DiscoveryRuntime:
             and row in {"OR-020", "OR-021", "OR-041"}
             and spike
             and spike.get("review_pending")
+            and spike.get("review_id") == review_id
             and spike.get("candidate_id") == candidate_id
             and projection["reviews"].get(review_id, {}).get("status") == "pending"
             and command.target_stream_id == review_id
             and p.get("subject_sha256") == projection["reviews"][review_id].get("subject_sha256")
             and isinstance(p.get("review_verdict"), dict)
+            and p["review_verdict"].get("review_id") == review_id
             and p["review_verdict"].get("reviewer_actor_id") == command.actor_id
             and projection["reviews"][review_id].get("request_actor_id") != command.actor_id
             and spike.get("producer_actor_id") != command.actor_id
+            and p["review_verdict"].get("computed_independence_grade")
+            == projection["reviews"][review_id].get("required_independence_grade")
             and p["review_verdict"].get("verdict") in projection["reviews"][review_id].get("allowed_verdicts", ())
             and p.get("review_verdict", {}).get("unchanged_subject_sha256")
             == projection["reviews"][review_id].get("subject_sha256")
@@ -2730,6 +2743,7 @@ class DiscoveryRuntime:
             and p.get("review_id") == spike.get("review_id")
             and projection["reviews"].get(p.get("review_id"), {}).get("status") == "satisfied"
             and command.target_stream_id == decision_id
+            and decision is None
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
         ):
@@ -3180,6 +3194,7 @@ class DiscoveryRuntime:
                 or review.get("subject_sha256") != payload.get("subject_sha256")
                 or review.get("request_actor_id") == command.actor_id
                 or review_verdict.get("verdict") not in review.get("allowed_verdicts", ())
+                or review_verdict.get("computed_independence_grade") != review.get("required_independence_grade")
                 or not isinstance(assay, dict)
                 or not assay.get("review_pending")
                 or assay.get("review_id") != review_id

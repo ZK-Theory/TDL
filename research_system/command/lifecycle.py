@@ -436,6 +436,16 @@ _EXACT_LIFECYCLE_PRODUCER_BINDINGS = {
         "RecordSpikeVerdict",
         "ars://core/command",
     ),
+    ("ars://core/event/PartialOutcomeRecorded", "CancelDiscoveryEvaluation"): (
+        "PartialOutcomeRecorded",
+        "CancelDiscoveryEvaluation",
+        "ars://core/command",
+    ),
+    ("ars://core/event/LeaseReleased", "CancelDiscoveryEvaluation"): (
+        "LeaseReleased",
+        "CancelDiscoveryEvaluation",
+        "ars://core/command",
+    ),
 }
 
 _MESSAGE_EVENT_SCHEMA_IDS = {
@@ -449,7 +459,12 @@ _MESSAGE_EVENT_SCHEMA_IDS = {
 _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset(
     {"TaskClaimStarted", "LeaseExpired", "AttemptCreated", "PartialOutcomeRecorded", "ArtefactUseAuthoritySet"}
 )
-_DERIVED_PRODUCER_PAYLOAD_EVENTS = frozenset({("LeaseReleased", "RecordSpikeVerdict")})
+_DERIVED_PRODUCER_PAYLOAD_EVENTS = frozenset(
+    {
+        ("LeaseReleased", "RecordSpikeVerdict"),
+        ("LeaseReleased", "CancelDiscoveryEvaluation"),
+    }
+)
 
 
 def validate_exact_lifecycle_envelope(
