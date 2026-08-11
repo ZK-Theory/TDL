@@ -7,6 +7,7 @@ import pytest
 from research_system.discovery import replay_discovery
 from research_system.store.ledger import EventLedger
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
+    _accept_assay_bar,
     _command,
     _genesis,
     _runtime,
@@ -31,14 +32,15 @@ def _registered_runtime(tmp_path: Path):
             },
         )
     )
-    return runtime, candidate_id
+    acceptance_sha256, producer_relation_sha256 = _accept_assay_bar(runtime)
+    return runtime, candidate_id, acceptance_sha256, producer_relation_sha256
 
 
 def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    runtime, candidate_id = _registered_runtime(tmp_path)
+    runtime, candidate_id, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff69"
     command = _command(
         "RequestAssay",
@@ -50,14 +52,15 @@ def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
             "assay_id": assay_id,
             "candidate_revision": 1,
             "candidate_sha256": "a" * 64,
-            "assay_bar_acceptance_sha256": "b" * 64,
-            "producer_relation_sha256": "c" * 64,
+            "assay_bar_acceptance_sha256": acceptance_sha256,
+            "producer_relation_sha256": producer_relation_sha256,
         },
     )
     before = tuple(runtime.ledger.iter_events())
+    discovery_control_root = runtime.ledger.control_root
 
     def interrupt_before_publish(ledger: EventLedger, _temporary: Path) -> None:
-        if ledger.control_root == tmp_path / "discovery":
+        if ledger.control_root == discovery_control_root:
             raise OSError("injected pre-publication interruption")
 
     with monkeypatch.context() as patch:
@@ -85,7 +88,7 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    runtime, candidate_id = _registered_runtime(tmp_path)
+    runtime, candidate_id, acceptance_sha256, producer_relation_sha256 = _registered_runtime(tmp_path)
     assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff6a"
     command = _command(
         "RequestAssay",
@@ -97,13 +100,14 @@ def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
             "assay_id": assay_id,
             "candidate_revision": 1,
             "candidate_sha256": "a" * 64,
-            "assay_bar_acceptance_sha256": "b" * 64,
-            "producer_relation_sha256": "c" * 64,
+            "assay_bar_acceptance_sha256": acceptance_sha256,
+            "producer_relation_sha256": producer_relation_sha256,
         },
     )
+    discovery_control_root = runtime.ledger.control_root
 
     def interrupt_after_publish(ledger: EventLedger, _target: Path) -> None:
-        if ledger.control_root == tmp_path / "discovery":
+        if ledger.control_root == discovery_control_root:
             raise OSError("injected post-publication interruption")
 
     with monkeypatch.context() as patch:
