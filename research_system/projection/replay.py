@@ -38,6 +38,7 @@ from research_system.command.reducers import (
 )
 from research_system.command.lifecycle import validate_exact_lifecycle_envelope
 from research_system.command.t2 import apply_t2_event
+from research_system.discovery.commands import discovery_resolve_transaction_ids, is_discovery_projection_event
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -375,13 +376,23 @@ def _validate_claim_dispatch_transaction(
         raise IntegrityError("ClaimDispatch event schema representation mismatch")
 
 
-def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+def apply_event(
+    state: dict[str, Any],
+    event: dict[str, Any],
+    *,
+    discovery_projection_event: bool = False,
+) -> dict[str, Any]:
     updated = deepcopy(state)
     streams = updated.setdefault("streams", {})
     stream_id = event["stream_id"]
     event_type = event["event_type"]
     if str(event.get("schema_id", "")).startswith("ars://wp6-2/t2/event/"):
         return apply_t2_event(updated, event)
+    if discovery_projection_event:
+        # The shared-ledger envelope, schema, hash-chain, stream-version and
+        # transaction checks are performed by _replay. Discovery semantics are
+        # validated once by replay_discovery at that same generic boundary.
+        return updated
     if event_type == "AuthorityRootInitialized":
         payload = event["payload"]
         if set(payload) != {
@@ -1088,6 +1099,8 @@ def _replay(
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
 ) -> dict[str, Any]:
+    ordered_events = tuple(events)
+    resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
     state: dict[str, Any] = {
         "streams": {},
         "last_position": 0,
@@ -1100,7 +1113,7 @@ def _replay(
     transaction_seen = 0
     transaction_zero_based = False
     transaction_events: list[dict[str, Any]] = []
-    for source in events:
+    for source in ordered_events:
         event = deepcopy(source)
         position = event.get("global_position")
         if _major(event) != supported_major:
@@ -1190,7 +1203,12 @@ def _replay(
                 "command_schema_version": command_identity.schema_version,
                 "command_schema_sha256": command_identity.raw_bytes_sha256,
             }
-        _validate_active_lifecycle_binding(projection_event, schema_registry)
+        discovery_projection_event = is_discovery_projection_event(
+            projection_event,
+            resolve_transaction_ids=resolve_transaction_ids,
+        )
+        if not discovery_projection_event:
+            _validate_active_lifecycle_binding(projection_event, schema_registry)
         project_id = event.get("project_id")
         if state["project_id"] is None:
             state["project_id"] = project_id
@@ -1221,7 +1239,11 @@ def _replay(
         transaction_events.append(projection_event)
         if transaction_seen == transaction_count:
             _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
-        state = apply_event(state, projection_event)
+        state = apply_event(
+            state,
+            projection_event,
+            discovery_projection_event=discovery_projection_event,
+        )
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:
@@ -1230,6 +1252,15 @@ def _replay(
         if authority_state_validator is None:
             raise IntegrityError("authority administration decision validator unavailable")
         authority_state_validator(state)
+    if any(
+        is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids)
+        for event in ordered_events
+    ):
+        # Lazy import keeps the command-family predicate a leaf while making
+        # public shared-ledger replay reject Discovery semantic tampering.
+        from research_system.discovery.runtime import replay_discovery
+
+        replay_discovery(ordered_events, schemas=schema_registry)
     return state
 
 

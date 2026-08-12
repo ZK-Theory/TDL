@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import secrets
 from types import TracebackType
-from typing import Any, Literal, NoReturn, Self
+from typing import Any, Literal, NoReturn, Protocol, Self
 
 from research_system.canonical import canonical_bytes
 from research_system.errors import ConflictError
@@ -221,6 +221,17 @@ class DirectoryIdentity:
     scheme: Literal["windows-file-id-v1", "posix-dev-inode-v1"]
     volume_or_device: int
     file_id: bytes
+
+
+class DirectoryAnchor(Protocol):
+    """Public structural contract for a held physical directory anchor."""
+
+    identity: DirectoryIdentity
+    final_path: Path
+
+    def refresh(self) -> tuple[DirectoryIdentity, Path]: ...
+
+    def close(self) -> None: ...
 
 
 class _LeaseState:
@@ -683,6 +694,30 @@ def _open_directory_anchor(
         reject_reparse=reject_reparse,
         delete_protect=delete_protect,
     )
+
+
+def open_registered_root_anchor(path: Path, *, delete_protect: bool) -> DirectoryAnchor:
+    """Open the physical anchor for an explicitly registered root.
+
+    Registered roots may themselves be junctions, so this purpose-named seam
+    follows the root alias while retaining the physical identity handle.
+    Nested member aliases remain the caller's responsibility to reject.
+
+    Args:
+        path: Registered root path whose physical directory is opened.
+        delete_protect: Whether the held anchor prevents replacement while open.
+
+    Returns:
+        A physical directory anchor for the registered root.
+    """
+
+    return _open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)
+
+
+def open_registered_member_directory_anchor(path: Path) -> DirectoryAnchor:
+    """Open one non-reparse member directory with replacement protection."""
+
+    return _open_directory_anchor(path, reject_reparse=True, delete_protect=True)
 
 
 def _root_sort_key(path: Path) -> tuple[str, str]:
