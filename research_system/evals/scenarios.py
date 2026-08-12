@@ -366,12 +366,13 @@ class FoundationPorts:
         events.extend(
             "ProviderCommandIssued" for event in writer.events if event["event_type"] == "ContextPacketIssued"
         )
+        provider_command_count = sum(event["event_type"] == "ContextPacketIssued" for event in writer.events)
         return Gate3ScenarioResult(
             "A",
             tuple(events),
             producer_actor_id=f"actor-{producer_profile}",
             verifier_actor_id=f"actor-{verifier_profile}",
-            provider_command_count=int(receipt.complete),
+            provider_command_count=provider_command_count,
         )
 
     def reroute_outage(self) -> Gate3ScenarioResult:
