@@ -152,6 +152,12 @@ def test_assay_authority_rejects_empty_durable_file_path_and_review_id(tmp_path:
     with pytest.raises(AssayAuthorityRejected, match="invalid_review_id"):
         replay_assay_bar_authority(empty_review_id)
 
+    aliased_path = deepcopy(valid_events)
+    observed = next(event for event in aliased_path if event["event_type"] == "W11AuthorityFileObserved")
+    observed["payload"]["repository_path"] = ".research-system/contracts/wp6-6/../wp6-6/assay-rubric-content-v1.json"
+    with pytest.raises(AssayAuthorityRejected, match="authority_file_path_alias"):
+        replay_assay_bar_authority(aliased_path)
+
 
 def _run(kind: str) -> tuple[dict[str, object], ...]:
     subject = _subject(kind)

@@ -4768,3 +4768,639 @@ def test_replay_rejects_rehashed_candidate_spike_plan_link_without_exact_plan_tr
             continue
         accepted.append(index)
     assert accepted == []
+
+
+def _two_assay_pending_candidates(
+    runtime: DiscoveryRuntime,
+) -> tuple[tuple[str, str, str], tuple[str, str, str], str]:
+    """Drive two independent Candidates to the Assay-pending boundary."""
+
+    runtime.submit(_genesis())
+    identities = (
+        (
+            "obj_019fed25-b33e-7740-b280-000000009001",
+            "obj_019fed25-b33e-7740-b280-000000009002",
+            "asy_019fed25-b33e-7740-b280-000000009003",
+        ),
+        (
+            "obj_019fed25-b33e-7740-b280-000000009004",
+            "obj_019fed25-b33e-7740-b280-000000009005",
+            "asy_019fed25-b33e-7740-b280-000000009006",
+        ),
+    )
+    candidates = tuple(
+        (
+            candidate_id,
+            _ingest_candidate(
+                runtime,
+                candidate_id,
+                observation_id=observation_id,
+                title=f"Replay join candidate {index}",
+            ),
+            assay_id,
+        )
+        for index, (candidate_id, observation_id, assay_id) in enumerate(identities, start=1)
+    )
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    for candidate_id, candidate_sha256, assay_id in candidates:
+        assert (
+            runtime.submit(
+                _command(
+                    "RequestAssay",
+                    assay_id,
+                    0,
+                    {
+                        "row_id": "OR-003",
+                        "candidate_id": candidate_id,
+                        "assay_id": assay_id,
+                        "candidate_revision": 1,
+                        "candidate_sha256": candidate_sha256,
+                        "assay_bar_acceptance_sha256": bar_sha256,
+                        "producer_relation_sha256": producer_sha256,
+                    },
+                )
+            ).status
+            == "accepted"
+        )
+    return candidates[0], candidates[1], producer_sha256
+
+
+def _assert_exact_subject_candidate_transaction_pair(
+    events: tuple[dict[str, object], ...],
+    subject_event_type: str,
+    candidate_event_type: str,
+) -> None:
+    """Reject a fully rehashed transaction missing either exact paired event."""
+
+    subject = next(event for event in events if event["event_type"] == subject_event_type)
+    transaction_id = subject["transaction_id"]
+    boundary = max(index for index, event in enumerate(events) if event["transaction_id"] == transaction_id)
+    baseline = events[: boundary + 1]
+    accepted = []
+    for missing_event_type in (subject_event_type, candidate_event_type):
+        attacked = tuple(
+            event
+            for event in deepcopy(baseline)
+            if not (event["transaction_id"] == transaction_id and event["event_type"] == missing_event_type)
+        )
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(missing_event_type)
+    assert accepted == []
+
+
+def test_replay_binds_candidate_assay_request_partial_and_cancellation_to_exact_transaction(
+    tmp_path: Path,
+) -> None:
+    """Reject fully rehashed cross-Candidate Assay shadow substitutions."""
+
+    request_root = tmp_path / "request"
+    request_root.mkdir()
+    request_runtime = _runtime(request_root)
+    first, second, _ = _two_assay_pending_candidates(request_runtime)
+    first_candidate_id, _, first_assay_id = first
+    second_candidate_id, _, _ = second
+    requested_events = tuple(deepcopy(event) for event in request_runtime.ledger.iter_events())
+    _assert_exact_subject_candidate_transaction_pair(
+        requested_events,
+        "AssayRequested",
+        "CandidateAssayRequested",
+    )
+    first_request_link = next(
+        index
+        for index, event in enumerate(requested_events)
+        if event["event_type"] == "CandidateAssayRequested"
+        and event["payload"].get("candidate_id") == first_candidate_id
+    )
+    redirected_request = requested_events[: first_request_link + 1]
+    redirected_request[-1]["stream_id"] = second_candidate_id
+    redirected_request[-1]["payload"]["candidate_id"] = second_candidate_id
+    with pytest.raises(IntegrityError, match="invalid (?:Assay request|Candidate Assay) transition"):
+        replay_discovery(_fully_reindex_and_rehash_events(redirected_request))
+
+    partial_root = tmp_path / "partial"
+    partial_root.mkdir()
+    partial_runtime = _runtime(partial_root)
+    first, second, producer_sha256 = _two_assay_pending_candidates(partial_runtime)
+    first_candidate_id, first_candidate_sha256, first_assay_id = first
+    second_candidate_id, _, _ = second
+    bar = replay_discovery(partial_runtime.ledger.iter_events())["assay_bar_authority"]
+    artifact = {
+        "schema_id": "ars://portfolio/assay-partial",
+        "schema_version": "1.0.0",
+        "assay_id": first_assay_id,
+        "candidate_ref": _ref(first_candidate_id, 1, first_candidate_sha256),
+        "rubric_ref": deepcopy(bar["acceptance"]["rubric_ref"]),
+        "scope_ref": deepcopy(bar["acceptance"]["scope_ref"]),
+        "assay_bar_acceptance_ref": _ref(bar["acceptance"]["decision_id"], 1, bar["acceptance_sha256"]),
+        "assay_relation_hash": producer_sha256,
+        "completed_axes": [],
+        "completed_evidence": [],
+        "unmet_axes": ["identity"],
+        "unmet_evidence": [],
+        "reason_codes": ["incomplete_axis_closure"],
+        "limitations": ["incomplete axis closure"],
+        "revisit_requirements": ["complete remaining axes"],
+        "mechanical_recommendation": "PARK",
+    }
+    partial_sha256 = sha256_hex(canonical_bytes(artifact))
+    assert (
+        partial_runtime.submit(
+            _command(
+                "RecordAssayPartial",
+                first_assay_id,
+                2,
+                {
+                    "row_id": "OR-005",
+                    "candidate_id": first_candidate_id,
+                    "assay_id": first_assay_id,
+                    "producer_relation_sha256": producer_sha256,
+                    "partial_sha256": partial_sha256,
+                    "partial_artifact": artifact,
+                },
+            )
+        ).status
+        == "accepted"
+    )
+    partial_events = tuple(deepcopy(event) for event in partial_runtime.ledger.iter_events())
+    _assert_exact_subject_candidate_transaction_pair(
+        partial_events,
+        "AssayPartialRecorded",
+        "CandidateAssayPartialLinked",
+    )
+    partial_link = next(
+        index for index, event in enumerate(partial_events) if event["event_type"] == "CandidateAssayPartialLinked"
+    )
+    redirected_partial = partial_events[: partial_link + 1]
+    redirected_partial[-1]["stream_id"] = second_candidate_id
+    redirected_partial[-1]["payload"]["candidate_id"] = second_candidate_id
+    with pytest.raises(IntegrityError, match="invalid (?:Assay|Candidate Assay) partial transition"):
+        replay_discovery(_fully_reindex_and_rehash_events(redirected_partial))
+
+    cancellation_root = tmp_path / "cancellation"
+    cancellation_root.mkdir()
+    cancellation_runtime = _runtime(cancellation_root)
+    first, second, producer_sha256 = _two_assay_pending_candidates(cancellation_runtime)
+    first_candidate_id, first_candidate_sha256, first_assay_id = first
+    second_candidate_id, _, _ = second
+    projection = replay_discovery(cancellation_runtime.ledger.iter_events())
+    assay = projection["assays"][first_assay_id]
+    candidate_ref = _ref(first_candidate_id, 1, first_candidate_sha256)
+    cancellation_artifact = {
+        "assay_id": first_assay_id,
+        "candidate_ref": candidate_ref,
+        "assay_requested_event_ref": _ref(first_assay_id, assay["request_version"], assay["requested_event_hash"]),
+        "producer_relation_sha256": producer_sha256,
+        "evidence_refs": [candidate_ref],
+        "reason": "stop the exact provider-free assay",
+    }
+    cancellation_sha256 = sha256_hex(canonical_bytes(cancellation_artifact))
+    assert (
+        cancellation_runtime.submit(
+            _command(
+                "CancelDiscoveryEvaluation",
+                first_assay_id,
+                2,
+                {
+                    "row_id": "OR-008",
+                    "evaluation_kind": "assay",
+                    "candidate_id": first_candidate_id,
+                    "assay_id": first_assay_id,
+                    "cancellation_sha256": cancellation_sha256,
+                    "cancellation_artifact": cancellation_artifact,
+                },
+            )
+        ).status
+        == "accepted"
+    )
+    cancellation_events = tuple(deepcopy(event) for event in cancellation_runtime.ledger.iter_events())
+    _assert_exact_subject_candidate_transaction_pair(
+        cancellation_events,
+        "AssayCancelled",
+        "CandidateEvaluationCancelled",
+    )
+    cancellation_link = next(
+        index
+        for index, event in enumerate(cancellation_events)
+        if event["event_type"] == "CandidateEvaluationCancelled" and event["payload"].get("evaluation_kind") == "assay"
+    )
+    redirected_cancellation = cancellation_events[: cancellation_link + 1]
+    redirected_cancellation[-1]["stream_id"] = second_candidate_id
+    redirected_cancellation[-1]["payload"]["candidate_id"] = second_candidate_id
+    with pytest.raises(IntegrityError, match="invalid (?:Assay|Candidate evaluation) cancellation"):
+        replay_discovery(_fully_reindex_and_rehash_events(redirected_cancellation))
+
+
+def _clone_registered_candidate(
+    events: tuple[dict[str, object], ...],
+    candidate_id: str,
+) -> tuple[dict[str, object], ...]:
+    """Add one valid OR-029 Candidate to an existing Scout transaction."""
+
+    cloned = list(deepcopy(events))
+    source_index = next(
+        index
+        for index, event in enumerate(cloned)
+        if event["event_type"] == "CandidateRegistered" and event.get("command_type") == "IngestScoutObservationBatch"
+    )
+    candidate = deepcopy(cloned[source_index])
+    candidate["event_id"] = new_id("event")
+    candidate["stream_id"] = candidate_id
+    candidate["payload"]["candidate_id"] = candidate_id
+    candidate["payload"]["title"] = "Fully rehashed redirect target"
+    cloned.insert(source_index + 1, candidate)
+    return tuple(cloned)
+
+
+def test_replay_binds_spike_authorization_and_partial_review_to_exact_candidate_transaction(
+    tmp_path: Path,
+) -> None:
+    """Reject cross-Candidate authorization and detached partial-review shadows."""
+
+    authorized_root = tmp_path / "authorized"
+    authorized_root.mkdir()
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+        authorized_root,
+        "PASS",
+        "OR-018",
+    )
+    authorized_events = tuple(deepcopy(event) for event in _HARNESSES[authorized_root].ledger.iter_events())
+    _assert_exact_subject_candidate_transaction_pair(
+        authorized_events,
+        "SpikeAuthorized",
+        "CandidateSpikeAuthorized",
+    )
+    boundary = next(
+        index for index, event in enumerate(authorized_events) if event["event_type"] == "CandidateSpikeAuthorized"
+    )
+    foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff74"
+    redirected = list(deepcopy(authorized_events[: boundary + 1]))
+    authorized_link = next(event for event in redirected if event["event_type"] == "CandidateSpikeAuthorized")
+    authorized_link["stream_id"] = foreign_candidate_id
+    authorized_link["payload"]["candidate_id"] = foreign_candidate_id
+    with pytest.raises(IntegrityError, match="invalid (?:Spike|Candidate Spike) authorization"):
+        replay_discovery(_fully_reindex_and_rehash_events(tuple(redirected)))
+
+    partial_root = tmp_path / "partial"
+    partial_root.mkdir()
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+        partial_root,
+        "PARTIAL",
+        "OR-019",
+    )
+    partial_events = tuple(deepcopy(event) for event in _HARNESSES[partial_root].ledger.iter_events())
+    _assert_exact_subject_candidate_transaction_pair(
+        partial_events,
+        "SpikePartialReviewed",
+        "CandidateSpikePartialReviewed",
+    )
+    boundary = next(
+        index for index, event in enumerate(partial_events) if event["event_type"] == "CandidateSpikePartialReviewed"
+    )
+    baseline = partial_events[: boundary + 1]
+    link = baseline[-1]
+    attacks = []
+    wrong_stream = tuple(deepcopy(event) for event in baseline)
+    wrong_stream[-1]["stream_id"] = wrong_stream[-1]["payload"]["spike_id"]
+    attacks.append(wrong_stream)
+    wrong_spike = tuple(deepcopy(event) for event in baseline)
+    wrong_spike[-1]["payload"]["spike_id"] = "spk_019fed25-b33e-7740-b280-000000009102"
+    attacks.append(wrong_spike)
+    wrong_review = tuple(deepcopy(event) for event in baseline)
+    wrong_review[-1]["payload"]["review_id"] = "rev_019fed25-b33e-7740-b280-000000009103"
+    attacks.append(wrong_review)
+    attacks.append(
+        tuple(
+            deepcopy(event)
+            for event in baseline
+            if not (event["event_type"] == "SpikePartialReviewed" and event["transaction_id"] == link["transaction_id"])
+        )
+    )
+    accepted = []
+    for index, attack in enumerate(attacks):
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attack))
+        except IntegrityError:
+            continue
+        accepted.append(index)
+    assert accepted == []
+
+
+def test_replay_rejects_extra_register_candidate_and_scout_transaction_members(tmp_path: Path) -> None:
+    """Require OR-001 and OR-029 to persist their exact Candidate sets."""
+
+    test_candidate_registration_runs_through_durable_public_seam(tmp_path)
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    original_index = next(
+        index
+        for index, event in enumerate(events)
+        if event["event_type"] == "CandidateRegistered" and event["command_type"] == "RegisterCandidate"
+    )
+    attacked = list(events)
+    extra = deepcopy(attacked[original_index])
+    extra_id = "obj_019fed25-b33e-7740-b280-000000009201"
+    extra["event_id"] = new_id("event")
+    extra["stream_id"] = extra_id
+    extra["payload"]["candidate_id"] = extra_id
+    extra["payload"]["title"] = "Injected Candidate transaction member"
+    attacked.insert(original_index + 1, extra)
+
+    with pytest.raises(IntegrityError, match="RegisterCandidate transaction shape mismatch"):
+        replay_discovery(_fully_reindex_and_rehash_events(tuple(attacked)))
+
+    scout_root = tmp_path / "scout"
+    scout_root.mkdir()
+    scout_runtime = _runtime(scout_root)
+    scout_runtime.submit(_genesis())
+    _ingest_candidate(
+        scout_runtime,
+        "obj_019fed25-b33e-7740-b280-000000009202",
+        observation_id="obj_019fed25-b33e-7740-b280-000000009203",
+        title="Exact Scout candidate set",
+    )
+    scout_events = tuple(deepcopy(event) for event in scout_runtime.ledger.iter_events())
+    attacked_scout = _clone_registered_candidate(
+        scout_events,
+        "obj_019fed25-b33e-7740-b280-000000009204",
+    )
+    with pytest.raises(IntegrityError, match="Scout transaction shape mismatch"):
+        replay_discovery(_fully_reindex_and_rehash_events(attacked_scout))
+
+
+def test_replay_revisit_resolution_uses_the_subject_and_candidate_stored_decision(tmp_path: Path) -> None:
+    """Reject substitution of another resolved Decision with the same option."""
+
+    test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path)
+    events = list(deepcopy(tuple(_HARNESSES[tmp_path].ledger.iter_events())))
+    subject_resolution_index = next(
+        index for index, event in enumerate(events) if event["event_type"] == "AssayRevisitResolved"
+    )
+    baseline = events[: subject_resolution_index + 2]
+    subject_resolution = baseline[subject_resolution_index]
+    original_decision_id = subject_resolution["payload"]["decision_id"]
+    substituted_decision_id = "dec_019fed25-b33e-7740-b280-000000009301"
+    proposal_index = next(
+        index
+        for index, event in enumerate(baseline)
+        if event["event_type"] == "DecisionProposed" and event["payload"].get("new_decision_id") == original_decision_id
+    )
+    extra_proposal = deepcopy(baseline[proposal_index])
+    extra_proposal["event_id"] = new_id("event")
+    extra_proposal["stream_id"] = substituted_decision_id
+    extra_proposal["payload"]["new_decision_id"] = substituted_decision_id
+    baseline.insert(proposal_index + 1, extra_proposal)
+    subject_resolution_index += 1
+    resolution_index = next(
+        index
+        for index, event in enumerate(baseline)
+        if event["event_type"] == "DecisionResolved"
+        and event["payload"].get("decision_id") == original_decision_id
+        and index < subject_resolution_index
+    )
+    extra_resolution = deepcopy(baseline[resolution_index])
+    extra_resolution["event_id"] = new_id("event")
+    extra_resolution["stream_id"] = substituted_decision_id
+    extra_resolution["payload"]["decision_id"] = substituted_decision_id
+    baseline.insert(resolution_index + 1, extra_resolution)
+    for event in baseline:
+        if event["event_type"] in {"AssayRevisitResolved", "CandidateAssayRevisitResolved"}:
+            event["payload"]["decision_id"] = substituted_decision_id
+
+    with pytest.raises(
+        IntegrityError, match="invalid Discovery revisit resolution|invalid Candidate revisit resolution"
+    ):
+        replay_discovery(_fully_reindex_and_rehash_events(tuple(baseline)))
+
+
+@pytest.mark.parametrize(
+    ("kind", "subject_event_type", "candidate_event_type"),
+    [
+        ("assay", "AssayRevisitResolved", "CandidateAssayRevisitResolved"),
+        ("spike", "SpikeRevisitResolved", "CandidateSpikeRevisitResolved"),
+    ],
+)
+def test_replay_requires_the_exact_subject_and_candidate_revisit_resolution_pair(
+    tmp_path: Path,
+    kind: str,
+    subject_event_type: str,
+    candidate_event_type: str,
+) -> None:
+    """Neither half of a revisit resolution transaction may survive alone."""
+
+    if kind == "assay":
+        test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path)
+    else:
+        test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+            tmp_path,
+            "PARTIAL",
+            "OR-019",
+        )
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    resolution = next(event for event in events if event["event_type"] == subject_event_type)
+    resolution_end = max(
+        index for index, event in enumerate(events) if event["transaction_id"] == resolution["transaction_id"]
+    )
+    baseline = events[: resolution_end + 1]
+    accepted = []
+    for missing_event_type in (subject_event_type, candidate_event_type):
+        attacked = tuple(
+            event
+            for event in deepcopy(baseline)
+            if not (
+                event["transaction_id"] == resolution["transaction_id"] and event["event_type"] == missing_event_type
+            )
+        )
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(missing_event_type)
+    assert accepted == []
+
+
+def test_lost_receipt_recovery_replays_committed_history_before_any_repair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fully rehashed corrupt commit cannot regenerate a missing receipt."""
+
+    runtime = _runtime(tmp_path)
+    command = _genesis()
+    assert runtime.submit(command).status == "accepted"
+    genesis_event = next(
+        event for event in runtime.ledger.iter_events() if event["event_type"] == "W11CatalogueGenesisImported"
+    )
+    primary_receipt = runtime.receipts.receipts_root / f"{genesis_event['command_id']}.json"
+    primary_receipt.unlink()
+    before_receipts = {
+        path.relative_to(runtime.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in runtime.receipts.receipts_root.rglob("*.json")
+    }
+    snapshot = runtime.ledger.snapshot()
+    attacked_events = tuple(deepcopy(event) for event in snapshot.events)
+    next(event for event in attacked_events if event["event_type"] == "W11CatalogueGenesisImported")["payload"][
+        "catalogue_sha256"
+    ] = "0" * 64
+    attacked_events = _rehash_events(attacked_events)
+    monkeypatch.setattr(
+        runtime.ledger,
+        "snapshot",
+        lambda: SimpleNamespace(
+            events=attacked_events,
+            global_position=snapshot.global_position,
+            event_hash=attacked_events[-1]["event_hash"],
+            stream_versions=snapshot.stream_versions,
+            fingerprint=snapshot.fingerprint,
+        ),
+    )
+    retry = deepcopy(command)
+    retry["authority_grant_id"] = genesis_event["authority_grant_id"]
+
+    with pytest.raises(DiscoveryLedgerReplayError, match="persisted Discovery ledger failed replay"):
+        DiscoveryRuntime.submit(runtime, retry)
+
+    after_receipts = {
+        path.relative_to(runtime.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in runtime.receipts.receipts_root.rglob("*.json")
+    }
+    assert after_receipts == before_receipts
+
+
+def test_scoped_receipt_repair_requires_the_exact_committed_transaction(tmp_path: Path) -> None:
+    """A validly-shaped but misbound scoped index cannot regenerate a primary receipt."""
+
+    runtime = _runtime(tmp_path)
+    command = _genesis()
+    receipt = runtime.submit(command)
+    primary_receipt = runtime.receipts.receipts_root / f"{receipt.command_id}.json"
+    primary_receipt.unlink()
+    index_path = next((runtime.receipts.receipts_root / "idempotency").glob("*.json"))
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["receipt"]["outcome"]["event_batch_id"] = "txb_019fed25-b33e-7740-b280-000000009501"
+    index_path.write_bytes(canonical_bytes(index))
+
+    with pytest.raises(ConflictError, match="committed transaction mismatch"):
+        runtime.submit(command)
+
+    assert not primary_receipt.exists()
+
+
+def test_primary_receipt_repair_requires_the_exact_committed_transaction(tmp_path: Path) -> None:
+    """A forged primary receipt cannot seed a missing scoped index."""
+
+    runtime = _runtime(tmp_path)
+    command = _genesis()
+    receipt = runtime.submit(command)
+    index_path = next((runtime.receipts.receipts_root / "idempotency").glob("*.json"))
+    index_path.unlink()
+    primary_path = runtime.receipts.receipts_root / f"{receipt.command_id}.json"
+    primary = json.loads(primary_path.read_text(encoding="utf-8"))
+    primary["outcome"]["event_batch_id"] = "txb_019fed25-b33e-7740-b280-000000009502"
+    primary["outcome"]["observed_stream_version"] += 1
+    primary_path.write_bytes(canonical_bytes(primary))
+
+    with pytest.raises(ConflictError, match="committed transaction mismatch"):
+        runtime.submit(command)
+
+    assert not index_path.exists()
+
+
+def test_primary_receipt_repair_requires_the_committed_command_identity(tmp_path: Path) -> None:
+    """A primary receipt for another command cannot seed a scoped index."""
+
+    runtime = _runtime(tmp_path)
+    command = _genesis()
+    receipt = runtime.submit(command)
+    index_path = next((runtime.receipts.receipts_root / "idempotency").glob("*.json"))
+    index_path.unlink()
+    primary_path = runtime.receipts.receipts_root / f"{receipt.command_id}.json"
+    primary = json.loads(primary_path.read_text(encoding="utf-8"))
+    primary["command_id"] = "cmd_019fed25-b33e-7740-b280-000000009504"
+    primary_path.write_bytes(canonical_bytes(primary))
+
+    with pytest.raises(ConflictError, match="committed transaction mismatch"):
+        runtime.submit(command)
+
+    assert not index_path.exists()
+
+
+def test_scoped_retry_rejects_a_contradictory_primary_receipt(tmp_path: Path) -> None:
+    """A valid scoped receipt cannot conceal a contradictory primary receipt."""
+
+    runtime = _runtime(tmp_path)
+    command = _genesis()
+    receipt = runtime.submit(command)
+    primary_path = runtime.receipts.receipts_root / f"{receipt.command_id}.json"
+    primary = json.loads(primary_path.read_text(encoding="utf-8"))
+    primary["outcome"]["event_batch_id"] = "txb_019fed25-b33e-7740-b280-000000009503"
+    primary_path.write_bytes(canonical_bytes(primary))
+    index_path = next((runtime.receipts.receipts_root / "idempotency").glob("*.json"))
+    before_index = index_path.read_bytes()
+
+    with pytest.raises(ConflictError, match="receipt.*mismatch"):
+        runtime.submit(command)
+
+    assert index_path.read_bytes() == before_index
+
+
+def test_replay_rejects_authority_shadow_actor_split_from_durable_envelope(tmp_path: Path) -> None:
+    """Nested authority actors cannot contradict the persisted command actor."""
+
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_assay_bar(runtime)
+    events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    observation = next(
+        event
+        for event in events
+        if event["event_type"] == "W11AuthorityFileObserved" and event["payload"].get("authority_kind") == "assay_bar"
+    )
+    observation["payload"]["authority_payload"]["actor_id"] = "act_019fed25-b33e-7740-b280-000000009401"
+
+    with pytest.raises(IntegrityError, match="authority shadow actor mismatch"):
+        replay_discovery(_rehash_events(events))
+
+    accepted_events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    accepted = next(event for event in accepted_events if event["event_type"] == "AssayBarAccepted")
+    accepted["payload"]["authority_payload"]["acceptor_actor_id"] = "act_019fed25-b33e-7740-b280-000000009402"
+    with pytest.raises(IntegrityError, match="authority shadow actor mismatch"):
+        replay_discovery(_rehash_events(accepted_events))
+
+
+def test_assay_authority_observation_rejects_registered_path_alias_before_git(
+    tmp_path: Path,
+) -> None:
+    """Observe the exact registered lexical path, never an alias to the same file."""
+
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    rubric: dict[str, object] = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    alias_path = ".research-system/contracts/wp6-6/../wp6-6/assay-rubric-content-v1.json"
+    register = _command(
+        "RegisterAssayRubricContent",
+        str(rubric["record_id"]),
+        0,
+        {
+            "row_id": "OR-101",
+            "authority_kind": "assay_bar",
+            "content": rubric,
+            "authority_file_path": alias_path,
+        },
+    )
+    register["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(register).status == "accepted"
+    before = tuple(runtime.ledger.iter_events())
+    observe = _command(
+        "ObserveW11AuthorityFile",
+        str(rubric["record_id"]),
+        1,
+        {"row_id": "OR-103", "authority_kind": "assay_bar"},
+    )
+    observe["actor_id"] = ASSAY_AUTHORITY_ACTORS[0]
+
+    with pytest.raises(IntegrityError, match="authority file path alias is forbidden"):
+        runtime.submit(observe)
+
+    assert tuple(runtime.ledger.iter_events()) == before

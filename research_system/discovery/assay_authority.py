@@ -210,6 +210,8 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 raise AssayAuthorityRejected("actor_not_independent")
             if payload.get("content_sha256") != content_state.get("content_sha256"):
                 raise AssayAuthorityRejected("content_hash_mismatch")
+            if payload.get("repository_path") != content_state.get("authority_file_path"):
+                raise AssayAuthorityRejected("authority_file_path_alias")
             _digest(payload.get("file_sha256"), "file_sha256")
             state["observations"][kind] = deepcopy(payload)
             actors.add(observer)

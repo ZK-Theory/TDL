@@ -1778,6 +1778,55 @@ def replay_discovery(
             and preceding_spike_events[0].get("payload") == payload
         )
 
+    def preceding_transaction_event_matches(
+        event: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        *,
+        event_type: str,
+        stream_id: Any,
+    ) -> bool:
+        """Bind a shadow transition to one exact preceding same-transaction event."""
+
+        preceding = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == event_type
+        ]
+        return bool(
+            len(preceding) == 1
+            and preceding[0].get("stream_id") == stream_id
+            and preceding[0].get("payload") == payload
+        )
+
+    def following_transaction_event_matches(
+        event: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        *,
+        event_type: str,
+        stream_id: Any,
+    ) -> bool:
+        """Bind a primary transition to one exact following same-transaction shadow."""
+
+        following = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) > event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == event_type
+        ]
+        if len(following) != 1 or following[0].get("stream_id") != stream_id:
+            return False
+        following_payload = following[0].get("payload")
+        if not isinstance(following_payload, Mapping):
+            return False
+        for key in payload:
+            if key not in following_payload:
+                raise IntegrityError(f"Discovery event payload requires {key}")
+        for key in following_payload:
+            if key not in payload:
+                raise IntegrityError(f"Discovery event payload requires {key}")
+        return following_payload == payload
+
     def candidate_assay_link_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
         """Bind a Candidate link to the exact Assay score in its transaction."""
 
@@ -1981,6 +2030,17 @@ def replay_discovery(
             if not isinstance(authority_payload, dict):
                 raise IntegrityError("Discovery event payload requires authority_payload")
             authority_payload = deepcopy(authority_payload)
+            accepted_authority_types = {
+                "DossierExpectedSetAccepted",
+                "PathRegistrationAccepted",
+                "AssayBarAccepted",
+            }
+            if payload.get("authority_event_type") in accepted_authority_types:
+                shadow_actor_id = authority_payload.get("acceptor_actor_id")
+            else:
+                shadow_actor_id = authority_payload.get("actor_id")
+            if shadow_actor_id != event.get("actor_id"):
+                raise IntegrityError("Discovery authority shadow actor mismatch")
             if payload.get("authority_event_type") in {
                 "DecisionResolved",
                 "DossierExpectedSetAccepted",
@@ -2222,6 +2282,46 @@ def replay_discovery(
                 )
             ):
                 raise IntegrityError("invalid Scout observation event")
+            members = transaction_events.get(event.get("transaction_id"), ())
+            candidates = [member for member in members if member.get("event_type") == "CandidateRegistered"]
+            reconstructed_blueprints = []
+            for candidate_event in candidates:
+                candidate_payload = candidate_event.get("payload")
+                if not isinstance(candidate_payload, Mapping):
+                    raise IntegrityError("Scout transaction shape mismatch")
+                candidate_id = candidate_payload.get("candidate_id")
+                if isinstance(candidate_id, str) and (
+                    candidate_id == observation_id or aggregate_identity_exists(candidate_id)
+                ):
+                    raise IntegrityError("Candidate identity collision")
+                reconstructed_blueprints.append(
+                    {
+                        key: deepcopy(value)
+                        for key, value in candidate_payload.items()
+                        if key not in {"owner_row_id", "source_observation_multiset_hash"}
+                    }
+                )
+            reconstructed_command = {
+                "row_id": "OR-029",
+                "observation_id": observation_id,
+                "batch": deepcopy(batch),
+                "batch_sha256": required_string("content_sha256"),
+                "candidate_blueprints": reconstructed_blueprints,
+            }
+            if (
+                len(members) != len(candidates) + 1
+                or members[0].get("event_type") != "ScoutObservationIngested"
+                or event.get("stream_id") != observation_id
+                or not candidates
+                or any(
+                    candidate_event.get("command_type") != "IngestScoutObservationBatch"
+                    or candidate_event.get("payload", {}).get("owner_row_id") != "OR-029"
+                    for candidate_event in candidates
+                )
+                or payload.get("candidate_blueprints_sha256") != sha256_hex(canonical_bytes(reconstructed_blueprints))
+                or sha256_hex(canonical_bytes(reconstructed_command)) != event.get("command_payload_hash")
+            ):
+                raise IntegrityError("Scout transaction shape mismatch")
             state["source_observations"][observation_id] = {
                 **deepcopy(payload),
                 "global_position": event["global_position"],
@@ -2236,6 +2336,14 @@ def replay_discovery(
                 "RegisterCandidate": "OR-001",
                 "IngestScoutObservationBatch": "OR-029",
             }.get(event.get("command_type"))
+            if event.get("command_type") == "RegisterCandidate":
+                members = transaction_events.get(event.get("transaction_id"), ())
+                if (
+                    len(members) != 1
+                    or members[0].get("event_type") != "CandidateRegistered"
+                    or members[0].get("stream_id") != payload.get("candidate_id")
+                ):
+                    raise IntegrityError("RegisterCandidate transaction shape mismatch")
             if (
                 not isinstance(candidate_id, str)
                 or event.get("stream_id") != candidate_id
@@ -2302,6 +2410,15 @@ def replay_discovery(
                 or state["candidates"].get(candidate_id, {}).get("status")
                 not in {"registered", "assay_retry_authorized"}
                 or not _current_assay_bar_matches(payload, state["assay_bar_authority"])
+                or (
+                    payload.get("row_id") == "OR-003"
+                    and not following_transaction_event_matches(
+                        event,
+                        payload,
+                        event_type="CandidateAssayRequested",
+                        stream_id=candidate_id,
+                    )
+                )
             ):
                 raise IntegrityError("invalid Assay request transition")
             state["assays"][assay_id] = {
@@ -2324,7 +2441,27 @@ def replay_discovery(
             assay.update(status="evidence_collecting", version=event["stream_version"])
         elif event_type == "CandidateAssayRequested":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict) or candidate.get("status") != "registered":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != "registered"
+                or event.get("stream_id") != payload.get("candidate_id")
+                or not isinstance(assay, Mapping)
+                or assay.get("candidate_id") != payload.get("candidate_id")
+                or assay.get("status") != "evidence_collecting"
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="AssayRequested",
+                    stream_id=payload.get("assay_id"),
+                )
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="AssayEvidenceCollectionOpened",
+                    stream_id=payload.get("assay_id"),
+                )
+            ):
                 raise IntegrityError("invalid Candidate Assay transition")
             candidate.update(
                 status="assay_pending", assay_id=required_string("assay_id"), version=event["stream_version"]
@@ -2402,6 +2539,12 @@ def replay_discovery(
                 or artifact.get("assay_relation_hash") != assay.get("producer_relation_sha256")
                 or not _assay_partial_axes_match(artifact, bar)
                 or sha256_hex(canonical_bytes(artifact)) != payload.get("partial_sha256")
+                or not following_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="CandidateAssayPartialLinked",
+                    stream_id=payload.get("candidate_id"),
+                )
             ):
                 raise IntegrityError("invalid Assay partial transition")
             assay.update(
@@ -2414,7 +2557,22 @@ def replay_discovery(
             )
         elif event_type == "CandidateAssayPartialLinked":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict) or candidate.get("status") != "assay_pending":
+            assay = state["assays"].get(payload.get("assay_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != "assay_pending"
+                or event.get("stream_id") != payload.get("candidate_id")
+                or candidate.get("assay_id") != payload.get("assay_id")
+                or not isinstance(assay, Mapping)
+                or assay.get("candidate_id") != payload.get("candidate_id")
+                or assay.get("status") != "partial_recorded"
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="AssayPartialRecorded",
+                    stream_id=payload.get("assay_id"),
+                )
+            ):
                 raise IntegrityError("invalid Candidate Assay partial transition")
             candidate.update(status="assay_partial_recorded", version=event["stream_version"])
         elif event_type == "AssayCancelled":
@@ -2431,6 +2589,12 @@ def replay_discovery(
                     candidate=candidate,
                     assay=assay,
                     state=state,
+                )
+                or not following_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="CandidateEvaluationCancelled",
+                    stream_id=payload.get("candidate_id"),
                 )
             ):
                 raise IntegrityError("invalid Assay cancellation")
@@ -2469,6 +2633,23 @@ def replay_discovery(
                     ):
                         raise IntegrityError("invalid Spike execution proposal cancellation")
                     decision.update(status="superseded_by_cancellation")
+            else:
+                assay = state["assays"].get(payload.get("assay_id"))
+                if (
+                    event.get("stream_id") != payload.get("candidate_id")
+                    or candidate.get("status") != "assay_pending"
+                    or candidate.get("assay_id") != payload.get("assay_id")
+                    or not isinstance(assay, Mapping)
+                    or assay.get("status") != "cancelled"
+                    or assay.get("candidate_id") != payload.get("candidate_id")
+                    or not preceding_transaction_event_matches(
+                        event,
+                        payload,
+                        event_type="AssayCancelled",
+                        stream_id=payload.get("assay_id"),
+                    )
+                ):
+                    raise IntegrityError("invalid Candidate evaluation cancellation")
             candidate.update(
                 status=f"{payload['evaluation_kind']}_cancelled",
                 version=event["stream_version"],
@@ -2750,8 +2931,9 @@ def replay_discovery(
                 raise IntegrityError("invalid Candidate revisit request")
             candidate.update(status=f"{kind}_revisit_pending", decision_id=required_string("decision_id"))
         elif event_type in {"AssayRevisitResolved", "SpikeRevisitResolved"}:
-            collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
-            subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
+            kind = "assay" if event_type.startswith("Assay") else "spike"
+            collection = state[f"{kind}s"]
+            subject_id = payload.get(f"{kind}_id")
             subject = collection.get(subject_id)
             decision = state["decisions"].get(payload.get("decision_id"))
             selected = required_string("selected_option")
@@ -2759,10 +2941,18 @@ def replay_discovery(
                 not isinstance(subject, dict)
                 or subject.get("status") != "revisit_pending"
                 or subject.get("candidate_id") != payload.get("candidate_id")
+                or event.get("stream_id") != subject_id
                 or not isinstance(decision, dict)
+                or subject.get("decision_id") != payload.get("decision_id")
                 or decision.get("status") != "resolved"
                 or decision.get("selected_option") != selected
                 or selected not in {"RETRY", "PARK", "KILL"}
+                or not following_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type=f"Candidate{kind.title()}RevisitResolved",
+                    stream_id=payload.get("candidate_id"),
+                )
             ):
                 raise IntegrityError("invalid Discovery revisit resolution")
             subject.update(status={"RETRY": "retry_authorized", "PARK": "parked", "KILL": "killed"}[selected])
@@ -2771,8 +2961,25 @@ def replay_discovery(
         elif event_type in {"CandidateAssayRevisitResolved", "CandidateSpikeRevisitResolved"}:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
+            subject_id = payload.get(f"{kind}_id")
             selected = required_string("selected_option")
-            if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_revisit_pending":
+            decision = state["decisions"].get(payload.get("decision_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != f"{kind}_revisit_pending"
+                or candidate.get(f"{kind}_id") != subject_id
+                or event.get("stream_id") != payload.get("candidate_id")
+                or candidate.get("decision_id") != payload.get("decision_id")
+                or not isinstance(decision, Mapping)
+                or decision.get("status") != "resolved"
+                or decision.get("selected_option") != selected
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type=f"{kind.title()}RevisitResolved",
+                    stream_id=subject_id,
+                )
+            ):
                 raise IntegrityError("invalid Candidate revisit resolution")
             candidate.update(
                 status={"RETRY": f"{kind}_retry_authorized", "PARK": "parked", "KILL": "killed"}.get(selected)
@@ -2991,12 +3198,33 @@ def replay_discovery(
                     decision_id=payload.get("decision_id"),
                     resource=resource,
                 )
+                or not following_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="CandidateSpikeAuthorized",
+                    stream_id=payload.get("candidate_id"),
+                )
             ):
                 raise IntegrityError("invalid Spike authorization")
             spike.update(status="authorized")
         elif event_type == "CandidateSpikeAuthorized":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != "spike_approval_pending"
+                or candidate.get("spike_id") != payload.get("spike_id")
+                or event.get("stream_id") != payload.get("candidate_id")
+                or not isinstance(spike, Mapping)
+                or spike.get("candidate_id") != payload.get("candidate_id")
+                or spike.get("status") != "authorized"
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="SpikeAuthorized",
+                    stream_id=payload.get("spike_id"),
+                )
+            ):
                 raise IntegrityError("invalid Candidate Spike authorization")
             candidate.update(status="spike_authorized")
         elif event_type == "SpikeStarted":
@@ -3205,7 +3433,23 @@ def replay_discovery(
             spike.update(status="reviewed", review_pending=False)
         elif event_type == "CandidateSpikePartialReviewed":
             candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict) or candidate.get("status") != "spike_partial_recorded":
+            spike = state["spikes"].get(payload.get("spike_id"))
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != "spike_partial_recorded"
+                or candidate.get("spike_id") != payload.get("spike_id")
+                or event.get("stream_id") != payload.get("candidate_id")
+                or not isinstance(spike, Mapping)
+                or spike.get("candidate_id") != payload.get("candidate_id")
+                or spike.get("status") != "partial_reviewed"
+                or spike.get("review_id") != payload.get("review_id")
+                or not preceding_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="SpikePartialReviewed",
+                    stream_id=payload.get("spike_id"),
+                )
+            ):
                 raise IntegrityError("invalid Candidate Spike partial review")
             candidate.update(status="spike_revisit_eligible")
         elif event_type == "SpikePartialReviewed":
@@ -3226,6 +3470,12 @@ def replay_discovery(
                     subject_sha256=payload.get("subject_sha256"),
                 )
                 or payload.get("subject_sha256") != spike.get("review_subject_sha256")
+                or not following_transaction_event_matches(
+                    event,
+                    payload,
+                    event_type="CandidateSpikePartialReviewed",
+                    stream_id=payload.get("candidate_id"),
+                )
             ):
                 raise IntegrityError("invalid Spike partial review")
             spike.update(status="partial_reviewed", review_pending=False)
@@ -3770,21 +4020,96 @@ class DiscoveryRuntime:
             command.envelope["command_type"],
             command.idempotency_key,
         )
-        envelope_sha256 = sha256_hex(
-            canonical_bytes(
-                {
-                    "command_id": command.command_id,
-                    "command_type": envelope["command_type"],
-                    "actor_id": command.actor_id,
-                    "authority_grant_id": envelope["authority_grant_id"],
-                    "authority_grant_sha256": authority_sha256,
-                    "idempotency_key": command.idempotency_key,
-                    "target_stream_id": command.target_stream_id,
-                    "expected_stream_version": command.expected_stream_version,
-                    "payload_hash": command.payload_hash,
-                }
+
+        def immutable_envelope_sha256(command_id: str) -> str:
+            """Hash the complete envelope persisted for one command identity."""
+
+            return sha256_hex(
+                canonical_bytes(
+                    {
+                        "command_id": command_id,
+                        "command_type": envelope["command_type"],
+                        "actor_id": command.actor_id,
+                        "authority_grant_id": envelope["authority_grant_id"],
+                        "authority_grant_sha256": authority_sha256,
+                        "idempotency_key": command.idempotency_key,
+                        "target_stream_id": command.target_stream_id,
+                        "expected_stream_version": command.expected_stream_version,
+                        "payload_hash": command.payload_hash,
+                    }
+                )
             )
-        )
+
+        envelope_sha256 = immutable_envelope_sha256(command.command_id)
+
+        def committed_envelope_matches(event: Mapping[str, Any], command_id: str) -> bool:
+            """Bind a recovered command id to the complete immutable submission envelope."""
+
+            return bool(
+                event.get("command_id") == command_id
+                and event.get("command_payload_hash") == command.payload_hash
+                and event.get("command_type") == envelope["command_type"]
+                and event.get("actor_id") == command.actor_id
+                and event.get("authority_grant_id") == envelope["authority_grant_id"]
+                and event.get("idempotency_key") == command.idempotency_key
+                and event.get("correlation_id") == immutable_envelope_sha256(command_id)
+            )
+
+        def committed_transaction(command_id: str) -> tuple[Mapping[str, Any] | None, tuple[dict[str, Any], ...]]:
+            """Resolve one command's exact validated contiguous transaction."""
+
+            committed_event = next(
+                (event for event in snapshot.events if event.get("command_id") == command_id),
+                None,
+            )
+            if not isinstance(committed_event, Mapping):
+                return None, ()
+            members = tuple(
+                event
+                for event in snapshot.events
+                if event.get("transaction_id") == committed_event.get("transaction_id")
+            )
+            if (
+                not members
+                or any(event.get("command_id") != command_id for event in members)
+                or not committed_envelope_matches(committed_event, command_id)
+            ):
+                raise ConflictError("committed command envelope mismatch")
+            return committed_event, members
+
+        def accepted_receipt_matches_transaction(
+            receipt: Receipt,
+            committed_event: Mapping[str, Any] | None,
+            transaction_events: tuple[dict[str, Any], ...],
+        ) -> bool:
+            """Bind an accepted receipt to its exact committed target mutation."""
+
+            if not isinstance(committed_event, Mapping):
+                return False
+            target_versions = [
+                event["stream_version"]
+                for event in transaction_events
+                if event.get("stream_id") == command.target_stream_id
+            ]
+            committed_command_id = committed_event.get("command_id")
+            committed_payload_hash = committed_event.get("command_payload_hash")
+            transaction_id = committed_event.get("transaction_id")
+            if (
+                not isinstance(committed_command_id, str)
+                or not isinstance(committed_payload_hash, str)
+                or not isinstance(transaction_id, str)
+                or not target_versions
+            ):
+                return False
+            expected = Receipt(
+                status="accepted",
+                command_id=committed_command_id,
+                payload_hash=committed_payload_hash,
+                event_batch_id=transaction_id,
+                observed_stream_version=max(target_versions),
+                reason_code=None,
+            )
+            return receipt == expected
 
         def persist(receipt: Receipt) -> Receipt:
             return self.receipts.write_scoped(
@@ -3796,6 +4121,13 @@ class DiscoveryRuntime:
                 target_stream_id=command.target_stream_id,
             )
 
+        snapshot = self.ledger.snapshot()
+        try:
+            projection = replay_discovery(snapshot.events, schemas=self.schemas)
+        except (IntegrityError, TypeError, ValueError) as exc:
+            raise DiscoveryLedgerReplayError(
+                "persisted Discovery ledger failed replay before command preparation"
+            ) from exc
         scoped = self.receipts.load_scoped(
             idempotency_scope,
             command.payload_hash,
@@ -3805,48 +4137,39 @@ class DiscoveryRuntime:
             target_stream_id=command.target_stream_id,
         )
         if scoped is not None:
-            if self.receipts.load(scoped.command_id) is None:
+            scoped_committed, scoped_transaction = committed_transaction(scoped.command_id)
+            if scoped.status == "accepted" and (
+                not accepted_receipt_matches_transaction(scoped, scoped_committed, scoped_transaction)
+            ):
+                raise ConflictError("idempotency receipt committed transaction mismatch")
+            if scoped.status != "accepted" and scoped_committed is not None:
+                raise ConflictError("idempotency receipt committed transaction mismatch")
+            primary = self.receipts.load(scoped.command_id)
+            if primary is not None and primary != scoped:
+                raise ConflictError("idempotency primary receipt mismatch")
+            if primary is None:
                 self.receipts.write(scoped)
             return scoped
-        snapshot = self.ledger.snapshot()
-
-        def committed_envelope_matches(event: Mapping[str, Any]) -> bool:
-            """Bind a recovered command id to the complete immutable submission envelope."""
-
-            return bool(
-                event.get("command_payload_hash") == command.payload_hash
-                and event.get("command_type") == envelope["command_type"]
-                and event.get("actor_id") == command.actor_id
-                and event.get("authority_grant_id") == envelope["authority_grant_id"]
-                and event.get("idempotency_key") == command.idempotency_key
-                and event.get("correlation_id") == envelope_sha256
-            )
-
-        committed = next(
-            (event for event in snapshot.events if event.get("command_id") == command.command_id),
-            None,
-        )
+        committed, transaction_events = committed_transaction(command.command_id)
         existing = self.receipts.load(command.command_id)
         if existing is not None:
             if (
                 existing.status != "accepted"
                 or existing.payload_hash != command.payload_hash
                 or not isinstance(committed, Mapping)
-                or not committed_envelope_matches(committed)
+                or not committed_envelope_matches(committed, command.command_id)
+                or not accepted_receipt_matches_transaction(existing, committed, transaction_events)
             ):
-                raise ConflictError("command receipt envelope mismatch")
+                raise ConflictError("command receipt committed transaction mismatch")
             return persist(existing)
         if committed is not None:
-            if not committed_envelope_matches(committed):
-                raise ConflictError("committed command envelope mismatch")
-            transaction_events = tuple(
-                event for event in snapshot.events if event.get("transaction_id") == committed["transaction_id"]
-            )
             target_versions = [
                 event["stream_version"]
                 for event in transaction_events
                 if event.get("stream_id") == command.target_stream_id
             ]
+            if not target_versions:
+                raise ConflictError("committed command target transaction mismatch")
             receipt = Receipt(
                 status="accepted",
                 command_id=command.command_id,
@@ -3868,12 +4191,6 @@ class DiscoveryRuntime:
             )
             return persist(receipt)
 
-        try:
-            projection = replay_discovery(snapshot.events, schemas=self.schemas)
-        except (IntegrityError, TypeError, ValueError) as exc:
-            raise DiscoveryLedgerReplayError(
-                "persisted Discovery ledger failed replay before command preparation"
-            ) from exc
         self._require_admissible_target(command, projection)
         self._require_candidate_target(command, projection)
         _, route = _discovery_route(command)
@@ -4635,6 +4952,9 @@ class DiscoveryRuntime:
         except (OSError, ValueError) as exc:
             raise IntegrityError("authority file is unavailable") from exc
         try:
+            relative_path = authority_file.relative_to(self.repository_root).as_posix()
+            if relative_path != repository_path:
+                raise IntegrityError("authority file path alias is forbidden")
             git_commit = subprocess.run(
                 ["git", "-C", str(self.repository_root), "rev-parse", "HEAD"],
                 check=True,
@@ -4642,7 +4962,6 @@ class DiscoveryRuntime:
                 text=True,
                 timeout=_GIT_TIMEOUT_SECONDS,
             ).stdout.strip()
-            relative_path = authority_file.relative_to(self.repository_root).as_posix()
             git_blob = subprocess.run(
                 ["git", "-C", str(self.repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
                 check=True,
@@ -6157,5 +6476,6 @@ class DiscoveryRuntime:
             "batch": deepcopy(batch),
             "content_sha256": batch_sha256,
             "normalized_dedup_keys": deepcopy(dedup_keys),
+            "candidate_blueprints_sha256": sha256_hex(canonical_bytes(blueprints)),
         }
         return [("ScoutObservationIngested", observation_id, observation_payload), *candidate_events]
