@@ -8,16 +8,13 @@ reducer owns each executable event.
 from __future__ import annotations
 
 from copy import deepcopy
-from research_system.canonical import canonical_bytes
-from research_system.canonical import sha256_hex
 from research_system.discovery.replay.scope import EventScope
 from research_system.discovery.rules import _aggregate_content_hash
 from research_system.discovery.rules import _assay_cancellation_matches
-from research_system.discovery.rules import _assay_partial_axes_match
+from research_system.discovery.rules import _assay_partial_bindings_match
 from research_system.discovery.rules import _assay_scorecard_matches
 from research_system.discovery.rules import _current_assay_bar_matches
 from research_system.discovery.rules import _review_subject_matches
-from research_system.discovery.rules import _valid_assay_partial_shape
 from research_system.discovery.rules import _valid_review_supersession
 from research_system.errors import IntegrityError
 from typing import Mapping
@@ -185,36 +182,14 @@ def reduce_assay_partial_recorded(scope: EventScope) -> None:
     artifact = payload.get("partial_artifact")
     bar = state["assay_bar_authority"]
     acceptance = bar.get("acceptance") if isinstance(bar, dict) else None
-    expected_acceptance = (
-        {
-            "id": acceptance.get("decision_id"),
-            "record_revision": 1,
-            "content_hash": bar.get("acceptance_sha256"),
-        }
-        if isinstance(acceptance, dict)
-        else None
-    )
     if (
         not isinstance(assay, dict)
         or not isinstance(candidate, dict)
         or not isinstance(artifact, dict)
         or not isinstance(acceptance, dict)
-        or not _valid_assay_partial_shape(artifact)
         or assay.get("status") != "evidence_collecting"
         or not _current_assay_bar_matches(assay, bar, event.get("actor_id"))
-        or artifact.get("candidate_ref")
-        != {
-            "id": payload.get("candidate_id"),
-            "record_revision": candidate.get("revision"),
-            "content_hash": candidate.get("content_sha256"),
-        }
-        or artifact.get("assay_id") != payload.get("assay_id")
-        or artifact.get("rubric_ref") != acceptance.get("rubric_ref")
-        or artifact.get("scope_ref") != acceptance.get("scope_ref")
-        or artifact.get("assay_bar_acceptance_ref") != expected_acceptance
-        or artifact.get("assay_relation_hash") != assay.get("producer_relation_sha256")
-        or not _assay_partial_axes_match(artifact, bar)
-        or sha256_hex(canonical_bytes(artifact)) != payload.get("partial_sha256")
+        or not _assay_partial_bindings_match(artifact, payload, candidate, assay, bar, acceptance)
         or not following_transaction_event_matches(
             event,
             payload,

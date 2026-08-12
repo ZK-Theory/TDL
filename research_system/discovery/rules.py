@@ -703,6 +703,46 @@ def _canonical_artefact_ref_matches(streams: Mapping[str, Any], value: Any, *, v
     )
 
 
+def _assay_partial_bindings_match(
+    artifact: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    assay: Mapping[str, Any],
+    bar: Mapping[str, Any],
+    acceptance: Mapping[str, Any],
+) -> bool:
+    """Bind an Assay Partial artifact to its exact subject, bar acceptance and digest.
+
+    Preparation and replay previously each carried their own copy of these seven
+    comparisons.  They are the same rule, so there is now one definition and both
+    paths reach it; each side keeps only the additional state checks its own
+    context can make (a command actor before publication, the reduced Assay
+    status and current-bar producer binding during replay).
+    """
+
+    return bool(
+        _valid_assay_partial_shape(artifact)
+        and _assay_partial_axes_match(artifact, bar)
+        and artifact.get("candidate_ref")
+        == {
+            "id": payload.get("candidate_id"),
+            "record_revision": candidate.get("revision"),
+            "content_hash": candidate.get("content_sha256"),
+        }
+        and artifact.get("assay_id") == payload.get("assay_id")
+        and artifact.get("rubric_ref") == acceptance.get("rubric_ref")
+        and artifact.get("scope_ref") == acceptance.get("scope_ref")
+        and artifact.get("assay_bar_acceptance_ref")
+        == {
+            "id": acceptance.get("decision_id"),
+            "record_revision": 1,
+            "content_hash": bar.get("acceptance_sha256"),
+        }
+        and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
+        and sha256_hex(canonical_bytes(artifact)) == payload.get("partial_sha256")
+    )
+
+
 def _assay_partial_axes_match(artifact: Mapping[str, Any], bar: Mapping[str, Any]) -> bool:
     """Require an Assay Partial to partition the accepted required-axis closure exactly once."""
 

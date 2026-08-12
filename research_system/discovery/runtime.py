@@ -33,7 +33,7 @@ from research_system.discovery.routes import (
 )
 from research_system.discovery.rules import (
     _assay_cancellation_matches,
-    _assay_partial_axes_match,
+    _assay_partial_bindings_match,
     _assay_scorecard_matches,
     _assay_staleness_matches,
     _candidate_ref,
@@ -50,7 +50,6 @@ from research_system.discovery.rules import (
     _spike_execution_relation_matches,
     _spike_plan_matches,
     _spike_verdict_matches,
-    _valid_assay_partial_shape,
     _valid_promotion_options,
     _valid_review_supersession,
     _valid_revisit_proposal,
@@ -2581,28 +2580,10 @@ class DiscoveryRuntime:
         acceptance = bar.get("acceptance")
         if not isinstance(acceptance, dict):
             return False
-        expected_candidate = {
-            "id": payload.get("candidate_id"),
-            "record_revision": candidate.get("revision"),
-            "content_hash": candidate.get("content_sha256"),
-        }
-        expected_acceptance = {
-            "id": acceptance.get("decision_id"),
-            "record_revision": 1,
-            "content_hash": bar.get("acceptance_sha256"),
-        }
         return bool(
-            _valid_assay_partial_shape(artifact)
-            and _assay_partial_axes_match(artifact, bar)
-            and bar.get("status") == "accepted"
+            bar.get("status") == "accepted"
             and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
-            and artifact.get("candidate_ref") == expected_candidate
-            and artifact.get("assay_id") == payload.get("assay_id")
-            and artifact.get("rubric_ref") == acceptance.get("rubric_ref")
-            and artifact.get("scope_ref") == acceptance.get("scope_ref")
-            and artifact.get("assay_bar_acceptance_ref") == expected_acceptance
-            and artifact.get("assay_relation_hash") == assay.get("producer_relation_sha256")
-            and sha256_hex(canonical_bytes(artifact)) == payload.get("partial_sha256")
+            and _assay_partial_bindings_match(artifact, payload, candidate, assay, bar, acceptance)
         )
 
     def _prepare_genesis(
