@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from datetime import UTC, datetime
@@ -14,6 +15,7 @@ import uuid
 import pytest
 
 from research_system.discovery import runtime as discovery_runtime_module
+from research_system.discovery.assay_authority import assay_reconstruction_sha256
 from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
 from research_system.discovery.runtime import _DISCOVERY_IDENTITY_COLLECTIONS, _discovery_identity_exists
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -37,8 +39,10 @@ from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     RESOURCE_GRANT_ID as C1_RESOURCE_GRANT_ID,
     C1_NOW,
     C1_TRUSTED_RUNTIME_AUTHORITY,
+    _c1_command,
     _seed_running_attempt,
 )
+from tests.research_system.integration.test_wp6_1_c2_operating_lifecycle import _artefact_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -388,7 +392,11 @@ def _exercise_identity_attacks(runtime: DiscoveryRuntime, shared_id: str) -> Non
     assert tuple(runtime.ledger.iter_events()) == before
 
 
-def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
+def _accept_assay_bar(
+    runtime: DiscoveryRuntime,
+    *,
+    before_submit: Callable[[DiscoveryRuntime, Command, str], None] | None = None,
+) -> tuple[str, str]:
     rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
     rubric_observer, scope_observer, requester, reviewer, author, decision_proposer = ASSAY_AUTHORITY_ACTORS
@@ -482,29 +490,43 @@ def _accept_assay_bar(runtime: DiscoveryRuntime) -> tuple[str, str]:
     )
     for command_type, actor_id, stream_id, version, payload in steps:
         if payload["row_id"] == "OR-106":
-            payload["unchanged_subject_sha256"] = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"][
-                "subject_sha256"
-            ]
+            assay_bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+            payload["unchanged_subject_sha256"] = assay_bar["subject_sha256"]
+            payload["reconstruction_sha256"] = assay_reconstruction_sha256(
+                assay_bar,
+                "ctx_019fed25-b33e-7740-b280-000000000105",
+            )
         command = _command(command_type, stream_id, version, payload)
         command["actor_id"] = actor_id
-        if payload["row_id"] == "OR-106":
-            wrong_stream = deepcopy(command)
-            wrong_stream["target_stream_id"] = "rev_019fed25-b33e-7740-b280-ffffffffffff"
-            with pytest.raises(IntegrityError, match="invalid Assay-bar review verdict"):
-                runtime._prepare_assay_bar_authority(
-                    Command(wrong_stream), replay_discovery(runtime.ledger.iter_events())
-                )
-        if payload["row_id"] == "OR-108":
-            wrong_stream = deepcopy(command)
-            wrong_stream["target_stream_id"] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
-            with pytest.raises(IntegrityError, match="invalid Assay-bar owner resolution"):
-                runtime._prepare_assay_bar_authority(
-                    Command(wrong_stream), replay_discovery(runtime.ledger.iter_events())
-                )
+        if before_submit is not None:
+            before_submit(runtime, Command(command), payload["row_id"])
         assert runtime.submit(command).status == "accepted"
     bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     assert bar["status"] == "accepted"
     return bar["acceptance_sha256"], bar["producer_relation_sha256"]
+
+
+def test_assay_bar_review_and_decision_require_their_exact_authority_streams(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    checked_rows: set[str] = set()
+
+    def reject_foreign_target(current: DiscoveryRuntime, command: Command, row_id: str) -> None:
+        if row_id not in {"OR-106", "OR-108"}:
+            return
+        wrong_stream = deepcopy(command.envelope)
+        wrong_stream["target_stream_id"] = (
+            "rev_019fed25-b33e-7740-b280-ffffffffffff"
+            if row_id == "OR-106"
+            else "dec_019fed25-b33e-7740-b280-ffffffffffff"
+        )
+        expected = "invalid Assay-bar review verdict" if row_id == "OR-106" else "invalid Assay-bar owner resolution"
+        with pytest.raises(IntegrityError, match=expected):
+            current._prepare_assay_bar_authority(Command(wrong_stream), replay_discovery(current.ledger.iter_events()))
+        checked_rows.add(row_id)
+
+    _accept_assay_bar(runtime, before_submit=reject_foreign_target)
+    assert checked_rows == {"OR-106", "OR-108"}
 
 
 def _scorecard(
@@ -569,6 +591,30 @@ def _scorecard(
 
 def _ref(record_id: object, revision: object, content_hash: object) -> dict[str, object]:
     return {"id": record_id, "record_revision": revision, "content_hash": content_hash}
+
+
+def _register_spike_evidence(runtime: DiscoveryRuntime, artefact_id: str, artefact_type: str) -> dict[str, object]:
+    """Register one canonical artefact used by a Spike verdict fixture."""
+
+    harness = next(value for value in _HARNESSES.values() if value.ledger is runtime.operational_ledger)
+    manifest = _artefact_manifest(artefact_id)
+    manifest["artefact_type"] = artefact_type
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        command_types=("RegisterArtefact",),
+    )
+    command = _c1_command(
+        new_id("command"),
+        "RegisterArtefact",
+        artefact_id,
+        0,
+        {"new_artefact_id": artefact_id, "manifest": manifest},
+        authority_grant_id=grant_id,
+    )
+    assert harness.service.submit(command).status == "accepted"
+    return _ref(artefact_id, 1, manifest["content_sha256"])
 
 
 def _promotion_relation(
@@ -1462,6 +1508,19 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
         runtime.submit(request("f" * 64, producer_sha256))
     assert tuple(runtime.ledger.iter_events()) == before
 
+    current_bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    old_rubric_hash = current_bar["contents"]["rubric"]["content_sha256"]
+    staleness_observation_id = "obj_019fed25-b33e-7740-b280-6f661aaeff63"
+    _ingest_candidate(
+        runtime,
+        "obj_019fed25-b33e-7740-b280-6f661aaeff64",
+        observation_id=staleness_observation_id,
+        title=f"assay-bar-change:rubric:{old_rubric_hash}:{'f' * 64}",
+    )
+    staleness_observation = replay_discovery(runtime.ledger.iter_events())["source_observations"][
+        staleness_observation_id
+    ]
+
     stale = _command(
         "RecordAssayBarStaleness",
         "dec_019fed25-b33e-7740-b280-000000000107",
@@ -1470,7 +1529,7 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
             "row_id": "OR-109",
             "authority_kind": "assay_bar",
             "acceptance_sha256": bar_sha256,
-            "trigger_evidence_refs": ["evidence:rubric-superseded"],
+            "trigger_evidence_refs": [_ref(staleness_observation_id, 1, staleness_observation["content_sha256"])],
         },
     )
     stale["actor_id"] = ASSAY_AUTHORITY_ACTORS[1]
@@ -1578,9 +1637,9 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
             "content_hash": bar_sha256,
         },
         "assay_relation_hash": producer_sha256,
-        "completed_axes": ["candidate identity"],
-        "completed_evidence": ["evidence:candidate-identity"],
-        "unmet_axes": ["remaining assay axes"],
+        "completed_axes": [],
+        "completed_evidence": [],
+        "unmet_axes": ["identity"],
         "unmet_evidence": [],
         "reason_codes": ["incomplete_axis_closure"],
         "limitations": ["incomplete axis closure"],
@@ -1702,7 +1761,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         runtime,
         "obj_019fed25-b33e-7740-b280-6f661aaeff8c",
         observation_id=predicate_observation_id,
-        title="Objective Assay revisit evidence",
+        title="complete the remaining assay axes",
     )
     proposal = {
         "question": "Retry the exact partial Assay?",
@@ -1890,6 +1949,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     operational_state = _HARNESSES[tmp_path].replay().stream_states
     attempt_sha256 = sha256_hex(canonical_bytes(operational_state[attempt_id]))
     resource_state = operational_state[resource_grant_id]
+    artefact_ref = _register_spike_evidence(
+        runtime,
+        "art_019fed25-b33e-7740-b280-6f661aaeff78",
+        "evaluation_run",
+    )
+    validation_ref = _register_spike_evidence(
+        runtime,
+        "art_019fed25-b33e-7740-b280-6f661aaeff79",
+        "validation_report",
+    )
     runtime.submit(_genesis())
     candidate_sha256 = _ingest_candidate(
         runtime,
@@ -2146,8 +2215,8 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "consequence": "stop",
             }
         ],
-        "artefact_refs": [candidate_ref],
-        "validation_refs": [candidate_ref],
+        "artefact_refs": [artefact_ref],
+        "validation_refs": [validation_ref],
         "completed_scope": "The evaluable declared scope completed.",
         "unmet_scope": "One predicate remains unevaluated." if spike_verdict == "PARTIAL" else "None.",
         "limitations": ["One predicate could not be evaluated."] if spike_verdict == "PARTIAL" else [],
@@ -2260,6 +2329,22 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     ]
     for command in commands:
         row_id = command["payload"]["row_id"]
+        if row_id == "OR-014":
+            promotion = replay_discovery(runtime.ledger.iter_events())["decisions"][promotion_id]
+            decision_ref = _ref(promotion_id, promotion["proposal_version"], promotion["proposal_event_hash"])
+            command["payload"]["plan_artifact"]["assay_promotion_decision_ref"] = decision_ref
+            current_plan_hash = sha256_hex(canonical_bytes(command["payload"]["plan_artifact"]))
+            command["payload"]["plan_sha256"] = current_plan_hash
+            for later in commands:
+                relation = later["payload"].get("execution_authority_relation")
+                if isinstance(relation, dict):
+                    current_plan_ref = _ref(spike_id, 1, current_plan_hash)
+                    for key in ("spike_ref", "plan_ref", "route_ref"):
+                        relation[key] = deepcopy(current_plan_ref)
+                artifact = later["payload"].get("verdict_artifact")
+                if isinstance(artifact, dict):
+                    artifact["spike_plan_ref"] = _ref(spike_id, 1, current_plan_hash)
+                    later["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(artifact))
         if row_id in {"OR-012", "OR-015"}:
             malformed = deepcopy(command)
             malformed["payload"].pop("w2_payload")
@@ -2446,6 +2531,25 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 application_event["payload"]["next_candidate_state"] = next_state
                 terminal_projection = replay_discovery(_rehash_events(terminal))
                 assert terminal_projection["candidates"][candidate_id]["status"] == next_state
+    verdict_sha256 = next(
+        command["payload"]["verdict_sha256"] for command in commands if command["payload"]["row_id"] == verdict_row
+    )
+    tampered_plan = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    plan_end = next(
+        index
+        for index, event in enumerate(tampered_plan)
+        if event["event_type"] == "CandidateSpikePlanLinked" and event["payload"].get("spike_id") == spike_id
+    )
+    tampered_plan = tampered_plan[: plan_end + 1]
+    for event in tampered_plan:
+        payload = event.get("payload", {})
+        artifact = payload.get("plan_artifact") if isinstance(payload, dict) else None
+        if isinstance(artifact, dict) and payload.get("spike_id") == spike_id:
+            artifact["assay_promotion_decision_ref"]["content_hash"] = "f" * 64
+            payload["plan_sha256"] = sha256_hex(canonical_bytes(artifact))
+    with pytest.raises(IntegrityError, match="invalid Spike plan"):
+        replay_discovery(_rehash_events(tuple(tampered_plan)))
+
     invented_evidence = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     verdict_events = [
         event
@@ -2741,7 +2845,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             runtime,
             "obj_019fed25-b33e-7740-b280-6f661aaeff78",
             observation_id=predicate_observation_id,
-            title="Objective Spike revisit evidence",
+            title="unable to evaluate is partial",
         )
         revisit_id = "dec_019fed25-b33e-7740-b280-6f661aaeff71"
         revisit_proposal = proposed(revisit_id, "spike_revisit")
@@ -2818,7 +2922,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         retry_spike_id = "spk_019fed25-b33e-7740-b280-6f661aaeff72"
         retry_plan = deepcopy(plan_artifact)
         retry_plan["spike_id"] = retry_spike_id
-        retry_plan["assay_promotion_decision_ref"]["id"] = revisit_id
+        revisit_state = replay_discovery(runtime.ledger.iter_events())["decisions"][revisit_id]
+        retry_plan["assay_promotion_decision_ref"] = _ref(
+            revisit_id,
+            revisit_state["proposal_version"],
+            revisit_state["proposal_event_hash"],
+        )
         retry_plan_sha256 = sha256_hex(canonical_bytes(retry_plan))
         runtime.submit(
             _command(

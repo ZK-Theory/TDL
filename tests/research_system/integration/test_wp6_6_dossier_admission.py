@@ -26,6 +26,7 @@ from research_system.discovery.dossier import (
     RegisteredRoot,
     accepted_expected_set_hash,
     admission_profile_hash,
+    canonical_dossier_hash,
     prepare_dossier_admission as _prepare_dossier_admission,
     registered_root_identity_hash,
 )
@@ -47,12 +48,13 @@ FIXTURE_PREFLIGHT = ".research-system/contracts/wp6-4/tda-scale-v1.0.1/scale01-f
 V1_INDEX = REPO / ".research-system/contracts/wp6-4/tda-scale-v1.0.1/package-index.json"
 DOSSIER_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json"
 PATH_AUTHORITY = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
-TDA_RUNTIME_ROOT = Path(os.environ.get("TDL_REPOSITORY_ROOT", Path.home() / "TDL"))
+_TDA_RUNTIME_ROOT_VALUE = os.environ.get("TDL_REPOSITORY_ROOT")
+TDA_RUNTIME_ROOT = Path(_TDA_RUNTIME_ROOT_VALUE) if _TDA_RUNTIME_ROOT_VALUE else Path("__unconfigured_tdl_root__")
 VAULT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not VAULT.exists() or not CONTRACT_ROOT.exists(),
+        not _TDA_RUNTIME_ROOT_VALUE or not VAULT.exists() or not CONTRACT_ROOT.exists(),
         reason="real TDA dossier roots are not configured in this environment",
     ),
 ]
@@ -83,18 +85,18 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
         *vault_components,
     )
     expected = AcceptedExpectedSet(
-        "expected:tda-scale:1.0.3",
-        3,
-        "1" * 64,
-        "obj_019fed25-b33e-7740-b280-000000000913",
-        "TDA-ARS-SCALE-RESEARCH",
-        "1.0.3",
-        "prj_01978abc-1000-7000-8000-000000001000",
-        "profile:wp6.6:dossier-admission",
-        1,
-        admission_profile_hash("profile:wp6.6:dossier-admission", 1),
-        _canonical_hash(_candidate_manifest(members)),
-        members,
+        expected_set_id="expected:tda-scale:1.0.3",
+        revision=3,
+        content_hash="1" * 64,
+        dossier_id="obj_019fed25-b33e-7740-b280-000000000913",
+        package_id="TDA-ARS-SCALE-RESEARCH",
+        package_version="1.0.3",
+        project_id="prj_01978abc-1000-7000-8000-000000001000",
+        admission_profile_id="profile:wp6.6:dossier-admission",
+        admission_profile_revision=1,
+        admission_profile_hash=admission_profile_hash("profile:wp6.6:dossier-admission", 1),
+        manifest_sha256=canonical_dossier_hash(_candidate_manifest(members)),
+        members=members,
     )
     expected = replace(expected, content_hash=accepted_expected_set_hash(expected))
     roots = {
@@ -106,12 +108,6 @@ def _subject() -> tuple[AcceptedExpectedSet, dict[str, RegisteredRoot]]:
 
 def _rehash(expected: AcceptedExpectedSet) -> AcceptedExpectedSet:
     return replace(expected, content_hash=accepted_expected_set_hash(expected))
-
-
-def _canonical_hash(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    ).hexdigest()
 
 
 def _rehash_ledger(events: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
@@ -177,7 +173,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
             "source_keys": [member.member_key],
             "permitted_consumers": ["portfolio-catalogue"],
         }
-        digest = _canonical_hash(row)
+        digest = canonical_dossier_hash(row)
         row.update(blueprint_hash=digest, expected_content_hash=digest)
         objects.append(row)
         object_refs[member.member_key] = {"key": member.member_key, "revision": 1, "content_hash": digest}
@@ -190,7 +186,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
         "governing_object_keys": [member.member_key for member in component_members],
         "permitted_consumers": ["portfolio-catalogue"],
     }
-    scope_digest = _canonical_hash(scope_row)
+    scope_digest = canonical_dossier_hash(scope_row)
     scope_row.update(blueprint_hash=scope_digest, expected_content_hash=scope_digest)
     scope_ref = {"key": "tda-scale-programme", "revision": 1, "content_hash": scope_digest}
     edges: list[dict[str, object]] = []
@@ -207,7 +203,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
             "satisfaction_predicate_ref_or_null": None,
             "effective_scope_key": "tda-scale-programme",
         }
-        edge["expected_content_hash"] = _canonical_hash(edge)
+        edge["expected_content_hash"] = canonical_dossier_hash(edge)
         edges.append(edge)
     relationship_members = deepcopy([*object_refs.values(), scope_ref])
     relationships = [
@@ -217,7 +213,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
             "ordered_member_keys_with_revisions_hashes": relationship_members,
             "relation_schema_id": "ars://portfolio/relation/dossier-six-family-closure",
             "relation_schema_version": "1.0.0",
-            "relation_hash": _canonical_hash(relationship_members),
+            "relation_hash": canonical_dossier_hash(relationship_members),
         }
     ]
     manifest: dict[str, object] = {
@@ -250,7 +246,7 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
         "ownership_declarations": ["Successor owns only newly materialized semantic records."],
         "prohibited_adoption_claims": ["No source component is itself a portfolio object."],
     }
-    manifest["closure_hash"] = _canonical_hash(manifest)
+    manifest["closure_hash"] = canonical_dossier_hash(manifest)
     return manifest
 
 
@@ -293,8 +289,10 @@ def test_package_manifest_must_describe_the_exact_admitted_member_closure() -> N
     manifest = _candidate_manifest(expected.members)
     manifest["components"] = manifest["components"][:-1]
     manifest["component_count"] = len(manifest["components"])
-    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
-    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
+    manifest["closure_hash"] = canonical_dossier_hash(
+        {key: value for key, value in manifest.items() if key != "closure_hash"}
+    )
+    expected = _rehash(replace(expected, manifest_sha256=canonical_dossier_hash(manifest)))
 
     with pytest.raises(DossierAdmissionRejected, match="package_manifest_closure_mismatch"):
         _admit_with_default_manifest(
@@ -334,8 +332,10 @@ def test_semantic_blueprint_substitution_rejects_before_publication(
     expected, roots = _subject()
     manifest = _candidate_manifest(expected.members)
     mutation(manifest[family][0])
-    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
-    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
+    manifest["closure_hash"] = canonical_dossier_hash(
+        {key: value for key, value in manifest.items() if key != "closure_hash"}
+    )
+    expected = _rehash(replace(expected, manifest_sha256=canonical_dossier_hash(manifest)))
     with pytest.raises(DossierAdmissionRejected, match=reason):
         _admit_with_default_manifest(
             expected_set=expected,
@@ -354,14 +354,14 @@ def test_coordinated_semantic_manifest_substitution_rejects_against_external_exp
     object_preimage = {
         key: value for key, value in object_row.items() if key not in {"blueprint_hash", "expected_content_hash"}
     }
-    substituted_hash = _canonical_hash(object_preimage)
+    substituted_hash = canonical_dossier_hash(object_preimage)
     original_hash = object_row["expected_content_hash"]
     object_row.update(blueprint_hash=substituted_hash, expected_content_hash=substituted_hash)
     for edge in manifest["dependency_edges"]:
         for endpoint in (edge["from_key"], edge["to_key"]):
             if endpoint["content_hash"] == original_hash:
                 endpoint["content_hash"] = substituted_hash
-        edge["expected_content_hash"] = _canonical_hash(
+        edge["expected_content_hash"] = canonical_dossier_hash(
             {key: value for key, value in edge.items() if key != "expected_content_hash"}
         )
     for relationship in manifest["relationships"]:
@@ -369,8 +369,10 @@ def test_coordinated_semantic_manifest_substitution_rejects_against_external_exp
         for member in members:
             if member["content_hash"] == original_hash:
                 member["content_hash"] = substituted_hash
-        relationship["relation_hash"] = _canonical_hash(members)
-    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+        relationship["relation_hash"] = canonical_dossier_hash(members)
+    manifest["closure_hash"] = canonical_dossier_hash(
+        {key: value for key, value in manifest.items() if key != "closure_hash"}
+    )
 
     with pytest.raises(DossierAdmissionRejected, match="semantic_expected_set_mismatch"):
         _prepare_dossier_admission(
@@ -388,9 +390,11 @@ def test_materialized_identity_cannot_collide_with_dossier_identity() -> None:
     edge_row = manifest["dependency_edges"][0]
     edge_row["proposed_edge_id"] = expected.dossier_id
     edge_preimage = {key: value for key, value in edge_row.items() if key != "expected_content_hash"}
-    edge_row["expected_content_hash"] = _canonical_hash(edge_preimage)
-    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
-    expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
+    edge_row["expected_content_hash"] = canonical_dossier_hash(edge_preimage)
+    manifest["closure_hash"] = canonical_dossier_hash(
+        {key: value for key, value in manifest.items() if key != "closure_hash"}
+    )
+    expected = _rehash(replace(expected, manifest_sha256=canonical_dossier_hash(manifest)))
     with pytest.raises(DossierAdmissionRejected, match="immutable_identity_collision"):
         _admit_with_default_manifest(
             expected_set=expected,
@@ -642,9 +646,16 @@ def test_real_package_retains_non_dispatchable_provider_free_identity() -> None:
     assert package["execution_authorized"] is False
 
 
-def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, object], offset: int) -> None:
-    actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(5)]
-    actors[4] = ACTOR_ID
+def _accept_authority(
+    runtime: DiscoveryRuntime,
+    kind: str,
+    subject: dict[str, object],
+    offset: int,
+    *,
+    before_submit: Callable[[DiscoveryRuntime, Command, int], None] | None = None,
+) -> None:
+    actors = [f"act_019fed25-b33e-7740-b280-{offset + number:012d}" for number in range(6)]
+    actors[5] = ACTOR_ID
     stream_id = f"obj_019fed25-b33e-7740-b280-{offset:012d}"
     review_id = f"rev_019fed25-b33e-7740-b280-{offset + 99:012d}"
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
@@ -689,10 +700,10 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
                 "reconstruction_sha256": "5" * 64,
             },
         ),
-        ("ProposeW11AuthorityDecision", actors[2], {"decision_id": decision_id, "proposed_decision": "accept"}),
+        ("ProposeW11AuthorityDecision", actors[4], {"decision_id": decision_id, "proposed_decision": "accept"}),
         (
             "ResolveDecision",
-            actors[4],
+            actors[5],
             {"decision_id": decision_id, "decision": "accept", "transaction_id": f"txn:{kind}"},
         ),
     )
@@ -707,11 +718,8 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
             {"row_id": f"OR-{first_row + index}", "authority_kind": kind, **value},
         )
         command["actor_id"] = actor_id
-        if index == 3:
-            wrong_stream = deepcopy(command)
-            wrong_stream["target_stream_id"] = f"rev_019fed25-b33e-7740-b280-{offset + 999:012d}"
-            with pytest.raises(IntegrityError, match="W11 authority review stream mismatch"):
-                runtime._prepare_authority(Command(wrong_stream), replay_discovery(runtime.ledger.iter_events()))
+        if before_submit is not None:
+            before_submit(runtime, Command(command), index)
         assert runtime.submit(command).status == "accepted"
     accepted_type = "DossierExpectedSetAccepted" if kind == "dossier_expected_set" else "PathRegistrationAccepted"
     accepted_event = next(
@@ -721,6 +729,47 @@ def _accept_authority(runtime: DiscoveryRuntime, kind: str, subject: dict[str, o
     )
     authority = replay_discovery(runtime.ledger.iter_events())["authorities"][kind]
     assert authority["transaction_id"] == accepted_event["transaction_id"]
+
+
+def test_w11_authority_review_requires_its_exact_review_stream(tmp_path: Path) -> None:
+    expected, _ = _subject()
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    checked = False
+
+    def reject_foreign_review_stream(current: DiscoveryRuntime, command: Command, index: int) -> None:
+        nonlocal checked
+        if index != 3:
+            return
+        wrong_stream = deepcopy(command.envelope)
+        wrong_stream["target_stream_id"] = "rev_019fed25-b33e-7740-b280-000000001999"
+        with pytest.raises(IntegrityError, match="W11 authority review stream mismatch"):
+            current._prepare_authority(Command(wrong_stream), replay_discovery(current.ledger.iter_events()))
+        checked = True
+
+    _accept_authority(
+        runtime,
+        "dossier_expected_set",
+        {
+            "authority_kind": "dossier_expected_set",
+            "record_id": expected.expected_set_id,
+            "record_revision": expected.revision,
+            "project_id": expected.project_id,
+            "scope_id": expected.dossier_id,
+            "owner_requirement_refs": ["W11:OR-110-115"],
+            "content_sha256": expected.content_hash,
+            "admission_profile_decision": {
+                "dispatchable": False,
+                "profile_id": expected.admission_profile_id,
+                "profile_revision": expected.admission_profile_revision,
+                "provider_execution": "forbidden",
+            },
+            "expected_set": json.loads(json.dumps(asdict(expected))),
+        },
+        810,
+        before_submit=reject_foreign_review_stream,
+    )
+    assert checked
 
 
 def test_authority_chains_activate_dossier_admission_without_constructor_inputs(tmp_path: Path) -> None:
@@ -783,7 +832,9 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     manifest = incomplete_manifest["payload"]["candidate_manifest"]
     manifest["components"] = manifest["components"][:-1]
     manifest["component_count"] -= 1
-    manifest["closure_hash"] = _canonical_hash({key: value for key, value in manifest.items() if key != "closure_hash"})
+    manifest["closure_hash"] = canonical_dossier_hash(
+        {key: value for key, value in manifest.items() if key != "closure_hash"}
+    )
     before = tuple(runtime.ledger.iter_events())
     with pytest.raises(DossierAdmissionRejected, match="semantic_expected_set_mismatch"):
         runtime.submit(incomplete_manifest)
@@ -821,7 +872,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     object_event["payload"]["record_id"] = expected.dossier_id
     blueprint["proposed_edge_id"] = expected.dossier_id
     blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
-    blueprint_hash = _canonical_hash(blueprint_preimage)
+    blueprint_hash = canonical_dossier_hash(blueprint_preimage)
     blueprint["expected_content_hash"] = blueprint_hash
     object_event["payload"]["content_sha256"] = blueprint_hash
     with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
@@ -840,7 +891,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     object_event["payload"]["record_id"] = catalogue_id
     blueprint["proposed_edge_id"] = catalogue_id
     blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
-    blueprint_hash = _canonical_hash(blueprint_preimage)
+    blueprint_hash = canonical_dossier_hash(blueprint_preimage)
     blueprint["expected_content_hash"] = blueprint_hash
     object_event["payload"]["content_sha256"] = blueprint_hash
     with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
@@ -865,6 +916,12 @@ def test_public_observation_rejects_authority_content_not_serialized_by_git_byte
         "scope_id": expected.dossier_id,
         "owner_requirement_refs": ["W11:OR-110-115"],
         "content_sha256": expected.content_hash,
+        "admission_profile_decision": {
+            "dispatchable": False,
+            "profile_id": expected.admission_profile_id,
+            "profile_revision": expected.admission_profile_revision,
+            "provider_execution": "forbidden",
+        },
         "expected_set": json.loads(json.dumps(asdict(expected))),
     }
     authority_path = DOSSIER_AUTHORITY
@@ -977,13 +1034,13 @@ def test_dossier_runtime_rejects_materialization_identity_used_by_existing_aggre
         collision_id = "obj_019fed25-b33e-7740-b280-000000000001"
         edge = manifest["dependency_edges"][0]
         edge["proposed_edge_id"] = collision_id
-        edge["expected_content_hash"] = _canonical_hash(
+        edge["expected_content_hash"] = canonical_dossier_hash(
             {key: value for key, value in edge.items() if key != "expected_content_hash"}
         )
-        manifest["closure_hash"] = _canonical_hash(
+        manifest["closure_hash"] = canonical_dossier_hash(
             {key: value for key, value in manifest.items() if key != "closure_hash"}
         )
-        expected = _rehash(replace(expected, manifest_sha256=_canonical_hash(manifest)))
+        expected = _rehash(replace(expected, manifest_sha256=canonical_dossier_hash(manifest)))
         catalogue = {"status": "imported"}
     runtime = _runtime(tmp_path)
     projection = {

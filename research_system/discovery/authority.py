@@ -67,6 +67,58 @@ def _sha256(value: object, label: str) -> str:
     return value
 
 
+def _identity(value: object, label: str) -> str:
+    """Validate and return one non-empty immutable identity."""
+    if not isinstance(value, str) or not value:
+        raise AuthorityRejected(f"invalid_{label}")
+    return value
+
+
+def _validate_registered_subject(
+    kind: str,
+    subject: Mapping[str, object],
+    state: Mapping[str, Mapping[str, object]],
+) -> None:
+    """Join the accepted outer authority envelope to its complete nested subject."""
+
+    _identity(subject.get("record_id"), "record_id")
+    _identity(subject.get("project_id"), "project_id")
+    _identity(subject.get("scope_id"), "scope_id")
+    if kind == "dossier_expected_set":
+        expected = subject.get("expected_set")
+        profile = subject.get("admission_profile_decision")
+        if (
+            not isinstance(expected, Mapping)
+            or not isinstance(profile, Mapping)
+            or subject.get("record_id") != expected.get("expected_set_id")
+            or subject.get("record_revision") != expected.get("revision")
+            or subject.get("project_id") != expected.get("project_id")
+            or subject.get("scope_id") != expected.get("dossier_id")
+            or subject.get("content_sha256") != expected.get("content_hash")
+            or profile.get("profile_id") != expected.get("admission_profile_id")
+            or profile.get("profile_revision") != expected.get("admission_profile_revision")
+            or profile.get("dispatchable") is not False
+            or profile.get("provider_execution") != "forbidden"
+        ):
+            raise AuthorityRejected("subject_envelope_mismatch")
+        _sha256(subject.get("content_sha256"), "content_sha256")
+    else:
+        roots = subject.get("registered_roots")
+        dossier = state.get("dossier_expected_set")
+        dossier_subject = dossier.get("subject") if isinstance(dossier, Mapping) else None
+        expected = dossier_subject.get("expected_set") if isinstance(dossier_subject, Mapping) else None
+        if (
+            not isinstance(roots, list)
+            or not roots
+            or not isinstance(dossier, Mapping)
+            or not isinstance(expected, Mapping)
+            or dossier.get("status") != "accepted"
+            or subject.get("scope_id") != expected.get("dossier_id")
+            or subject.get("project_id") != expected.get("project_id")
+        ):
+            raise AuthorityRejected("path_scope_mismatch")
+
+
 def _event(kind: str, action: str, event_type: str, payload: Mapping[str, object]) -> dict[str, object]:
     """Build one immutable authority transition event."""
     return {
@@ -108,11 +160,13 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
                 raise AuthorityRejected("subject_kind_mismatch")
             if kind == "path_registration" and subject.get("collision_status", "no_collision") != "no_collision":
                 raise AuthorityRejected("path_collision")
+            _validate_registered_subject(kind, subject, state)
+            author = _identity(payload.get("actor_id"), "actor_id")
             state[kind] = {
                 "status": "registered",
                 "subject": subject,
                 "subject_sha256": digest,
-                "actors": {"author": payload.get("actor_id")},
+                "actors": {"author": author},
             }
             continue
         if current is None:
@@ -123,7 +177,8 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
         if event_type == "W11AuthorityFileObserved":
             if status != "registered":
                 raise AuthorityRejected("invalid_observation_order")
-            if payload.get("actor_id") == actors["author"]:
+            observer = _identity(payload.get("actor_id"), "actor_id")
+            if observer == actors["author"]:
                 raise AuthorityRejected("actor_not_independent")
             if payload.get("subject_sha256") != current["subject_sha256"]:
                 raise AuthorityRejected("subject_hash_mismatch")
@@ -132,7 +187,7 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
                 file_sha256=_sha256(payload.get("file_sha256"), "file_sha256"),
                 file_observation=payload,
             )
-            actors["observer"] = payload.get("actor_id")
+            actors["observer"] = observer
         elif event_type == "ReviewRequested":
             if status != "observed":
                 raise AuthorityRejected("invalid_review_request_order")
@@ -141,10 +196,12 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
             if payload.get("file_sha256") != current["file_sha256"]:
                 raise AuthorityRejected("file_identity_mismatch")
             reviewer = payload.get("reviewer_actor_id")
-            if reviewer in {actors["author"], actors["observer"], payload.get("actor_id")}:
+            requester = _identity(payload.get("actor_id"), "actor_id")
+            reviewer = _identity(reviewer, "reviewer_actor_id")
+            if reviewer in {actors["author"], actors["observer"], requester}:
                 raise AuthorityRejected("actor_not_independent")
-            current.update(status="review_requested", review_id=payload.get("review_id"))
-            actors["proposer"] = payload.get("actor_id")
+            current.update(status="review_requested", review_id=_identity(payload.get("review_id"), "review_id"))
+            actors["review_requester"] = requester
             actors["reviewer"] = reviewer
         elif event_type == "ReviewVerdictRecorded":
             if status != "review_requested" or payload.get("actor_id") != actors["reviewer"]:
@@ -158,6 +215,8 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
             _sha256(payload.get("reconstruction_sha256"), "reconstruction_sha256")
             current.update(status="reviewed", review_verdict=payload)
         elif event_type == "DecisionProposed":
+            proposer = _identity(payload.get("actor_id"), "actor_id")
+            decision_id = _identity(payload.get("decision_id"), "decision_id")
             if status != "reviewed" or payload.get("proposed_decision") != "accept":
                 raise AuthorityRejected("invalid_decision_proposal")
             if (
@@ -165,15 +224,19 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
                 or payload.get("file_sha256") != current["file_sha256"]
             ):
                 raise AuthorityRejected("decision_subject_mismatch")
-            current.update(status="decision_proposed", decision_id=payload.get("decision_id"))
-            actors["proposer"] = payload.get("actor_id")
+            if proposer in set(actors.values()):
+                raise AuthorityRejected("actor_not_independent")
+            current.update(status="decision_proposed", decision_id=decision_id)
+            actors["decision_proposer"] = proposer
         elif event_type == "DecisionResolved":
             if status != "decision_proposed" or payload.get("decision_id") != current["decision_id"]:
                 raise AuthorityRejected("invalid_owner_resolution")
-            if payload.get("decision") != "accept" or payload.get("actor_id") in set(actors.values()):
+            owner = _identity(payload.get("actor_id"), "actor_id")
+            transaction_id = _identity(payload.get("transaction_id"), "transaction_id")
+            if payload.get("decision") != "accept" or owner in set(actors.values()):
                 raise AuthorityRejected("owner_not_independent")
-            current.update(status="resolved", transaction_id=payload.get("transaction_id"))
-            actors["owner"] = payload.get("actor_id")
+            current.update(status="resolved", transaction_id=transaction_id)
+            actors["owner"] = owner
         elif event_type == _ACCEPTED[kind]:
             if status != "resolved" or payload.get("transaction_id") != current["transaction_id"]:
                 raise AuthorityRejected("acceptance_transaction_mismatch")
@@ -248,7 +311,6 @@ def prepare_authority_transition(
             raise AuthorityRejected("authority_not_registered")
         if current["status"] != "decision_proposed":
             raise AuthorityRejected("invalid_owner_resolution")
-        base.pop("transaction_id", None)
         base.update(schema_id=_W2_SCHEMAS["DecisionResolved"], schema_version="1.0.0")
         resolved = _event(kind, action, "DecisionResolved", base)
         accepted_payload = {
@@ -259,6 +321,7 @@ def prepare_authority_transition(
             "file_sha256": current["file_sha256"],
             "review_verdict": deepcopy(current["review_verdict"]),
             "decision_id": base.get("decision_id"),
+            "transaction_id": base.get("transaction_id"),
             "acceptor_actor_id": actor_id,
         }
         prepared = (resolved, _event(kind, action, _ACCEPTED[kind], accepted_payload))

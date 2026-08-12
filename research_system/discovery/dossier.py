@@ -17,7 +17,11 @@ import stat
 from typing import Any
 
 from research_system.errors import ConflictError
-from research_system.store.lock import open_registered_member_directory_anchor, open_registered_root_anchor
+from research_system.store.lock import (
+    DirectoryAnchor,
+    open_registered_member_directory_anchor,
+    open_registered_root_anchor,
+)
 
 
 class DossierAdmissionRejected(ValueError):
@@ -69,7 +73,7 @@ class PreparedDossierAdmission:
     closure_hash: str
 
 
-def _canonical_hash(value: Any) -> str:
+def canonical_dossier_hash(value: Any) -> str:
     """Hash one JSON-compatible value canonically."""
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     return hashlib.sha256(raw).hexdigest()
@@ -87,13 +91,13 @@ def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
 
     value = asdict(expected_set)
     value.pop("content_hash")
-    return _canonical_hash(value)
+    return canonical_dossier_hash(value)
 
 
 def admission_profile_hash(profile_id: str, revision: int) -> str:
     """Bind the provider-free, non-dispatchable WP6.6 admission policy."""
 
-    return _canonical_hash(
+    return canonical_dossier_hash(
         {
             "admission_profile_id": profile_id,
             "admission_profile_revision": revision,
@@ -124,7 +128,7 @@ def registered_root_identity_hash(path: Path) -> str:
 
     anchor = open_registered_root_anchor(path, delete_protect=True)
     try:
-        return _canonical_hash(
+        return canonical_dossier_hash(
             {
                 "scheme": anchor.identity.scheme,
                 "volume_or_device": anchor.identity.volume_or_device,
@@ -149,7 +153,7 @@ def _after_member_path_check(_path: Path) -> None:
     """Fault-injection boundary after anchored traversal and before member stat."""
 
 
-def _assert_live_root(anchor: Any, path: Path) -> None:
+def _assert_live_root(anchor: DirectoryAnchor, path: Path) -> None:
     """Require the live root path to retain the held physical identity."""
     observer = open_registered_root_anchor(path, delete_protect=False)
     try:
@@ -197,7 +201,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
 
     anchor = open_registered_root_anchor(root.path, delete_protect=True)
     try:
-        identity_hash = _canonical_hash(
+        identity_hash = canonical_dossier_hash(
             {
                 "scheme": anchor.identity.scheme,
                 "volume_or_device": anchor.identity.volume_or_device,
@@ -214,7 +218,7 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
         except OSError as exc:
             raise DossierAdmissionRejected("path_registration_identity_changed") from exc
         root_path = anchor.final_path
-        directory_anchors: list[Any] = []
+        directory_anchors: list[DirectoryAnchor] = []
         try:
             parent_path = root_path
             for part in relative.parts[:-1]:
@@ -230,12 +234,13 @@ def _open_registered_member(member: DossierMember, roots: Mapping[str, Registere
             candidate = parent_path / relative.parts[-1]
             try:
                 candidate.relative_to(root_path)
-                is_alias = candidate.is_symlink() or candidate.is_junction()
+                is_symlink = candidate.is_symlink()
+                is_junction = candidate.is_junction()
             except ValueError as exc:
                 raise DossierAdmissionRejected("path_escape") from exc
             except OSError as exc:
                 raise DossierAdmissionRejected("incomplete_package") from exc
-            if is_alias:
+            if is_symlink or is_junction:
                 raise DossierAdmissionRejected("unregistered_path_alias")
             _after_member_path_check(candidate)
             before = candidate.stat(follow_symlinks=False)
@@ -392,7 +397,7 @@ def prepare_dossier_admission(
     edges = candidate_manifest.get("dependency_edges")
     relationships = candidate_manifest.get("relationships")
     families = (components, sources, objects, scopes, edges, relationships)
-    if _canonical_hash(dict(candidate_manifest)) != expected_set.manifest_sha256:
+    if canonical_dossier_hash(dict(candidate_manifest)) != expected_set.manifest_sha256:
         raise DossierAdmissionRejected("semantic_expected_set_mismatch")
     if (
         candidate_manifest.get("schema_id") != "ars://portfolio/research-dossier-manifest"
@@ -417,7 +422,7 @@ def prepare_dossier_admission(
         raise DossierAdmissionRejected("package_manifest_closure_mismatch")
     manifest_preimage = deepcopy(dict(candidate_manifest))
     manifest_closure_hash = manifest_preimage.pop("closure_hash", None)
-    if manifest_closure_hash != _canonical_hash(manifest_preimage):
+    if manifest_closure_hash != canonical_dossier_hash(manifest_preimage):
         raise DossierAdmissionRejected("package_manifest_closure_mismatch")
 
     observed_by_key = {row["member_key"]: row for row in observed}
@@ -476,7 +481,7 @@ def prepare_dossier_admission(
             for name, value in row.items()
             if name not in {"blueprint_hash", "expected_content_hash"}
         }
-        digest = _canonical_hash(preimage)
+        digest = canonical_dossier_hash(preimage)
         if (
             not isinstance(key, str)
             or key in semantic_keys
@@ -520,7 +525,7 @@ def prepare_dossier_admission(
             for name, value in row.items()
             if name not in {"blueprint_hash", "expected_content_hash"}
         }
-        digest = _canonical_hash(preimage)
+        digest = canonical_dossier_hash(preimage)
         if (
             not isinstance(key, str)
             or key in semantic_keys
@@ -561,7 +566,7 @@ def prepare_dossier_admission(
         from_ref = row.get("from_key")
         to_ref = row.get("to_key")
         preimage = {name: deepcopy(value) for name, value in row.items() if name != "expected_content_hash"}
-        digest = _canonical_hash(preimage)
+        digest = canonical_dossier_hash(preimage)
         if (
             not isinstance(key, str)
             or key in edge_keys
@@ -573,10 +578,8 @@ def prepare_dossier_admission(
             or from_ref.get("key") not in component_keys
             or to_ref.get("key") not in component_keys
             or from_ref.get("key") == to_ref.get("key")
-            or tuple((from_ref.get("key"), from_ref.get("revision"), from_ref.get("content_hash")))
-            != (from_ref.get("key"), *semantic_keys[from_ref.get("key")][1:])
-            or tuple((to_ref.get("key"), to_ref.get("revision"), to_ref.get("content_hash")))
-            != (to_ref.get("key"), *semantic_keys[to_ref.get("key")][1:])
+            or (from_ref.get("revision"), from_ref.get("content_hash")) != semantic_keys[from_ref.get("key")][1:]
+            or (to_ref.get("revision"), to_ref.get("content_hash")) != semantic_keys[to_ref.get("key")][1:]
             or row.get("effective_scope_key") not in scope_keys
             or row.get("expected_content_hash") != digest
         ):
@@ -629,7 +632,7 @@ def prepare_dossier_admission(
                 or (member.get("revision"), member.get("content_hash")) != semantic_keys[member.get("key")][1:]
                 for member in members
             )
-            or row.get("relation_hash") != _canonical_hash(members)
+            or row.get("relation_hash") != canonical_dossier_hash(members)
         ):
             raise DossierAdmissionRejected("invalid_relationship")
         relationship_keys.add(key)
@@ -645,7 +648,7 @@ def prepare_dossier_admission(
     if protected_identities & existing_identities:
         raise DossierAdmissionRejected("immutable_identity_collision")
 
-    closure_hash = _canonical_hash(observed)
+    closure_hash = canonical_dossier_hash(observed)
     base = {
         "dossier_id": expected_set.dossier_id,
         "project_id": expected_set.project_id,
@@ -659,7 +662,7 @@ def prepare_dossier_admission(
         "admission_profile_hash": expected_set.admission_profile_hash,
         "member_count": len(observed),
         "member_closure_hash": closure_hash,
-        "candidate_manifest_hash": _canonical_hash(candidate_manifest),
+        "candidate_manifest_hash": canonical_dossier_hash(dict(candidate_manifest)),
         "object_count": len(materialized_objects),
         "scope_count": len(materialized_scopes),
         "edge_count": len(materialized_edges),
