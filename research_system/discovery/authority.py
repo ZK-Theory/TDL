@@ -60,6 +60,17 @@ def subject_sha256(subject: Mapping[str, object]) -> str:
     return sha256_hex(canonical_bytes(preimage))
 
 
+def _content_sha256(subject: Mapping[str, object]) -> str:
+    """Hash only the serialized Stage-B content carried by an authority subject."""
+
+    preimage = {
+        key: value
+        for key, value in subject.items()
+        if key not in {"content_sha256", "subject_sha256"} and not key.startswith("authority_file_")
+    }
+    return sha256_hex(canonical_bytes(preimage))
+
+
 def _sha256(value: object, label: str) -> str:
     """Validate and return one lowercase SHA-256 value."""
     if not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
@@ -107,6 +118,7 @@ def _validate_registered_subject(
         dossier = state.get("dossier_expected_set")
         dossier_subject = dossier.get("subject") if isinstance(dossier, Mapping) else None
         expected = dossier_subject.get("expected_set") if isinstance(dossier_subject, Mapping) else None
+        content_digest = _sha256(subject.get("content_sha256"), "content_sha256")
         if (
             not isinstance(roots, list)
             or not roots
@@ -117,6 +129,8 @@ def _validate_registered_subject(
             or subject.get("project_id") != expected.get("project_id")
         ):
             raise AuthorityRejected("path_scope_mismatch")
+        if content_digest != _content_sha256(subject):
+            raise AuthorityRejected("content_hash_mismatch")
 
 
 def _event(kind: str, action: str, event_type: str, payload: Mapping[str, object]) -> dict[str, object]:

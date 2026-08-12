@@ -1703,6 +1703,9 @@ def replay_discovery(
     active_schemas = schemas or _default_replay_schemas()
     _validate_persisted_event_envelopes(ordered, active_schemas)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered)
+    transaction_events: dict[Any, list[dict[str, Any]]] = {}
+    for persisted_event in ordered:
+        transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
     state: dict[str, Any] = {
         "catalogue": None,
         "source_observations": {},
@@ -1741,6 +1744,60 @@ def replay_discovery(
             state["authority_streams"][identity] = kind
         elif existing != kind:
             raise IntegrityError("W11 authority stream identity collision")
+
+    def candidate_spike_link_matches(
+        event: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        *,
+        candidate_status: str,
+        spike_status: str,
+        spike_event_type: str,
+    ) -> bool:
+        """Bind a Candidate link to its exact preceding Spike result transaction."""
+
+        candidate_id = payload.get("candidate_id")
+        spike_id = payload.get("spike_id")
+        candidate = state["candidates"].get(candidate_id)
+        spike = state["spikes"].get(spike_id)
+        preceding_spike_events = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == spike_event_type
+        ]
+        return bool(
+            isinstance(candidate, Mapping)
+            and isinstance(spike, Mapping)
+            and event.get("stream_id") == candidate_id
+            and candidate.get("status") == candidate_status
+            and candidate.get("spike_id") == spike_id
+            and spike.get("status") == spike_status
+            and spike.get("candidate_id") == candidate_id
+            and len(preceding_spike_events) == 1
+            and preceding_spike_events[0].get("stream_id") == spike_id
+            and preceding_spike_events[0].get("payload") == payload
+        )
+
+    def dossier_materialization_transaction_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        """Bind one materialization to its exact admission in the same transaction."""
+
+        dossier_id = payload.get("dossier_id")
+        dossier = state["dossiers"].get(dossier_id)
+        admissions = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == "ResearchDossierAdmitted"
+            and transaction_event.get("stream_id") == dossier_id
+            and isinstance(transaction_event.get("payload"), Mapping)
+            and transaction_event["payload"].get("dossier_id") == dossier_id
+        ]
+        return bool(
+            isinstance(dossier_id, str)
+            and isinstance(dossier, Mapping)
+            and dossier.get("status") == "admitted"
+            and len(admissions) == 1
+        )
 
     for event in ordered:
         event_type = event.get("event_type")
@@ -2935,14 +2992,26 @@ def replay_discovery(
                 raise IntegrityError("invalid Spike lease release")
             spike.update(lease_status="released")
         elif event_type == "CandidateSpikeVerdictLinked":
-            candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            if not candidate_spike_link_matches(
+                event,
+                payload,
+                candidate_status="spike_running",
+                spike_status="verdict_recorded",
+                spike_event_type="SpikeVerdictRecorded",
+            ):
                 raise IntegrityError("invalid Candidate Spike verdict link")
+            candidate = state["candidates"][payload["candidate_id"]]
             candidate.update(status="spike_verdict_recorded")
         elif event_type == "CandidateSpikePartialLinked":
-            candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict) or candidate.get("status") != "spike_running":
+            if not candidate_spike_link_matches(
+                event,
+                payload,
+                candidate_status="spike_running",
+                spike_status="partial_recorded",
+                spike_event_type="SpikePartialRecorded",
+            ):
                 raise IntegrityError("invalid Candidate Spike partial link")
+            candidate = state["candidates"][payload["candidate_id"]]
             candidate.update(status="spike_partial_recorded")
         elif event_type in {"SpikeReviewRequested", "SpikePartialReviewRequested", "SpikeCancellationReviewRequested"}:
             spike = state["spikes"].get(payload.get("spike_id"))
@@ -3106,6 +3175,8 @@ def replay_discovery(
         elif event_type == "PortfolioObjectRegistered":
             record_id = payload.get("record_id")
             blueprint = payload.get("blueprint")
+            if not dossier_materialization_transaction_matches(event, payload):
+                raise IntegrityError("Research dossier materialization admission transaction mismatch")
             if isinstance(blueprint, dict) and "proposed_edge_id" in blueprint:
                 blueprint_preimage = {
                     key: deepcopy(value) for key, value in blueprint.items() if key != "expected_content_hash"
@@ -3134,6 +3205,8 @@ def replay_discovery(
         elif event_type == "ScopeDefinitionRegistered":
             scope_id = payload.get("scope_id")
             blueprint = payload.get("blueprint")
+            if not dossier_materialization_transaction_matches(event, payload):
+                raise IntegrityError("Research dossier materialization admission transaction mismatch")
             blueprint_preimage = (
                 {
                     key: deepcopy(value)

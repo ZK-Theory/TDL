@@ -102,6 +102,25 @@ def _reindex_and_rehash_events(events: tuple[dict[str, object], ...]) -> tuple[d
     return _rehash_events(reindexed)
 
 
+def _fully_reindex_and_rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    """Rebuild every derived ledger coordinate for a semantic replay attack."""
+
+    reindexed = tuple(deepcopy(events))
+    transaction_events: dict[object, list[dict[str, object]]] = {}
+    stream_versions: dict[object, int] = {}
+    for global_position, event in enumerate(reindexed, start=1):
+        event["global_position"] = global_position
+        stream_id = event.get("stream_id")
+        stream_versions[stream_id] = stream_versions.get(stream_id, 0) + 1
+        event["stream_version"] = stream_versions[stream_id]
+        transaction_events.setdefault(event.get("transaction_id"), []).append(event)
+    for members in transaction_events.values():
+        for transaction_index, event in enumerate(members, start=1):
+            event["transaction_index"] = transaction_index
+            event["transaction_count"] = len(members)
+    return _rehash_events(reindexed)
+
+
 def _runtime(tmp_path: Path) -> DiscoveryRuntime:
     harness = _HARNESSES.get(tmp_path)
     if harness is None:
@@ -4202,3 +4221,69 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             for event in partitions["operational"]
             if event.get("command_type") == "RecordSpikeVerdict"
         } >= {"PartialOutcomeRecorded", "LeaseReleased"}
+
+
+def test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_transaction_join(
+    tmp_path: Path,
+) -> None:
+    accepted_attacks: list[str] = []
+    cases = (
+        ("PASS", "OR-018", "CandidateSpikeVerdictLinked", "SpikeVerdictRecorded"),
+        ("PARTIAL", "OR-019", "CandidateSpikePartialLinked", "SpikePartialRecorded"),
+    )
+    for case_index, (verdict, row_id, link_type, spike_event_type) in enumerate(cases, start=1):
+        case_root = tmp_path / verdict.lower()
+        case_root.mkdir()
+        test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+            case_root,
+            verdict,
+            row_id,
+        )
+        events = tuple(deepcopy(event) for event in _HARNESSES[case_root].ledger.iter_events())
+        link_index = next(index for index, event in enumerate(events) if event["event_type"] == link_type)
+        baseline = events[: link_index + 1]
+        link = baseline[-1]
+        candidate_id = link["payload"]["candidate_id"]
+        spike_id = link["payload"]["spike_id"]
+
+        attacks: dict[str, tuple[dict[str, object], ...]] = {}
+
+        foreign_spike = tuple(deepcopy(event) for event in baseline)
+        foreign_spike[-1]["payload"]["spike_id"] = "spk_019fed25-b33e-7740-b280-ffffffffffff"
+        attacks["foreign_spike"] = foreign_spike
+
+        wrong_stream = tuple(deepcopy(event) for event in baseline)
+        wrong_stream[-1]["stream_id"] = spike_id
+        attacks["wrong_stream"] = wrong_stream
+
+        split_transaction = tuple(deepcopy(event) for event in baseline)
+        split_transaction[-1]["transaction_id"] = f"txb_019fed25-b33e-7740-b280-{980 + case_index:012d}"
+        attacks["split_transaction"] = split_transaction
+
+        if link_type == "CandidateSpikeVerdictLinked":
+            foreign_candidate = tuple(deepcopy(event) for event in baseline)
+            foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff74"
+            foreign_candidate[-1]["payload"]["candidate_id"] = foreign_candidate_id
+            foreign_candidate[-1]["stream_id"] = foreign_candidate_id
+            attacks["candidate_not_spike_running"] = foreign_candidate
+
+            without_completed_spike = tuple(
+                deepcopy(event)
+                for event in baseline
+                if not (
+                    event["event_type"] == spike_event_type
+                    and event["transaction_id"] == link["transaction_id"]
+                    and event["payload"].get("candidate_id") == candidate_id
+                    and event["payload"].get("spike_id") == spike_id
+                )
+            )
+            attacks["missing_completed_spike"] = without_completed_spike
+
+        for attack_name, attacked in attacks.items():
+            try:
+                replay_discovery(_fully_reindex_and_rehash_events(attacked))
+            except IntegrityError:
+                continue
+            accepted_attacks.append(f"{link_type}:{attack_name}")
+
+    assert accepted_attacks == []

@@ -65,6 +65,29 @@ annotation-inbox PathRegistrationContent, and an initial epoch authority/event.
 The protected v1 bytes remain unchanged and this candidate claims no OR-030
 execution capability.
 
+## PR #248 current-head review dispositions
+
+- `CandidateSpikeVerdictLinked` and its PARTIAL twin now join the exact
+  Candidate, Spike, prior state, Candidate stream, transaction, and preceding
+  Spike result. Fully reindexed and rehashed identity, stream, transaction, and
+  missing-result substitutions reject during replay.
+- Every dossier object, dependency edge, and Scope materialization now requires
+  the matching `ResearchDossierAdmitted` event earlier in the same atomic
+  transaction. A fully rehashed orphan object or Scope event is rejected rather
+  than becoming an unowned durable projection.
+- OR-116 path-registration content now recomputes its canonical content digest
+  at registration and replay. The candidate fixture's placeholder digest was
+  replaced by the canonical value
+  `ba67b4175a6d82619abdc5083ea8b566604d6fc6c46702465e8689884d902a59`;
+  protected W11 bytes were not changed.
+- The accepted-W11 identity test uses shared repository-relative `Path` values
+  for both tree comparisons and compares working-tree bytes without line-ending
+  normalization.
+
+Exact committed-head validation and external-thread dispositions are recorded
+on PR #248 and KAN-59. They do not constitute CodeRabbit completion, owner
+acceptance, merge authorization, or integration evidence.
+
 ## Closure boundary
 
 The corrected end product will be recommitted as a fresh pull request so the

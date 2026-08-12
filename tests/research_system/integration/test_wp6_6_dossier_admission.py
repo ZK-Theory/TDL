@@ -882,19 +882,7 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     _accept_authority(
         runtime,
         "path_registration",
-        {
-            "authority_kind": "path_registration",
-            "record_id": "path-registration:tda-scale",
-            "record_revision": 1,
-            "project_id": expected.project_id,
-            "scope_id": expected.dossier_id,
-            "owner_requirement_refs": ["W11:OR-116-121"],
-            "content_sha256": "8" * 64,
-            "collision_status": "no_collision",
-            "environment_scope": "owner-accepted-stephen-windows-tda-runtime",
-            "identity_scheme": "windows-file-id-v1",
-            "registered_roots": json.loads((REPO / PATH_AUTHORITY).read_bytes())["registered_roots"],
-        },
+        json.loads((REPO / PATH_AUTHORITY).read_bytes()),
         720,
     )
     command = _command(
@@ -1004,6 +992,77 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     object_event["payload"]["content_sha256"] = blueprint_hash
     with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
         replay_discovery(_rehash_ledger(catalogue_collision))
+
+
+@pytest.mark.parametrize("event_type", ["PortfolioObjectRegistered", "ScopeDefinitionRegistered"])
+def test_replay_rejects_fully_rehashed_orphan_dossier_materialization(
+    tmp_path: Path,
+    event_type: str,
+) -> None:
+    expected, _ = _subject()
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_authority(runtime, "dossier_expected_set", json.loads((REPO / DOSSIER_AUTHORITY).read_bytes()), 910)
+    _accept_authority(runtime, "path_registration", json.loads((REPO / PATH_AUTHORITY).read_bytes()), 920)
+    runtime.submit(
+        _command(
+            "AdmitResearchDossier",
+            expected.dossier_id,
+            0,
+            {
+                "row_id": "OR-028",
+                "dossier_id": expected.dossier_id,
+                "expected_set_id": expected.expected_set_id,
+                "candidate_members": [asdict(member) for member in expected.members],
+                "candidate_manifest": _candidate_manifest(expected.members),
+            },
+        )
+    )
+    events = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    fabricated = deepcopy(next(event for event in events if event["event_type"] == event_type))
+    fabricated_dossier_id = "obj_019fed25-b33e-7740-b280-000000009991"
+    fabricated_record_id = (
+        "obj_019fed25-b33e-7740-b280-000000009992"
+        if event_type == "PortfolioObjectRegistered"
+        else "obj_019fed25-b33e-7740-b280-000000009993"
+    )
+    fabricated["event_id"] = (
+        "evt_019fed25-b33e-7740-b280-000000009992"
+        if event_type == "PortfolioObjectRegistered"
+        else "evt_019fed25-b33e-7740-b280-000000009993"
+    )
+    fabricated["transaction_id"] = (
+        "txb_019fed25-b33e-7740-b280-000000009992"
+        if event_type == "PortfolioObjectRegistered"
+        else "txb_019fed25-b33e-7740-b280-000000009993"
+    )
+    fabricated["stream_id"] = fabricated_record_id
+    fabricated["stream_version"] = 1
+    fabricated["transaction_index"] = 1
+    fabricated["transaction_count"] = 1
+    fabricated["payload"]["dossier_id"] = fabricated_dossier_id
+    blueprint = fabricated["payload"]["blueprint"]
+    if event_type == "PortfolioObjectRegistered":
+        fabricated["payload"]["record_id"] = fabricated_record_id
+        identity_field = "proposed_record_id" if "proposed_record_id" in blueprint else "proposed_edge_id"
+        blueprint[identity_field] = fabricated_record_id
+    else:
+        fabricated["payload"]["scope_id"] = fabricated_record_id
+        blueprint["proposed_scope_id"] = fabricated_record_id
+    blueprint_preimage = {
+        key: deepcopy(value)
+        for key, value in blueprint.items()
+        if key not in {"blueprint_hash", "expected_content_hash"}
+    }
+    blueprint_hash = canonical_dossier_hash(blueprint_preimage)
+    if "blueprint_hash" in blueprint:
+        blueprint["blueprint_hash"] = blueprint_hash
+    blueprint["expected_content_hash"] = blueprint_hash
+    fabricated["payload"]["content_sha256"] = blueprint_hash
+    events.append(fabricated)
+
+    with pytest.raises(IntegrityError, match="materialization admission transaction mismatch"):
+        replay_discovery(_rehash_ledger(events))
 
 
 @pytest.mark.parametrize("attack", ["unrelated_tracked_file", "altered_expected_set", "git_timeout"])

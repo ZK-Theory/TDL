@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from pathlib import Path
 
 import pytest
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery import replay_discovery
 from research_system.discovery.assay_authority import (
     AssayAuthorityRejected,
@@ -29,6 +31,8 @@ REVIEWER = "act_reviewer"
 REQUESTER = "act_requester"
 PROPOSER = "act_decision_proposer"
 OWNER = "act_stephen"
+REPO = Path(__file__).resolve().parents[3]
+PATH_AUTHORITY = REPO / ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
 
 
 def _subject(kind: str) -> dict[str, object]:
@@ -71,8 +75,63 @@ def _subject(kind: str) -> dict[str, object]:
             "collision_status": "no_collision",
             "registered_roots": [{"root_id": "repo", "path": "$REPOSITORY_CONTRACT_ROOT"}],
         }
+    if kind == "path_registration":
+        subject["content_sha256"] = _path_content_sha256(subject)
     subject["subject_sha256"] = subject_sha256(subject)
     return subject
+
+
+def _path_content_sha256(subject: dict[str, object]) -> str:
+    semantic_content = {
+        key: value
+        for key, value in subject.items()
+        if key not in {"content_sha256", "subject_sha256"} and not key.startswith("authority_file_")
+    }
+    return sha256_hex(canonical_bytes(semantic_content))
+
+
+def test_bundled_path_registration_content_digest_matches_canonical_content() -> None:
+    subject = json.loads(PATH_AUTHORITY.read_bytes())
+
+    assert subject["content_sha256"] == _path_content_sha256(subject)
+
+
+def test_path_registration_rejects_false_canonical_content_digest_at_registration() -> None:
+    subject = _subject("path_registration")
+    subject["content_sha256"] = "f" * 64
+    subject["subject_sha256"] = subject_sha256(subject)
+    assert subject["content_sha256"] != _path_content_sha256(subject)
+
+    with pytest.raises(AuthorityRejected, match="content_hash_mismatch"):
+        prepare_authority_transition(
+            events=_run("dossier_expected_set"),
+            kind="path_registration",
+            action="register",
+            actor_id=AUTHOR,
+            payload={"subject": subject},
+        )
+
+
+def test_path_registration_replay_rejects_rehashed_false_canonical_content_digest() -> None:
+    dossier_events = _run("dossier_expected_set")
+    valid_subject = _subject("path_registration")
+    valid_subject["content_sha256"] = _path_content_sha256(valid_subject)
+    valid_subject["subject_sha256"] = subject_sha256(valid_subject)
+    registered = prepare_authority_transition(
+        events=dossier_events,
+        kind="path_registration",
+        action="register",
+        actor_id=AUTHOR,
+        payload={"subject": valid_subject},
+    )
+    attacked = deepcopy(registered[0])
+    attacked_subject = attacked["payload"]["subject"]
+    assert isinstance(attacked_subject, dict)
+    attacked_subject["content_sha256"] = "f" * 64
+    attacked_subject["subject_sha256"] = subject_sha256(attacked_subject)
+
+    with pytest.raises(AuthorityRejected, match="content_hash_mismatch"):
+        replay_authority((*dossier_events, attacked))
 
 
 def test_assay_authority_rejects_empty_durable_file_path_and_review_id(tmp_path: Path) -> None:

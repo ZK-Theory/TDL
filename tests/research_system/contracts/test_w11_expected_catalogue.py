@@ -208,6 +208,11 @@ def test_coordinated_catalogue_runtime_mutation_cannot_rescue_expected_source() 
 
 def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() -> None:
     accepted_commit = "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6"
+    protected_tree_paths = (
+        SCHEMA_ROOT.relative_to(REPO_ROOT),
+        CATALOGUE_PATH.relative_to(REPO_ROOT),
+    )
+    protected_tree_arguments = tuple(path.as_posix() for path in protected_tree_paths)
     accepted_paths = frozenset(
         subprocess.run(
             [
@@ -217,8 +222,7 @@ def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() 
                 "--name-only",
                 accepted_commit,
                 "--",
-                ".research-system/schemas/contracts/w11",
-                ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
+                *protected_tree_arguments,
             ],
             cwd=REPO_ROOT,
             check=True,
@@ -235,8 +239,7 @@ def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() 
                 "--name-only",
                 "HEAD",
                 "--",
-                ".research-system/schemas/contracts/w11",
-                ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
+                *protected_tree_arguments,
             ],
             cwd=REPO_ROOT,
             check=True,
@@ -254,7 +257,7 @@ def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() 
             check=True,
             capture_output=True,
         ).stdout
-        current = (REPO_ROOT / relative_path).read_bytes().replace(b"\r\n", b"\n")
+        current = (REPO_ROOT / relative_path).read_bytes()
         assert current == expected, relative_path
 
     registry = bundled_runtime_schema_registry()
