@@ -692,6 +692,7 @@ def prepare_dossier_admission(
         "member_count": len(observed),
         "member_closure_hash": closure_hash,
         "candidate_manifest_hash": canonical_dossier_hash(dict(candidate_manifest)),
+        "candidate_manifest": deepcopy(dict(candidate_manifest)),
         "object_count": len(materialized_objects),
         "scope_count": len(materialized_scopes),
         "edge_count": len(materialized_edges),

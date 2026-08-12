@@ -146,12 +146,12 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
                 "RecordAssayScore": "scope_definition",
                 "RecordAssayPartial": "scope_definition",
                 "CancelDiscoveryEvaluation": "scope_definition",
-                "ProposeRevisitDecision": "decision",
-                "RequestDiscoveryOutcomeReview": "review",
+                "ProposeRevisitDecision": "scope_definition",
+                "RequestDiscoveryOutcomeReview": "scope_definition",
                 "ReviewDiscoveryOutcome": "review",
-                "ProposePromotionDecision": "decision",
+                "ProposePromotionDecision": "scope_definition",
                 "RegisterSpikePlan": "scope_definition",
-                "ProposeSpikeExecutionDecision": "decision",
+                "ProposeSpikeExecutionDecision": "scope_definition",
                 "StartSpike": "scope_definition",
                 "RecordSpikeVerdict": "scope_definition",
                 "RegisterAssayRubricContent": "scope_definition",
@@ -172,7 +172,11 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
                 "RecordAssayScore",
                 "RecordAssayPartial",
                 "CancelDiscoveryEvaluation",
+                "ProposeRevisitDecision",
+                "RequestDiscoveryOutcomeReview",
+                "ProposePromotionDecision",
                 "RegisterSpikePlan",
+                "ProposeSpikeExecutionDecision",
                 "StartSpike",
                 "RecordSpikeVerdict",
             }:
@@ -419,9 +423,104 @@ def test_global_identity_contract_names_every_discovery_namespace() -> None:
         state = deepcopy(empty)
         state[collection][identity] = {"identity": identity}
         assert _discovery_identity_exists(state, identity), collection
-    state = deepcopy(empty)
-    state["catalogue"] = {"status": "active"}
-    assert _discovery_identity_exists(state, CATALOGUE_STREAM_ID)
+    assert _discovery_identity_exists(empty, CATALOGUE_STREAM_ID)
+
+
+def test_pregenesis_authority_routes_cannot_claim_the_reserved_catalogue_identity(tmp_path: Path) -> None:
+    """Reserve the one-time genesis identity before any catalogue event exists."""
+
+    for row_id, command_type, payload in (
+        (
+            "OR-101",
+            "RegisterAssayRubricContent",
+            {
+                "authority_kind": "assay_bar",
+                "content": json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes()),
+                "authority_file_path": ASSAY_RUBRIC_PATH,
+            },
+        ),
+        (
+            "OR-110",
+            "RegisterDossierExpectedSetContent",
+            {
+                "authority_kind": "dossier_expected_set",
+                "subject": _sealed_authority_subject(DOSSIER_AUTHORITY_PATH),
+            },
+        ),
+    ):
+        case_root = tmp_path / row_id
+        case_root.mkdir()
+        runtime = _runtime(case_root)
+        command = _command(command_type, CATALOGUE_STREAM_ID, 0, {"row_id": row_id, **payload})
+        before_receipts = tuple(runtime.receipts.receipts_root.glob("*.json"))
+
+        with pytest.raises(IntegrityError, match="Discovery command target identity collision"):
+            runtime.submit(command)
+
+        assert tuple(runtime.ledger.iter_events()) == ()
+        assert tuple(runtime.receipts.receipts_root.glob("*.json")) == before_receipts
+        assert runtime.submit(_genesis()).status == "accepted"
+
+
+@pytest.mark.parametrize(
+    ("command_type", "target_stream_id", "payload", "message"),
+    (
+        (
+            "RegisterAssayRubricContent",
+            "obj_019fed25-b33e-7740-b280-000000000101",
+            {
+                "row_id": "OR-101",
+                "authority_kind": "assay_bar",
+                "content": {},
+                "authority_file_path": ASSAY_RUBRIC_PATH,
+            },
+            "W11 genesis is required before Assay-bar authority",
+        ),
+        (
+            "RegisterDossierExpectedSetContent",
+            "obj_019fed25-b33e-7740-b280-000000000110",
+            {
+                "row_id": "OR-110",
+                "authority_kind": "dossier_expected_set",
+                "subject": {},
+            },
+            "W11 genesis is required before generic W11 authority",
+        ),
+    ),
+)
+def test_w11_authority_routes_require_genesis_before_preparation(
+    tmp_path: Path,
+    command_type: str,
+    target_stream_id: str,
+    payload: dict[str, object],
+    message: str,
+) -> None:
+    runtime = _runtime(tmp_path)
+    before_receipts = tuple(runtime.receipts.receipts_root.glob("*.json"))
+
+    with pytest.raises(IntegrityError, match=message):
+        runtime.submit(_command(command_type, target_stream_id, 0, payload))
+
+    assert tuple(runtime.ledger.iter_events()) == ()
+    assert tuple(runtime.receipts.receipts_root.glob("*.json")) == before_receipts
+
+
+def test_replay_rejects_w11_authority_history_moved_before_genesis(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _register_assay_rubric(runtime)
+    events = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    genesis_index = next(
+        index for index, event in enumerate(events) if event["event_type"] == "W11CatalogueGenesisImported"
+    )
+    authority_index = next(
+        index for index, event in enumerate(events) if event["event_type"] == "AssayRubricContentRegistered"
+    )
+    authority_event = events.pop(authority_index)
+    events.insert(genesis_index, authority_event)
+
+    with pytest.raises(IntegrityError, match="W11 genesis is required before authority replay"):
+        replay_discovery(_fully_reindex_and_rehash_events(tuple(events)))
 
 
 def test_every_w11_route_obeys_the_global_target_namespace_contract() -> None:
@@ -532,12 +631,69 @@ def test_every_w11_route_rejects_every_foreign_namespace_through_public_submit(
                     "replay_discovery",
                     lambda _events, **_kwargs: deepcopy(projected),
                 )
-                with pytest.raises(IntegrityError):
+                with pytest.raises(
+                    IntegrityError,
+                    match=(
+                        "Discovery command target identity collision|"
+                        "W11 authority stream identity collision|"
+                        "Discovery command target is owned by another aggregate"
+                    ),
+                ):
                     DiscoveryRuntime.submit(runtime, command.envelope)
 
     assert tuple(runtime.ledger.iter_events()) == before_events
     assert tuple(runtime.receipts.receipts_root.glob("*.json")) == before_receipts
     replay_discovery(before_events)
+
+
+def test_every_non_genesis_w11_route_preserves_reachable_genesis_on_a_fresh_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove no executable route can pre-empt the reserved one-time catalogue stream."""
+
+    runtime = _runtime(tmp_path)
+    authority = SimpleNamespace(command_resolution=SimpleNamespace(authority_grant_sha256="a" * 64))
+    empty_projection = {
+        "catalogue": None,
+        **{collection: {} for collection in _DISCOVERY_IDENTITY_COLLECTIONS},
+    }
+    for row_id, route in _DISCOVERY_ROW_ROUTES.items():
+        if row_id == "OR-140":
+            continue
+        authority_kind = (
+            "assay_bar"
+            if 101 <= int(row_id[-3:]) <= 109
+            else "dossier_expected_set"
+            if 110 <= int(row_id[-3:]) <= 115
+            else "path_registration"
+            if 116 <= int(row_id[-3:]) <= 121
+            else None
+        )
+        payload: dict[str, object] = {"row_id": row_id}
+        if authority_kind is not None:
+            payload["authority_kind"] = authority_kind
+        envelope = _command(route.command_type, CATALOGUE_STREAM_ID, 0, payload)
+        with monkeypatch.context() as patcher:
+            patcher.setattr(runtime, "_resolve_authority", lambda _command: authority)
+            patcher.setattr(
+                discovery_runtime_module,
+                "replay_discovery",
+                lambda _events, **_kwargs: deepcopy(empty_projection),
+            )
+            with pytest.raises(
+                IntegrityError,
+                match=(
+                    "Discovery command target identity collision|"
+                    "W11 authority stream identity collision|"
+                    "Discovery command target is owned by another aggregate"
+                ),
+            ):
+                DiscoveryRuntime.submit(runtime, envelope)
+        assert tuple(runtime.ledger.iter_events()) == (), row_id
+        assert tuple(runtime.receipts.receipts_root.glob("*.json")) == (), row_id
+
+    assert runtime.submit(_genesis()).status == "accepted"
 
 
 def test_assay_authority_observe_rejects_a_candidate_stream_without_mutation(tmp_path: Path) -> None:
@@ -1861,6 +2017,86 @@ def test_genesis_rejects_wrong_actor_scope_and_expired_grant_without_mutation(tm
         runtime.submit(expired)
 
     assert tuple(runtime.ledger.iter_events()) == ()
+    assert tuple(runtime.receipts.receipts_root.glob("*.json")) == ()
+
+
+@pytest.mark.parametrize(
+    ("command_type", "target_stream_id", "legacy_subject_kind", "payload"),
+    (
+        (
+            "ProposePromotionDecision",
+            "dec_019fed25-b33e-7740-b280-000000000012",
+            "decision",
+            {"row_id": "OR-012", "candidate_id": "obj_019fed25-b33e-7740-b280-000000000002"},
+        ),
+        (
+            "ProposeRevisitDecision",
+            "dec_019fed25-b33e-7740-b280-000000000009",
+            "decision",
+            {"row_id": "OR-009", "candidate_id": "obj_019fed25-b33e-7740-b280-000000000002"},
+        ),
+        (
+            "ProposeSpikeExecutionDecision",
+            "dec_019fed25-b33e-7740-b280-000000000015",
+            "decision",
+            {"row_id": "OR-015", "candidate_id": "obj_019fed25-b33e-7740-b280-000000000002"},
+        ),
+        (
+            "RequestDiscoveryOutcomeReview",
+            "rev_019fed25-b33e-7740-b280-000000000034",
+            "review",
+            {"row_id": "OR-034", "candidate_id": "obj_019fed25-b33e-7740-b280-000000000002"},
+        ),
+    ),
+)
+def test_discovery_initiating_commands_reject_grants_scoped_only_to_the_minted_target(
+    tmp_path: Path,
+    command_type: str,
+    target_stream_id: str,
+    legacy_subject_kind: str,
+    payload: dict[str, object],
+) -> None:
+    harness = control_plane(tmp_path)
+    root = tmp_path / "governed-discovery"
+    root.mkdir()
+    runtime = DiscoveryRuntime(
+        root,
+        harness.ledger,
+        harness.schemas,
+        catalogue_path=CATALOGUE,
+        authority_resolver=harness.authority_resolver,
+        clock=lambda: datetime(2026, 8, 2, tzinfo=UTC),
+        repository_root=REPO_ROOT,
+        root_tokens={
+            "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
+            "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
+        },
+        operational_ledger=harness.ledger,
+    )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(AssertionError, match="wrong subject kind"):
+        activate_lifecycle_grant(
+            harness,
+            subject_kind=legacy_subject_kind,
+            subject_id=target_stream_id,
+            command_types=(command_type,),
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="scope_definition",
+        subject_id="obj_019fed25-b33e-7740-b280-000000000099",
+        command_types=(command_type,),
+    )
+    before = tuple(runtime.ledger.iter_events())
+    command = _command(command_type, target_stream_id, 0, payload)
+    command["authority_grant_id"] = grant_id
+
+    with pytest.raises(ArsError, match="authority subject scope mismatch"):
+        runtime.submit(command)
+
+    assert tuple(runtime.ledger.iter_events()) == before
     assert tuple(runtime.receipts.receipts_root.glob("*.json")) == ()
 
 
@@ -4287,3 +4523,248 @@ def test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_trans
             accepted_attacks.append(f"{link_type}:{attack_name}")
 
     assert accepted_attacks == []
+
+
+def test_replay_rejects_rehashed_partial_spike_without_exact_operational_closure(tmp_path: Path) -> None:
+    case_root = tmp_path / "partial"
+    case_root.mkdir()
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+        case_root,
+        "PARTIAL",
+        "OR-019",
+    )
+    events = tuple(deepcopy(event) for event in _HARNESSES[case_root].ledger.iter_events())
+    boundary = next(index for index, event in enumerate(events) if event["event_type"] == "CandidateSpikePartialLinked")
+    baseline = events[: boundary + 1]
+    closure_transaction = baseline[-1]["transaction_id"]
+    attacks: dict[str, tuple[dict[str, object], ...]] = {}
+
+    for missing_type in ("PartialOutcomeRecorded", "LeaseReleased"):
+        attacks[f"missing_{missing_type}"] = tuple(
+            deepcopy(event)
+            for event in baseline
+            if not (event["transaction_id"] == closure_transaction and event["event_type"] == missing_type)
+        )
+    for event_type, field, value in (
+        ("PartialOutcomeRecorded", "stop_cause", "operator_override"),
+        ("LeaseReleased", "release_reason", "operator_override"),
+        ("LeaseReleased", "observed_at", "2099-01-01T00:00:00Z"),
+        ("LeaseReleased", "holder_actor_id", "act_019fed25-b33e-7740-b280-ffffffffffff"),
+    ):
+        attacked = tuple(deepcopy(event) for event in baseline)
+        next(
+            event
+            for event in attacked
+            if event["transaction_id"] == closure_transaction and event["event_type"] == event_type
+        )["payload"][field] = value
+        attacks[f"{event_type}_{field}"] = attacked
+    moved = tuple(deepcopy(event) for event in baseline)
+    for event in moved:
+        if event["transaction_id"] == closure_transaction and event["event_type"] in {
+            "PartialOutcomeRecorded",
+            "LeaseReleased",
+        }:
+            event["transaction_id"] = "txb_019fed25-b33e-7740-b280-000000000019"
+    attacks["moved_operational_events"] = moved
+
+    accepted_attacks = []
+    for attack_name, attacked in attacks.items():
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted_attacks.append(attack_name)
+    assert accepted_attacks == []
+
+
+def test_running_spike_cancellation_closes_exact_operational_attempt_and_lease(tmp_path: Path) -> None:
+    """Drive OR-022 from running and attack its canonical closure at the transaction boundary."""
+
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+        tmp_path,
+        "PASS",
+        "OR-018",
+    )
+    runtime = _runtime(tmp_path)
+    all_events = tuple(runtime.ledger.iter_events())
+    boundary = next(
+        event["global_position"]
+        for event in all_events
+        if event["event_type"] == "CandidateSpikeStarted"
+        and event["payload"].get("spike_id") == "spk_019fed25-b33e-7740-b280-6f661aaeff6a"
+    )
+    for event_file in runtime.ledger.events_root.rglob("*.jsonl"):
+        file_events = tuple(json.loads(line) for line in event_file.read_text(encoding="utf-8").splitlines())
+        if file_events and file_events[0]["global_position"] > boundary:
+            event_file.unlink()
+    runtime.ledger._snapshot = None
+    running = replay_discovery(runtime.ledger.iter_events())
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff68"
+    spike_id = "spk_019fed25-b33e-7740-b280-6f661aaeff6a"
+    candidate = running["candidates"][candidate_id]
+    spike = running["spikes"][spike_id]
+    cancellation_artifact = {
+        "spike_id": spike_id,
+        "candidate_ref": _ref(candidate_id, candidate["revision"], candidate["content_sha256"]),
+        "plan_ref": _ref(spike_id, 1, spike["plan_sha256"]),
+        "attempt_ref": _ref(spike["attempt_id"], 1, spike["attempt_sha256"]),
+        "lease_ref": _ref(spike["lease_id"], 1, spike["lease_sha256"]),
+        "execution_proposal_ref": None,
+        "reason": "owner cancels the running provider-free evaluation",
+        "evidence_refs": [_ref(candidate_id, candidate["revision"], candidate["content_sha256"])],
+        "completed_scope": ["bounded setup"],
+        "unmet_scope": ["evaluation cancelled while running"],
+        "restrictions": ["no_promotion"],
+    }
+    cancellation_sha256 = sha256_hex(canonical_bytes(cancellation_artifact))
+    command = _command(
+        "CancelDiscoveryEvaluation",
+        spike_id,
+        5,
+        {
+            "row_id": "OR-022",
+            "evaluation_kind": "spike",
+            "candidate_id": candidate_id,
+            "spike_id": spike_id,
+            "cancellation_sha256": cancellation_sha256,
+            "cancellation_artifact": cancellation_artifact,
+        },
+    )
+    assert runtime.submit(command).status == "accepted"
+    cancelled = replay_discovery(runtime.ledger.iter_events())
+    assert cancelled["spikes"][spike_id]["status"] == "cancelled"
+    assert cancelled["spikes"][spike_id]["attempt_status"] == "cancelled"
+    assert cancelled["spikes"][spike_id]["lease_status"] == "released"
+    batch = tuple(event for event in runtime.ledger.iter_events() if event["command_id"] == command["command_id"])
+    assert tuple(event["event_type"] for event in batch) == (
+        "SpikeCancelled",
+        "PartialOutcomeRecorded",
+        "LeaseReleased",
+        "SpikeAttemptClosed",
+        "SpikeLeaseReleased",
+        "CandidateEvaluationCancelled",
+    )
+    assert (
+        next(event for event in batch if event["event_type"] == "LeaseReleased")["payload"]["observed_at"]
+        == batch[0]["occurred_at"]
+    )
+
+    baseline = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    transaction_id = batch[0]["transaction_id"]
+    attacks: list[tuple[dict[str, object], ...]] = []
+    for missing_type in ("PartialOutcomeRecorded", "LeaseReleased"):
+        attacks.append(
+            tuple(
+                deepcopy(event)
+                for event in baseline
+                if not (event["transaction_id"] == transaction_id and event["event_type"] == missing_type)
+            )
+        )
+    for event_type, field, value in (
+        ("PartialOutcomeRecorded", "stop_cause", "operator_override"),
+        ("LeaseReleased", "release_reason", "operator_override"),
+        ("LeaseReleased", "observed_at", "2099-01-01T00:00:00Z"),
+        ("LeaseReleased", "holder_actor_id", "act_019fed25-b33e-7740-b280-ffffffffffff"),
+    ):
+        attacked = tuple(deepcopy(event) for event in baseline)
+        next(
+            event
+            for event in attacked
+            if event["transaction_id"] == transaction_id and event["event_type"] == event_type
+        )["payload"][field] = value
+        attacks.append(attacked)
+    moved = tuple(deepcopy(event) for event in baseline)
+    for event in moved:
+        if event["transaction_id"] == transaction_id and event["event_type"] in {
+            "PartialOutcomeRecorded",
+            "LeaseReleased",
+        }:
+            event["transaction_id"] = "txb_019fed25-b33e-7740-b280-000000000022"
+    attacks.append(moved)
+
+    accepted = []
+    for index, attacked in enumerate(attacks):
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(index)
+    assert accepted == []
+
+
+def test_replay_rejects_rehashed_candidate_assay_link_without_exact_score_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
+        tmp_path,
+        monkeypatch,
+        "approve",
+        "satisfied",
+        "reviewed",
+        ("ReviewVerdictRecorded", "AssayReviewed"),
+    )
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    boundary = next(index for index, event in enumerate(events) if event["event_type"] == "CandidateAssayLinked")
+    baseline = events[: boundary + 1]
+    link = baseline[-1]
+    attacks = []
+
+    missing_score = tuple(
+        deepcopy(event)
+        for event in baseline
+        if not (event["event_type"] == "AssayScored" and event["transaction_id"] == link["transaction_id"])
+    )
+    attacks.append(missing_score)
+    split = tuple(deepcopy(event) for event in baseline)
+    split[-1]["transaction_id"] = "txb_019fed25-b33e-7740-b280-000000000004"
+    attacks.append(split)
+    wrong_stream = tuple(deepcopy(event) for event in baseline)
+    wrong_stream[-1]["stream_id"] = wrong_stream[-1]["payload"]["assay_id"]
+    attacks.append(wrong_stream)
+
+    accepted = []
+    for index, attacked in enumerate(attacks):
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(index)
+    assert accepted == []
+
+
+def test_replay_rejects_rehashed_candidate_spike_plan_link_without_exact_plan_transaction(tmp_path: Path) -> None:
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
+        tmp_path,
+        "PASS",
+        "OR-018",
+    )
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    boundary = next(index for index, event in enumerate(events) if event["event_type"] == "CandidateSpikePlanLinked")
+    baseline = events[: boundary + 1]
+    link = baseline[-1]
+    attacks = []
+
+    for missing_type in ("SpikePlanned", "SpikeApprovalRequested"):
+        attacks.append(
+            tuple(
+                deepcopy(event)
+                for event in baseline
+                if not (event["event_type"] == missing_type and event["transaction_id"] == link["transaction_id"])
+            )
+        )
+    split = tuple(deepcopy(event) for event in baseline)
+    split[-1]["transaction_id"] = "txb_019fed25-b33e-7740-b280-000000000014"
+    attacks.append(split)
+    wrong_stream = tuple(deepcopy(event) for event in baseline)
+    wrong_stream[-1]["stream_id"] = wrong_stream[-1]["payload"]["spike_id"]
+    attacks.append(wrong_stream)
+
+    accepted = []
+    for index, attacked in enumerate(attacks):
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(index)
+    assert accepted == []

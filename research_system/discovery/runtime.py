@@ -709,7 +709,7 @@ def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
     """Apply the single global immutable-identity contract to every aggregate kind."""
 
     return bool(
-        (state.get("catalogue") is not None and identity == _CATALOGUE_STREAM_ID)
+        identity == _CATALOGUE_STREAM_ID
         or any(identity in state.get(collection, {}) for collection in _DISCOVERY_IDENTITY_COLLECTIONS)
     )
 
@@ -1778,6 +1778,132 @@ def replay_discovery(
             and preceding_spike_events[0].get("payload") == payload
         )
 
+    def candidate_assay_link_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        """Bind a Candidate link to the exact Assay score in its transaction."""
+
+        candidate_id = payload.get("candidate_id")
+        assay_id = payload.get("assay_id")
+        candidate = state["candidates"].get(candidate_id)
+        assay = state["assays"].get(assay_id)
+        scored_events = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == "AssayScored"
+        ]
+        return bool(
+            isinstance(candidate, Mapping)
+            and isinstance(assay, Mapping)
+            and event.get("stream_id") == candidate_id
+            and candidate.get("status") == "assay_pending"
+            and candidate.get("assay_id") == assay_id
+            and assay.get("status") == "scored"
+            and assay.get("candidate_id") == candidate_id
+            and len(scored_events) == 1
+            and scored_events[0].get("stream_id") == assay_id
+            and scored_events[0].get("payload") == payload
+        )
+
+    def candidate_spike_plan_link_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        """Bind a Candidate link to the exact planned and approval-pending Spike."""
+
+        candidate_id = payload.get("candidate_id")
+        spike_id = payload.get("spike_id")
+        candidate = state["candidates"].get(candidate_id)
+        spike = state["spikes"].get(spike_id)
+        preceding = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") in {"SpikePlanned", "SpikeApprovalRequested"}
+        ]
+        return bool(
+            isinstance(candidate, Mapping)
+            and isinstance(spike, Mapping)
+            and event.get("stream_id") == candidate_id
+            and candidate.get("status") == "spike_planning_authorized"
+            and spike.get("status") == "approval_pending"
+            and spike.get("candidate_id") == candidate_id
+            and len(preceding) == 2
+            and tuple(item.get("event_type") for item in preceding) == ("SpikePlanned", "SpikeApprovalRequested")
+            and all(item.get("stream_id") == spike_id and item.get("payload") == payload for item in preceding)
+        )
+
+    def spike_operational_closure_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        """Join a Spike shadow closure to its exact canonical Attempt and Lease events."""
+
+        spike = state["spikes"].get(payload.get("spike_id"))
+        if not isinstance(spike, Mapping) or spike.get("status") not in {"partial_recorded", "cancelled"}:
+            return False
+        transaction_id = event.get("transaction_id")
+        preceding = [
+            transaction_event
+            for transaction_event in transaction_events.get(transaction_id, ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") in {"PartialOutcomeRecorded", "LeaseReleased"}
+        ]
+        partials = [item for item in preceding if item.get("event_type") == "PartialOutcomeRecorded"]
+        releases = [item for item in preceding if item.get("event_type") == "LeaseReleased"]
+        try:
+            prior_operational = replay_control_plane(
+                item for item in operational_events if item.get("transaction_id") != transaction_id
+            )
+            attempt = prior_operational.stream_states.get(spike.get("attempt_id"))
+            lease = prior_operational.stream_states.get(spike.get("lease_id"))
+            artifact_key = "verdict_artifact" if spike.get("status") == "partial_recorded" else "cancellation_artifact"
+            artifact = payload.get(artifact_key)
+            if not isinstance(artifact, Mapping):
+                return False
+            if spike.get("status") == "partial_recorded":
+                expected_partial = {
+                    "attempt_id": attempt["attempt_id"],
+                    "completed_obligations": [artifact["completed_scope"]],
+                    "unmet_obligations": [artifact["unmet_scope"]],
+                    "candidate_artefact_ids": [payload["verdict_sha256"]],
+                    "stop_cause": "spike_partial",
+                    "restrictions": list(dict.fromkeys([*artifact["limitations"], *artifact["prohibited_inferences"]])),
+                    "subject_kind": "attempt",
+                }
+                release_reason = "spike_partial"
+            else:
+                expected_partial = {
+                    "attempt_id": attempt["attempt_id"],
+                    "completed_obligations": list(artifact.get("completed_scope", [])),
+                    "unmet_obligations": list(artifact.get("unmet_scope", ["cancelled"])),
+                    "candidate_artefact_ids": [payload["cancellation_sha256"]],
+                    "stop_cause": "discovery_evaluation_cancelled",
+                    "restrictions": list(artifact.get("restrictions", ["no_promotion"])),
+                    "subject_kind": "attempt",
+                }
+                release_reason = "discovery_evaluation_cancelled"
+            expected_release = {
+                "lease_id": lease["lease_id"],
+                "release_reason": release_reason,
+                "holder_actor_id": lease["holder_actor_id"],
+                "observed_at": event["occurred_at"],
+            }
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return False
+        return bool(
+            event.get("stream_id") == payload.get("spike_id")
+            and payload.get("attempt_id") == spike.get("attempt_id")
+            and payload.get("lease_id") == spike.get("lease_id")
+            and isinstance(attempt, Mapping)
+            and attempt.get("status") == "running"
+            and sha256_hex(canonical_bytes(attempt)) == spike.get("attempt_sha256")
+            and attempt.get("lease_id") == spike.get("lease_id")
+            and isinstance(lease, Mapping)
+            and lease.get("status") == "active"
+            and sha256_hex(canonical_bytes(lease)) == spike.get("lease_sha256")
+            and lease.get("attempt_id") == spike.get("attempt_id")
+            and len(partials) == len(releases) == 1
+            and partials[0].get("stream_id") == spike.get("attempt_id")
+            and partials[0].get("payload") == expected_partial
+            and releases[0].get("stream_id") == spike.get("lease_id")
+            and releases[0].get("payload") == expected_release
+            and releases[0].get("occurred_at") == event.get("occurred_at")
+        )
+
     def dossier_materialization_transaction_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
         """Bind one materialization to its exact admission in the same transaction."""
 
@@ -1849,6 +1975,8 @@ def replay_discovery(
             return value
 
         if "authority_event_type" in payload:
+            if state.get("catalogue") is None:
+                raise IntegrityError("W11 genesis is required before authority replay")
             authority_payload = payload.get("authority_payload")
             if not isinstance(authority_payload, dict):
                 raise IntegrityError("Discovery event payload requires authority_payload")
@@ -2230,9 +2358,9 @@ def replay_discovery(
                 version=event["stream_version"],
             )
         elif event_type == "CandidateAssayLinked":
-            candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict) or candidate.get("status") != "assay_pending":
+            if not candidate_assay_link_matches(event, payload):
                 raise IntegrityError("invalid Candidate Assay score transition")
+            candidate = state["candidates"][payload["candidate_id"]]
             candidate.update(
                 status="assay_scored",
                 scorecard_sha256=required_string("scorecard_sha256"),
@@ -2788,9 +2916,9 @@ def replay_discovery(
                 raise IntegrityError("invalid Spike approval request")
             spike.update(status="approval_pending")
         elif event_type == "CandidateSpikePlanLinked":
-            candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            if not candidate_spike_plan_link_matches(event, payload):
                 raise IntegrityError("invalid Candidate Spike plan link")
+            candidate = state["candidates"][payload["candidate_id"]]
             candidate.update(status="spike_approval_pending", spike_id=required_string("spike_id"))
         elif event_type == "SpikeExecutionDecisionRequested":
             spike = state["spikes"].get(payload.get("spike_id"))
@@ -2979,6 +3107,7 @@ def replay_discovery(
                 not isinstance(spike, dict)
                 or spike.get("status") not in {"partial_recorded", "cancelled"}
                 or spike.get("attempt_id") != payload.get("attempt_id")
+                or not spike_operational_closure_matches(event, payload)
             ):
                 raise IntegrityError("invalid Spike attempt closure")
             spike.update(attempt_status="cancelled" if spike.get("status") == "cancelled" else "partial")
@@ -2988,6 +3117,7 @@ def replay_discovery(
                 not isinstance(spike, dict)
                 or spike.get("attempt_status") not in {"partial", "cancelled"}
                 or payload.get("lease_id") != spike.get("lease_id")
+                or not spike_operational_closure_matches(event, payload)
             ):
                 raise IntegrityError("invalid Spike lease release")
             spike.update(lease_status="released")
@@ -3163,6 +3293,7 @@ def replay_discovery(
             candidate.update(status="spike_revisit_eligible")
         elif event_type == "ResearchDossierAdmitted":
             dossier_id = payload.get("dossier_id")
+            candidate_manifest = payload.get("candidate_manifest")
             if not isinstance(dossier_id, str) or aggregate_identity_exists(dossier_id):
                 raise IntegrityError("Research dossier identity collision")
             if not _accepted_dossier_admission_matches(
@@ -3171,6 +3302,19 @@ def replay_discovery(
                 payload,
             ):
                 raise IntegrityError("Research dossier admission authority mismatch")
+            if not isinstance(candidate_manifest, Mapping):
+                raise IntegrityError("Research dossier materialization manifest mismatch")
+            try:
+                active_schemas.validate(
+                    "ars://portfolio/research-dossier-manifest",
+                    candidate_manifest,
+                    schema_version="1.0.0",
+                )
+                manifest_sha256 = canonical_dossier_hash(dict(candidate_manifest))
+            except (SchemaError, TypeError, ValueError) as exc:
+                raise IntegrityError("Research dossier materialization manifest mismatch") from exc
+            if manifest_sha256 != payload.get("candidate_manifest_hash"):
+                raise IntegrityError("Research dossier materialization manifest mismatch")
             state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
         elif event_type == "PortfolioObjectRegistered":
             record_id = payload.get("record_id")
@@ -3241,6 +3385,46 @@ def replay_discovery(
     ):
         raise IntegrityError("incomplete Spike execution proposal cancellation")
     for dossier_id, dossier in state["dossiers"].items():
+        manifest = dossier.get("candidate_manifest")
+        if not isinstance(manifest, Mapping):
+            raise IntegrityError("Research dossier materialization manifest mismatch")
+        manifest_objects = manifest.get("object_blueprints")
+        manifest_edges = manifest.get("dependency_edges")
+        manifest_scopes = manifest.get("scope_definition_blueprints")
+        if not all(isinstance(value, list) for value in (manifest_objects, manifest_edges, manifest_scopes)):
+            raise IntegrityError("Research dossier materialization manifest mismatch")
+        expected_objects = {
+            value.get("proposed_record_id"): value for value in manifest_objects if isinstance(value, Mapping)
+        }
+        expected_edges = {
+            value.get("proposed_edge_id"): value for value in manifest_edges if isinstance(value, Mapping)
+        }
+        expected_scopes = {
+            value.get("proposed_scope_id"): value for value in manifest_scopes if isinstance(value, Mapping)
+        }
+        observed_objects = {
+            key: value
+            for key, value in state["portfolio_objects"].items()
+            if value.get("dossier_id") == dossier_id and value.get("portfolio_kind") != "dependency_edge"
+        }
+        observed_edges = {
+            key: value
+            for key, value in state["portfolio_objects"].items()
+            if value.get("dossier_id") == dossier_id and value.get("portfolio_kind") == "dependency_edge"
+        }
+        observed_scopes = {
+            key: value for key, value in state["scopes"].items() if value.get("dossier_id") == dossier_id
+        }
+        if (
+            set(expected_objects) != set(observed_objects)
+            or set(expected_edges) != set(observed_edges)
+            or set(expected_scopes) != set(observed_scopes)
+            or any(observed_objects[key].get("blueprint") != expected for key, expected in expected_objects.items())
+            or any(observed_edges[key].get("blueprint") != expected for key, expected in expected_edges.items())
+            or any(observed_scopes[key].get("blueprint") != expected for key, expected in expected_scopes.items())
+            or dossier.get("relationships") != manifest.get("relationships")
+        ):
+            raise IntegrityError("Research dossier materialization closure mismatch")
         object_count = sum(
             value.get("dossier_id") == dossier_id and value.get("portfolio_kind") != "dependency_edge"
             for value in state["portfolio_objects"].values()
@@ -3431,12 +3615,12 @@ class DiscoveryRuntime:
             "RecordAssayScore": "scope_definition",
             "RecordAssayPartial": "scope_definition",
             "CancelDiscoveryEvaluation": "scope_definition",
-            "ProposeRevisitDecision": "decision",
-            "RequestDiscoveryOutcomeReview": "review",
+            "ProposeRevisitDecision": "scope_definition",
+            "RequestDiscoveryOutcomeReview": "scope_definition",
             "ReviewDiscoveryOutcome": "review",
-            "ProposePromotionDecision": "decision",
+            "ProposePromotionDecision": "scope_definition",
             "RegisterSpikePlan": "scope_definition",
-            "ProposeSpikeExecutionDecision": "decision",
+            "ProposeSpikeExecutionDecision": "scope_definition",
             "StartSpike": "scope_definition",
             "RecordSpikeVerdict": "scope_definition",
             "RegisterAssayRubricContent": "scope_definition",
@@ -3459,7 +3643,11 @@ class DiscoveryRuntime:
             "RecordAssayScore",
             "RecordAssayPartial",
             "CancelDiscoveryEvaluation",
+            "ProposeRevisitDecision",
+            "RequestDiscoveryOutcomeReview",
+            "ProposePromotionDecision",
             "RegisterSpikePlan",
+            "ProposeSpikeExecutionDecision",
             "StartSpike",
             "RecordSpikeVerdict",
         }:
@@ -3495,7 +3683,11 @@ class DiscoveryRuntime:
             "RecordAssayScore",
             "RecordAssayPartial",
             "CancelDiscoveryEvaluation",
+            "ProposeRevisitDecision",
+            "RequestDiscoveryOutcomeReview",
+            "ProposePromotionDecision",
             "RegisterSpikePlan",
+            "ProposeSpikeExecutionDecision",
             "StartSpike",
             "RecordSpikeVerdict",
         }:
@@ -3507,6 +3699,14 @@ class DiscoveryRuntime:
             raise IntegrityError("Discovery lifecycle target is outside authorized Candidate")
         if command_type == "RequestAssay":
             valid = target_id == payload.get("assay_id") and not _discovery_identity_exists(projection, target_id)
+        elif command_type == "RequestDiscoveryOutcomeReview":
+            valid = target_id == payload.get("review_id") and not _discovery_identity_exists(projection, target_id)
+        elif command_type in {
+            "ProposeRevisitDecision",
+            "ProposePromotionDecision",
+            "ProposeSpikeExecutionDecision",
+        }:
+            valid = target_id == payload.get("decision_id") and not _discovery_identity_exists(projection, target_id)
         elif command_type in {"RecordAssayScore", "RecordAssayPartial"}:
             assay = projection["assays"].get(target_id)
             valid = isinstance(assay, Mapping) and assay.get("candidate_id") == candidate_id
@@ -3539,6 +3739,13 @@ class DiscoveryRuntime:
         row_id, _ = _discovery_route(command)
         target = command.target_stream_id
         if row_id in _DISCOVERY_MINT_ROWS:
+            if row_id == "OR-140":
+                foreign_claim = any(
+                    target in projection.get(collection, {}) for collection in _DISCOVERY_IDENTITY_COLLECTIONS
+                )
+                if target != _CATALOGUE_STREAM_ID or projection.get("catalogue") is not None or foreign_claim:
+                    raise IntegrityError("Discovery command target identity collision")
+                return
             if row_id in {"OR-101", "OR-102"} and projection["authority_streams"].get(target) == "assay_bar":
                 return
             if _discovery_identity_exists(projection, target):
@@ -3735,7 +3942,13 @@ class DiscoveryRuntime:
 
         event_records = []
         for prepared_event_type, prepared_stream_id, prepared_payload in prepared:
-            schema_id, schema_version = event_schema(prepared_event_type, prepared_payload)
+            persisted_payload = deepcopy(prepared_payload)
+            if prepared_event_type == "LeaseReleased" and envelope["command_type"] in {
+                "RecordSpikeVerdict",
+                "CancelDiscoveryEvaluation",
+            }:
+                persisted_payload["observed_at"] = occurred_at_value
+            schema_id, schema_version = event_schema(prepared_event_type, persisted_payload)
             event_records.append(
                 {
                     "event_type": prepared_event_type,
@@ -3754,7 +3967,7 @@ class DiscoveryRuntime:
                     "actor_id": command.actor_id,
                     "authority_grant_id": envelope["authority_grant_id"],
                     "occurred_at": occurred_at_value,
-                    "payload": prepared_payload,
+                    "payload": persisted_payload,
                 }
             )
         result = self.ledger.append(event_records, snapshot=snapshot)
@@ -3774,6 +3987,8 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one ordered W11 authority transition."""
+        if projection.get("catalogue") is None:
+            raise IntegrityError("W11 genesis is required before generic W11 authority")
         payload = command.envelope["payload"]
         row = payload.get("row_id")
         routes = {
@@ -4014,6 +4229,8 @@ class DiscoveryRuntime:
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare the exact OR-101--OR-109 Assay-bar authority transition."""
 
+        if projection.get("catalogue") is None:
+            raise IntegrityError("W11 genesis is required before Assay-bar authority")
         payload = command.envelope["payload"]
         row = payload.get("row_id")
         state = projection["assay_bar_authority"]

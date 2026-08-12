@@ -14,6 +14,7 @@ from research_system.discovery.runtime import (
     _DISCOVERY_ROW_ROUTES,
     _validate_discovery_route_registry,
 )
+from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.schema_registry import runtime_schema_registry
 
 
@@ -25,6 +26,46 @@ def test_candidate_supersession_uses_candidate_compatible_scoped_authority():
     assert _SCOPED_COMMAND_SUBJECT_KINDS["SupersedeDiscoveryRecord"] == "scope_definition"
     assert (
         _SCOPED_COMMAND_SUBJECT_KINDS["SupersedeDiscoveryRecord"] == _SCOPED_COMMAND_SUBJECT_KINDS["RegisterCandidate"]
+    )
+
+
+def test_discovery_initiating_commands_use_candidate_scoped_authority():
+    for command_type in (
+        "ProposeRevisitDecision",
+        "RequestDiscoveryOutcomeReview",
+        "ProposePromotionDecision",
+        "ProposeSpikeExecutionDecision",
+    ):
+        assert _SCOPED_COMMAND_SUBJECT_KINDS[command_type] == "scope_definition"
+
+
+def test_generic_resolve_decision_cannot_spoof_a_discovery_row_binding():
+    schema = json.loads(
+        (REPOSITORY_ROOT / ".research-system/schemas/core/commands/resolve_decision.schema.json").read_bytes()
+    )
+    payload_contract = schema["$defs"]["payload"]["oneOf"][0]
+    assert payload_contract["additionalProperties"] is False
+    assert {"row_id", "owner_row_id"}.isdisjoint(payload_contract["properties"])
+    payload = {
+        "decision_id": "dec_019fed25-b33e-7740-b280-000000000001",
+        "selected_option": "approve",
+        "effective_scope": "generic decision",
+        "decision_revision": 1,
+        "deciding_actor_id": "act_019fed25-b33e-7740-b280-000000000001",
+        "decision_authority_grant_id": "agr_019fed25-b33e-7740-b280-000000000001",
+        "governing_evidence_refs": ["evidence:generic"],
+        "considered_review_ids": [],
+        "effective_at": "2026-08-12T00:00:00Z",
+        "permitted_commands": [],
+        "superseded_decision_ids": [],
+        "conditions": [],
+        "revisit_triggers": [],
+    }
+    assert (
+        discovery_resolve_transaction_ids(
+            ({"command_type": "ResolveDecision", "transaction_id": "txn:generic", "payload": payload},)
+        )
+        == frozenset()
     )
 
 

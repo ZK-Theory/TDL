@@ -17,7 +17,7 @@ shrink the requested correction surface.
 | R1 | One row-registry-driven submit fence applies mint-or-advance identity ownership to every executable row. W11 authority observation is also bound to the exact registered content stream. | Public OR-103, stale OR-101, OR-111 and OR-117 cross-namespace attacks reject with no mutation; exhaustive executable-row/namespace matrix; same-kind continuation remains valid. |
 | R2 | `SpikeStarted` replay re-derives the exact running Attempt and active Lease from the shared operational partition and binds both hashes, mutual references, holder, resource and expiry at the event instant. | Appendix C.3 coordinated fabricated Attempt/Lease IDs and hashes at the OR-017 EOF rejects after full reindex and rehash. |
 | R3 | Dossier semantic identities use the P0 canonical encoder used by replay. Non-P0 command and dossier values become governed integrity/admission errors. The already accepted Windows physical-root digest retains its separate legacy byte contract. | P0 parity and float/non-ASCII/unsafe-integer negatives; public zero-ledger/zero-receipt negative; real-dossier regression. |
-| R4 | Owner defaults resolve to `Path.home()/TDL` and its real vault. The committed `tools/certify_wp6_6_real_dossier.ps1` invocation always sets `TDL_REQUIRE_REAL_DOSSIER=1`, making absent or inaccessible roots a certification failure, while ordinary integration deselection remains available. | Owner-default and explicit-root real-dossier runs; required-mode missing-root collection failure; committed certification command. |
+| R4 | Owner defaults resolve to `Path.home()/TDL` and its real vault. The committed `tools/certify_wp6_6_real_dossier.ps1` invocation always sets `TDL_REQUIRE_REAL_DOSSIER=1`, making absent or inaccessible roots a certification failure, while ordinary integration deselection remains available. Hosted CI does not impersonate those physical roots: Stephen is the named release operator and runs the committed command at every exact acceptance candidate. | Owner-default and explicit-root real-dossier runs; required-mode missing-root collection failure; committed certification command and exact-head owner-machine receipt. |
 | R5 / OR-002 | `SupersedeDiscoveryRecord` is an active, authorized, producer-bound public route with immutable predecessor/replacement lineage, terminal predecessor state, replay joins and retry-safe receipt recovery. | Public positive/restart/retry plus self, stale, reused replacement, lineage/hash/stream tamper and post-supersession lifecycle negatives. |
 | R5 / OR-030 | Explicitly deferred and inactive. Accepted §7.4 requires a current annotation epoch, but the protected closed v1 annotation schema forbids `annotation_epoch_id` and no accepted initial-epoch authority/event exists. Encoding it in a path or unrelated field would invent authority. | Public `IngestDiscoveryAnnotation` rejects before mutation because no command binding is active; a successor contract and owner-accepted initial epoch are required before activation. |
 | R5 coverage | A production-used route registry is checked against all 81 accepted catalogue rows: 59 executable, OR-030 explicitly deferred under the later annotation-epoch/cutover work, and 21 explicitly excluded migration/cutover/transition rows. | Exact executable/deferred/excluded partition gate plus active schema/authority bindings. |
@@ -41,9 +41,13 @@ shrink the requested correction surface.
 6. Durable producer traceability is `OR-140` for genesis, `OR-001` for direct
    Candidate registration, and `OR-029` for Scout-created Candidates; replay
    rejects missing or substituted owner rows.
-7. `pytest.mark.integration` was already registered in the reviewed baseline.
-   Strict-marker collection is the disposition; no redundant configuration
-   change is required.
+7. `pytest.mark.integration` is registered in the reviewed baseline when pytest
+   uses the repository `pyproject.toml`. An out-of-tree review harness must run
+   from the repository root or pass `--rootdir <repository-root> -c
+   <repository-root>/pyproject.toml`; repository configuration cannot register
+   a marker for an unrelated foreign rootdir. Strict-marker collection under
+   the bound project configuration is the disposition, so no ineffective
+   duplicate `conftest.py` registration was added.
 
 ## Protected-contract contradiction and OR-030 deferral
 
@@ -65,7 +69,14 @@ annotation-inbox PathRegistrationContent, and an initial epoch authority/event.
 The protected v1 bytes remain unchanged and this candidate claims no OR-030
 execution capability.
 
-## PR #248 current-head review dispositions
+## PR #248 reviewed-source dispositions
+
+The exact source subsequently reviewed in full for PR #248 was commit
+`5c48cc73c5f4f7706049087b4447684330d47c88`, tree
+`0a565bc029d0ef5ce7c2cfe1c016a306f7fb55a5`, with subject
+`[RESULT] WP6.6: close replay and authority review findings`, against live-main
+base `2e6bf9c92e59208c40e55f664fc48d75e481ae04`. These are historical reviewed
+bytes, not the identity of any later remediation head.
 
 - `CandidateSpikeVerdictLinked` and its PARTIAL twin now join the exact
   Candidate, Spike, prior state, Candidate stream, transaction, and preceding
@@ -83,6 +94,30 @@ execution capability.
 - The accepted-W11 identity test uses shared repository-relative `Path` values
   for both tree comparisons and compares working-tree bytes without line-ending
   normalization.
+
+The independent external reviewer reported the following exact-source evidence
+for that commit:
+
+- `uv run --env-file .env pytest tests/research_system/contracts/test_w11_expected_catalogue.py tests/research_system/integration/test_wp6_6_discovery_authority.py tests/research_system/integration/test_wp6_6_discovery_crash_recovery.py tests/research_system/integration/test_wp6_6_discovery_runtime.py tests/research_system/integration/test_wp6_6_dossier_admission.py tests/research_system/unit/test_command_lifecycle.py tests/research_system/unit/test_discovery_dossier.py tests/research_system/unit/test_schema_registry.py tests/research_system/unit/test_wp6_6_discovery_activation.py -q -p no:randomly --no-cov -rs`
+  returned `427 passed, 1 skipped` in `776.50s`; the only skip was the absent
+  optional `rfc3339-validator`, and no real-dossier test skipped.
+- `tools/certify_wp6_6_real_dossier.ps1`, with `TDL_PYTHON` explicitly set to a
+  pytest-capable interpreter, returned `35 passed` in `53.31s`, exit `0`.
+- `tests/research_system/integration/test_wp6_6_discovery_runtime.py::test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_transaction_join`
+  and both cases of
+  `tests/research_system/integration/test_wp6_6_dossier_admission.py::test_replay_rejects_fully_rehashed_orphan_dossier_materialization`
+  were part of the reported 427-test aggregate.
+- The path-authority digest nodes
+  `test_bundled_path_registration_content_digest_matches_canonical_content`,
+  `test_path_registration_rejects_false_canonical_content_digest_at_registration`,
+  and
+  `test_path_registration_replay_rejects_rehashed_false_canonical_content_digest`
+  were part of the same aggregate.
+- Required-mode negative command
+  `TDL_REQUIRE_REAL_DOSSIER=1 TDL_REPOSITORY_ROOT=C:/nonexistent-review-root pytest tests/research_system/integration/test_wp6_6_dossier_admission.py`
+  stopped at collection with
+  `pytest.UsageError: real TDA dossier certification requires accessible roots: TDL_REPOSITORY_ROOT, TDA_VAULT_ROOT`,
+  proving the strict gate fired rather than silently skipping.
 
 Exact committed-head validation and external-thread dispositions are recorded
 on PR #248 and KAN-59. They do not constitute CodeRabbit completion, owner

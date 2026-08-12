@@ -31,6 +31,7 @@ from research_system.discovery.dossier import (
     registered_root_identity_hash,
 )
 from research_system.errors import IntegrityError
+from research_system.store.ledger import EventLedger
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     ACTOR_ID,
     _command,
@@ -339,11 +340,13 @@ def test_public_non_p0_dossier_command_rejects_without_ledger_or_receipt_mutatio
 
 def test_real_tda_scale_dossier_prepares_deterministic_provider_free_atomic_batch() -> None:
     expected, roots = _subject()
+    manifest = _candidate_manifest(expected.members)
 
-    first = _admit_with_default_manifest(
+    first = _prepare_dossier_admission(
         expected_set=expected,
         current_expected_set_revision=3,
         candidate_members=tuple(expected.members),
+        candidate_manifest=manifest,
         registered_roots=roots,
     )
     second = _admit_with_default_manifest(
@@ -356,6 +359,10 @@ def test_real_tda_scale_dossier_prepares_deterministic_provider_free_atomic_batc
     assert first == second
     assert first.events[0]["event_type"] == "ResearchDossierAdmitted"
     assert first.events[0]["payload"]["provider_execution"] == "forbidden"
+    assert first.events[0]["payload"]["candidate_manifest"] == manifest
+    assert canonical_dossier_hash(first.events[0]["payload"]["candidate_manifest"]) == expected.manifest_sha256
+    manifest["purpose"] = "caller-side mutation after preparation"
+    assert first.events[0]["payload"]["candidate_manifest"]["purpose"] != manifest["purpose"]
     object_events = [event for event in first.events if event["event_type"] == "PortfolioObjectRegistered"]
     assert len(object_events) == 33
     assert [event["event_type"] for event in first.events].count("ScopeDefinitionRegistered") == 1
@@ -813,6 +820,29 @@ def _accept_authority(
     assert authority["transaction_id"] == accepted_event["transaction_id"]
 
 
+def _accepted_dossier_runtime_and_command(
+    tmp_path: Path,
+) -> tuple[DiscoveryRuntime, AcceptedExpectedSet, dict[str, Any]]:
+    expected, _ = _subject()
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_authority(runtime, "dossier_expected_set", json.loads((REPO / DOSSIER_AUTHORITY).read_bytes()), 910)
+    _accept_authority(runtime, "path_registration", json.loads((REPO / PATH_AUTHORITY).read_bytes()), 920)
+    command = _command(
+        "AdmitResearchDossier",
+        expected.dossier_id,
+        0,
+        {
+            "row_id": "OR-028",
+            "dossier_id": expected.dossier_id,
+            "expected_set_id": expected.expected_set_id,
+            "candidate_members": [asdict(member) for member in expected.members],
+            "candidate_manifest": _candidate_manifest(expected.members),
+        },
+    )
+    return runtime, expected, command
+
+
 def test_w11_authority_review_requires_its_exact_review_stream(tmp_path: Path) -> None:
     expected, _ = _subject()
     runtime = _runtime(tmp_path)
@@ -992,6 +1022,152 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     object_event["payload"]["content_sha256"] = blueprint_hash
     with pytest.raises(IntegrityError, match="Portfolio object identity collision"):
         replay_discovery(_rehash_ledger(catalogue_collision))
+
+
+def test_replay_rejects_coordinated_materialization_substitution_against_accepted_manifest(tmp_path: Path) -> None:
+    """Remediation-red: the accepted manifest must remain the replay oracle."""
+
+    runtime, _, command = _accepted_dossier_runtime_and_command(tmp_path)
+    runtime.submit(command)
+    events = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    admission = next(event for event in events if event["event_type"] == "ResearchDossierAdmitted")
+    object_event = next(
+        event
+        for event in events
+        if event["event_type"] == "PortfolioObjectRegistered"
+        and event["payload"].get("portfolio_kind") != "dependency_edge"
+    )
+    scope_event = next(event for event in events if event["event_type"] == "ScopeDefinitionRegistered")
+
+    object_blueprint = object_event["payload"]["blueprint"]
+    object_key = object_blueprint["object_key"]
+    object_blueprint["permitted_consumers"] = ["substituted-consumer"]
+    object_hash = canonical_dossier_hash(
+        {
+            key: deepcopy(value)
+            for key, value in object_blueprint.items()
+            if key not in {"blueprint_hash", "expected_content_hash"}
+        }
+    )
+    object_blueprint["blueprint_hash"] = object_hash
+    object_blueprint["expected_content_hash"] = object_hash
+    object_event["payload"]["content_sha256"] = object_hash
+
+    scope_blueprint = scope_event["payload"]["blueprint"]
+    scope_key = scope_blueprint["scope_key"]
+    scope_blueprint["permitted_consumers"] = ["substituted-consumer"]
+    scope_hash = canonical_dossier_hash(
+        {
+            key: deepcopy(value)
+            for key, value in scope_blueprint.items()
+            if key not in {"blueprint_hash", "expected_content_hash"}
+        }
+    )
+    scope_blueprint["blueprint_hash"] = scope_hash
+    scope_blueprint["expected_content_hash"] = scope_hash
+    scope_event["payload"]["content_sha256"] = scope_hash
+
+    for edge_event in (
+        event
+        for event in events
+        if event["event_type"] == "PortfolioObjectRegistered"
+        and event["payload"].get("portfolio_kind") == "dependency_edge"
+    ):
+        edge_blueprint = edge_event["payload"]["blueprint"]
+        for endpoint in ("from_key", "to_key"):
+            if edge_blueprint[endpoint]["key"] == object_key:
+                edge_blueprint[endpoint]["content_hash"] = object_hash
+        edge_blueprint["satisfaction_predicate_ref_or_null"] = "predicate:substituted"
+        edge_hash = canonical_dossier_hash(
+            {key: deepcopy(value) for key, value in edge_blueprint.items() if key != "expected_content_hash"}
+        )
+        edge_blueprint["expected_content_hash"] = edge_hash
+        edge_event["payload"]["content_sha256"] = edge_hash
+
+    relationships = admission["payload"]["relationships"]
+    for relationship in relationships:
+        for member in relationship["ordered_member_keys_with_revisions_hashes"]:
+            if member["key"] == object_key:
+                member["content_hash"] = object_hash
+            elif member["key"] == scope_key:
+                member["content_hash"] = scope_hash
+        relationship["relation_hash"] = canonical_dossier_hash(
+            relationship["ordered_member_keys_with_revisions_hashes"]
+        )
+
+    with pytest.raises(IntegrityError, match="Research dossier materialization .*mismatch"):
+        replay_discovery(_rehash_ledger(events))
+
+
+@pytest.mark.integration
+def test_dossier_crash_before_publish_is_zero_mutation_and_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime, expected, command = _accepted_dossier_runtime_and_command(tmp_path)
+    before_events = tuple(runtime.ledger.iter_events())
+    before_receipts = {
+        path.relative_to(runtime.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in runtime.receipts.receipts_root.rglob("*.json")
+    }
+    discovery_control_root = runtime.ledger.control_root
+
+    def interrupt_before_publish(ledger: EventLedger, _temporary: Path) -> None:
+        if ledger.control_root == discovery_control_root:
+            raise OSError("injected dossier pre-publication interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(EventLedger, "_after_batch_fsync", interrupt_before_publish)
+        with pytest.raises(OSError, match="dossier pre-publication interruption"):
+            runtime.submit(command)
+
+    restarted = _runtime(tmp_path)
+    assert tuple(restarted.ledger.iter_events()) == before_events
+    assert restarted.receipts.load(command["command_id"]) is None
+    assert {
+        path.relative_to(restarted.receipts.receipts_root).as_posix(): path.read_bytes()
+        for path in restarted.receipts.receipts_root.rglob("*.json")
+    } == before_receipts
+    assert expected.dossier_id not in replay_discovery(restarted.ledger.iter_events())["dossiers"]
+
+    receipt = restarted.submit(command)
+    committed = [batch for batch in restarted.ledger.iter_batches() if batch[0]["command_id"] == command["command_id"]]
+    assert receipt.status == "accepted"
+    assert len(committed) == 1
+    assert committed[0][0]["event_type"] == "ResearchDossierAdmitted"
+    assert replay_discovery(restarted.ledger.iter_events())["dossiers"][expected.dossier_id]["status"] == "admitted"
+
+
+@pytest.mark.integration
+def test_dossier_crash_after_publish_recovers_exact_receipt_without_duplicate_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime, _, command = _accepted_dossier_runtime_and_command(tmp_path)
+    discovery_control_root = runtime.ledger.control_root
+
+    def interrupt_after_publish(ledger: EventLedger, _target: Path) -> None:
+        if ledger.control_root == discovery_control_root:
+            raise OSError("injected dossier post-publication interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(EventLedger, "_after_publish", interrupt_after_publish)
+        with pytest.raises(OSError, match="dossier post-publication interruption"):
+            runtime.submit(command)
+
+    restarted = _runtime(tmp_path)
+    batches_before_retry = tuple(restarted.ledger.iter_batches())
+    committed = [batch for batch in batches_before_retry if batch[0]["command_id"] == command["command_id"]]
+    assert len(committed) == 1
+    assert committed[0][0]["event_type"] == "ResearchDossierAdmitted"
+    assert restarted.receipts.load(command["command_id"]) is None
+
+    repaired = restarted.submit(command)
+    assert repaired.status == "accepted"
+    assert repaired.event_batch_id == committed[0][0]["transaction_id"]
+    assert repaired.observed_stream_version == 1
+    assert tuple(_runtime(tmp_path).ledger.iter_batches()) == batches_before_retry
+    assert _runtime(tmp_path).receipts.load(command["command_id"]) == repaired
 
 
 @pytest.mark.parametrize("event_type", ["PortfolioObjectRegistered", "ScopeDefinitionRegistered"])
