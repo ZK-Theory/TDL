@@ -848,6 +848,19 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     assert replayed["authorities"]["path_registration"]["status"] == "accepted"
     assert replayed["dossiers"][expected.dossier_id]["member_count"] == 21
 
+    for field, replacement in (
+        ("package_version", "fabricated"),
+        ("expected_set_hash", "f" * 64),
+        ("admission_profile_hash", "f" * 64),
+        ("member_closure_hash", "f" * 64),
+        ("candidate_manifest_hash", "f" * 64),
+    ):
+        substituted_admission = [deepcopy(event) for event in runtime.ledger.iter_events()]
+        admission = next(event for event in substituted_admission if event["event_type"] == "ResearchDossierAdmitted")
+        admission["payload"][field] = replacement
+        with pytest.raises(IntegrityError, match="admission authority mismatch"):
+            replay_discovery(_rehash_ledger(substituted_admission))
+
     omitted = [deepcopy(event) for event in runtime.ledger.iter_events()]
     omitted.remove(next(event for event in omitted if event["event_type"] == "PortfolioObjectRegistered"))
     with pytest.raises(IntegrityError, match="materialization closure mismatch"):

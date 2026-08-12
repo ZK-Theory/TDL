@@ -22,6 +22,9 @@ from research_system.discovery.dossier import (
     DossierAdmissionRejected,
     DossierMember,
     RegisteredRoot,
+    accepted_expected_set_hash,
+    admission_profile_hash,
+    canonical_dossier_hash,
     prepare_dossier_admission,
 )
 from research_system.errors import ConflictError, IntegrityError, SchemaError
@@ -912,6 +915,137 @@ def _spike_execution_ids_available(
     )
 
 
+def _review_subject_matches(
+    review: Any,
+    *,
+    subject_kind: str,
+    subject_id: Any,
+    subject_sha256: Any,
+) -> bool:
+    """Bind a companion lifecycle event to its exact governed review subject."""
+
+    return bool(
+        isinstance(review, Mapping)
+        and review.get("subject_kind") == subject_kind
+        and review.get("subject_id") == subject_id
+        and review.get("subject_sha256") == subject_sha256
+    )
+
+
+def _valid_spike_promotion_option(spike: Mapping[str, Any], option: Any) -> bool:
+    """Apply the closed reviewed Spike verdict-to-disposition truth table."""
+
+    verdict = spike.get("verdict")
+    if verdict == "PASS":
+        return option in {"PROMOTE", "PARK", "KILL"}
+    if verdict != "FAIL":
+        return False
+    artifact = spike.get("verdict_artifact")
+    kill_conditions = artifact.get("kill_conditions") if isinstance(artifact, Mapping) else None
+    triggered_kill = isinstance(kill_conditions, list) and any(
+        isinstance(condition, Mapping) and condition.get("status") == "triggered" for condition in kill_conditions
+    )
+    return option == "KILL" if triggered_kill else option in {"PARK", "KILL"}
+
+
+def _spike_start_operational_matches(
+    operational_events: Iterable[Mapping[str, Any]],
+    event: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> bool:
+    """Resolve the exact running Attempt, live Lease, and resource identity for a Spike start."""
+
+    try:
+        operational = replay_control_plane(operational_events)
+        attempt = operational.stream_states.get(payload.get("attempt_id"))
+        lease = operational.stream_states.get(payload.get("lease_id"))
+        relation = payload.get("execution_authority_relation")
+        resource_ref = relation.get("resource_ref") if isinstance(relation, Mapping) else None
+        resource = operational.stream_states.get(resource_ref.get("id")) if isinstance(resource_ref, Mapping) else None
+        occurred_at = datetime.fromisoformat(str(event.get("occurred_at")).replace("Z", "+00:00"))
+        expires_at = datetime.fromisoformat(str(lease.get("expires_at")).replace("Z", "+00:00"))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return False
+    return bool(
+        event.get("stream_id") == payload.get("spike_id")
+        and isinstance(attempt, Mapping)
+        and attempt.get("status") == "running"
+        and sha256_hex(canonical_bytes(attempt)) == payload.get("attempt_sha256")
+        and attempt.get("lease_id") == payload.get("lease_id")
+        and isinstance(lease, Mapping)
+        and lease.get("status") == "active"
+        and sha256_hex(canonical_bytes(lease)) == payload.get("lease_sha256")
+        and lease.get("attempt_id") == payload.get("attempt_id")
+        and lease.get("holder_actor_id") == event.get("actor_id")
+        and lease.get("resource_grant_id") == payload.get("resource_grant_id")
+        and isinstance(resource, Mapping)
+        and resource.get("status") == "active"
+        and resource_ref == _record_ref(resource_ref.get("id"), 1, sha256_hex(canonical_bytes(resource)))
+        and occurred_at.tzinfo is not None
+        and expires_at.tzinfo is not None
+        and expires_at > occurred_at
+    )
+
+
+def _accepted_dossier_admission_matches(
+    authority: Any,
+    event: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> bool:
+    """Rebind a durable admission envelope to the exact accepted expected-set authority."""
+
+    if not isinstance(authority, Mapping) or authority.get("status") != "accepted":
+        return False
+    subject = authority.get("subject")
+    expected_value = subject.get("expected_set") if isinstance(subject, Mapping) else None
+    if not isinstance(expected_value, Mapping):
+        return False
+    try:
+        expected = AcceptedExpectedSet(
+            **{
+                **expected_value,
+                "members": tuple(DossierMember(**member) for member in expected_value["members"]),
+            }
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+    observed_members = [
+        {
+            "member_key": member.member_key,
+            "member_kind": member.member_kind,
+            "root_id": member.root_id,
+            "relative_path": member.relative_path,
+            "size_bytes": member.size_bytes,
+            "sha256": member.sha256,
+            "provenance_id": member.provenance_id,
+            "provenance_revision": member.provenance_revision,
+            "provenance_hash": member.provenance_hash,
+        }
+        for member in expected.members
+    ]
+    return bool(
+        accepted_expected_set_hash(expected) == expected.content_hash
+        and admission_profile_hash(expected.admission_profile_id, expected.admission_profile_revision)
+        == expected.admission_profile_hash
+        and event.get("stream_id") == expected.dossier_id
+        and payload.get("dossier_id") == expected.dossier_id
+        and payload.get("project_id") == expected.project_id
+        and payload.get("package_id") == expected.package_id
+        and payload.get("package_version") == expected.package_version
+        and payload.get("expected_set_id") == expected.expected_set_id
+        and payload.get("expected_set_revision") == expected.revision
+        and payload.get("expected_set_hash") == expected.content_hash
+        and payload.get("admission_profile_id") == expected.admission_profile_id
+        and payload.get("admission_profile_revision") == expected.admission_profile_revision
+        and payload.get("admission_profile_hash") == expected.admission_profile_hash
+        and payload.get("candidate_manifest_hash") == expected.manifest_sha256
+        and payload.get("member_count") == len(expected.members)
+        and payload.get("member_closure_hash") == canonical_dossier_hash(observed_members)
+        and payload.get("provider_execution") == "forbidden"
+        and payload.get("ownership_effect") == "successor_owned_new_objects_only"
+    )
+
+
 def _git_blob(data: bytes) -> str:
     """Return the Git blob identity for exact bytes."""
     return hashlib.sha1(
@@ -1376,6 +1510,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             observations = payload.get("source_observation_refs")
             if (
                 not isinstance(candidate_id, str)
+                or event.get("stream_id") != candidate_id
                 or _discovery_identity_exists(state, candidate_id)
                 or not isinstance(observations, list)
                 or not observations
@@ -1575,6 +1710,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             subject_hashes = required_string_list("subject_hashes")
             if (
                 not isinstance(review_id, str)
+                or event.get("stream_id") != review_id
                 or aggregate_identity_exists(review_id)
                 or len(subject_ids) != 1
                 or len(subject_hashes) != 1
@@ -1617,10 +1753,19 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             review = state["reviews"].get(payload.get("review_id"))
             prior_review = state["reviews"].get(assay.get("review_id"))
             relation = payload.get("review_subject_supersession")
-            if not isinstance(review, dict):
+            if (
+                event.get("stream_id") != payload.get("assay_id")
+                or assay.get("candidate_id") != payload.get("candidate_id")
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="assay",
+                    subject_id=payload.get("assay_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+            ):
                 raise IntegrityError("invalid Assay outcome review request")
             if assay.get("review_id") is None:
-                if relation is not None:
+                if relation is not None or payload.get("subject_sha256") != _aggregate_content_hash(assay):
                     raise IntegrityError("invalid Assay review supersession")
             elif not _valid_review_supersession(
                 relation,
@@ -1631,7 +1776,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Assay review supersession")
             else:
                 prior_review.update(status="superseded", superseded_by_review_id=review["review_id"])
-            assay.update(review_id=required_string("review_id"), review_pending=True, version=event["stream_version"])
+            assay.update(
+                review_id=required_string("review_id"),
+                review_subject_sha256=required_string("subject_sha256"),
+                review_pending=True,
+                version=event["stream_version"],
+            )
         elif event_type == "ReviewVerdictRecorded":
             review_id = required_string("review_id")
             review = state["reviews"].get(review_id)
@@ -1672,10 +1822,18 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             review = state["reviews"].get(payload.get("review_id"))
             if (
                 not isinstance(assay, dict)
+                or event.get("stream_id") != payload.get("assay_id")
                 or not assay.get("review_pending")
+                or assay.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
-                or review.get("subject_sha256") != payload.get("subject_sha256")
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="assay",
+                    subject_id=payload.get("assay_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+                or payload.get("subject_sha256") != assay.get("review_subject_sha256")
             ):
                 raise IntegrityError("invalid Assay reviewed transition")
             assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
@@ -1685,11 +1843,20 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             expected_status = "partial_recorded" if event_type == "AssayPartialReviewed" else "cancelled"
             if (
                 not isinstance(assay, dict)
+                or event.get("stream_id") != payload.get("assay_id")
                 or assay.get("status") != expected_status
                 or assay.get("candidate_id") != payload.get("candidate_id")
                 or not assay.get("review_pending")
+                or assay.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="assay",
+                    subject_id=payload.get("assay_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+                or payload.get("subject_sha256") != assay.get("review_subject_sha256")
             ):
                 raise IntegrityError("invalid Assay reviewed transition")
             assay.update(
@@ -1901,6 +2068,10 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                     and gate == "assay_to_spike"
                     and aggregate.get("mechanical_recommendation") != "PROMOTE"
                 )
+                or (
+                    gate == "spike_to_preregistration"
+                    and not _valid_spike_promotion_option(aggregate, decision.get("recommendation"))
+                )
             ):
                 raise IntegrityError("invalid Candidate promotion request")
             decision.update(kind="discovery_promotion", promotion_relation=deepcopy(payload["promotion_relation"]))
@@ -1937,6 +2108,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                     selected_option == "PROMOTE"
                     and gate == "assay_to_spike"
                     and state["assays"].get(candidate.get("assay_id"), {}).get("mechanical_recommendation") != "PROMOTE"
+                )
+                or (
+                    gate == "spike_to_preregistration"
+                    and not _valid_spike_promotion_option(
+                        state["spikes"].get(candidate.get("spike_id"), {}),
+                        selected_option,
+                    )
                 )
             ):
                 raise IntegrityError("invalid Candidate promotion application")
@@ -2068,6 +2246,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or payload.get("execution_authority_relation") != spike.get("execution_authority_relation")
                 or spike.get("execution_authority_relation", {}).get("resource_ref", {}).get("id")
                 != payload.get("resource_grant_id")
+                or not _spike_start_operational_matches(operational_events, event, payload)
             ):
                 raise IntegrityError("invalid Spike start")
             spike.update(
@@ -2103,6 +2282,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 status="verdict_recorded",
                 verdict=required_string("verdict"),
                 verdict_sha256=required_string("verdict_sha256"),
+                verdict_artifact=deepcopy(artifact),
                 producer_actor_id=event.get("actor_id"),
             )
         elif event_type == "SpikePartialRecorded":
@@ -2125,6 +2305,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 status="partial_recorded",
                 verdict=required_string("verdict"),
                 verdict_sha256=required_string("verdict_sha256"),
+                verdict_artifact=deepcopy(artifact),
                 revisit_requirements=deepcopy(spike.get("plan_artifact", {}).get("partial_rules", [])),
                 producer_actor_id=event.get("actor_id"),
             )
@@ -2168,10 +2349,19 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             review = state["reviews"].get(payload.get("review_id"))
             prior_review = state["reviews"].get(spike.get("review_id"))
             relation = payload.get("review_subject_supersession")
-            if not isinstance(review, dict):
+            if (
+                event.get("stream_id") != payload.get("spike_id")
+                or spike.get("candidate_id") != payload.get("candidate_id")
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="spike",
+                    subject_id=payload.get("spike_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+            ):
                 raise IntegrityError("invalid Spike review request")
             if spike.get("review_id") is None:
-                if relation is not None:
+                if relation is not None or payload.get("subject_sha256") != _aggregate_content_hash(spike):
                     raise IntegrityError("invalid Spike review supersession")
             elif not _valid_review_supersession(
                 relation,
@@ -2182,16 +2372,28 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 raise IntegrityError("invalid Spike review supersession")
             else:
                 prior_review.update(status="superseded", superseded_by_review_id=review["review_id"])
-            spike.update(review_id=required_string("review_id"), review_pending=True)
+            spike.update(
+                review_id=required_string("review_id"),
+                review_subject_sha256=required_string("subject_sha256"),
+                review_pending=True,
+            )
         elif event_type == "SpikeReviewed":
             spike = state["spikes"].get(payload.get("spike_id"))
             review = state["reviews"].get(payload.get("review_id"))
             if (
                 not isinstance(spike, dict)
+                or event.get("stream_id") != payload.get("spike_id")
                 or not spike.get("review_pending")
                 or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="spike",
+                    subject_id=payload.get("spike_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+                or payload.get("subject_sha256") != spike.get("review_subject_sha256")
             ):
                 raise IntegrityError("invalid Spike reviewed transition")
             spike.update(status="reviewed", review_pending=False)
@@ -2205,11 +2407,19 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             review = state["reviews"].get(payload.get("review_id"))
             if (
                 not isinstance(spike, dict)
+                or event.get("stream_id") != payload.get("spike_id")
                 or spike.get("status") != "partial_recorded"
                 or not spike.get("review_pending")
                 or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="spike",
+                    subject_id=payload.get("spike_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+                or payload.get("subject_sha256") != spike.get("review_subject_sha256")
             ):
                 raise IntegrityError("invalid Spike partial review")
             spike.update(status="partial_reviewed", review_pending=False)
@@ -2254,11 +2464,19 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             review = state["reviews"].get(payload.get("review_id"))
             if (
                 not isinstance(spike, dict)
+                or event.get("stream_id") != payload.get("spike_id")
                 or spike.get("status") != "cancelled"
                 or not spike.get("review_pending")
                 or spike.get("review_id") != payload.get("review_id")
                 or not isinstance(review, dict)
                 or review.get("status") != "satisfied"
+                or not _review_subject_matches(
+                    review,
+                    subject_kind="spike",
+                    subject_id=payload.get("spike_id"),
+                    subject_sha256=payload.get("subject_sha256"),
+                )
+                or payload.get("subject_sha256") != spike.get("review_subject_sha256")
             ):
                 raise IntegrityError("invalid Spike cancellation review")
             spike.update(status="cancellation_reviewed", review_pending=False)
@@ -2271,6 +2489,12 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             dossier_id = payload.get("dossier_id")
             if not isinstance(dossier_id, str) or aggregate_identity_exists(dossier_id):
                 raise IntegrityError("Research dossier identity collision")
+            if not _accepted_dossier_admission_matches(
+                state["authorities"].get("dossier_expected_set"),
+                event,
+                payload,
+            ):
+                raise IntegrityError("Research dossier admission authority mismatch")
             state["dossiers"][dossier_id] = {**deepcopy(payload), "status": "admitted"}
         elif event_type == "PortfolioObjectRegistered":
             record_id = payload.get("record_id")
@@ -2629,6 +2853,21 @@ class DiscoveryRuntime:
             command.envelope["command_type"],
             command.idempotency_key,
         )
+        envelope_sha256 = sha256_hex(
+            canonical_bytes(
+                {
+                    "command_id": command.command_id,
+                    "command_type": envelope["command_type"],
+                    "actor_id": command.actor_id,
+                    "authority_grant_id": envelope["authority_grant_id"],
+                    "authority_grant_sha256": authority_sha256,
+                    "idempotency_key": command.idempotency_key,
+                    "target_stream_id": command.target_stream_id,
+                    "expected_stream_version": command.expected_stream_version,
+                    "payload_hash": command.payload_hash,
+                }
+            )
+        )
 
         def persist(receipt: Receipt) -> Receipt:
             return self.receipts.write_scoped(
@@ -2652,20 +2891,37 @@ class DiscoveryRuntime:
             if self.receipts.load(scoped.command_id) is None:
                 self.receipts.write(scoped)
             return scoped
-        existing = self.receipts.load(command.command_id)
-        if existing is not None:
-            if existing.payload_hash != command.payload_hash:
-                raise ConflictError("command receipt payload mismatch")
-            return persist(existing)
-
         snapshot = self.ledger.snapshot()
+
+        def committed_envelope_matches(event: Mapping[str, Any]) -> bool:
+            """Bind a recovered command id to the complete immutable submission envelope."""
+
+            return bool(
+                event.get("command_payload_hash") == command.payload_hash
+                and event.get("command_type") == envelope["command_type"]
+                and event.get("actor_id") == command.actor_id
+                and event.get("authority_grant_id") == envelope["authority_grant_id"]
+                and event.get("idempotency_key") == command.idempotency_key
+                and event.get("correlation_id") == envelope_sha256
+            )
+
         committed = next(
             (event for event in snapshot.events if event.get("command_id") == command.command_id),
             None,
         )
+        existing = self.receipts.load(command.command_id)
+        if existing is not None:
+            if (
+                existing.status != "accepted"
+                or existing.payload_hash != command.payload_hash
+                or not isinstance(committed, Mapping)
+                or not committed_envelope_matches(committed)
+            ):
+                raise ConflictError("command receipt envelope mismatch")
+            return persist(existing)
         if committed is not None:
-            if committed.get("command_payload_hash") != command.payload_hash:
-                raise ConflictError("committed command payload mismatch")
+            if not committed_envelope_matches(committed):
+                raise ConflictError("committed command envelope mismatch")
             transaction_events = tuple(
                 event for event in snapshot.events if event.get("transaction_id") == committed["transaction_id"]
             )
@@ -2780,6 +3036,10 @@ class DiscoveryRuntime:
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
         binding = self.schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
+        occurred_at = self.clock()
+        if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
+            raise IntegrityError("Discovery runtime clock must return an aware datetime")
+        occurred_at_value = occurred_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
         def event_schema(event_type: str, payload: Mapping[str, Any]) -> tuple[str, str]:
             """Resolve an exact producer binding, falling back only for Discovery shadow events."""
@@ -2824,11 +3084,11 @@ class DiscoveryRuntime:
                     "command_schema_sha256": binding.raw_bytes_sha256,
                     "idempotency_key": command.idempotency_key,
                     "command_payload_hash": command.payload_hash,
-                    "correlation_id": command.idempotency_key,
+                    "correlation_id": envelope_sha256,
                     "causation_id": None,
                     "actor_id": command.actor_id,
                     "authority_grant_id": envelope["authority_grant_id"],
-                    "occurred_at": None,
+                    "occurred_at": occurred_at_value,
                     "payload": prepared_payload,
                 }
             )
@@ -4147,7 +4407,6 @@ class DiscoveryRuntime:
             and isinstance(spike, dict)
             and spike.get("status") == "reviewed"
             and spike.get("candidate_id") == candidate_id
-            and spike.get("verdict") == "PASS"
             and p.get("verdict_sha256") == spike.get("verdict_sha256")
             and p.get("review_id") == spike.get("review_id")
             and projection["reviews"].get(p.get("review_id"), {}).get("status") == "satisfied"
@@ -4155,6 +4414,7 @@ class DiscoveryRuntime:
             and decision is None
             and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
+            and _valid_spike_promotion_option(spike, p["w2_payload"].get("recommendation"))
             and p["w2_payload"].get("new_decision_id") == decision_id
             and p["w2_payload"].get("decision_kind") == "design_lock"
             and _valid_promotion_options(p["w2_payload"].get("options"))
@@ -4189,11 +4449,11 @@ class DiscoveryRuntime:
             and isinstance(spike, dict)
             and spike.get("status") == "reviewed"
             and spike.get("candidate_id") == candidate_id
-            and spike.get("verdict") == "PASS"
             and p.get("verdict_sha256") == spike.get("verdict_sha256")
             and p.get("review_id") == spike.get("review_id")
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
+            and _valid_spike_promotion_option(spike, p["w2_payload"].get("selected_option"))
             and p["w2_payload"].get("decision_id") == decision_id
             and p["w2_payload"].get("selected_option") in {"PROMOTE", "PARK", "KILL"}
             and p["w2_payload"]["selected_option"] in decision.get("options", ())

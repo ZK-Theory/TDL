@@ -88,7 +88,10 @@ def assay_reconstruction_sha256(state: Mapping[str, Any], context_manifest_id: s
         "scope_file_sha256": _digest(scope_observation.get("file_sha256"), "scope_file_sha256"),
         "prospective_producer_ref": _record_ref(state.get("prospective_producer_ref"), "prospective_producer_ref"),
     }
-    if not all(isinstance(manifest[key].get("record_revision"), int) for key in ("rubric_ref", "scope_ref")):
+    if not all(
+        type(manifest[key].get("record_revision")) is int and manifest[key]["record_revision"] >= 1
+        for key in ("rubric_ref", "scope_ref")
+    ):
         raise AssayAuthorityRejected("invalid_reconstruction_context")
     return sha256_hex(canonical_bytes(manifest))
 
@@ -121,7 +124,12 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 if kind != "rubric":
                     raise AssayAuthorityRejected("invalid_successor_order")
                 prior_revision = state["contents"].get(kind, {}).get("content", {}).get("record_revision")
-                if not isinstance(prior_revision, int) or not isinstance(content.get("record_revision"), int):
+                if (
+                    type(prior_revision) is not int
+                    or prior_revision < 1
+                    or type(content.get("record_revision")) is not int
+                    or content["record_revision"] < 1
+                ):
                     raise AssayAuthorityRejected("stale_revision")
                 if (
                     content["record_revision"] != prior_revision + 1
@@ -156,7 +164,10 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                     prior_scope_content.get("record_revision") if isinstance(prior_scope_content, Mapping) else None
                 )
                 if (
-                    not isinstance(prior_revision, int)
+                    type(prior_revision) is not int
+                    or prior_revision < 1
+                    or type(content.get("record_revision")) is not int
+                    or content["record_revision"] < 1
                     or content.get("record_revision") != prior_revision + 1
                     or content.get("supersedes_revision") != prior_revision
                 ):
