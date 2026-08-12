@@ -135,9 +135,6 @@ def test_runtime_facade_owns_no_replay_reducer() -> None:
 
     tree = ast.parse((DISCOVERY / "runtime.py").read_text(encoding="utf-8"))
     defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-    assert not {
-        name for name in defined if name.startswith("reduce_")
-    }, "lifecycle reducers must live in research_system.discovery.replay"
-    assert "replay_discovery" not in {
-        node.name for node in tree.body if isinstance(node, ast.FunctionDef)
-    }, "replay_discovery must be owned by research_system.discovery.replay.driver"
+    reducers = sorted(name for name in defined if name.startswith("reduce_"))
+    assert reducers == [], "lifecycle reducers must live in research_system.discovery.replay"
+    assert "replay_discovery" not in defined, "replay_discovery must be owned by replay.driver"
