@@ -21,15 +21,15 @@ from research_system.discovery.assay_authority import (
     assay_reconstruction_sha256,
 )
 from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
-from research_system.discovery.runtime import (
-    _DISCOVERY_EXISTING_TARGETS,
-    _DISCOVERY_IDENTITY_COLLECTIONS,
-    _DISCOVERY_MINT_ROWS,
-    _DISCOVERY_ROW_ROUTES,
-    _discovery_identity_exists,
-    _shared_event_partition,
-    _valid_spike_promotion_option,
+from research_system.discovery.routes import (
+    DISCOVERY_EXISTING_TARGETS as _DISCOVERY_EXISTING_TARGETS,
+    DISCOVERY_IDENTITY_COLLECTIONS as _DISCOVERY_IDENTITY_COLLECTIONS,
+    DISCOVERY_MINT_ROWS as _DISCOVERY_MINT_ROWS,
+    DISCOVERY_ROW_ROUTES as _DISCOVERY_ROW_ROUTES,
+    discovery_identity_exists as _discovery_identity_exists,
+    shared_event_partition as _shared_event_partition,
 )
+from research_system.discovery.rules import _valid_spike_promotion_option
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.authority import subject_sha256
 from research_system.canonical import canonical_bytes, sha256_hex

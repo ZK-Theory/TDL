@@ -9,13 +9,13 @@ from research_system.authority import (
     _SCOPED_COMMAND_SUBJECT_KINDS,
 )
 from research_system.errors import SchemaError
-from research_system.discovery.runtime import (
-    _DISCOVERY_COMMAND_TYPES,
-    _DISCOVERY_DEFERRED_ROWS,
-    _DISCOVERY_EXCLUDED_ROWS,
-    _DISCOVERY_ROW_ROUTES,
-    _validate_discovery_route_registry,
+from research_system.discovery.routes import (
+    DISCOVERY_DEFERRED_ROWS as _DISCOVERY_DEFERRED_ROWS,
+    DISCOVERY_EXCLUDED_ROWS as _DISCOVERY_EXCLUDED_ROWS,
+    DISCOVERY_ROW_ROUTES as _DISCOVERY_ROW_ROUTES,
+    validate_discovery_route_registry as _validate_discovery_route_registry,
 )
+from research_system.discovery.runtime import _DISCOVERY_COMMAND_TYPES
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.schema_registry import runtime_schema_registry
 
