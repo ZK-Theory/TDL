@@ -6,15 +6,20 @@ from datetime import UTC, datetime
 import hashlib
 import json
 import os
+import subprocess
+import sys
+import time
 import uuid
 
 import pytest
 
-from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
+from research_system.discovery import runtime as discovery_runtime_module
+from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
+from research_system.discovery.runtime import _DISCOVERY_IDENTITY_COLLECTIONS, _discovery_identity_exists
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import replay_control_plane
-from research_system.errors import ArsError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, IntegrityError
 from research_system.ids import new_id
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
@@ -24,6 +29,7 @@ from tests.research_system.factories import (
     PROJECT_ID,
     activate_lifecycle_grant,
     control_plane,
+    revoke_lifecycle_grant,
 )
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     ATTEMPT_ID as C1_ATTEMPT_ID,
@@ -261,9 +267,90 @@ def test_scout_observation_rejects_candidate_identity_from_any_existing_aggregat
     with pytest.raises(IntegrityError, match="invalid Scout Candidate blueprint"):
         _ingest_candidate(runtime, shared_id, observation_id=shared_id, title="Colliding Candidate")
     assert tuple(runtime.ledger.iter_events()) == before
+    _exercise_identity_attacks(runtime, shared_id)
 
+
+def test_global_identity_contract_names_every_discovery_namespace() -> None:
+    identity = "obj_019fed25-b33e-7740-b280-6f661aaeff94"
+    empty = {collection: {} for collection in _DISCOVERY_IDENTITY_COLLECTIONS}
+    empty["catalogue"] = None
+    assert not _discovery_identity_exists(empty, identity)
+    for collection in _DISCOVERY_IDENTITY_COLLECTIONS:
+        state = deepcopy(empty)
+        state[collection][identity] = {"identity": identity}
+        assert _discovery_identity_exists(state, identity), collection
+    state = deepcopy(empty)
+    state["catalogue"] = {"status": "active"}
+    assert _discovery_identity_exists(state, CATALOGUE_STREAM_ID)
+
+
+@pytest.mark.parametrize(
+    ("command_type", "payload"),
+    [
+        ("RequestAssay", {"assay_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+        ("RecordAssayScore", {"assay_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+        ("RecordAssayPartial", {"assay_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+        (
+            "CancelDiscoveryEvaluation",
+            {"evaluation_kind": "assay", "assay_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"},
+        ),
+        ("RegisterSpikePlan", {"spike_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+        ("StartSpike", {"spike_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+        ("RecordSpikeVerdict", {"spike_id": "obj_019fed25-b33e-7740-b280-6f661aaeff93"}),
+    ],
+)
+def test_candidate_scoped_commands_cannot_write_a_foreign_stream(command_type: str, payload: dict[str, object]) -> None:
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff92"
+    foreign_stream = "obj_019fed25-b33e-7740-b280-6f661aaeff93"
+    projection = {
+        "catalogue": {"status": "active"},
+        **{collection: {} for collection in _DISCOVERY_IDENTITY_COLLECTIONS},
+    }
+    projection["candidates"] = {
+        candidate_id: {"candidate_id": candidate_id},
+        foreign_stream: {"candidate_id": foreign_stream},
+    }
+    envelope = _command(
+        command_type,
+        foreign_stream,
+        1,
+        {"candidate_id": candidate_id, **payload},
+    )
+    with pytest.raises(IntegrityError, match="outside authorized Candidate"):
+        DiscoveryRuntime._require_candidate_target(Command(envelope), projection)
+
+
+def _exercise_identity_attacks(runtime: DiscoveryRuntime, shared_id: str) -> None:
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff99"
     candidate_sha256 = _ingest_candidate(runtime, candidate_id, observation_id=shared_id, title="Distinct Candidate")
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    foreign_candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff96"
+    _ingest_candidate(
+        runtime,
+        foreign_candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff95",
+        title="Foreign Candidate stream",
+    )
+    for occupied_stream in (CATALOGUE_STREAM_ID, foreign_candidate_id):
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="outside authorized Candidate"):
+            runtime.submit(
+                _command(
+                    "RequestAssay",
+                    occupied_stream,
+                    1,
+                    {
+                        "row_id": "OR-003",
+                        "candidate_id": candidate_id,
+                        "assay_id": occupied_stream,
+                        "candidate_revision": 1,
+                        "candidate_sha256": candidate_sha256,
+                        "assay_bar_acceptance_sha256": bar_sha256,
+                        "producer_relation_sha256": producer_sha256,
+                    },
+                )
+            )
+        assert tuple(runtime.ledger.iter_events()) == before
     before = tuple(runtime.ledger.iter_events())
     with pytest.raises(IntegrityError, match="Candidate identity collision"):
         runtime.submit(
@@ -588,6 +675,119 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
     with pytest.raises(IntegrityError, match="catalogue identity mismatch"):
         runtime.submit(tampered)
     assert tuple(runtime.ledger.iter_events()) == before
+
+
+def test_idempotency_key_is_a_durable_scope_not_decorative(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff45"
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaeff46"
+    _ingest_candidate(runtime, candidate_id, observation_id=observation_id, title="Exact retry")
+    before = tuple(runtime.ledger.iter_events())
+    command_id = next(
+        event["command_id"]
+        for event in reversed(before)
+        if event["event_type"] == "ScoutObservationIngested" and event["stream_id"] == observation_id
+    )
+    receipt_path = runtime.receipts.receipts_root / f"{command_id}.json"
+    receipt_path.unlink()
+
+    _ingest_candidate(runtime, candidate_id, observation_id=observation_id, title="Exact retry")
+    assert tuple(runtime.ledger.iter_events()) == before
+    assert receipt_path.is_file()
+
+    with pytest.raises(IdempotencyConflictError, match="idempotency key conflicts"):
+        _ingest_candidate(runtime, candidate_id, observation_id=observation_id, title="Substituted payload")
+    assert tuple(runtime.ledger.iter_events()) == before
+
+
+def test_submit_surfaces_persisted_replay_failure_as_operational_fault(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    before = tuple(runtime.ledger.iter_events())
+
+    def fail_replay(events):
+        tuple(events)
+        raise IntegrityError("injected persisted corruption")
+
+    monkeypatch.setattr(discovery_runtime_module, "replay_discovery", fail_replay)
+    with pytest.raises(DiscoveryLedgerReplayError, match="persisted Discovery ledger failed replay"):
+        runtime.submit(
+            _command(
+                "RegisterCandidate",
+                "obj_019fed25-b33e-7740-b280-6f661aaeff47",
+                0,
+                {
+                    "candidate_id": "obj_019fed25-b33e-7740-b280-6f661aaeff47",
+                    "revision": 1,
+                    "content_sha256": "1" * 64,
+                    "source_observation_refs": ["obj_019fed25-b33e-7740-b280-6f661aaeff48"],
+                    "title": "Operational fault distinction",
+                },
+            )
+        )
+    assert tuple(runtime.ledger.iter_events()) == before
+
+
+@pytest.mark.integration
+def test_composite_writer_fence_blocks_cross_process_authority_revocation(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    harness = _HARNESSES[tmp_path]
+    revocation_subject_id = "obj_019fed25-b33e-7740-b280-00000000c002"
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="scope_definition",
+        subject_id=revocation_subject_id,
+        command_types=("RegisterCandidate",),
+    )
+    signal = tmp_path / "writer-acquired.signal"
+    release = tmp_path / "writer-release.signal"
+    script = """
+import sys
+import time
+from pathlib import Path
+from research_system.store.lock import CompositeWriterLock
+
+roots = tuple(Path(value) for value in sys.argv[1:4])
+signal = Path(sys.argv[4])
+release = Path(sys.argv[5])
+with CompositeWriterLock(roots, {"command_id": "cmd_019fed25-b33e-7740-b280-00000000c001"}):
+    signal.write_text("acquired", encoding="utf-8")
+    deadline = time.monotonic() + 15
+    while not release.exists():
+        if time.monotonic() >= deadline:
+            raise TimeoutError("parent did not release composite writer fence")
+        time.sleep(0.02)
+"""
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(runtime.control_root),
+            str(runtime.authority_resolver.control_root),
+            str(runtime.operational_ledger.control_root),
+            str(signal),
+            str(release),
+        ],
+        cwd=REPO_ROOT,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not signal.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert signal.is_file(), process.poll()
+        before = tuple(harness.authority_ledger.iter_events())
+        with pytest.raises(ConflictError, match="writer lock exists"):
+            revoke_lifecycle_grant(harness, subject_id=revocation_subject_id)
+        assert tuple(harness.authority_ledger.iter_events()) == before
+    finally:
+        release.write_text("release", encoding="utf-8")
+        process.wait(timeout=20)
+    assert process.returncode == 0
 
 
 @pytest.mark.parametrize("missing", ["repository", "catalogue"])
@@ -958,6 +1158,40 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             event["payload"]["scorecard_sha256"] = substituted_scorecard_hash
     with pytest.raises(IntegrityError, match="invalid Assay score transition"):
         replay_discovery(_rehash_events(rehashed_invented_axis))
+
+    scored_prefix = tuple(runtime.ledger.iter_events())
+    assay_bar_command_types = {
+        "RegisterAssayRubricContent",
+        "RegisterAssayEvidenceScopeContent",
+        "ObserveW11AuthorityFile",
+        "RequestW11AuthorityReview",
+        "RecordW11AuthorityReview",
+        "ProposeW11AuthorityDecision",
+        "ResolveDecision",
+    }
+    without_assay_bar = tuple(
+        deepcopy(event) for event in scored_prefix if event.get("command_type") not in assay_bar_command_types
+    )
+    with pytest.raises(IntegrityError, match="invalid Assay request transition"):
+        replay_discovery(_reindex_and_rehash_events(without_assay_bar))
+
+    fabricated_acceptance = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    request_event = next(event for event in fabricated_acceptance if event["event_type"] == "AssayRequested")
+    request_event["payload"]["assay_bar_acceptance_sha256"] = "0" * 64
+    with pytest.raises(IntegrityError, match="invalid Assay request transition"):
+        replay_discovery(_rehash_events(fabricated_acceptance))
+
+    rogue_producer = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    rogue_actor_id = "act_019fed25-b33e-7740-b280-0000000c0ffe"
+    rogue_scored = next(event for event in rogue_producer if event["event_type"] == "AssayScored")
+    rogue_scored["actor_id"] = rogue_actor_id
+    rogue_scored["payload"]["scorecard_artifact"]["producer_actor_id"] = rogue_actor_id
+    rogue_scorecard_sha256 = sha256_hex(canonical_bytes(rogue_scored["payload"]["scorecard_artifact"]))
+    for event in rogue_producer:
+        if event["command_id"] == rogue_scored["command_id"]:
+            event["payload"]["scorecard_sha256"] = rogue_scorecard_sha256
+    with pytest.raises(IntegrityError, match="invalid Assay score transition"):
+        replay_discovery(_rehash_events(rogue_producer))
     review_request_command = _command(
         "RequestDiscoveryOutcomeReview",
         review_id,
@@ -994,6 +1228,16 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             },
         },
     )
+    colliding_review = deepcopy(review_request_command)
+    authority_review_id = "rev_019fed25-b33e-7740-b280-000000000105"
+    colliding_review["target_stream_id"] = authority_review_id
+    colliding_review["expected_stream_version"] = runtime.ledger.snapshot().stream_versions[authority_review_id]
+    colliding_review["payload"]["review_id"] = authority_review_id
+    colliding_review["payload"]["review_contract"]["new_review_id"] = authority_review_id
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RequestDiscoveryOutcomeReview transition"):
+        runtime.submit(colliding_review)
+    assert tuple(runtime.ledger.iter_events()) == before
     original_event_binding = SchemaRegistry.event_binding
     spoofed_shadow = deepcopy(review_request_command)
     spoofed_shadow["payload"]["review_contract"]["authority_event_type"] = "ReviewRequested"
@@ -2241,6 +2485,13 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     )["payload"]["execution_authority_relation"]["route_ref"]["content_hash"] = "f" * 64
     with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
         replay_discovery(_rehash_events(invalid_execution_relation))
+    substituted_resource_identity = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    for event in substituted_resource_identity:
+        relation = event.get("payload", {}).get("execution_authority_relation")
+        if isinstance(relation, dict):
+            relation["resource_ref"]["content_hash"] = "f" * 64
+    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+        replay_discovery(_rehash_events(substituted_resource_identity))
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
         event
@@ -2764,6 +3015,21 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             )
             with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
                 replay_discovery(_rehash_events(tampered))
+    for event_type, producer_type, identity_field, message in (
+        ("SpikePlanned", "RegisterSpikePlan", "spike_id", "Spike identity collision"),
+        ("DecisionProposed", "ProposePromotionDecision", "new_decision_id", "invalid Discovery decision proposal"),
+        ("ReviewRequested", "RequestDiscoveryOutcomeReview", "new_review_id", "invalid Discovery review request"),
+    ):
+        cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        minted = next(
+            event
+            for event in cross_namespace
+            if event["event_type"] == event_type and event["command_type"] == producer_type
+        )
+        minted["stream_id"] = CATALOGUE_STREAM_ID
+        minted["payload"][identity_field] = CATALOGUE_STREAM_ID
+        with pytest.raises(IntegrityError, match=message):
+            replay_discovery(_rehash_events(cross_namespace))
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(

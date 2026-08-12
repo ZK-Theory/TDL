@@ -59,6 +59,12 @@ _COMMAND_FIELDS = {
 }
 _CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 _GIT_TIMEOUT_SECONDS = 10
+
+
+class DiscoveryLedgerReplayError(IntegrityError):
+    """A persisted Discovery ledger cannot be reconstructed before command preparation."""
+
+
 _DISCOVERY_COMMAND_TYPES = {
     "ImportAcceptedW11CatalogueGenesis",
     "IngestScoutObservationBatch",
@@ -317,26 +323,41 @@ def _revisit_relation_matches(
     )
 
 
+_DISCOVERY_IDENTITY_COLLECTIONS = (
+    "source_observations",
+    "candidates",
+    "assays",
+    "spikes",
+    "decisions",
+    "reviews",
+    "dossiers",
+    "portfolio_objects",
+    "scopes",
+    "authority_streams",
+)
+
+
 def _discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
-    """Return whether any immutable Discovery aggregate already owns an identity."""
+    """Apply the single global immutable-identity contract to every aggregate kind."""
 
     return bool(
         (state.get("catalogue") is not None and identity == _CATALOGUE_STREAM_ID)
-        or any(
-            identity in state.get(collection, {})
-            for collection in (
-                "source_observations",
-                "candidates",
-                "assays",
-                "spikes",
-                "decisions",
-                "reviews",
-                "dossiers",
-                "portfolio_objects",
-                "scopes",
-                "authority_streams",
-            )
-        )
+        or any(identity in state.get(collection, {}) for collection in _DISCOVERY_IDENTITY_COLLECTIONS)
+    )
+
+
+def _current_assay_bar_matches(subject: Mapping[str, Any], bar: Mapping[str, Any], actor_id: Any = None) -> bool:
+    """Bind every Assay route to the current accepted bar and prospective producer."""
+
+    producer_ref = bar.get("prospective_producer_ref")
+    producer_id = producer_ref.get("id") if isinstance(producer_ref, Mapping) else None
+    return bool(
+        bar.get("status") == "accepted"
+        and subject.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
+        and subject.get("producer_relation_sha256") == bar.get("producer_relation_sha256")
+        and isinstance(producer_id, str)
+        and subject.get("producer_actor_id") == producer_id
+        and (actor_id is None or actor_id == producer_id)
     )
 
 
@@ -505,6 +526,7 @@ def _spike_execution_relation_matches(
     assay: Mapping[str, Any],
     spike: Mapping[str, Any],
     decision_id: Any,
+    resource: Mapping[str, Any],
 ) -> bool:
     """Bind the complete Spike execution subject to its plan and assurance."""
 
@@ -521,6 +543,8 @@ def _spike_execution_relation_matches(
         and relation.get("plan_ref") == plan_ref
         and relation.get("route_ref") == plan_ref
         and relation.get("assurance_ref") == _record_ref(assay.get("assay_id"), 1, assay.get("scorecard_sha256"))
+        and relation.get("resource_ref")
+        == _record_ref(relation.get("resource_ref", {}).get("id"), 1, sha256_hex(canonical_bytes(resource)))
         and relation.get("selected_option") == "AUTHORIZE"
         and isinstance(relation.get("actor_id"), str)
     )
@@ -842,6 +866,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "assay_bar_authority_events": [],
         "assay_bar_authority": {"contents": {}, "observations": {}, "status": "empty"},
     }
+    operational_events: list[dict[str, Any]] = []
 
     def aggregate_identity_exists(identity: Any) -> bool:
         """Return whether an immutable identity is already owned by any Discovery aggregate."""
@@ -853,11 +878,13 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise IntegrityError("Discovery event payload must be an object")
         if event.get("command_type") not in _DISCOVERY_COMMAND_TYPES:
+            operational_events.append(event)
             continue
         if event_type in {"PartialOutcomeRecorded", "LeaseReleased"}:
             # OR-019 closes the canonical operational Attempt and Lease in the
             # same ledger transaction as its Discovery relations. Their state
             # is reduced by replay_control_plane, not by this projection.
+            operational_events.append(event)
             continue
 
         def required_string(key: str) -> str:
@@ -1127,9 +1154,10 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             candidate_id = payload.get("candidate_id")
             if (
                 not isinstance(assay_id, str)
-                or assay_id in state["assays"]
+                or aggregate_identity_exists(assay_id)
                 or state["candidates"].get(candidate_id, {}).get("status")
                 not in {"registered", "assay_retry_authorized"}
+                or not _current_assay_bar_matches(payload, state["assay_bar_authority"])
             ):
                 raise IntegrityError("invalid Assay request transition")
             state["assays"][assay_id] = {
@@ -1167,6 +1195,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(artifact, dict)
                 or assay.get("status") != "evidence_collecting"
                 or assay.get("producer_relation_sha256") != payload.get("producer_relation_sha256")
+                or not _current_assay_bar_matches(assay, state["assay_bar_authority"], event.get("actor_id"))
                 or not _assay_scorecard_matches(
                     artifact,
                     payload,
@@ -1214,9 +1243,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or not isinstance(acceptance, dict)
                 or not _valid_assay_partial_shape(artifact)
                 or assay.get("status") != "evidence_collecting"
-                or assay.get("producer_actor_id") != event.get("actor_id")
-                or bar.get("status") != "accepted"
-                or assay.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
+                or not _current_assay_bar_matches(assay, bar, event.get("actor_id"))
                 or artifact.get("candidate_ref")
                 != {
                     "id": payload.get("candidate_id"),
@@ -1289,7 +1316,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             subject_hashes = required_string_list("subject_hashes")
             if (
                 not isinstance(review_id, str)
-                or review_id in state["reviews"]
+                or aggregate_identity_exists(review_id)
                 or len(subject_ids) != 1
                 or len(subject_hashes) != 1
             ):
@@ -1434,7 +1461,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             options = required_string_list("options")
             if (
                 event["stream_id"] != decision_id
-                or decision_id in state["decisions"]
+                or aggregate_identity_exists(decision_id)
                 or len(set(options)) != len(options)
             ):
                 raise IntegrityError("invalid Discovery decision proposal")
@@ -1648,7 +1675,7 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 candidate["parked_at_global_position"] = event["global_position"]
         elif event_type == "SpikePlanned":
             spike_id = required_string("spike_id")
-            if spike_id in state["spikes"]:
+            if aggregate_identity_exists(spike_id):
                 raise IntegrityError("Spike identity collision")
             state["spikes"][spike_id] = {**deepcopy(payload), "status": "planned", "version": event["stream_version"]}
         elif event_type == "SpikeApprovalRequested":
@@ -1666,6 +1693,15 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
             decision = state["decisions"].get(payload.get("decision_id"))
             candidate = state["candidates"].get(payload.get("candidate_id"))
             assay = state["assays"].get(candidate.get("assay_id")) if isinstance(candidate, Mapping) else None
+            relation = payload.get("execution_authority_relation")
+            resource_ref = relation.get("resource_ref") if isinstance(relation, Mapping) else None
+            try:
+                operational = replay_control_plane(operational_events)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise IntegrityError("invalid Spike execution decision request") from exc
+            resource = (
+                operational.stream_states.get(resource_ref.get("id")) if isinstance(resource_ref, Mapping) else None
+            )
             if (
                 not isinstance(spike, dict)
                 or not isinstance(decision, dict)
@@ -1674,12 +1710,14 @@ def replay_discovery(events: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 or decision.get("status") != "proposed"
                 or not _valid_spike_execution_proposal(payload.get("w2_payload"))
                 or payload["w2_payload"].get("new_decision_id") != payload.get("decision_id")
+                or not isinstance(resource, Mapping)
                 or not _spike_execution_relation_matches(
-                    payload.get("execution_authority_relation"),
+                    relation,
                     candidate=candidate,
                     assay=assay,
                     spike=spike,
                     decision_id=payload.get("decision_id"),
+                    resource=resource,
                 )
             ):
                 raise IntegrityError("invalid Spike execution decision request")
@@ -2149,10 +2187,10 @@ class DiscoveryRuntime:
             {"command_id": command.command_id},
             lock_factory=WriterLock,
         ):
-            self._resolve_authority(command)
-            return self._submit_authorized(command)
+            authority_evidence = self._resolve_authority(command)
+            return self._submit_authorized(command, authority_evidence)
 
-    def _resolve_authority(self, command: Command) -> None:
+    def _resolve_authority(self, command: Command) -> Any:
         """Resolve current canonical scoped authority for one command."""
         command_type = command.envelope["command_type"]
         binding = self.schemas.command_binding(command_type)
@@ -2205,7 +2243,7 @@ class DiscoveryRuntime:
         now = self.clock()
         if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
             raise IntegrityError("Discovery authority clock must return an aware datetime")
-        self.authority_resolver.resolve_lifecycle_command(
+        return self.authority_resolver.resolve_lifecycle_command(
             command.envelope["authority_grant_id"],
             command.actor_id,
             GrantedCommandIdentity(
@@ -2221,14 +2259,91 @@ class DiscoveryRuntime:
             now.astimezone(UTC),
         )
 
-    def _submit_authorized(self, command: Command) -> Receipt:
+    @staticmethod
+    def _require_candidate_target(command: Command, projection: Mapping[str, Any]) -> None:
+        """Fence Candidate-scoped authority to the exact lifecycle stream it may mutate."""
+
+        command_type = command.envelope["command_type"]
+        if command_type not in {
+            "RequestAssay",
+            "RecordAssayScore",
+            "RecordAssayPartial",
+            "CancelDiscoveryEvaluation",
+            "RegisterSpikePlan",
+            "StartSpike",
+            "RecordSpikeVerdict",
+        }:
+            return
+        payload = command.envelope["payload"]
+        candidate_id = payload.get("candidate_id")
+        target_id = command.target_stream_id
+        if not isinstance(candidate_id, str) or candidate_id not in projection["candidates"]:
+            raise IntegrityError("Discovery lifecycle target is outside authorized Candidate")
+        if command_type == "RequestAssay":
+            valid = target_id == payload.get("assay_id") and not _discovery_identity_exists(projection, target_id)
+        elif command_type in {"RecordAssayScore", "RecordAssayPartial"}:
+            assay = projection["assays"].get(target_id)
+            valid = isinstance(assay, Mapping) and assay.get("candidate_id") == candidate_id
+        elif command_type == "RegisterSpikePlan":
+            valid = target_id == payload.get("spike_id") and not _discovery_identity_exists(projection, target_id)
+        elif command_type in {"StartSpike", "RecordSpikeVerdict"}:
+            spike = projection["spikes"].get(target_id)
+            valid = isinstance(spike, Mapping) and spike.get("candidate_id") == candidate_id
+        elif payload.get("evaluation_kind") == "assay":
+            assay = projection["assays"].get(target_id)
+            valid = (
+                target_id == payload.get("assay_id")
+                and isinstance(assay, Mapping)
+                and assay.get("candidate_id") == candidate_id
+            )
+        else:
+            spike = projection["spikes"].get(target_id)
+            valid = (
+                target_id == payload.get("spike_id")
+                and isinstance(spike, Mapping)
+                and spike.get("candidate_id") == candidate_id
+            )
+        if not valid:
+            raise IntegrityError("Discovery lifecycle target is outside authorized Candidate")
+
+    def _submit_authorized(self, command: Command, authority_evidence: Any) -> Receipt:
         """Prepare, append, and receipt one already-authorized command."""
         envelope = command.envelope
+        authority_sha256 = authority_evidence.command_resolution.authority_grant_sha256
+        idempotency_scope = (
+            command.actor_id,
+            command.envelope["authority_grant_id"],
+            command.envelope["command_type"],
+            command.idempotency_key,
+        )
+
+        def persist(receipt: Receipt) -> Receipt:
+            return self.receipts.write_scoped(
+                idempotency_scope,
+                authority_sha256,
+                command.expected_stream_version,
+                receipt,
+                project_id=self.ledger.project_id,
+                target_stream_id=command.target_stream_id,
+            )
+
+        scoped = self.receipts.load_scoped(
+            idempotency_scope,
+            command.payload_hash,
+            authority_sha256,
+            command.expected_stream_version,
+            project_id=self.ledger.project_id,
+            target_stream_id=command.target_stream_id,
+        )
+        if scoped is not None:
+            if self.receipts.load(scoped.command_id) is None:
+                self.receipts.write(scoped)
+            return scoped
         existing = self.receipts.load(command.command_id)
         if existing is not None:
             if existing.payload_hash != command.payload_hash:
                 raise ConflictError("command receipt payload mismatch")
-            return existing
+            return persist(existing)
 
         snapshot = self.ledger.snapshot()
         committed = next(
@@ -2254,7 +2369,7 @@ class DiscoveryRuntime:
                 observed_stream_version=max(target_versions),
                 reason_code=None,
             )
-            return self.receipts.write(receipt)
+            return persist(receipt)
         observed = snapshot.stream_versions.get(command.target_stream_id, 0)
         if observed != command.expected_stream_version:
             receipt = Receipt(
@@ -2265,9 +2380,15 @@ class DiscoveryRuntime:
                 observed_stream_version=observed,
                 reason_code="stream_version_conflict",
             )
-            return self.receipts.write(receipt)
+            return persist(receipt)
 
-        projection = replay_discovery(snapshot.events)
+        try:
+            projection = replay_discovery(snapshot.events)
+        except IntegrityError as exc:
+            raise DiscoveryLedgerReplayError(
+                "persisted Discovery ledger failed replay before command preparation"
+            ) from exc
+        self._require_candidate_target(command, projection)
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis":
             event_type, event_payload = self._prepare_genesis(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
@@ -2276,44 +2397,44 @@ class DiscoveryRuntime:
         elif envelope["command_type"] == "RegisterCandidate":
             event_type, event_payload = self._prepare_candidate(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
-        elif envelope["command_type"] in {
-            "RequestAssay",
-            "RecordAssayScore",
-            "RecordAssayPartial",
-            "CancelDiscoveryEvaluation",
-            "ProposeRevisitDecision",
-            "RequestDiscoveryOutcomeReview",
-            "ReviewDiscoveryOutcome",
-        } or (envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") == "OR-010"):
-            if envelope["payload"].get("row_id") in {
-                "OR-003",
-                "OR-004",
-                "OR-005",
-                "OR-006",
-                "OR-007",
-                "OR-008",
-                "OR-009",
-                "OR-010",
-                "OR-011",
-                "OR-034",
-                "OR-035",
-                "OR-038",
-                "OR-039",
-            }:
-                prepared = self._prepare_assay(command, projection)
-            else:
-                prepared = self._prepare_spike(command, projection)
-        elif envelope["command_type"] in {
-            "ProposePromotionDecision",
-            "RegisterSpikePlan",
-            "ProposeSpikeExecutionDecision",
-            "StartSpike",
-            "RecordSpikeVerdict",
-            "CancelDiscoveryEvaluation",
-            "ProposeRevisitDecision",
-        } or (
-            envelope["command_type"] == "ResolveDecision"
-            and envelope["payload"].get("row_id") in {"OR-013", "OR-016", "OR-024", "OR-027"}
+        elif envelope["command_type"] in {"RequestAssay", "RecordAssayScore", "RecordAssayPartial"} or (
+            envelope["command_type"]
+            in {
+                "CancelDiscoveryEvaluation",
+                "ProposeRevisitDecision",
+                "RequestDiscoveryOutcomeReview",
+                "ReviewDiscoveryOutcome",
+                "ResolveDecision",
+            }
+            and "assay_id" in envelope["payload"]
+            and "spike_id" not in envelope["payload"]
+        ):
+            prepared = self._prepare_assay(command, projection)
+        elif (
+            envelope["command_type"]
+            in {
+                "ProposePromotionDecision",
+                "RegisterSpikePlan",
+                "ProposeSpikeExecutionDecision",
+                "StartSpike",
+                "RecordSpikeVerdict",
+            }
+            or (
+                envelope["command_type"]
+                in {
+                    "CancelDiscoveryEvaluation",
+                    "ProposeRevisitDecision",
+                    "RequestDiscoveryOutcomeReview",
+                    "ReviewDiscoveryOutcome",
+                    "ResolveDecision",
+                }
+                and "spike_id" in envelope["payload"]
+            )
+            or (
+                envelope["command_type"] == "ResolveDecision"
+                and "candidate_id" in envelope["payload"]
+                and "decision_id" in envelope["payload"]
+            )
         ):
             prepared = self._prepare_spike(command, projection)
         elif envelope["command_type"] == "AdmitResearchDossier":
@@ -2325,28 +2446,19 @@ class DiscoveryRuntime:
                 "RegisterAssayEvidenceScopeContent",
                 "RecordAssayBarStaleness",
             }
-            or (
-                envelope["command_type"]
-                in {
-                    "ObserveW11AuthorityFile",
-                    "RequestW11AuthorityReview",
-                    "RecordW11AuthorityReview",
-                    "ProposeW11AuthorityDecision",
-                }
-                and envelope["payload"].get("row_id") in {"OR-103", "OR-104", "OR-105", "OR-106", "OR-107"}
-            )
-            or (envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") == "OR-108")
+            or envelope["payload"].get("authority_kind") == "assay_bar"
         ):
             prepared = self._prepare_assay_bar_authority(command, projection)
-        elif envelope["command_type"] in {
-            "RegisterDossierExpectedSetContent",
-            "RegisterPathRegistrationContent",
-            "ObserveW11AuthorityFile",
-            "RequestW11AuthorityReview",
-            "RecordW11AuthorityReview",
-            "ProposeW11AuthorityDecision",
-        } or (
-            envelope["command_type"] == "ResolveDecision" and envelope["payload"].get("row_id") in {"OR-115", "OR-121"}
+        elif envelope["command_type"] in {"RegisterDossierExpectedSetContent", "RegisterPathRegistrationContent"} or (
+            envelope["command_type"]
+            in {
+                "ObserveW11AuthorityFile",
+                "RequestW11AuthorityReview",
+                "RecordW11AuthorityReview",
+                "ProposeW11AuthorityDecision",
+                "ResolveDecision",
+            }
+            and envelope["payload"].get("authority_kind") in {"dossier_expected_set", "path_registration"}
         ):
             prepared = self._prepare_authority(command, projection)
         else:
@@ -2416,7 +2528,7 @@ class DiscoveryRuntime:
             observed_stream_version=result["resulting_stream_versions"][command.target_stream_id],
             reason_code=None,
         )
-        return self.receipts.write(receipt)
+        return persist(receipt)
 
     def _prepare_authority(
         self,
@@ -3236,6 +3348,7 @@ class DiscoveryRuntime:
                 assay=assay,
                 spike=spike,
                 decision_id=decision_id,
+                resource=resource,
             )
         )
 
@@ -3267,6 +3380,7 @@ class DiscoveryRuntime:
             and projection["reviews"][p["review_id"]].get("status") == "satisfied"
             and command.target_stream_id == decision_id
             and decision is None
+            and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
             and p["w2_payload"].get("decision_kind") == "design_lock"
@@ -3326,6 +3440,7 @@ class DiscoveryRuntime:
             and candidate.get("status")
             == ("spike_planning_authorized" if row == "OR-014" else "spike_retry_authorized")
             and spike is None
+            and not _discovery_identity_exists(projection, spike_id)
             and command.target_stream_id == spike_id
             and isinstance(p.get("plan_artifact"), dict)
             and self._valid_spike_plan(p["plan_artifact"], p, candidate, assay)
@@ -3358,6 +3473,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == decision_id
             and decision is None
+            and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
             and _valid_spike_execution_proposal(p["w2_payload"])
@@ -3602,7 +3718,7 @@ class DiscoveryRuntime:
             == {"OR-036": "verdict_recorded", "OR-037": "partial_recorded", "OR-040": "cancelled"}[row]
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == review_id
-            and projection["reviews"].get(review_id) is None
+            and not _discovery_identity_exists(projection, review_id)
             and valid_spike_review_relation
             and (
                 p.get("subject_sha256") == spike_review_subject
@@ -3682,6 +3798,7 @@ class DiscoveryRuntime:
             and projection["reviews"].get(p.get("review_id"), {}).get("status") == "satisfied"
             and command.target_stream_id == decision_id
             and decision is None
+            and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
             and p["w2_payload"].get("decision_kind") == "design_lock"
@@ -3752,7 +3869,7 @@ class DiscoveryRuntime:
                 or review.get("status") != "satisfied"
                 or not isinstance(candidate, dict)
                 or candidate.get("status") not in {"spike_revisit_eligible", "parked"}
-                or projection["decisions"].get(decision_id) is not None
+                or _discovery_identity_exists(projection, decision_id)
                 or command.target_stream_id != decision_id
                 or not _valid_revisit_proposal(p.get("w2_payload"), p.get("review_id"))
                 or p["w2_payload"].get("new_decision_id") != decision_id
@@ -3943,6 +4060,7 @@ class DiscoveryRuntime:
                     command.target_stream_id != assay_id
                     or not isinstance(assay_id, str)
                     or assay is not None
+                    or _discovery_identity_exists(projection, assay_id)
                     or not isinstance(old_assay, dict)
                     or old_assay.get("status") != "retry_authorized"
                     or not isinstance(candidate, dict)
@@ -3972,6 +4090,7 @@ class DiscoveryRuntime:
                 or candidate.get("revision") != payload.get("candidate_revision")
                 or candidate.get("content_sha256") != payload.get("candidate_sha256")
                 or assay is not None
+                or _discovery_identity_exists(projection, assay_id)
                 or bar.get("status") != "accepted"
                 or payload.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
                 or payload.get("producer_relation_sha256") != bar.get("producer_relation_sha256")
@@ -4086,6 +4205,7 @@ class DiscoveryRuntime:
                 expected_status is None
                 or command.target_stream_id != review_id
                 or review is not None
+                or _discovery_identity_exists(projection, review_id)
                 or not isinstance(assay, dict)
                 or assay.get("status") != expected_status
                 or not valid_review_relation
@@ -4172,7 +4292,7 @@ class DiscoveryRuntime:
             if (
                 payload.get("row_id") != "OR-009"
                 or command.target_stream_id != decision_id
-                or projection["decisions"].get(decision_id) is not None
+                or _discovery_identity_exists(projection, decision_id)
                 or not isinstance(assay, dict)
                 or assay.get("status") not in {"reviewed", "partial_reviewed", "cancellation_reviewed", "parked"}
                 or assay.get("candidate_id") != candidate_id
