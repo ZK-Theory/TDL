@@ -78,6 +78,8 @@ def canonical_dossier_hash(value: Any) -> str:
     """Hash one value with the same P0 canonical encoder used during replay."""
 
     def json_value(item: Any) -> Any:
+        """Normalize persisted tuple fields to their JSON list representation."""
+
         if isinstance(item, Mapping):
             return {key: json_value(member) for key, member in item.items()}
         if isinstance(item, (list, tuple)):
@@ -85,6 +87,33 @@ def canonical_dossier_hash(value: Any) -> str:
         return item
 
     return sha256_hex(canonical_bytes(json_value(value)))
+
+
+def _validate_acyclic_dependencies(adjacency: Mapping[str, Iterable[str]]) -> None:
+    """Reject dependency cycles without consuming Python's recursion stack."""
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    for root in adjacency:
+        if root in visited:
+            continue
+        visiting.add(root)
+        stack = [(root, iter(adjacency[root]))]
+        while stack:
+            node, children = stack[-1]
+            try:
+                child = next(children)
+            except StopIteration:
+                stack.pop()
+                visiting.remove(node)
+                visited.add(node)
+                continue
+            if child in visiting:
+                raise DossierAdmissionRejected("dependency_cycle")
+            if child in visited:
+                continue
+            visiting.add(child)
+            stack.append((child, iter(adjacency[child])))
 
 
 def accepted_expected_set_hash(expected_set: AcceptedExpectedSet) -> str:
@@ -613,22 +642,7 @@ def prepare_dossier_admission(
                 "dossier_id": expected_set.dossier_id,
             }
         )
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    def visit(node: str) -> None:
-        if node in visiting:
-            raise DossierAdmissionRejected("dependency_cycle")
-        if node in visited:
-            return
-        visiting.add(node)
-        for child in adjacency[node]:
-            visit(child)
-        visiting.remove(node)
-        visited.add(node)
-
-    for node in adjacency:
-        visit(node)
+    _validate_acyclic_dependencies(adjacency)
 
     relationship_keys: set[str] = set()
     for row in relationships:

@@ -294,6 +294,10 @@ def prepare_authority_transition(
         )
         candidate = _event(kind, action, "ReviewRequested", base)
     elif action == "record_review":
+        if current is None:
+            raise AuthorityRejected("authority_not_registered")
+        if current["status"] != "review_requested":
+            raise AuthorityRejected("invalid_review_actor_or_order")
         base.update(schema_id=_W2_SCHEMAS["ReviewVerdictRecorded"], schema_version="1.0.0")
         candidate = _event(kind, action, "ReviewVerdictRecorded", base)
     elif action == "propose":

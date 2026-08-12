@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
+from research_system.discovery import replay_discovery
+from research_system.discovery.assay_authority import (
+    AssayAuthorityRejected,
+    replay_assay_bar_authority,
+)
 from research_system.discovery.authority import (
     AuthorityRejected,
     prepare_authority_transition,
     replay_authority,
     subject_sha256,
+)
+from tests.research_system.integration.test_wp6_6_discovery_runtime import (
+    _accept_assay_bar,
+    _genesis,
+    _runtime,
 )
 
 
@@ -62,6 +73,25 @@ def _subject(kind: str) -> dict[str, object]:
         }
     subject["subject_sha256"] = subject_sha256(subject)
     return subject
+
+
+def test_assay_authority_rejects_empty_durable_file_path_and_review_id(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_assay_bar(runtime)
+    valid_events = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority_events"]
+
+    empty_path = deepcopy(valid_events)
+    registered = next(event for event in empty_path if event["event_type"] == "AssayRubricContentRegistered")
+    registered["payload"]["authority_file_path"] = ""
+    with pytest.raises(AssayAuthorityRejected, match="authority_file_path_missing"):
+        replay_assay_bar_authority(empty_path)
+
+    empty_review_id = deepcopy(valid_events)
+    review_requested = next(event for event in empty_review_id if event["event_type"] == "ReviewRequested")
+    review_requested["payload"]["review_id"] = ""
+    with pytest.raises(AssayAuthorityRejected, match="invalid_review_id"):
+        replay_assay_bar_authority(empty_review_id)
 
 
 def _run(kind: str) -> tuple[dict[str, object], ...]:
@@ -217,6 +247,15 @@ def test_authority_rejects_related_actors_tamper_stale_collision_and_second_acce
             payload={"decision_id": "premature", "decision": "accept", "transaction_id": "premature"},
         )
 
+    with pytest.raises(AuthorityRejected, match="invalid_review_actor_or_order"):
+        prepare_authority_transition(
+            events=registered,
+            kind="path_registration",
+            action="record_review",
+            actor_id=REVIEWER,
+            payload={"verdict": "approve"},
+        )
+
     with pytest.raises(AuthorityRejected, match="already_accepted"):
         prepare_authority_transition(
             events=events,
@@ -240,4 +279,9 @@ def test_authority_rejects_related_actors_tamper_stale_collision_and_second_acce
     with pytest.raises(AuthorityRejected, match="path_collision"):
         prepare_authority_transition(
             events=(), kind="path_registration", action="register", actor_id=AUTHOR, payload={"subject": collision}
+        )
+
+    with pytest.raises(AuthorityRejected, match="path_scope_mismatch"):
+        prepare_authority_transition(
+            events=(), kind="path_registration", action="register", actor_id=AUTHOR, payload={"subject": subject}
         )

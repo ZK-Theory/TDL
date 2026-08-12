@@ -29,6 +29,7 @@ def _registered_runtime(tmp_path: Path):
     return runtime, candidate_id, candidate_sha256, acceptance_sha256, producer_relation_sha256
 
 
+@pytest.mark.integration
 def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -77,6 +78,7 @@ def test_multi_stream_batch_crash_before_publish_is_zero_mutation_and_retryable(
     assert replay_discovery(restarted.ledger.iter_events())["assays"][assay_id]["status"] == "evidence_collecting"
 
 
+@pytest.mark.integration
 def test_multi_stream_batch_crash_after_publish_recovers_exact_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

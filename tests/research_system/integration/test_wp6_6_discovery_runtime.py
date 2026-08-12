@@ -440,7 +440,7 @@ def test_every_w11_route_obeys_the_global_target_namespace_contract() -> None:
             )
             before = deepcopy(state)
             allowed = (row_id not in _DISCOVERY_MINT_ROWS and _DISCOVERY_EXISTING_TARGETS[row_id] == namespace) or (
-                row_id == "OR-101" and namespace == "authority_streams"
+                row_id in {"OR-101", "OR-102"} and namespace == "authority_streams"
             )
             if allowed:
                 DiscoveryRuntime._require_admissible_target(command, state)
@@ -476,7 +476,7 @@ def test_every_w11_route_rejects_every_foreign_namespace_through_public_submit(
         )
         for namespace in namespaces:
             allowed = (row_id not in _DISCOVERY_MINT_ROWS and _DISCOVERY_EXISTING_TARGETS[row_id] == namespace) or (
-                row_id == "OR-101" and namespace == "authority_streams"
+                row_id in {"OR-101", "OR-102"} and namespace == "authority_streams"
             )
             if allowed:
                 continue
@@ -604,6 +604,24 @@ def test_number_valued_assay_rubric_cannot_activate_before_a_p0_scaled_integer_c
 
     assert tuple(runtime.ledger.iter_events()) == before
     replay_discovery(before)
+
+
+def test_assay_fixture_axis_and_dependent_content_hashes_are_canonical() -> None:
+    rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+
+    assert rubric["required_axis_set_hash"] == sha256_hex(canonical_bytes(rubric["required_axis_ids"]))
+    assert rubric["content_hash"] == sha256_hex(
+        canonical_bytes({key: value for key, value in rubric.items() if key != "content_hash"})
+    )
+    assert scope["rubric_ref"] == _ref(
+        rubric["record_id"],
+        rubric["record_revision"],
+        rubric["content_hash"],
+    )
+    assert scope["content_hash"] == sha256_hex(
+        canonical_bytes({key: value for key, value in scope.items() if key != "content_hash"})
+    )
 
 
 @pytest.mark.parametrize(
@@ -1194,12 +1212,74 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
         *[f"OR-{number:03d}" for number in range(1, 42)],
         *[f"OR-{number:03d}" for number in range(101, 141)],
     ]
+    for field, value in events[0]["payload"].items():
+        substituted = tuple(deepcopy(event) for event in events)
+        if isinstance(value, int):
+            substituted[0]["payload"][field] = value + 1
+        elif isinstance(value, list):
+            substituted[0]["payload"][field] = [*value, "OR-999"]
+        else:
+            substituted[0]["payload"][field] = "f" * len(value)
+        with pytest.raises(IntegrityError, match="W11 genesis identity mismatch"):
+            replay_discovery(_rehash_events(substituted))
+    substituted_stream = tuple(deepcopy(event) for event in events)
+    substituted_stream[0]["stream_id"] = "obj_019fed25-b33e-7740-b280-ffffffffffff"
+    with pytest.raises(IntegrityError, match="W11 genesis identity mismatch"):
+        replay_discovery(_rehash_events(substituted_stream))
     tampered = _genesis()
     tampered["payload"]["catalogue_sha256"] = "0" * 64  # type: ignore[index]
     before = tuple(runtime.ledger.iter_events())
     with pytest.raises(IntegrityError, match="catalogue identity mismatch"):
         runtime.submit(tampered)
     assert tuple(runtime.ledger.iter_events()) == before
+
+
+def test_replay_rejects_rehashed_common_schema_project_and_transaction_provenance(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _ingest_candidate(
+        runtime,
+        "obj_019fed25-b33e-7740-b280-000000000976",
+        observation_id="obj_019fed25-b33e-7740-b280-000000000977",
+        title="Persisted envelope provenance",
+    )
+    events = tuple(runtime.ledger.iter_events())
+
+    attacks: dict[str, Callable[[tuple[dict[str, object], ...]], None]] = {
+        "command schema hash": lambda changed: changed[0].__setitem__("command_schema_sha256", "f" * 64),
+        "event schema id": lambda changed: changed[0].__setitem__("schema_id", "ars://core/event/AttemptStarted"),
+        "event schema version": lambda changed: changed[0].__setitem__("schema_version", "9.9.9"),
+        "producer-qualified event on wrong command": lambda changed: changed[0].__setitem__(
+            "event_type", "CandidateRegistered"
+        ),
+        "malformed authority grant": lambda changed: changed[0].__setitem__("authority_grant_id", "not-a-grant"),
+        "cross-member authority grant": lambda changed: next(
+            event for event in changed if event["event_type"] == "CandidateRegistered"
+        ).__setitem__("authority_grant_id", "agr_019fed25-b33e-7740-b280-ffffffffffff"),
+        "project identity": lambda changed: next(
+            event for event in changed if event["event_type"] == "CandidateRegistered"
+        ).__setitem__("project_id", "prj_019fed25-b33e-7740-b280-ffffffffffff"),
+        "transaction count": lambda changed: changed[0].__setitem__("transaction_count", 2),
+        "transaction index": lambda changed: changed[0].__setitem__("transaction_index", 2),
+    }
+    for _name, attack in attacks.items():
+        substituted = tuple(deepcopy(event) for event in events)
+        attack(substituted)
+        with pytest.raises(IntegrityError):
+            replay_discovery(_rehash_events(substituted), schemas=runtime.schemas)
+
+
+def test_replay_unconditionally_validates_the_complete_operational_partition(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    _seed_running_attempt(_HARNESSES[tmp_path])
+    runtime.submit(_genesis())
+    substituted = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    started = next(event for event in substituted if event["event_type"] == "AttemptStarted")
+    started["payload"]["attempt_id"] = "att_019fed25-b33e-7740-b280-ffffffffffff"
+    started["command_payload_hash"] = sha256_hex(canonical_bytes(started["payload"]))
+
+    with pytest.raises(IntegrityError, match="operational partition"):
+        replay_discovery(_rehash_events(substituted), schemas=runtime.schemas)
 
 
 def test_candidate_producers_persist_their_exact_w11_owner_rows(tmp_path: Path) -> None:
@@ -1307,12 +1387,15 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
     assert receipt_path.is_file()
     events = tuple(runtime.ledger.iter_events())
     superseded = next(event for event in events if event["event_type"] == "CandidateSuperseded")
+    prefix = events[: events.index(superseded)]
+    replacement_before = replay_discovery(prefix, schemas=runtime.schemas)["candidates"][replacement_id]
     assert superseded["stream_id"] == predecessor_id
     assert superseded["payload"]["owner_row_id"] == "OR-002"
     projection = replay_discovery(events)
     assert projection["candidates"][predecessor_id]["status"] == "superseded"
     assert projection["candidates"][predecessor_id]["superseded_by"] == replacement_id
     assert projection["candidates"][replacement_id]["status"] == "registered"
+    assert projection["candidates"][replacement_id] == replacement_before
 
     substituted = tuple(deepcopy(event) for event in events)
     next(event for event in substituted if event["event_type"] == "CandidateSuperseded")["payload"][
@@ -1632,7 +1715,7 @@ def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, me
         "previous_event_hash": "0" * 64,
     }
     event["event_hash"] = sha256_hex(canonical_bytes(event))
-    with pytest.raises(IntegrityError, match=message):
+    with pytest.raises(IntegrityError, match=f"schema provenance mismatch|{message}"):
         replay_discovery((event,))
 
 
@@ -1646,7 +1729,10 @@ def test_replay_rejects_unsupported_authority_event_type_as_integrity_error() ->
         "previous_event_hash": "0" * 64,
     }
     event["event_hash"] = sha256_hex(canonical_bytes(event))
-    with pytest.raises(IntegrityError, match="unsupported W11 authority event type"):
+    with pytest.raises(
+        IntegrityError,
+        match="schema provenance mismatch|unsupported W11 authority event type",
+    ):
         replay_discovery((event,))
 
 
@@ -1973,11 +2059,11 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     rogue_producer = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     rogue_actor_id = "act_019fed25-b33e-7740-b280-0000000c0ffe"
     rogue_scored = next(event for event in rogue_producer if event["event_type"] == "AssayScored")
-    rogue_scored["actor_id"] = rogue_actor_id
     rogue_scored["payload"]["scorecard_artifact"]["producer_actor_id"] = rogue_actor_id
     rogue_scorecard_sha256 = sha256_hex(canonical_bytes(rogue_scored["payload"]["scorecard_artifact"]))
     for event in rogue_producer:
         if event["command_id"] == rogue_scored["command_id"]:
+            event["actor_id"] = rogue_actor_id
             event["payload"]["scorecard_sha256"] = rogue_scorecard_sha256
     with pytest.raises(IntegrityError, match="invalid Assay score transition"):
         replay_discovery(_rehash_events(rogue_producer))
@@ -2202,7 +2288,9 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 for event in events
                 if event["event_type"] == "ReviewVerdictRecorded" and event["payload"].get("review_id") == review_id
             )
-            verdict_event["actor_id"] = ACTOR_ID
+            for transaction_event in events:
+                if transaction_event["transaction_id"] == verdict_event["transaction_id"]:
+                    transaction_event["actor_id"] = ACTOR_ID
             verdict_event["payload"]["reviewer_actor_id"] = ACTOR_ID
             verdict_event["payload"]["verdict"] = tampered_verdict
             verdict_event["payload"]["conditions"] = (
@@ -2217,7 +2305,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 if tampered_verdict == "approve_with_conditions"
                 else []
             )
-            with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+            with pytest.raises(
+                IntegrityError,
+                match="schema provenance mismatch|invalid Discovery review verdict",
+            ):
                 replay_discovery(_rehash_events(events))
 
 
@@ -2367,6 +2458,28 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     assert successor_state["status"] == "content_registered"
     assert successor_state["contents"]["rubric"]["content"]["record_revision"] == 2
     assert successor_state["history"][0]["status"] == "stale"
+
+    scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+    scope.update(record_revision=2, supersedes_revision=1)
+    scope["rubric_ref"] = _ref(rubric["record_id"], rubric["record_revision"], rubric["content_hash"])
+    scope["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in scope.items() if key != "content_hash"})
+    )
+    scope_successor = _command(
+        "RegisterAssayEvidenceScopeContent",
+        scope["record_id"],
+        2,
+        {
+            "row_id": "OR-102",
+            "authority_kind": "assay_bar",
+            "content": scope,
+            "authority_file_path": ASSAY_SCOPE_PATH,
+        },
+    )
+    scope_successor["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(scope_successor).status == "accepted"
+    successor_state = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    assert successor_state["contents"]["scope"]["content"]["record_revision"] == 2
 
 
 @pytest.mark.parametrize(
@@ -2720,8 +2833,14 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     reviewed_index = next(
         index for index, event in enumerate(cross_candidate_review) if event["event_type"] == "AssayPartialReviewed"
     )
-    cross_candidate_review = cross_candidate_review[: reviewed_index + 1]
-    cross_candidate_review[-1]["payload"]["candidate_id"] = foreign_candidate_id
+    reviewed_transaction = cross_candidate_review[reviewed_index]["transaction_id"]
+    reviewed_end = max(
+        index for index, event in enumerate(cross_candidate_review) if event["transaction_id"] == reviewed_transaction
+    )
+    cross_candidate_review = cross_candidate_review[: reviewed_end + 1]
+    next(event for event in cross_candidate_review if event["event_type"] == "AssayPartialReviewed")["payload"][
+        "candidate_id"
+    ] = foreign_candidate_id
     with pytest.raises(IntegrityError, match="invalid Assay reviewed transition"):
         replay_discovery(_rehash_events(cross_candidate_review))
     excluded_option = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -3439,6 +3558,16 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             event["payload"]["lease_sha256"] = "b" * 64
     with pytest.raises(IntegrityError, match="invalid Spike start"):
         replay_discovery(_reindex_and_rehash_events(fabricated_operational_pair))
+    for relation_field, foreign_id in (
+        ("candidate_id", "obj_019fed25-b33e-7740-b280-ffffffffffff"),
+        ("spike_id", "spk_019fed25-b33e-7740-b280-ffffffffffff"),
+    ):
+        substituted_link = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+        next(event for event in substituted_link if event["event_type"] == "CandidateSpikeStarted")["payload"][
+            relation_field
+        ] = foreign_id
+        with pytest.raises(IntegrityError, match="invalid Candidate Spike start"):
+            replay_discovery(_rehash_events(substituted_link), schemas=runtime.schemas)
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
         event
@@ -3986,8 +4115,18 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 replay_discovery(_rehash_events(tampered))
     for event_type, producer_type, identity_field, message in (
         ("SpikePlanned", "RegisterSpikePlan", "spike_id", "Spike identity collision"),
-        ("DecisionProposed", "ProposePromotionDecision", "new_decision_id", "invalid Discovery decision proposal"),
-        ("ReviewRequested", "RequestDiscoveryOutcomeReview", "new_review_id", "invalid Discovery review request"),
+        (
+            "DecisionProposed",
+            "ProposePromotionDecision",
+            "new_decision_id",
+            "schema provenance mismatch|invalid Discovery decision proposal",
+        ),
+        (
+            "ReviewRequested",
+            "RequestDiscoveryOutcomeReview",
+            "new_review_id",
+            "schema provenance mismatch|invalid Discovery review request",
+        ),
     ):
         cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         minted = next(
@@ -3995,7 +4134,6 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             for event in cross_namespace
             if event["event_type"] == event_type and event["command_type"] == producer_type
         )
-        minted["stream_id"] = CATALOGUE_STREAM_ID
         minted["payload"][identity_field] = CATALOGUE_STREAM_ID
         with pytest.raises(IntegrityError, match=message):
             replay_discovery(_rehash_events(cross_namespace))
@@ -4006,7 +4144,9 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             for event in events
             if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == review_id
         )
-        verdict_event["actor_id"] = ACTOR_ID
+        for transaction_event in events:
+            if transaction_event["transaction_id"] == verdict_event["transaction_id"]:
+                transaction_event["actor_id"] = ACTOR_ID
         verdict_event["payload"]["reviewer_actor_id"] = ACTOR_ID
         verdict_event["payload"]["verdict"] = tampered_verdict
         verdict_event["payload"]["conditions"] = (
@@ -4021,7 +4161,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if tampered_verdict == "approve_with_conditions"
             else []
         )
-        with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+        with pytest.raises(
+            IntegrityError,
+            match="schema provenance mismatch|invalid Discovery review verdict",
+        ):
             replay_discovery(_rehash_events(events))
 
     shared_events = tuple(runtime.ledger.iter_events())

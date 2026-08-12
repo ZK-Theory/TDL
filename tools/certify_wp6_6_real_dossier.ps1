@@ -21,6 +21,7 @@ if (-not $env:TDL_REPOSITORY_ROOT) {
 if (-not $env:TDA_VAULT_ROOT) {
     $env:TDA_VAULT_ROOT = Join-Path $env:TDL_REPOSITORY_ROOT "vault"
 }
+$previousRequireRealDossier = [Environment]::GetEnvironmentVariable("TDL_REQUIRE_REAL_DOSSIER", "Process")
 $env:TDL_REQUIRE_REAL_DOSSIER = "1"
 
 Push-Location -LiteralPath $repositoryRoot
@@ -33,4 +34,5 @@ try {
     }
 } finally {
     Pop-Location
+    [Environment]::SetEnvironmentVariable("TDL_REQUIRE_REAL_DOSSIER", $previousRequireRealDossier, "Process")
 }

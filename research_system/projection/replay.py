@@ -382,6 +382,22 @@ def apply_event(
     *,
     discovery_projection_event: bool = False,
 ) -> dict[str, Any]:
+    """Apply one validated event to a copied projection state.
+
+    Args:
+        state: Current projection state, which remains unmodified.
+        event: Canonical event to reduce.
+        discovery_projection_event: Whether Discovery owns the event's semantic
+            reduction at the shared replay boundary.
+
+    Returns:
+        A deep-copied projection containing the event's durable effects.
+
+    Raises:
+        IntegrityError: If the event is unsupported or violates a projection
+            invariant owned by its reducer.
+    """
+
     updated = deepcopy(state)
     streams = updated.setdefault("streams", {})
     stream_id = event["stream_id"]

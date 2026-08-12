@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import research_system
+
 from research_system.authority import (
     SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES,
     _SCOPED_COMMAND_SUBJECT_KINDS,
@@ -15,7 +17,7 @@ from research_system.discovery.runtime import (
 from research_system.schema_registry import runtime_schema_registry
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+REPOSITORY_ROOT = Path(research_system.__file__).resolve().parent.parent
 
 
 def test_candidate_supersession_uses_candidate_compatible_scoped_authority():

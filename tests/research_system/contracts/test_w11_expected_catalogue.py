@@ -208,25 +208,46 @@ def test_coordinated_catalogue_runtime_mutation_cannot_rescue_expected_source() 
 
 def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() -> None:
     accepted_commit = "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6"
-    paths = subprocess.run(
-        [
-            "git",
-            "ls-tree",
-            "-r",
-            "--name-only",
-            accepted_commit,
-            "--",
-            ".research-system/schemas/contracts/w11",
-            ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    assert paths
+    accepted_paths = frozenset(
+        subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "--name-only",
+                accepted_commit,
+                "--",
+                ".research-system/schemas/contracts/w11",
+                ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    )
+    current_paths = frozenset(
+        subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "--name-only",
+                "HEAD",
+                "--",
+                ".research-system/schemas/contracts/w11",
+                ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    )
+    assert accepted_paths
+    assert current_paths == accepted_paths
 
-    for relative_path in paths:
+    for relative_path in sorted(accepted_paths):
         expected = subprocess.run(
             ["git", "show", f"{accepted_commit}:{relative_path}"],
             cwd=REPO_ROOT,

@@ -82,6 +82,26 @@ _ARTEFACT_EVENT_TYPES = {
 }
 
 
+def _accepted_genesis_payload() -> dict[str, Any]:
+    """Return the exact durable payload for the externally accepted W11 envelope."""
+
+    return {
+        "accepted_commit": _ACCEPTED["accepted_commit"],
+        "accepted_tree": _ACCEPTED["accepted_tree"],
+        "catalogue_blob": _ACCEPTED["catalogue_blob"],
+        "catalogue_bytes": _ACCEPTED["catalogue_bytes"],
+        "catalogue_sha256": _ACCEPTED["catalogue_sha256"],
+        "bootstrap_blob": _ACCEPTED["bootstrap_blob"],
+        "bootstrap_sha256": _ACCEPTED["bootstrap_sha256"],
+        "review_commit": _ACCEPTED["review_commit"],
+        "review_blob": _ACCEPTED["review_blob"],
+        "review_sha256": _ACCEPTED["review_sha256"],
+        "owner_row_id": "OR-140",
+        "row_count": 81,
+        "row_ids": list(_ROW_IDS),
+    }
+
+
 class DiscoveryLedgerReplayError(IntegrityError):
     """A persisted Discovery ledger cannot be reconstructed before command preparation."""
 
@@ -498,17 +518,29 @@ def _candidate_supersession_lineage(
             raise IntegrityError("Candidate supersession lineage is cyclic")
         seen.add(candidate_id)
         reverse_lineage.append(_candidate_ref(current))
-        prior_id = current.get("supersedes_candidate_id")
-        if prior_id is None:
+        prior = [
+            value
+            for value in candidates.values()
+            if isinstance(value, Mapping) and value.get("superseded_by") == candidate_id
+        ]
+        if not prior:
             break
-        prior = candidates.get(prior_id)
-        if not isinstance(prior, Mapping):
+        if len(prior) != 1:
             raise IntegrityError("Candidate supersession lineage is incomplete")
-        current = prior
+        current = prior[0]
     replacement_id = replacement.get("candidate_id")
     if replacement_id in seen:
         raise IntegrityError("Candidate supersession lineage is cyclic")
     return [*reversed(reverse_lineage), _candidate_ref(replacement)]
+
+
+def _candidate_replacement_is_used(candidates: Mapping[str, Any], replacement_id: Any) -> bool:
+    """Return whether an authorized predecessor relation already names the replacement."""
+
+    return any(
+        isinstance(candidate, Mapping) and candidate.get("superseded_by") == replacement_id
+        for candidate in candidates.values()
+    )
 
 
 def _review_ref(review: Mapping[str, Any]) -> dict[str, Any]:
@@ -1516,6 +1548,133 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
         last_hash = event["event_hash"]
 
 
+def _validate_persisted_event_envelopes(
+    events: tuple[dict[str, Any], ...],
+    schemas: SchemaRegistry,
+) -> None:
+    """Validate the exact common, schema, project, stream, and transaction envelope."""
+
+    project_id: Any = None
+    stream_versions: dict[Any, int] = {}
+    closed_transactions: set[Any] = set()
+    current_transaction: Any = None
+    transaction_count = 0
+    transaction_seen = 0
+    transaction_zero_based = False
+    transaction_provenance: dict[str, Any] = {}
+    provenance_fields = (
+        "project_id",
+        "command_id",
+        "command_type",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "idempotency_key",
+        "command_payload_hash",
+        "correlation_id",
+        "causation_id",
+        "actor_id",
+        "authority_grant_id",
+        "occurred_at",
+    )
+    for event in events:
+        position = event.get("global_position")
+        event_type = str(event.get("event_type", ""))
+        command_type = str(event.get("command_type", ""))
+        recorded_schema = str(event.get("schema_id", ""))
+        recorded_version = str(event.get("schema_version", ""))
+        shadow_payload = event.get("payload")
+        is_authority_shadow = bool(
+            isinstance(shadow_payload, Mapping)
+            and set(shadow_payload) == {"owner_row_id", "authority_kind", "authority_event_type", "authority_payload"}
+            and shadow_payload.get("authority_event_type") == event_type
+            and isinstance(shadow_payload.get("authority_payload"), Mapping)
+        )
+        try:
+            command_binding = schemas.command_binding(command_type)
+            if command_binding is None or (
+                event.get("command_schema_id"),
+                event.get("command_schema_version"),
+            ) != (command_binding.schema_id, command_binding.schema_version):
+                raise SchemaError("active command binding mismatch")
+            schemas.resolve_identity(
+                str(event.get("command_schema_id", "")),
+                str(event.get("command_schema_version", "")),
+                expected_sha256=str(event.get("command_schema_sha256", "")),
+            )
+            event_binding = None if is_authority_shadow else schemas.event_binding(event_type, command_type)
+            if event_binding is not None:
+                if (recorded_schema, recorded_version) != (
+                    event_binding.schema_id,
+                    event_binding.schema_version,
+                ):
+                    raise SchemaError("active event binding mismatch")
+                schemas.validate_active(
+                    event_binding.schema_id,
+                    event,
+                    schema_version=event_binding.schema_version,
+                )
+            elif is_authority_shadow:
+                if recorded_schema != "ars://core/event" or recorded_version != "1.0.0":
+                    raise SchemaError("generic event schema mismatch")
+                schemas.validate("ars://core/event", event, schema_version="1.0.0")
+            elif schemas.has_producer_bindings(event_type):
+                raise SchemaError("unbound event producer")
+            elif recorded_schema == "ars://core/event":
+                if recorded_version != "1.0.0":
+                    raise SchemaError("generic event schema mismatch")
+                schemas.validate("ars://core/event", event, schema_version="1.0.0")
+            elif schemas.contains(recorded_schema):
+                schemas.validate(recorded_schema, event, schema_version=recorded_version)
+            else:
+                raise SchemaError("unknown event schema")
+        except SchemaError as exc:
+            raise IntegrityError(f"Discovery persisted schema provenance mismatch at {position}") from exc
+
+        event_project_id = event.get("project_id")
+        if project_id is None:
+            project_id = event_project_id
+        elif event_project_id != project_id:
+            raise IntegrityError("Discovery persisted project identity mismatch")
+
+        stream_id = event.get("stream_id")
+        expected_stream_version = stream_versions.get(stream_id, 0) + 1
+        if event.get("stream_version") != expected_stream_version:
+            raise IntegrityError("Discovery persisted stream version mismatch")
+        stream_versions[stream_id] = expected_stream_version
+
+        transaction_id = event.get("transaction_id")
+        t2_event = recorded_schema.startswith("ars://wp6-2/t2/event/")
+        if transaction_id != current_transaction:
+            if current_transaction is not None:
+                if transaction_seen != transaction_count:
+                    raise IntegrityError("incomplete Discovery persisted transaction")
+                closed_transactions.add(current_transaction)
+            if transaction_id in closed_transactions:
+                raise IntegrityError("non-contiguous Discovery persisted transaction")
+            current_transaction = transaction_id
+            transaction_count = event.get("transaction_count")
+            transaction_seen = 0
+            transaction_zero_based = t2_event
+            transaction_provenance = {field: event.get(field) for field in provenance_fields}
+        if (
+            type(transaction_count) is not int
+            or transaction_count < 1
+            or event.get("transaction_count") != transaction_count
+            or t2_event != transaction_zero_based
+            or any(event.get(field) != value for field, value in transaction_provenance.items())
+        ):
+            raise IntegrityError("Discovery persisted transaction provenance mismatch")
+        expected_index = transaction_seen if transaction_zero_based else transaction_seen + 1
+        if event.get("transaction_index") != expected_index:
+            raise IntegrityError("Discovery persisted transaction index mismatch")
+        transaction_seen += 1
+        if transaction_seen > transaction_count:
+            raise IntegrityError("Discovery persisted transaction count mismatch")
+    if current_transaction is not None and transaction_seen != transaction_count:
+        raise IntegrityError("incomplete Discovery persisted transaction")
+
+
 @lru_cache(maxsize=1)
 def _default_replay_schemas() -> SchemaRegistry:
     """Load exact bundled schemas for public standalone replay."""
@@ -1541,6 +1700,8 @@ def replay_discovery(
     """
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
+    active_schemas = schemas or _default_replay_schemas()
+    _validate_persisted_event_envelopes(ordered, active_schemas)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered)
     state: dict[str, Any] = {
         "catalogue": None,
@@ -1852,9 +2013,10 @@ def replay_discovery(
             if (
                 state["catalogue"] is not None
                 or event.get("command_type") != "ImportAcceptedW11CatalogueGenesis"
-                or payload.get("owner_row_id") != "OR-140"
+                or event.get("stream_id") != _CATALOGUE_STREAM_ID
+                or payload != _accepted_genesis_payload()
             ):
-                raise IntegrityError("W11 genesis appears more than once")
+                raise IntegrityError("W11 genesis identity mismatch")
             state["catalogue"] = deepcopy(payload)
         elif event_type == "ScoutObservationIngested":
             observation_id = required_string("observation_id")
@@ -1933,7 +2095,7 @@ def replay_discovery(
                 or replacement_ref != _candidate_ref(replacement)
                 or predecessor.get("status") == "superseded"
                 or replacement.get("status") == "superseded"
-                or replacement.get("supersedes_candidate_id") is not None
+                or _candidate_replacement_is_used(state["candidates"], replacement_id)
                 or payload.get("lineage") != lineage
                 or payload.get("lineage_sha256") != lineage_sha256
                 or not isinstance(payload.get("lineage_reason"), str)
@@ -1946,7 +2108,6 @@ def replay_discovery(
                 supersession_sha256=lineage_sha256,
                 version=event["stream_version"],
             )
-            replacement["supersedes_candidate_id"] = predecessor_id
         elif event_type == "AssayRequested":
             assay_id = payload.get("assay_id")
             candidate_id = payload.get("candidate_id")
@@ -2681,8 +2842,31 @@ def replay_discovery(
                 lease_status="active",
             )
         elif event_type == "CandidateSpikeStarted":
-            candidate = state["candidates"].get(payload.get("candidate_id"))
-            if not isinstance(candidate, dict):
+            candidate_id = payload.get("candidate_id")
+            spike_id = payload.get("spike_id")
+            candidate = state["candidates"].get(candidate_id)
+            spike = state["spikes"].get(spike_id)
+            if (
+                not isinstance(candidate, dict)
+                or not isinstance(spike, dict)
+                or event.get("stream_id") != candidate_id
+                or candidate.get("status") != "spike_authorized"
+                or candidate.get("spike_id") != spike_id
+                or spike.get("status") != "running"
+                or spike.get("candidate_id") != candidate_id
+                or any(
+                    payload.get(field) != spike.get(field)
+                    for field in (
+                        "attempt_id",
+                        "attempt_sha256",
+                        "lease_id",
+                        "lease_sha256",
+                        "execution_authority_relation",
+                    )
+                )
+                or payload.get("resource_grant_id")
+                != spike.get("execution_authority_relation", {}).get("resource_ref", {}).get("id")
+            ):
                 raise IntegrityError("invalid Candidate Spike start")
             candidate.update(status="spike_running")
         elif event_type == "SpikeVerdictRecorded":
@@ -2974,6 +3158,10 @@ def replay_discovery(
             state["scopes"][scope_id] = deepcopy(payload)
         else:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
+    try:
+        replay_control_plane(operational_events)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise IntegrityError("invalid Discovery operational partition") from exc
     if any(
         decision.get("status") in {"cancellation_pending", "candidate_cancellation_pending"}
         for decision in state["decisions"].values()
@@ -3278,7 +3466,7 @@ class DiscoveryRuntime:
         row_id, _ = _discovery_route(command)
         target = command.target_stream_id
         if row_id in _DISCOVERY_MINT_ROWS:
-            if row_id == "OR-101" and projection["authority_streams"].get(target) == "assay_bar":
+            if row_id in {"OR-101", "OR-102"} and projection["authority_streams"].get(target) == "assay_bar":
                 return
             if _discovery_identity_exists(projection, target):
                 raise IntegrityError("Discovery command target identity collision")
@@ -3782,6 +3970,12 @@ class DiscoveryRuntime:
                 if kind == "rubric"
                 else "ars://portfolio/assay-evidence-scope-content"
             )
+            predecessor_contents = state.get("predecessor_contents")
+            prior_kind = predecessor_contents.get(kind) if isinstance(predecessor_contents, Mapping) else None
+            prior_content = prior_kind.get("content") if isinstance(prior_kind, Mapping) else None
+            same_kind_successor = bool(
+                isinstance(prior_content, Mapping) and command.target_stream_id == prior_content.get("record_id")
+            )
             if (
                 command.envelope["command_type"] != expected_command
                 or not isinstance(content, dict)
@@ -3790,7 +3984,11 @@ class DiscoveryRuntime:
                 or command.target_stream_id != content.get("record_id")
                 or content.get("created_by_actor_id") != command.actor_id
                 or (state.get("status") == "stale" and kind != "rubric")
-                or (state.get("status") != "stale" and _discovery_identity_exists(projection, command.target_stream_id))
+                or (
+                    state.get("status") != "stale"
+                    and _discovery_identity_exists(projection, command.target_stream_id)
+                    and not same_kind_successor
+                )
             ):
                 raise IntegrityError("invalid Assay-bar content registration")
             try:
@@ -5498,24 +5696,7 @@ class DiscoveryRuntime:
         if catalogue.get("owner_row_count") != 81 or row_ids != _ROW_IDS or len(set(row_ids)) != 81:
             raise IntegrityError("catalogue row set mismatch")
         _validate_discovery_route_registry(catalogue)
-        return (
-            "W11CatalogueGenesisImported",
-            {
-                "accepted_commit": _ACCEPTED["accepted_commit"],
-                "accepted_tree": _ACCEPTED["accepted_tree"],
-                "catalogue_blob": _ACCEPTED["catalogue_blob"],
-                "catalogue_bytes": _ACCEPTED["catalogue_bytes"],
-                "catalogue_sha256": _ACCEPTED["catalogue_sha256"],
-                "bootstrap_blob": _ACCEPTED["bootstrap_blob"],
-                "bootstrap_sha256": _ACCEPTED["bootstrap_sha256"],
-                "review_commit": _ACCEPTED["review_commit"],
-                "review_blob": _ACCEPTED["review_blob"],
-                "review_sha256": _ACCEPTED["review_sha256"],
-                "owner_row_id": "OR-140",
-                "row_count": 81,
-                "row_ids": list(_ROW_IDS),
-            },
-        )
+        return "W11CatalogueGenesisImported", _accepted_genesis_payload()
 
     def _prepare_candidate(
         self,
@@ -5583,7 +5764,7 @@ class DiscoveryRuntime:
             or replacement_ref != _candidate_ref(replacement)
             or predecessor.get("status") == "superseded"
             or replacement.get("status") == "superseded"
-            or replacement.get("supersedes_candidate_id") is not None
+            or _candidate_replacement_is_used(projection["candidates"], replacement_id)
             or not isinstance(reason, str)
             or not reason.strip()
         ):

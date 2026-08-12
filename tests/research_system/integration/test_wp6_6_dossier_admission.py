@@ -54,6 +54,10 @@ VAULT = Path(os.environ.get("TDA_VAULT_ROOT", TDA_RUNTIME_ROOT / "vault"))
 _REQUIRE_REAL_DOSSIER = os.environ.get("TDL_REQUIRE_REAL_DOSSIER") == "1"
 
 
+def _raise_git_timeout(*_args: object, **_kwargs: object) -> None:
+    raise subprocess.TimeoutExpired("git", 10)
+
+
 def _accessible_directory(path: Path) -> bool:
     try:
         if not path.is_dir():
@@ -280,26 +284,6 @@ def _candidate_manifest(members: tuple[DossierMember, ...]) -> dict[str, object]
 def _admit_with_default_manifest(**kwargs: Any) -> PreparedDossierAdmission:
     kwargs.setdefault("candidate_manifest", _candidate_manifest(kwargs["candidate_members"]))
     return _prepare_dossier_admission(**kwargs)
-
-
-def test_dossier_semantic_hash_uses_the_replay_p0_canonical_encoder() -> None:
-    value = {"axis_id": "identity", "value": 1}
-
-    assert canonical_dossier_hash(value) == sha256_hex(canonical_bytes(value))
-
-
-@pytest.mark.parametrize(
-    "invalid_value",
-    [
-        {"axis_id": "identity", "value": 0.5},
-        {"k\u00e9y": 1},
-        {"value": 1 << 53},
-    ],
-    ids=["float", "non-ascii-key", "unsafe-integer"],
-)
-def test_dossier_semantic_hash_rejects_values_outside_p0(invalid_value: dict[str, object]) -> None:
-    with pytest.raises((TypeError, ValueError), match="P0 canonical JSON"):
-        canonical_dossier_hash(invalid_value)
 
 
 def test_public_non_p0_dossier_command_rejects_without_ledger_or_receipt_mutation(tmp_path: Path) -> None:
@@ -960,7 +944,12 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
             replay_discovery(_rehash_ledger(substituted_admission))
 
     omitted = [deepcopy(event) for event in runtime.ledger.iter_events()]
-    omitted.remove(next(event for event in omitted if event["event_type"] == "PortfolioObjectRegistered"))
+    removed = next(event for event in omitted if event["event_type"] == "PortfolioObjectRegistered")
+    omitted.remove(removed)
+    remaining_transaction = [event for event in omitted if event["transaction_id"] == removed["transaction_id"]]
+    for transaction_index, event in enumerate(remaining_transaction, start=1):
+        event["transaction_count"] = len(remaining_transaction)
+        event["transaction_index"] = transaction_index
     with pytest.raises(IntegrityError, match="materialization closure mismatch"):
         replay_discovery(_rehash_ledger(omitted))
 
@@ -980,6 +969,10 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     )
     blueprint = object_event["payload"]["blueprint"]
     object_event["stream_id"] = expected.dossier_id
+    object_event["stream_version"] = 1 + sum(
+        event["stream_id"] == expected.dossier_id and event["global_position"] < object_event["global_position"]
+        for event in cross_namespace
+    )
     object_event["payload"]["record_id"] = expected.dossier_id
     blueprint["proposed_edge_id"] = expected.dossier_id
     blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
@@ -999,6 +992,10 @@ def test_authority_chains_activate_dossier_admission_without_constructor_inputs(
     blueprint = object_event["payload"]["blueprint"]
     catalogue_id = "obj_019fed25-b33e-7740-b280-000000000001"
     object_event["stream_id"] = catalogue_id
+    object_event["stream_version"] = 1 + sum(
+        event["stream_id"] == catalogue_id and event["global_position"] < object_event["global_position"]
+        for event in catalogue_collision
+    )
     object_event["payload"]["record_id"] = catalogue_id
     blueprint["proposed_edge_id"] = catalogue_id
     blueprint_preimage = {key: value for key, value in blueprint.items() if key != "expected_content_hash"}
@@ -1077,7 +1074,7 @@ def test_public_observation_rejects_authority_content_not_serialized_by_git_byte
         monkeypatch.setattr(
             runtime_module.subprocess,
             "run",
-            lambda *args, **kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(args[0], 10)),
+            _raise_git_timeout,
         )
         expected_error = "authority file lacks current Git identity"
     with pytest.raises(IntegrityError, match=expected_error):

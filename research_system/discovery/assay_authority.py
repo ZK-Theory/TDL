@@ -13,18 +13,24 @@ class AssayAuthorityRejected(ValueError):
 
 
 def _digest(value: object, label: str) -> str:
+    """Return one exact lowercase SHA-256 identity or reject it."""
+
     if not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise AssayAuthorityRejected(f"invalid_{label}")
     return value
 
 
 def _identity(value: object, label: str) -> str:
+    """Return one non-empty authority identity or reject it."""
+
     if not isinstance(value, str) or not value:
         raise AssayAuthorityRejected(f"invalid_{label}")
     return value
 
 
 def _record_ref(value: object, label: str) -> dict[str, Any]:
+    """Validate and copy one immutable record reference."""
+
     if not isinstance(value, dict) or set(value) != {"id", "record_revision", "content_hash"}:
         raise AssayAuthorityRejected(f"invalid_{label}")
     record_id = _identity(value.get("id"), f"{label}_id")
@@ -153,7 +159,8 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
             digest = _digest(content.get("content_hash"), "content_hash")
             if content_sha256(content) != digest or payload.get("content_sha256") != digest:
                 raise AssayAuthorityRejected("content_hash_mismatch")
-            if not isinstance(payload.get("authority_file_path"), str):
+            authority_file_path = payload.get("authority_file_path")
+            if not isinstance(authority_file_path, str) or not authority_file_path:
                 raise AssayAuthorityRejected("authority_file_path_missing")
             actor_id = _identity(payload.get("actor_id"), "actor_id")
             predecessor_contents = state.get("predecessor_contents")
@@ -184,7 +191,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
             state["contents"][kind] = {
                 "content": content,
                 "content_sha256": digest,
-                "authority_file_path": payload["authority_file_path"],
+                "authority_file_path": authority_file_path,
                 "author_actor_id": actor_id,
             }
             actors.add(actor_id)
@@ -232,7 +239,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 raise AssayAuthorityRejected("subject_hash_mismatch")
             state.update(
                 status="review_requested",
-                review_id=payload.get("review_id"),
+                review_id=_identity(payload.get("review_id"), "review_id"),
                 reviewer_actor_id=reviewer,
                 prospective_producer_ref=producer_ref,
                 producer_relation_sha256=producer_relation_sha256(producer_ref),
