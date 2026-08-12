@@ -113,7 +113,7 @@ for that commit:
   and
   `test_path_registration_replay_rejects_rehashed_false_canonical_content_digest`
   were part of the same aggregate.
-- Required-mode negative command
+- Required-mode negative command (Bash/WSL)
   `TDL_REQUIRE_REAL_DOSSIER=1 TDL_REPOSITORY_ROOT=C:/nonexistent-review-root pytest tests/research_system/integration/test_wp6_6_dossier_admission.py`
   stopped at collection with
   `pytest.UsageError: real TDA dossier certification requires accessible roots: TDL_REPOSITORY_ROOT, TDA_VAULT_ROOT`,

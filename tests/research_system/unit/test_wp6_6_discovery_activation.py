@@ -1,12 +1,14 @@
 import json
 from pathlib import Path
 
+import pytest
 import research_system
 
 from research_system.authority import (
     SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES,
     _SCOPED_COMMAND_SUBJECT_KINDS,
 )
+from research_system.errors import SchemaError
 from research_system.discovery.runtime import (
     _DISCOVERY_COMMAND_TYPES,
     _DISCOVERY_DEFERRED_ROWS,
@@ -40,12 +42,11 @@ def test_discovery_initiating_commands_use_candidate_scoped_authority():
 
 
 def test_generic_resolve_decision_cannot_spoof_a_discovery_row_binding():
-    schema = json.loads(
-        (REPOSITORY_ROOT / ".research-system/schemas/core/commands/resolve_decision.schema.json").read_bytes()
-    )
-    payload_contract = schema["$defs"]["payload"]["oneOf"][0]
-    assert payload_contract["additionalProperties"] is False
-    assert {"row_id", "owner_row_id"}.isdisjoint(payload_contract["properties"])
+    schemas = runtime_schema_registry(REPOSITORY_ROOT / ".research-system/schemas")
+    binding = schemas.command_binding("ResolveDecision")
+    assert binding is not None
+    assert binding.schema_id == "ars://core/command/ResolveDecision"
+    assert binding.schema_version == "1.0.0"
     payload = {
         "decision_id": "dec_019fed25-b33e-7740-b280-000000000001",
         "selected_option": "approve",
@@ -61,6 +62,45 @@ def test_generic_resolve_decision_cannot_spoof_a_discovery_row_binding():
         "conditions": [],
         "revisit_triggers": [],
     }
+    schema = json.loads(
+        (REPOSITORY_ROOT / ".research-system/schemas/core/commands/resolve_decision.schema.json").read_bytes()
+    )
+    generic_payload_contracts = [
+        contract
+        for contract in schema["$defs"]["payload"]["oneOf"]
+        if set(contract.get("required", ())) == set(payload)
+    ]
+    assert len(generic_payload_contracts) == 1
+    generic_payload_contract = generic_payload_contracts[0]
+    assert generic_payload_contract["additionalProperties"] is False
+    assert {"row_id", "owner_row_id"}.isdisjoint(generic_payload_contract["properties"])
+
+    command = {
+        "command_id": "cmd_019fed25-b33e-7740-b280-000000000001",
+        "command_type": "ResolveDecision",
+        "schema_id": binding.schema_id,
+        "schema_version": binding.schema_version,
+        "submitted_at": "2026-08-12T00:00:00Z",
+        "actor_id": "act_019fed25-b33e-7740-b280-000000000001",
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": "agr_019fed25-b33e-7740-b280-000000000001",
+        "target_stream_id": payload["decision_id"],
+        "expected_stream_version": 0,
+        "idempotency_key": "generic-resolve-decision",
+        "correlation_id": "generic-resolve-decision",
+        "causation_id": None,
+        "reason": "verify closed generic ResolveDecision payload",
+        "evidence_refs": [],
+        "payload": payload,
+        "project_id": "prj_019fed25-b33e-7740-b280-000000000001",
+    }
+    schemas.validate(binding.schema_id, command, schema_version=binding.schema_version)
+    for extra_key in ("row_id", "owner_row_id"):
+        spoofed = {**command, "payload": {**payload, extra_key: "OR-013"}}
+        with pytest.raises(SchemaError) as exc_info:
+            schemas.validate(binding.schema_id, spoofed, schema_version=binding.schema_version)
+        assert extra_key in str(exc_info.value)
+
     assert (
         discovery_resolve_transaction_ids(
             ({"command_type": "ResolveDecision", "transaction_id": "txn:generic", "payload": payload},)
