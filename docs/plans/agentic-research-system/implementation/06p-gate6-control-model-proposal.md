@@ -51,6 +51,13 @@ SCALE-01 v1.0.3 and D-G6-5 remain accepted for their exact subject only. A
 future current preflight must be a new immutable successor, not an edit to
 those records.
 
+The accepted WP6.6 dossier-admission profile also remains non-dispatchable. Its
+`dispatchable: false` means the act of admitting the dossier cannot invoke or
+authorize provider execution. It is not the status of the later Gate 6
+preflight. A Gate 6 preflight may make a pilot *eligible* for a separately
+authorized operator-mediated dispatch without starting the pilot or changing
+the WP6.6 admission profile.
+
 ## The three decisions
 
 ### M - Merge admission
@@ -114,10 +121,14 @@ all of the following together:
    evidence).
 3. WP6.6's real Discovery genesis and read-only TDA-scale dossier admission
    remain integrated (KAN-59 / PR #248 evidence).
-4. A **new immutable SCALE-01 package/preflight successor** binds the accepted
-   WP6.6 expected set, final cardinality, and registered read-only roots. It
-   preserves `dispatchable: false`, `execution_authorized: false`, and the
-   provider-free boundary. It does not mutate v1.0.3.
+4. A **new immutable SCALE-01 package/preflight successor** consumes, rather
+   than rewrites, the accepted WP6.6 expected-set identity, final cardinality,
+   dossier-admission result, and registered read-only roots. It is not added
+   back into the already accepted dossier expected set, so the two artifacts
+   cannot form a content-address cycle. It makes the controlled pilot
+   `dispatchable: true` in the narrow operator-mediated eligibility sense,
+   retains `execution_authorized: false`, and preserves the provider-free
+   boundary. It does not mutate v1.0.3, D-G6-5, or WP6.6 admission bytes.
 5. One named final Gate 6 assembled test selection exercises the coupled public
    seams and the new preflight's decisive tamper/no-partial-state negatives.
    It is run once at final candidate head. A broad repository suite is not a
@@ -130,6 +141,14 @@ The final decision may accept the new preflight and assembled evidence together;
 it must not manufacture a separate review/acceptance loop merely because the
 preflight successor exists. D-G6-5 remains historical acceptance of v1.0.3,
 not a shortcut around the new exact subject.
+
+`dispatchable: true` at G6 means only that the governed preflight makes
+SCALE-01 eligible for a later, separately authorized operator-mediated pilot
+dispatch. It does not create a provider call, launch an external session,
+execute research, or change `execution_authorized: false`. Those remain a
+subsequent owner action outside Gate 6 closure. This is the precise
+reconciliation of the historical Gate 6 definition with the accepted WP6.6
+non-dispatchable dossier-admission boundary.
 
 Passing G6 is a readiness decision only. It does not start a pilot, execute a
 provider call, accept returned research content, or authorize a result or
@@ -155,15 +174,16 @@ baseline exists.
 | --- | --- | --- |
 | KAN-65 / WP6.1 | `INTEGRATED` | prerequisite evidence, not an open work lane |
 | KAN-57 / WP6.4 | `INTEGRATED`; v1.0.3/D-G6-5 exact bytes accepted | predecessor preflight stays immutable and non-dispatchable |
-| KAN-59 / WP6.6 | `INTEGRATED` through PR #248 | supplies the expected-set/admission evidence that v1.0.3 deliberately lacked |
+| KAN-59 / WP6.6 | `INTEGRATED` through PR #248 | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
 | KAN-12 / Gate 6 | `INCOMPLETE` | final capability is now runnable, but has no current preflight successor, assembled proof, fresh independent review, or owner closure decision |
 | GitHub `main` | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
 
 The real remaining functional gap is therefore singular:
 
 > **Complete the final Gate 6 capability by binding the integrated WP6.6
-> admission into a new immutable, non-dispatchable preflight and proving the
-> assembled public seam through one final review and owner decision.**
+> admission as an immutable input to a new governed, pilot-eligible preflight,
+> then prove the assembled public seam through one final review and owner
+> decision. The preflight is eligible; the pilot is not executed.**
 
 This is one capability campaign under KAN-12. Its preflight construction,
 direct testing, review, and owner decision are implementation/evidence within
