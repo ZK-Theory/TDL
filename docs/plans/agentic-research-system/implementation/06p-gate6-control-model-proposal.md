@@ -1,12 +1,19 @@
 # Proposed P-049 - Gate 6 control model
 
-**Status:** Proposed - requires Stephen's explicit adoption before any GitHub
-ruleset, branch-protection, or workflow-policy change is applied.
+**Status:** Proposed - requires Stephen's explicit adoption and a hosting-path
+choice before any GitHub ruleset, branch-protection, repository-transfer, or
+workflow-policy change is applied.
 **Repository subject:** `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d`
 (PR #248).
 **Live-state observation:** GitHub and Jira settings/statuses were read on
 2026-08-13. They are external observations, not bytes content-addressed by the
 repository subject above.
+**Feasibility correction (2026-08-13):** `stephendor/TDL` is a public,
+user-owned repository. GitHub documents merge queues as available only to
+organisation-owned repositories, so the original merge-queue mechanism cannot
+be installed here. Do not add a dormant `merge_group` trigger or claim a fresh
+merge-queue candidate until Stephen elects to transfer the repository to an
+organisation and GitHub confirms that capability.
 **Scope:** first-release merge control, capability integration control, and
 final Gate 6 closure control.
 **Does not authorize:** provider invocation, credential handling, pilot or
@@ -266,10 +273,19 @@ The final KAN-12 description must retain this strict order:
 4. next production action;
 5. owner-only action, if one exists.
 
-## Proposed remote enforcement
+## Remote enforcement feasibility and choice
 
 This section is deliberately not yet applied. GitHub currently reports both
-`main` branch protection and repository rulesets absent.
+`main` branch protection and repository rulesets absent. It also reports that
+this repository is public and owned by a user account rather than an
+organisation.
+
+GitHub's current merge-queue documentation limits the feature to public
+organisation repositories and private organisation repositories on Enterprise
+Cloud. It is therefore unavailable to this repository as it stands. The
+original proposal's `merge_group` trigger, queue rule, and queue probe are not
+deployable controls here; a dormant trigger would only create a false sense of
+coverage.
 
 This is a **solo-owner repository**. GitHub does not let a pull-request author
 approve their own pull request, so a required peer approval or required
@@ -277,10 +293,11 @@ approve their own pull request, so a required peer approval or required
 second team, commit a placeholder owner, or add a bypass to disguise that
 deadlock.
 
-The honest division of control is therefore:
+The honest current division of control is:
 
-- GitHub mechanically requires a PR, current passing checks, resolved review
-  conversations, and no direct or force-push route into `main`.
+- GitHub can mechanically require a PR, current passing checks, resolved review
+  conversations, and no direct or force-push route into `main` once a suitable
+  ruleset is applied.
 - For review-required changes, Stephen selects an external review service or
   reviewer, waits for its conclusion, and personally decides whether to merge.
   An automated review is evidence for that decision, not an imaginary peer
@@ -288,57 +305,39 @@ The honest division of control is therefore:
 - Agents may prepare and remediate PRs, but cannot merge them without Stephen's
   current explicit authorization for that exact PR.
 
-This cannot make a sole repository owner independent of themselves. It does
-make the technical checks unavoidable, makes the review evidence visible, and
-keeps the only irreversible decision with the actual owner rather than a bot or
-an invented reviewer.
-
-Before enforcement, make the currency controls enforceable on a fresh merge
-candidate:
-
-1. retain the merge-candidate subject of `contract-and-session-currency` and
-   record the resolved SHA in its run output/artifact;
-2. extend both `ARS Artefact Currency` and the independent watchdog to run on
-   `pull_request` **and** `merge_group`, with no conditional path that can turn
-   either required job into a successful skip;
-3. have the watchdog query the currency workflow's GitHub state during every
-   `merge_group` run and fail if it is missing, inactive, or cannot be queried;
-   and
-4. obtain one fresh successful PR run and one fresh merge-queue run for both
-   controls from GitHub Actions.
+The independently useful first step is still valid on this repository: both
+currency controls run on every PR to `main`; the watchdog queries the active
+state of the currency workflow and fails closed if it cannot obtain an active
+result; and each job records its resolved checkout SHA, ref, and event in the
+run summary. This is PR-time liveness evidence. It is **not** a fresh
+merge-candidate guarantee.
 
 Ordinary PR checks are snapshots: GitHub does not automatically create a new PR
-check merely because an owner later disables a workflow. The required merge
-queue is the chosen invalidation mechanism. It creates a fresh merge candidate,
-runs both checks on that candidate, and cannot merge while a disabled currency
-workflow makes the watchdog fail or leaves the currency check missing. This is
-stronger than a manual "check immediately before merge" ritual. It still cannot
-protect a sole repository owner who deliberately disables the watchdog or
-changes the ruleset itself; that owner-level action remains visible, deliberate,
-and outside what same-account branch rules can prevent.
+check merely because an owner later disables a workflow. A user-owned GitHub
+repository has no native merge-queue event to invalidate that snapshot at merge
+time. A scheduled watchdog can detect the condition later, but cannot honestly
+be represented as atomic merge admission.
 
-Only then install one active `main` ruleset with:
+### Required owner choice
 
-1. pull requests required; no direct-push bypass and **no required peer or
-   code-owner approval count**;
-2. GitHub's repository-level merge queue required for `main`, configured for
-   one entry/build at a time and no minimum group wait; Stephen's final merge
-   action is adding the reviewed PR to that queue;
-3. all review conversations resolved;
-4. strict required status checks (the branch must be up to date with `main`),
-   including `contract-and-session-currency` from GitHub Actions integration
-   ID `15368` and `require-active-currency-workflow` from that same integration
-   ID `15368`; and
-5. non-fast-forward pushes blocked.
+**Path A — transfer `stephendor/TDL` to an organisation.** This is the path if
+a fresh, GitHub-generated merge candidate is a non-negotiable requirement.
+After the transfer and a read-back confirming merge-queue availability, the
+control can add `merge_group` triggers to both jobs, obtain fresh PR and
+merge-queue runs, and install one `main` ruleset with a required merge queue,
+resolved conversations, strict required currency checks from GitHub Actions
+integration `15368`, no direct-push bypass, and non-fast-forward protection.
+The resulting harmless probe must demonstrate direct-push rejection,
+missing/failing check rejection, unresolved-thread rejection, both checks on a
+fresh merge-group candidate, and force-push rejection (or record the exact
+safe-probe limitation).
 
-The installation verification is itself fail-closed. Read back the full active
-ruleset and compare every required setting, not just the two check names. The
-harmless probe must separately demonstrate: direct push rejection; a missing or
-failing required check blocks queueing/merge; an unresolved review conversation
-blocks queueing/merge; both checks execute on a fresh `merge_group` candidate;
-and a force-push attempt is rejected on a disposable protected-branch probe.
-If a safe force-push probe cannot be made, record that exact limitation and do
-not claim the non-fast-forward control verified.
+**Path B — keep the repository user-owned.** A normal PR ruleset can provide
+valuable partial control, but it cannot satisfy this proposal's fresh
+merge-candidate/liveness-at-merge claim. It must therefore be described as a
+bounded PR-admission control only. Selecting this path requires a separately
+approved external or owner-operated merge-time control design; this proposal
+does not invent one or silently downgrade the Gate 6 claim.
 
 The required checks are intentionally **not** legacy `CI`, a coverage target,
 or a CodeRabbit status. They are small current baselines. A review service is
@@ -353,21 +352,25 @@ merge decision are the additional evidence. No bypass actor is proposed.
    external review is required by default for capability, Gate, recovery,
    durable-mutation, and decision/control PRs; routine low-risk work remains a
    Stephen-controlled exception.
-2. Implement and directly prove the currency-control prerequisites above; do
-   not enable the ruleset until both required contexts have fresh, non-skipped
-   GitHub Actions results from integration ID `15368` on both the PR and fresh
-   `merge_group` candidates.
-3. Apply the solo-owner ruleset and verify with one harmless branch/PR probe
-   that a direct push is blocked, a missing/failing control blocks the PR, and
-   both required controls are enforced; read back every installed ruleset
-   setting and prove unresolved-thread and non-fast-forward enforcement as
-   stated above.
-4. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
+2. Directly prove the PR-time currency controls: both jobs must complete on one
+   fresh PR, the watchdog must observe the currency workflow as active, and both
+   run summaries must record their resolved subject. This does not enable a
+   ruleset or establish merge-time invalidation.
+3. Stephen chooses Path A (organisation transfer) or Path B (user-owned
+   repository with an explicitly bounded alternative). Do not install a
+   merge-queue rule, `merge_group` trigger, or ruleset that claims fresh
+   merge-candidate liveness before that choice.
+4. For Path A, read back organisation ownership and merge-queue availability,
+   then add the `merge_group` controls, prove fresh PR and queue results, apply
+   the ruleset, and perform the complete harmless probe stated above. For Path
+   B, bring the separately approved merge-time control design back to this
+   proposal before treating remote enforcement as adopted.
+5. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
    P-049 to the decision register, point the historical WP6 Gate
    6 plan at this live model, and correct the stale disabled-CI comment.
-5. Reconcile the KAN-61 edge, read both Jira endpoints back, and create the
+6. Reconcile the KAN-61 edge, read both Jira endpoints back, and create the
    single final-capability child job described above.
-6. Launch that capability campaign. Do not launch a separate plan/review
+7. Launch that capability campaign. Do not launch a separate plan/review
    campaign first.
 
 ## Evidence consulted
@@ -382,8 +385,9 @@ merge decision are the additional evidence. No bypass actor is proposed.
   `.github/workflows/ars-artefact-currency-watchdog.yml`.
 - `tools/certify_wp6_6_real_dossier.ps1` and
   `tests/research_system/integration/test_wp6_6_dossier_admission.py`.
-- GitHub's documented public-repository ruleset, review, and merge-queue
-  behaviour: a PR can be required without a peer approval, a PR author cannot
-  approve their own PR, and `merge_group` checks run on a fresh queue candidate.
+- GitHub's documented merge-queue behaviour and availability: `merge_group`
+  checks run on a fresh queue candidate, but the queue is available only to
+  organisation-owned repositories; this public user-owned repository is not
+  eligible until an owner-approved transfer changes that fact.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.
