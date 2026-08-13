@@ -6,8 +6,8 @@ components:
   - component_id: artefact-authority-interface
     candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-authority-interface.v1.yaml
     canonical_path: .research-system/contracts/artefact-authority-interface.v1.yaml
-    git_blob: ea7e1cb28be5639d138e7b25ca81e6b17ee82fed
-    canonical_sha256: 8e63b9dcf5bd70adb5d9da65d0e0c893d336a2b2d06afe0b4c5e138f915e75d8
+    git_blob: 728b9ed73a579a878f04b2aeac20dd23263bb215
+    canonical_sha256: dd085c86fdd5f673e294df42a655aa51404ad8fac5232b52c50787f81edfb998
   - component_id: artefact-consumer-predicates
     candidate_path: .research-system/contracts/candidates/06i-artefact-authority-v1/artefact-consumer-predicates.v1.yaml
     canonical_path: .research-system/policies/artefact-consumer-predicates.v1.yaml
