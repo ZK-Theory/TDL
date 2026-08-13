@@ -816,10 +816,16 @@ def reduce_attempt(state: dict[str, Any], event: dict[str, Any]) -> dict[str, An
     if event_type in {"AttemptCompleted", "AttemptFailed", "PartialOutcomeRecorded"}:
         if state.get("status") != "running":
             raise ValueError(f"{event_type} requires running Attempt")
-        if event_type == "PartialOutcomeRecorded" and (
-            payload.get("subject_kind") != "task" or payload.get("task_id") != state.get("task_id")
-        ):
-            raise ValueError("PartialOutcomeRecorded task relation mismatch")
+        if event_type == "PartialOutcomeRecorded":
+            subject_kind = payload.get("subject_kind")
+            if subject_kind == "task":
+                if payload.get("task_id") != state.get("task_id"):
+                    raise ValueError("PartialOutcomeRecorded task relation mismatch")
+            elif subject_kind == "attempt":
+                if payload.get("attempt_id") != state.get("attempt_id"):
+                    raise ValueError("PartialOutcomeRecorded Attempt relation mismatch")
+            else:
+                raise ValueError("PartialOutcomeRecorded subject kind mismatch")
         status = {
             "AttemptCompleted": "completed",
             "AttemptFailed": "failed",

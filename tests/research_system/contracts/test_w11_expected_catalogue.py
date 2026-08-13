@@ -12,6 +12,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
+from research_system.schema_registry import SchemaBinding, bundled_runtime_schema_registry
 import tools.verify_w11_materialization as w11_verifier
 
 
@@ -205,30 +206,82 @@ def test_coordinated_catalogue_runtime_mutation_cannot_rescue_expected_source() 
         w11_verifier.verify_expected_catalogue(REPO_ROOT, catalogue)
 
 
-def test_runtime_bindings_and_projection_sources_are_byte_unchanged_from_foundation() -> None:
-    paths = subprocess.run(
-        [
-            "git",
-            "ls-tree",
-            "-r",
-            "--name-only",
-            w11_verifier.W11_CONSTRUCTION_BASE,
-            "--",
-            "research_system",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    assert paths
+def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() -> None:
+    accepted_commit = "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6"
+    protected_tree_paths = (
+        SCHEMA_ROOT.relative_to(REPO_ROOT),
+        CATALOGUE_PATH.relative_to(REPO_ROOT),
+    )
+    protected_tree_arguments = tuple(path.as_posix() for path in protected_tree_paths)
+    accepted_paths = frozenset(
+        subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "--name-only",
+                accepted_commit,
+                "--",
+                *protected_tree_arguments,
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    )
+    current_paths = frozenset(
+        subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "--name-only",
+                "HEAD",
+                "--",
+                *protected_tree_arguments,
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    )
+    assert accepted_paths
+    assert current_paths == accepted_paths
 
-    for relative_path in paths:
+    for relative_path in sorted(accepted_paths):
         expected = subprocess.run(
-            ["git", "show", f"{w11_verifier.W11_CONSTRUCTION_BASE}:{relative_path}"],
+            ["git", "show", f"{accepted_commit}:{relative_path}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,
         ).stdout
-        current = (REPO_ROOT / relative_path).read_bytes().replace(b"\r\n", b"\n")
+        current = (REPO_ROOT / relative_path).read_bytes()
         assert current == expected, relative_path
+
+    registry = bundled_runtime_schema_registry()
+    assert registry.event_binding("ReviewRequested", "RequestDiscoveryOutcomeReview") == SchemaBinding(
+        "ars://core/event/ReviewRequested",
+        "1.0.0",
+        event_type="ReviewRequested",
+        producer_command_type="RequestDiscoveryOutcomeReview",
+    )
+    assert registry.event_binding("ReviewVerdictRecorded", "ReviewDiscoveryOutcome") == SchemaBinding(
+        "ars://core/event/ReviewVerdictRecorded",
+        "1.0.0",
+        event_type="ReviewVerdictRecorded",
+        producer_command_type="ReviewDiscoveryOutcome",
+    )
+    assert registry.event_binding("DecisionProposed", "ProposeW11AuthorityDecision") == SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeW11AuthorityDecision",
+    )
+    assert registry.event_binding("DecisionResolved", "ResolveDecision") == SchemaBinding(
+        "ars://core/event/DecisionResolved",
+        "1.0.0",
+        event_type="DecisionResolved",
+        producer_command_type="ResolveDecision",
+    )
