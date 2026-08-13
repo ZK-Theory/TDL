@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 permissions:
@@ -29,6 +31,15 @@ jobs:
           git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
           git checkout --detach FETCH_HEAD
 
+      - name: Record resolved workflow subject
+        run: |
+          subject_sha="$(git rev-parse HEAD)"
+          {
+            printf 'workflow-event=%s\n' "$GITHUB_EVENT_NAME"
+            printf 'workflow-ref=%s\n' "$GITHUB_REF"
+            printf 'workflow-subject-sha=%s\n' "$subject_sha"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -49,9 +60,11 @@ jobs:
             tests/research_system/unit/test_artefact_consumer_boundary.py \
             tests/research_system/unit/test_artefact_runtime.py \
             tests/research_system/integration/test_artefact_authority_commands.py \
+            tests/tools/test_ars_currency_workflow_controls.py \
             tests/tools/test_check_workflow_liveness.py \
             tools/check_workflow_liveness.py
           .venv/bin/python -m pytest -q \
+            tests/tools/test_ars_currency_workflow_controls.py \
             tests/tools/test_check_workflow_liveness.py \
             tests/research_system/contracts/test_06i_stage_a_candidate.py \
             tests/research_system/unit/test_artefact_consumer_boundary.py \

@@ -3,6 +3,10 @@ name: ARS Artefact Currency Watchdog
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: "17 4 * * *"
   workflow_dispatch:
@@ -27,6 +31,15 @@ jobs:
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
           git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
           git checkout --detach FETCH_HEAD
+
+      - name: Record resolved workflow subject
+        run: |
+          subject_sha="$(git rev-parse HEAD)"
+          {
+            printf 'workflow-event=%s\n' "$GITHUB_EVENT_NAME"
+            printf 'workflow-ref=%s\n' "$GITHUB_REF"
+            printf 'workflow-subject-sha=%s\n' "$subject_sha"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
