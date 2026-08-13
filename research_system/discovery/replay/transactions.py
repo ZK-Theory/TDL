@@ -23,12 +23,19 @@ from research_system.errors import IntegrityError
 
 
 @dataclass(frozen=True)
+class TransactionVariant:
+    """One allowed write set and its command-preimage binding policy."""
+
+    event_types: tuple[str, ...]
+    command_payload_binding: str
+
+
+@dataclass(frozen=True)
 class TransactionContract:
     """One exhaustive durable transaction contract for an executable W11 row."""
 
     command_type: str
-    event_type_variants: tuple[tuple[str, ...], ...]
-    command_payload_binding: str
+    variants: tuple[TransactionVariant, ...]
 
 
 _CATALOGUE_EVENT_ALIASES = {
@@ -98,34 +105,69 @@ for _conditional_review_row in ("OR-006", "OR-007", "OR-020", "OR-021", "OR-039"
     )
 
 
-STATEFUL_COMMAND_BINDINGS = {
-    "OR-006": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-007": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-020": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-021": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-028": "candidate member bytes are bound by accepted expected-set and manifest closure",
-    "OR-039": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-041": "unsatisfied review verdict reconstructs its subject from the prior Review request",
-    "OR-106": "authority verdict subject is reconstructed from the prior Review request",
-    "OR-108": "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
-    "OR-113": "authority verdict subject is reconstructed from the prior Review request",
-    "OR-115": "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
-    "OR-119": "authority verdict subject is reconstructed from the prior Review request",
-    "OR-121": "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
+STATEFUL_COMMAND_VARIANTS = {
+    **{
+        (row_id, ("ReviewVerdictRecorded",)): (
+            "unsatisfied review verdict reconstructs its subject from the prior Review request"
+        )
+        for row_id in ("OR-006", "OR-007", "OR-020", "OR-021", "OR-039", "OR-041")
+    },
+    (
+        "OR-028",
+        _catalogue_write_set("OR-028"),
+    ): "candidate member bytes are bound by accepted expected-set and manifest closure",
+    (
+        "OR-106",
+        _catalogue_write_set("OR-106"),
+    ): "authority verdict subject is reconstructed from the prior Review request",
+    (
+        "OR-108",
+        _catalogue_write_set("OR-108"),
+    ): "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
+    (
+        "OR-113",
+        _catalogue_write_set("OR-113"),
+    ): "authority verdict subject is reconstructed from the prior Review request",
+    (
+        "OR-115",
+        _catalogue_write_set("OR-115"),
+    ): "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
+    (
+        "OR-119",
+        _catalogue_write_set("OR-119"),
+    ): "authority verdict subject is reconstructed from the prior Review request",
+    (
+        "OR-121",
+        _catalogue_write_set("OR-121"),
+    ): "owner resolution replaces its preparation-only transaction marker with the ledger transaction",
 }
 
 
 TRANSACTION_CONTRACTS: dict[str, TransactionContract] = {
     row_id: TransactionContract(
         command_type=route.command_type,
-        event_type_variants=_WRITE_SET_OVERRIDES.get(row_id, (_catalogue_write_set(row_id),)),
-        command_payload_binding="stateful" if row_id in STATEFUL_COMMAND_BINDINGS else "durable",
+        variants=tuple(
+            TransactionVariant(
+                event_types=event_types,
+                command_payload_binding=(
+                    "stateful" if (row_id, event_types) in STATEFUL_COMMAND_VARIANTS else "durable"
+                ),
+            )
+            for event_types in _WRITE_SET_OVERRIDES.get(row_id, (_catalogue_write_set(row_id),))
+        ),
     )
     for row_id, route in DISCOVERY_ROW_ROUTES.items()
 }
 
 if set(TRANSACTION_CONTRACTS) != set(DISCOVERY_ROW_ROUTES):  # pragma: no cover - import-time architecture fence
     raise RuntimeError("Discovery transaction contracts do not cover every executable W11 row")
+if {
+    (row_id, variant.event_types)
+    for row_id, contract in TRANSACTION_CONTRACTS.items()
+    for variant in contract.variants
+    if variant.command_payload_binding == "stateful"
+} != set(STATEFUL_COMMAND_VARIANTS):  # pragma: no cover - import-time architecture fence
+    raise RuntimeError("Discovery stateful command bindings do not match exact transaction variants")
 
 
 def _owner_row_id(events: Sequence[Mapping[str, Any]]) -> str | None:
@@ -408,7 +450,7 @@ def _matching_contract_rows(events: Sequence[Mapping[str, Any]]) -> tuple[str, .
                 and actual[0] == "ScoutObservationIngested"
                 and set(actual[1:]) == {"CandidateRegistered"}
             )
-        return actual in contract.event_type_variants
+        return actual in {variant.event_types for variant in contract.variants}
 
     return tuple(
         row_id
@@ -488,10 +530,18 @@ def validate_transaction_contract(events: Sequence[Mapping[str, Any]]) -> None:
         return
     if command_type != contract.command_type or row_id not in matched_rows:
         raise IntegrityError(f"Discovery transaction route mismatch for {row_id}")
+    actual_event_types = tuple(str(event.get("event_type")) for event in events)
+    variant = (
+        contract.variants[0]
+        if row_id in {"OR-028", "OR-029"}
+        else next((item for item in contract.variants if item.event_types == actual_event_types), None)
+    )
+    if variant is None:
+        raise IntegrityError(f"Discovery transaction write set mismatch for {row_id}")
     if row_id not in {"OR-028", "OR-029"}:
-        _assert_exact_event_types(events, contract.event_type_variants, row_id)
+        _assert_exact_event_types(events, tuple(item.event_types for item in contract.variants), row_id)
     _assert_stream_contract(events, row_id)
-    if contract.command_payload_binding == "durable":
+    if variant.command_payload_binding == "durable":
         _assert_command_payload_hash(events, events[0].get("command_payload_hash"), row_id=row_id)
 
 

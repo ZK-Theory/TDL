@@ -2591,6 +2591,27 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assert projection["assays"][assay_id]["scorecard_sha256"] == scorecard_sha256
     assert projection["candidates"][candidate_id]["status"] == "assay_scored"
     assert projection["reviews"][review_id]["status"] == review_status
+    if verdict == "changes_requested":
+        rewritten_payload = deepcopy(review_command["payload"])
+        rewritten_payload["verdict"] = "approve"
+        rewritten_payload["review_verdict"]["verdict"] = "approve"
+        attacked = list(deepcopy(tuple(runtime.ledger.iter_events())))
+        verdict_index = next(
+            index
+            for index, event in enumerate(attacked)
+            if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == review_id
+        )
+        verdict_event = attacked[verdict_index]
+        verdict_event["payload"] = deepcopy(rewritten_payload["review_verdict"])
+        reviewed_event = deepcopy(verdict_event)
+        reviewed_event["event_id"] = new_id("event")
+        reviewed_event["event_type"] = "AssayReviewed"
+        reviewed_event["schema_id"] = "ars://core/event"
+        reviewed_event["stream_id"] = assay_id
+        reviewed_event["payload"] = rewritten_payload
+        attacked.insert(verdict_index + 1, reviewed_event)
+        with pytest.raises(IntegrityError, match="command payload mismatch for OR-006"):
+            replay_discovery(_fully_reindex_and_rehash_events(tuple(attacked)))
     tampered_grade = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(
         event
@@ -4142,7 +4163,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         if event["event_type"] in {"SpikeReviewed", "SpikePartialReviewed", "SpikeCancellationReviewed"}
         and event["stream_id"] == spike_id
     )["payload"]["review_id"] = assay_review_id
-    with pytest.raises(IntegrityError, match="invalid (?:Discovery review transaction|Spike .*review)"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:command payload mismatch for OR-02[01]|invalid (?:Discovery review transaction|Spike .*review))",
+    ):
         replay_discovery(_rehash_events(tampered_review))
     if spike_verdict in {"PASS", "FAIL"}:
         disposition = "PROMOTE" if spike_verdict == "PASS" else "PARK"
@@ -5394,7 +5418,9 @@ def test_assay_cancellation_review_replay_excludes_the_accepted_producer(tmp_pat
         if event["event_type"] == "ReviewVerdictRecorded":
             event["payload"]["reviewer_actor_id"] = ACTOR_ID
 
-    with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+    with pytest.raises(
+        IntegrityError, match="(?:command payload mismatch for OR-039|invalid Discovery review verdict)"
+    ):
         replay_discovery(_rehash_events(attacked))
 
 
