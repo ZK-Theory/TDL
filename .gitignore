@@ -228,3 +228,6 @@ scratch/
 # Codex sandbox probe residue and the ARS WP5.6 acceptance-review bundle.
 /.codex-sandbox-investigation/
 /wp56-acceptance-review/
+agent_docs/
+.codex_workflow_hidden_resources/
+AGENTS.md
