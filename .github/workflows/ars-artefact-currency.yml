@@ -16,15 +16,18 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          # This public repository has a legacy gitlink with no .gitmodules
-          # mapping. A blank token avoids checkout's credential-cleanup walk
-          # over that unrelated malformed submodule path.
-          token: ""
-          persist-credentials: false
+      - name: Checkout workflow subject without submodule cleanup
+        # `actions/checkout` traverses the legacy `.superpowers` gitlink while
+        # removing credentials, but that gitlink has no .gitmodules mapping.
+        # This public-repository checkout deliberately uses no credentials and
+        # never invokes Git's submodule machinery.
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
+          git checkout --detach FETCH_HEAD
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5

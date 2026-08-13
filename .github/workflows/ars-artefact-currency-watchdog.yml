@@ -17,13 +17,16 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # The API probe below has its own read-only token. Keep checkout
-          # anonymous so it does not traverse the legacy unmapped gitlink.
-          token: ""
-          persist-credentials: false
+      - name: Checkout workflow subject without submodule cleanup
+        # The probe token is used only for the API request below. This public
+        # checkout avoids the unmapped legacy `.superpowers` gitlink.
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
+          git checkout --detach FETCH_HEAD
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
