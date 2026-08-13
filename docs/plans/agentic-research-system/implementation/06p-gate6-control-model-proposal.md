@@ -52,15 +52,15 @@ closure.
 
 This proposal does not alter accepted historical bytes. In particular,
 SCALE-01 v1.0.3 and D-G6-5 remain accepted for their exact subject only. A
-future current preflight must be a new immutable successor, not an edit to
-those records.
+future current preflight must be a new immutable **eligibility envelope**, not
+an edit to those records and not a replacement package.
 
 The accepted WP6.6 dossier-admission profile also remains non-dispatchable. Its
 `dispatchable: false` means the act of admitting the dossier cannot invoke or
 authorize provider execution. It is not the status of the later Gate 6
-preflight. A Gate 6 preflight may make a pilot *eligible* for a separately
-authorized operator-mediated dispatch without starting the pilot or changing
-the WP6.6 admission profile.
+eligibility envelope. A Gate 6 eligibility envelope may make a pilot *eligible*
+for a separately authorized operator-mediated dispatch without starting the
+pilot or changing the WP6.6 admission profile.
 
 ## The three decisions
 
@@ -137,38 +137,48 @@ all of the following together:
 2. WP6.4 remains integrated at the owner-operated brief-out/evidence-back,
    restart/replay, backup, and restore-verification seam (KAN-57 / PR #242
    evidence).
-3. WP6.6's real Discovery genesis and read-only TDA-scale dossier admission
-   remain integrated (KAN-59 / PR #248 evidence).
-4. A **new immutable SCALE-01 package/preflight successor** consumes, rather
+3. WP6.6's real Discovery genesis and non-mutating TDA-scale dossier admission
+   remain integrated (KAN-59 / PR #248 evidence). That admission proves its
+   operation did not write; it does not itself grant an OS- or
+   capability-enforced read-only pilot root.
+4. A **new immutable SCALE-01 eligibility envelope** consumes, rather
    than rewrites, the accepted WP6.6 expected-set identity, final cardinality,
-   dossier-admission result, and registered read-only roots. Those are explicit
-   pre-registered expected values/invariants, not values inferred or rewritten
-   at run time. An unset value, unavailable root, mismatch, skipped check, or
-   non-pass fails closed and leaves KAN-12 `INCOMPLETE`. Changing an expected
-   baseline requires a new successor and fresh exact-subject review and owner
-   reapproval. The successor is not added back into the already accepted dossier
-   expected set, so the two artifacts cannot form a content-address cycle. It
-   makes the controlled pilot `dispatchable: true` in the narrow
-   operator-mediated eligibility sense, retains `execution_authorized: false`,
-   and preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5,
-   or WP6.6 admission bytes.
+   dossier-admission result, and registered roots. It is an **eligibility
+   envelope**, not a package: its schema permits only exact identities/hashes
+   of the already admitted package, admission event, and root-grant evidence,
+   plus the narrow eligibility verdict. It must not add, replace, or supply a
+   package member. Those are explicit pre-registered expected values/invariants,
+   not values inferred or rewritten at run time. An unset value, unavailable
+   root or grant, mismatch, skipped check, or non-pass fails closed and leaves
+   KAN-12 `INCOMPLETE`. Changing an expected baseline requires a new envelope
+   and fresh exact-subject review and owner reapproval. The envelope is not
+   added back into the already accepted dossier expected set, so the two
+   artifacts cannot form a content-address cycle. Before it can return
+   `dispatchable: true`, each input root must have an OS- or capability-enforced
+   read-only grant/mount bound by exact identity; the old write-capable checkout
+   is not sufficient. The negative selection must prove that a writable,
+   missing, substituted, or expired root grant fails closed without issuing the
+   eligibility verdict. The envelope retains `execution_authorized: false` and
+   preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5, or
+   WP6.6 admission bytes.
 5. One named final Gate 6 assembled test selection exercises the coupled public
-   seams and the new preflight's decisive tamper/no-partial-state negatives.
+   seams and the new eligibility envelope's decisive tamper/no-partial-state
+   negatives.
    It includes `tools/certify_wp6_6_real_dossier.ps1` (or an accepted exact
    equivalent) against the designated real roots with
    `TDL_REQUIRE_REAL_DOSSIER=1`. Missing roots, a real-dossier skip, or a
    non-pass fails G6 closed. It is run once at final candidate head. A broad
    repository suite is not a substitute for this selection.
 6. One fresh independent exact-subject review covers the assembled candidate,
-   including the new preflight. Stephen then makes one final Gate 6 owner
+   including the new eligibility envelope. Stephen then makes one final Gate 6 owner
    decision over that exact subject.
 
-The final decision may accept the new preflight and assembled evidence together;
+The final decision may accept the new eligibility envelope and assembled evidence together;
 it must not manufacture a separate review/acceptance loop merely because the
-preflight successor exists. D-G6-5 remains historical acceptance of v1.0.3,
+eligibility envelope exists. D-G6-5 remains historical acceptance of v1.0.3,
 not a shortcut around the new exact subject.
 
-`dispatchable: true` at G6 means only that the governed preflight makes
+`dispatchable: true` at G6 means only that the governed eligibility envelope makes
 SCALE-01 eligible for a later, separately authorized operator-mediated pilot
 dispatch. It does not create a provider call, launch an external session,
 execute research, or change `execution_authorized: false`. Those remain a
@@ -209,17 +219,18 @@ The statuses and GitHub configuration in this table are live observations as at
 | KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
 | KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
 | KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; the residual `Blocks` edge `10194` to KAN-12 is explicitly labelled `link-reconciliation-required` and non-authoritative in KAN-61 | no open WP6.7 delivery remains; remove the stale structured edge before final KAN-12 transition rather than treating it as a revived functional blocker |
-| KAN-12 / Gate 6 | `INCOMPLETE` | final capability is now runnable, but has no current preflight successor, assembled proof, fresh independent review, or owner closure decision |
+| KAN-12 / Gate 6 | `INCOMPLETE — NOT RUNNABLE` | the final capability has no current eligibility-envelope entry point, assembled proof, fresh independent review, or owner closure decision; construction may begin, but Gate 6 itself is not runnable |
 | GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
 
 The real remaining functional gap is therefore singular:
 
-> **Complete the final Gate 6 capability by binding the integrated WP6.6
-> admission as an immutable input to a new governed, pilot-eligible preflight,
-> then prove the assembled public seam through one final review and owner
-> decision. The preflight is eligible; the pilot is not executed.**
+> **Construct and prove a new immutable eligibility envelope that binds the
+> integrated WP6.6 admission and read-only root grants, then prove the assembled
+> public seam through one final review and owner decision. The envelope may make
+> a pilot eligible; the pilot is not executed. Until that envelope has a real
+> public seam, Gate 6 is NOT RUNNABLE.**
 
-This is one capability campaign under KAN-12. Its preflight construction,
+This is one capability campaign under KAN-12. Its eligibility-envelope construction,
 direct testing, review, and owner decision are implementation/evidence within
 that campaign, not independently completable successor lanes.
 
@@ -237,11 +248,11 @@ delivery lane.
 
 After this proposal is adopted, create one visible child job under KAN-12:
 
-> **[CAPABILITY DELIVERY] Complete final Gate 6 preflight and assembled
+> **[CAPABILITY DELIVERY] Complete final Gate 6 eligibility envelope and assembled
 > readiness proof**
 
 That job owns the whole remaining positive path. Do not create separate Jira
-tickets for preflight mechanics, test harnesses, review administration, or
+tickets for eligibility-envelope mechanics, test harnesses, review administration, or
 handoffs. Review and final owner acceptance are closure evidence on the same
 campaign. The job stays `In Progress` only while its production path is
 actively being executed; otherwise it is `To Do` or `Owner-blocked` with the
@@ -282,24 +293,52 @@ make the technical checks unavoidable, makes the review evidence visible, and
 keeps the only irreversible decision with the actual owner rather than a bot or
 an invented reviewer.
 
-Before enforcement, make the currency controls enforceable:
+Before enforcement, make the currency controls enforceable on a fresh merge
+candidate:
 
 1. retain the merge-candidate subject of `contract-and-session-currency` and
    record the resolved SHA in its run output/artifact;
-2. extend the independent watchdog to run on PRs as well as `main`/schedule,
-   and ensure its required job cannot become a successful skipped result; and
-3. obtain one fresh successful PR run for both controls from GitHub Actions.
+2. extend both `ARS Artefact Currency` and the independent watchdog to run on
+   `pull_request` **and** `merge_group`, with no conditional path that can turn
+   either required job into a successful skip;
+3. have the watchdog query the currency workflow's GitHub state during every
+   `merge_group` run and fail if it is missing, inactive, or cannot be queried;
+   and
+4. obtain one fresh successful PR run and one fresh merge-queue run for both
+   controls from GitHub Actions.
+
+Ordinary PR checks are snapshots: GitHub does not automatically create a new PR
+check merely because an owner later disables a workflow. The required merge
+queue is the chosen invalidation mechanism. It creates a fresh merge candidate,
+runs both checks on that candidate, and cannot merge while a disabled currency
+workflow makes the watchdog fail or leaves the currency check missing. This is
+stronger than a manual "check immediately before merge" ritual. It still cannot
+protect a sole repository owner who deliberately disables the watchdog or
+changes the ruleset itself; that owner-level action remains visible, deliberate,
+and outside what same-account branch rules can prevent.
 
 Only then install one active `main` ruleset with:
 
 1. pull requests required; no direct-push bypass and **no required peer or
    code-owner approval count**;
-2. all review conversations resolved;
-3. strict required status checks (the branch must be up to date with `main`),
+2. GitHub's repository-level merge queue required for `main`, configured for
+   one entry/build at a time and no minimum group wait; Stephen's final merge
+   action is adding the reviewed PR to that queue;
+3. all review conversations resolved;
+4. strict required status checks (the branch must be up to date with `main`),
    including `contract-and-session-currency` from GitHub Actions integration
    ID `15368` and `require-active-currency-workflow` from that same integration
    ID `15368`; and
-4. non-fast-forward pushes blocked.
+5. non-fast-forward pushes blocked.
+
+The installation verification is itself fail-closed. Read back the full active
+ruleset and compare every required setting, not just the two check names. The
+harmless probe must separately demonstrate: direct push rejection; a missing or
+failing required check blocks queueing/merge; an unresolved review conversation
+blocks queueing/merge; both checks execute on a fresh `merge_group` candidate;
+and a force-push attempt is rejected on a disposable protected-branch probe.
+If a safe force-push probe cannot be made, record that exact limitation and do
+not claim the non-fast-forward control verified.
 
 The required checks are intentionally **not** legacy `CI`, a coverage target,
 or a CodeRabbit status. They are small current baselines. A review service is
@@ -314,12 +353,15 @@ merge decision are the additional evidence. No bypass actor is proposed.
    external review is required by default for capability, Gate, recovery,
    durable-mutation, and decision/control PRs; routine low-risk work remains a
    Stephen-controlled exception.
-2. Implement and directly prove the two currency-control prerequisites above;
-   do not enable the ruleset until both required contexts have fresh, non-skipped
-   GitHub Actions results from integration ID `15368`.
+2. Implement and directly prove the currency-control prerequisites above; do
+   not enable the ruleset until both required contexts have fresh, non-skipped
+   GitHub Actions results from integration ID `15368` on both the PR and fresh
+   `merge_group` candidates.
 3. Apply the solo-owner ruleset and verify with one harmless branch/PR probe
    that a direct push is blocked, a missing/failing control blocks the PR, and
-   both required controls are enforced.
+   both required controls are enforced; read back every installed ruleset
+   setting and prove unresolved-thread and non-fast-forward enforcement as
+   stated above.
 4. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
    P-049 to the decision register, point the historical WP6 Gate
    6 plan at this live model, and correct the stale disabled-CI comment.
@@ -340,7 +382,8 @@ merge decision are the additional evidence. No bypass actor is proposed.
   `.github/workflows/ars-artefact-currency-watchdog.yml`.
 - `tools/certify_wp6_6_real_dossier.ps1` and
   `tests/research_system/integration/test_wp6_6_dossier_admission.py`.
-- GitHub's documented ruleset and review behaviour: a PR can be required without
-  a peer approval, while a PR author cannot approve their own PR.
+- GitHub's documented public-repository ruleset, review, and merge-queue
+  behaviour: a PR can be required without a peer approval, a PR author cannot
+  approve their own PR, and `merge_group` checks run on a fresh queue candidate.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.
