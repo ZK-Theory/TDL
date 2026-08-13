@@ -59,9 +59,14 @@ def reduce_spike_approval_requested(scope: EventScope) -> None:
 
     state = scope.state
     payload = scope.payload
+    event = scope.event
 
     spike = state["spikes"].get(payload.get("spike_id"))
-    if not isinstance(spike, dict):
+    if (
+        not isinstance(spike, dict)
+        or event.get("stream_id") != payload.get("spike_id")
+        or spike.get("status") != "planned"
+    ):
         raise IntegrityError("invalid Spike approval request")
     spike.update(status="approval_pending")
 
@@ -88,6 +93,8 @@ def reduce_spike_execution_decision_requested(scope: EventScope) -> None:
     operational_events = scope.operational_events
     state = scope.state
     required_string = scope.required_string
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
+    event = scope.event
 
     spike = state["spikes"].get(payload.get("spike_id"))
     decision = state["decisions"].get(payload.get("decision_id"))
@@ -106,6 +113,13 @@ def reduce_spike_execution_decision_requested(scope: EventScope) -> None:
         or not isinstance(candidate, dict)
         or not isinstance(assay, dict)
         or decision.get("status") != "proposed"
+        or event.get("stream_id") != payload.get("spike_id")
+        or not preceding_transaction_event_matches(
+            event,
+            payload.get("w2_payload"),
+            event_type="DecisionProposed",
+            stream_id=payload.get("decision_id"),
+        )
         or not _valid_spike_execution_proposal(payload.get("w2_payload"))
         or payload["w2_payload"].get("new_decision_id") != payload.get("decision_id")
         or not isinstance(resource, Mapping)
@@ -132,6 +146,7 @@ def reduce_spike_authorized(scope: EventScope) -> None:
     operational_events = scope.operational_events
     state = scope.state
     following_transaction_event_matches = scope.following_transaction_event_matches
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
     event = scope.event
 
     spike = state["spikes"].get(payload.get("spike_id"))
@@ -153,6 +168,12 @@ def reduce_spike_authorized(scope: EventScope) -> None:
         or not isinstance(assay, Mapping)
         or decision.get("status") != "resolved"
         or decision.get("selected_option") != "approve"
+        or not preceding_transaction_event_matches(
+            event,
+            payload.get("w2_payload"),
+            event_type="DecisionResolved",
+            stream_id=payload.get("decision_id"),
+        )
         or relation != spike.get("execution_authority_relation")
         or spike.get("execution_authority_relation", {}).get("actor_id") != event.get("actor_id")
         or not isinstance(resource, Mapping)
@@ -475,12 +496,14 @@ def reduce_spike_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event = scope.event
+    review_verdict_precedes = scope.review_verdict_precedes
 
     spike = state["spikes"].get(payload.get("spike_id"))
     review = state["reviews"].get(payload.get("review_id"))
     if (
         not isinstance(spike, dict)
         or event.get("stream_id") != payload.get("spike_id")
+        or spike.get("status") != "verdict_recorded"
         or not spike.get("review_pending")
         or spike.get("review_id") != payload.get("review_id")
         or not isinstance(review, dict)
@@ -492,6 +515,7 @@ def reduce_spike_reviewed(scope: EventScope) -> None:
             subject_sha256=payload.get("subject_sha256"),
         )
         or payload.get("subject_sha256") != spike.get("review_subject_sha256")
+        or not review_verdict_precedes(event, payload)
     ):
         raise IntegrityError("invalid Spike reviewed transition")
     spike.update(status="reviewed", review_pending=False)
@@ -533,6 +557,7 @@ def reduce_spike_partial_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     following_transaction_event_matches = scope.following_transaction_event_matches
+    review_verdict_precedes = scope.review_verdict_precedes
     event = scope.event
 
     spike = state["spikes"].get(payload.get("spike_id"))
@@ -552,6 +577,7 @@ def reduce_spike_partial_reviewed(scope: EventScope) -> None:
             subject_sha256=payload.get("subject_sha256"),
         )
         or payload.get("subject_sha256") != spike.get("review_subject_sha256")
+        or not review_verdict_precedes(event, payload)
         or not following_transaction_event_matches(
             event,
             payload,
@@ -570,6 +596,7 @@ def reduce_spike_cancelled(scope: EventScope) -> None:
     payload = scope.payload
     required_string = scope.required_string
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
 
     spike = state["spikes"].get(payload.get("spike_id"))
     candidate = state["candidates"].get(payload.get("candidate_id"))
@@ -579,6 +606,12 @@ def reduce_spike_cancelled(scope: EventScope) -> None:
         or not isinstance(candidate, dict)
         or event.get("stream_id") != payload.get("spike_id")
         or spike.get("status") not in {"planned", "approval_pending", "authorized", "running"}
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type="CandidateEvaluationCancelled",
+            stream_id=payload.get("candidate_id"),
+        )
         or not _spike_cancellation_matches(
             payload.get("cancellation_artifact"),
             payload=payload,
@@ -614,6 +647,8 @@ def reduce_spike_cancellation_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
+    review_verdict_precedes = scope.review_verdict_precedes
 
     spike = state["spikes"].get(payload.get("spike_id"))
     review = state["reviews"].get(payload.get("review_id"))
@@ -632,6 +667,13 @@ def reduce_spike_cancellation_reviewed(scope: EventScope) -> None:
             subject_sha256=payload.get("subject_sha256"),
         )
         or payload.get("subject_sha256") != spike.get("review_subject_sha256")
+        or not review_verdict_precedes(event, payload)
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type="CandidateSpikeCancellationReviewed",
+            stream_id=payload.get("candidate_id"),
+        )
     ):
         raise IntegrityError("invalid Spike cancellation review")
     spike.update(status="cancellation_reviewed", review_pending=False)
@@ -642,8 +684,26 @@ def reduce_candidate_spike_cancellation_reviewed(scope: EventScope) -> None:
 
     state = scope.state
     payload = scope.payload
+    event = scope.event
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
 
     candidate = state["candidates"].get(payload.get("candidate_id"))
-    if not isinstance(candidate, dict) or candidate.get("status") != "spike_cancelled":
+    spike = state["spikes"].get(payload.get("spike_id"))
+    if (
+        not isinstance(candidate, dict)
+        or candidate.get("status") != "spike_cancelled"
+        or event.get("stream_id") != payload.get("candidate_id")
+        or candidate.get("spike_id") != payload.get("spike_id")
+        or not isinstance(spike, Mapping)
+        or spike.get("candidate_id") != payload.get("candidate_id")
+        or spike.get("status") != "cancellation_reviewed"
+        or spike.get("review_id") != payload.get("review_id")
+        or not preceding_transaction_event_matches(
+            event,
+            payload,
+            event_type="SpikeCancellationReviewed",
+            stream_id=payload.get("spike_id"),
+        )
+    ):
         raise IntegrityError("invalid Candidate Spike cancellation review")
     candidate.update(status="spike_revisit_eligible")

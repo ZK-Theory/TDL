@@ -9,22 +9,25 @@ module reads them rather than restating them.
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import Any
 
 
-ACCEPTED = {
-    "accepted_commit": "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6",
-    "accepted_tree": "151e0f8b24ad76913640aa0f1de66cd177a44f8f",
-    "catalogue_blob": "8d58818540e04859f929d4b04c71e4cfa0512554",
-    "catalogue_bytes": 136229,
-    "catalogue_sha256": "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80",
-    "bootstrap_blob": "aac7242072c3ce62370dd74d9a27a29e1a33070d",
-    "bootstrap_sha256": "ebb7529a3bbf8faea9101b1556b3b71e6e0b3b9dbe0df163591466903d569d38",
-    "review_commit": "bd61f00d05191de1fd330e997d33ba74ac1b506c",
-    "review_blob": "2e0deee51e526cc712c6b04a79695abaa4fb6442",
-    "review_sha256": "beb96faa0b58d3ba5faf326b94bb7bc7e1d6649b00c577f2239e1083fe09eaf9",
-    "owner_decision": "I accept the KAN 84 envelope, proceed.",
-}
+ACCEPTED = MappingProxyType(
+    {
+        "accepted_commit": "09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6",
+        "accepted_tree": "151e0f8b24ad76913640aa0f1de66cd177a44f8f",
+        "catalogue_blob": "8d58818540e04859f929d4b04c71e4cfa0512554",
+        "catalogue_bytes": 136229,
+        "catalogue_sha256": "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80",
+        "bootstrap_blob": "aac7242072c3ce62370dd74d9a27a29e1a33070d",
+        "bootstrap_sha256": "ebb7529a3bbf8faea9101b1556b3b71e6e0b3b9dbe0df163591466903d569d38",
+        "review_commit": "bd61f00d05191de1fd330e997d33ba74ac1b506c",
+        "review_blob": "2e0deee51e526cc712c6b04a79695abaa4fb6442",
+        "review_sha256": "beb96faa0b58d3ba5faf326b94bb7bc7e1d6649b00c577f2239e1083fe09eaf9",
+        "owner_decision": "I accept the KAN 84 envelope, proceed.",
+    }
+)
 ROW_IDS = tuple([*(f"OR-{number:03d}" for number in range(1, 42)), *(f"OR-{number:03d}" for number in range(101, 141))])
 CATALOGUE_STREAM_ID = "obj_019fed25-b33e-7740-b280-000000000001"
 

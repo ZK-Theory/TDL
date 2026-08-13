@@ -51,7 +51,7 @@ nothing here is an independent approval. The controlling assessment is
 
 ## Dependency direction
 
-```
+```text
 accepted_w11          (no intra-package imports)
       ↑
    routes ────────────────┐
@@ -86,7 +86,7 @@ dependency chain (`__init__ → runtime → replay → replay.driver → replay.
 → replay`). It functioned only because Python tolerates partially-initialised
 parents. The new cycle control **failed on this before it passed**:
 
-```
+```text
 AssertionError: import cycle: __init__ -> runtime -> replay -> replay.driver -> replay.registry -> replay
 ```
 

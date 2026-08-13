@@ -31,11 +31,10 @@ def reduce_assay_requested(scope: EventScope) -> None:
     event = scope.event
     following_transaction_event_matches = scope.following_transaction_event_matches
 
-    assay_id = payload.get("assay_id")
-    candidate_id = payload.get("candidate_id")
+    assay_id = required_string("assay_id")
+    candidate_id = required_string("candidate_id")
     if (
-        not isinstance(assay_id, str)
-        or aggregate_identity_exists(assay_id)
+        aggregate_identity_exists(assay_id)
         or state["candidates"].get(candidate_id, {}).get("status") not in {"registered", "assay_retry_authorized"}
         or not _current_assay_bar_matches(payload, state["assay_bar_authority"])
         or (
@@ -294,8 +293,17 @@ def reduce_candidate_evaluation_cancelled(scope: EventScope) -> None:
         decision = state["decisions"].get(spike.get("decision_id")) if isinstance(spike, dict) else None
         if (
             not isinstance(spike, dict)
+            or event.get("stream_id") != payload.get("candidate_id")
+            or candidate.get("status") not in {"spike_approval_pending", "spike_authorized", "spike_running"}
+            or candidate.get("spike_id") != payload.get("spike_id")
             or spike.get("candidate_id") != payload.get("candidate_id")
             or spike.get("status") != "cancelled"
+            or not preceding_transaction_event_matches(
+                event,
+                payload,
+                event_type="SpikeCancelled",
+                stream_id=payload.get("spike_id"),
+            )
         ):
             raise IntegrityError("invalid Candidate evaluation cancellation")
         if (
@@ -392,12 +400,14 @@ def reduce_assay_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event = scope.event
+    review_verdict_precedes = scope.review_verdict_precedes
 
     assay = state["assays"].get(payload.get("assay_id"))
     review = state["reviews"].get(payload.get("review_id"))
     if (
         not isinstance(assay, dict)
         or event.get("stream_id") != payload.get("assay_id")
+        or assay.get("status") != "scored"
         or not assay.get("review_pending")
         or assay.get("review_id") != payload.get("review_id")
         or not isinstance(review, dict)
@@ -409,6 +419,7 @@ def reduce_assay_reviewed(scope: EventScope) -> None:
             subject_sha256=payload.get("subject_sha256"),
         )
         or payload.get("subject_sha256") != assay.get("review_subject_sha256")
+        or not review_verdict_precedes(event, payload)
     ):
         raise IntegrityError("invalid Assay reviewed transition")
     assay.update(status="reviewed", review_pending=False, version=event["stream_version"])
@@ -421,6 +432,8 @@ def reduce_assay_cancellation_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
+    review_verdict_precedes = scope.review_verdict_precedes
 
     assay = state["assays"].get(payload.get("assay_id"))
     review = state["reviews"].get(payload.get("review_id"))
@@ -441,6 +454,17 @@ def reduce_assay_cancellation_reviewed(scope: EventScope) -> None:
             subject_sha256=payload.get("subject_sha256"),
         )
         or payload.get("subject_sha256") != assay.get("review_subject_sha256")
+        or not review_verdict_precedes(event, payload)
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type=(
+                "CandidateAssayPartialReviewed"
+                if event_type == "AssayPartialReviewed"
+                else "CandidateAssayCancellationReviewed"
+            ),
+            stream_id=payload.get("candidate_id"),
+        )
     ):
         raise IntegrityError("invalid Assay reviewed transition")
     assay.update(
@@ -457,6 +481,7 @@ def reduce_candidate_assay_cancellation_reviewed(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event = scope.event
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
 
     candidate = state["candidates"].get(payload.get("candidate_id"))
     assay = state["assays"].get(payload.get("assay_id"))
@@ -467,9 +492,20 @@ def reduce_candidate_assay_cancellation_reviewed(scope: EventScope) -> None:
     if (
         not isinstance(candidate, dict)
         or candidate.get("status") != expected_status
+        or event.get("stream_id") != payload.get("candidate_id")
+        or candidate.get("assay_id") != payload.get("assay_id")
         or not isinstance(assay, dict)
         or assay.get("candidate_id") != payload.get("candidate_id")
         or assay.get("status") != expected_assay_status
+        or assay.get("review_id") != payload.get("review_id")
+        or not preceding_transaction_event_matches(
+            event,
+            payload,
+            event_type="AssayPartialReviewed"
+            if event_type == "CandidateAssayPartialReviewed"
+            else "AssayCancellationReviewed",
+            stream_id=payload.get("assay_id"),
+        )
     ):
         raise IntegrityError("invalid Candidate Assay review transition")
     candidate.update(status="assay_revisit_eligible", version=event["stream_version"])

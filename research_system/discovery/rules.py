@@ -488,11 +488,22 @@ def _assay_scorecard_matches(
         1,
         rubric.get("rule_evaluation_algorithm_hash"),
     )
-    required_results = [
-        (definition, result)
+    required_axis_ids = rubric.get("required_axis_ids")
+    if (
+        not isinstance(required_axis_ids, list)
+        or not required_axis_ids
+        or not all(isinstance(axis_id, str) and axis_id for axis_id in required_axis_ids)
+        or len(set(required_axis_ids)) != len(required_axis_ids)
+    ):
+        return False
+    results_by_axis = {
+        definition.get("axis_id"): (definition, result)
         for definition, result in zip(axis_definitions, axis_results, strict=True)
-        if definition.get("required") is True
-    ]
+        if isinstance(definition.get("axis_id"), str)
+    }
+    if any(axis_id not in results_by_axis for axis_id in required_axis_ids):
+        return False
+    required_results = [results_by_axis[axis_id] for axis_id in required_axis_ids]
     recommendation = (
         "PROMOTE"
         if all(

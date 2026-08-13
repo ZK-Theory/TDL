@@ -13,6 +13,23 @@ from research_system.discovery.rules import _promotion_relation_matches
 from research_system.discovery.rules import _valid_promotion_options
 from research_system.discovery.rules import _valid_spike_promotion_option
 from research_system.errors import IntegrityError
+from typing import Mapping
+
+
+def _decision_precedes(scope: EventScope, event_type: str, decision_id: object) -> bool:
+    """Bind a promotion transition to its exact same-transaction Decision event."""
+
+    key = "new_decision_id" if event_type == "DecisionProposed" else "decision_id"
+    matches = [
+        event
+        for event in scope.transaction_events.get(scope.event.get("transaction_id"), ())
+        if event.get("transaction_index", 0) < scope.event.get("transaction_index", 0)
+        and event.get("event_type") == event_type
+    ]
+    if len(matches) != 1 or matches[0].get("stream_id") != decision_id:
+        return False
+    payload = matches[0].get("payload")
+    return isinstance(payload, Mapping) and payload.get(key) == decision_id
 
 
 def reduce_candidate_promotion_requested(scope: EventScope) -> None:
@@ -23,8 +40,10 @@ def reduce_candidate_promotion_requested(scope: EventScope) -> None:
     payload = scope.payload
     event = scope.event
 
-    candidate = state["candidates"].get(payload.get("candidate_id"))
-    decision = state["decisions"].get(payload.get("decision_id"))
+    candidate_id = required_string("candidate_id")
+    decision_id = required_string("decision_id")
+    candidate = state["candidates"].get(candidate_id)
+    decision = state["decisions"].get(decision_id)
     gate = required_string("promotion_gate")
     expected_status = {
         "assay_to_spike": "assay_scored",
@@ -37,12 +56,14 @@ def reduce_candidate_promotion_requested(scope: EventScope) -> None:
     review = state["reviews"].get(payload.get("review_id"))
     if (
         not isinstance(candidate, dict)
+        or event.get("stream_id") != candidate_id
         or candidate.get("status") != expected_status
         or not isinstance(decision, dict)
         or decision.get("status") != "proposed"
         or not _valid_promotion_options(decision.get("options"))
         or not isinstance(aggregate, dict)
         or not isinstance(review, dict)
+        or not _decision_precedes(scope, "DecisionProposed", decision_id)
         or not _promotion_relation_matches(
             payload.get("promotion_relation"),
             decision_id=payload.get("decision_id"),
@@ -68,8 +89,9 @@ def reduce_candidate_promotion_requested(scope: EventScope) -> None:
     decision.update(kind="discovery_promotion", promotion_relation=deepcopy(payload["promotion_relation"]))
     candidate.update(
         status="promotion_pending",
-        decision_id=required_string("decision_id"),
+        decision_id=decision_id,
         promotion_gate=gate,
+        version=event["stream_version"],
     )
 
 
@@ -81,8 +103,10 @@ def reduce_candidate_promotion_applied(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
 
-    candidate = state["candidates"].get(payload.get("candidate_id"))
-    decision = state["decisions"].get(payload.get("decision_id"))
+    candidate_id = required_string("candidate_id")
+    decision_id = required_string("decision_id")
+    candidate = state["candidates"].get(candidate_id)
+    decision = state["decisions"].get(decision_id)
     gate = required_string("promotion_gate")
     selected_option = required_string("selected_option")
     next_state = required_string("next_candidate_state")
@@ -96,6 +120,7 @@ def reduce_candidate_promotion_applied(scope: EventScope) -> None:
     }.get(selected_option)
     if (
         not isinstance(candidate, dict)
+        or event.get("stream_id") != candidate_id
         or candidate.get("status") != "promotion_pending"
         or candidate.get("decision_id") != payload.get("decision_id")
         or candidate.get("promotion_gate") != gate
@@ -104,6 +129,7 @@ def reduce_candidate_promotion_applied(scope: EventScope) -> None:
         or decision.get("status") != "resolved"
         or decision.get("kind") != "discovery_promotion"
         or decision.get("selected_option") != selected_option
+        or not _decision_precedes(scope, "DecisionResolved", decision_id)
         or (
             selected_option == "PROMOTE"
             and gate == "assay_to_spike"
@@ -118,6 +144,6 @@ def reduce_candidate_promotion_applied(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Candidate promotion application")
-    candidate.update(status=next_state)
+    candidate.update(status=next_state, version=event["stream_version"])
     if selected_option == "PARK":
         candidate["parked_at_global_position"] = event["global_position"]

@@ -14,9 +14,12 @@ from pathlib import Path
 
 import pytest
 
+import research_system.discovery as discovery_package
+from research_system.discovery.accepted_w11 import ACCEPTED
 from research_system.discovery.replay.registry import REDUCERS
+from research_system.discovery.routes import DISCOVERY_ROW_ROUTES
 
-DISCOVERY = Path(__file__).resolve().parents[3] / "research_system" / "discovery"
+DISCOVERY = Path(discovery_package.__file__).resolve().parent
 LIFECYCLE_MODULES = (
     "genesis",
     "scout_candidate",
@@ -44,18 +47,63 @@ def _module_imports(path: Path, *, full: bool = False) -> set[str]:
     """
 
     imported: set[str] = set()
+    relative = path.relative_to(DISCOVERY).with_suffix("").parts
+    current_package = ("research_system", "discovery", *relative[:-1])
+
+    def add(module: str) -> None:
+        prefix = "research_system.discovery"
+        if module == prefix:
+            return
+        if module.startswith(f"{prefix}."):
+            tail = module[len(prefix) + 1 :]
+            imported.add(tail if full else tail.split(".")[0])
+
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            if node.module.startswith("research_system.discovery"):
-                tail = node.module[len("research_system.discovery") :].lstrip(".")
-                if tail:
-                    imported.add(tail if full else tail.split(".")[0])
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                add(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = current_package[: len(current_package) - node.level + 1]
+                module = ".".join((*base, *(node.module.split(".") if node.module else ())))
+            else:
+                module = node.module or ""
+            add(module)
+            for alias in node.names:
+                if alias.name != "*":
+                    add(f"{module}.{alias.name}")
     return imported
+
+
+def _route_reducer_event_types() -> set[str]:
+    """Derive the lifecycle reducer surface from the accepted production routes."""
+
+    aliases = {
+        "AssayReviewRequested": "AssayOutcomeReviewRequested",
+        "CandidateRevisitRequested/assay": "CandidateAssayRevisitRequested",
+        "CandidateRevisitRequested/spike": "CandidateSpikeRevisitRequested",
+        "CandidateRevisitResolved/assay": "CandidateAssayRevisitResolved",
+        "CandidateRevisitResolved/spike": "CandidateSpikeRevisitResolved",
+        "CandidateEvaluationCancelled/spike": "CandidateEvaluationCancelled",
+        "SpikeAttemptClosed/partial": "SpikeAttemptClosed",
+        "SpikeAttemptClosed/cancelled": "SpikeAttemptClosed",
+    }
+    driver_owned_families = {"authority", "assay_authority"}
+    expected = {
+        aliases.get(event_type, event_type)
+        for route in DISCOVERY_ROW_ROUTES.values()
+        if route.family not in driver_owned_families
+        for event_type in route.catalogue_events
+    }
+    # OR-019/OR-022 expand the accepted SpikeAttemptClosed catalogue event into
+    # the shared operational lease release that still has Discovery semantics.
+    expected.add("SpikeLeaseReleased")
+    return expected
 
 
 def _reducer_functions(module: str) -> set[str]:
     tree = ast.parse((DISCOVERY / "replay" / f"{module}.py").read_text(encoding="utf-8"))
-    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    return {node.name for node in tree.body if isinstance(node, ast.FunctionDef) and node.name.startswith("reduce_")}
 
 
 def test_every_registered_event_type_has_exactly_one_owning_reducer() -> None:
@@ -65,6 +113,15 @@ def test_every_registered_event_type_has_exactly_one_owning_reducer() -> None:
     for event_type, reducer in REDUCERS.items():
         assert callable(reducer), event_type
         assert reducer.__module__.startswith("research_system.discovery.replay."), event_type
+        assert reducer.__module__.rsplit(".", 1)[-1] in LIFECYCLE_MODULES, event_type
+    assert set(REDUCERS) == _route_reducer_event_types()
+
+
+def test_accepted_w11_identity_is_immutable() -> None:
+    """The producer and replay oracle cannot be mutated through a shared mapping."""
+
+    with pytest.raises(TypeError):
+        ACCEPTED["catalogue_sha256"] = "0" * 64  # type: ignore[index]
 
 
 def test_no_reducer_is_unreachable_from_the_registry() -> None:

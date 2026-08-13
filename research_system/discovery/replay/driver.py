@@ -175,6 +175,24 @@ def replay_discovery(
                 raise IntegrityError(f"Discovery event payload requires {key}")
         return following_payload == payload
 
+    def review_verdict_precedes(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        """Bind a satisfied lifecycle transition to its exact review verdict transaction."""
+
+        preceding = [
+            transaction_event
+            for transaction_event in transaction_events.get(event.get("transaction_id"), ())
+            if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
+            and transaction_event.get("event_type") == "ReviewVerdictRecorded"
+        ]
+        if len(preceding) != 1 or preceding[0].get("stream_id") != payload.get("review_id"):
+            return False
+        verdict = preceding[0].get("payload")
+        return bool(
+            isinstance(verdict, Mapping)
+            and verdict.get("review_id") == payload.get("review_id")
+            and verdict.get("unchanged_subject_sha256") == payload.get("subject_sha256")
+        )
+
     def candidate_assay_link_matches(event: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
         """Bind a Candidate link to the exact Assay score in its transaction."""
 
@@ -623,6 +641,7 @@ def replay_discovery(
                 candidate_spike_link_matches=candidate_spike_link_matches,
                 preceding_transaction_event_matches=preceding_transaction_event_matches,
                 following_transaction_event_matches=following_transaction_event_matches,
+                review_verdict_precedes=review_verdict_precedes,
                 candidate_assay_link_matches=candidate_assay_link_matches,
                 candidate_spike_plan_link_matches=candidate_spike_plan_link_matches,
                 spike_operational_closure_matches=spike_operational_closure_matches,

@@ -34,6 +34,7 @@ class EventScope:
     candidate_spike_link_matches: Callable[..., bool]
     preceding_transaction_event_matches: Callable[..., bool]
     following_transaction_event_matches: Callable[..., bool]
+    review_verdict_precedes: Callable[..., bool]
     candidate_assay_link_matches: Callable[..., bool]
     candidate_spike_plan_link_matches: Callable[..., bool]
     spike_operational_closure_matches: Callable[..., bool]

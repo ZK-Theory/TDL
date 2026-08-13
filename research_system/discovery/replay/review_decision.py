@@ -16,6 +16,153 @@ from research_system.errors import IntegrityError
 from typing import Mapping
 
 
+def _transaction_side(scope: EventScope, *, following: bool) -> list[dict[str, object]]:
+    """Return the ordered events on one side of the current transaction member."""
+
+    boundary = scope.event.get("transaction_index", 0)
+    return [
+        event
+        for event in scope.transaction_events.get(scope.event.get("transaction_id"), ())
+        if (event.get("transaction_index", 0) > boundary) == following and event.get("transaction_index", 0) != boundary
+    ]
+
+
+def _payload(event: Mapping[str, object]) -> Mapping[str, object] | None:
+    value = event.get("payload")
+    return value if isinstance(value, Mapping) else None
+
+
+def _decision_event_precedes(scope: EventScope, event_type: str, decision_id: object) -> bool:
+    """Bind a lifecycle transition to its exact Decision event."""
+
+    matches = [event for event in _transaction_side(scope, following=False) if event.get("event_type") == event_type]
+    key = "new_decision_id" if event_type == "DecisionProposed" else "decision_id"
+    return bool(
+        len(matches) == 1
+        and matches[0].get("stream_id") == decision_id
+        and isinstance(_payload(matches[0]), Mapping)
+        and _payload(matches[0]).get(key) == decision_id
+    )
+
+
+def _decision_proposal_write_set_matches(scope: EventScope, decision_id: str) -> bool:
+    """Require the complete command-specific lifecycle write set after a proposal."""
+
+    following = _transaction_side(scope, following=True)
+    command_type = scope.event.get("command_type")
+    if command_type == "ProposePromotionDecision":
+        if len(following) != 1 or following[0].get("event_type") != "CandidatePromotionRequested":
+            return False
+        payload = _payload(following[0])
+        return bool(
+            isinstance(payload, Mapping)
+            and following[0].get("stream_id") == payload.get("candidate_id")
+            and payload.get("decision_id") == decision_id
+        )
+    if command_type == "ProposeSpikeExecutionDecision":
+        if len(following) != 1 or following[0].get("event_type") != "SpikeExecutionDecisionRequested":
+            return False
+        payload = _payload(following[0])
+        return bool(
+            isinstance(payload, Mapping)
+            and following[0].get("stream_id") == payload.get("spike_id")
+            and payload.get("decision_id") == decision_id
+        )
+    if command_type == "ProposeRevisitDecision" and len(following) == 2:
+        subject, candidate = following
+        subject_payload = _payload(subject)
+        candidate_payload = _payload(candidate)
+        kind = "Assay" if subject.get("event_type") == "AssayRevisitRequested" else "Spike"
+        subject_id_key = f"{kind.lower()}_id"
+        return bool(
+            subject.get("event_type") in {"AssayRevisitRequested", "SpikeRevisitRequested"}
+            and candidate.get("event_type") == f"Candidate{kind}RevisitRequested"
+            and isinstance(subject_payload, Mapping)
+            and candidate_payload == subject_payload
+            and subject.get("stream_id") == subject_payload.get(subject_id_key)
+            and candidate.get("stream_id") == subject_payload.get("candidate_id")
+            and subject_payload.get("decision_id") == decision_id
+        )
+    return False
+
+
+def _decision_resolution_write_set_matches(scope: EventScope, decision_id: str, selected: str) -> bool:
+    """Require the complete command-specific lifecycle write set after a resolution."""
+
+    following = _transaction_side(scope, following=True)
+    if len(following) == 1 and following[0].get("event_type") == "CandidatePromotionApplied":
+        payload = _payload(following[0])
+        return bool(
+            isinstance(payload, Mapping)
+            and following[0].get("stream_id") == payload.get("candidate_id")
+            and payload.get("decision_id") == decision_id
+            and payload.get("selected_option") == selected
+        )
+    if len(following) != 2:
+        return False
+    subject, candidate = following
+    subject_payload = _payload(subject)
+    if subject.get("event_type") == "SpikeAuthorized":
+        return bool(
+            candidate.get("event_type") == "CandidateSpikeAuthorized"
+            and isinstance(subject_payload, Mapping)
+            and _payload(candidate) == subject_payload
+            and subject.get("stream_id") == subject_payload.get("spike_id")
+            and candidate.get("stream_id") == subject_payload.get("candidate_id")
+            and subject_payload.get("decision_id") == decision_id
+            and selected == "approve"
+        )
+    kind = "Assay" if subject.get("event_type") == "AssayRevisitResolved" else "Spike"
+    subject_id_key = f"{kind.lower()}_id"
+    return bool(
+        subject.get("event_type") in {"AssayRevisitResolved", "SpikeRevisitResolved"}
+        and candidate.get("event_type") == f"Candidate{kind}RevisitResolved"
+        and isinstance(subject_payload, Mapping)
+        and _payload(candidate) == subject_payload
+        and subject.get("stream_id") == subject_payload.get(subject_id_key)
+        and candidate.get("stream_id") == subject_payload.get("candidate_id")
+        and subject_payload.get("decision_id") == decision_id
+        and subject_payload.get("selected_option") == selected
+    )
+
+
+def _review_write_set_matches(scope: EventScope, review: Mapping[str, object], status: str) -> bool:
+    """Require the exact lifecycle transitions authorized by one review verdict."""
+
+    following = _transaction_side(scope, following=True)
+    if status != "satisfied":
+        return not following
+    subject_id = review.get("subject_id")
+    subject_kind = review.get("subject_kind")
+    subject = scope.state[f"{subject_kind}s"].get(subject_id) if subject_kind in {"assay", "spike"} else None
+    if not isinstance(subject, Mapping):
+        return False
+    event_prefix = str(subject_kind).title()
+    expected = {
+        "scored": (f"{event_prefix}Reviewed",),
+        "verdict_recorded": (f"{event_prefix}Reviewed",),
+        "partial_recorded": (f"{event_prefix}PartialReviewed", f"Candidate{event_prefix}PartialReviewed"),
+        "cancelled": (f"{event_prefix}CancellationReviewed", f"Candidate{event_prefix}CancellationReviewed"),
+    }.get(subject.get("status"))
+    if expected is None or tuple(event.get("event_type") for event in following) != expected:
+        return False
+    transition_payload = _payload(following[0])
+    id_key = f"{subject_kind}_id"
+    if not isinstance(transition_payload, Mapping):
+        return False
+    if not (
+        following[0].get("stream_id") == subject_id
+        and transition_payload.get(id_key) == subject_id
+        and transition_payload.get("review_id") == review.get("review_id")
+        and transition_payload.get("subject_sha256") == review.get("subject_sha256")
+    ):
+        return False
+    return len(following) == 1 or bool(
+        _payload(following[1]) == transition_payload
+        and following[1].get("stream_id") == transition_payload.get("candidate_id")
+    )
+
+
 def reduce_review_requested(scope: EventScope) -> None:
     """Reduce ReviewRequested."""
 
@@ -93,8 +240,11 @@ def reduce_review_verdict_recorded(scope: EventScope) -> None:
         or payload.get("computed_independence_grade") != review.get("required_independence_grade")
     ):
         raise IntegrityError("invalid Discovery review verdict")
+    policy_status = _review_policy_status(payload)
+    if not _review_write_set_matches(scope, review, policy_status):
+        raise IntegrityError("invalid Discovery review transaction")
     review.update(
-        status=_review_policy_status(payload),
+        status=policy_status,
         verdict=required_string("verdict"),
         reviewer_actor_id=reviewer_actor_id,
         verdict_event_id=event.get("event_id"),
@@ -116,7 +266,12 @@ def reduce_decision_proposed(scope: EventScope) -> None:
 
     decision_id = required_string("new_decision_id")
     options = required_string_list("options")
-    if event["stream_id"] != decision_id or aggregate_identity_exists(decision_id) or len(set(options)) != len(options):
+    if (
+        event["stream_id"] != decision_id
+        or aggregate_identity_exists(decision_id)
+        or len(set(options)) != len(options)
+        or not _decision_proposal_write_set_matches(scope, decision_id)
+    ):
         raise IntegrityError("invalid Discovery decision proposal")
     state["decisions"][decision_id] = {
         "status": "proposed",
@@ -146,6 +301,7 @@ def reduce_decision_resolved(scope: EventScope) -> None:
         or not isinstance(decision, dict)
         or decision.get("status") != "proposed"
         or selected_option not in decision.get("options", ())
+        or not _decision_resolution_write_set_matches(scope, decision_id, selected_option)
     ):
         raise IntegrityError("invalid Discovery decision resolution")
     decision.update(status="resolved", selected_option=selected_option, version=event["stream_version"])
@@ -190,16 +346,18 @@ def reduce_assay_revisit_requested(scope: EventScope) -> None:
     payload = scope.payload
     required_string = scope.required_string
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
 
     collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
     subject_id = payload.get("assay_id") if event_type.startswith("Assay") else payload.get("spike_id")
     subject = collection.get(subject_id)
     review = state["reviews"].get(payload.get("review_id"))
     decision = state["decisions"].get(payload.get("decision_id"))
-    candidate = state["candidates"].get(payload.get("candidate_id"))
+    candidate_id = required_string("candidate_id")
+    candidate = state["candidates"].get(candidate_id)
     if (
         not isinstance(subject, dict)
-        or subject.get("candidate_id") != payload.get("candidate_id")
+        or subject.get("candidate_id") != candidate_id
         or subject.get("status") not in {"partial_reviewed", "cancellation_reviewed", "reviewed", "parked"}
         or subject.get("review_id") != payload.get("review_id")
         or not isinstance(review, dict)
@@ -210,6 +368,17 @@ def reduce_assay_revisit_requested(scope: EventScope) -> None:
         or decision.get("status") != "proposed"
         or decision.get("options") != payload["w2_payload"].get("options")
         or not isinstance(candidate, dict)
+        or event.get("stream_id") != subject_id
+        or candidate.get(f"{event_type[:5].lower()}_id") != subject_id
+        or not _decision_event_precedes(scope, "DecisionProposed", payload.get("decision_id"))
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type=(
+                "CandidateAssayRevisitRequested" if event_type.startswith("Assay") else "CandidateSpikeRevisitRequested"
+            ),
+            stream_id=candidate_id,
+        )
         or not _revisit_relation_matches(
             payload.get("revisit_relation"),
             decision_id=payload.get("decision_id"),
@@ -237,10 +406,33 @@ def reduce_candidate_assay_revisit_requested(scope: EventScope) -> None:
     payload = scope.payload
     event_type = scope.event_type
     required_string = scope.required_string
+    event = scope.event
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
 
-    candidate = state["candidates"].get(payload.get("candidate_id"))
+    candidate_id = required_string("candidate_id")
+    candidate = state["candidates"].get(candidate_id)
     kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
-    if not isinstance(candidate, dict) or candidate.get("status") not in {f"{kind}_revisit_eligible", "parked"}:
+    subject_id = payload.get(f"{kind}_id")
+    subject = state[f"{kind}s"].get(subject_id)
+    decision = state["decisions"].get(payload.get("decision_id"))
+    if (
+        not isinstance(candidate, dict)
+        or candidate.get("status") not in {f"{kind}_revisit_eligible", "parked"}
+        or event.get("stream_id") != candidate_id
+        or candidate.get(f"{kind}_id") != subject_id
+        or not isinstance(subject, Mapping)
+        or subject.get("candidate_id") != candidate_id
+        or subject.get("status") != "revisit_pending"
+        or subject.get("decision_id") != payload.get("decision_id")
+        or not isinstance(decision, Mapping)
+        or decision.get("status") != "proposed"
+        or not preceding_transaction_event_matches(
+            event,
+            payload,
+            event_type=f"{kind.title()}RevisitRequested",
+            stream_id=subject_id,
+        )
+    ):
         raise IntegrityError("invalid Candidate revisit request")
     candidate.update(status=f"{kind}_revisit_pending", decision_id=required_string("decision_id"))
 
@@ -271,6 +463,7 @@ def reduce_assay_revisit_resolved(scope: EventScope) -> None:
         or decision.get("status") != "resolved"
         or decision.get("selected_option") != selected
         or selected not in {"RETRY", "PARK", "KILL"}
+        or not _decision_event_precedes(scope, "DecisionResolved", payload.get("decision_id"))
         or not following_transaction_event_matches(
             event,
             payload,
@@ -294,7 +487,8 @@ def reduce_candidate_assay_revisit_resolved(scope: EventScope) -> None:
     event_type = scope.event_type
     preceding_transaction_event_matches = scope.preceding_transaction_event_matches
 
-    candidate = state["candidates"].get(payload.get("candidate_id"))
+    candidate_id = required_string("candidate_id")
+    candidate = state["candidates"].get(candidate_id)
     kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
     subject_id = payload.get(f"{kind}_id")
     selected = required_string("selected_option")
@@ -303,7 +497,7 @@ def reduce_candidate_assay_revisit_resolved(scope: EventScope) -> None:
         not isinstance(candidate, dict)
         or candidate.get("status") != f"{kind}_revisit_pending"
         or candidate.get(f"{kind}_id") != subject_id
-        or event.get("stream_id") != payload.get("candidate_id")
+        or event.get("stream_id") != candidate_id
         or candidate.get("decision_id") != payload.get("decision_id")
         or not isinstance(decision, Mapping)
         or decision.get("status") != "resolved"
@@ -329,11 +523,25 @@ def reduce_assay_superseded(scope: EventScope) -> None:
     state = scope.state
     event_type = scope.event_type
     payload = scope.payload
+    event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
 
     collection = state["assays"] if event_type.startswith("Assay") else state["spikes"]
     subject_id = payload.get("old_assay_id") if event_type.startswith("Assay") else payload.get("old_spike_id")
     subject = collection.get(subject_id)
-    if not isinstance(subject, dict) or subject.get("status") != "retry_authorized":
+    kind = "assay" if event_type.startswith("Assay") else "spike"
+    if (
+        not isinstance(subject, dict)
+        or subject.get("status") != "retry_authorized"
+        or event.get("stream_id") != subject_id
+        or subject.get("candidate_id") != payload.get("candidate_id")
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type=f"Candidate{kind.title()}RetryStarted",
+            stream_id=payload.get("candidate_id"),
+        )
+    ):
         raise IntegrityError("invalid Discovery retry supersession")
     subject.update(status="superseded")
 
@@ -344,11 +552,36 @@ def reduce_candidate_assay_retry_started(scope: EventScope) -> None:
     state = scope.state
     payload = scope.payload
     event_type = scope.event_type
+    event = scope.event
+    required_string = scope.required_string
+    preceding_transaction_event_matches = scope.preceding_transaction_event_matches
 
-    candidate = state["candidates"].get(payload.get("candidate_id"))
+    candidate_id = required_string("candidate_id")
+    candidate = state["candidates"].get(candidate_id)
     kind = "assay" if event_type.startswith("CandidateAssay") else "spike"
-    new_id = payload.get("assay_id") if kind == "assay" else payload.get("spike_id")
-    if not isinstance(candidate, dict) or candidate.get("status") != f"{kind}_retry_authorized":
+    new_id = required_string(f"{kind}_id")
+    old_id = required_string(f"old_{kind}_id")
+    old_subject = state[f"{kind}s"].get(old_id)
+    new_subject = state[f"{kind}s"].get(new_id)
+    expected_new_status = "evidence_collecting" if kind == "assay" else "approval_pending"
+    if (
+        not isinstance(candidate, dict)
+        or candidate.get("status") != f"{kind}_retry_authorized"
+        or event.get("stream_id") != candidate_id
+        or candidate.get(f"{kind}_id") != old_id
+        or not isinstance(old_subject, Mapping)
+        or old_subject.get("status") != "superseded"
+        or old_subject.get("candidate_id") != candidate_id
+        or not isinstance(new_subject, Mapping)
+        or new_subject.get("status") != expected_new_status
+        or new_subject.get("candidate_id") != candidate_id
+        or not preceding_transaction_event_matches(
+            event,
+            payload,
+            event_type=f"{kind.title()}Superseded",
+            stream_id=old_id,
+        )
+    ):
         raise IntegrityError("invalid Candidate retry transition")
     candidate.update(status=f"{kind}_pending" if kind == "assay" else "spike_approval_pending")
     candidate[f"{kind}_id"] = new_id

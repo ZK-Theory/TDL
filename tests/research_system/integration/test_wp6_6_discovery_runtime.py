@@ -29,7 +29,7 @@ from research_system.discovery.routes import (
     discovery_identity_exists as _discovery_identity_exists,
     shared_event_partition as _shared_event_partition,
 )
-from research_system.discovery.rules import _valid_spike_promotion_option
+from research_system.discovery.rules import _assay_scorecard_matches, _valid_spike_promotion_option
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.authority import subject_sha256
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -3064,25 +3064,25 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         next(event for event in tampered if event["event_type"] == event_type)["payload"]["candidate_id"] = (
             "obj_019fed25-b33e-7740-b280-ffffffffffff"
         )
-        with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
+        with pytest.raises(IntegrityError, match="invalid Discovery (?:decision proposal|decision resolution|revisit)"):
             replay_discovery(_rehash_events(tampered))
     tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["review_id"] = (
         "rev_019fed25-b33e-7740-b280-ffffffffffff"
     )
-    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+    with pytest.raises(IntegrityError, match="invalid Discovery (?:decision proposal|revisit request)"):
         replay_discovery(_rehash_events(tampered))
     tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["w2_payload"][
         "new_decision_id"
     ] = "dec_019fed25-b33e-7740-b280-ffffffffffff"
-    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+    with pytest.raises(IntegrityError, match="invalid Discovery (?:decision proposal|revisit request)"):
         replay_discovery(_rehash_events(tampered))
     tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(event for event in tampered if event["event_type"] == "AssayRevisitRequested")["payload"]["revisit_relation"][
         "satisfied_revisit_predicate_ref"
     ]["content_hash"] = "f" * 64
-    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+    with pytest.raises(IntegrityError, match="invalid Discovery (?:decision proposal|revisit request)"):
         replay_discovery(_rehash_events(tampered))
     cross_candidate_review = [deepcopy(event) for event in runtime.ledger.iter_events()]
     reviewed_index = next(
@@ -3096,7 +3096,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     next(event for event in cross_candidate_review if event["event_type"] == "AssayPartialReviewed")["payload"][
         "candidate_id"
     ] = foreign_candidate_id
-    with pytest.raises(IntegrityError, match="invalid Assay reviewed transition"):
+    with pytest.raises(IntegrityError, match="invalid (?:Discovery review transaction|Assay reviewed transition)"):
         replay_discovery(_rehash_events(cross_candidate_review))
     excluded_option = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(
@@ -3104,7 +3104,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         for event in excluded_option
         if event["event_type"] == "DecisionProposed" and event["stream_id"] == revisit_id
     )["payload"]["options"] = ["PARK", "KILL"]
-    with pytest.raises(IntegrityError, match="invalid Discovery revisit request"):
+    with pytest.raises(IntegrityError, match="invalid Discovery (?:decision proposal|revisit request)"):
         replay_discovery(_rehash_events(excluded_option))
 
 
@@ -3968,7 +3968,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         if event["event_type"] in {"SpikeReviewed", "SpikePartialReviewed", "SpikeCancellationReviewed"}
         and event["stream_id"] == spike_id
     )["payload"]["review_id"] = assay_review_id
-    with pytest.raises(IntegrityError, match="invalid Spike .*review"):
+    with pytest.raises(IntegrityError, match="invalid (?:Discovery review transaction|Spike .*review)"):
         replay_discovery(_rehash_events(tampered_review))
     if spike_verdict in {"PASS", "FAIL"}:
         disposition = "PROMOTE" if spike_verdict == "PASS" else "PARK"
@@ -4366,7 +4366,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             next(event for event in tampered if event["event_type"] == event_type)["payload"]["candidate_id"] = (
                 "obj_019fed25-b33e-7740-b280-ffffffffffff"
             )
-            with pytest.raises(IntegrityError, match="invalid Discovery revisit"):
+            with pytest.raises(
+                IntegrityError,
+                match="invalid Discovery (?:decision proposal|decision resolution|revisit)",
+            ):
                 replay_discovery(_rehash_events(tampered))
     for event_type, producer_type, identity_field, message in (
         ("SpikePlanned", "RegisterSpikePlan", "spike_id", "Spike identity collision"),
@@ -5040,7 +5043,10 @@ def test_replay_binds_spike_authorization_and_partial_review_to_exact_candidate_
     authorized_link = next(event for event in redirected if event["event_type"] == "CandidateSpikeAuthorized")
     authorized_link["stream_id"] = foreign_candidate_id
     authorized_link["payload"]["candidate_id"] = foreign_candidate_id
-    with pytest.raises(IntegrityError, match="invalid (?:Spike|Candidate Spike) authorization"):
+    with pytest.raises(
+        IntegrityError,
+        match="invalid (?:Discovery decision resolution|(?:Spike|Candidate Spike) authorization)",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events(tuple(redirected)))
 
     partial_root = tmp_path / "partial"
@@ -5169,7 +5175,11 @@ def test_replay_revisit_resolution_uses_the_subject_and_candidate_stored_decisio
             event["payload"]["decision_id"] = substituted_decision_id
 
     with pytest.raises(
-        IntegrityError, match="invalid Discovery revisit resolution|invalid Candidate revisit resolution"
+        IntegrityError,
+        match=(
+            "invalid Discovery decision proposal|invalid Discovery revisit resolution|"
+            "invalid Candidate revisit resolution"
+        ),
     ):
         replay_discovery(_fully_reindex_and_rehash_events(tuple(baseline)))
 
@@ -5404,3 +5414,171 @@ def test_assay_authority_observation_rejects_registered_path_alias_before_git(
         runtime.submit(observe)
 
     assert tuple(runtime.ledger.iter_events()) == before
+
+
+def _assert_transaction_members_are_indivisible(
+    events: tuple[dict[str, object], ...],
+    *,
+    anchor_event_type: str,
+    required_event_types: tuple[str, ...],
+) -> None:
+    """Reject a fully rehashed ledger after deleting any required write-set member."""
+
+    anchor = next(event for event in events if event["event_type"] == anchor_event_type)
+    transaction_id = anchor["transaction_id"]
+    boundary = max(index for index, event in enumerate(events) if event["transaction_id"] == transaction_id)
+    baseline = events[: boundary + 1]
+    accepted = []
+    for missing_event_type in required_event_types:
+        attacked = tuple(
+            event
+            for event in deepcopy(baseline)
+            if not (event["transaction_id"] == transaction_id and event["event_type"] == missing_event_type)
+        )
+        try:
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
+        except IntegrityError:
+            continue
+        accepted.append(missing_event_type)
+    assert accepted == []
+
+
+def test_assay_review_decision_revisit_and_retry_write_sets_are_indivisible(tmp_path: Path) -> None:
+    """Bind every Assay review, Decision, revisit, and retry transition to its transaction."""
+
+    test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path)
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    for anchor, members in (
+        (
+            "AssayPartialReviewed",
+            ("ReviewVerdictRecorded", "AssayPartialReviewed", "CandidateAssayPartialReviewed"),
+        ),
+        (
+            "AssayRevisitRequested",
+            ("DecisionProposed", "AssayRevisitRequested", "CandidateAssayRevisitRequested"),
+        ),
+        (
+            "AssayRevisitResolved",
+            ("DecisionResolved", "AssayRevisitResolved", "CandidateAssayRevisitResolved"),
+        ),
+        ("AssaySuperseded", ("AssaySuperseded", "CandidateAssayRetryStarted")),
+    ):
+        _assert_transaction_members_are_indivisible(events, anchor_event_type=anchor, required_event_types=members)
+
+    malformed = tuple(deepcopy(event) for event in events)
+    next(event for event in malformed if event["event_type"] == "AssayRequested")["payload"]["candidate_id"] = []
+    with pytest.raises(IntegrityError, match="requires candidate_id"):
+        replay_discovery(_rehash_events(malformed))
+
+
+def test_assay_recommendation_uses_the_authoritative_required_axis_ids(tmp_path: Path) -> None:
+    """An axis named as required cannot become vacuous through a false definition flag."""
+
+    runtime = _runtime(tmp_path)
+    first, _, producer_sha256 = _two_assay_pending_candidates(runtime)
+    candidate_id, candidate_sha256, assay_id = first
+    projection = replay_discovery(runtime.ledger.iter_events())
+    candidate = projection["candidates"][candidate_id]
+    assay = projection["assays"][assay_id]
+    bar = projection["assay_bar_authority"]
+    artifact = _scorecard(runtime, candidate_id, assay_id, candidate_sha256, producer_sha256)
+    rubric = bar["contents"]["rubric"]["content"]
+    scope = bar["contents"]["scope"]["content"]
+    second_definition = deepcopy(rubric["axis_definitions"][0])
+    second_definition.update(axis_id="required_despite_flag", required=False)
+    rubric["axis_definitions"].append(second_definition)
+    rubric["required_axis_ids"] = ["identity", "required_despite_flag"]
+    scope["evidence_rows"].append(deepcopy(scope["evidence_rows"][0]))
+    second_result = deepcopy(artifact["axis_results"][0])
+    second_result.update(axis_id="required_despite_flag", value=False)
+    artifact["axis_results"].append(second_result)
+    required_hash = sha256_hex(canonical_bytes(rubric["required_axis_ids"]))
+    bar["acceptance"]["required_axis_set_hash"] = required_hash
+    artifact["required_axis_set_hash"] = required_hash
+    artifact["observed_axis_set_hash"] = sha256_hex(canonical_bytes(sorted(("identity", "required_despite_flag"))))
+    payload = {
+        "assay_id": assay_id,
+        "candidate_id": candidate_id,
+        "scorecard_sha256": sha256_hex(canonical_bytes(artifact)),
+    }
+
+    assert not _assay_scorecard_matches(artifact, payload, candidate, assay, bar, ACTOR_ID)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "row", "write_sets"),
+    [
+        (
+            "PASS",
+            "OR-018",
+            (
+                ("SpikeExecutionDecisionRequested", ("DecisionProposed", "SpikeExecutionDecisionRequested")),
+                ("SpikeAuthorized", ("DecisionResolved", "SpikeAuthorized", "CandidateSpikeAuthorized")),
+                ("SpikeReviewed", ("ReviewVerdictRecorded", "SpikeReviewed")),
+                ("CandidatePromotionRequested", ("DecisionProposed", "CandidatePromotionRequested")),
+                ("CandidatePromotionApplied", ("DecisionResolved", "CandidatePromotionApplied")),
+            ),
+        ),
+        (
+            "PARTIAL",
+            "OR-019",
+            (
+                (
+                    "SpikePartialReviewed",
+                    ("ReviewVerdictRecorded", "SpikePartialReviewed", "CandidateSpikePartialReviewed"),
+                ),
+                (
+                    "SpikeRevisitRequested",
+                    ("DecisionProposed", "SpikeRevisitRequested", "CandidateSpikeRevisitRequested"),
+                ),
+                (
+                    "SpikeRevisitResolved",
+                    ("DecisionResolved", "SpikeRevisitResolved", "CandidateSpikeRevisitResolved"),
+                ),
+                ("SpikeSuperseded", ("SpikeSuperseded", "CandidateSpikeRetryStarted")),
+                (
+                    "SpikeCancellationReviewed",
+                    (
+                        "ReviewVerdictRecorded",
+                        "SpikeCancellationReviewed",
+                        "CandidateSpikeCancellationReviewed",
+                    ),
+                ),
+            ),
+        ),
+    ],
+)
+def test_spike_review_decision_promotion_and_retry_write_sets_are_indivisible(
+    tmp_path: Path,
+    verdict: str,
+    row: str,
+    write_sets: tuple[tuple[str, tuple[str, ...]], ...],
+) -> None:
+    """Bind every Spike review, Decision, promotion, and retry transition to its transaction."""
+
+    test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path, verdict, row)
+    events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    for anchor, members in write_sets:
+        _assert_transaction_members_are_indivisible(events, anchor_event_type=anchor, required_event_types=members)
+    if verdict == "PASS":
+        promotion_requested = next(
+            event
+            for event in events
+            if event["event_type"] == "CandidatePromotionRequested"
+            and event["payload"].get("promotion_gate") == "spike_to_preregistration"
+        )
+        request_boundary = max(
+            index
+            for index, event in enumerate(events)
+            if event["transaction_id"] == promotion_requested["transaction_id"]
+        )
+        requested_projection = replay_discovery(events[: request_boundary + 1])
+        candidate_id = promotion_requested["payload"]["candidate_id"]
+        assert requested_projection["candidates"][candidate_id]["version"] == promotion_requested["stream_version"]
+        promotion_applied = next(
+            event
+            for event in events
+            if event["event_type"] == "CandidatePromotionApplied"
+            and event["payload"].get("promotion_gate") == "spike_to_preregistration"
+        )
+        assert replay_discovery(events)["candidates"][candidate_id]["version"] == promotion_applied["stream_version"]
