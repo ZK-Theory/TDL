@@ -1,0 +1,242 @@
+# Proposed P-049 - Gate 6 control model
+
+**Status:** Proposed - requires Stephen's explicit adoption before any GitHub
+ruleset, branch-protection, or workflow-policy change is applied.
+**Prepared against:** live `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d` (PR #248).
+**Scope:** first-release merge control, capability integration control, and
+final Gate 6 closure control.
+**Does not authorize:** provider invocation, credential handling, pilot or
+research execution, result/claim promotion, live restore cutover, KAN-69
+transition work, WP6.7, or Gate 7-9 work.
+
+## Decision requested
+
+Adopt one small control model:
+
+1. **Merge admission** decides whether a reviewed change may enter `main`.
+2. **Capability integration** decides whether a named end-to-end capability may
+   be marked `INTEGRATED` in Jira.
+3. **Gate 6 closure** decides whether the first-release programme capability is
+   complete.
+4. **Currency monitoring** is a continuously running control that detects a
+   disabled or stale required workflow. It is evidence for the first three
+   decisions; it is not a fourth completion gate.
+
+No plan, schema, test harness, PR, CodeRabbit thread, review report, or Jira
+transition is itself one of those decisions. It is evidence for a named
+decision only.
+
+```mermaid
+flowchart LR
+  P["PR candidate"] --> M["M: merge admission"]
+  M --> I["main"]
+  I --> C["C: capability integration"]
+  C --> G["G6: final assembled Gate 6 decision"]
+  W["currency monitor"] -. keeps evidence live .-> M
+  W -. keeps evidence live .-> C
+  W -. keeps evidence live .-> G
+```
+
+## Governing boundaries
+
+P-042 remains the first-release authority: ARS records an operator-mediated
+external session but does not invoke providers or handle credentials. P-047
+keeps the consumed Research Methods obligations inside their owning WP6
+capabilities. P-048 establishes the narrow C-1 currency control and expressly
+does **not** establish branch protection, a full-suite policy, or Gate 6
+closure.
+
+This proposal does not alter accepted historical bytes. In particular,
+SCALE-01 v1.0.3 and D-G6-5 remain accepted for their exact subject only. A
+future current preflight must be a new immutable successor, not an edit to
+those records.
+
+## The three decisions
+
+### M - Merge admission
+
+**Question:** may this exact PR head merge to `main`?
+
+The answer is **yes** only when all of the following are true:
+
+1. The PR names its canonical Jira capability and the observable outcome it
+   changes. A job or subtask is not enough.
+2. The checks that exercise the changed production behaviour pass at the exact
+   PR subject. A broad suite is added only where an explicit gate or changed
+   shared seam requires it.
+3. The baseline `ARS Artefact Currency / contract-and-session-currency` check
+   passes. It is a live C-1/cross-seam smoke control, not proof that every
+   change is correct.
+4. Every actionable review finding is resolved on the current exact head.
+   Stephen controls whether and when CodeRabbit or another external reviewer is
+   used; agents do not trigger, poll, or self-certify it.
+5. Stephen records the final approval in GitHub after considering the required
+   external review. A review of an earlier commit does not approve a later
+   commit.
+
+`merge admitted` means only that the change may enter `main`. It never means
+the named capability, a Gate, or the programme is complete.
+
+### C - Capability integration
+
+**Question:** is the named capability complete through its real public or
+production seam?
+
+The answer is **yes** only when the exact capability has:
+
+1. a real positive path from a legitimate start state to its durable result;
+2. direct negative proof for the irreversible or corrupting failures named by
+   its contract;
+3. proportional regression evidence for each changed shared seam;
+4. required final independent review and Stephen's acceptance where the
+   capability contract requires them;
+5. an integrated exact subject whose local, upstream, and live remote `main`
+   identities agree; and
+6. no remaining implementation work inside that named capability.
+
+Only then can the canonical Jira capability issue become `Done` with
+`Capability status: INTEGRATED`. Intermediate PRs, foundations, contracts,
+plans, and reviews remain typed milestones or evidence, never an unqualified
+completion state.
+
+### G6 - Gate 6 closure
+
+**Question:** may KAN-12 be marked complete as the first-release Gate 6
+capability?
+
+The answer is **yes** only after one final assembled candidate binds and proves
+all of the following together:
+
+1. WP6.1 remains integrated at the final assembled public lifecycle seam
+   (KAN-65 / PR #243 evidence).
+2. WP6.4 remains integrated at the owner-operated brief-out/evidence-back,
+   restart/replay, backup, and restore-verification seam (KAN-57 / PR #242
+   evidence).
+3. WP6.6's real Discovery genesis and read-only TDA-scale dossier admission
+   remain integrated (KAN-59 / PR #248 evidence).
+4. A **new immutable SCALE-01 package/preflight successor** binds the accepted
+   WP6.6 expected set, final cardinality, and registered read-only roots. It
+   preserves `dispatchable: false`, `execution_authorized: false`, and the
+   provider-free boundary. It does not mutate v1.0.3.
+5. One named final Gate 6 assembled test selection exercises the coupled public
+   seams and the new preflight's decisive tamper/no-partial-state negatives.
+   It is run once at final candidate head. A broad repository suite is not a
+   substitute for this selection.
+6. One fresh independent exact-subject review covers the assembled candidate,
+   including the new preflight. Stephen then makes one final Gate 6 owner
+   decision over that exact subject.
+
+The final decision may accept the new preflight and assembled evidence together;
+it must not manufacture a separate review/acceptance loop merely because the
+preflight successor exists. D-G6-5 remains historical acceptance of v1.0.3,
+not a shortcut around the new exact subject.
+
+Passing G6 is a readiness decision only. It does not start a pilot, execute a
+provider call, accept returned research content, or authorize a result or
+claim.
+
+## Currency monitor
+
+The current monitor remains exactly the P-048 C-1 control:
+
+| Control | Trigger | Current proof | What it proves | What it does not prove |
+| --- | --- | --- | --- | --- |
+| `ARS Artefact Currency` | PRs and pushes to `main` | `contract-and-session-currency` passed at `9fb53f53` | the selected 06i/WP6.4 contracts and direct cross-seam tests still run | broad repository health, WP6.6 correctness, or Gate 6 closure |
+| `ARS Artefact Currency Watchdog` | pushes to `main`, daily, manual | `require-active-currency-workflow` passed at `9fb53f53` | the named currency workflow remains active | that its selected tests are sufficient for an unrelated change |
+
+The disabled repository-wide `CI` workflow is not a current green gate. Its
+comment claiming post-merge currency authority must be corrected when this
+proposal is adopted; it cannot be made required until a real, bounded green
+baseline exists.
+
+## Current Gate 6 register
+
+| Canonical object | Verified state at `9fb53f53` | Consequence |
+| --- | --- | --- |
+| KAN-65 / WP6.1 | `INTEGRATED` | prerequisite evidence, not an open work lane |
+| KAN-57 / WP6.4 | `INTEGRATED`; v1.0.3/D-G6-5 exact bytes accepted | predecessor preflight stays immutable and non-dispatchable |
+| KAN-59 / WP6.6 | `INTEGRATED` through PR #248 | supplies the expected-set/admission evidence that v1.0.3 deliberately lacked |
+| KAN-12 / Gate 6 | `INCOMPLETE` | final capability is now runnable, but has no current preflight successor, assembled proof, fresh independent review, or owner closure decision |
+| GitHub `main` | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
+
+The real remaining functional gap is therefore singular:
+
+> **Complete the final Gate 6 capability by binding the integrated WP6.6
+> admission into a new immutable, non-dispatchable preflight and proving the
+> assembled public seam through one final review and owner decision.**
+
+This is one capability campaign under KAN-12. Its preflight construction,
+direct testing, review, and owner decision are implementation/evidence within
+that campaign, not independently completable successor lanes.
+
+## Jira operation
+
+KAN-12 is the only canonical open Gate 6 capability. Its description must be
+updated now to remove the false statement that WP6.6 is still under
+construction and to name the singular functional gap above.
+
+After this proposal is adopted, create one visible child job under KAN-12:
+
+> **[CAPABILITY DELIVERY] Complete final Gate 6 preflight and assembled
+> readiness proof**
+
+That job owns the whole remaining positive path. Do not create separate Jira
+tickets for preflight mechanics, test harnesses, review administration, or
+handoffs. Review and final owner acceptance are closure evidence on the same
+campaign. The job stays `In Progress` only while its production path is
+actively being executed; otherwise it is `To Do` or `Owner-blocked` with the
+exact next action.
+
+The final KAN-12 description must retain this strict order:
+
+1. capability state;
+2. completed end-to-end path;
+3. exact remaining functional gap;
+4. next production action;
+5. owner-only action, if one exists.
+
+## Proposed remote enforcement
+
+This section is deliberately not yet applied. GitHub currently reports both
+`main` branch protection and repository rulesets absent.
+
+After Stephen adopts this proposal, install one active `main` ruleset with:
+
+1. pull requests required; no direct-push bypass;
+2. one approving review, stale approvals dismissed, and approval required from
+   someone other than the last pusher;
+3. all review conversations resolved;
+4. code-owner approval for all repository paths via `CODEOWNERS` entry
+   `* @stephendor`;
+5. the GitHub Actions check `contract-and-session-currency` required from the
+   `ARS Artefact Currency` workflow; and
+6. non-fast-forward pushes blocked.
+
+The required check is intentionally **not** legacy `CI`, a coverage target, or
+a CodeRabbit status. It is a small current baseline. The exact capability test
+selection and Stephen's external-review decision remain explicit merge evidence
+on the PR. No bypass actor is proposed; Stephen retains control by approving
+and merging a reviewed PR rather than by bypassing the control.
+
+## Adoption sequence
+
+1. Stephen accepts or amends this proposed model and the exact remote ruleset.
+2. Apply the ruleset and `CODEOWNERS`; verify enforcement with one harmless
+   branch/PR probe before relying on it.
+3. Add accepted P-049 to the decision register, point the historical WP6 Gate
+   6 plan at this live model, and correct the stale disabled-CI comment.
+4. Reconcile KAN-12 and create the single final-capability child job described
+   above.
+5. Launch that capability campaign. Do not launch a separate plan/review
+   campaign first.
+
+## Evidence consulted
+
+- P-042, P-047, and P-048 in
+  `docs/plans/agentic-research-system/03-decisions-and-open-questions.md`.
+- `06g-wp6-owner-operated-session-amendment.md`.
+- KAN-12, KAN-57, KAN-59, and KAN-65 read back on 2026-08-13.
+- PR #248 merge `9fb53f53cf9984a1ac4809962cd033d9ac1b597d` and its two passing
+  current-main controls.
+- `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
+  it correctly remains historical and `pending_wp6_6`.
