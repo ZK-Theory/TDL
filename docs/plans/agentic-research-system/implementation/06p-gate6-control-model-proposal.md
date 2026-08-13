@@ -2,7 +2,11 @@
 
 **Status:** Proposed - requires Stephen's explicit adoption before any GitHub
 ruleset, branch-protection, or workflow-policy change is applied.
-**Prepared against:** live `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d` (PR #248).
+**Repository subject:** `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d`
+(PR #248).
+**Live-state observation:** GitHub and Jira settings/statuses were read on
+2026-08-13. They are external observations, not bytes content-addressed by the
+repository subject above.
 **Scope:** first-release merge control, capability integration control, and
 final Gate 6 closure control.
 **Does not authorize:** provider invocation, credential handling, pilot or
@@ -62,19 +66,28 @@ the WP6.6 admission profile.
 
 ### M - Merge admission
 
-**Question:** may this exact PR head merge to `main`?
+**Question:** may this exact reviewed PR head, composed with current `main`,
+merge?
 
 The answer is **yes** only when all of the following are true:
 
 1. The PR names its canonical Jira capability and the observable outcome it
    changes. A job or subtask is not enough.
-2. The checks that exercise the changed production behaviour pass at the exact
-   PR subject. A broad suite is added only where an explicit gate or changed
-   shared seam requires it.
-3. The baseline `ARS Artefact Currency / contract-and-session-currency` check
-   passes. It is a live C-1/cross-seam smoke control, not proof that every
-   change is correct.
-4. Every actionable review finding is resolved on the current exact head.
+2. Direct checks that exercise changed production behaviour pass on their
+   declared, recorded subject. The C-1 currency check is deliberately a
+   GitHub-generated **merge-candidate** check (`GITHUB_REF`), not a claim of
+   exact-PR-head evidence; before it is required it must record its resolved
+   merge-candidate SHA. Exact-head evidence and review remain separate
+   requirements below. A broad suite is added only where an explicit gate or
+   changed shared seam requires it.
+3. Once remote enforcement is active, both of these current-candidate controls
+   pass:
+   - `contract-and-session-currency`, the bounded C-1/cross-seam check; and
+   - `require-active-currency-workflow`, a PR-run independent liveness check.
+   A missing check, skipped liveness job, or non-pass fails closed and blocks
+   admission.
+   Neither control is proof that every change is correct.
+4. Every actionable review finding is resolved on the current exact PR head.
    Stephen controls whether and when CodeRabbit or another external reviewer is
    used; agents do not trigger, poll, or self-certify it.
 5. Stephen records the final approval in GitHub after considering the required
@@ -123,16 +136,24 @@ all of the following together:
    remain integrated (KAN-59 / PR #248 evidence).
 4. A **new immutable SCALE-01 package/preflight successor** consumes, rather
    than rewrites, the accepted WP6.6 expected-set identity, final cardinality,
-   dossier-admission result, and registered read-only roots. It is not added
-   back into the already accepted dossier expected set, so the two artifacts
-   cannot form a content-address cycle. It makes the controlled pilot
-   `dispatchable: true` in the narrow operator-mediated eligibility sense,
-   retains `execution_authorized: false`, and preserves the provider-free
-   boundary. It does not mutate v1.0.3, D-G6-5, or WP6.6 admission bytes.
+   dossier-admission result, and registered read-only roots. Those are explicit
+   pre-registered expected values/invariants, not values inferred or rewritten
+   at run time. An unset value, unavailable root, mismatch, skipped check, or
+   non-pass fails closed and leaves KAN-12 `INCOMPLETE`. Changing an expected
+   baseline requires a new successor and fresh exact-subject review and owner
+   reapproval. The successor is not added back into the already accepted dossier
+   expected set, so the two artifacts cannot form a content-address cycle. It
+   makes the controlled pilot `dispatchable: true` in the narrow
+   operator-mediated eligibility sense, retains `execution_authorized: false`,
+   and preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5,
+   or WP6.6 admission bytes.
 5. One named final Gate 6 assembled test selection exercises the coupled public
    seams and the new preflight's decisive tamper/no-partial-state negatives.
-   It is run once at final candidate head. A broad repository suite is not a
-   substitute for this selection.
+   It includes `tools/certify_wp6_6_real_dossier.ps1` (or an accepted exact
+   equivalent) against the designated real roots with
+   `TDL_REQUIRE_REAL_DOSSIER=1`. Missing roots, a real-dossier skip, or a
+   non-pass fails G6 closed. It is run once at final candidate head. A broad
+   repository suite is not a substitute for this selection.
 6. One fresh independent exact-subject review covers the assembled candidate,
    including the new preflight. Stephen then makes one final Gate 6 owner
    decision over that exact subject.
@@ -156,12 +177,15 @@ claim.
 
 ## Currency monitor
 
-The current monitor remains exactly the P-048 C-1 control:
+The current monitor remains exactly the P-048 C-1 control. The repository
+workflow configuration is read at the immutable repository subject above; its
+run status and GitHub workflow state below are live observations made on
+2026-08-13:
 
-| Control | Trigger | Current proof | What it proves | What it does not prove |
+| Control | Trigger encoded in repository subject | Live observation (2026-08-13) | What it proves | What it does not prove |
 | --- | --- | --- | --- | --- |
-| `ARS Artefact Currency` | PRs and pushes to `main` | `contract-and-session-currency` passed at `9fb53f53` | the selected 06i/WP6.4 contracts and direct cross-seam tests still run | broad repository health, WP6.6 correctness, or Gate 6 closure |
-| `ARS Artefact Currency Watchdog` | pushes to `main`, daily, manual | `require-active-currency-workflow` passed at `9fb53f53` | the named currency workflow remains active | that its selected tests are sufficient for an unrelated change |
+| `ARS Artefact Currency` | PRs and pushes to `main` | `contract-and-session-currency` passed for `9fb53f53` | the selected 06i/WP6.4 contracts and direct cross-seam tests still run | broad repository health, WP6.6 correctness, or Gate 6 closure |
+| `ARS Artefact Currency Watchdog` | pushes to `main`, daily, manual | `require-active-currency-workflow` passed for `9fb53f53` | GitHub reported the named currency workflow active at that observation | that its selected tests are sufficient for an unrelated change |
 
 The disabled repository-wide `CI` workflow is not a current green gate. Its
 comment claiming post-merge currency authority must be corrected when this
@@ -170,13 +194,18 @@ baseline exists.
 
 ## Current Gate 6 register
 
-| Canonical object | Verified state at `9fb53f53` | Consequence |
+The statuses and GitHub configuration in this table are live observations as at
+2026-08-13, not claims that Jira/GitHub state is content-addressed by
+`9fb53f53`.
+
+| Canonical object / immutable evidence | Live observed state (2026-08-13) | Consequence |
 | --- | --- | --- |
-| KAN-65 / WP6.1 | `INTEGRATED` | prerequisite evidence, not an open work lane |
-| KAN-57 / WP6.4 | `INTEGRATED`; v1.0.3/D-G6-5 exact bytes accepted | predecessor preflight stays immutable and non-dispatchable |
-| KAN-59 / WP6.6 | `INTEGRATED` through PR #248 | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
+| KAN-65 / WP6.1; PR #243 evidence | `INTEGRATED` | prerequisite evidence, not an open work lane |
+| KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
+| KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
+| KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; the residual `Blocks` edge `10194` to KAN-12 is explicitly labelled `link-reconciliation-required` and non-authoritative in KAN-61 | no open WP6.7 delivery remains; remove the stale structured edge before final KAN-12 transition rather than treating it as a revived functional blocker |
 | KAN-12 / Gate 6 | `INCOMPLETE` | final capability is now runnable, but has no current preflight successor, assembled proof, fresh independent review, or owner closure decision |
-| GitHub `main` | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
+| GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
 
 The real remaining functional gap is therefore singular:
 
@@ -194,6 +223,12 @@ that campaign, not independently completable successor lanes.
 KAN-12 is the only canonical open Gate 6 capability. Its description must be
 updated now to remove the false statement that WP6.6 is still under
 construction and to name the singular functional gap above.
+
+KAN-61 is already a completed milestone, not a missing Gate 6 capability. Its
+residual `Blocks` relation to KAN-12 is an acknowledged stale Jira projection;
+before KAN-12 is transitioned, remove that edge in the Jira UI and read both
+endpoints back. This is a small Jira-coherence action, not a reopened WP6.7
+delivery lane.
 
 After this proposal is adopted, create one visible child job under KAN-12:
 
@@ -220,34 +255,56 @@ The final KAN-12 description must retain this strict order:
 This section is deliberately not yet applied. GitHub currently reports both
 `main` branch protection and repository rulesets absent.
 
-After Stephen adopts this proposal, install one active `main` ruleset with:
+The original single-owner `CODEOWNERS` draft (`* @stephendor`) is rejected: it
+cannot approve a Stephen-authored PR and would make those PRs permanently
+unmergeable under the proposed no-bypass rule. Do **not** enforce this model
+until Stephen names a second, eligible human maintainer/team with repository
+review permission. The production `CODEOWNERS` entry must name both real
+identities; do not commit a placeholder.
+
+Before enforcement, make the currency controls enforceable:
+
+1. retain the merge-candidate subject of `contract-and-session-currency` and
+   record the resolved SHA in its run output/artifact;
+2. extend the independent watchdog to run on PRs as well as `main`/schedule,
+   and ensure its required job cannot become a successful skipped result; and
+3. obtain one fresh successful PR run for both controls from GitHub Actions.
+
+Only then install one active `main` ruleset with:
 
 1. pull requests required; no direct-push bypass;
 2. one approving review, stale approvals dismissed, and approval required from
    someone other than the last pusher;
 3. all review conversations resolved;
-4. code-owner approval for all repository paths via `CODEOWNERS` entry
-   `* @stephendor`;
-5. the GitHub Actions check `contract-and-session-currency` required from the
-   `ARS Artefact Currency` workflow; and
+4. code-owner approval for all repository paths from the two-or-more real
+   maintainers in `CODEOWNERS`;
+5. strict required status checks (the branch must be up to date with `main`),
+   including `contract-and-session-currency` from GitHub Actions integration
+   ID `15368` and `require-active-currency-workflow` from that same integration
+   ID `15368`; and
 6. non-fast-forward pushes blocked.
 
-The required check is intentionally **not** legacy `CI`, a coverage target, or
-a CodeRabbit status. It is a small current baseline. The exact capability test
-selection and Stephen's external-review decision remain explicit merge evidence
-on the PR. No bypass actor is proposed; Stephen retains control by approving
-and merging a reviewed PR rather than by bypassing the control.
+The required checks are intentionally **not** legacy `CI`, a coverage target,
+or a CodeRabbit status. They are small current baselines. The exact capability
+test selection and Stephen's external-review decision remain explicit merge
+evidence on the PR. No bypass actor is proposed; Stephen retains control by
+approving and merging a reviewed PR rather than by bypassing the control.
 
 ## Adoption sequence
 
-1. Stephen accepts or amends this proposed model and the exact remote ruleset.
-2. Apply the ruleset and `CODEOWNERS`; verify enforcement with one harmless
-   branch/PR probe before relying on it.
-3. Add accepted P-049 to the decision register, point the historical WP6 Gate
+1. Stephen accepts or amends this proposed model, names the second eligible
+   maintainer/team, and approves the exact remote ruleset.
+2. Implement and directly prove the two currency-control prerequisites above;
+   do not enable the ruleset until both required contexts have fresh, non-skipped
+   GitHub Actions results from integration ID `15368`.
+3. Add the real `CODEOWNERS` identities and apply the ruleset; verify with one
+   harmless branch/PR probe that an owner-authored PR cannot self-approve and
+   that both required controls are enforced.
+4. Add accepted P-049 to the decision register, point the historical WP6 Gate
    6 plan at this live model, and correct the stale disabled-CI comment.
-4. Reconcile KAN-12 and create the single final-capability child job described
-   above.
-5. Launch that capability campaign. Do not launch a separate plan/review
+5. Reconcile the KAN-61 edge, read both Jira endpoints back, and create the
+   single final-capability child job described above.
+6. Launch that capability campaign. Do not launch a separate plan/review
    campaign first.
 
 ## Evidence consulted
@@ -255,8 +312,12 @@ and merging a reviewed PR rather than by bypassing the control.
 - P-042, P-047, and P-048 in
   `docs/plans/agentic-research-system/03-decisions-and-open-questions.md`.
 - `06g-wp6-owner-operated-session-amendment.md`.
-- KAN-12, KAN-57, KAN-59, and KAN-65 read back on 2026-08-13.
+- KAN-12, KAN-57, KAN-59, KAN-61, and KAN-65 read back on 2026-08-13.
 - PR #248 merge `9fb53f53cf9984a1ac4809962cd033d9ac1b597d` and its two passing
-  current-main controls.
+   current-main controls.
+- `.github/workflows/ars-artefact-currency.yml` and
+  `.github/workflows/ars-artefact-currency-watchdog.yml`.
+- `tools/certify_wp6_6_real_dossier.ps1` and
+  `tests/research_system/integration/test_wp6_6_dossier_admission.py`.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.
