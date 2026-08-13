@@ -186,6 +186,20 @@ DISCOVERY_ROW_ROUTES = {
     "OR-121": DiscoveryRowRoute("ResolveDecision", "authority", ("DecisionResolved", "PathRegistrationAccepted")),
     "OR-140": DiscoveryRowRoute("ImportAcceptedW11CatalogueGenesis", "genesis", ("W11CatalogueGenesisImported",)),
 }
+DISCOVERY_AUTHORITY_SHADOWS = {
+    "OR-101": ("assay_bar", "AssayRubricContentRegistered"),
+    "OR-102": ("assay_bar", "AssayEvidenceScopeContentRegistered"),
+    "OR-103": ("assay_bar", "W11AuthorityFileObserved"),
+    "OR-104": ("assay_bar", "W11AuthorityFileObserved"),
+    "OR-108": ("assay_bar", "AssayBarAccepted"),
+    "OR-109": ("assay_bar", "AssayBarStaled"),
+    "OR-110": ("dossier_expected_set", "DossierExpectedSetContentRegistered"),
+    "OR-111": ("dossier_expected_set", "W11AuthorityFileObserved"),
+    "OR-115": ("dossier_expected_set", "DossierExpectedSetAccepted"),
+    "OR-116": ("path_registration", "PathRegistrationContentRegistered"),
+    "OR-117": ("path_registration", "W11AuthorityFileObserved"),
+    "OR-121": ("path_registration", "PathRegistrationAccepted"),
+}
 DISCOVERY_MINT_ROWS = frozenset(
     {
         "OR-001",

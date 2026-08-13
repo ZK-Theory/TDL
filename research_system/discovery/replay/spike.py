@@ -68,7 +68,7 @@ def reduce_spike_approval_requested(scope: EventScope) -> None:
         or spike.get("status") != "planned"
     ):
         raise IntegrityError("invalid Spike approval request")
-    spike.update(status="approval_pending")
+    spike.update(status="approval_pending", version=event["stream_version"])
 
 
 def reduce_candidate_spike_plan_linked(scope: EventScope) -> None:
@@ -136,6 +136,7 @@ def reduce_spike_execution_decision_requested(scope: EventScope) -> None:
     spike.update(
         decision_id=required_string("decision_id"),
         execution_authority_relation=deepcopy(payload["execution_authority_relation"]),
+        version=event["stream_version"],
     )
 
 
@@ -194,7 +195,7 @@ def reduce_spike_authorized(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Spike authorization")
-    spike.update(status="authorized")
+    spike.update(status="authorized", version=event["stream_version"])
 
 
 def reduce_candidate_spike_authorized(scope: EventScope) -> None:
@@ -260,6 +261,7 @@ def reduce_spike_started(scope: EventScope) -> None:
         lease_id=lease_id,
         lease_sha256=required_string("lease_sha256"),
         lease_status="active",
+        version=event["stream_version"],
     )
 
 
@@ -327,6 +329,7 @@ def reduce_spike_verdict_recorded(scope: EventScope) -> None:
         verdict_sha256=required_string("verdict_sha256"),
         verdict_artifact=deepcopy(artifact),
         producer_actor_id=event.get("actor_id"),
+        version=event["stream_version"],
     )
 
 
@@ -359,6 +362,7 @@ def reduce_spike_partial_recorded(scope: EventScope) -> None:
         verdict_artifact=deepcopy(artifact),
         revisit_requirements=deepcopy(spike.get("plan_artifact", {}).get("partial_rules", [])),
         producer_actor_id=event.get("actor_id"),
+        version=event["stream_version"],
     )
 
 
@@ -487,6 +491,7 @@ def reduce_spike_cancellation_review_requested(scope: EventScope) -> None:
         review_id=required_string("review_id"),
         review_subject_sha256=required_string("subject_sha256"),
         review_pending=True,
+        version=event["stream_version"],
     )
 
 
@@ -518,7 +523,7 @@ def reduce_spike_reviewed(scope: EventScope) -> None:
         or not review_verdict_precedes(event, payload)
     ):
         raise IntegrityError("invalid Spike reviewed transition")
-    spike.update(status="reviewed", review_pending=False)
+    spike.update(status="reviewed", review_pending=False, version=event["stream_version"])
 
 
 def reduce_candidate_spike_partial_reviewed(scope: EventScope) -> None:
@@ -586,7 +591,7 @@ def reduce_spike_partial_reviewed(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Spike partial review")
-    spike.update(status="partial_reviewed", review_pending=False)
+    spike.update(status="partial_reviewed", review_pending=False, version=event["stream_version"])
 
 
 def reduce_spike_cancelled(scope: EventScope) -> None:
@@ -638,6 +643,7 @@ def reduce_spike_cancelled(scope: EventScope) -> None:
         status="cancelled",
         outcome_sha256=required_string("cancellation_sha256"),
         producer_actor_id=event.get("actor_id"),
+        version=event["stream_version"],
     )
 
 
@@ -676,7 +682,7 @@ def reduce_spike_cancellation_reviewed(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Spike cancellation review")
-    spike.update(status="cancellation_reviewed", review_pending=False)
+    spike.update(status="cancellation_reviewed", review_pending=False, version=event["stream_version"])
 
 
 def reduce_candidate_spike_cancellation_reviewed(scope: EventScope) -> None:

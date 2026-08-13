@@ -1519,6 +1519,8 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
     runtime.submit(_genesis())
     predecessor_id = "obj_019fed25-b33e-7740-b280-000000000984"
     replacement_id = "obj_019fed25-b33e-7740-b280-000000000985"
+    extra_predecessor_id = "obj_019fed25-b33e-7740-b280-000000000988"
+    extra_replacement_id = "obj_019fed25-b33e-7740-b280-000000000989"
     _ingest_candidate(
         runtime,
         predecessor_id,
@@ -1530,6 +1532,18 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
         replacement_id,
         observation_id="obj_019fed25-b33e-7740-b280-000000000987",
         title="Supersession replacement",
+    )
+    _ingest_candidate(
+        runtime,
+        extra_predecessor_id,
+        observation_id="obj_019fed25-b33e-7740-b280-000000000990",
+        title="Uncommanded supersession predecessor",
+    )
+    _ingest_candidate(
+        runtime,
+        extra_replacement_id,
+        observation_id="obj_019fed25-b33e-7740-b280-000000000991",
+        title="Uncommanded supersession replacement",
     )
     projection = replay_discovery(runtime.ledger.iter_events())
     predecessor = projection["candidates"][predecessor_id]
@@ -1553,6 +1567,28 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
             "lineage_reason": "The registered replacement supersedes the stale predecessor.",
         },
     )
+    extra_command = _command(
+        "SupersedeDiscoveryRecord",
+        extra_predecessor_id,
+        projection["candidates"][extra_predecessor_id]["version"],
+        {
+            "row_id": "OR-002",
+            "predecessor_ref": _ref(
+                extra_predecessor_id,
+                projection["candidates"][extra_predecessor_id]["revision"],
+                projection["candidates"][extra_predecessor_id]["content_sha256"],
+            ),
+            "replacement_ref": _ref(
+                extra_replacement_id,
+                projection["candidates"][extra_replacement_id]["revision"],
+                projection["candidates"][extra_replacement_id]["content_sha256"],
+            ),
+            "lineage_reason": "This second relation was not commanded.",
+        },
+    )
+    extra_event_type, extra_stream_id, extra_payload = runtime._prepare_candidate_supersession(
+        Command(extra_command), projection
+    )[0]
 
     receipt = runtime.submit(command)
     assert receipt.status == "accepted"
@@ -1578,6 +1614,17 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
     ] = "f" * 64
     with pytest.raises(IntegrityError, match="invalid Candidate supersession"):
         replay_discovery(_rehash_events(substituted))
+
+    injected = tuple(deepcopy(event) for event in events)
+    uncommanded = deepcopy(superseded)
+    uncommanded.update(
+        event_id="evt_019fed25-b33e-7740-b280-000000009601",
+        event_type=extra_event_type,
+        stream_id=extra_stream_id,
+        payload=extra_payload,
+    )
+    with pytest.raises(IntegrityError, match="Candidate supersession transaction mismatch"):
+        replay_discovery(_fully_reindex_and_rehash_events((*injected, uncommanded)))
 
     before = tuple(runtime.ledger.iter_events())
     later = _command(
@@ -2398,6 +2445,13 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     assert runtime.receipts.load(review_request_command["command_id"]) is None
     assert all(event["command_id"] != review_request_command["command_id"] for event in runtime.ledger.iter_events())
     review_requested = runtime.submit(review_request_command)
+    missing_subject_transition = tuple(
+        deepcopy(event)
+        for event in runtime.ledger.iter_events()
+        if not (event["event_type"] == "AssayOutcomeReviewRequested" and event["payload"].get("review_id") == review_id)
+    )
+    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+        replay_discovery(_fully_reindex_and_rehash_events(missing_subject_transition))
     split_review_subject = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     review_request_event = next(
         event
@@ -2405,7 +2459,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         if event["event_type"] == "ReviewRequested" and event["stream_id"] == review_id
     )
     review_request_event["payload"]["subject_ids"] = ["asy_019fed25-b33e-7740-b280-ffffffffffff"]
-    with pytest.raises(IntegrityError, match="invalid Assay outcome review request"):
+    with pytest.raises(
+        IntegrityError,
+        match="invalid Discovery review request transaction|invalid Assay outcome review request",
+    ):
         replay_discovery(_rehash_events(split_review_subject))
     review_command = _command(
         "ReviewDiscoveryOutcome",
@@ -3892,6 +3949,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             },
         )
     )
+    review_subject_event_type = "SpikePartialReviewRequested" if spike_verdict == "PARTIAL" else "SpikeReviewRequested"
+    missing_spike_subject_transition = tuple(
+        deepcopy(event)
+        for event in runtime.ledger.iter_events()
+        if not (event["event_type"] == review_subject_event_type and event["payload"].get("review_id") == review_id)
+    )
+    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+        replay_discovery(_fully_reindex_and_rehash_events(missing_spike_subject_transition))
     split_spike_review_subject = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     review_request_event = next(
         event
@@ -3899,7 +3964,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         if event["event_type"] == "ReviewRequested" and event["stream_id"] == review_id
     )
     review_request_event["payload"]["subject_hashes"] = ["f" * 64]
-    with pytest.raises(IntegrityError, match="invalid Spike review request"):
+    with pytest.raises(
+        IntegrityError,
+        match="invalid Discovery review request transaction|invalid Spike review request",
+    ):
         replay_discovery(_rehash_events(split_spike_review_subject))
     verdict = {
         "review_id": review_id,
@@ -3950,6 +4018,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     assert projection["spikes"][spike_id]["status"] == (
         "partial_reviewed" if spike_verdict == "PARTIAL" else "reviewed"
     )
+    latest_spike_event = max(
+        (event for event in runtime.ledger.iter_events() if event["stream_id"] == spike_id),
+        key=lambda event: event["stream_version"],
+    )
+    assert projection["spikes"][spike_id]["version"] == latest_spike_event["stream_version"]
     assert projection["reviews"][review_id]["status"] == "satisfied"
     expected_review_events = (
         ("ReviewVerdictRecorded", "SpikePartialReviewed", "CandidateSpikePartialReviewed")
@@ -4452,6 +4525,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         stream_id: {key: value for key, value in state.items() if key != "registration_actor_id"}
         for stream_id, state in replayed_artefacts.items()
     } == artefact_projection
+    final_discovery = replay_discovery(shared_events)
+    for projected_spike_id, projected_spike in final_discovery["spikes"].items():
+        latest_stream_version = max(
+            event["stream_version"] for event in shared_events if event["stream_id"] == projected_spike_id
+        )
+        assert projected_spike["version"] == latest_stream_version
     if spike_verdict == "PARTIAL":
         assert control_projection["streams"][attempt_id]["status"] == "partial"
         assert control_projection["streams"][lease_id]["status"] == "released"
@@ -4712,6 +4791,13 @@ def test_replay_rejects_rehashed_candidate_assay_link_without_exact_score_transa
     baseline = events[: boundary + 1]
     link = baseline[-1]
     attacks = []
+
+    missing_link = tuple(
+        deepcopy(event)
+        for event in baseline
+        if not (event["event_type"] == "CandidateAssayLinked" and event["transaction_id"] == link["transaction_id"])
+    )
+    attacks.append(missing_link)
 
     missing_score = tuple(
         deepcopy(event)
@@ -5377,6 +5463,28 @@ def test_replay_rejects_authority_shadow_actor_split_from_durable_envelope(tmp_p
     accepted["payload"]["authority_payload"]["acceptor_actor_id"] = "act_019fed25-b33e-7740-b280-000000009402"
     with pytest.raises(IntegrityError, match="authority shadow actor mismatch"):
         replay_discovery(_rehash_events(accepted_events))
+
+    wrong_producer = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    genesis = next(event for event in wrong_producer if event["event_type"] == "W11CatalogueGenesisImported")
+    registered = next(event for event in wrong_producer if event["event_type"] == "AssayRubricContentRegistered")
+    for field in (
+        "command_id",
+        "command_type",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "idempotency_key",
+        "command_payload_hash",
+        "correlation_id",
+        "causation_id",
+        "actor_id",
+        "authority_grant_id",
+        "occurred_at",
+    ):
+        registered[field] = genesis[field]
+    registered["payload"]["authority_payload"]["actor_id"] = genesis["actor_id"]
+    with pytest.raises(IntegrityError, match="authority shadow producer mismatch"):
+        replay_discovery(_rehash_events(wrong_producer))
 
 
 def test_assay_authority_observation_rejects_registered_path_alias_before_git(

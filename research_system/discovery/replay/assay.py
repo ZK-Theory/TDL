@@ -118,6 +118,7 @@ def reduce_assay_scored(scope: EventScope) -> None:
     state = scope.state
     required_string = scope.required_string
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
 
     assay = state["assays"].get(payload.get("assay_id"))
     candidate = state["candidates"].get(payload.get("candidate_id"))
@@ -136,6 +137,12 @@ def reduce_assay_scored(scope: EventScope) -> None:
             assay,
             state["assay_bar_authority"],
             event.get("actor_id"),
+        )
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type="CandidateAssayLinked",
+            stream_id=payload.get("candidate_id"),
         )
     ):
         raise IntegrityError("invalid Assay score transition")

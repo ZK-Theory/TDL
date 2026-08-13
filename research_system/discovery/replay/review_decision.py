@@ -191,6 +191,29 @@ def reduce_review_requested(scope: EventScope) -> None:
         subject_kind = "spike"
     else:
         raise IntegrityError("invalid Discovery review subject")
+    following = _transaction_side(scope, following=True)
+    companion_types = {
+        "OR-034": ("assay", "AssayOutcomeReviewRequested"),
+        "OR-035": ("assay", "AssayPartialReviewRequested"),
+        "OR-036": ("spike", "SpikeReviewRequested"),
+        "OR-037": ("spike", "SpikePartialReviewRequested"),
+        "OR-038": ("assay", "AssayCancellationReviewRequested"),
+        "OR-040": ("spike", "SpikeCancellationReviewRequested"),
+    }
+    companion = following[0] if len(following) == 1 else None
+    companion_payload = _payload(companion) if isinstance(companion, Mapping) else None
+    expected_companion = companion_types.get(companion_payload.get("row_id")) if companion_payload else None
+    if not (
+        isinstance(companion, Mapping)
+        and isinstance(companion_payload, Mapping)
+        and expected_companion == (subject_kind, companion.get("event_type"))
+        and companion.get("stream_id") == subject_id
+        and companion_payload.get("review_id") == review_id
+        and companion_payload.get(f"{subject_kind}_id") == subject_id
+        and companion_payload.get("subject_sha256") == subject_hashes[0]
+        and companion_payload.get("review_contract") == payload
+    ):
+        raise IntegrityError("invalid Discovery review request transaction")
     state["reviews"][review_id] = {
         "review_id": review_id,
         "subject_id": subject_id,
@@ -397,6 +420,8 @@ def reduce_assay_revisit_requested(scope: EventScope) -> None:
         decision_id=required_string("decision_id"),
         revisit_relation=deepcopy(payload["revisit_relation"]),
     )
+    if event_type.startswith("Spike"):
+        subject["version"] = event["stream_version"]
 
 
 def reduce_candidate_assay_revisit_requested(scope: EventScope) -> None:
@@ -473,6 +498,8 @@ def reduce_assay_revisit_resolved(scope: EventScope) -> None:
     ):
         raise IntegrityError("invalid Discovery revisit resolution")
     subject.update(status={"RETRY": "retry_authorized", "PARK": "parked", "KILL": "killed"}[selected])
+    if event_type.startswith("Spike"):
+        subject["version"] = event["stream_version"]
     if selected == "PARK":
         subject["parked_at_global_position"] = event["global_position"]
 
@@ -544,6 +571,8 @@ def reduce_assay_superseded(scope: EventScope) -> None:
     ):
         raise IntegrityError("invalid Discovery retry supersession")
     subject.update(status="superseded")
+    if event_type.startswith("Spike"):
+        subject["version"] = event["stream_version"]
 
 
 def reduce_candidate_assay_retry_started(scope: EventScope) -> None:

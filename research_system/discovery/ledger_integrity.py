@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.discovery.routes import DISCOVERY_AUTHORITY_SHADOWS, DISCOVERY_ROW_ROUTES
 from research_system.errors import IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 
@@ -77,6 +78,16 @@ def _validate_persisted_event_envelopes(
             and isinstance(shadow_payload.get("authority_payload"), Mapping)
         )
         try:
+            if is_authority_shadow:
+                owner_row_id = shadow_payload.get("owner_row_id")
+                route = DISCOVERY_ROW_ROUTES.get(owner_row_id)
+                if (
+                    route is None
+                    or route.command_type != command_type
+                    or DISCOVERY_AUTHORITY_SHADOWS.get(owner_row_id)
+                    != (shadow_payload.get("authority_kind"), event_type)
+                ):
+                    raise IntegrityError("authority shadow producer mismatch")
             command_binding = schemas.command_binding(command_type)
             if command_binding is None or (
                 event.get("command_schema_id"),

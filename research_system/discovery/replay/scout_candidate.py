@@ -144,6 +144,7 @@ def reduce_candidate_superseded(scope: EventScope) -> None:
     payload = scope.payload
     state = scope.state
     event = scope.event
+    transaction = scope.transaction_events.get(event.get("transaction_id"), ())
 
     predecessor_ref = payload.get("predecessor_ref")
     replacement_ref = payload.get("replacement_ref")
@@ -162,6 +163,18 @@ def reduce_candidate_superseded(scope: EventScope) -> None:
         )
     except (TypeError, ValueError) as exc:
         raise IntegrityError("invalid Candidate supersession lineage") from exc
+    command_payload = {
+        "row_id": "OR-002",
+        "predecessor_ref": predecessor_ref,
+        "replacement_ref": replacement_ref,
+        "lineage_reason": payload.get("lineage_reason"),
+    }
+    if (
+        len(transaction) != 1
+        or transaction[0].get("event_id") != event.get("event_id")
+        or event.get("command_payload_hash") != sha256_hex(canonical_bytes(command_payload))
+    ):
+        raise IntegrityError("Candidate supersession transaction mismatch")
     if (
         event.get("command_type") != "SupersedeDiscoveryRecord"
         or event.get("stream_id") != predecessor_id
