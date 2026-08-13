@@ -328,6 +328,29 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 "prospective_producer_ref": state.get("prospective_producer_ref"),
                 "producer_relation_sha256": state.get("producer_relation_sha256"),
             }
+            try:
+                expected = {
+                    **expected,
+                    "subject_sha256": _digest(expected["subject_sha256"], "acceptance_subject_sha256"),
+                    "rubric_ref": _record_ref(expected["rubric_ref"], "acceptance_rubric_ref"),
+                    "scope_ref": _record_ref(expected["scope_ref"], "acceptance_scope_ref"),
+                    "rubric_file_sha256": _digest(expected["rubric_file_sha256"], "acceptance_rubric_file_sha256"),
+                    "scope_file_sha256": _digest(expected["scope_file_sha256"], "acceptance_scope_file_sha256"),
+                    "review_id": _identity(expected["review_id"], "acceptance_review_id"),
+                    "decision_id": _identity(expected["decision_id"], "acceptance_decision_id"),
+                    "required_axis_set_hash": _digest(
+                        expected["required_axis_set_hash"], "acceptance_required_axis_set_hash"
+                    ),
+                    "scope_closure_hash": _digest(expected["scope_closure_hash"], "acceptance_scope_closure_hash"),
+                    "prospective_producer_ref": _record_ref(
+                        expected["prospective_producer_ref"], "acceptance_prospective_producer_ref"
+                    ),
+                    "producer_relation_sha256": _digest(
+                        expected["producer_relation_sha256"], "acceptance_producer_relation_sha256"
+                    ),
+                }
+            except (KeyError, TypeError) as exc:
+                raise AssayAuthorityRejected("acceptance_subject_incomplete") from exc
             if any(payload.get(key) != value for key, value in expected.items()):
                 raise AssayAuthorityRejected("acceptance_subject_mismatch")
             acceptance = deepcopy(payload)

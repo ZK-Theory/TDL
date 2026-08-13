@@ -1237,7 +1237,10 @@ def test_replay_rejects_fully_rehashed_orphan_dossier_materialization(
     fabricated["payload"]["content_sha256"] = blueprint_hash
     events.append(fabricated)
 
-    with pytest.raises(IntegrityError, match="materialization admission transaction mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="materialization admission transaction mismatch|no executable W11 route",
+    ):
         replay_discovery(_rehash_ledger(events))
 
 

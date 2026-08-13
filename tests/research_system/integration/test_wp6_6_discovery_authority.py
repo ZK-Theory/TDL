@@ -73,7 +73,15 @@ def _subject(kind: str) -> dict[str, object]:
             "owner_requirement_refs": ["req_wp66"],
             "content_sha256": "2" * 64,
             "collision_status": "no_collision",
-            "registered_roots": [{"root_id": "repo", "path": "$REPOSITORY_CONTRACT_ROOT"}],
+            "registered_roots": [
+                {
+                    "root_id": "repo",
+                    "path": "$REPOSITORY_CONTRACT_ROOT",
+                    "registration_revision": 1,
+                    "registration_hash": "6" * 64,
+                    "authorized": True,
+                }
+            ],
         }
     if kind == "path_registration":
         subject["content_sha256"] = _path_content_sha256(subject)
@@ -139,6 +147,23 @@ def test_path_registration_replay_rejects_rehashed_false_canonical_content_diges
 
     with pytest.raises(AuthorityRejected, match="content_hash_mismatch"):
         replay_authority((*dossier_events, attacked))
+
+
+def test_path_registration_rejects_a_truthy_non_boolean_authorization_flag() -> None:
+    dossier_events = _run("dossier_expected_set")
+    subject = _subject("path_registration")
+    subject["registered_roots"][0]["authorized"] = "false"
+    subject["content_sha256"] = _path_content_sha256(subject)
+    subject["subject_sha256"] = subject_sha256(subject)
+
+    with pytest.raises(AuthorityRejected, match="invalid_registered_root"):
+        prepare_authority_transition(
+            events=dossier_events,
+            kind="path_registration",
+            action="register",
+            actor_id=AUTHOR,
+            payload={"subject": subject},
+        )
 
 
 def test_assay_authority_rejects_empty_durable_file_path_and_review_id(tmp_path: Path) -> None:

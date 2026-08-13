@@ -85,6 +85,41 @@ def _identity(value: object, label: str) -> str:
     return value
 
 
+def validate_registered_roots(value: object) -> tuple[dict[str, object], ...]:
+    """Validate the exact authorized registered-root authority payload."""
+
+    required = {"root_id", "path", "registration_revision", "registration_hash", "authorized"}
+    if not isinstance(value, list) or not value:
+        raise AuthorityRejected("invalid_registered_roots")
+    roots: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for raw in value:
+        if not isinstance(raw, Mapping) or set(raw) != required:
+            raise AuthorityRejected("invalid_registered_root")
+        root_id = _identity(raw.get("root_id"), "root_id")
+        path = _identity(raw.get("path"), "root_path")
+        revision = raw.get("registration_revision")
+        if (
+            root_id in seen
+            or not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or revision < 1
+            or raw.get("authorized") is not True
+        ):
+            raise AuthorityRejected("invalid_registered_root")
+        seen.add(root_id)
+        roots.append(
+            {
+                "root_id": root_id,
+                "path": path,
+                "registration_revision": revision,
+                "registration_hash": _sha256(raw.get("registration_hash"), "registration_hash"),
+                "authorized": True,
+            }
+        )
+    return tuple(roots)
+
+
 def _validate_registered_subject(
     kind: str,
     subject: Mapping[str, object],
@@ -114,15 +149,13 @@ def _validate_registered_subject(
             raise AuthorityRejected("subject_envelope_mismatch")
         _sha256(subject.get("content_sha256"), "content_sha256")
     else:
-        roots = subject.get("registered_roots")
+        validate_registered_roots(subject.get("registered_roots"))
         dossier = state.get("dossier_expected_set")
         dossier_subject = dossier.get("subject") if isinstance(dossier, Mapping) else None
         expected = dossier_subject.get("expected_set") if isinstance(dossier_subject, Mapping) else None
         content_digest = _sha256(subject.get("content_sha256"), "content_sha256")
         if (
-            not isinstance(roots, list)
-            or not roots
-            or not isinstance(dossier, Mapping)
+            not isinstance(dossier, Mapping)
             or not isinstance(expected, Mapping)
             or dossier.get("status") != "accepted"
             or subject.get("scope_id") != expected.get("dossier_id")

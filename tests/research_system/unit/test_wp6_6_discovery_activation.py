@@ -15,6 +15,7 @@ from research_system.discovery.routes import (
     DISCOVERY_ROW_ROUTES as _DISCOVERY_ROW_ROUTES,
     validate_discovery_route_registry as _validate_discovery_route_registry,
 )
+from research_system.discovery.replay.transactions import TRANSACTION_CONTRACTS
 from research_system.discovery.runtime import _DISCOVERY_COMMAND_TYPES
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.schema_registry import runtime_schema_registry
@@ -117,6 +118,7 @@ def test_executable_route_registry_exactly_partitions_the_accepted_w11_catalogue
 
     _validate_discovery_route_registry(catalogue)
     assert len(_DISCOVERY_ROW_ROUTES) == 59
+    assert set(TRANSACTION_CONTRACTS) == set(_DISCOVERY_ROW_ROUTES)
     assert len(_DISCOVERY_EXCLUDED_ROWS) == 21
     assert _DISCOVERY_DEFERRED_ROWS == {"OR-030": "WP6.7 annotation-epoch contract and initial authority activation"}
     assert set(_DISCOVERY_ROW_ROUTES).isdisjoint(_DISCOVERY_EXCLUDED_ROWS)

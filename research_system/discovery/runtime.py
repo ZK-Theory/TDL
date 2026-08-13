@@ -1377,7 +1377,19 @@ class DiscoveryRuntime:
                     "authorized",
                 }
                 if any(
-                    not isinstance(value, Mapping) or not required_root_fields.issubset(value) for value in root_values
+                    not isinstance(value, Mapping)
+                    or set(value) != required_root_fields
+                    or not isinstance(value.get("root_id"), str)
+                    or not value.get("root_id")
+                    or not isinstance(value.get("path"), str)
+                    or not value.get("path")
+                    or not isinstance(value.get("registration_revision"), int)
+                    or isinstance(value.get("registration_revision"), bool)
+                    or value.get("registration_revision", 0) < 1
+                    or not isinstance(value.get("registration_hash"), str)
+                    or len(value.get("registration_hash", "")) != 64
+                    or value.get("authorized") is not True
+                    for value in root_values
                 ):
                     raise IntegrityError("accepted path authority contains an invalid registered root")
                 path_tokens = self.root_tokens

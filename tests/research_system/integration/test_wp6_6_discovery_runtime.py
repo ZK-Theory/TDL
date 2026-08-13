@@ -1069,7 +1069,10 @@ def _exercise_identity_attacks(runtime: DiscoveryRuntime, shared_id: str) -> Non
     candidate_event["stream_id"] = shared_id
     candidate_event["stream_version"] = 2
     candidate_event["payload"]["candidate_id"] = shared_id
-    with pytest.raises(IntegrityError, match="Candidate identity collision"):
+    with pytest.raises(
+        IntegrityError,
+        match="Candidate identity collision|command payload mismatch for OR-029",
+    ):
         replay_discovery(_rehash_events(tampered))
 
     before = tuple(runtime.ledger.iter_events())
@@ -1416,11 +1419,17 @@ def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: P
             substituted[0]["payload"][field] = [*value, "OR-999"]
         else:
             substituted[0]["payload"][field] = "f" * len(value)
-        with pytest.raises(IntegrityError, match="W11 genesis identity mismatch"):
+        with pytest.raises(
+            IntegrityError,
+            match="W11 genesis identity mismatch|unknown W11 owner row|command payload mismatch for OR-140",
+        ):
             replay_discovery(_rehash_events(substituted))
     substituted_stream = tuple(deepcopy(event) for event in events)
     substituted_stream[0]["stream_id"] = "obj_019fed25-b33e-7740-b280-ffffffffffff"
-    with pytest.raises(IntegrityError, match="W11 genesis identity mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="W11 genesis identity mismatch|unknown W11 owner row|command payload mismatch for OR-140|transaction stream mismatch for OR-140",
+    ):
         replay_discovery(_rehash_events(substituted_stream))
     tampered = _genesis()
     tampered["payload"]["catalogue_sha256"] = "0" * 64  # type: ignore[index]
@@ -1541,7 +1550,10 @@ def test_candidate_producers_persist_their_exact_w11_owner_rows(tmp_path: Path) 
         if event["command_type"] == "RegisterCandidate" and event["event_type"] == "CandidateRegistered"
     )
     direct_registration["payload"]["title"] = "Forged direct Candidate"
-    with pytest.raises(IntegrityError, match="RegisterCandidate command digest mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="RegisterCandidate command digest mismatch|command payload mismatch for OR-001",
+    ):
         replay_discovery(_rehash_events(forged_direct_candidate))
 
 
@@ -1654,7 +1666,10 @@ def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Pat
         stream_id=extra_stream_id,
         payload=extra_payload,
     )
-    with pytest.raises(IntegrityError, match="Candidate supersession transaction mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="Candidate supersession transaction mismatch|route mismatch for OR-002",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events((*injected, uncommanded)))
 
     before = tuple(runtime.ledger.iter_events())
@@ -2244,7 +2259,10 @@ def test_candidate_registration_runs_through_durable_public_seam(tmp_path: Path)
     next(event for event in split_identity if event["event_type"] == "CandidateRegistered")["stream_id"] = (
         "obj_019fed25-b33e-7740-b280-ffffffffffff"
     )
-    with pytest.raises(IntegrityError, match="Candidate identity collision"):
+    with pytest.raises(
+        IntegrityError,
+        match="Candidate identity collision|transaction stream mismatch for OR-029",
+    ):
         replay_discovery(_rehash_events(split_identity))
 
 
@@ -2364,10 +2382,21 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
     for event in rehashed_invented_axis:
         if event["command_id"] == scored_event["command_id"]:
             event["payload"]["scorecard_sha256"] = substituted_scorecard_hash
-    with pytest.raises(IntegrityError, match="invalid Assay score transition"):
+    with pytest.raises(IntegrityError, match="(?:invalid Assay score transition|command payload mismatch for OR-004)"):
         replay_discovery(_rehash_events(rehashed_invented_axis))
 
     scored_prefix = tuple(runtime.ledger.iter_events())
+    coherent_rewrite = tuple(deepcopy(event) for event in scored_prefix)
+    scored_event = next(event for event in coherent_rewrite if event["event_type"] == "AssayScored")
+    for event in coherent_rewrite:
+        if event["transaction_id"] != scored_event["transaction_id"]:
+            continue
+        artifact = event["payload"]["scorecard_artifact"]
+        artifact["axis_results"][0]["value"] = False
+        artifact["mechanical_recommendation"] = "KILL"
+        event["payload"]["scorecard_sha256"] = sha256_hex(canonical_bytes(artifact))
+    with pytest.raises(IntegrityError, match="command payload mismatch for OR-004"):
+        replay_discovery(_rehash_events(coherent_rewrite))
     assay_bar_command_types = {
         "RegisterAssayRubricContent",
         "RegisterAssayEvidenceScopeContent",
@@ -2398,7 +2427,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         if event["command_id"] == rogue_scored["command_id"]:
             event["actor_id"] = rogue_actor_id
             event["payload"]["scorecard_sha256"] = rogue_scorecard_sha256
-    with pytest.raises(IntegrityError, match="invalid Assay score transition"):
+    with pytest.raises(IntegrityError, match="(?:invalid Assay score transition|command payload mismatch for OR-004)"):
         replay_discovery(_rehash_events(rogue_producer))
     review_request_command = _command(
         "RequestDiscoveryOutcomeReview",
@@ -2481,7 +2510,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         for event in runtime.ledger.iter_events()
         if not (event["event_type"] == "AssayOutcomeReviewRequested" and event["payload"].get("review_id") == review_id)
     )
-    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Discovery review request transaction|no executable W11 route|route mismatch for OR-034)",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events(missing_subject_transition))
     split_review_subject = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     review_request_event = next(
@@ -2501,7 +2533,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         for event in malformed_companion_row
         if event["event_type"] == "AssayOutcomeReviewRequested" and event["payload"].get("review_id") == review_id
     )["payload"]["row_id"] = []
-    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Discovery review request transaction|command payload mismatch for OR-034)",
+    ):
         replay_discovery(_rehash_events(malformed_companion_row))
     review_command = _command(
         "ReviewDiscoveryOutcome",
@@ -2629,7 +2664,10 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             if event["event_type"] == "AssayOutcomeReviewRequested"
             and event["payload"].get("review_id") == replacement_review_id
         )["payload"].pop("review_subject_supersession")
-        with pytest.raises(IntegrityError, match="invalid Assay review supersession"):
+        with pytest.raises(
+            IntegrityError,
+            match="invalid Assay review supersession|command payload mismatch for OR-034",
+        ):
             replay_discovery(_rehash_events(tampered))
     if verdict == "approve":
         for tampered_verdict in ("approve", "approve_with_conditions"):
@@ -2946,7 +2984,9 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
             continue
         event["payload"]["partial_artifact"]["candidate_ref"]["id"] = "obj_019fed25-b33e-7740-b280-ffffffffffff"
         event["payload"]["partial_sha256"] = sha256_hex(canonical_bytes(event["payload"]["partial_artifact"]))
-    with pytest.raises(IntegrityError, match="invalid Assay partial transition"):
+    with pytest.raises(
+        IntegrityError, match="(?:invalid Assay partial transition|command payload mismatch for OR-005)"
+    ):
         replay_discovery(_rehash_events(replay_foreign_partial))
     review_contract = {
         "review_type": "provenance",
@@ -3852,7 +3892,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         ]:
             result["evidence_refs"] = [foreign_ref]
         event["payload"]["verdict_sha256"] = sha256_hex(canonical_bytes(artifact))
-    with pytest.raises(IntegrityError, match="invalid Spike (partial )?verdict"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Spike (?:partial )?verdict|command payload mismatch for OR-01[89])",
+    ):
         replay_discovery(_rehash_events(invented_evidence))
     invalid_promotion_relation = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     promotion_request = next(
@@ -3862,7 +3905,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         and event["payload"].get("promotion_gate") == "assay_to_spike"
     )
     promotion_request["payload"]["promotion_relation"]["candidate_ref"]["content_hash"] = "f" * 64
-    with pytest.raises(IntegrityError, match="invalid Candidate promotion request"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Candidate promotion request|command payload mismatch for OR-012)",
+    ):
         replay_discovery(_rehash_events(invalid_promotion_relation))
     invalid_execution_relation = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(
@@ -3870,20 +3916,26 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         for event in invalid_execution_relation
         if event["event_type"] == "SpikeExecutionDecisionRequested" and event["stream_id"] == spike_id
     )["payload"]["execution_authority_relation"]["route_ref"]["content_hash"] = "f" * 64
-    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Spike execution decision request|command payload mismatch for OR-015)",
+    ):
         replay_discovery(_rehash_events(invalid_execution_relation))
     substituted_resource_identity = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     for event in substituted_resource_identity:
         relation = event.get("payload", {}).get("execution_authority_relation")
         if isinstance(relation, dict):
             relation["resource_ref"]["content_hash"] = "f" * 64
-    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Spike execution decision request|command payload mismatch for OR-015)",
+    ):
         replay_discovery(_rehash_events(substituted_resource_identity))
     substituted_start_authority = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     next(event for event in substituted_start_authority if event["event_type"] == "SpikeStarted")["payload"][
         "attempt_sha256"
     ] = "f" * 64
-    with pytest.raises(IntegrityError, match="invalid Spike start"):
+    with pytest.raises(IntegrityError, match="invalid Spike start|command payload mismatch for OR-017"):
         replay_discovery(_rehash_events(substituted_start_authority))
     for identity_field, fabricated_identity in (
         ("attempt_id", "att_019fed25-b33e-7740-b280-ffffffffffff"),
@@ -3893,7 +3945,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         next(event for event in substituted_operational_identity if event["event_type"] == "SpikeStarted")["payload"][
             identity_field
         ] = fabricated_identity
-        with pytest.raises(IntegrityError, match="invalid Spike start"):
+        with pytest.raises(IntegrityError, match="invalid Spike start|command payload mismatch for OR-017"):
             replay_discovery(_rehash_events(substituted_operational_identity))
     or017_events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     or017_end = max(
@@ -3908,7 +3960,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             event["payload"]["attempt_sha256"] = "a" * 64
             event["payload"]["lease_id"] = "els_019fed25-b33e-7740-b280-0000deadbeef"
             event["payload"]["lease_sha256"] = "b" * 64
-    with pytest.raises(IntegrityError, match="invalid Spike start"):
+    with pytest.raises(IntegrityError, match="invalid Spike start|command payload mismatch for OR-017"):
         replay_discovery(_reindex_and_rehash_events(fabricated_operational_pair))
     for relation_field, foreign_id in (
         ("candidate_id", "obj_019fed25-b33e-7740-b280-ffffffffffff"),
@@ -3918,7 +3970,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         next(event for event in substituted_link if event["event_type"] == "CandidateSpikeStarted")["payload"][
             relation_field
         ] = foreign_id
-        with pytest.raises(IntegrityError, match="invalid (?:Candidate )?Spike start"):
+        with pytest.raises(
+            IntegrityError,
+            match="(?:invalid (?:Candidate )?Spike start|transaction stream mismatch for OR-017)",
+        ):
             replay_discovery(_rehash_events(substituted_link), schemas=runtime.schemas)
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
@@ -3932,7 +3987,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
     for payload in (proposal_event["payload"], request_event["payload"]["w2_payload"]):
         payload["options"] = ["reject"]
         payload["recommendation"] = "reject"
-    with pytest.raises(IntegrityError, match="invalid Spike execution decision request"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Spike execution decision request|command payload mismatch for OR-015)",
+    ):
         replay_discovery(_rehash_events(invalid_execution_options))
     if spike_verdict == "PARTIAL":
         operational = replay_control_plane(runtime._operational_events())
@@ -3995,7 +4053,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         for event in runtime.ledger.iter_events()
         if not (event["event_type"] == review_subject_event_type and event["payload"].get("review_id") == review_id)
     )
-    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+    with pytest.raises(
+        IntegrityError,
+        match="(?:invalid Discovery review request transaction|command payload mismatch for OR-03[67]|no executable W11 route|route mismatch for OR-03[67])",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events(missing_spike_subject_transition))
     split_spike_review_subject = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     review_request_event = next(
@@ -4184,11 +4245,22 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if event["event_type"] == "CandidatePromotionApplied"
             and event["payload"].get("promotion_gate") == "spike_to_preregistration"
         )["payload"]["next_candidate_state"] = "spike_planning_authorized"
-        with pytest.raises(IntegrityError, match="invalid Candidate promotion application"):
+        with pytest.raises(
+            IntegrityError,
+            match="(?:invalid Candidate promotion application|command payload mismatch for OR-0(?:13|27))",
+        ):
             replay_discovery(_rehash_events(tampered))
         for event_type, identity_field, message in (
-            ("DecisionProposed", "new_decision_id", "invalid Discovery decision proposal"),
-            ("DecisionResolved", "decision_id", "invalid Discovery decision resolution"),
+            (
+                "DecisionProposed",
+                "new_decision_id",
+                "(?:invalid Discovery decision proposal|transaction stream mismatch for OR-026)",
+            ),
+            (
+                "DecisionResolved",
+                "decision_id",
+                "(?:invalid Discovery decision resolution|transaction stream mismatch for OR-027)",
+            ),
         ):
             tampered = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
             next(
@@ -4369,7 +4441,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             canonical_bytes(empty_reason["payload"]["cancellation_artifact"])
         )
         before = tuple(runtime.ledger.iter_events())
-        with pytest.raises(IntegrityError, match="invalid Spike cancellation transition"):
+        with pytest.raises(
+            IntegrityError,
+            match="invalid Spike cancellation transition|command payload mismatch for OR-022",
+        ):
             runtime.submit(empty_reason)
         assert tuple(runtime.ledger.iter_events()) == before
         runtime.submit(cancellation_command)
@@ -4396,7 +4471,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                     and event["transaction_id"] == cancellation_events[-1]["transaction_id"]
                 )
             )
-            with pytest.raises(IntegrityError, match="cancellation"):
+            with pytest.raises(IntegrityError, match="cancellation|route mismatch for OR-022"):
                 replay_discovery(_reindex_and_rehash_events(missing_pair_member))
         substituted_hash = tuple(deepcopy(event) for event in cancellation_events)
         next(
@@ -4405,7 +4480,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if event["event_type"] == "SpikeExecutionProposalSupersededByCancellation"
             and event["stream_id"] == retry_execution_id
         )["payload"]["cancellation_sha256"] = "f" * 64
-        with pytest.raises(IntegrityError, match="invalid Spike execution proposal cancellation"):
+        with pytest.raises(
+            IntegrityError,
+            match="invalid Spike execution proposal cancellation|command payload mismatch for OR-022",
+        ):
             replay_discovery(_rehash_events(substituted_hash))
         substituted_subject = tuple(deepcopy(event) for event in cancellation_events)
         cancellation_event = next(
@@ -4424,7 +4502,10 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                     event["payload"]["cancellation_artifact"] = deepcopy(
                         cancellation_event["payload"]["cancellation_artifact"]
                     )
-        with pytest.raises(IntegrityError, match="invalid Spike cancellation"):
+        with pytest.raises(
+            IntegrityError,
+            match="invalid Spike cancellation|command payload mismatch for OR-022",
+        ):
             replay_discovery(_rehash_events(substituted_subject))
         cancellation_review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff74"
         cancellation_contract = deepcopy(review_contract)
@@ -4486,18 +4567,23 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             ):
                 replay_discovery(_rehash_events(tampered))
     for event_type, producer_type, identity_field, message in (
-        ("SpikePlanned", "RegisterSpikePlan", "spike_id", "Spike identity collision"),
+        (
+            "SpikePlanned",
+            "RegisterSpikePlan",
+            "spike_id",
+            "Spike identity collision|transaction stream mismatch for OR-014",
+        ),
         (
             "DecisionProposed",
             "ProposePromotionDecision",
             "new_decision_id",
-            "schema provenance mismatch|invalid Discovery decision proposal",
+            "schema provenance mismatch|invalid Discovery decision proposal|transaction stream mismatch",
         ),
         (
             "ReviewRequested",
             "RequestDiscoveryOutcomeReview",
             "new_review_id",
-            "schema provenance mismatch|invalid Discovery review request",
+            "schema provenance mismatch|invalid Discovery review request|transaction stream mismatch",
         ),
     ):
         cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -5159,6 +5245,13 @@ def test_replay_binds_candidate_assay_request_partial_and_cancellation_to_exact_
     with pytest.raises(IntegrityError, match="invalid (?:Assay|Candidate evaluation) cancellation"):
         replay_discovery(_fully_reindex_and_rehash_events(redirected_cancellation))
 
+    wrong_assay_stream = tuple(deepcopy(event) for event in cancellation_events)
+    next(event for event in wrong_assay_stream if event["event_type"] == "AssayCancelled")["stream_id"] = (
+        "asy_019fed25-b33e-7740-b280-ffffffffffff"
+    )
+    with pytest.raises(IntegrityError, match="transaction stream mismatch for OR-008"):
+        replay_discovery(_fully_reindex_and_rehash_events(wrong_assay_stream))
+
 
 def _clone_registered_candidate(
     events: tuple[dict[str, object], ...],
@@ -5401,7 +5494,10 @@ def test_replay_rejects_extra_register_candidate_and_scout_transaction_members(t
     extra["payload"]["title"] = "Injected Candidate transaction member"
     attacked.insert(original_index + 1, extra)
 
-    with pytest.raises(IntegrityError, match="RegisterCandidate transaction shape mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="RegisterCandidate transaction shape mismatch|route mismatch for OR-001",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events(tuple(attacked)))
 
     scout_root = tmp_path / "scout"
@@ -5419,7 +5515,10 @@ def test_replay_rejects_extra_register_candidate_and_scout_transaction_members(t
         scout_events,
         "obj_019fed25-b33e-7740-b280-000000009204",
     )
-    with pytest.raises(IntegrityError, match="Scout transaction shape mismatch"):
+    with pytest.raises(
+        IntegrityError,
+        match="Scout transaction shape mismatch|command payload mismatch for OR-029",
+    ):
         replay_discovery(_fully_reindex_and_rehash_events(attacked_scout))
 
 
@@ -5465,7 +5564,7 @@ def test_replay_revisit_resolution_uses_the_subject_and_candidate_stored_decisio
     with pytest.raises(
         IntegrityError,
         match=(
-            "invalid Discovery decision proposal|invalid Discovery revisit resolution|"
+            "invalid Discovery decision proposal|invalid Discovery revisit resolution|route mismatch for OR-009|"
             "invalid Candidate revisit resolution"
         ),
     ):
@@ -5731,8 +5830,16 @@ def test_authority_decision_resolution_requires_its_acceptance_shadow(tmp_path: 
 @pytest.mark.parametrize(
     ("event_type", "payload_key", "message"),
     [
-        ("ReviewRequested", "new_review_id", "W11 authority review stream mismatch"),
-        ("ReviewVerdictRecorded", "review_id", "W11 authority verdict stream mismatch"),
+        (
+            "ReviewRequested",
+            "new_review_id",
+            "W11 authority review stream mismatch|transaction stream mismatch for OR-105",
+        ),
+        (
+            "ReviewVerdictRecorded",
+            "review_id",
+            "W11 authority verdict stream mismatch|transaction stream mismatch for OR-106",
+        ),
     ],
 )
 def test_w11_authority_review_events_bind_their_outer_stream(
@@ -5852,6 +5959,17 @@ def test_assay_review_decision_revisit_and_retry_write_sets_are_indivisible(tmp_
     next(event for event in malformed if event["event_type"] == "AssayRequested")["payload"]["candidate_id"] = []
     with pytest.raises(IntegrityError, match="requires candidate_id"):
         replay_discovery(_rehash_events(malformed))
+
+    conflicting_rows = tuple(deepcopy(event) for event in events)
+    retry = next(event for event in conflicting_rows if event["event_type"] == "AssaySuperseded")
+    retry_transaction = retry["transaction_id"]
+    next(
+        event
+        for event in conflicting_rows
+        if event["transaction_id"] == retry_transaction and event["event_type"] == "AssayEvidenceCollectionOpened"
+    )["payload"]["row_id"] = "OR-003"
+    with pytest.raises(IntegrityError, match="conflicting W11 owner rows"):
+        replay_discovery(_rehash_events(conflicting_rows))
 
 
 def test_assay_recommendation_uses_the_authoritative_required_axis_ids(tmp_path: Path) -> None:
