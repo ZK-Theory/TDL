@@ -3830,7 +3830,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         if isinstance(artifact, dict) and payload.get("spike_id") == spike_id:
             artifact["assay_promotion_decision_ref"]["content_hash"] = "f" * 64
             payload["plan_sha256"] = sha256_hex(canonical_bytes(artifact))
-    with pytest.raises(IntegrityError, match="invalid Spike plan"):
+    with pytest.raises(IntegrityError, match="Discovery command payload mismatch for OR-014"):
         replay_discovery(_rehash_events(tuple(tampered_plan)))
 
     invented_evidence = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -4677,7 +4677,13 @@ def test_replay_rejects_rehashed_partial_spike_without_exact_operational_closure
     closure_transaction = baseline[-1]["transaction_id"]
     attacks: dict[str, tuple[dict[str, object], ...]] = {}
 
-    for missing_type in ("PartialOutcomeRecorded", "LeaseReleased"):
+    for missing_type in (
+        "PartialOutcomeRecorded",
+        "LeaseReleased",
+        "SpikeAttemptClosed",
+        "SpikeLeaseReleased",
+        "CandidateSpikePartialLinked",
+    ):
         attacks[f"missing_{missing_type}"] = tuple(
             deepcopy(event)
             for event in baseline
@@ -4790,7 +4796,13 @@ def test_running_spike_cancellation_closes_exact_operational_attempt_and_lease(t
     baseline = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     transaction_id = batch[0]["transaction_id"]
     attacks: list[tuple[dict[str, object], ...]] = []
-    for missing_type in ("PartialOutcomeRecorded", "LeaseReleased"):
+    for missing_type in (
+        "PartialOutcomeRecorded",
+        "LeaseReleased",
+        "SpikeAttemptClosed",
+        "SpikeLeaseReleased",
+        "CandidateEvaluationCancelled",
+    ):
         attacks.append(
             tuple(
                 deepcopy(event)
@@ -4890,7 +4902,7 @@ def test_replay_rejects_rehashed_candidate_spike_plan_link_without_exact_plan_tr
     link = baseline[-1]
     attacks = []
 
-    for missing_type in ("SpikePlanned", "SpikeApprovalRequested"):
+    for missing_type in ("SpikePlanned", "SpikeApprovalRequested", "CandidateSpikePlanLinked"):
         attacks.append(
             tuple(
                 deepcopy(event)
@@ -5024,6 +5036,16 @@ def test_replay_binds_candidate_assay_request_partial_and_cancellation_to_exact_
     redirected_request[-1]["payload"]["candidate_id"] = second_candidate_id
     with pytest.raises(IntegrityError, match="invalid (?:Assay request|Candidate Assay) transition"):
         replay_discovery(_fully_reindex_and_rehash_events(redirected_request))
+
+    coordinated_redirect = tuple(deepcopy(event) for event in requested_events[: first_request_link + 1])
+    transaction_id = coordinated_redirect[-1]["transaction_id"]
+    for event in coordinated_redirect:
+        if event["transaction_id"] == transaction_id:
+            event["payload"]["candidate_id"] = second_candidate_id
+            if event["event_type"] == "CandidateAssayRequested":
+                event["stream_id"] = second_candidate_id
+    with pytest.raises(IntegrityError, match="Discovery command payload mismatch for OR-003"):
+        replay_discovery(_fully_reindex_and_rehash_events(coordinated_redirect))
 
     partial_root = tmp_path / "partial"
     partial_root.mkdir()
@@ -5644,6 +5666,12 @@ def test_replay_rejects_authority_shadow_actor_split_from_durable_envelope(tmp_p
     with pytest.raises(IntegrityError, match="authority shadow actor mismatch"):
         replay_discovery(_rehash_events(accepted_events))
 
+    sealed_acceptance = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    accepted = next(event for event in sealed_acceptance if event["event_type"] == "AssayBarAccepted")
+    accepted["payload"]["authority_payload"]["required_axis_set_hash"] = "0" * 64
+    with pytest.raises(IntegrityError, match="acceptance_subject_mismatch"):
+        replay_discovery(_rehash_events(sealed_acceptance))
+
     wrong_producer = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     genesis = next(event for event in wrong_producer if event["event_type"] == "W11CatalogueGenesisImported")
     registered = next(event for event in wrong_producer if event["event_type"] == "AssayRubricContentRegistered")
@@ -5698,6 +5726,32 @@ def test_authority_decision_resolution_requires_its_acceptance_shadow(tmp_path: 
         )
         with pytest.raises((IntegrityError, ValueError)):
             replay_discovery(_fully_reindex_and_rehash_events(attacked))
+
+
+@pytest.mark.parametrize(
+    ("event_type", "payload_key", "message"),
+    [
+        ("ReviewRequested", "new_review_id", "W11 authority review stream mismatch"),
+        ("ReviewVerdictRecorded", "review_id", "W11 authority verdict stream mismatch"),
+    ],
+)
+def test_w11_authority_review_events_bind_their_outer_stream(
+    tmp_path: Path,
+    event_type: str,
+    payload_key: str,
+    message: str,
+) -> None:
+    """OR-105/106 cannot redirect a review identity inside a rehashed event."""
+
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_assay_bar(runtime)
+    attacked = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    event = next(event for event in attacked if event["event_type"] == event_type)
+    event["payload"][payload_key] = "rev_019fed25-b33e-7740-b280-000000009999"
+
+    with pytest.raises(IntegrityError, match=message):
+        replay_discovery(_rehash_events(attacked))
 
 
 def test_assay_authority_observation_rejects_registered_path_alias_before_git(
@@ -5782,7 +5836,15 @@ def test_assay_review_decision_revisit_and_retry_write_sets_are_indivisible(tmp_
             "AssayRevisitResolved",
             ("DecisionResolved", "AssayRevisitResolved", "CandidateAssayRevisitResolved"),
         ),
-        ("AssaySuperseded", ("AssaySuperseded", "CandidateAssayRetryStarted")),
+        (
+            "AssaySuperseded",
+            (
+                "AssayRequested",
+                "AssayEvidenceCollectionOpened",
+                "AssaySuperseded",
+                "CandidateAssayRetryStarted",
+            ),
+        ),
     ):
         _assert_transaction_members_are_indivisible(events, anchor_event_type=anchor, required_event_types=members)
 

@@ -295,9 +295,40 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
         if event_type == "AssayBarAccepted":
             if state["status"] != "resolved" or payload.get("transaction_id") != state.get("transaction_id"):
                 raise AssayAuthorityRejected("acceptance_transaction_mismatch")
-            if payload.get("subject_sha256") != state.get("subject_sha256") or payload.get(
-                "producer_relation_sha256"
-            ) != state.get("producer_relation_sha256"):
+            rubric = state["contents"].get("rubric")
+            scope = state["contents"].get("scope")
+            rubric_content = rubric.get("content") if isinstance(rubric, Mapping) else None
+            scope_content = scope.get("content") if isinstance(scope, Mapping) else None
+            expected = {
+                "subject_sha256": state.get("subject_sha256"),
+                "rubric_ref": {
+                    "id": rubric_content.get("record_id") if isinstance(rubric_content, Mapping) else None,
+                    "record_revision": rubric_content.get("record_revision")
+                    if isinstance(rubric_content, Mapping)
+                    else None,
+                    "content_hash": rubric.get("content_sha256") if isinstance(rubric, Mapping) else None,
+                },
+                "scope_ref": {
+                    "id": scope_content.get("record_id") if isinstance(scope_content, Mapping) else None,
+                    "record_revision": scope_content.get("record_revision")
+                    if isinstance(scope_content, Mapping)
+                    else None,
+                    "content_hash": scope.get("content_sha256") if isinstance(scope, Mapping) else None,
+                },
+                "rubric_file_sha256": state["observations"].get("rubric", {}).get("file_sha256"),
+                "scope_file_sha256": state["observations"].get("scope", {}).get("file_sha256"),
+                "review_id": state.get("review_id"),
+                "decision_id": state.get("decision_id"),
+                "required_axis_set_hash": (
+                    rubric_content.get("required_axis_set_hash") if isinstance(rubric_content, Mapping) else None
+                ),
+                "scope_closure_hash": (
+                    scope_content.get("scope_closure_algorithm_hash") if isinstance(scope_content, Mapping) else None
+                ),
+                "prospective_producer_ref": state.get("prospective_producer_ref"),
+                "producer_relation_sha256": state.get("producer_relation_sha256"),
+            }
+            if any(payload.get(key) != value for key, value in expected.items()):
                 raise AssayAuthorityRejected("acceptance_subject_mismatch")
             acceptance = deepcopy(payload)
             state.update(

@@ -688,6 +688,7 @@ def reduce_spike_cancelled(scope: EventScope) -> None:
             decision=decision,
             state=state,
         )
+        or (spike.get("status") == "running" and not _running_cancellation_write_set_matches(scope))
     ):
         raise IntegrityError("invalid Spike cancellation")
     decision = state["decisions"].get(spike.get("decision_id"))
@@ -707,6 +708,44 @@ def reduce_spike_cancelled(scope: EventScope) -> None:
         outcome_sha256=required_string("cancellation_sha256"),
         producer_actor_id=event.get("actor_id"),
         version=event["stream_version"],
+    )
+
+
+def _running_cancellation_write_set_matches(scope: EventScope) -> bool:
+    """Require OR-022 to close a running Attempt and Lease in its own batch."""
+
+    event = scope.event
+    payload = scope.payload
+    members = sorted(
+        scope.transaction_events.get(event.get("transaction_id"), ()),
+        key=lambda member: member.get("transaction_index", 0),
+    )
+    expected = (
+        "SpikeCancelled",
+        "PartialOutcomeRecorded",
+        "LeaseReleased",
+        "SpikeAttemptClosed",
+        "SpikeLeaseReleased",
+        "CandidateEvaluationCancelled",
+    )
+    if members and members[0].get("event_type") == "SpikeExecutionProposalSupersededByCancellation":
+        expected = ("SpikeExecutionProposalSupersededByCancellation", *expected)
+    if tuple(member.get("event_type") for member in members) != expected:
+        return False
+    offset = len(members) - 6
+    spike = scope.state["spikes"].get(payload.get("spike_id"))
+    if not isinstance(spike, Mapping):
+        return False
+    closure_payload = {**deepcopy(payload), "attempt_id": spike.get("attempt_id"), "lease_id": spike.get("lease_id")}
+    return bool(
+        members[offset].get("stream_id") == payload.get("spike_id")
+        and members[offset].get("payload") == payload
+        and members[offset + 3].get("stream_id") == payload.get("spike_id")
+        and members[offset + 3].get("payload") == closure_payload
+        and members[offset + 4].get("stream_id") == payload.get("spike_id")
+        and members[offset + 4].get("payload") == closure_payload
+        and members[offset + 5].get("stream_id") == payload.get("candidate_id")
+        and members[offset + 5].get("payload") == payload
     )
 
 

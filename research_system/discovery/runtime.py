@@ -57,6 +57,7 @@ from research_system.discovery.rules import (
     _valid_spike_promotion_option,
 )
 from research_system.discovery.replay.driver import replay_discovery
+from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
 from research_system.discovery.commands import (
     DISCOVERY_COMMAND_TYPES,
     discovery_resolve_transaction_ids,
@@ -541,7 +542,7 @@ class DiscoveryRuntime:
 
         self._require_admissible_target(command, projection)
         self._require_candidate_target(command, projection)
-        _, route = _discovery_route(command)
+        row_id, route = _discovery_route(command)
         if route.family == "genesis":
             event_type, event_payload = self._prepare_genesis(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
@@ -569,6 +570,7 @@ class DiscoveryRuntime:
             prepared = self._prepare_authority(command, projection)
         else:
             raise IntegrityError(f"unsupported Discovery route family: {route.family}")
+        validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")

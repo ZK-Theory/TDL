@@ -24,6 +24,7 @@ from research_system.discovery.ledger_integrity import (
 )
 from research_system.discovery.replay.registry import REDUCERS
 from research_system.discovery.replay.scope import EventScope
+from research_system.discovery.replay.transactions import validate_transaction_contract
 from research_system.discovery.routes import discovery_identity_exists as _discovery_identity_exists
 from research_system.discovery.routes import shared_event_partition as _shared_event_partition
 from research_system.errors import IntegrityError
@@ -54,6 +55,8 @@ def replay_discovery(
     transaction_events: dict[Any, list[dict[str, Any]]] = {}
     for persisted_event in ordered:
         transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
+    for transaction in transaction_events.values():
+        validate_transaction_contract(transaction)
     state: dict[str, Any] = {
         "catalogue": None,
         "source_observations": {},
@@ -466,6 +469,10 @@ def replay_discovery(
                 raise IntegrityError("W11 authority decision stream mismatch")
             if event_type == "DecisionResolved" and event.get("stream_id") != payload.get("decision_id"):
                 raise IntegrityError("W11 authority decision stream mismatch")
+            if event_type == "ReviewRequested" and event.get("stream_id") != payload.get("new_review_id"):
+                raise IntegrityError("W11 authority review stream mismatch")
+            if event_type == "ReviewVerdictRecorded" and event.get("stream_id") != payload.get("review_id"):
+                raise IntegrityError("W11 authority verdict stream mismatch")
             kind = state["authority_streams"].get(event["stream_id"])
             if kind is None and event_type == "ReviewRequested":
                 refs = payload.get("governing_refs", [])
@@ -493,6 +500,8 @@ def replay_discovery(
                 raise IntegrityError("missing explicit W11 authority kind")
             if kind == "assay_bar":
                 current = state["assay_bar_authority"]
+                if event_type == "ReviewVerdictRecorded" and payload.get("review_id") != current.get("review_id"):
+                    raise IntegrityError("W11 authority verdict review mismatch")
                 if event_type == "ReviewRequested":
                     reviewer_capability = payload.get("reviewer_capability")
                     governing_refs = payload.get("governing_refs")
@@ -567,6 +576,8 @@ def replay_discovery(
                     raise IntegrityError(str(exc)) from exc
                 continue
             current = state["authorities"].get(kind, {})
+            if event_type == "ReviewVerdictRecorded" and payload.get("review_id") != current.get("review_id"):
+                raise IntegrityError("W11 authority verdict review mismatch")
             if event_type == "ReviewRequested":
                 reviewer_capability = payload.get("reviewer_capability")
                 if (
