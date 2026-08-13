@@ -52,8 +52,8 @@ CONTENT_BYTES = canonical_bytes(
 )
 CONTENT_SHA256 = sha256_hex(CONTENT_BYTES)
 SUBJECT = AcceptedContractSubject(
-    manifest_git_blob="7af3af9fbec1e5a1427162885eaeb6a82cbfca7b",
-    manifest_sha256="b32821b6487a2d2a9941966a01dca1bdf62c3d3e57255f4c8f6933282a197ad1",
+    manifest_git_blob="9d415f9af23caa963c36dbbb8103c2bf55101a95",
+    manifest_sha256="365ee6643dc626f361f00bb06901718386dba319549d7079f5182fa672d1cb05",
 )
 P6_COMMAND_EVENTS = {
     "RecordArtefactAvailability": "ArtefactAvailabilityRecorded",

@@ -431,10 +431,6 @@ direct_storage_inventory:
     classification: registration_storage_mechanics
     operations: [existence_read, object_read, object_write]
   - path: research_system/session_exchange/exchange.py
-    owner: prepare_session_brief
-    classification: producer_storage_mechanics
-    operations: [artefact_object_write]
-  - path: research_system/session_exchange/exchange.py
     owner: record_session_evidence
     classification: consumer_then_producer_storage_mechanics
     operations: [resolve_for_review, artefact_object_write]
