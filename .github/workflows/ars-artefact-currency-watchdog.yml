@@ -36,7 +36,11 @@ jobs:
       - name: Read workflow states from GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/${GITHUB_REPOSITORY}/actions/workflows" > workflows.json
+        # Fetch by stable filename: the workflow-list endpoint is paginated,
+        # so its first page cannot prove this particular workflow is present.
+        run: >-
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ars-artefact-currency.yml"
+          --jq '{workflows: [.]}' > workflows.json
 
       - name: Fail closed if the currency workflow is inactive
         run: >-
