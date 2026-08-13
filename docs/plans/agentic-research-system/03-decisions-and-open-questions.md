@@ -1047,6 +1047,31 @@ result or claim, or authorize migration.<br>
 **Affected specifications:** RM-00 through RM-04; 06h, 06i, 06j; WP6.1; 06g
 WP6.4 owner-operated session amendment; Gate 6 control; Gate 9 successor plan.
 
+### P-048 - C-1 ARS artefact-currency gate recovery
+
+**Date:** 2026-08-13<br>
+**Status:** Accepted by Stephen as bounded corrective-maintenance direction.<br>
+**Supersedes:** The claim in `.github/workflows/ci.yml` that its disabled
+repository-wide suite is the live post-merge ARS currency signal.<br>
+**Decision:** The active C-1 signal is `ARS Artefact Currency` at
+`.github/workflows/ars-artefact-currency.yml`. It runs the direct 06i
+artefact-authority contract, canonical loader, WP6.4 session-exchange, and
+watchdog negative-control tests on pull requests and `main`. The independent
+`ARS Artefact Currency Watchdog` queries GitHub's workflow API on every `main`
+push and daily; it fails closed unless that exact workflow is `active`.
+
+The legacy repository-wide `CI` workflow remains disabled because its full-tree
+lint baseline is red. It is not re-enabled or represented as a green gate by
+this decision. The stale 06i direct-storage inventory is corrected to name the
+single live artefact writer, `record_session_evidence`, and its duplicate
+candidate/canonical materialization identities are renewed together.<br>
+**Boundary:** This is a narrow C-1 control recovery. It does not reinstate
+repository-wide CI, impose branch protection, accept or close G-RM-14, change
+provider/execution authority, or close WP6/Gate 6. Any later full-suite or
+branch-protection policy requires its own owner decision.<br>
+**Affected specifications:** 06i artefact-authority interface; WP6.4 session
+exchange; ARS post-merge currency control.
+
 ## WP6.4 mechanics integration status (non-decision)
 
 PR #208 was merged at

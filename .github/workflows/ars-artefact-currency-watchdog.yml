@@ -1,0 +1,49 @@
+name: ARS Artefact Currency Watchdog
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  require-active-currency-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout workflow subject without submodule cleanup
+        # The probe token is used only for the API request below. This public
+        # checkout avoids the unmapped legacy `.superpowers` gitlink.
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Read workflow states from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Fetch by stable filename: the workflow-list endpoint is paginated,
+        # so its first page cannot prove this particular workflow is present.
+        run: >-
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ars-artefact-currency.yml"
+          --jq '{workflows: [.]}' > workflows.json
+
+      - name: Fail closed if the currency workflow is inactive
+        run: >-
+          python tools/check_workflow_liveness.py
+          --workflows-json workflows.json
+          --target-path .github/workflows/ars-artefact-currency.yml
