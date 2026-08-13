@@ -1,19 +1,18 @@
 # Proposed P-049 - Gate 6 control model
 
-**Status:** Proposed - requires Stephen's explicit adoption and a hosting-path
-choice before any GitHub ruleset, branch-protection, repository-transfer, or
-workflow-policy change is applied.
+**Status:** Proposed - Path A has been selected, but this decision still
+requires reviewed PR integration before a GitHub ruleset or branch-protection
+policy is applied.
 **Repository subject:** `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d`
 (PR #248).
 **Live-state observation:** GitHub and Jira settings/statuses were read on
 2026-08-13. They are external observations, not bytes content-addressed by the
 repository subject above.
-**Feasibility correction (2026-08-13):** `stephendor/TDL` is a public,
-user-owned repository. GitHub documents merge queues as available only to
-organisation-owned repositories, so the original merge-queue mechanism cannot
-be installed here. Do not add a dormant `merge_group` trigger or claim a fresh
-merge-queue candidate until Stephen elects to transfer the repository to an
-organisation and GitHub confirms that capability.
+**Owner hosting action (2026-08-13):** Stephen transferred `stephendor/TDL`
+to public organisation `ZK-Theory`; the live repository is now
+`ZK-Theory/TDL`. This selects Path A below. GitHub Actions is enabled, both
+currency workflows are active, and no ruleset is currently installed. These
+are live observations, not bytes content-addressed by the repository subject.
 **Scope:** first-release merge control, capability integration control, and
 final Gate 6 closure control.
 **Does not authorize:** provider invocation, credential handling, pilot or
@@ -318,19 +317,21 @@ repository has no native merge-queue event to invalidate that snapshot at merge
 time. A scheduled watchdog can detect the condition later, but cannot honestly
 be represented as atomic merge admission.
 
-### Required owner choice
+### Hosting path selected
 
-**Path A — transfer `stephendor/TDL` to an organisation.** This is the path if
-a fresh, GitHub-generated merge candidate is a non-negotiable requirement.
-After the transfer and a read-back confirming merge-queue availability, the
-control can add `merge_group` triggers to both jobs, obtain fresh PR and
-merge-queue runs, and install one `main` ruleset with a required merge queue,
-resolved conversations, strict required currency checks from GitHub Actions
-integration `15368`, no direct-push bypass, and non-fast-forward protection.
-The resulting harmless probe must demonstrate direct-push rejection,
-missing/failing check rejection, unresolved-thread rejection, both checks on a
-fresh merge-group candidate, and force-push rejection (or record the exact
-safe-probe limitation).
+**Path A — selected and completed at the hosting boundary.** Stephen
+transferred the repository to public organisation `ZK-Theory` on 2026-08-13.
+The live read-back confirms that `ZK-Theory/TDL` is organisation-owned, public,
+and administrator-controlled by Stephen. GitHub documents merge queues as
+available for this repository class. The remaining delivery work is therefore
+concrete: integrate the reviewed `merge_group` workflow triggers, obtain fresh
+PR and merge-queue runs, then install one `main` ruleset with a required merge
+queue, resolved conversations, strict required currency checks from GitHub
+Actions integration `15368`, no direct-push bypass, and non-fast-forward
+protection. The resulting harmless probe must demonstrate direct-push
+rejection, missing/failing check rejection, unresolved-thread rejection, both
+checks on a fresh merge-group candidate, and force-push rejection (or record
+the exact safe-probe limitation).
 
 **Path B — keep the repository user-owned.** A normal PR ruleset can provide
 valuable partial control, but it cannot satisfy this proposal's fresh
@@ -348,23 +349,23 @@ merge decision are the additional evidence. No bypass actor is proposed.
 
 ## Adoption sequence
 
-1. Stephen accepts or amends this solo-owner model and the review threshold:
-   external review is required by default for capability, Gate, recovery,
-   durable-mutation, and decision/control PRs; routine low-risk work remains a
-   Stephen-controlled exception.
-2. Directly prove the PR-time currency controls: both jobs must complete on one
-   fresh PR, the watchdog must observe the currency workflow as active, and both
-   run summaries must record their resolved subject. This does not enable a
-   ruleset or establish merge-time invalidation.
-3. Stephen chooses Path A (organisation transfer) or Path B (user-owned
-   repository with an explicitly bounded alternative). Do not install a
-   merge-queue rule, `merge_group` trigger, or ruleset that claims fresh
-   merge-candidate liveness before that choice.
-4. For Path A, read back organisation ownership and merge-queue availability,
-   then add the `merge_group` controls, prove fresh PR and queue results, apply
-   the ruleset, and perform the complete harmless probe stated above. For Path
-   B, bring the separately approved merge-time control design back to this
-   proposal before treating remote enforcement as adopted.
+1. Path A is selected by the completed transfer. Keep the solo-owner review
+   threshold: external review is required by default for capability, Gate,
+   recovery, durable-mutation, and decision/control PRs; routine low-risk work
+   remains a Stephen-controlled exception.
+2. Obtain current external-review conclusions and normal reviewed integration
+   for P-049 / PR #251 and the `merge_group` workflow change / PR #252. PR #252
+   has already proved both current PR controls at its exact head; its normal
+   merge is the necessary bootstrap because `main` cannot trigger a merge group
+   before it contains those workflow declarations.
+3. After PR #252 is integrated, Stephen explicitly authorizes one harmless
+   queue-probe PR. Install the minimal temporary queue rule needed to create the
+   candidate, add that no-op PR to the queue, and verify both controls on its
+   fresh merge-group subject. Do not use a real capability PR as this probe and
+   do not infer authorization to merge the probe from this document.
+4. After the queue probe passes, install the final `main` ruleset and perform
+   the complete harmless enforcement probe stated above. Read back every rule
+   setting; do not call the remote control active from an attempted write.
 5. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
    P-049 to the decision register, point the historical WP6 Gate
    6 plan at this live model, and correct the stale disabled-CI comment.
@@ -386,8 +387,11 @@ merge decision are the additional evidence. No bypass actor is proposed.
 - `tools/certify_wp6_6_real_dossier.ps1` and
   `tests/research_system/integration/test_wp6_6_dossier_admission.py`.
 - GitHub's documented merge-queue behaviour and availability: `merge_group`
-  checks run on a fresh queue candidate, but the queue is available only to
-  organisation-owned repositories; this public user-owned repository is not
-  eligible until an owner-approved transfer changes that fact.
+  checks run on a fresh queue candidate, and the queue is available to public
+  organisation-owned repositories; `ZK-Theory/TDL` now meets that boundary.
+- Live hosting read-back on 2026-08-13: `ZK-Theory/TDL` is public,
+  organisation-owned, Actions-enabled, and has no existing ruleset; both
+  currency workflows are active. PR #252 head `1d3603f` produced successful
+  `pull_request` runs for both controls.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.
