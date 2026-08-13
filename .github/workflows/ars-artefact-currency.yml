@@ -20,6 +20,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # This public repository has a legacy gitlink with no .gitmodules
+          # mapping. A blank token avoids checkout's credential-cleanup walk
+          # over that unrelated malformed submodule path.
+          token: ""
           persist-credentials: false
 
       - name: Set up Python 3.13

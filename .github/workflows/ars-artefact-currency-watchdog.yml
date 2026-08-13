@@ -20,6 +20,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # The API probe below has its own read-only token. Keep checkout
+          # anonymous so it does not traverse the legacy unmapped gitlink.
+          token: ""
           persist-credentials: false
 
       - name: Set up Python 3.13
