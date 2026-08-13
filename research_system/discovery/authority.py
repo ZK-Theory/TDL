@@ -196,6 +196,16 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
                 raise AuthorityRejected("actor_not_independent")
             if payload.get("subject_sha256") != current["subject_sha256"]:
                 raise AuthorityRejected("subject_hash_mismatch")
+            subject = current["subject"]
+            expected_file_identity = {
+                "repository_path": subject.get("authority_file_path"),
+                "git_commit": subject.get("authority_file_git_commit"),
+                "git_blob": subject.get("authority_file_git_blob"),
+                "file_size": subject.get("authority_file_size"),
+                "file_sha256": subject.get("authority_file_sha256"),
+            }
+            if any(payload.get(key) != value for key, value in expected_file_identity.items()):
+                raise AuthorityRejected("file_identity_mismatch")
             current.update(
                 status="observed",
                 file_sha256=_sha256(payload.get("file_sha256"), "file_sha256"),

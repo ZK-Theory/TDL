@@ -113,12 +113,18 @@ def reduce_candidate_registered(scope: EventScope) -> None:
     }.get(event.get("command_type"))
     if event.get("command_type") == "RegisterCandidate":
         members = transaction_events.get(event.get("transaction_id"), ())
+        command_payload = {
+            key: deepcopy(payload.get(key))
+            for key in ("candidate_id", "revision", "content_sha256", "source_observation_refs", "title")
+        }
         if (
             len(members) != 1
             or members[0].get("event_type") != "CandidateRegistered"
             or members[0].get("stream_id") != payload.get("candidate_id")
         ):
             raise IntegrityError("RegisterCandidate transaction shape mismatch")
+        if sha256_hex(canonical_bytes(command_payload)) != event.get("command_payload_hash"):
+            raise IntegrityError("RegisterCandidate command digest mismatch")
     if (
         not isinstance(candidate_id, str)
         or event.get("stream_id") != candidate_id

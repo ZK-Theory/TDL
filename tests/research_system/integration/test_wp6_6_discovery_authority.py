@@ -77,6 +77,13 @@ def _subject(kind: str) -> dict[str, object]:
         }
     if kind == "path_registration":
         subject["content_sha256"] = _path_content_sha256(subject)
+    subject.update(
+        authority_file_path=f"authority/{kind}.json",
+        authority_file_size=123,
+        authority_file_sha256="4" * 64,
+        authority_file_git_commit="2" * 40,
+        authority_file_git_blob="3" * 40,
+    )
     subject["subject_sha256"] = subject_sha256(subject)
     return subject
 
@@ -350,3 +357,36 @@ def test_authority_rejects_related_actors_tamper_stale_collision_and_second_acce
         prepare_authority_transition(
             events=(), kind="path_registration", action="register", actor_id=AUTHOR, payload={"subject": subject}
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    (
+        ("repository_path", "authority/foreign.json"),
+        ("git_commit", "a" * 40),
+        ("git_blob", "b" * 40),
+        ("file_size", 124),
+        ("file_sha256", "c" * 64),
+    ),
+)
+def test_authority_replay_binds_observation_to_registered_file_identity(field: str, replacement: object) -> None:
+    events = list(deepcopy(_run("path_registration")))
+    observed = next(
+        event
+        for event in events
+        if event["authority_kind"] == "path_registration" and event["event_type"] == "W11AuthorityFileObserved"
+    )
+    observed["payload"][field] = replacement
+    if field == "file_sha256":
+        for event in events:
+            if event["authority_kind"] != "path_registration":
+                continue
+            if event["event_type"] == "ReviewRequested":
+                event["payload"]["file_sha256"] = replacement
+            elif event["event_type"] == "ReviewVerdictRecorded":
+                event["payload"]["unchanged_file_sha256"] = replacement
+            elif event["event_type"] in {"DecisionProposed", "PathRegistrationAccepted"}:
+                event["payload"]["file_sha256"] = replacement
+
+    with pytest.raises(AuthorityRejected, match="file_identity_mismatch"):
+        replay_authority(events)

@@ -83,7 +83,11 @@ def reduce_candidate_spike_plan_linked(scope: EventScope) -> None:
     if not candidate_spike_plan_link_matches(event, payload):
         raise IntegrityError("invalid Candidate Spike plan link")
     candidate = state["candidates"][payload["candidate_id"]]
-    candidate.update(status="spike_approval_pending", spike_id=required_string("spike_id"))
+    candidate.update(
+        status="spike_approval_pending",
+        spike_id=required_string("spike_id"),
+        version=event["stream_version"],
+    )
 
 
 def reduce_spike_execution_decision_requested(scope: EventScope) -> None:
@@ -224,7 +228,7 @@ def reduce_candidate_spike_authorized(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Candidate Spike authorization")
-    candidate.update(status="spike_authorized")
+    candidate.update(status="spike_authorized", version=event["stream_version"])
 
 
 def reduce_spike_started(scope: EventScope) -> None:
@@ -235,6 +239,7 @@ def reduce_spike_started(scope: EventScope) -> None:
     payload = scope.payload
     operational_events = scope.operational_events
     event = scope.event
+    following_transaction_event_matches = scope.following_transaction_event_matches
 
     spike = state["spikes"].get(payload.get("spike_id"))
     attempt_id = required_string("attempt_id")
@@ -252,6 +257,12 @@ def reduce_spike_started(scope: EventScope) -> None:
         or spike.get("execution_authority_relation", {}).get("resource_ref", {}).get("id")
         != payload.get("resource_grant_id")
         or not _spike_start_operational_matches(operational_events, event, payload)
+        or not following_transaction_event_matches(
+            event,
+            payload,
+            event_type="CandidateSpikeStarted",
+            stream_id=payload.get("candidate_id"),
+        )
     ):
         raise IntegrityError("invalid Spike start")
     spike.update(
@@ -298,7 +309,7 @@ def reduce_candidate_spike_started(scope: EventScope) -> None:
         != spike.get("execution_authority_relation", {}).get("resource_ref", {}).get("id")
     ):
         raise IntegrityError("invalid Candidate Spike start")
-    candidate.update(status="spike_running")
+    candidate.update(status="spike_running", version=event["stream_version"])
 
 
 def reduce_spike_verdict_recorded(scope: EventScope) -> None:
@@ -421,7 +432,7 @@ def reduce_candidate_spike_verdict_linked(scope: EventScope) -> None:
     ):
         raise IntegrityError("invalid Candidate Spike verdict link")
     candidate = state["candidates"][payload["candidate_id"]]
-    candidate.update(status="spike_verdict_recorded")
+    candidate.update(status="spike_verdict_recorded", version=event["stream_version"])
 
 
 def reduce_candidate_spike_partial_linked(scope: EventScope) -> None:
@@ -441,7 +452,7 @@ def reduce_candidate_spike_partial_linked(scope: EventScope) -> None:
     ):
         raise IntegrityError("invalid Candidate Spike partial link")
     candidate = state["candidates"][payload["candidate_id"]]
-    candidate.update(status="spike_partial_recorded")
+    candidate.update(status="spike_partial_recorded", version=event["stream_version"])
 
 
 def reduce_spike_cancellation_review_requested(scope: EventScope) -> None:
@@ -553,7 +564,7 @@ def reduce_candidate_spike_partial_reviewed(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Candidate Spike partial review")
-    candidate.update(status="spike_revisit_eligible")
+    candidate.update(status="spike_revisit_eligible", version=event["stream_version"])
 
 
 def reduce_spike_partial_reviewed(scope: EventScope) -> None:
@@ -712,4 +723,4 @@ def reduce_candidate_spike_cancellation_reviewed(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Candidate Spike cancellation review")
-    candidate.update(status="spike_revisit_eligible")
+    candidate.update(status="spike_revisit_eligible", version=event["stream_version"])

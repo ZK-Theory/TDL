@@ -1513,6 +1513,16 @@ def test_candidate_producers_persist_their_exact_w11_owner_rows(tmp_path: Path) 
         with pytest.raises(IntegrityError):
             replay_discovery(_rehash_events(tampered))
 
+    forged_direct_candidate = tuple(deepcopy(event) for event in events)
+    direct_registration = next(
+        event
+        for event in forged_direct_candidate
+        if event["command_type"] == "RegisterCandidate" and event["event_type"] == "CandidateRegistered"
+    )
+    direct_registration["payload"]["title"] = "Forged direct Candidate"
+    with pytest.raises(IntegrityError, match="RegisterCandidate command digest mismatch"):
+        replay_discovery(_rehash_events(forged_direct_candidate))
+
 
 def test_candidate_supersession_is_public_replay_safe_and_terminal(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
@@ -2464,6 +2474,14 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
         match="invalid Discovery review request transaction|invalid Assay outcome review request",
     ):
         replay_discovery(_rehash_events(split_review_subject))
+    malformed_companion_row = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    next(
+        event
+        for event in malformed_companion_row
+        if event["event_type"] == "AssayOutcomeReviewRequested" and event["payload"].get("review_id") == review_id
+    )["payload"]["row_id"] = []
+    with pytest.raises(IntegrityError, match="invalid Discovery review request transaction"):
+        replay_discovery(_rehash_events(malformed_companion_row))
     review_command = _command(
         "ReviewDiscoveryOutcome",
         review_id,
@@ -3878,7 +3896,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         next(event for event in substituted_link if event["event_type"] == "CandidateSpikeStarted")["payload"][
             relation_field
         ] = foreign_id
-        with pytest.raises(IntegrityError, match="invalid Candidate Spike start"):
+        with pytest.raises(IntegrityError, match="invalid (?:Candidate )?Spike start"):
             replay_discovery(_rehash_events(substituted_link), schemas=runtime.schemas)
     invalid_execution_options = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
     proposal_event = next(
@@ -5666,8 +5684,26 @@ def test_spike_review_decision_promotion_and_retry_write_sets_are_indivisible(
 
     test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(tmp_path, verdict, row)
     events = tuple(deepcopy(event) for event in _HARNESSES[tmp_path].ledger.iter_events())
+    _assert_transaction_members_are_indivisible(
+        events,
+        anchor_event_type="SpikeStarted",
+        required_event_types=("SpikeStarted", "CandidateSpikeStarted"),
+    )
     for anchor, members in write_sets:
         _assert_transaction_members_are_indivisible(events, anchor_event_type=anchor, required_event_types=members)
+    for index, event in enumerate(events):
+        if not event["event_type"].startswith("Candidate"):
+            continue
+        candidate_id = event["stream_id"]
+        transaction_end = max(
+            member_index
+            for member_index, member in enumerate(events)
+            if member["transaction_id"] == event["transaction_id"]
+        )
+        projection = replay_discovery(events[: transaction_end + 1])
+        candidate = projection["candidates"].get(candidate_id)
+        if candidate is not None:
+            assert candidate["version"] == event["stream_version"], (index, event["event_type"])
     if verdict == "PASS":
         promotion_requested = next(
             event
