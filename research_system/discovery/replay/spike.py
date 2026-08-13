@@ -332,6 +332,7 @@ def reduce_spike_verdict_recorded(scope: EventScope) -> None:
         or not isinstance(artifact, dict)
         or spike.get("status") != "running"
         or not _spike_verdict_matches(artifact, payload, candidate, assay, spike, state, canonical_artefact_streams)
+        or not _spike_result_write_set_matches(scope, partial=False)
     ):
         raise IntegrityError("invalid Spike verdict")
     spike.update(
@@ -364,6 +365,7 @@ def reduce_spike_partial_recorded(scope: EventScope) -> None:
         or not isinstance(artifact, dict)
         or spike.get("status") != "running"
         or not _spike_verdict_matches(artifact, payload, candidate, assay, spike, state, canonical_artefact_streams)
+        or not _spike_result_write_set_matches(scope, partial=True)
     ):
         raise IntegrityError("invalid Spike partial verdict")
     spike.update(
@@ -374,6 +376,56 @@ def reduce_spike_partial_recorded(scope: EventScope) -> None:
         revisit_requirements=deepcopy(spike.get("plan_artifact", {}).get("partial_rules", [])),
         producer_actor_id=event.get("actor_id"),
         version=event["stream_version"],
+    )
+
+
+def _spike_result_write_set_matches(scope: EventScope, *, partial: bool) -> bool:
+    """Require the complete exact Candidate and operational result transaction."""
+
+    event = scope.event
+    payload = scope.payload
+    spike = scope.state["spikes"].get(payload.get("spike_id"))
+    if not isinstance(spike, Mapping):
+        return False
+    members = sorted(
+        scope.transaction_events.get(event.get("transaction_id"), ()),
+        key=lambda item: item.get("transaction_index", 0),
+    )
+    if not partial:
+        return bool(
+            tuple(member.get("event_type") for member in members)
+            == ("SpikeVerdictRecorded", "CandidateSpikeVerdictLinked")
+            and members[0].get("stream_id") == payload.get("spike_id")
+            and members[0].get("payload") == payload
+            and members[1].get("stream_id") == payload.get("candidate_id")
+            and members[1].get("payload") == payload
+        )
+
+    expected_types = (
+        "SpikePartialRecorded",
+        "PartialOutcomeRecorded",
+        "LeaseReleased",
+        "SpikeAttemptClosed",
+        "SpikeLeaseReleased",
+        "CandidateSpikePartialLinked",
+    )
+    closure_payload = {
+        **deepcopy(payload),
+        "attempt_id": spike.get("attempt_id"),
+        "lease_id": spike.get("lease_id"),
+    }
+    return bool(
+        tuple(member.get("event_type") for member in members) == expected_types
+        and members[0].get("stream_id") == payload.get("spike_id")
+        and members[0].get("payload") == payload
+        and members[1].get("stream_id") == spike.get("attempt_id")
+        and members[2].get("stream_id") == spike.get("lease_id")
+        and members[3].get("stream_id") == payload.get("spike_id")
+        and members[3].get("payload") == closure_payload
+        and members[4].get("stream_id") == payload.get("spike_id")
+        and members[4].get("payload") == closure_payload
+        and members[5].get("stream_id") == payload.get("candidate_id")
+        and members[5].get("payload") == payload
     )
 
 

@@ -88,6 +88,15 @@ _COMMAND_FIELDS = {
 _GIT_TIMEOUT_SECONDS = 10
 
 
+def _decision_resolution_authority_matches(command: Command, payload: Mapping[str, Any]) -> bool:
+    """Bind nested W2 decision authority to the governed command envelope."""
+
+    return bool(
+        payload.get("deciding_actor_id") == command.actor_id
+        and payload.get("decision_authority_grant_id") == command.envelope.get("authority_grant_id")
+    )
+
+
 class DiscoveryLedgerReplayError(IntegrityError):
     """A persisted Discovery ledger cannot be reconstructed before command preparation."""
 
@@ -1587,6 +1596,7 @@ class DiscoveryRuntime:
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
+            and _decision_resolution_authority_matches(command, p["w2_payload"])
             and p["w2_payload"].get("selected_option") in {"PROMOTE", "PARK", "KILL"}
             and p["w2_payload"]["selected_option"] in decision.get("options", ())
             and (
@@ -1686,6 +1696,7 @@ class DiscoveryRuntime:
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
+            and _decision_resolution_authority_matches(command, p["w2_payload"])
             and p.get("w2_payload", {}).get("selected_option") == "approve"
             and p["w2_payload"]["selected_option"] in decision.get("options", ())
             and p.get("execution_authority_relation") == spike.get("execution_authority_relation")
@@ -2030,6 +2041,7 @@ class DiscoveryRuntime:
             and isinstance(p.get("w2_payload"), dict)
             and _valid_spike_promotion_option(spike, p["w2_payload"].get("selected_option"))
             and p["w2_payload"].get("decision_id") == decision_id
+            and _decision_resolution_authority_matches(command, p["w2_payload"])
             and p["w2_payload"].get("selected_option") in {"PROMOTE", "PARK", "KILL"}
             and p["w2_payload"]["selected_option"] in decision.get("options", ())
         ):
@@ -2086,6 +2098,7 @@ class DiscoveryRuntime:
             if (
                 not isinstance(w2_payload, dict)
                 or w2_payload.get("decision_id") != decision_id
+                or not _decision_resolution_authority_matches(command, w2_payload)
                 or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"
@@ -2527,6 +2540,7 @@ class DiscoveryRuntime:
                 or command.target_stream_id != decision_id
                 or not isinstance(w2_payload, dict)
                 or w2_payload.get("decision_id") != decision_id
+                or not _decision_resolution_authority_matches(command, w2_payload)
                 or w2_payload.get("selected_option") not in {"RETRY", "PARK", "KILL"}
                 or not isinstance(decision, dict)
                 or decision.get("status") != "proposed"

@@ -195,6 +195,9 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
                 grant_id=grant_id,
             )
             value["authority_grant_id"] = grant_id
+            w2_payload = value.get("payload", {}).get("w2_payload")
+            if isinstance(w2_payload, dict) and w2_payload.get("decision_authority_grant_id") == GRANT_ID:
+                w2_payload["decision_authority_grant_id"] = grant_id
             return super().submit(value)
 
     return GovernedDiscoveryRuntime(
@@ -254,6 +257,24 @@ def _command(
         "expected_stream_version": expected_stream_version,
         "payload": payload,
     }
+
+
+def _assert_nested_decision_authority_rejected(
+    runtime: DiscoveryRuntime,
+    command: dict[str, object],
+) -> None:
+    """Reject nested decision authority that contradicts the command envelope."""
+
+    for field, value in (
+        ("deciding_actor_id", "act_019fed25-b33e-7740-b280-ffffffffffff"),
+        ("decision_authority_grant_id", "agr_019fed25-b33e-7740-b280-ffffffffffff"),
+    ):
+        invalid = deepcopy(command)
+        invalid["payload"]["w2_payload"][field] = value
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid"):
+            runtime.submit(invalid)
+        assert tuple(runtime.ledger.iter_events()) == before
 
 
 def _sealed_authority_subject(authority_path: str) -> dict[str, object]:
@@ -3093,20 +3114,20 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
         "conditions": [],
         "revisit_triggers": [],
     }
-    runtime.submit(
-        _command(
-            "ResolveDecision",
-            revisit_id,
-            1,
-            {
-                "row_id": "OR-010",
-                "candidate_id": candidate_id,
-                "assay_id": assay_id,
-                "decision_id": revisit_id,
-                "w2_payload": resolution,
-            },
-        )
+    resolution_command = _command(
+        "ResolveDecision",
+        revisit_id,
+        1,
+        {
+            "row_id": "OR-010",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "decision_id": revisit_id,
+            "w2_payload": resolution,
+        },
     )
+    _assert_nested_decision_authority_rejected(runtime, resolution_command)
+    runtime.submit(resolution_command)
     runtime.submit(
         _command(
             "RequestAssay",
@@ -3684,6 +3705,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(substituted)
             assert tuple(runtime.ledger.iter_events()) == before
+            _assert_nested_decision_authority_rejected(runtime, command)
         if row_id == "OR-016":
             invalid_projection = replay_discovery(runtime.ledger.iter_events())
             invalid_projection["decisions"][execution_id]["options"] = ["reject"]
@@ -4143,6 +4165,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         with pytest.raises(IntegrityError, match="invalid Spike transition"):
             runtime.submit(wrong_gate_resolution)
         assert tuple(runtime.ledger.iter_events()) == before
+        _assert_nested_decision_authority_rejected(runtime, post_resolution)
         runtime.submit(post_resolution)
         promoted = replay_discovery(runtime.ledger.iter_events())
         assert promoted["candidates"][candidate_id]["status"] == (
@@ -4240,20 +4263,20 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         runtime.submit(revisit_command)
         revisit_resolution = resolved(revisit_id)
         revisit_resolution["selected_option"] = "RETRY"
-        runtime.submit(
-            _command(
-                "ResolveDecision",
-                revisit_id,
-                1,
-                {
-                    "row_id": "OR-024",
-                    "candidate_id": candidate_id,
-                    "spike_id": spike_id,
-                    "decision_id": revisit_id,
-                    "w2_payload": revisit_resolution,
-                },
-            )
+        revisit_resolution_command = _command(
+            "ResolveDecision",
+            revisit_id,
+            1,
+            {
+                "row_id": "OR-024",
+                "candidate_id": candidate_id,
+                "spike_id": spike_id,
+                "decision_id": revisit_id,
+                "w2_payload": revisit_resolution,
+            },
         )
+        _assert_nested_decision_authority_rejected(runtime, revisit_resolution_command)
+        runtime.submit(revisit_resolution_command)
         retry_spike_id = "spk_019fed25-b33e-7740-b280-6f661aaeff72"
         retry_plan = deepcopy(plan_artifact)
         retry_plan["spike_id"] = retry_spike_id
@@ -4583,6 +4606,21 @@ def test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_trans
         spike_id = link["payload"]["spike_id"]
 
         attacks: dict[str, tuple[dict[str, object], ...]] = {}
+
+        attacks["missing_following_write_set"] = tuple(
+            deepcopy(event)
+            for event in baseline
+            if not (
+                event.get("transaction_id") == link.get("transaction_id")
+                and event.get("transaction_index", 0)
+                > next(
+                    member["transaction_index"]
+                    for member in baseline
+                    if member.get("transaction_id") == link.get("transaction_id")
+                    and member.get("event_type") == spike_event_type
+                )
+            )
+        )
 
         foreign_spike = tuple(deepcopy(event) for event in baseline)
         foreign_spike[-1]["payload"]["spike_id"] = "spk_019fed25-b33e-7740-b280-ffffffffffff"
@@ -5121,6 +5159,130 @@ def _clone_registered_candidate(
     return tuple(cloned)
 
 
+def test_assay_cancellation_review_replay_excludes_the_accepted_producer(tmp_path: Path) -> None:
+    """OR-039 keeps the accepted Assay producer independent after cancellation."""
+
+    runtime = _runtime(tmp_path)
+    first, _, producer_sha256 = _two_assay_pending_candidates(runtime)
+    candidate_id, candidate_sha256, assay_id = first
+    projection = replay_discovery(runtime.ledger.iter_events())
+    assay = projection["assays"][assay_id]
+    candidate_ref = _ref(candidate_id, 1, candidate_sha256)
+    cancellation_artifact = {
+        "assay_id": assay_id,
+        "candidate_ref": candidate_ref,
+        "assay_requested_event_ref": _ref(assay_id, assay["request_version"], assay["requested_event_hash"]),
+        "producer_relation_sha256": producer_sha256,
+        "evidence_refs": [candidate_ref],
+        "reason": "stop the exact provider-free assay",
+    }
+    cancellation_sha256 = sha256_hex(canonical_bytes(cancellation_artifact))
+    cancellation = _command(
+        "CancelDiscoveryEvaluation",
+        assay_id,
+        2,
+        {
+            "row_id": "OR-008",
+            "evaluation_kind": "assay",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "cancellation_sha256": cancellation_sha256,
+            "cancellation_artifact": cancellation_artifact,
+        },
+    )
+    cancellation["actor_id"] = "act_019fed25-b33e-7740-b280-000000009961"
+    runtime.submit(cancellation)
+
+    review_id = "rev_019fed25-b33e-7740-b280-000000009962"
+    review_contract = {
+        "review_type": "provenance",
+        "new_review_id": review_id,
+        "subject_ids": [assay_id],
+        "subject_hashes": [cancellation_sha256],
+        "governing_refs": ["W11:OR-038"],
+        "review_questions": ["Is the exact Assay cancellation supported?"],
+        "required_evidence_refs": ["assay-cancellation:exact"],
+        "required_lanes": ["provenance"],
+        "reviewer_capability": ["assay-independent-review"],
+        "required_independence_grade": "independent",
+        "visibility_policy": "owner-visible",
+        "allowed_verdicts": ["approve", "changes_requested", "reject"],
+        "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+        "deadline": "2026-08-12T00:00:00Z",
+        "escalation_rule": "owner-ruling",
+    }
+    request = _command(
+        "RequestDiscoveryOutcomeReview",
+        review_id,
+        0,
+        {
+            "row_id": "OR-038",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": cancellation_sha256,
+            "review_contract": review_contract,
+        },
+    )
+    request["actor_id"] = "act_019fed25-b33e-7740-b280-000000009963"
+    runtime.submit(request)
+
+    reviewer_id = "act_019fed25-b33e-7740-b280-000000009964"
+    review_verdict = {
+        "review_id": review_id,
+        "verdict": "approve",
+        "findings": [],
+        "required_evidence_refs": ["assay-cancellation:exact"],
+        "limitations": [],
+        "conditions": [],
+        "reviewer_actor_id": reviewer_id,
+        "reviewer_profile": "independent-assay-reviewer",
+        "reviewer_session": "session-cancelled-assay",
+        "reviewer_model_metadata": "test",
+        "context_manifest_id": "ctx_019fed25-b33e-7740-b280-000000009965",
+        "context_manifest_sha256": "8" * 64,
+        "unchanged_subject_sha256": cancellation_sha256,
+        "producing_attempt_id": "att_019fed25-b33e-7740-b280-000000009966",
+        "trace_visibility_evidence_refs": ["trace:cancelled-assay"],
+        "computed_independence_grade": "independent",
+    }
+    review = _command(
+        "ReviewDiscoveryOutcome",
+        review_id,
+        1,
+        {
+            "row_id": "OR-039",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": cancellation_sha256,
+            "verdict": "approve",
+            "review_verdict": review_verdict,
+        },
+    )
+    review["actor_id"] = reviewer_id
+    runtime.submit(review)
+
+    attacked = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+    review_transaction = next(
+        event["transaction_id"]
+        for event in attacked
+        if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == review_id
+    )
+    for event in attacked:
+        if event["transaction_id"] != review_transaction:
+            continue
+        event["actor_id"] = ACTOR_ID
+        nested = event["payload"].get("review_verdict")
+        if isinstance(nested, dict):
+            nested["reviewer_actor_id"] = ACTOR_ID
+        if event["event_type"] == "ReviewVerdictRecorded":
+            event["payload"]["reviewer_actor_id"] = ACTOR_ID
+
+    with pytest.raises(IntegrityError, match="invalid Discovery review verdict"):
+        replay_discovery(_rehash_events(attacked))
+
+
 def test_replay_binds_spike_authorization_and_partial_review_to_exact_candidate_transaction(
     tmp_path: Path,
 ) -> None:
@@ -5503,6 +5665,39 @@ def test_replay_rejects_authority_shadow_actor_split_from_durable_envelope(tmp_p
     registered["payload"]["authority_payload"]["actor_id"] = genesis["actor_id"]
     with pytest.raises(IntegrityError, match="authority shadow producer mismatch"):
         replay_discovery(_rehash_events(wrong_producer))
+
+
+def test_authority_decision_resolution_requires_its_acceptance_shadow(tmp_path: Path) -> None:
+    """OR-108/115/121 cannot resolve without atomically publishing acceptance."""
+
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _accept_assay_bar(runtime)
+    _advance_w11_authority(
+        runtime,
+        "dossier_expected_set",
+        "obj_019fed25-b33e-7740-b280-000000000110",
+        610,
+        through_index=5,
+    )
+    _advance_w11_authority(
+        runtime,
+        "path_registration",
+        "obj_019fed25-b33e-7740-b280-000000000116",
+        620,
+        through_index=5,
+    )
+    events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
+
+    for acceptance_type in ("AssayBarAccepted", "DossierExpectedSetAccepted", "PathRegistrationAccepted"):
+        acceptance = next(event for event in events if event["event_type"] == acceptance_type)
+        attacked = tuple(
+            deepcopy(event)
+            for event in events
+            if not (event["transaction_id"] == acceptance["transaction_id"] and event["event_type"] == acceptance_type)
+        )
+        with pytest.raises((IntegrityError, ValueError)):
+            replay_discovery(_fully_reindex_and_rehash_events(attacked))
 
 
 def test_assay_authority_observation_rejects_registered_path_alias_before_git(

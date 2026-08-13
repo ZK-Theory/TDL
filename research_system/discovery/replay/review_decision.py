@@ -229,6 +229,11 @@ def reduce_review_verdict_recorded(scope: EventScope) -> None:
         if isinstance(subject_collection, dict) and isinstance(review, dict)
         else None
     )
+    accepted_assay_producer_id = (
+        state.get("assay_bar_authority", {}).get("prospective_producer_ref", {}).get("id")
+        if isinstance(review, dict) and review.get("subject_kind") == "assay"
+        else None
+    )
     if (
         not isinstance(review, dict)
         or not isinstance(subject, dict)
@@ -239,6 +244,7 @@ def reduce_review_verdict_recorded(scope: EventScope) -> None:
         or reviewer_actor_id != event.get("actor_id")
         or reviewer_actor_id == review.get("request_actor_id")
         or reviewer_actor_id == subject.get("producer_actor_id")
+        or reviewer_actor_id == accepted_assay_producer_id
         or payload.get("computed_independence_grade") != review.get("required_independence_grade")
     ):
         raise IntegrityError("invalid Discovery review verdict")
