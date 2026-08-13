@@ -602,12 +602,6 @@ def test_direct_artefact_storage_boundary_is_exact_including_history_and_content
         ),
         (
             "research_system/session_exchange/exchange.py",
-            "prepare_session_brief",
-            "write",
-            "artefact",
-        ),
-        (
-            "research_system/session_exchange/exchange.py",
             "_evidence_revision_history",
             "latest_revision",
             "artefact",
@@ -628,6 +622,18 @@ def test_direct_artefact_storage_boundary_is_exact_including_history_and_content
     interface = _interface()
     assert {row["call"] for row in interface["dynamic_object_store_kind_exclusions"]} == dynamic
     assert all("artefact" not in row["permitted_kinds"] for row in interface["dynamic_object_store_kind_exclusions"])
+
+
+def test_session_exchange_storage_inventory_names_only_the_live_artefact_writer():
+    interface = _interface()
+    assert [row for row in interface["direct_storage_inventory"] if "artefact_object_write" in row["operations"]] == [
+        {
+            "path": "research_system/session_exchange/exchange.py",
+            "owner": "record_session_evidence",
+            "classification": "consumer_then_producer_storage_mechanics",
+            "operations": ["resolve_for_review", "artefact_object_write"],
+        }
+    ]
 
 
 def test_object_store_boundary_analysis_catches_alias_method_and_typed_wrapper_bypasses():

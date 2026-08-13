@@ -1,0 +1,58 @@
+name: ARS Artefact Currency
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-session-currency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          uv venv
+          uv pip install setuptools
+          uv pip install torch
+          uv pip install --no-build-isolation -e ".[dev]"
+
+      - name: Run C-1 artefact contract and session currency
+        run: |
+          .venv/bin/python -m ruff check \
+            research_system/session_exchange/exchange.py \
+            research_system/artefacts/runtime.py \
+            tests/research_system/contracts/test_06i_stage_a_candidate.py \
+            tests/research_system/contracts/test_wp64_session_exchange.py \
+            tests/research_system/unit/test_artefact_consumer_boundary.py \
+            tests/research_system/unit/test_artefact_runtime.py \
+            tests/research_system/integration/test_artefact_authority_commands.py \
+            tests/tools/test_check_workflow_liveness.py \
+            tools/check_workflow_liveness.py
+          .venv/bin/python -m pytest -q \
+            tests/tools/test_check_workflow_liveness.py \
+            tests/research_system/contracts/test_06i_stage_a_candidate.py \
+            tests/research_system/unit/test_artefact_consumer_boundary.py \
+            tests/research_system/unit/test_artefact_runtime.py \
+            tests/research_system/contracts/test_wp64_session_exchange.py \
+            tests/research_system/integration/test_artefact_authority_commands.py::test_register_review_and_use_authority_are_real_durable_commands \
+            tests/research_system/integration/test_artefact_authority_commands.py::test_use_authority_rejects_without_independent_review_resolver \
+            -o addopts='' -p no:cacheprovider -p no:cov
