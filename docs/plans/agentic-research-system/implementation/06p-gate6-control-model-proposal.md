@@ -88,11 +88,16 @@ The answer is **yes** only when all of the following are true:
    admission.
    Neither control is proof that every change is correct.
 4. Every actionable review finding is resolved on the current exact PR head.
-   Stephen controls whether and when CodeRabbit or another external reviewer is
-   used; agents do not trigger, poll, or self-certify it.
-5. Stephen records the final approval in GitHub after considering the required
-   external review. A review of an earlier commit does not approve a later
-   commit.
+5. A capability, Gate, recovery, durable-mutation, or decision/control PR has
+   a current external-review conclusion. Stephen chooses and triggers the
+   reviewer; agents do not trigger, poll, or self-certify it. A rate limit or
+   pending review is not a conclusion. Routine lower-risk work may be merged
+   without external review only when Stephen explicitly chooses that path.
+6. This is a solo-owner repository. Stephen makes the final merge decision.
+   For a review-required PR, its exact head, review conclusion, and any valid
+   remediation must be visible in GitHub before Stephen merges. No agent may
+   merge a PR unless Stephen's current instruction names that exact PR and
+   authorizes the merge.
 
 `merge admitted` means only that the change may enter `main`. It never means
 the named capability, a Gate, or the programme is complete.
@@ -255,12 +260,27 @@ The final KAN-12 description must retain this strict order:
 This section is deliberately not yet applied. GitHub currently reports both
 `main` branch protection and repository rulesets absent.
 
-The original single-owner `CODEOWNERS` draft (`* @stephendor`) is rejected: it
-cannot approve a Stephen-authored PR and would make those PRs permanently
-unmergeable under the proposed no-bypass rule. Do **not** enforce this model
-until Stephen names a second, eligible human maintainer/team with repository
-review permission. The production `CODEOWNERS` entry must name both real
-identities; do not commit a placeholder.
+This is a **solo-owner repository**. GitHub does not let a pull-request author
+approve their own pull request, so a required peer approval or required
+`CODEOWNERS` approval would deadlock Stephen-authored work. Do not invent a
+second team, commit a placeholder owner, or add a bypass to disguise that
+deadlock.
+
+The honest division of control is therefore:
+
+- GitHub mechanically requires a PR, current passing checks, resolved review
+  conversations, and no direct or force-push route into `main`.
+- For review-required changes, Stephen selects an external review service or
+  reviewer, waits for its conclusion, and personally decides whether to merge.
+  An automated review is evidence for that decision, not an imaginary peer
+  approval.
+- Agents may prepare and remediate PRs, but cannot merge them without Stephen's
+  current explicit authorization for that exact PR.
+
+This cannot make a sole repository owner independent of themselves. It does
+make the technical checks unavoidable, makes the review evidence visible, and
+keeps the only irreversible decision with the actual owner rather than a bot or
+an invented reviewer.
 
 Before enforcement, make the currency controls enforceable:
 
@@ -272,35 +292,36 @@ Before enforcement, make the currency controls enforceable:
 
 Only then install one active `main` ruleset with:
 
-1. pull requests required; no direct-push bypass;
-2. one approving review, stale approvals dismissed, and approval required from
-   someone other than the last pusher;
-3. all review conversations resolved;
-4. code-owner approval for all repository paths from the two-or-more real
-   maintainers in `CODEOWNERS`;
-5. strict required status checks (the branch must be up to date with `main`),
+1. pull requests required; no direct-push bypass and **no required peer or
+   code-owner approval count**;
+2. all review conversations resolved;
+3. strict required status checks (the branch must be up to date with `main`),
    including `contract-and-session-currency` from GitHub Actions integration
    ID `15368` and `require-active-currency-workflow` from that same integration
    ID `15368`; and
-6. non-fast-forward pushes blocked.
+4. non-fast-forward pushes blocked.
 
 The required checks are intentionally **not** legacy `CI`, a coverage target,
-or a CodeRabbit status. They are small current baselines. The exact capability
-test selection and Stephen's external-review decision remain explicit merge
-evidence on the PR. No bypass actor is proposed; Stephen retains control by
-approving and merging a reviewed PR rather than by bypassing the control.
+or a CodeRabbit status. They are small current baselines. A review service is
+not a required GitHub check because availability and rate limits are external
+to the repository; a rate limit must never be misrepresented as review success.
+For a review-required PR, Stephen's recorded review conclusion and personal
+merge decision are the additional evidence. No bypass actor is proposed.
 
 ## Adoption sequence
 
-1. Stephen accepts or amends this proposed model, names the second eligible
-   maintainer/team, and approves the exact remote ruleset.
+1. Stephen accepts or amends this solo-owner model and the review threshold:
+   external review is required by default for capability, Gate, recovery,
+   durable-mutation, and decision/control PRs; routine low-risk work remains a
+   Stephen-controlled exception.
 2. Implement and directly prove the two currency-control prerequisites above;
    do not enable the ruleset until both required contexts have fresh, non-skipped
    GitHub Actions results from integration ID `15368`.
-3. Add the real `CODEOWNERS` identities and apply the ruleset; verify with one
-   harmless branch/PR probe that an owner-authored PR cannot self-approve and
-   that both required controls are enforced.
-4. Add accepted P-049 to the decision register, point the historical WP6 Gate
+3. Apply the solo-owner ruleset and verify with one harmless branch/PR probe
+   that a direct push is blocked, a missing/failing control blocks the PR, and
+   both required controls are enforced.
+4. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
+   P-049 to the decision register, point the historical WP6 Gate
    6 plan at this live model, and correct the stale disabled-CI comment.
 5. Reconcile the KAN-61 edge, read both Jira endpoints back, and create the
    single final-capability child job described above.
@@ -319,5 +340,7 @@ approving and merging a reviewed PR rather than by bypassing the control.
   `.github/workflows/ars-artefact-currency-watchdog.yml`.
 - `tools/certify_wp6_6_real_dossier.ps1` and
   `tests/research_system/integration/test_wp6_6_dossier_admission.py`.
+- GitHub's documented ruleset and review behaviour: a PR can be required without
+  a peer approval, while a PR author cannot approve their own PR.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.
