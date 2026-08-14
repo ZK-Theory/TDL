@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/authority/receipt/AuthorityActorRegistration",
+  "title": "Authority actor registration receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "status", "command_id", "command_payload_hash", "event_batch_id", "actor_id", "registration_id", "actor_sha256", "registration_sha256"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/authority/receipt/AuthorityActorRegistration"},
+    "schema_version": {"const": "1.0.0"},
+    "status": {"enum": ["accepted", "duplicate"]},
+    "command_id": {"type": "string", "pattern": "^cmd_"},
+    "command_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_batch_id": {"type": "string", "pattern": "^txb_"},
+    "actor_id": {"type": "string", "pattern": "^act_"},
+    "registration_id": {"type": "string", "pattern": "^arec_"},
+    "actor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registration_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

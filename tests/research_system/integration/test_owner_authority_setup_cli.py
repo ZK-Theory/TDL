@@ -25,6 +25,7 @@ from research_system.errors import (
     SchemaError,
 )
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
+from research_system.authority_actor import RegisterAuthorityActor, _deterministic_id
 
 
 REPO = Path(__file__).resolve().parents[3]
@@ -201,6 +202,44 @@ def test_exact_retry_and_changed_intent_conflict_without_mutation(inputs):
     with pytest.raises(IdempotencyConflictError):
         setup.publish(changed)
     assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
+def test_owner_publication_requires_governed_actor_registration(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    registration = RegisterAuthorityActor(
+        "Codex producer",
+        "agent",
+        "codex_desktop",
+        "1.0",
+        "owner-join-session",
+        "SPEC-01 producer",
+        "producer",
+        "producer/spec_01_assay",
+        "2026-08-14T10:00:00Z",
+        "2026-08-15T10:00:00Z",
+        ("spec-route:test",),
+        "Register the observed live Codex producer session.",
+        "register-codex-desktop-actor",
+        "actor-join-retry",
+    )
+    target_actor_id = _deterministic_id(
+        "authority-actor",
+        "act",
+        {"project_id": PROJECT_ID, "app_family": "codex_desktop", "session_identity": registration.session_identity},
+    )
+    intent = deepcopy(inputs.intent_value)
+    intent["target_actor_id"] = target_actor_id
+    with pytest.raises(ArsError, match="real configured authority actor"):
+        setup.publish(intent)
+    accepted = setup.register_actor(registration)
+    assert accepted["actor_id"] == target_actor_id
+    assert (
+        inputs.harness.authority_resolver._projection()["authority_actors"][target_actor_id]["actor_sha256"]
+        == accepted["actor_sha256"]
+    )
+    published = setup.publish(intent)
+    assert published["status"] == "accepted"
 
 
 @pytest.mark.integration

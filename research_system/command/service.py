@@ -1557,6 +1557,8 @@ class CommandService:
             raise ArsError("CommandService.submit requires its guarded continuations")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
             return submit_t2(self, envelope)
+        if envelope.get("command_type") == "RegisterAuthorityActor":
+            raise ArsError("RegisterAuthorityActor is sealed; use the governed owner actor-registration route")
         if (
             envelope.get("command_type") in _CONTEXT_PACKET_COMMAND_TYPES
             and envelope.get("context_lifecycle_submission_key") is not self._context_lifecycle_submission_key

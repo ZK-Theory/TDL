@@ -587,6 +587,17 @@ _RUNTIME_BINDINGS = (
         producer_command_type="RevokeExternalAssuranceRecordGrant",
     ),
     SchemaBinding(
+        "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor",
+        "1.0.0",
+        command_type="RegisterAuthorityActor",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered",
+        "1.0.0",
+        event_type="AuthorityActorRegistered",
+        producer_command_type="RegisterAuthorityActor",
+    ),
+    SchemaBinding(
         "ars://wp6-2/t2/command/IssueCostGrant",
         "1.0.0",
         command_type="IssueCostGrant",

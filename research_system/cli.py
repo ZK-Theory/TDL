@@ -66,6 +66,7 @@ from research_system.context.sources import FileSourceResolver
 from research_system.discovery.operator import load_discovery_operator, read_discovery_command
 from research_system.discovery.spec_flow import SpecFlow
 from research_system.owner_authority import load_owner_authority_setup, read_owner_authority_input
+from research_system.authority_actor import read_actor_registration_intent
 from research_system.methods.brief import export_brief
 from research_system.methods.importer import import_return_bundle
 from research_system.methods.pack import load_methods_pack
@@ -1058,6 +1059,12 @@ def _authority_activate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _authority_register_actor(args: argparse.Namespace) -> int:
+    intent = read_actor_registration_intent(args.intent)
+    _print_json(load_owner_authority_setup(args.setup_config).register_actor(intent))
+    return 0
+
+
 def _assurance_relationship_facts_publish(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     source = _read_yaml_or_json(args.facts, "relationship-facts input")
@@ -1911,6 +1918,10 @@ def _parser() -> argparse.ArgumentParser:
     authority_activate.add_argument("--setup-config", type=Path, required=True)
     authority_activate.add_argument("--input", type=Path, required=True)
     authority_activate.set_defaults(handler=_authority_activate)
+    authority_register_actor = authority_actions.add_parser("register-actor")
+    authority_register_actor.add_argument("--setup-config", type=Path, required=True)
+    authority_register_actor.add_argument("--intent", type=Path, required=True)
+    authority_register_actor.set_defaults(handler=_authority_register_actor)
 
     brief = groups.add_parser("brief")
     brief_actions = brief.add_subparsers(dest="brief_action", required=True)

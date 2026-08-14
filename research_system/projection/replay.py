@@ -1100,6 +1100,50 @@ def apply_event(
         }
         releases[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "AuthorityActorRegistered":
+        payload = event.get("payload")
+        expected = {
+            "project_id",
+            "store_identity",
+            "owner_actor_id",
+            "actor_id",
+            "actor_sha256",
+            "actor_object_path",
+            "registration_id",
+            "registration_sha256",
+            "registration_object_path",
+        }
+        if (
+            event.get("command_type") != "RegisterAuthorityActor"
+            or event.get("schema_id") != "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered"
+            or event.get("transaction_index") != 1
+            or event.get("transaction_count") != 1
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("project_id") != updated.get("project_id")
+            or payload.get("owner_actor_id") != updated.get("authority_owner_actor_id")
+            or payload.get("actor_id") != stream_id
+            or stream_id in updated.setdefault("authority_actors", {})
+            or not isinstance(payload.get("actor_sha256"), str)
+            or len(payload["actor_sha256"]) != 64
+            or not isinstance(payload.get("registration_sha256"), str)
+            or len(payload["registration_sha256"]) != 64
+            or payload.get("actor_object_path")
+            != f"objects/canonical_actor/{stream_id}/00000001-{payload.get('actor_sha256')}.json"
+            or payload.get("registration_object_path")
+            != f"objects/assurance_record/{payload.get('registration_id')}/00000001-{payload.get('registration_sha256')}.json"
+        ):
+            raise IntegrityError("authority actor registration binding mismatch")
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+            "version": event["stream_version"],
+        }
+        updated.setdefault("authority_actors", {})[stream_id] = projection
+        streams[stream_id] = projection
     elif event_type == "StoreBindingRepaired":
         payload = event.get("payload")
         if (
@@ -1276,6 +1320,7 @@ def _replay(
             or schema_id.startswith("ars://core/event/")
             or schema_id.startswith("ars://wp6-2/t2/event/")
             or schema_id.startswith("ars://wp6-6/event/")
+            or schema_id.startswith("ars://wp6-6/gate6/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:

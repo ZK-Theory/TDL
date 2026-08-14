@@ -589,8 +589,9 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    # The bootstrap repair adds one typed command and its one producer-bound event.
-    assert len(bindings) == 269
+    # The bootstrap repair and governed actor registration each add one typed
+    # command and one producer-bound event.
+    assert len(bindings) == 271
     assert bindings == tuple(
         sorted(
             bindings,
@@ -616,6 +617,8 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
         "ars://wp6-6/event/OwnerOperatedContextHandoffIssued",
         "ars://wp6-6/command/RecordOwnerOperatedContextDelivery",
         "ars://wp6-6/event/OwnerOperatedContextDelivered",
+        "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor",
+        "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered",
     }
     assert {binding for binding in bindings if binding.schema_id in new_schema_ids} == {
         SchemaBinding(
@@ -672,6 +675,17 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
             "1.0.0",
             event_type="OwnerOperatedContextDelivered",
             producer_command_type="RecordOwnerOperatedContextDelivery",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor",
+            "1.0.0",
+            command_type="RegisterAuthorityActor",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered",
+            "1.0.0",
+            event_type="AuthorityActorRegistered",
+            producer_command_type="RegisterAuthorityActor",
         ),
     }
 

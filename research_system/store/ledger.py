@@ -193,6 +193,7 @@ def _release_draft_protocol():
 del _release_draft_protocol
 
 _BINDING_REPAIR_DRAFTS: set[int] = set()
+_AUTHORITY_ACTOR_DRAFTS: set[int] = set()
 
 
 class EventLedger:
@@ -285,6 +286,27 @@ class EventLedger:
             return self.append([draft], snapshot=snapshot)
         finally:
             _BINDING_REPAIR_DRAFTS.discard(id(draft))
+
+    def _append_authority_actor_from_validated_service(
+        self,
+        envelope: Mapping[str, Any],
+        *,
+        snapshot: LedgerSnapshot,
+    ) -> dict[str, Any]:
+        """Append one actor-registration event through its sealed continuation."""
+        candidate = dict(envelope)
+        payload = candidate.pop("payload", None)
+        if not isinstance(payload, Mapping):
+            raise ArsError("authority actor continuation requires an event payload")
+        draft = object.__new__(EventDraft)
+        object.__setattr__(draft, "envelope", candidate)
+        object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
+        object.__setattr__(draft, "admission", "authority_actor")
+        _AUTHORITY_ACTOR_DRAFTS.add(id(draft))
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _AUTHORITY_ACTOR_DRAFTS.discard(id(draft))
 
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
@@ -414,6 +436,10 @@ class EventLedger:
                     if id(draft) not in _BINDING_REPAIR_DRAFTS:
                         raise ArsError("binding repair draft is foreign, forged, or consumed")
                     _BINDING_REPAIR_DRAFTS.remove(id(draft))
+                elif draft.admission == "authority_actor":
+                    if id(draft) not in _AUTHORITY_ACTOR_DRAFTS:
+                        raise ArsError("authority actor draft is foreign, forged, or consumed")
+                    _AUTHORITY_ACTOR_DRAFTS.remove(id(draft))
                 else:
                     _consume_release_draft(self, draft)
             candidate = dict(draft.envelope if draft is not None else proposed_event)
@@ -447,6 +473,7 @@ class EventLedger:
                 ("AuthorityGrantRevoked", "RevokeExternalAssuranceRecordGrant"),
             }
             binding_repair_event = (event_type, producer) == ("StoreBindingRepaired", "RepairStoreBinding")
+            authority_actor_event = (event_type, producer) == ("AuthorityActorRegistered", "RegisterAuthorityActor")
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(
                     "scoped authority administration requires the validated "
@@ -454,11 +481,14 @@ class EventLedger:
                 )
             if binding_repair_event and (draft is None or draft.admission != "binding_repair"):
                 raise ArsError("binding repair requires the validated repair-service continuation")
+            if authority_actor_event and (draft is None or draft.admission != "authority_actor"):
+                raise ArsError("authority actor registration requires the validated registration continuation")
             if draft is not None and (
                 (draft.admission == "release" and event_type != "ReleaseGateDecisionPublished")
                 or (draft.admission == "scoped_authority" and not scoped_authority_event)
                 or (draft.admission == "binding_repair" and not binding_repair_event)
-                or draft.admission not in {"release", "scoped_authority", "binding_repair"}
+                or (draft.admission == "authority_actor" and not authority_actor_event)
+                or draft.admission not in {"release", "scoped_authority", "binding_repair", "authority_actor"}
             ):
                 raise ArsError("event draft admission does not match its event family")
             stream_version = stream_versions.get(stream_id, 0) + 1

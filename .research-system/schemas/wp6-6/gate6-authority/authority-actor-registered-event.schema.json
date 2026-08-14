@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered",
+  "title": "AuthorityActorRegistered event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_id", "schema_version", "event_type", "command_type", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered"},
+    "schema_version": {"const": "1.0.0"},
+    "event_type": {"const": "AuthorityActorRegistered"},
+    "command_type": {"const": "RegisterAuthorityActor"},
+    "payload": {"$ref": "#/$defs/payload"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "minLength": 4},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "store_identity", "owner_actor_id", "actor_id", "actor_sha256", "actor_object_path", "registration_id", "registration_sha256", "registration_object_path"],
+      "properties": {
+        "project_id": {"$ref": "#/$defs/id"},
+        "store_identity": {"$ref": "#/$defs/sha256"},
+        "owner_actor_id": {"$ref": "#/$defs/id"},
+        "actor_id": {"$ref": "#/$defs/id"},
+        "actor_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_object_path": {"type": "string", "pattern": "^objects/canonical_actor/[^/]+/00000001-[0-9a-f]{64}\\.json$"},
+        "registration_id": {"$ref": "#/$defs/id"},
+        "registration_sha256": {"$ref": "#/$defs/sha256"},
+        "registration_object_path": {"type": "string", "pattern": "^objects/assurance_record/[^/]+/00000001-[0-9a-f]{64}\\.json$"}
+      }
+    }
+  }
+}

@@ -33,6 +33,7 @@ from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.ids import validate_id
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -443,7 +444,14 @@ def _enforce_durable_role_independence(
             raise ArsError("SPEC route actor has an incompatible active authority role")
 
 
-def _known_authority_actor_classes(root: Path, objects: ObjectStore) -> dict[str, frozenset[str]]:
+def _known_authority_actor_classes(
+    root: Path,
+    objects: ObjectStore,
+    *,
+    project_id: str | None = None,
+    store_identity: str | None = None,
+    owner_actor_id: str | None = None,
+) -> dict[str, frozenset[str]]:
     actors: dict[str, set[str]] = {}
     grant_root = _physical_directory(root / "objects/authority_grant", label="authority grant objects")
     for candidate in grant_root.iterdir():
@@ -457,6 +465,122 @@ def _known_authority_actor_classes(root: Path, objects: ObjectStore) -> dict[str
                 actors.setdefault(grant.actor_id, set()).add("human")
         except (TypeError, ValueError) as exc:
             raise IntegrityError("configured authority actor evidence is invalid") from exc
+    # Governed Codex Desktop registrations are immutable evidence in the
+    # assurance-record object family.  They supplement (and never replace)
+    # the historical grant-derived actor classes above.
+    from research_system.authority_actor import ACTOR_SCHEMA_ID, REGISTRATION_SCHEMA_ID
+
+    registration_root = _physical_directory(root / "objects/assurance_record", label="actor registration objects")
+    now = datetime.now(UTC)
+    for candidate in registration_root.iterdir():
+        _require_bounded_target(
+            root,
+            Path("objects/assurance_record") / candidate.name,
+            label="actor registration object",
+        )
+        try:
+            validate_id(candidate.name, "assurance_record")
+        except ValueError:
+            raise IntegrityError("configured actor registration identity is invalid")
+        # Assurance records also contain owner-publication objects.  Peek at
+        # the raw JSON marker first so unrelated records (including an object
+        # left in a recovery state) remain available to their existing
+        # recovery validator instead of being parsed as actor registrations.
+        registration_marker = None
+        try:
+            revision_paths = sorted(candidate.glob("*.json"))
+        except OSError as exc:
+            raise IntegrityError("configured actor registration evidence is unavailable") from exc
+        for revision_path in revision_paths:
+            try:
+                raw = revision_path.read_bytes()
+                parsed = json.loads(raw)
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if isinstance(parsed, dict) and parsed.get("schema_id") == REGISTRATION_SCHEMA_ID:
+                registration_marker = revision_path
+                break
+        if registration_marker is None:
+            continue
+        _require_bounded_object_revision(
+            root,
+            "assurance_record",
+            candidate.name,
+            1,
+            label="actor registration object",
+        )
+        revision = objects.latest_revision("assurance_record", candidate.name)
+        if revision is None:
+            continue
+        value = objects.read("assurance_record", candidate.name, revision)
+        if not isinstance(value, dict) or value.get("schema_id") != REGISTRATION_SCHEMA_ID:
+            continue
+        required = {
+            "schema_id",
+            "schema_version",
+            "registration_id",
+            "project_id",
+            "store_identity",
+            "owner_actor_id",
+            "owner_action",
+            "idempotency_key",
+            "command_payload_hash",
+            "actor_id",
+            "actor_sha256",
+            "semantic_intent",
+            "accepted_at",
+            "revoked",
+        }
+        if (
+            set(value) != required
+            or value.get("schema_version") != "1.0.0"
+            or value.get("registration_id") != candidate.name
+            or value.get("revoked") is not False
+        ):
+            raise IntegrityError("configured actor registration evidence is invalid")
+        if (
+            (project_id is not None and value.get("project_id") != project_id)
+            or (store_identity is not None and value.get("store_identity") != store_identity)
+            or (owner_actor_id is not None and value.get("owner_actor_id") != owner_actor_id)
+        ):
+            continue
+        semantic = value.get("semantic_intent")
+        if not isinstance(semantic, dict) or semantic.get("app_family") != "codex_desktop":
+            raise IntegrityError("configured actor registration evidence is invalid")
+        try:
+            effective = datetime.fromisoformat(str(semantic["effective_at"]).replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(str(semantic["expires_at"]).replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IntegrityError("configured actor registration time is invalid") from exc
+        if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= now < expires:
+            continue
+        actor_id = value.get("actor_id")
+        _require_bounded_target(
+            root,
+            Path("objects/canonical_actor") / str(actor_id),
+            label="canonical actor object",
+        )
+        actor_revision = objects.latest_revision("canonical_actor", str(actor_id))
+        if actor_revision is None:
+            raise IntegrityError("configured actor registration actor object is missing")
+        actor = objects.read("canonical_actor", str(actor_id), actor_revision)
+        if (
+            not isinstance(actor, dict)
+            or actor.get("schema_id") != ACTOR_SCHEMA_ID
+            or actor.get("actor_id") != actor_id
+            or actor.get("registration_id") != value.get("registration_id")
+            or actor.get("revoked") is not False
+            or (project_id is not None and actor.get("project_id") != project_id)
+            or (store_identity is not None and actor.get("store_identity") != store_identity)
+            or (owner_actor_id is not None and actor.get("owner_actor_id") != owner_actor_id)
+            or sha256_hex(canonical_bytes(actor)) != value.get("actor_sha256")
+            or semantic != {key: actor.get(key) for key in semantic}
+        ):
+            raise IntegrityError("configured actor registration actor evidence is invalid")
+        actor_class = semantic.get("actor_class")
+        if actor_class not in {"agent", "service"}:
+            raise IntegrityError("configured actor registration class is invalid")
+        actors.setdefault(str(actor_id), set()).add(str(actor_class))
     return {actor_id: frozenset(classes) for actor_id, classes in actors.items()}
 
 
@@ -496,6 +620,24 @@ class OwnerAuthoritySetup:
     objects: ObjectStore
     route_commands: frozenset[str]
     clock: Callable[[], datetime]
+
+    def register_actor(self, intent: object) -> dict[str, Any]:
+        """Register one real Codex Desktop session from semantic owner intent."""
+        from research_system.authority_actor import RegisterAuthorityActor, register_authority_actor
+
+        if not isinstance(intent, RegisterAuthorityActor):
+            raise ArsError("authority actor registration requires typed owner intent")
+        return register_authority_actor(
+            intent,
+            root=self.root,
+            project_id=self.resolver.administration_context().project_id,
+            store_identity=str(self.resolver.administration_context().store_identity),
+            schemas=self.schemas,
+            resolver=self.resolver,
+            objects=self.objects,
+            route_commands=self.route_commands,
+            clock=self.clock,
+        )
 
     def _check_role_independence(self, grant: ScopedAuthorityGrant) -> None:
         _enforce_durable_role_independence(
@@ -577,7 +719,13 @@ class OwnerAuthoritySetup:
         if now.tzinfo != UTC or not effective_at <= now < expires_at or effective_at >= expires_at:
             raise ArsError("owner authority intent window is not current and finite")
         context = self.resolver.administration_context()
-        known = _known_authority_actor_classes(self.root, self.objects)
+        known = _known_authority_actor_classes(
+            self.root,
+            self.objects,
+            project_id=str(context.project_id),
+            store_identity=str(context.store_identity),
+            owner_actor_id=str(context.owner_actor_id),
+        )
         if actor_class not in known.get(str(request.get("target_actor_id")), ()):
             raise ArsError("authority intent target actor is not a real configured authority actor")
         semantic_intent = {

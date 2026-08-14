@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor",
+  "title": "RegisterAuthorityActor command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "command_type", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor"},
+    "schema_version": {"const": "1.0.0"},
+    "command_type": {"const": "RegisterAuthorityActor"},
+    "payload": {"$ref": "#/$defs/intent"}
+  },
+  "$defs": {
+    "nonEmpty": {"type": "string", "minLength": 1},
+    "utc": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"},
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_display_name", "actor_class", "app_family", "observed_app_version", "session_identity", "session_purpose", "actor_role", "authority_lane", "effective_at", "expires_at", "evidence_refs", "reason", "owner_action"],
+      "properties": {
+        "canonical_display_name": {"$ref": "#/$defs/nonEmpty"},
+        "actor_class": {"enum": ["agent", "service"]},
+        "app_family": {"const": "codex_desktop"},
+        "observed_app_version": {"$ref": "#/$defs/nonEmpty"},
+        "session_identity": {"$ref": "#/$defs/nonEmpty"},
+        "session_purpose": {"$ref": "#/$defs/nonEmpty"},
+        "actor_role": {"enum": ["producer", "independent_reviewer", "operator"]},
+        "authority_lane": {"$ref": "#/$defs/nonEmpty"},
+        "effective_at": {"$ref": "#/$defs/utc"},
+        "expires_at": {"$ref": "#/$defs/utc"},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonEmpty"}},
+        "reason": {"$ref": "#/$defs/nonEmpty"},
+        "owner_action": {"const": "register-codex-desktop-actor"}
+      }
+    }
+  }
+}
