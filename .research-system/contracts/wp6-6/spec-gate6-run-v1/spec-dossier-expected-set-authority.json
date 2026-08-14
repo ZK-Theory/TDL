@@ -6,48 +6,48 @@
         "provider_execution": "forbidden"
     },
     "authority_kind": "dossier_expected_set",
-    "content_sha256": "ae5da75dc9e9a8e5835aa94d83ae23fd01adc0bc3974add60e081a6a2b10b4bc",
+    "content_sha256": "5d0eaabc72e180bd192dc227fac685a221fb6fe1e1fef90b6dd6be55da677d04",
     "expected_set": {
         "admission_profile_hash": "ea676eb492849a00fd681141e5c6c2946ba3c7cbc756c6f0f5dab3b43827ffb0",
         "admission_profile_id": "profile:wp6.6:dossier-admission",
         "admission_profile_revision": 1,
-        "content_hash": "ae5da75dc9e9a8e5835aa94d83ae23fd01adc0bc3974add60e081a6a2b10b4bc",
+        "content_hash": "5d0eaabc72e180bd192dc227fac685a221fb6fe1e1fef90b6dd6be55da677d04",
         "dossier_id": "obj_019ffe2b-fd4b-7000-8000-000000000101",
         "expected_set_id": "expected:spec-gate6-run-v1:1.0.0",
-        "manifest_sha256": "608a7755ea584363a113c3865d9b15195fb1365b50928b449541930efd74543e",
+        "manifest_sha256": "360672a95e502baffd413137ec4596de642be33d3270daa0c9d12ed1b6ed52fb",
         "members": [
             {
                 "member_key": "route-package",
                 "member_kind": "package_index",
-                "provenance_hash": "2cc63eb56be975028cd8a6954294b6d21ca692410d9abedce8e815a5318a74ba",
+                "provenance_hash": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
                 "provenance_id": "prov:route-package",
                 "provenance_revision": 1,
                 "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
                 "root_id": "repository",
-                "sha256": "2cc63eb56be975028cd8a6954294b6d21ca692410d9abedce8e815a5318a74ba",
+                "sha256": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
                 "size_bytes": 13502
             },
             {
                 "member_key": "SPEC-01",
                 "member_kind": "component",
-                "provenance_hash": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
+                "provenance_hash": "d3b1eac020b5c94707461c0a475cc911e36ab78e2bc1243c0b28747748106972",
                 "provenance_id": "prov:SPEC-01",
                 "provenance_revision": 1,
                 "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
                 "root_id": "repository",
-                "sha256": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
-                "size_bytes": 4746
+                "sha256": "d3b1eac020b5c94707461c0a475cc911e36ab78e2bc1243c0b28747748106972",
+                "size_bytes": 4745
             },
             {
                 "member_key": "SPEC-02",
                 "member_kind": "component",
-                "provenance_hash": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
+                "provenance_hash": "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32",
                 "provenance_id": "prov:SPEC-02",
                 "provenance_revision": 1,
                 "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
                 "root_id": "repository",
-                "sha256": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
-                "size_bytes": 5938
+                "sha256": "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32",
+                "size_bytes": 5937
             }
         ],
         "package_id": "SPEC-GATE6-RUN-V1",

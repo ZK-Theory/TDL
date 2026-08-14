@@ -26,13 +26,13 @@ GOVERNING_SOURCES = [
 EXPECTED_SOURCES = {
     "SPEC-01": (
         ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
-        4746,
-        "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
+        4745,
+        "d3b1eac020b5c94707461c0a475cc911e36ab78e2bc1243c0b28747748106972",
     ),
     "SPEC-02": (
         ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
-        5938,
-        "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
+        5937,
+        "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32",
     ),
 }
 

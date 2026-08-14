@@ -216,7 +216,7 @@ def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> 
                 "relative_path": relative_path,
                 "size_bytes": len(raw),
                 "sha256": sha256_hex(raw),
-                "git_blob": _git(repository_root, "rev-parse", f"HEAD:{relative_path}"),
+                "git_blob": _git(repository_root, "hash-object", "--", relative_path),
             }
         )
     if subject.get("required_member_bindings") != expected_bindings:

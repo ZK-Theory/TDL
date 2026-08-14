@@ -27,6 +27,7 @@ from research_system.discovery.operator import load_discovery_operator
 from research_system.discovery.assay_authority import assay_reconstruction_sha256
 from research_system.discovery.authority import subject_sha256, validate_portable_path_subject
 from research_system.discovery.commands import discovery_resolve_transaction_ids
+from research_system.discovery.dossier import canonical_dossier_hash
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.spec_flow import SpecFlow, build_spec_authority_subject
 from research_system.discovery.routes import shared_event_partition
@@ -1989,6 +1990,25 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
         "route_id": "SPEC-GATE6-RUN-V1",
     }
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_spec_identity_producers_match_clean_post_format_fixture_commit(
+    spec_inputs: dict[str, Any],
+) -> None:
+    repository_root = Path(spec_inputs["config"]["repository_root"])
+
+    assert _run_git(repository_root, "status", "--porcelain=v1") == ""
+    expected = build_spec_authority_subject(repository_root, "dossier_expected_set")
+    paths = build_spec_authority_subject(repository_root, "path_registration")
+    for member in paths["required_member_bindings"]:
+        assert member["git_blob"] == _run_git(
+            repository_root,
+            "rev-parse",
+            f"HEAD:{member['relative_path']}",
+        )
+    manifest = repository_root / ROUTE_DIRECTORY / "spec-research-dossier-manifest.json"
+    assert expected["expected_set"]["manifest_sha256"] == canonical_dossier_hash(json.loads(manifest.read_bytes()))
 
 
 @pytest.mark.integration

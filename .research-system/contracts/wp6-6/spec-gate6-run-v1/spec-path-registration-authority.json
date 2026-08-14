@@ -3,7 +3,7 @@
     "authority_profile_id": "spec-portable-repository-path-authority",
     "authority_profile_version": "1.0.0",
     "collision_status": "no_collision",
-    "content_sha256": "8028a61f1b13deb3ee086be6bd649434d4298f09761d48d968f432d47a76dd22",
+    "content_sha256": "db5c9f9789ee18e16e80e98753e17db3c7b69f7c302a4a23578a0e904bf0f942",
     "environment_scope": "owner-accepted-stephen-windows-spec-runtime",
     "identity_scheme": "portable-git-subject-plus-windows-file-id-v1",
     "owner_requirement_refs": [
@@ -25,24 +25,24 @@
     "required_member_bindings": [
         {
             "alias": "route-package",
-            "git_blob": "5eb353f8056de8170b1b0400f6122ae7b4239a98",
+            "git_blob": "23b6017625520c310202fd84ee45223ba6fecdf5",
             "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
-            "sha256": "2cc63eb56be975028cd8a6954294b6d21ca692410d9abedce8e815a5318a74ba",
+            "sha256": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
             "size_bytes": 13502
         },
         {
             "alias": "SPEC-01",
-            "git_blob": "6ac4d57d2b24c9baeb2b0e11b30efcaec2587811",
+            "git_blob": "6ee7e7b697621570368632a7598e448bf69f7dc4",
             "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
-            "sha256": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
-            "size_bytes": 4746
+            "sha256": "d3b1eac020b5c94707461c0a475cc911e36ab78e2bc1243c0b28747748106972",
+            "size_bytes": 4745
         },
         {
             "alias": "SPEC-02",
-            "git_blob": "12d3994e7207904e809113714bb6dc24dc9e3879",
+            "git_blob": "7f446aed9f97bc20dd9ce66ecc8d0f6e40e22971",
             "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
-            "sha256": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
-            "size_bytes": 5938
+            "sha256": "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32",
+            "size_bytes": 5937
         }
     ],
     "root_token": "repository",
