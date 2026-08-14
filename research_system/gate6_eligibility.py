@@ -308,6 +308,21 @@ def _load_expected_set(
     )
 
 
+def _require_accepted_admission_event_authority(contract: Mapping[str, Any]) -> None:
+    """Require the independent durable admission event promised by the G6 contract.
+
+    The preflight deliberately does not turn a freshly prepared in-memory event
+    into its own accepted authority. The exact event/receipt must be published
+    first by the governed WP6.6 admission system and pinned by the contract.
+    Its format is an owner decision because current accepted authority contains
+    no such durable event identity.
+    """
+
+    authority = _require_mapping(contract.get("authority"), "eligibility authority")
+    if not isinstance(authority.get("admission_event"), Mapping):
+        raise Gate6EligibilityError("accepted WP6.6 admission event authority is unavailable")
+
+
 def _resolve_roots(roots: Mapping[str, Path], registration_hashes: Mapping[str, str]) -> dict[str, RegisteredRoot]:
     if set(roots) != {"repo", "vault"}:
         raise Gate6EligibilityError("Gate 6 eligibility requires exactly repo and vault root arguments")
@@ -734,6 +749,7 @@ def certify_scale01_eligibility(
         or admission_contract.get("dispatchable") is not False
     ):
         raise Gate6EligibilityError("real dossier admission does not satisfy the fixed Gate 6 cardinality")
+    _require_accepted_admission_event_authority(contract)
     verdict = _require_mapping(contract.get("verdict"), "eligibility verdict contract")
     _require_keys(
         verdict,

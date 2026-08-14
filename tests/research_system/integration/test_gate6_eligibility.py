@@ -51,8 +51,8 @@ def _rewrite_grant(grant_path: Path, mutate) -> None:
 
 
 @pytest.mark.integration
-def test_real_dossier_capability_grant_produces_one_immutable_provider_free_envelope(tmp_path: Path) -> None:
-    """The real public eligibility seam consumes canonical WP6.6 evidence without writing inputs."""
+def test_real_dossier_preflight_refuses_to_publish_without_accepted_admission_event_authority(tmp_path: Path) -> None:
+    """A reconstructed event cannot substitute for the governed WP6.6 admission record."""
 
     roots = _real_roots_or_skip()
     before = _member_bytes()
@@ -65,22 +65,17 @@ def test_real_dossier_capability_grant_produces_one_immutable_provider_free_enve
         output_path=grant_path,
         expires_at=EXPIRY,
     )
-    envelope = certify_scale01_eligibility(
-        repository_root=REPO,
-        roots=roots,
-        root_grant_path=grant_path,
-        output_path=output_path,
-        now=NOW,
-    )
+    with pytest.raises(IntegrityError, match="accepted WP6.6 admission event authority is unavailable"):
+        certify_scale01_eligibility(
+            repository_root=REPO,
+            roots=roots,
+            root_grant_path=grant_path,
+            output_path=output_path,
+            now=NOW,
+        )
 
     assert grant["enforcement"] == "capability_read_only"
-    assert envelope["eligibility_verdict"] == "eligible"
-    assert envelope["dispatchable"] is True
-    assert envelope["execution_authorized"] is False
-    assert envelope["provider_execution"] == "forbidden"
-    assert envelope["dossier_admission"]["event_type"] == "ResearchDossierAdmitted"
-    assert envelope["dossier_admission"]["event_count"] == 35
-    assert output_path.read_bytes() == json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode()
+    assert not output_path.exists()
     assert {key: hashlib.sha256(value).hexdigest() for key, value in _member_bytes().items()} == {
         key: hashlib.sha256(value).hexdigest() for key, value in before.items()
     }
@@ -132,11 +127,12 @@ def test_public_gate6_cli_runs_the_real_positive_path(tmp_path: Path, capsys: py
                 str(output_path),
             ]
         )
-        == 0
+        == 1
     )
-    envelope_stdout = json.loads(capsys.readouterr().out)
-    assert envelope_stdout == json.loads(output_path.read_bytes())
-    assert envelope_stdout["execution_authorized"] is False
+    failure = capsys.readouterr()
+    assert "accepted WP6.6 admission event authority is unavailable" in failure.err
+    assert failure.out == ""
+    assert not output_path.exists()
 
 
 @pytest.mark.integration
@@ -267,6 +263,10 @@ def test_gate6_admission_uses_sealed_read_only_capabilities(
     )
     original_prepare = gate6_module.prepare_dossier_admission
 
+    # This test examines the narrow capability route only. The unmocked public
+    # seam remains fail-closed until an owner supplies accepted event authority.
+    monkeypatch.setattr(gate6_module, "_require_accepted_admission_event_authority", lambda _contract: None)
+
     def require_capabilities(**kwargs):
         capabilities = kwargs["read_only_capabilities"]
         assert kwargs["registered_roots"] == {}
@@ -342,7 +342,7 @@ def test_uncommitted_gate6_contract_cannot_be_used_for_a_root_grant(
 
 
 @pytest.mark.integration
-def test_final_gate6_certification_script_runs_the_real_dossier_selection(tmp_path: Path) -> None:
+def test_final_gate6_certification_script_fails_closed_without_admission_event_authority(tmp_path: Path) -> None:
     roots = _real_roots_or_skip()
     grant_path = tmp_path / "scale01-root-grant.json"
     output_path = tmp_path / "scale01-eligibility-envelope.json"
@@ -377,5 +377,6 @@ def test_final_gate6_certification_script_runs_the_real_dossier_selection(tmp_pa
         check=False,
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    assert json.loads(output_path.read_bytes())["eligibility_verdict"] == "eligible"
+    assert result.returncode != 0
+    assert "accepted WP6.6 admission event authority is unavailable" in result.stderr
+    assert not output_path.exists()
