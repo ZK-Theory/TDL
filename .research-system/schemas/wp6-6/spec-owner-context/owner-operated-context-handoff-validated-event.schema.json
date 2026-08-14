@@ -1,0 +1,44 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ars://wp6-6/event/OwnerOperatedContextHandoffValidated",
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "ars://wp6-6/spec-owner-context/event-common#/$defs/envelope"
+        },
+        {
+            "properties": {
+                "event_type": {
+                    "const": "OwnerOperatedContextHandoffValidated"
+                },
+                "schema_id": {
+                    "const": "ars://wp6-6/event/OwnerOperatedContextHandoffValidated"
+                },
+                "command_type": {
+                    "const": "ValidateOwnerOperatedContextHandoff"
+                },
+                "command_schema_id": {
+                    "const": "ars://wp6-6/command/ValidateOwnerOperatedContextHandoff"
+                },
+                "command_schema_sha256": {
+                    "const": "86a926e64ba20420807241903f0bde14ff2aab6d2faf527b591703fb2c0ecc47"
+                },
+                "payload": {
+                    "$ref": "ars://wp6-6/command/ValidateOwnerOperatedContextHandoff#/allOf/1/properties/payload"
+                }
+            },
+            "required": [
+                "event_type",
+                "schema_id",
+                "command_type",
+                "command_schema_id",
+                "command_schema_sha256",
+                "payload"
+            ]
+        }
+    ]
+}

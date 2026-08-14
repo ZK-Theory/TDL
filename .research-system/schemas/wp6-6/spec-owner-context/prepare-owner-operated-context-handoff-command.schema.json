@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff", "properties": {"schema_version": {"const": "1.0.0"}},
+  "allOf": [
+    {"$ref": "ars://wp6-6/spec-owner-context/command-common#/$defs/envelope"},
+    {"properties": {"command_type": {"const": "PrepareOwnerOperatedContextHandoff"}, "schema_id": {"const": "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff"}, "payload": {"allOf": [{"$ref": "ars://wp6-6/spec-owner-context/command-common#/$defs/binding"}, {"type": "object", "additionalProperties": false, "properties": {"context_id": {}, "request_id": {}, "packet_revision": {}, "packet_sha256": {}, "manifest_sha256": {}, "owner_profile_sha256": {}, "owner_profile": {"$ref": "ars://context/owner-operated-delivery-profile"}, "accepted_artefacts": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "properties": {"artefact_id": {"type": "string", "pattern": "^art_"}, "content_sha256": {"$ref": "ars://wp6-6/spec-owner-context/command-common#/$defs/sha256"}}, "required": ["artefact_id", "content_sha256"]}}}, "required": ["owner_profile", "accepted_artefacts"]}]}}},
+    {"required": ["command_type", "schema_id", "payload"]}
+  ]
+}

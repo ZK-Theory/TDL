@@ -1,0 +1,44 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ars://wp6-6/event/OwnerOperatedContextDelivered",
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "ars://wp6-6/spec-owner-context/event-common#/$defs/envelope"
+        },
+        {
+            "properties": {
+                "event_type": {
+                    "const": "OwnerOperatedContextDelivered"
+                },
+                "schema_id": {
+                    "const": "ars://wp6-6/event/OwnerOperatedContextDelivered"
+                },
+                "command_type": {
+                    "const": "RecordOwnerOperatedContextDelivery"
+                },
+                "command_schema_id": {
+                    "const": "ars://wp6-6/command/RecordOwnerOperatedContextDelivery"
+                },
+                "command_schema_sha256": {
+                    "const": "70cd1193570cf099b5eb5e900d8cd3d7acedbb9efb15f2c1351352637adc8405"
+                },
+                "payload": {
+                    "$ref": "ars://wp6-6/command/RecordOwnerOperatedContextDelivery#/allOf/1/properties/payload"
+                }
+            },
+            "required": [
+                "event_type",
+                "schema_id",
+                "command_type",
+                "command_schema_id",
+                "command_schema_sha256",
+                "payload"
+            ]
+        }
+    ]
+}

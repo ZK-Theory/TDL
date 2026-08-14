@@ -14,6 +14,9 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaError
 from jsonschema.validators import extend
+from referencing import Registry as ReferenceRegistry
+from referencing import Resource
+from referencing.jsonschema import DRAFT202012
 
 from research_system.errors import SchemaError
 
@@ -534,6 +537,11 @@ _RUNTIME_BINDINGS = (
         command_type="ActivateAuthorityGrant",
     ),
     SchemaBinding(
+        "ars://core/command/PublishOwnerAuthorityAdministrationDecision",
+        "1.0.0",
+        command_type="PublishOwnerAuthorityAdministrationDecision",
+    ),
+    SchemaBinding(
         "ars://core/command/ActivateExternalAssuranceRecordGrant",
         "1.0.0",
         command_type="ActivateExternalAssuranceRecordGrant",
@@ -553,6 +561,12 @@ _RUNTIME_BINDINGS = (
         "1.1.0",
         event_type="AuthorityGrantActivated",
         producer_command_type="ActivateAuthorityGrant",
+    ),
+    SchemaBinding(
+        "ars://core/event/OwnerAuthorityAdministrationDecisionPublished",
+        "1.0.0",
+        event_type="OwnerAuthorityAdministrationDecisionPublished",
+        producer_command_type="PublishOwnerAuthorityAdministrationDecision",
     ),
     SchemaBinding(
         "ars://core/event/ExternalAssuranceRecordGrantActivated",
@@ -1177,6 +1191,50 @@ _RUNTIME_BINDINGS = (
         event_type="ContextPacketDelivered",
         producer_command_type="RecordContextDelivery",
     ),
+    SchemaBinding(
+        "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff",
+        "1.0.0",
+        command_type="PrepareOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/event/OwnerOperatedContextHandoffPrepared",
+        "1.0.0",
+        event_type="OwnerOperatedContextHandoffPrepared",
+        producer_command_type="PrepareOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/command/ValidateOwnerOperatedContextHandoff",
+        "1.0.0",
+        command_type="ValidateOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/event/OwnerOperatedContextHandoffValidated",
+        "1.0.0",
+        event_type="OwnerOperatedContextHandoffValidated",
+        producer_command_type="ValidateOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/command/IssueOwnerOperatedContextHandoff",
+        "1.0.0",
+        command_type="IssueOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/event/OwnerOperatedContextHandoffIssued",
+        "1.0.0",
+        event_type="OwnerOperatedContextHandoffIssued",
+        producer_command_type="IssueOwnerOperatedContextHandoff",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/command/RecordOwnerOperatedContextDelivery",
+        "1.0.0",
+        command_type="RecordOwnerOperatedContextDelivery",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/event/OwnerOperatedContextDelivered",
+        "1.0.0",
+        event_type="OwnerOperatedContextDelivered",
+        producer_command_type="RecordOwnerOperatedContextDelivery",
+    ),
     SchemaBinding("ars://core/command/FailContextPacket", "1.0.0", command_type="FailContextPacket"),
     SchemaBinding(
         "ars://core/event/ContextPacketFailed",
@@ -1254,6 +1312,16 @@ class SchemaRegistry:
             )
             self._schemas[key] = registered
             self._schemas_by_id.setdefault(schema_id, {})[schema_version] = registered
+        self._reference_registry = ReferenceRegistry().with_resources(
+            (
+                registered.schema_id,
+                Resource.from_contents(
+                    json.loads(registered.raw_bytes),
+                    default_specification=DRAFT202012,
+                ),
+            )
+            for registered in self._schemas.values()
+        )
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
         self._policy_action_bindings: dict[str, SchemaBinding] = {}
@@ -1327,6 +1395,7 @@ class SchemaRegistry:
             _ImmutableSchemaValidator(
                 entry.parsed,
                 format_checker=Draft202012Validator.FORMAT_CHECKER,
+                registry=self._reference_registry,
             ).iter_errors(value),
             key=lambda error: list(error.absolute_path),
         )

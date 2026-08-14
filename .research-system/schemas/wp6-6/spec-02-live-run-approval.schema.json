@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-02-live-run-approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "document_type", "route_id", "owner", "decision", "approved_at", "valid_window", "spec_02_subject", "spec_01_promotion", "brief_identity", "limits", "automatic_execution"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-02-live-run-approval"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_02_live_run_approval"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "owner": {"type": "object", "additionalProperties": false, "required": ["actor_id", "role"], "properties": {"actor_id": {"type": "string", "minLength": 1}, "role": {"const": "Stephen"}}},
+    "decision": {"const": "APPROVE_SPEC_02_LIVE_RUN"},
+    "approved_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "valid_window": {"type": "object", "additionalProperties": false, "required": ["starts_at", "expires_at"], "properties": {"starts_at": {"type": "string", "format": "date-time", "pattern": "Z$"}, "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"}}},
+    "spec_02_subject": {"$ref": "#/$defs/hashRef"},
+    "spec_01_promotion": {"$ref": "#/$defs/hashRef"},
+    "brief_identity": {"$ref": "#/$defs/hashRef"},
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["budget_gbp", "wall_time_seconds", "cpu_seconds", "peak_memory_bytes", "resource_ids"],
+      "properties": {"budget_gbp": {"type": "number", "minimum": 0}, "wall_time_seconds": {"type": "integer", "minimum": 1}, "cpu_seconds": {"type": "integer", "minimum": 1}, "peak_memory_bytes": {"type": "integer", "minimum": 1}, "resource_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}
+    },
+    "automatic_execution": {"const": false}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "hashRef": {"type": "object", "additionalProperties": false, "required": ["id", "sha256"], "properties": {"id": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}}
+}

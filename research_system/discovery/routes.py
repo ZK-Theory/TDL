@@ -33,6 +33,21 @@ ARTEFACT_EVENT_TYPES = {
     "ArtefactSuperseded",
     "LateArtefactAdopted",
 }
+CONTEXT_EVENT_TYPES = {
+    "ContextPacketRequested",
+    "ContextCompilationStarted",
+    "ContextPacketCompiled",
+    "ContextPacketValidated",
+    "ContextPacketIssued",
+    "ContextPacketDelivered",
+    "ContextPacketFailed",
+    "ContextPacketExpired",
+    "ContextPacketSuperseded",
+    "OwnerOperatedContextHandoffPrepared",
+    "OwnerOperatedContextHandoffValidated",
+    "OwnerOperatedContextHandoffIssued",
+    "OwnerOperatedContextDelivered",
+}
 
 
 @dataclass(frozen=True)
@@ -294,6 +309,8 @@ def shared_event_partition(
         return "discovery"
     if event_type in ARTEFACT_EVENT_TYPES:
         return "artefact"
+    if event_type in CONTEXT_EVENT_TYPES:
+        return "context"
     return "operational"
 
 

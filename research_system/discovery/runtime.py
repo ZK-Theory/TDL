@@ -11,7 +11,12 @@ from research_system.authority import GrantedCommandIdentity, LedgerAuthorityGra
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
 from research_system.command.reducers import reduce_artefact, replay_control_plane
-from research_system.discovery.authority import prepare_authority_transition
+from research_system.discovery.authority import (
+    PORTABLE_SPEC_REQUIRED_MEMBERS,
+    is_portable_path_subject,
+    prepare_authority_transition,
+    validate_portable_path_subject,
+)
 from research_system.discovery.assay_authority import (
     content_sha256 as assay_content_sha256,
     replay_assay_bar_authority,
@@ -68,6 +73,7 @@ from research_system.discovery.dossier import (
     DossierMember,
     RegisteredRoot,
     prepare_dossier_admission,
+    registered_root_identity_hash,
 )
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
@@ -769,6 +775,8 @@ class DiscoveryRuntime:
                 "file_size": len(raw),
                 "file_sha256": file_sha256,
             }
+            if kind == "path_registration" and is_portable_path_subject(subject):
+                transition_payload["portable_physical_binding"] = self._observe_portable_spec_root(subject, git_commit)
         elif action == "resolve":
             # The ledger replaces this preparation-only marker with its atomic
             # transaction identity in both persisted authority shadows.
@@ -888,6 +896,90 @@ class DiscoveryRuntime:
             )
             for event in events
         ]
+
+    def _observe_portable_spec_root(self, subject: Mapping[str, Any], git_commit: str) -> dict[str, Any]:
+        """Verify stable SPEC member bindings and derive this checkout's root identity."""
+
+        try:
+            validate_portable_path_subject(subject)
+        except ValueError as exc:
+            raise IntegrityError(str(exc)) from exc
+        configured_root = self.root_tokens.get("repository")
+        try:
+            if configured_root is None or configured_root.resolve(strict=True) != self.repository_root:
+                raise IntegrityError("portable repository token does not resolve to operator repository")
+        except OSError as exc:
+            raise IntegrityError("portable repository token is unavailable") from exc
+        try:
+            dirty = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(self.repository_root),
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_SECONDS,
+            ).stdout
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            raise IntegrityError("portable repository cleanliness is unavailable") from exc
+        if dirty:
+            raise IntegrityError("portable repository contains dirty or uncommitted content")
+        observations: list[dict[str, Any]] = []
+        supplied_member_set = tuple(
+            (str(member.get("alias")), str(member.get("relative_path")))
+            for member in subject["required_member_bindings"]
+            if isinstance(member, Mapping)
+        )
+        if supplied_member_set != PORTABLE_SPEC_REQUIRED_MEMBERS:
+            raise IntegrityError("portable SPEC member set differs from exact route authority")
+        for expected in subject["required_member_bindings"]:
+            relative_path = expected["relative_path"]
+            lexical_path = Path(relative_path)
+            if lexical_path.is_absolute() or lexical_path.as_posix() != relative_path:
+                raise IntegrityError("portable SPEC member path is not canonical")
+            try:
+                member_path = (self.repository_root / lexical_path).resolve(strict=True)
+                member_path.relative_to(self.repository_root)
+                raw = member_path.read_bytes()
+                committed = subprocess.run(
+                    ["git", "-C", str(self.repository_root), "show", f"{git_commit}:{relative_path}"],
+                    check=True,
+                    capture_output=True,
+                    timeout=_GIT_TIMEOUT_SECONDS,
+                ).stdout
+                git_blob = subprocess.run(
+                    ["git", "-C", str(self.repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=_GIT_TIMEOUT_SECONDS,
+                ).stdout.strip()
+            except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                raise IntegrityError("portable SPEC member lacks current Git identity") from exc
+            observation = {
+                "alias": expected["alias"],
+                "relative_path": relative_path,
+                "size_bytes": len(raw),
+                "sha256": sha256_hex(raw),
+                "git_blob": git_blob,
+            }
+            if raw != committed or observation != dict(expected):
+                raise IntegrityError("portable SPEC member binding differs")
+            observations.append(observation)
+        return {
+            "root_id": "repository",
+            "root_token": "repository",
+            "registration_revision": 1,
+            "registration_hash": registered_root_identity_hash(self.repository_root),
+            "git_commit": git_commit,
+            "members_sha256": sha256_hex(canonical_bytes(observations)),
+        }
 
     def _prepare_assay_bar_authority(
         self,
@@ -1367,8 +1459,23 @@ class DiscoveryRuntime:
                 )
                 current_revision = expected.revision
         if accepted_paths and accepted_paths.get("status") == "accepted":
-            root_values = accepted_paths["subject"].get("registered_roots")
+            path_subject = accepted_paths["subject"]
+            root_values = path_subject.get("registered_roots")
             if isinstance(root_values, list):
+                if is_portable_path_subject(path_subject):
+                    observation = accepted_paths.get("file_observation")
+                    accepted_binding = accepted_paths.get("portable_physical_binding")
+                    if not isinstance(observation, Mapping) or not isinstance(accepted_binding, Mapping):
+                        raise IntegrityError("accepted portable path authority lacks physical observation")
+                    current_binding = self._observe_portable_spec_root(path_subject, str(observation.get("git_commit")))
+                    if current_binding != accepted_binding:
+                        raise IntegrityError("accepted portable path authority physical binding differs")
+                    root_values = [
+                        {
+                            **dict(root_values[0]),
+                            "registration_hash": current_binding["registration_hash"],
+                        }
+                    ]
                 required_root_fields = {
                     "path",
                     "root_id",

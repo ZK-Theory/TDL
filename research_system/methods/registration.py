@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConfigurationError, ConflictError
 from research_system.store.durability import fsync_directory
 
 
@@ -78,6 +79,175 @@ class CandidateDocumentStore:
             os.fsync(handle.fileno())
         fsync_directory(target.parent)
         return relative.as_posix()
+
+
+@dataclass(frozen=True)
+class RawContentPublication:
+    """Exact committed raw content admitted to the owner-operated brief seam."""
+
+    source_relative_path: str
+    source_git_blob: str
+    content_sha256: str
+    size_bytes: int
+    media_type: str
+    document_type: str
+    destination_relative_path: str
+
+
+_SPEC_SOURCE_PATHS = frozenset(
+    {
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+    }
+)
+_METHODS_ASSET_PREFIX = ".research-system/methods/assets/"
+_RAW_DESTINATION_PREFIX = "methods/content/spec-flow/"
+
+
+def _git(repository_root: Path, *arguments: str) -> str:
+    result = subprocess.run(  # nosec B603 B607 - fixed Git executable and arguments
+        ["git", "-C", str(repository_root), *arguments],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        raise ConfigurationError("raw content Git binding is unavailable")
+    return result.stdout.strip()
+
+
+def _validate_committed_raw_source(repository_root: Path, publication: RawContentPublication) -> bytes:
+    root = repository_root.resolve(strict=True)
+    if Path(_git(root, "rev-parse", "--show-toplevel")).resolve(strict=True) != root:
+        raise ConfigurationError("raw content repository is not the configured Git worktree root")
+    if _git(root, "status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"):
+        raise ConfigurationError("raw content repository is not clean")
+    relative = Path(publication.source_relative_path)
+    posix = relative.as_posix()
+    allowed = posix in _SPEC_SOURCE_PATHS or (
+        posix.startswith(_METHODS_ASSET_PREFIX)
+        and relative.parent.as_posix() == _METHODS_ASSET_PREFIX.rstrip("/")
+        and relative.suffix == ".md"
+    )
+    if relative.is_absolute() or ".." in relative.parts or not allowed or "scale" in posix.casefold():
+        raise ConfigurationError("raw content source is outside the SPEC brief allowlist")
+    if publication.document_type not in {"spec_operator_source", "methods_asset"}:
+        raise ConfigurationError("raw content document type is unsupported")
+    if publication.media_type != "text/markdown; charset=utf-8":
+        raise ConfigurationError("raw content media type is unsupported")
+    destination = Path(publication.destination_relative_path)
+    destination_posix = destination.as_posix()
+    if (
+        destination.is_absolute()
+        or ".." in destination.parts
+        or not destination_posix.startswith(_RAW_DESTINATION_PREFIX)
+        or destination.suffix != ".md"
+    ):
+        raise ConfigurationError("raw content destination is outside the SPEC content root")
+    source = (root / relative).resolve(strict=True)
+    try:
+        source.relative_to(root)
+    except ValueError as exc:
+        raise ConfigurationError("raw content source escapes the repository") from exc
+    raw = source.read_bytes()
+    committed_blob = _git(root, "rev-parse", f"HEAD:{posix}")
+    working_blob = _git(root, "hash-object", "--", posix)
+    if committed_blob != publication.source_git_blob or working_blob != committed_blob:
+        raise ConfigurationError("raw content source is not the exact committed Git blob")
+    if len(raw) != publication.size_bytes or sha256_hex(raw) != publication.content_sha256:
+        raise ConfigurationError("raw content byte binding differs")
+    return raw
+
+
+def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
+    target = control_root.resolve(strict=True) / Path(relative_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        if target.read_bytes() != raw:
+            raise ConflictError("raw content destination already binds different bytes")
+        return
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(raw)
+        handle.flush()
+        os.fsync(handle.fileno())
+    fsync_directory(target.parent)
+
+
+def publish_registered_raw_content(
+    *,
+    repository_root: Path,
+    publication: RawContentPublication,
+    registration: CandidateRegistration,
+    control_root: Path,
+    command_service: CommandSubmitter,
+) -> RegisteredCandidate:
+    """Register then immutably publish one exact committed SPEC/methods markdown file.
+
+    Registration precedes byte publication so an interruption cannot leave an
+    unregistered file.  Exact retry replays the command and reconciles the
+    missing immutable bytes, matching candidate-document recovery semantics.
+    """
+
+    raw = _validate_committed_raw_source(repository_root, publication)
+    destination = Path(publication.destination_relative_path)
+    if destination.stem != registration.artefact_id:
+        raise ConfigurationError("raw content destination does not bind the artefact identity")
+    target = control_root.resolve(strict=True) / destination
+    if target.exists() and target.read_bytes() != raw:
+        raise ConflictError("raw content destination already binds different bytes")
+    manifest = deepcopy(registration.manifest)
+    if manifest.get("artefact_id") != registration.artefact_id:
+        raise ArsError("registration manifest does not bind the raw artefact")
+    manifest.update(
+        {
+            "root_id": "control",
+            "relative_path": publication.destination_relative_path,
+            "size_bytes": publication.size_bytes,
+            "media_type": publication.media_type,
+            "content_sha256": publication.content_sha256,
+            "artefact_type": publication.document_type,
+        }
+    )
+    authority = manifest.get("authority")
+    if not isinstance(authority, dict):
+        raise ArsError("registration manifest authority is missing")
+    authority["use_authority"] = "candidate"
+    metadata_digest = sha256_hex(canonical_bytes(manifest))
+    idempotency_key = f"methods-register-raw:{registration.artefact_id}:{metadata_digest}"
+    command = {
+        "command_id": _stable_command_id(idempotency_key),
+        "command_type": "RegisterArtefact",
+        "schema_id": "ars://core/command/RegisterArtefact",
+        "schema_version": "1.0.0",
+        "submitted_at": registration.submitted_at,
+        "actor_id": registration.actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": registration.authority_grant_id,
+        "target_stream_id": registration.artefact_id,
+        "expected_stream_version": 0,
+        "idempotency_key": idempotency_key,
+        "correlation_id": registration.correlation_id,
+        "causation_id": None,
+        "reason": registration.reason,
+        "evidence_refs": [],
+        "payload": {"new_artefact_id": registration.artefact_id, "manifest": manifest},
+        "project_id": registration.project_id,
+    }
+    receipt = command_service.submit(command)
+    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
+        raise ArsError(f"raw artefact registration was not accepted ({reason})")
+    _write_immutable_raw(control_root, publication.destination_relative_path, raw)
+    return RegisteredCandidate(
+        registration.artefact_id,
+        publication.content_sha256,
+        raw,
+        publication.destination_relative_path,
+        receipt,
+    )
 
 
 def _stable_command_id(idempotency_key: str) -> str:
@@ -149,6 +319,8 @@ __all__ = [
     "CandidateDocumentStore",
     "CandidateRegistration",
     "CommandSubmitter",
+    "RawContentPublication",
     "RegisteredCandidate",
+    "publish_registered_raw_content",
     "register_candidate_document",
 ]

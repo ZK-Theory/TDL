@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://context/owner-operated-delivery-profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": {"const": "ars://context/owner-operated-delivery-profile"},
+    "schema_version": {"const": "1.0.0"},
+    "delivery_mode": {"const": "manual_codex_desktop"},
+    "application": {"const": "Codex Desktop"},
+    "application_version": {"type": "string", "minLength": 1},
+    "provider_launch": {"const": false},
+    "operator_id": {"type": "string", "minLength": 1},
+    "operator_session_id": {"type": "string", "minLength": 1},
+    "recipient_id": {"type": "string", "minLength": 1},
+    "purpose": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "context_id": {"type": "string", "pattern": "^ctx_"},
+    "packet_revision": {"type": "integer", "minimum": 1},
+    "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capability_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    ,"valid_from": {"type": "string", "format": "date-time", "pattern": "Z$"}
+    ,"expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  },
+  "required": [
+    "schema_id", "schema_version", "delivery_mode", "application", "application_version", "provider_launch",
+    "operator_id", "operator_session_id", "recipient_id", "purpose", "scope",
+    "context_id", "packet_revision", "packet_sha256", "capability_digest", "valid_from", "expires_at"
+  ]
+}

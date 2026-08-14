@@ -66,6 +66,48 @@ class ResolvedContextPacket:
     delivery: Mapping[str, Any]
 
 
+_OWNER_EVENT_ORDER = (
+    "OwnerOperatedContextHandoffPrepared",
+    "OwnerOperatedContextHandoffValidated",
+    "OwnerOperatedContextHandoffIssued",
+    "OwnerOperatedContextDelivered",
+)
+
+
+def rebuild_owner_operated_handoff(
+    events: Iterable[Mapping[str, Any]], context_id: str
+) -> tuple[Mapping[str, Any], ...] | None:
+    selected = sorted(
+        (
+            event
+            for event in events
+            if event.get("stream_id") == context_id and event.get("event_type") in _OWNER_EVENT_ORDER
+        ),
+        key=lambda event: int(event.get("stream_version", 0)),
+    )
+    if not selected:
+        return None
+    if tuple(event.get("event_type") for event in selected) != _OWNER_EVENT_ORDER:
+        raise IntegrityError("owner-operated context handoff lifecycle is incomplete or reordered")
+    versions = tuple(int(event.get("stream_version", 0)) for event in selected)
+    if versions != tuple(range(versions[0], versions[0] + 4)):
+        raise IntegrityError("owner-operated context handoff stream is not contiguous")
+    payloads = tuple(_payload(event) for event in selected)
+    binding_fields = (
+        "context_id",
+        "request_id",
+        "packet_revision",
+        "packet_sha256",
+        "manifest_sha256",
+        "owner_profile_sha256",
+    )
+    if any(payload.get("context_id") != context_id for payload in payloads) or any(
+        payload.get(field) != payloads[0].get(field) for payload in payloads[1:] for field in binding_fields
+    ):
+        raise IntegrityError("owner-operated context handoff identity changed")
+    return payloads
+
+
 def _payload(event: Mapping[str, Any]) -> Mapping[str, Any]:
     payload = event.get("payload")
     if not isinstance(payload, Mapping):
@@ -167,15 +209,47 @@ def resolve_context_packet_for_consumer(
     """Resolve only an exact delivered, current packet from verified ledger state."""
     if evaluation_time.tzinfo is None:
         raise ValueError("evaluation_time must be timezone-aware")
-    state = rebuild_context_lifecycle(events, context_id)
-    if state.state != "delivered":
-        raise ArsError(f"context packet is not consumable in state {state.state}")
-    if not all((state.compilation, state.validation, state.issuance, state.delivery)):
-        raise IntegrityError("delivered context lifecycle is incomplete")
+    event_values = tuple(events)
+    state = rebuild_context_lifecycle(event_values, context_id)
+    owner = rebuild_owner_operated_handoff(event_values, context_id)
+    owner_mode = owner is not None
+    if owner_mode:
+        if state.state != "compiled" or state.compilation is None:
+            raise ArsError(f"owner-operated context packet is not consumable from state {state.state}")
+        prepared, validation, issuance, delivery = owner
+        profile = prepared.get("owner_profile")
+        if (
+            not isinstance(profile, Mapping)
+            or profile.get("provider_launch") is not False
+            or sha256_hex(canonical_bytes(dict(profile))) != prepared.get("owner_profile_sha256")
+        ):
+            raise IntegrityError("owner-operated profile binding differs")
+        if (
+            profile.get("context_id") != context_id
+            or profile.get("packet_revision") != revision
+            or profile.get("packet_sha256") != packet_sha256
+            or profile.get("recipient_id") != consumer_id
+            or profile.get("purpose") != purpose
+            or profile.get("scope") != scope
+        ):
+            raise ArsError("owner-operated profile does not authorize this consumer request")
+        evaluated_at = evaluation_time.astimezone(UTC)
+        if not (
+            _parse_z(profile.get("valid_from"), "owner valid_from")
+            <= evaluated_at
+            < _parse_z(profile.get("expires_at"), "owner expires_at")
+        ):
+            raise ArsError("owner-operated delivery is outside its finite window")
+    else:
+        if state.state != "delivered":
+            raise ArsError(f"context packet is not consumable in state {state.state}")
+        if not all((state.compilation, state.validation, state.issuance, state.delivery)):
+            raise IntegrityError("delivered context lifecycle is incomplete")
+        validation = state.validation
+        issuance = state.issuance
+        delivery = state.delivery
 
     compilation = state.compilation
-    issuance = state.issuance
-    delivery = state.delivery
     assert compilation is not None and issuance is not None and delivery is not None
     if (
         compilation.get("packet_revision") != revision
@@ -190,9 +264,11 @@ def resolve_context_packet_for_consumer(
         raise ArsError("consumer purpose or scope is not authorized by the request")
     if delivery.get("recipient_id") != consumer_id:
         raise ArsError("delivery recipient does not match the consumer")
-    validation = state.validation
     assert validation is not None
-    if (
+    if owner_mode:
+        if compilation.get("manifest_sha256") != issuance.get("manifest_sha256"):
+            raise IntegrityError("owner-operated issuance manifest binding differs")
+    elif (
         validation.get("capability_digest") != issuance.get("capability_digest")
         or validation.get("provider_template_sha256") != issuance.get("provider_template_sha256")
         or compilation.get("manifest_sha256") != issuance.get("manifest_sha256")
@@ -249,13 +325,21 @@ def resolve_context_packet_for_consumer(
         int(delivery["delivery_receipt_revision"]),
         str(delivery["delivery_receipt_sha256"]),
     )
-    if (
+    invalid_receipt = (
         delivery_receipt.get("context_id") != context_id
         or delivery_receipt.get("packet_sha256") != packet_sha256
         or delivery_receipt.get("recipient_id") != consumer_id
         or delivery_receipt.get("recipient_session_id") != delivery.get("recipient_session_id")
-        or delivery_receipt.get("adapter_id") != delivery.get("adapter_id")
-    ):
+    )
+    if owner_mode:
+        invalid_receipt = (
+            invalid_receipt
+            or delivery_receipt.get("provider_launch") is not False
+            or (delivery_receipt.get("owner_profile_sha256") != delivery.get("owner_profile_sha256"))
+        )
+    else:
+        invalid_receipt = invalid_receipt or delivery_receipt.get("adapter_id") != delivery.get("adapter_id")
+    if invalid_receipt:
         raise IntegrityError("delivery receipt does not bind the delivered packet")
     return ResolvedContextPacket(
         context_id=context_id,

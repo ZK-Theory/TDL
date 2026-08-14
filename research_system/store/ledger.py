@@ -408,6 +408,10 @@ class EventLedger:
                 raise ArsError(f"missing event field: {exc.args[0]}") from exc
             producer = str(candidate.get("command_type", ""))
             scoped_authority_event = (event_type, producer) in {
+                (
+                    "OwnerAuthorityAdministrationDecisionPublished",
+                    "PublishOwnerAuthorityAdministrationDecision",
+                ),
                 ("AuthorityGrantActivated", "ActivateAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeIssuedAuthorityGrant"),

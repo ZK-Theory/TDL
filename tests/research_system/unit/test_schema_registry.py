@@ -589,7 +589,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    assert len(bindings) == 257
+    assert len(bindings) == 267
     assert bindings == tuple(
         sorted(
             bindings,
@@ -604,6 +604,75 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
         )
     )
     assert len(set(bindings)) == len(bindings)
+    new_schema_ids = {
+        "ars://core/command/PublishOwnerAuthorityAdministrationDecision",
+        "ars://core/event/OwnerAuthorityAdministrationDecisionPublished",
+        "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff",
+        "ars://wp6-6/event/OwnerOperatedContextHandoffPrepared",
+        "ars://wp6-6/command/ValidateOwnerOperatedContextHandoff",
+        "ars://wp6-6/event/OwnerOperatedContextHandoffValidated",
+        "ars://wp6-6/command/IssueOwnerOperatedContextHandoff",
+        "ars://wp6-6/event/OwnerOperatedContextHandoffIssued",
+        "ars://wp6-6/command/RecordOwnerOperatedContextDelivery",
+        "ars://wp6-6/event/OwnerOperatedContextDelivered",
+    }
+    assert {binding for binding in bindings if binding.schema_id in new_schema_ids} == {
+        SchemaBinding(
+            "ars://core/command/PublishOwnerAuthorityAdministrationDecision",
+            "1.0.0",
+            command_type="PublishOwnerAuthorityAdministrationDecision",
+        ),
+        SchemaBinding(
+            "ars://core/event/OwnerAuthorityAdministrationDecisionPublished",
+            "1.0.0",
+            event_type="OwnerAuthorityAdministrationDecisionPublished",
+            producer_command_type="PublishOwnerAuthorityAdministrationDecision",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff",
+            "1.0.0",
+            command_type="PrepareOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/event/OwnerOperatedContextHandoffPrepared",
+            "1.0.0",
+            event_type="OwnerOperatedContextHandoffPrepared",
+            producer_command_type="PrepareOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/command/ValidateOwnerOperatedContextHandoff",
+            "1.0.0",
+            command_type="ValidateOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/event/OwnerOperatedContextHandoffValidated",
+            "1.0.0",
+            event_type="OwnerOperatedContextHandoffValidated",
+            producer_command_type="ValidateOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/command/IssueOwnerOperatedContextHandoff",
+            "1.0.0",
+            command_type="IssueOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/event/OwnerOperatedContextHandoffIssued",
+            "1.0.0",
+            event_type="OwnerOperatedContextHandoffIssued",
+            producer_command_type="IssueOwnerOperatedContextHandoff",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/command/RecordOwnerOperatedContextDelivery",
+            "1.0.0",
+            command_type="RecordOwnerOperatedContextDelivery",
+        ),
+        SchemaBinding(
+            "ars://wp6-6/event/OwnerOperatedContextDelivered",
+            "1.0.0",
+            event_type="OwnerOperatedContextDelivered",
+            producer_command_type="RecordOwnerOperatedContextDelivery",
+        ),
+    }
 
 
 @pytest.mark.parametrize(
@@ -742,6 +811,49 @@ def test_registry_binds_bytes_to_the_canonical_path_read_under_symlink_swap(tmp_
     assert alias.resolve() == second
     assert identity.raw_bytes == real_read_bytes(identity.source_path)
     assert identity.raw_bytes_sha256 == sha256(identity.raw_bytes).hexdigest()
+
+
+def test_registry_uses_draft_2020_12_for_local_refs_without_dialect(tmp_path):
+    root = tmp_path / "schemas"
+    root.mkdir()
+    (root / "common.schema.json").write_text(
+        json.dumps(
+            {
+                "$id": "ars://test/legacy-common",
+                "$defs": {"name": {"type": "string", "minLength": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "document.schema.json").write_text(
+        json.dumps(
+            {
+                "$id": "ars://test/legacy-document",
+                "type": "object",
+                "properties": {
+                    "schema_version": {"const": "1.0.0"},
+                    "name": {"$ref": "ars://test/legacy-common#/$defs/name"},
+                },
+                "required": ["schema_version", "name"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = SchemaRegistry(root)
+    identity = registry.validate(
+        "ars://test/legacy-document",
+        {"schema_version": "1.0.0", "name": "SPEC"},
+        schema_version="1.0.0",
+    )
+
+    assert identity.schema_id == "ars://test/legacy-document"
+    with pytest.raises(SchemaError, match="name: '' should be non-empty"):
+        registry.validate(
+            "ars://test/legacy-document",
+            {"schema_version": "1.0.0", "name": ""},
+            schema_version="1.0.0",
+        )
 
 
 def test_resource_grant_versions_coexist_and_require_explicit_version():

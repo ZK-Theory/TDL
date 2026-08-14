@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import secrets
 import json
+import hashlib
+import uuid
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import Any, Callable, Iterable, Mapping, Protocol
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.context.compiler import _validate_provider_gate, compile_candidate
@@ -20,6 +22,8 @@ from research_system.ids import new_id
 
 class ContextObjectWriter(Protocol):
     def read(self, kind: str, object_id: str, revision: int) -> Any: ...
+
+    def revision_exists(self, kind: str, object_id: str, revision: int) -> bool: ...
 
     def write(self, kind: str, object_id: str, revision: int, value: Any) -> Any: ...
 
@@ -257,6 +261,19 @@ class ValidatedContextPacket:
     template: PrevalidatedProviderCommandTemplate
 
 
+@dataclass(frozen=True, slots=True)
+class ValidatedOwnerOperatedContextPacket:
+    """Replay-recoverable authority for a manual, provider-free handoff."""
+
+    context_id: str
+    request_id: str
+    revision: int
+    packet_sha256: str
+    manifest_sha256: str
+    capability_digest: str
+    profile: PrevalidatedProviderCommandTemplate
+
+
 _CAPABILITY_MINT_KEY = object()
 _DISPATCH_MINT_KEY = object()
 _LIFECYCLE_VERSION = "context-packet-v1"
@@ -278,6 +295,13 @@ def _require_accepted(receipt: Any, command_type: str) -> Any:
 
 def _stable_key(request_id: str, command_type: str) -> str:
     return f"context:{request_id}:{command_type}"
+
+
+def _stable_context_id(seed: str) -> str:
+    value = int.from_bytes(hashlib.sha256(seed.encode("utf-8")).digest()[:16], "big")
+    value = (value & ~(0xF << 76)) | (0x7 << 76)
+    value = (value & ~(0b11 << 62)) | (0b10 << 62)
+    return f"ctx_{uuid.UUID(int=value)}"
 
 
 def _compilation_failure_code(exc: Exception) -> str:
@@ -963,6 +987,171 @@ class ContextLifecycleService:
             },
         )
 
+    def prevalidate_owner_operated(
+        self,
+        compiled: CompiledContextPacket,
+        *,
+        capability: ContextLifecycleCapability,
+        operator_id: str,
+        operator_session_id: str,
+        recipient_id: str,
+        purpose: str,
+        scope: str,
+        accepted_artefacts: Sequence[Mapping[str, str]],
+        application_version: str,
+        valid_from: str,
+        expires_at: str,
+    ) -> ValidatedOwnerOperatedContextPacket:
+        """Validate one explicit manual Codex Desktop handoff without W4/W7 claims."""
+        self.verify_capability(capability, context_id=compiled.context_id, packet_sha256=compiled.packet_sha256)
+        if compiled.capability is not capability:
+            raise ArsError("context lifecycle capability is missing or forged")
+        if not all(
+            (
+                operator_id,
+                operator_session_id,
+                recipient_id,
+                purpose,
+                scope,
+                application_version,
+                valid_from,
+                expires_at,
+            )
+        ):
+            raise ArsError("owner-operated handoff identities must be explicit")
+        try:
+            starts = datetime.fromisoformat(valid_from.replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ArsError("owner-operated handoff window is invalid") from exc
+        if not valid_from.endswith("Z") or not expires_at.endswith("Z") or starts >= expires:
+            raise ArsError("owner-operated handoff window must be finite and increasing")
+        profile_value = {
+            "schema_id": "ars://context/owner-operated-delivery-profile",
+            "schema_version": "1.0.0",
+            "delivery_mode": "manual_codex_desktop",
+            "application": "Codex Desktop",
+            "application_version": application_version,
+            "provider_launch": False,
+            "operator_id": operator_id,
+            "operator_session_id": operator_session_id,
+            "recipient_id": recipient_id,
+            "purpose": purpose,
+            "scope": scope,
+            "context_id": compiled.context_id,
+            "packet_revision": compiled.revision,
+            "packet_sha256": compiled.packet_sha256,
+            "capability_digest": capability.digest,
+            "valid_from": valid_from,
+            "expires_at": expires_at,
+        }
+        profile = PrevalidatedProviderCommandTemplate.freeze(profile_value)
+        validated = ValidatedOwnerOperatedContextPacket(
+            context_id=compiled.context_id,
+            request_id=compiled.request_id,
+            revision=compiled.revision,
+            packet_sha256=compiled.packet_sha256,
+            manifest_sha256=compiled.manifest_sha256,
+            capability_digest=capability.digest,
+            profile=profile,
+        )
+        binding = {
+            "context_id": compiled.context_id,
+            "request_id": compiled.request_id,
+            "packet_revision": compiled.revision,
+            "packet_sha256": compiled.packet_sha256,
+            "manifest_sha256": compiled.manifest_sha256,
+            "owner_profile_sha256": profile.sha256,
+        }
+        with self.commands.lifecycle_lock(compiled.context_id):
+            self._submit(
+                "PrepareOwnerOperatedContextHandoff",
+                compiled.context_id,
+                compiled.request_id,
+                {
+                    **binding,
+                    "owner_profile": dict(profile.content),
+                    "accepted_artefacts": [dict(item) for item in accepted_artefacts],
+                },
+            )
+            prepared = self._owner_event(compiled.context_id, "OwnerOperatedContextHandoffPrepared")
+            self._submit(
+                "ValidateOwnerOperatedContextHandoff",
+                compiled.context_id,
+                compiled.request_id,
+                {
+                    **binding,
+                    "prepared_event_id": prepared["event_id"],
+                    "prepared_event_sha256": prepared["event_hash"],
+                },
+            )
+        return validated
+
+    def issue_owner_operated(self, validated: ValidatedOwnerOperatedContextPacket) -> Any:
+        """Issue only an exact replayed manual-handoff profile; never launch a provider."""
+        with self.commands.lifecycle_lock(validated.context_id):
+            state = self.recover_owner_operated_validated(validated.context_id)
+            if state != validated:
+                raise ArsError("validated owner-operated context recovery identity changed")
+            validation = self._owner_event(validated.context_id, "OwnerOperatedContextHandoffValidated")
+            return self._submit(
+                "IssueOwnerOperatedContextHandoff",
+                validated.context_id,
+                validated.request_id,
+                {
+                    "context_id": validated.context_id,
+                    "request_id": validated.request_id,
+                    "packet_revision": validated.revision,
+                    "packet_sha256": validated.packet_sha256,
+                    "manifest_sha256": validated.manifest_sha256,
+                    "owner_profile_sha256": validated.profile.sha256,
+                    "validation_event_id": validation["event_id"],
+                    "validation_event_sha256": validation["event_hash"],
+                },
+            )
+
+    def recover_owner_operated_validated(self, context_id: str) -> ValidatedOwnerOperatedContextPacket:
+        from research_system.context.registry import rebuild_context_lifecycle
+
+        state = rebuild_context_lifecycle(self.commands.iter_events(context_id), context_id)
+        if state.state != "compiled" or state.compilation is None:
+            raise ArsError("owner-operated context packet is not recoverable from validated state")
+        prepared = self._owner_event(context_id, "OwnerOperatedContextHandoffPrepared")
+        self._owner_event(context_id, "OwnerOperatedContextHandoffValidated")
+        value = prepared.get("payload", {}).get("owner_profile")
+        if not isinstance(value, Mapping):
+            raise ArsError("owner-operated delivery profile is missing")
+        profile = PrevalidatedProviderCommandTemplate.freeze(value)
+        if (
+            profile.sha256 != prepared.get("payload", {}).get("owner_profile_sha256")
+            or value.get("provider_launch") is not False
+        ):
+            raise ArsError("owner-operated delivery profile bytes changed")
+        compilation = state.compilation
+        packet = self.objects.read("context", str(compilation["packet_object_id"]), int(compilation["packet_revision"]))
+        manifest = self.objects.read(
+            "context", str(compilation["manifest_object_id"]), int(compilation["manifest_revision"])
+        )
+        if sha256_hex(canonical_bytes(packet)) != compilation.get("packet_sha256") or sha256_hex(
+            canonical_bytes(manifest)
+        ) != compilation.get("manifest_sha256"):
+            raise ArsError("owner-operated context packet object bytes changed")
+        return ValidatedOwnerOperatedContextPacket(
+            context_id=context_id,
+            request_id=str(state.request["request_id"]),
+            revision=int(compilation["packet_revision"]),
+            packet_sha256=str(compilation["packet_sha256"]),
+            manifest_sha256=str(compilation["manifest_sha256"]),
+            capability_digest=str(value["capability_digest"]),
+            profile=profile,
+        )
+
+    def _owner_event(self, context_id: str, event_type: str) -> Mapping[str, Any]:
+        matches = [event for event in self.commands.iter_events(context_id) if event.get("event_type") == event_type]
+        if len(matches) != 1:
+            raise ArsError(f"owner-operated lifecycle event is unavailable: {event_type}")
+        return matches[0]
+
     def recover_validated(self, context_id: str) -> ValidatedContextPacket:
         """Rebuild exact issue authority from verified lifecycle and object bytes."""
         from research_system.context.registry import rebuild_context_lifecycle
@@ -1051,6 +1240,91 @@ class ContextLifecycleService:
                 "delivery_receipt_object_id": delivery_receipt_id,
                 "delivery_receipt_revision": 1,
                 "delivery_receipt_sha256": delivery_receipt_sha256,
+            },
+        )
+
+    def record_owner_operated_delivery(
+        self,
+        compiled: CompiledContextPacket,
+        validated: ValidatedOwnerOperatedContextPacket,
+        *,
+        recipient_id: str,
+        recipient_session_id: str,
+    ) -> Any:
+        """Record manual receipt evidence without an adapter, transport, or provider claim."""
+        delivered = [
+            event
+            for event in self.commands.iter_events(compiled.context_id)
+            if event.get("event_type") == "OwnerOperatedContextDelivered"
+        ]
+        if delivered:
+            if len(delivered) != 1:
+                raise ArsError("owner-operated delivery event is not unique")
+            prior = delivered[0].get("payload")
+            if (
+                not isinstance(prior, Mapping)
+                or prior.get("recipient_id") != recipient_id
+                or prior.get("recipient_session_id") != recipient_session_id
+                or prior.get("packet_sha256") != compiled.packet_sha256
+            ):
+                raise ArsError("owner-operated delivery retry changed the durable handoff")
+            return self._submit("RecordOwnerOperatedContextDelivery", compiled.context_id, compiled.request_id, prior)
+        issuance = self._owner_event(compiled.context_id, "OwnerOperatedContextHandoffIssued")
+        if validated.packet_sha256 != compiled.packet_sha256:
+            raise ArsError("owner-operated delivery packet identity differs")
+        profile = validated.profile.content
+        if (
+            profile.get("provider_launch") is not False
+            or profile.get("recipient_id") != recipient_id
+            or profile.get("operator_session_id") != recipient_session_id
+        ):
+            raise ArsError("owner-operated delivery semantic identity differs")
+        receipt_id = _stable_context_id(
+            f"{compiled.request_id}:{compiled.packet_sha256}:{recipient_id}:{recipient_session_id}:owner-operated"
+        )
+        receipt_identity = {
+            "schema_id": "ars://wp6-6/owner-operated-context-delivery-receipt",
+            "schema_version": "1.0.0",
+            "delivery_receipt_id": receipt_id,
+            "context_id": compiled.context_id,
+            "packet_revision": compiled.revision,
+            "packet_sha256": compiled.packet_sha256,
+            "owner_profile_sha256": validated.profile.sha256,
+            "recipient_id": recipient_id,
+            "recipient_session_id": recipient_session_id,
+            "provider_launch": False,
+        }
+        if self.objects.revision_exists("context", receipt_id, 1):
+            receipt = self.objects.read("context", receipt_id, 1)
+            if not isinstance(receipt, Mapping) or any(
+                receipt.get(field) != expected for field, expected in receipt_identity.items()
+            ):
+                raise ArsError("owner-operated delivery receipt conflicts with the durable handoff")
+        else:
+            receipt = {
+                **receipt_identity,
+                "delivered_at": self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            }
+        receipt_sha256 = sha256_hex(canonical_bytes(receipt))
+        self.objects.write("context", receipt_id, 1, receipt)
+        return self._submit(
+            "RecordOwnerOperatedContextDelivery",
+            compiled.context_id,
+            compiled.request_id,
+            {
+                "context_id": compiled.context_id,
+                "request_id": compiled.request_id,
+                "packet_revision": compiled.revision,
+                "packet_sha256": compiled.packet_sha256,
+                "manifest_sha256": compiled.manifest_sha256,
+                "owner_profile_sha256": validated.profile.sha256,
+                "issuance_event_id": issuance["event_id"],
+                "issuance_event_sha256": issuance["event_hash"],
+                "recipient_id": recipient_id,
+                "recipient_session_id": recipient_session_id,
+                "delivery_receipt_object_id": receipt_id,
+                "delivery_receipt_revision": 1,
+                "delivery_receipt_sha256": receipt_sha256,
             },
         )
 

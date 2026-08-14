@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-operator-brief-package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "document_type", "route_id", "stage", "route_expected_return_type", "route_source", "brief_manifest", "brief_manifest_sha256", "operator_session", "prohibitions"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-operator-brief-package"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"enum": ["spec_01_operator_brief", "spec_02_operator_brief"]},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "stage": {"enum": ["SPEC-01", "SPEC-02"]},
+    "route_expected_return_type": {"enum": ["AssayScorecard", "SpikeVerdict"]},
+    "route_source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["relative_path", "raw_sha256", "git_blob"],
+      "properties": {
+        "relative_path": {"enum": [".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md", ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"]},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "brief_manifest": {"type": "object"},
+    "brief_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "operator_session": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "operator_actor_id", "application", "application_version", "manually_operated"],
+      "properties": {
+        "session_id": {"type": "string", "minLength": 1},
+        "operator_actor_id": {"type": "string", "minLength": 1},
+        "application": {"const": "Codex desktop"},
+        "application_version": {"type": "string", "minLength": 1},
+        "manually_operated": {"const": true}
+      }
+    },
+    "prohibitions": {
+      "type": "array", "minItems": 3, "uniqueItems": true,
+      "allOf": [
+        {"contains": {"const": "no provider or model launch"}},
+        {"contains": {"const": "no automatic promotion"}},
+        {"contains": {"const": "import is candidate evidence only"}}
+      ],
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"stage": {"const": "SPEC-01"}}}, "then": {"properties": {"document_type": {"const": "spec_01_operator_brief"}, "route_expected_return_type": {"const": "AssayScorecard"}, "route_source": {"properties": {"relative_path": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"}}}}}},
+    {"if": {"properties": {"stage": {"const": "SPEC-02"}}}, "then": {"properties": {"document_type": {"const": "spec_02_operator_brief"}, "route_expected_return_type": {"const": "SpikeVerdict"}, "route_source": {"properties": {"relative_path": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"}}}}}}
+  ],
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

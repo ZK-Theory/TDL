@@ -63,6 +63,9 @@ from research_system.evals.release_snapshot import (
 from research_system.ids import new_id
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.sources import FileSourceResolver
+from research_system.discovery.operator import load_discovery_operator, read_discovery_command
+from research_system.discovery.spec_flow import SpecFlow
+from research_system.owner_authority import load_owner_authority_setup, read_owner_authority_input
 from research_system.methods.brief import export_brief
 from research_system.methods.importer import import_return_bundle
 from research_system.methods.pack import load_methods_pack
@@ -714,6 +717,10 @@ def _command_submit(args: argparse.Namespace) -> int:
         args.boot_identity,
     )
     command = _read_json(args.command)
+    if isinstance(command, dict) and command.get("command_type") == "PublishOwnerAuthorityAdministrationDecision":
+        raise ConfigurationError(
+            "PublishOwnerAuthorityAdministrationDecision is sealed; use ars authority publish-owner-decision --intent"
+        )
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     service = CommandService(
@@ -996,6 +1003,48 @@ def _assurance_record_write(args: argparse.Namespace) -> int:
         ),
     )
     _print_json(asdict(receipt))
+    return 0
+
+
+def _discovery_submit(args: argparse.Namespace) -> int:
+    """Submit one canonical Discovery envelope through the operator-bound runtime."""
+
+    command = read_discovery_command(args.command)
+    receipt = load_discovery_operator(args.operator_config).submit(command)
+    _print_json(asdict(receipt))
+    return 0
+
+
+def _discovery_status(args: argparse.Namespace) -> int:
+    """Read deterministic Discovery replay state without opening a writer path."""
+
+    _print_json(load_discovery_operator(args.operator_config).status())
+    return 0
+
+
+def _discovery_spec_status(args: argparse.Namespace) -> int:
+    """Read the exact governed SPEC route position without writing."""
+
+    _print_json(asdict(SpecFlow(load_discovery_operator(args.operator_config)).status()))
+    return 0
+
+
+def _discovery_spec_advance(args: argparse.Namespace) -> int:
+    """Perform only the exact next governed SPEC action."""
+
+    _print_json(SpecFlow(load_discovery_operator(args.operator_config)).advance(args.action, args.input))
+    return 0
+
+
+def _authority_publish(args: argparse.Namespace) -> int:
+    request = read_owner_authority_input(args.intent, operation="publish")
+    _print_json(load_owner_authority_setup(args.setup_config).publish(request))
+    return 0
+
+
+def _authority_activate(args: argparse.Namespace) -> int:
+    request = read_owner_authority_input(args.input, operation="activate")
+    _print_json(load_owner_authority_setup(args.setup_config).activate(request))
     return 0
 
 
@@ -1818,6 +1867,37 @@ def _parser() -> argparse.ArgumentParser:
     submit.add_argument("--evidence-store-registry", type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
 
+    discovery = groups.add_parser("discovery")
+    discovery_actions = discovery.add_subparsers(dest="discovery_action", required=True)
+    discovery_submit = discovery_actions.add_parser("submit")
+    discovery_submit.add_argument("--operator-config", type=Path, required=True)
+    discovery_submit.add_argument("--command", type=Path, required=True)
+    discovery_submit.set_defaults(handler=_discovery_submit)
+    discovery_status = discovery_actions.add_parser("status")
+    discovery_status.add_argument("--operator-config", type=Path, required=True)
+    discovery_status.set_defaults(handler=_discovery_status)
+    discovery_spec = discovery_actions.add_parser("spec")
+    discovery_spec_actions = discovery_spec.add_subparsers(dest="discovery_spec_action", required=True)
+    discovery_spec_status = discovery_spec_actions.add_parser("status")
+    discovery_spec_status.add_argument("--operator-config", type=Path, required=True)
+    discovery_spec_status.set_defaults(handler=_discovery_spec_status)
+    discovery_spec_advance = discovery_spec_actions.add_parser("advance")
+    discovery_spec_advance.add_argument("--operator-config", type=Path, required=True)
+    discovery_spec_advance.add_argument("--action", required=True)
+    discovery_spec_advance.add_argument("--input", type=Path, required=True)
+    discovery_spec_advance.set_defaults(handler=_discovery_spec_advance)
+
+    authority = groups.add_parser("authority")
+    authority_actions = authority.add_subparsers(dest="authority_action", required=True)
+    authority_publish = authority_actions.add_parser("publish-owner-decision")
+    authority_publish.add_argument("--setup-config", type=Path, required=True)
+    authority_publish.add_argument("--intent", type=Path, required=True)
+    authority_publish.set_defaults(handler=_authority_publish)
+    authority_activate = authority_actions.add_parser("activate-scoped-grant")
+    authority_activate.add_argument("--setup-config", type=Path, required=True)
+    authority_activate.add_argument("--input", type=Path, required=True)
+    authority_activate.set_defaults(handler=_authority_activate)
+
     brief = groups.add_parser("brief")
     brief_actions = brief.add_subparsers(dest="brief_action", required=True)
     export = brief_actions.add_parser("export")
@@ -1976,7 +2056,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief", "context-packet"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "authority"}:
         return int(args.handler(args))
     try:
         if args.group == "eval":

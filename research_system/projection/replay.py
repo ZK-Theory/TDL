@@ -471,6 +471,35 @@ def apply_event(
                 "causation_id",
             )
         }
+    elif event_type == "OwnerAuthorityAdministrationDecisionPublished":
+        payload = event["payload"]
+        decision = payload.get("decision")
+        grant = payload.get("proposed_grant")
+        publications = updated.setdefault("owner_authority_decision_publications", {})
+        decision_id = decision.get("record_id") if isinstance(decision, dict) else None
+        if (
+            event.get("command_type") != "PublishOwnerAuthorityAdministrationDecision"
+            or event.get("schema_id") != "ars://core/event/OwnerAuthorityAdministrationDecisionPublished"
+            or event.get("transaction_index") != 1
+            or event.get("transaction_count") != 1
+            or not isinstance(decision_id, str)
+            or event.get("stream_id") != decision_id
+            or decision_id in publications
+            or not isinstance(grant, dict)
+            or decision.get("target_grant_id") != grant.get("authority_grant_id")
+            or decision.get("target_grant_sha256") != sha256_hex(canonical_bytes(grant))
+            or event.get("actor_id") != updated.get("authority_owner_actor_id")
+            or event.get("authority_grant_id") != updated.get("authority_root_id")
+        ):
+            raise IntegrityError("owner authority decision publication binding mismatch")
+        publications[decision_id] = {
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "target_grant_id": grant["authority_grant_id"],
+            "event_id": event["event_id"],
+            "position": event["global_position"],
+            "recorded_at": event["recorded_at"],
+            "consumed": False,
+        }
     elif event_type == "AuthorityGrantActivated":
         payload = event["payload"]
         grants = updated.setdefault("authority_grants", {})
@@ -587,6 +616,18 @@ def apply_event(
                 "position": event["global_position"],
                 "recorded_at": event["recorded_at"],
             }
+            publications = updated.get("owner_authority_decision_publications", {})
+            publication = publications.get(decision_id) if isinstance(publications, dict) else None
+            if publication is not None:
+                if (
+                    publication.get("consumed") is not False
+                    or publication.get("administration_decision_sha256") != payload["administration_decision_sha256"]
+                    or publication.get("target_grant_id") != stream_id
+                ):
+                    raise IntegrityError("owner authority decision publication consumption mismatch")
+                publication["consumed"] = True
+                publication["consumption_event_id"] = event["event_id"]
+                publication["consumption_position"] = event["global_position"]
         else:
             raise IntegrityError("unbound authority activation producer")
     elif event_type == "AuthorityGrantRevoked":
@@ -893,6 +934,10 @@ def apply_event(
         "ContextPacketFailed",
         "ContextPacketExpired",
         "ContextPacketSuperseded",
+        "OwnerOperatedContextHandoffPrepared",
+        "OwnerOperatedContextHandoffValidated",
+        "OwnerOperatedContextHandoffIssued",
+        "OwnerOperatedContextDelivered",
     }:
         payload = event["payload"]
         if not isinstance(payload, dict) or payload.get("context_id") != stream_id:
@@ -909,15 +954,23 @@ def apply_event(
             "ContextPacketFailed": "failed",
             "ContextPacketExpired": "expired",
             "ContextPacketSuperseded": "superseded",
+            "OwnerOperatedContextHandoffPrepared": "owner_prepared",
+            "OwnerOperatedContextHandoffValidated": "owner_validated",
+            "OwnerOperatedContextHandoffIssued": "owner_issued",
+            "OwnerOperatedContextDelivered": "owner_delivered",
         }[event_type]
         allowed = {
             None: {"requested"},
             "requested": {"compiling", "failed"},
             "compiling": {"compiled", "failed"},
-            "compiled": {"validated", "failed"},
+            "compiled": {"validated", "failed", "owner_prepared"},
             "validated": {"issued"},
             "issued": {"delivered", "expired", "superseded"},
             "delivered": {"expired", "superseded"},
+            "owner_prepared": {"owner_validated"},
+            "owner_validated": {"owner_issued"},
+            "owner_issued": {"owner_delivered"},
+            "owner_delivered": set(),
             "failed": set(),
             "expired": set(),
             "superseded": set(),
@@ -1191,6 +1244,7 @@ def _replay(
             schema_id == "ars://core/event"
             or schema_id.startswith("ars://core/event/")
             or schema_id.startswith("ars://wp6-2/t2/event/")
+            or schema_id.startswith("ars://wp6-6/event/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:

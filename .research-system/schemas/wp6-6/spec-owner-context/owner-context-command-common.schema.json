@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/spec-owner-context/command-common",
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "submitted_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "actor_id": {"type": "string", "pattern": "^act_"},
+        "on_behalf_of_actor_id": {"type": ["string", "null"], "pattern": "^act_"},
+        "authority_grant_id": {"type": "string", "pattern": "^agr_"},
+        "target_stream_id": {"type": "string", "pattern": "^ctx_"},
+        "expected_stream_version": {"type": "integer", "minimum": 0},
+        "idempotency_key": {"type": "string", "minLength": 1},
+        "correlation_id": {"type": "string", "minLength": 1},
+        "causation_id": {"type": ["string", "null"], "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "project_id": {"type": "string", "pattern": "^prj_"},
+        "command_type": {"type": "string"},
+        "schema_id": {"type": "string"},
+        "schema_version": {"const": "1.0.0"},
+        "payload": {"type": "object"}
+      },
+      "required": ["command_id", "submitted_at", "actor_id", "on_behalf_of_actor_id", "authority_grant_id", "target_stream_id", "expected_stream_version", "idempotency_key", "correlation_id", "causation_id", "reason", "evidence_refs", "project_id", "command_type", "schema_id", "schema_version", "payload"]
+    },
+    "binding": {
+      "type": "object",
+      "properties": {
+        "context_id": {"type": "string", "pattern": "^ctx_"},
+        "request_id": {"type": "string", "minLength": 1},
+        "packet_revision": {"type": "integer", "minimum": 1},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "owner_profile_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "required": ["context_id", "request_id", "packet_revision", "packet_sha256", "manifest_sha256", "owner_profile_sha256"]
+    }
+  }
+}

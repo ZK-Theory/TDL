@@ -2,6 +2,7 @@ import pytest
 
 from research_system.canonical import sha256_hex
 from research_system.context.models import SourceFragment
+from research_system.context.spec_bridge import build_spec_context_snapshot
 from research_system.context.sources import resolve_sources
 from research_system.errors import ArsError
 
@@ -11,11 +12,43 @@ class _Resolver:
         self.fragments = fragments
 
     def resolve(self, source_ids):
-        return tuple(
-            fragment
-            for fragment in self.fragments
-            if fragment.source_id in source_ids
-        )
+        return tuple(fragment for fragment in self.fragments if fragment.source_id in source_ids)
+
+
+def test_spec_replay_source_is_system_derived_and_tail_bound(monkeypatch):
+    projection = {
+        "artefact_streams": {
+            "art_source": {
+                "use_authority": "accepted_for_scope",
+                "content_sha256": "1" * 64,
+                "manifest": {"artefact_type": "spec_operator_source", "relative_path": "spec.md"},
+            },
+            "art_methods": {
+                "use_authority": "accepted_for_scope",
+                "content_sha256": "2" * 64,
+                "manifest": {"artefact_type": "methods_asset", "relative_path": "method.md"},
+            },
+        },
+        "candidates": {"can_1": {"status": "assay_requested"}},
+    }
+    monkeypatch.setattr("research_system.context.spec_bridge.replay_discovery", lambda events, schemas: projection)
+    first = build_spec_context_snapshot(
+        ({"global_position": 7, "event_hash": "a" * 64},),
+        schemas=object(),
+        route_id="SPEC-GATE6-RUN-V1",
+    )
+    same = build_spec_context_snapshot(
+        ({"global_position": 7, "event_hash": "a" * 64},),
+        schemas=object(),
+        route_id="SPEC-GATE6-RUN-V1",
+    )
+    changed = build_spec_context_snapshot(
+        ({"global_position": 8, "event_hash": "b" * 64},),
+        schemas=object(),
+        route_id="SPEC-GATE6-RUN-V1",
+    )
+    assert first == same
+    assert first.source.source_id != changed.source.source_id
 
 
 def _fragment(source_id, content):

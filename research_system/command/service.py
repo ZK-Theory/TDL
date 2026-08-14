@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import stat
 import sys
 import threading
 import time
@@ -245,6 +246,10 @@ _CONTEXT_PACKET_COMMAND_TYPES = frozenset(
         "FailContextPacket",
         "ExpireContextPacket",
         "SupersedeContextPacket",
+        "PrepareOwnerOperatedContextHandoff",
+        "ValidateOwnerOperatedContextHandoff",
+        "IssueOwnerOperatedContextHandoff",
+        "RecordOwnerOperatedContextDelivery",
     }
 )
 _LIFECYCLE_COMMAND_TYPES = (
@@ -260,6 +265,7 @@ _LIFECYCLE_COMMAND_TYPES = (
 )
 _COMMAND_EVENT_TYPES = {
     "PublishReleaseGateDecision": "ReleaseGateDecisionPublished",
+    "PublishOwnerAuthorityAdministrationDecision": "OwnerAuthorityAdministrationDecisionPublished",
     "ActivateAuthorityGrant": "AuthorityGrantActivated",
     "ActivateExternalAssuranceRecordGrant": "AuthorityGrantActivated",
     "RevokeAuthorityGrant": "AuthorityGrantRevoked",
@@ -361,9 +367,14 @@ _COMMAND_EVENT_TYPES = {
     "FailContextPacket": "ContextPacketFailed",
     "ExpireContextPacket": "ContextPacketExpired",
     "SupersedeContextPacket": "ContextPacketSuperseded",
+    "PrepareOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffPrepared",
+    "ValidateOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffValidated",
+    "IssueOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffIssued",
+    "RecordOwnerOperatedContextDelivery": "OwnerOperatedContextDelivered",
 }
 _SCOPED_AUTHORITY_ADMIN_COMMAND_TYPES = frozenset(
     {
+        "PublishOwnerAuthorityAdministrationDecision",
         "ActivateAuthorityGrant",
         "RevokeIssuedAuthorityGrant",
         "ActivateExternalAssuranceRecordGrant",
@@ -376,6 +387,7 @@ _SCOPED_ACTIVATION_COMMAND_TYPES = frozenset(
         "ActivateExternalAssuranceRecordGrant",
     }
 )
+_SCOPED_PUBLICATION_COMMAND_TYPES = frozenset({"PublishOwnerAuthorityAdministrationDecision"})
 _SCOPED_ACTIVATION_MARKER_FIELDS = frozenset(
     {
         "schema_id",
@@ -730,6 +742,224 @@ class CommandService:
 
     def _scoped_activation_marker_path(self, command_id: str) -> Path:
         return self.control_root / "runtime" / "scoped-authority-activation-recovery" / f"{command_id}.json"
+
+    def _owner_publication_marker_path(self, command_id: str) -> Path:
+        return self.control_root / "runtime" / "owner-authority-publication-recovery" / f"{command_id}.json"
+
+    def _require_physical_owner_publication_marker_path(self, path: Path) -> None:
+        expected_parent = self.control_root / "runtime" / "owner-authority-publication-recovery"
+        if path.parent != expected_parent:
+            raise IntegrityError("owner publication recovery marker path is invalid")
+        reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        for current in (self.control_root / "runtime", expected_parent):
+            try:
+                metadata = current.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise IntegrityError("owner publication recovery marker path is unavailable") from exc
+            if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
+                raise IntegrityError("owner publication recovery marker path has a reparse component")
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise IntegrityError("owner publication recovery marker parent is not a directory")
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise IntegrityError("owner publication recovery marker path is unavailable") from exc
+        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
+            raise IntegrityError("owner publication recovery marker path has a reparse component")
+        if not stat.S_ISREG(metadata.st_mode):
+            raise IntegrityError("owner publication recovery marker is not a regular file")
+
+    def _write_owner_publication_marker(
+        self,
+        command: Command,
+        *,
+        decision: dict[str, Any],
+        existed_before: bool,
+    ) -> None:
+        marker = {
+            "schema_id": "ars://core/runtime/owner-authority-publication-recovery",
+            "schema_version": "1.0.0",
+            "command_id": command.command_id,
+            "command_payload_hash": command.payload_hash,
+            "target_stream_id": command.target_stream_id,
+            "object_existed_before": existed_before,
+            "decision": decision,
+        }
+        path = self._owner_publication_marker_path(command.command_id)
+        self._require_physical_owner_publication_marker_path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._require_physical_owner_publication_marker_path(path)
+        data = canonical_bytes(marker)
+        if path.exists():
+            if path.read_bytes() != data:
+                raise ConflictError("owner publication recovery marker conflicts")
+            return
+        temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+        try:
+            with temporary.open("xb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+            fsync_directory(path.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _remove_owner_publication_marker(self, command_id: str) -> None:
+        path = self._owner_publication_marker_path(command_id)
+        self._require_physical_owner_publication_marker_path(path)
+        if path.exists():
+            path.unlink()
+            fsync_directory(path.parent)
+
+    def _load_owner_publication_marker(self, path: Path) -> dict[str, Any]:
+        self._require_physical_owner_publication_marker_path(path)
+        try:
+            data = path.read_bytes()
+            marker = json.loads(data)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("owner publication recovery marker is invalid") from exc
+        fields = {
+            "schema_id",
+            "schema_version",
+            "command_id",
+            "command_payload_hash",
+            "target_stream_id",
+            "object_existed_before",
+            "decision",
+        }
+        decision = marker.get("decision") if isinstance(marker, dict) else None
+        if (
+            not isinstance(marker, dict)
+            or set(marker) != fields
+            or data != canonical_bytes(marker)
+            or marker.get("schema_id") != "ars://core/runtime/owner-authority-publication-recovery"
+            or marker.get("schema_version") != "1.0.0"
+            or not isinstance(marker.get("command_id"), str)
+            or path.stem != marker.get("command_id")
+            or not _is_sha256(marker.get("command_payload_hash"))
+            or not isinstance(marker.get("target_stream_id"), str)
+            or not isinstance(marker.get("object_existed_before"), bool)
+            or not isinstance(decision, dict)
+            or decision.get("record_id") != marker.get("target_stream_id")
+        ):
+            raise IntegrityError("owner publication recovery marker is invalid")
+        return marker
+
+    @staticmethod
+    def _validate_owner_publication_marker_command(
+        marker: dict[str, Any],
+        command: Command,
+        decision: dict[str, Any],
+    ) -> None:
+        if (
+            marker.get("command_id") != command.command_id
+            or marker.get("command_payload_hash") != command.payload_hash
+            or marker.get("target_stream_id") != command.target_stream_id
+            or marker.get("decision") != decision
+        ):
+            raise ConflictError("owner publication recovery marker conflicts")
+
+    def _owner_publication_events(self, target_stream_id: str) -> tuple[dict[str, Any], ...]:
+        return tuple(
+            event
+            for event in self.ledger.snapshot().events
+            if event.get("event_type") == "OwnerAuthorityAdministrationDecisionPublished"
+            and event.get("stream_id") == target_stream_id
+        )
+
+    def _require_exact_owner_publication_object(self, marker: dict[str, Any]) -> None:
+        try:
+            value = self.objects.read("assurance_record", marker["target_stream_id"], 1)
+        except (ConflictError, IntegrityError) as exc:
+            raise IntegrityError("owner publication recovery object is invalid") from exc
+        if canonical_bytes(value) != canonical_bytes(marker["decision"]):
+            raise IntegrityError("owner publication recovery object conflicts")
+
+    def _reconcile_owner_publication_marker(
+        self,
+        command: Command,
+        decision: dict[str, Any],
+    ) -> None:
+        marker_root = self.control_root / "runtime" / "owner-authority-publication-recovery"
+        self._require_physical_owner_publication_marker_path(marker_root / f"{command.command_id}.json")
+        if not marker_root.exists():
+            return
+        selected: dict[str, Any] | None = None
+        for path in sorted(marker_root.glob("*.json")):
+            marker = self._load_owner_publication_marker(path)
+            if marker["target_stream_id"] != command.target_stream_id:
+                continue
+            if marker["command_id"] != command.command_id:
+                raise ConflictError("owner publication target has a different recovery command")
+            selected = marker
+        if selected is None:
+            return
+        self._validate_owner_publication_marker_command(selected, command, decision)
+        events = self._owner_publication_events(command.target_stream_id)
+        if events:
+            if (
+                len(events) != 1
+                or events[0].get("command_id") != command.command_id
+                or events[0].get("command_payload_hash") != command.payload_hash
+                or events[0].get("payload", {}).get("decision") != selected["decision"]
+            ):
+                raise IntegrityError("owner publication recovery event conflicts")
+            self._require_exact_owner_publication_object(selected)
+            return
+        if selected["object_existed_before"]:
+            self._require_exact_owner_publication_object(selected)
+        else:
+            try:
+                self._require_exact_owner_publication_object(selected)
+            except IntegrityError:
+                if self.objects.revision_exists("assurance_record", command.target_stream_id, 1):
+                    raise
+            self.objects.rollback_new_revision(
+                "assurance_record",
+                command.target_stream_id,
+                1,
+                selected["decision"],
+                existed_before=False,
+            )
+        self._remove_owner_publication_marker(command.command_id)
+
+    def _owner_publication_committed(self, command: Command) -> bool:
+        return any(
+            event.get("command_id") == command.command_id
+            and event.get("command_payload_hash") == command.payload_hash
+            and event.get("event_type") == "OwnerAuthorityAdministrationDecisionPublished"
+            and event.get("stream_id") == command.target_stream_id
+            for event in self.ledger.snapshot().events
+        )
+
+    def _ensure_owner_publication_materialized(
+        self,
+        command: Command,
+        decision: dict[str, Any],
+    ) -> None:
+        marker = {
+            "target_stream_id": command.target_stream_id,
+            "decision": decision,
+        }
+        self._require_exact_owner_publication_object(marker)
+
+    def _cleanup_failed_owner_publication(
+        self,
+        command: Command,
+        decision: dict[str, Any],
+        existed_before: bool,
+    ) -> None:
+        if self._owner_publication_committed(command):
+            return
+        self.objects.rollback_new_revision(
+            "assurance_record", command.target_stream_id, 1, decision, existed_before=existed_before
+        )
+        self._remove_owner_publication_marker(command.command_id)
 
     @staticmethod
     def _scoped_activation_command_identity(
@@ -1383,6 +1613,8 @@ class CommandService:
                 self._validate_scoped_activation_marker_event_schema(preloaded_activation_marker)
         with self._submission_lock(command) as submission:
             lifecycle_authority: _LifecycleAuthorityEvidence | None = None
+            publication_prepared_payload: dict[str, Any] | None = None
+            publication_decision: dict[str, Any] | None = None
 
             def write_receipt(receipt: Receipt) -> Receipt:
                 return self._write_receipt(
@@ -1390,6 +1622,7 @@ class CommandService:
                     receipt,
                     lifecycle_authority,
                     command_schema=command_schema,
+                    prepared_payload=publication_prepared_payload,
                 )
 
             self._before_authority_resolution(command)
@@ -1422,12 +1655,30 @@ class CommandService:
                     # A fresh denial must not return or overwrite an older
                     # accepted receipt for the same logical submission.
                     return rejected
+            if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
+                publication_observed_version = snapshot.stream_versions.get(command.target_stream_id, 0)
+                try:
+                    publication_prepared_payload = self._prepare_owner_authority_publication(
+                        command,
+                        publication_observed_version,
+                    )
+                except IntegrityError:
+                    raise
+                except ArsError:
+                    raise
+                publication_decision = publication_prepared_payload.get("decision")
+                if not isinstance(publication_decision, dict):
+                    raise IntegrityError("owner publication derivation did not produce a decision")
+                self._reconcile_owner_publication_marker(command, publication_decision)
             scoped = self._scoped_authority_receipt(
                 command,
                 command_schema=command_schema,
                 lifecycle_authority=lifecycle_authority,
+                prepared_payload=publication_prepared_payload,
             )
             if scoped is not None:
+                if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
+                    self._remove_owner_publication_marker(command.command_id)
                 return scoped
             if not lifecycle:
                 stored_conflict = self._stored_conflict_receipt(command)
@@ -1460,6 +1711,10 @@ class CommandService:
             )
             if existing is not None:
                 reconstructed = self._return_or_reconstruct(existing)
+                if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
+                    if publication_decision is None:
+                        raise IntegrityError("owner publication decision is unavailable")
+                    self._ensure_owner_publication_materialized(command, publication_decision)
                 if command.envelope["command_type"] in _C1_COMMAND_TYPES:
                     self._return_scoped_receipt_or_raise(command, reconstructed)
                 if command.envelope["command_type"] == "RequestResourceGrant":
@@ -1471,6 +1726,8 @@ class CommandService:
                 receipt = write_receipt(reconstructed)
                 if activation_marker_status == "committed":
                     self._remove_scoped_activation_marker(command.command_id)
+                if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
+                    self._remove_owner_publication_marker(command.command_id)
                 return receipt
             if (
                 command.envelope["command_type"] in _MESSAGE_COMMAND_TYPES
@@ -1481,6 +1738,7 @@ class CommandService:
             prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
             restore_verification_revalidator: Callable[[], None] | None = None
             activation_object_existed: bool | None = None
+            publication_object_existed: bool | None = None
             append_started = False
             if command.envelope["command_type"] == "PublishReleaseGateDecision":
                 request = ReleasePublicationRequest.from_dict(command.envelope["payload"])
@@ -1654,6 +1912,7 @@ class CommandService:
                         "ActivateAuthorityGrant",
                         "ActivateExternalAssuranceRecordGrant",
                     }
+                    publication = command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES
                     if activation:
                         marker_path = self._scoped_activation_marker_path(command.command_id)
                         if activation_marker_preexisting:
@@ -1680,12 +1939,36 @@ class CommandService:
                             command,
                             observed_version,
                         )
+                    elif publication:
+                        if publication_prepared_payload is None or publication_decision is None:
+                            raise IntegrityError("owner publication derivation is unavailable")
+                        publication_object_existed = self.objects.revision_exists(
+                            "assurance_record", command.target_stream_id, 1
+                        )
+                        self._write_owner_publication_marker(
+                            command,
+                            decision=publication_decision,
+                            existed_before=publication_object_existed,
+                        )
+                        self.objects.write(
+                            "assurance_record",
+                            command.target_stream_id,
+                            1,
+                            publication_decision,
+                        )
+                        prepared_payload = publication_prepared_payload
                     else:
                         prepared_payload = self._prepare_issued_authority_revocation(
                             command,
                             observed_version,
                         )
                 except IntegrityError:
+                    if publication_object_existed is not None and publication_decision is not None:
+                        self._cleanup_failed_owner_publication(
+                            command,
+                            publication_decision,
+                            publication_object_existed,
+                        )
                     self._cleanup_failed_scoped_activation(
                         command,
                         existed_before=activation_object_existed,
@@ -1693,6 +1976,12 @@ class CommandService:
                     )
                     raise
                 except ConflictError:
+                    if publication_object_existed is not None and publication_decision is not None:
+                        self._cleanup_failed_owner_publication(
+                            command,
+                            publication_decision,
+                            publication_object_existed,
+                        )
                     self._cleanup_failed_scoped_activation(
                         command,
                         existed_before=activation_object_existed,
@@ -1700,6 +1989,12 @@ class CommandService:
                     )
                     raise
                 except ArsError as exc:
+                    if publication_object_existed is not None and publication_decision is not None:
+                        self._cleanup_failed_owner_publication(
+                            command,
+                            publication_decision,
+                            publication_object_existed,
+                        )
                     self._cleanup_failed_scoped_activation(
                         command,
                         existed_before=activation_object_existed,
@@ -1712,6 +2007,19 @@ class CommandService:
                         str(exc),
                     )
                     return write_receipt(rejected)
+                except Exception:
+                    if publication_object_existed is not None and publication_decision is not None:
+                        self._cleanup_failed_owner_publication(
+                            command,
+                            publication_decision,
+                            publication_object_existed,
+                        )
+                    self._cleanup_failed_scoped_activation(
+                        command,
+                        existed_before=activation_object_existed,
+                        marker_preexisting=activation_marker_preexisting,
+                    )
+                    raise
             try:
                 events = self._build_events(
                     command,
@@ -1754,6 +2062,8 @@ class CommandService:
                 receipt = write_receipt(accepted)
                 if activation_object_existed is not None:
                     self._remove_scoped_activation_marker(command.command_id)
+                if publication_object_existed is not None:
+                    self._remove_owner_publication_marker(command.command_id)
                 return receipt
             except Exception:
                 if activation_object_existed is not None:
@@ -1766,6 +2076,15 @@ class CommandService:
                         )
                         if not append_started:
                             self._remove_scoped_activation_marker(command.command_id)
+                if publication_object_existed is not None:
+                    if not self._owner_publication_committed(command):
+                        if publication_decision is None:
+                            raise IntegrityError("owner publication decision is unavailable")
+                        self._cleanup_failed_owner_publication(
+                            command,
+                            publication_decision,
+                            publication_object_existed,
+                        )
                 raise
 
     def _scoped_activation_committed(
@@ -1983,6 +2302,7 @@ class CommandService:
         *,
         command_schema: SchemaIdentity,
         lifecycle_authority: _LifecycleAuthorityEvidence | None = None,
+        prepared_payload: dict[str, Any] | None = None,
     ) -> Receipt | None:
         command_type = command.envelope["command_type"]
         if command_type in _LIFECYCLE_COMMAND_TYPES:
@@ -2005,7 +2325,10 @@ class CommandService:
             hash_field = "authority_grant_sha256"
         else:
             hash_field = "root_grant_sha256"
-        grant_hash = command.envelope.get("payload", {}).get(hash_field)
+        if command_type in _SCOPED_PUBLICATION_COMMAND_TYPES:
+            grant_hash = prepared_payload.get(hash_field) if prepared_payload is not None else None
+        else:
+            grant_hash = command.envelope.get("payload", {}).get(hash_field)
         if not isinstance(grant_hash, str):
             return None
         publication = command_type == "PublishReleaseGateDecision"
@@ -2184,6 +2507,7 @@ class CommandService:
         lifecycle_authority: _LifecycleAuthorityEvidence | None = None,
         *,
         command_schema: SchemaIdentity | None = None,
+        prepared_payload: dict[str, Any] | None = None,
     ) -> Receipt:
         command_type = command.envelope["command_type"]
         if command_type in _MESSAGE_COMMAND_TYPES and receipt.status != "accepted":
@@ -2250,7 +2574,10 @@ class CommandService:
             hash_field = "authority_grant_sha256"
         else:
             hash_field = "root_grant_sha256"
-        grant_hash = command.envelope["payload"].get(hash_field)
+        if command_type in _SCOPED_PUBLICATION_COMMAND_TYPES:
+            grant_hash = prepared_payload.get(hash_field) if prepared_payload is not None else None
+        else:
+            grant_hash = command.envelope["payload"].get(hash_field)
         if not isinstance(grant_hash, str):
             return self.receipts.write(receipt)
         return self.receipts.write_scoped(
@@ -5014,6 +5341,10 @@ class CommandService:
                     "ContextPacketFailed",
                     "ContextPacketExpired",
                     "ContextPacketSuperseded",
+                    "OwnerOperatedContextHandoffPrepared",
+                    "OwnerOperatedContextHandoffValidated",
+                    "OwnerOperatedContextHandoffIssued",
+                    "OwnerOperatedContextDelivered",
                 }
             ),
             key=lambda event: int(event.get("stream_version", 0)),
@@ -5028,6 +5359,10 @@ class CommandService:
             "ContextPacketFailed": "failed",
             "ContextPacketExpired": "expired",
             "ContextPacketSuperseded": "superseded",
+            "OwnerOperatedContextHandoffPrepared": "owner_prepared",
+            "OwnerOperatedContextHandoffValidated": "owner_validated",
+            "OwnerOperatedContextHandoffIssued": "owner_issued",
+            "OwnerOperatedContextDelivered": "owner_delivered",
         }
         current = states.get(str(events[-1].get("event_type"))) if events else None
         allowed = {
@@ -5040,6 +5375,10 @@ class CommandService:
             "FailContextPacket": {"requested", "compiling", "compiled"},
             "ExpireContextPacket": {"issued", "delivered"},
             "SupersedeContextPacket": {"issued", "delivered"},
+            "PrepareOwnerOperatedContextHandoff": {"compiled"},
+            "ValidateOwnerOperatedContextHandoff": {"owner_prepared"},
+            "IssueOwnerOperatedContextHandoff": {"owner_validated"},
+            "RecordOwnerOperatedContextDelivery": {"owner_issued"},
         }
         if current not in allowed[command_type]:
             return rejected(
@@ -5069,7 +5408,15 @@ class CommandService:
             (event.get("payload") for event in events if event.get("event_type") == "ContextPacketCompiled"),
             None,
         )
-        if command_type in {"ValidateContextPacket", "IssueContextPacket", "RecordContextDelivery"}:
+        if command_type in {
+            "ValidateContextPacket",
+            "IssueContextPacket",
+            "RecordContextDelivery",
+            "PrepareOwnerOperatedContextHandoff",
+            "ValidateOwnerOperatedContextHandoff",
+            "IssueOwnerOperatedContextHandoff",
+            "RecordOwnerOperatedContextDelivery",
+        }:
             if not isinstance(compiled, dict):
                 return rejected("context_compilation_missing", "Context packet compilation is missing.")
             for field in ("packet_revision", "packet_sha256"):
@@ -5078,6 +5425,47 @@ class CommandService:
                         "context_packet_identity_mismatch",
                         "Context lifecycle command does not bind the compiled packet identity.",
                     )
+        owner_predecessors = {
+            "ValidateOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffPrepared",
+            "IssueOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffValidated",
+            "RecordOwnerOperatedContextDelivery": "OwnerOperatedContextHandoffIssued",
+        }
+        if command_type == "PrepareOwnerOperatedContextHandoff":
+            profile = payload.get("owner_profile")
+            if (
+                not isinstance(profile, dict)
+                or profile.get("provider_launch") is not False
+                or profile.get("context_id") != payload.get("context_id")
+                or profile.get("packet_revision") != payload.get("packet_revision")
+                or profile.get("packet_sha256") != payload.get("packet_sha256")
+                or profile.get("operator_id") != command.actor_id
+                or sha256_hex(canonical_bytes(profile)) != payload.get("owner_profile_sha256")
+            ):
+                return rejected("invalid_owner_context_profile", "Owner-operated profile binding is invalid.")
+        elif command_type in owner_predecessors:
+            predecessor_type = owner_predecessors[command_type]
+            predecessor = next((event for event in events if event.get("event_type") == predecessor_type), None)
+            prefix = {
+                "ValidateOwnerOperatedContextHandoff": "prepared",
+                "IssueOwnerOperatedContextHandoff": "validation",
+                "RecordOwnerOperatedContextDelivery": "issuance",
+            }[command_type]
+            if (
+                predecessor is None
+                or payload.get(f"{prefix}_event_id") != predecessor.get("event_id")
+                or payload.get(f"{prefix}_event_sha256") != predecessor.get("event_hash")
+                or any(
+                    payload.get(field) != predecessor.get("payload", {}).get(field)
+                    for field in (
+                        "request_id",
+                        "packet_revision",
+                        "packet_sha256",
+                        "manifest_sha256",
+                        "owner_profile_sha256",
+                    )
+                )
+            ):
+                return rejected("invalid_owner_context_predecessor", "Owner-operated handoff predecessor differs.")
         return deepcopy(payload)
 
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
@@ -6899,6 +7287,11 @@ class CommandService:
                 raise IntegrityError(f"{command_type} requires prepared payload")
             event_type = "AuthorityGrantRevoked"
             payload = prepared_payload
+        elif command_type == "PublishOwnerAuthorityAdministrationDecision":
+            if not isinstance(prepared_payload, dict):
+                raise IntegrityError("owner authority publication requires prepared payload")
+            event_type = "OwnerAuthorityAdministrationDecisionPublished"
+            payload = prepared_payload
         elif command_type == "PublishReleaseGateDecision":
             if not isinstance(prepared_payload, VerifiedReleasePublication):
                 raise IntegrityError("PublishReleaseGateDecision requires verified publication")
@@ -7108,6 +7501,14 @@ class CommandService:
             "effective_at": payload["new_grant"]["effective_at"],
             "expires_at": payload["new_grant"]["expires_at"],
         }
+
+    def _prepare_owner_authority_publication(
+        self,
+        command: Command,
+        observed_version: int,
+    ) -> dict[str, Any]:
+        del command, observed_version
+        raise ArsError("owner authority publication requires semantic authority setup")
 
     @staticmethod
     def _scoped_grant_schema_for_command(command_type: str) -> tuple[str, str]:

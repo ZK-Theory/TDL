@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-6/spec-gate6-route",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "route_id", "package_id", "package_version", "execution_authorized", "dispatchable", "activation_status", "authority_activation", "governing_sources", "sources", "lineage_sources", "identity_slots", "relations", "stage_order", "route_steps", "governed_command_types", "intentional_exclusions", "stage_gates", "identity_resolution", "operator_exchange", "admission", "producer_authority_binding", "atomicity", "restart", "schema_bindings", "prohibitions", "assurance"],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-6/spec-gate6-route"},
+    "schema_version": {"const": "1.0.0"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "package_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "package_version": {"const": "1.0.0"},
+    "execution_authorized": {"const": false},
+    "dispatchable": {"const": false},
+    "activation_status": {"const": "inert_proposed"},
+    "authority_activation": {"const": "forbidden"},
+    "governing_sources": {"const": ["decision:P-042", "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md", "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md", "owner-decision:SPEC-route-for-Gate-6"]},
+    "sources": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/source"}},
+    "lineage_sources": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/lineageSource"}},
+    "identity_slots": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/identitySlot"}},
+    "relations": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/relation"}},
+    "stage_order": {"const": ["genesis", "authority", "admission", "source_observation", "spec_01_assay", "spec_01_outcome_review", "promotion_stop", "spec_02_spike", "spec_02_outcome_review", "result_stop"]},
+    "route_steps": {"const": [
+      {"step_id": "accepted_catalogue_genesis", "stage": "genesis", "branch": "always", "owner_rows": ["OR-140"]},
+      {"step_id": "assay_bar_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-101", "OR-102", "OR-103", "OR-104", "OR-105", "OR-106", "OR-107", "OR-108"]},
+      {"step_id": "dossier_expected_set_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-110", "OR-111", "OR-112", "OR-113", "OR-114", "OR-115"]},
+      {"step_id": "path_registration_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-116", "OR-117", "OR-118", "OR-119", "OR-120", "OR-121"]},
+      {"step_id": "dossier_admission", "stage": "admission", "branch": "always", "owner_rows": ["OR-028"]},
+      {"step_id": "source_observation_and_candidate", "stage": "source_observation", "branch": "always", "owner_rows": ["OR-029"]},
+      {"step_id": "assay_request", "stage": "spec_01_assay", "branch": "always", "owner_rows": ["OR-003"]},
+      {"step_id": "assay_score", "stage": "spec_01_assay", "branch": "complete", "owner_rows": ["OR-004"]},
+      {"step_id": "assay_partial", "stage": "spec_01_assay", "branch": "partial", "owner_rows": ["OR-005"]},
+      {"step_id": "assay_complete_review", "stage": "spec_01_outcome_review", "branch": "complete", "owner_rows": ["OR-034", "OR-006"]},
+      {"step_id": "assay_partial_review", "stage": "spec_01_outcome_review", "branch": "partial", "owner_rows": ["OR-035", "OR-007"]},
+      {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "promote_only", "owner_rows": ["OR-012", "OR-013"]},
+      {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "promote_only", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
+      {"step_id": "spike_verdict_complete", "stage": "spec_02_spike", "branch": "complete", "owner_rows": ["OR-018"]},
+      {"step_id": "spike_verdict_partial", "stage": "spec_02_spike", "branch": "partial", "owner_rows": ["OR-019"]},
+      {"step_id": "spike_complete_review_request", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-036"]},
+      {"step_id": "spike_complete_review", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-020"]},
+      {"step_id": "spike_partial_review_request", "stage": "spec_02_outcome_review", "branch": "partial", "owner_rows": ["OR-037"]},
+      {"step_id": "spike_partial_review", "stage": "spec_02_outcome_review", "branch": "partial", "owner_rows": ["OR-021"]},
+      {"step_id": "spike_result_decision", "stage": "result_stop", "branch": "complete", "owner_rows": ["OR-026", "OR-027"]}
+    ]},
+    "governed_command_types": {"type": "array", "minItems": 22, "maxItems": 22, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "intentional_exclusions": {"const": [
+      {"owner_rows": ["OR-001", "OR-002"], "reason": "OR-029 atomically records the real source observation and creates the Candidate; direct registration and supersession are unnecessary."},
+      {"owner_rows": ["OR-008", "OR-009", "OR-010", "OR-011"], "reason": "Cancellation, revisit, and retry are outside the one-time route; partial has an honest terminal-for-now branch."},
+      {"owner_rows": ["OR-022", "OR-023", "OR-024", "OR-025"], "reason": "Spike cancellation, revisit, and retry are outside the one-time route."},
+      {"owner_rows": ["OR-030", "OR-031", "OR-032", "OR-033"], "reason": "Annotations and legacy ownership transition or cutover are unrelated to this route."},
+      {"owner_rows": ["OR-038", "OR-039", "OR-040", "OR-041"], "reason": "Cancellation-review routes are excluded because this package does not authorize cancellation execution."},
+      {"owner_rows": ["OR-109"], "reason": "Staleness recording is monitoring outside the one-time command route; entry still requires a current accepted bar."},
+      {"owner_rows": ["OR-122", "OR-123", "OR-124", "OR-125", "OR-126", "OR-127", "OR-128", "OR-129", "OR-130", "OR-131", "OR-132", "OR-133", "OR-134", "OR-135", "OR-136", "OR-137", "OR-138", "OR-139"], "reason": "Legacy inventory, mapping, migration, and cutover authority are unrelated to the SPEC route."}
+    ]},
+    "stage_gates": {
+      "type": "object",
+      "required": ["spec_01_entry", "spec_02_entry", "result_stop"],
+      "properties": {
+        "spec_01_entry": {
+          "type": "object",
+          "required": ["requires_accepted_genesis", "requires_accepted_authorities", "requires_admitted_dossier", "requires_atomic_source_observation"],
+          "properties": {
+            "requires_accepted_genesis": {"const": true},
+            "requires_accepted_authorities": {"const": true},
+            "requires_admitted_dossier": {"const": true},
+            "requires_atomic_source_observation": {"const": true}
+          },
+          "additionalProperties": false
+        },
+        "spec_02_entry": {
+          "type": "object",
+          "required": ["requires_spec_01_reviewed", "requires_spec_01_owner_decision", "requires_later_explicit_live_run_approval", "automatic_advance"],
+          "properties": {
+            "requires_spec_01_reviewed": {"const": true},
+            "requires_spec_01_owner_decision": {"const": "PROMOTE"},
+            "requires_later_explicit_live_run_approval": {"const": true},
+            "automatic_advance": {"const": false}
+          },
+          "additionalProperties": false
+        },
+        "result_stop": {
+          "type": "object",
+          "required": ["requires_spike_verdict_review", "requires_owner_decision", "import_is_result_or_claim_acceptance"],
+          "properties": {
+            "requires_spike_verdict_review": {"const": true},
+            "requires_owner_decision": {"const": true},
+            "import_is_result_or_claim_acceptance": {"const": false}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "identity_resolution": {
+      "type": "object",
+      "required": ["resolution_time", "required_roles", "accepted_record_binding", "defaults_allowed", "nested_defaults_allowed", "distinctness_revalidated"],
+      "properties": {
+        "resolution_time": {"const": "runtime_from_real_accepted_records"},
+        "required_roles": {"const": ["operator", "producer", "independent_reviewer", "owner_decider"]},
+        "accepted_record_binding": {"const": "exact_actor_session_and_authority_subjects"},
+        "defaults_allowed": {"const": false},
+        "nested_defaults_allowed": {"const": false},
+        "distinctness_revalidated": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "operator_exchange": {
+      "type": "object",
+      "required": ["control", "brief_binding", "return_binding", "session_selection", "ars_transport"],
+      "properties": {
+        "control": {"const": "operator_mediated"},
+        "brief_binding": {"const": "exact_raw_bytes_sha256_and_git_subject"},
+        "return_binding": {"const": "exact_brief_subject_returned_artifacts_tests_and_unresolved_findings"},
+        "session_selection": {"const": "authorized_operator_only_runtime_resolution"},
+        "ars_transport": {"const": "none"}
+      },
+      "additionalProperties": false
+    },
+    "admission": {
+      "type": "object",
+      "required": ["expected_set_authority", "path_registration_authority", "read_mode", "current_expected_set_source_aliases", "live_root_tokens", "lineage_excluded", "candidate_state_after_import", "result_state_after_import", "claim_state_after_import"],
+      "properties": {
+        "expected_set_authority": {"const": "accepted_exact_subject_required"},
+        "path_registration_authority": {"const": "accepted_exact_subject_required"},
+        "read_mode": {"const": "registered_roots_independent_handle_read"},
+        "current_expected_set_source_aliases": {"const": ["SPEC-01", "SPEC-02"]},
+        "live_root_tokens": {"const": ["repository"]},
+        "lineage_excluded": {"const": true},
+        "candidate_state_after_import": {"const": "registered_only"},
+        "result_state_after_import": {"const": "absent"},
+        "claim_state_after_import": {"const": "absent"}
+      },
+      "additionalProperties": false
+    },
+    "producer_authority_binding": {
+      "type": "object",
+      "required": ["sealed_producer_receipt_required", "accepted_authority_subject_required", "public_accepting_seam_revalidates_join", "caller_built_substitute_rejected"],
+      "properties": {
+        "sealed_producer_receipt_required": {"const": true},
+        "accepted_authority_subject_required": {"const": true},
+        "public_accepting_seam_revalidates_join": {"const": true},
+        "caller_built_substitute_rejected": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "atomicity": {
+      "type": "object",
+      "required": ["invalid_input_classes", "failure_outcome", "zero_publication_surfaces", "duplicate_publication_count", "corrupt_publication_count"],
+      "properties": {
+        "invalid_input_classes": {"const": ["missing", "extra", "duplicate", "tampered", "invalid_order", "authority_mismatched"]},
+        "failure_outcome": {"const": "zero_publication"},
+        "zero_publication_surfaces": {"const": ["events", "objects", "projections", "receipts", "indexes", "results", "claims"]},
+        "duplicate_publication_count": {"const": 0},
+        "corrupt_publication_count": {"const": 0}
+      },
+      "additionalProperties": false
+    },
+    "restart": {
+      "type": "object",
+      "required": ["idempotency_tuple", "committed_command_binding", "same_input_same_receipt_and_event_batch", "replay_from_durable_ledger", "changed_command_outcome", "repair_allowed", "resume_requires_exact_relations"],
+      "properties": {
+        "idempotency_tuple": {"const": ["actor_id", "authority_scope", "command_type", "idempotency_key"]},
+        "committed_command_binding": {"const": "exact_canonical_command_digest"},
+        "same_input_same_receipt_and_event_batch": {"const": true},
+        "replay_from_durable_ledger": {"const": true},
+        "changed_command_outcome": {"const": "conflict_without_publication"},
+        "repair_allowed": {"const": false},
+        "resume_requires_exact_relations": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "schema_bindings": {"type": "array", "minItems": 11, "maxItems": 11, "items": {"$ref": "#/$defs/schemaBinding"}},
+    "prohibitions": {
+      "type": "object",
+      "required": ["provider_api_call", "provider_process_or_cli_launch", "oauth_read_store_resolve_or_pass", "fabricated_actor_reviewer_or_grant", "direct_object_write", "automatic_promotion", "real_survey_data", "scientific_result_or_paper_claim_from_import"],
+      "properties": {
+        "provider_api_call": {"const": true},
+        "provider_process_or_cli_launch": {"const": true},
+        "oauth_read_store_resolve_or_pass": {"const": true},
+        "fabricated_actor_reviewer_or_grant": {"const": true},
+        "direct_object_write": {"const": true},
+        "automatic_promotion": {"const": true},
+        "real_survey_data": {"const": true},
+        "scientific_result_or_paper_claim_from_import": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "assurance": {
+      "type": "object",
+      "required": ["current_lanes", "deferred_until_live_run", "current_output"],
+      "properties": {
+        "current_lanes": {"const": ["Output", "Provenance"]},
+        "deferred_until_live_run": {"const": ["Topology", "Paper Claim"]},
+        "current_output": {"const": "route_contract_only_no_research_result"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source": {
+      "type": "object",
+      "required": ["alias", "root_id", "locator", "media_type", "size_bytes", "sha256", "required", "authority_class", "admitted_member"],
+      "properties": {
+        "alias": {"enum": ["SPEC-01", "SPEC-02"]},
+        "root_id": {"const": "repository"},
+        "locator": {"type": "string", "minLength": 1},
+        "media_type": {"const": "text/markdown; charset=utf-8"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "required": {"const": true},
+        "authority_class": {"const": "owner_decision_bound_successor"},
+        "admitted_member": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "lineageSource": {
+      "type": "object",
+      "required": ["alias", "root_id", "locator", "media_type", "size_bytes", "sha256", "required", "authority_class", "current_authority", "admitted_member", "live_root_token"],
+      "properties": {
+        "alias": {"enum": ["SPEC-01-lineage", "SPEC-02-lineage"]},
+        "root_id": {"const": "optional_external_lineage"},
+        "locator": {"type": "string", "minLength": 1},
+        "media_type": {"const": "text/markdown; charset=utf-8"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "required": {"const": false},
+        "authority_class": {"const": "lineage_only_not_current"},
+        "current_authority": {"const": false},
+        "admitted_member": {"const": false},
+        "live_root_token": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "identitySlot": {
+      "type": "object",
+      "required": ["slot", "id_kind", "minting_time", "registry_check", "uniqueness", "value_in_contract"],
+      "properties": {
+        "slot": {"enum": ["dossier", "scope", "candidate", "assay", "spike"]},
+        "id_kind": {"enum": ["object", "assay", "spike"]},
+        "minting_time": {"const": "runtime_after_accepted_authority"},
+        "registry_check": {"const": "absent_from_all_replayed_accepted_registries"},
+        "uniqueness": {"const": "pairwise_distinct_across_route_slots"},
+        "value_in_contract": {"const": null}
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "required": ["relation_kind", "from_slot", "to_slot", "schema_id", "status"],
+      "properties": {
+        "relation_kind": {"enum": ["candidate_to_assay", "assay_to_producer", "assay_to_spike", "spike_to_plan", "spike_to_attempt"]},
+        "from_slot": {"type": "string", "minLength": 1},
+        "to_slot": {"type": "string", "minLength": 1},
+        "schema_id": {"type": "string", "pattern": "^ars://portfolio/relation/"},
+        "status": {"const": "runtime_exact_hash_binding_required"}
+      },
+      "additionalProperties": false
+    },
+    "routeStep": {
+      "type": "object",
+      "required": ["step_id", "stage", "branch", "owner_rows"],
+      "properties": {
+        "step_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"},
+        "stage": {"enum": ["genesis", "authority", "admission", "source_observation", "spec_01_assay", "spec_01_outcome_review", "promotion_stop", "spec_02_spike", "spec_02_outcome_review", "result_stop"]},
+        "branch": {"enum": ["always", "complete", "partial", "promote_only"]},
+        "owner_rows": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^OR-[0-9]{3}$"}}
+      },
+      "additionalProperties": false
+    },
+    "exclusion": {
+      "type": "object",
+      "required": ["owner_rows", "reason"],
+      "properties": {
+        "owner_rows": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^OR-[0-9]{3}$"}},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "schemaBinding": {
+      "type": "object",
+      "required": ["schema_id", "schema_version"],
+      "properties": {
+        "schema_id": {"type": "string", "pattern": "^ars://portfolio/"},
+        "schema_version": {"const": "1.0.0"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

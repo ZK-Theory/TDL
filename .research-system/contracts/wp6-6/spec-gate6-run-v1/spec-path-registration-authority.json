@@ -1,0 +1,51 @@
+{
+    "authority_kind": "path_registration",
+    "authority_profile_id": "spec-portable-repository-path-authority",
+    "authority_profile_version": "1.0.0",
+    "collision_status": "no_collision",
+    "content_sha256": "8028a61f1b13deb3ee086be6bd649434d4298f09761d48d968f432d47a76dd22",
+    "environment_scope": "owner-accepted-stephen-windows-spec-runtime",
+    "identity_scheme": "portable-git-subject-plus-windows-file-id-v1",
+    "owner_requirement_refs": [
+        "W11:OR-116-121"
+    ],
+    "package_id": "SPEC-GATE6-RUN-V1",
+    "portable_observation_binding": "git-subject-plus-physical-root-v1",
+    "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+    "record_id": "path-registration:spec-gate6-run-v1",
+    "record_revision": 1,
+    "registered_roots": [
+        {
+            "authorized": true,
+            "path": "repository",
+            "registration_revision": 1,
+            "root_id": "repository"
+        }
+    ],
+    "required_member_bindings": [
+        {
+            "alias": "route-package",
+            "git_blob": "5eb353f8056de8170b1b0400f6122ae7b4239a98",
+            "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
+            "sha256": "2cc63eb56be975028cd8a6954294b6d21ca692410d9abedce8e815a5318a74ba",
+            "size_bytes": 13502
+        },
+        {
+            "alias": "SPEC-01",
+            "git_blob": "6ac4d57d2b24c9baeb2b0e11b30efcaec2587811",
+            "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+            "sha256": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
+            "size_bytes": 4746
+        },
+        {
+            "alias": "SPEC-02",
+            "git_blob": "12d3994e7207904e809113714bb6dc24dc9e3879",
+            "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+            "sha256": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
+            "size_bytes": 5938
+        }
+    ],
+    "root_token": "repository",
+    "route_id": "SPEC-GATE6-RUN-V1",
+    "scope_id": "obj_019ffe2b-fd4b-7000-8000-000000000101"
+}

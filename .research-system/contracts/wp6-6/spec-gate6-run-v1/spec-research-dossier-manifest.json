@@ -1,0 +1,144 @@
+{
+    "admission_profile_ref": {
+        "content_hash": "ea676eb492849a00fd681141e5c6c2946ba3c7cbc756c6f0f5dab3b43827ffb0",
+        "id": "profile:wp6.6:dossier-admission",
+        "record_revision": 1
+    },
+    "author": "Stephen",
+    "closure_hash": "5f54956f09df437ac91954babce2617ae8fbcc74a58d1068926e37c1a79de2f3",
+    "component_count": 2,
+    "components": [
+        {
+            "component_key": "SPEC-01",
+            "component_kind": "immutable_programme_source",
+            "confidentiality_class": "internal",
+            "dependency_keys": [],
+            "permitted_consumers": [
+                "portfolio-admission"
+            ],
+            "relative_path_or_object_ref": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+            "required": true,
+            "root_id": "repository",
+            "schema_id": "ars://portfolio/source-component",
+            "schema_version": "1.0.0",
+            "sha256": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7",
+            "size_bytes": 4746
+        },
+        {
+            "component_key": "SPEC-02",
+            "component_kind": "immutable_programme_source",
+            "confidentiality_class": "internal",
+            "dependency_keys": [],
+            "permitted_consumers": [
+                "portfolio-admission"
+            ],
+            "relative_path_or_object_ref": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+            "required": true,
+            "root_id": "repository",
+            "schema_id": "ars://portfolio/source-component",
+            "schema_version": "1.0.0",
+            "sha256": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc",
+            "size_bytes": 5938
+        }
+    ],
+    "created_at": "2026-08-14T00:00:00Z",
+    "dependency_edges": [],
+    "dossier_logical_id": "obj_019ffe2b-fd4b-7000-8000-000000000101",
+    "dossier_revision": 1,
+    "edge_count": 0,
+    "governing_decisions": [
+        {
+            "content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "id": "decision:P-042",
+            "record_revision": 1
+        }
+    ],
+    "object_blueprints": [
+        {
+            "object_key": "SPEC-01",
+            "portfolio_kind": "candidate_definition",
+            "schema_id": "ars://portfolio/object",
+            "schema_version": "1.0.0",
+            "proposed_record_id": "obj_019ffe2b-fd4b-7000-8000-000000000111",
+            "proposed_revision": 1,
+            "source_keys": ["SPEC-01"],
+            "permitted_consumers": ["portfolio-catalogue"],
+            "blueprint_hash": "0f227860691a59e9b34018e50cf1d1c0a8f9ab1c82f32a9ea327bc74a2a1b99d",
+            "expected_content_hash": "0f227860691a59e9b34018e50cf1d1c0a8f9ab1c82f32a9ea327bc74a2a1b99d"
+        },
+        {
+            "object_key": "SPEC-02",
+            "portfolio_kind": "candidate_definition",
+            "schema_id": "ars://portfolio/object",
+            "schema_version": "1.0.0",
+            "proposed_record_id": "obj_019ffe2b-fd4b-7000-8000-000000000112",
+            "proposed_revision": 1,
+            "source_keys": ["SPEC-02"],
+            "permitted_consumers": ["portfolio-catalogue"],
+            "blueprint_hash": "582425f4f9b2a706397be33d1eb29d01cd5f69d8915f96cb6466e3c71ae89be3",
+            "expected_content_hash": "582425f4f9b2a706397be33d1eb29d01cd5f69d8915f96cb6466e3c71ae89be3"
+        }
+    ],
+    "object_count": 2,
+    "ownership_declarations": [
+        "proposed only until OR-110..121 owner acceptance"
+    ],
+    "package_version": "1.0.0",
+    "prohibited_adoption_claims": [
+        "not accepted",
+        "not dispatchable",
+        "no provider execution"
+    ],
+    "purpose": "Provider-free owner-operated SPEC-01 and SPEC-02 route",
+    "relationship_count": 1,
+    "relationships": [
+        {
+            "relationship_key": "spec-gate6-run-closure",
+            "relationship_kind": "contains",
+            "ordered_member_keys_with_revisions_hashes": [
+                {"key": "SPEC-01", "revision": 1, "content_hash": "0f227860691a59e9b34018e50cf1d1c0a8f9ab1c82f32a9ea327bc74a2a1b99d"},
+                {"key": "SPEC-02", "revision": 1, "content_hash": "582425f4f9b2a706397be33d1eb29d01cd5f69d8915f96cb6466e3c71ae89be3"},
+                {"key": "spec-gate6-run", "revision": 1, "content_hash": "5e4362b4c8209bb15c3877463f2c2869f39ea4299dc53fa522a418fb66d91d4a"}
+            ],
+            "relation_schema_id": "ars://portfolio/relation/dossier-six-family-closure",
+            "relation_schema_version": "1.0.0",
+            "relation_hash": "894d688ec2e6c383fd2e5b5f7527e4b5ef222515a53223de15ac630a9fab20b7"
+        }
+    ],
+    "schema_id": "ars://portfolio/research-dossier-manifest",
+    "schema_version": "1.0.0",
+    "scope_count": 1,
+    "scope_definition_blueprints": [
+        {
+            "scope_key": "spec-gate6-run",
+            "scope_schema_id": "ars://portfolio/scope-definition",
+            "scope_schema_version": "1.0.0",
+            "proposed_scope_id": "obj_019ffe2b-fd4b-7000-8000-000000000113",
+            "proposed_revision": 1,
+            "governing_object_keys": ["SPEC-01", "SPEC-02"],
+            "permitted_consumers": ["portfolio-catalogue"],
+            "blueprint_hash": "5e4362b4c8209bb15c3877463f2c2869f39ea4299dc53fa522a418fb66d91d4a",
+            "expected_content_hash": "5e4362b4c8209bb15c3877463f2c2869f39ea4299dc53fa522a418fb66d91d4a"
+        }
+    ],
+    "source_dependencies": [
+        {
+            "confidentiality_class": "internal",
+            "independent_resolution_policy_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+            "independent_resolution_policy_id": "policy:wp6.6:registered-path-read",
+            "permitted_consumers": [
+                "portfolio-admission"
+            ],
+            "relative_path_or_locator": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
+            "required": true,
+            "root_id": "repository",
+            "schema_or_media_type": "application/json",
+            "sha256": "2cc63eb56be975028cd8a6954294b6d21ca692410d9abedce8e815a5318a74ba",
+            "size_bytes": 13502,
+            "source_authority_class": "independently_observed",
+            "source_key": "route-package",
+            "source_kind": "package_index"
+        }
+    ],
+    "source_dependency_count": 1
+}

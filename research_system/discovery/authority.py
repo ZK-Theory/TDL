@@ -18,6 +18,20 @@ class AuthorityRejected(ValueError):
 
 
 _KINDS = {"dossier_expected_set", "path_registration"}
+PORTABLE_SPEC_REQUIRED_MEMBERS: tuple[tuple[str, str], ...] = (
+    (
+        "route-package",
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
+    ),
+    (
+        "SPEC-01",
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+    ),
+    (
+        "SPEC-02",
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+    ),
+)
 _ROWS = {
     "dossier_expected_set": {
         action: f"OR-{number}"
@@ -50,6 +64,9 @@ _W2_SCHEMAS = {
     "DecisionProposed": "ars://core/event/DecisionProposed",
     "DecisionResolved": "ars://core/event/DecisionResolved",
 }
+_PORTABLE_PATH_PROFILE = "spec-portable-repository-path-authority"
+_PORTABLE_PATH_PROFILE_VERSION = "1.0.0"
+_PORTABLE_OBSERVATION_BINDING = "git-subject-plus-physical-root-v1"
 
 
 def subject_sha256(subject: Mapping[str, object]) -> str:
@@ -120,6 +137,108 @@ def validate_registered_roots(value: object) -> tuple[dict[str, object], ...]:
     return tuple(roots)
 
 
+def is_portable_path_subject(subject: Mapping[str, object]) -> bool:
+    """Return whether *subject* opts into the distinct SPEC portable profile."""
+
+    return subject.get("authority_profile_id") == _PORTABLE_PATH_PROFILE
+
+
+def validate_portable_path_subject(subject: Mapping[str, object]) -> None:
+    """Validate stable repository-token authority without a physical root hash."""
+
+    if (
+        subject.get("authority_profile_version") != _PORTABLE_PATH_PROFILE_VERSION
+        or subject.get("portable_observation_binding") != _PORTABLE_OBSERVATION_BINDING
+        or subject.get("root_token") != "repository"
+        or subject.get("route_id") != "SPEC-GATE6-RUN-V1"
+        or subject.get("package_id") != "SPEC-GATE6-RUN-V1"
+    ):
+        raise AuthorityRejected("invalid_portable_path_profile")
+    roots = subject.get("registered_roots")
+    required_root = {"root_id", "path", "registration_revision", "authorized"}
+    if (
+        not isinstance(roots, list)
+        or len(roots) != 1
+        or not isinstance(roots[0], Mapping)
+        or set(roots[0]) != required_root
+        or roots[0].get("root_id") != "repository"
+        or roots[0].get("path") != "repository"
+        or roots[0].get("registration_revision") != 1
+        or roots[0].get("authorized") is not True
+    ):
+        raise AuthorityRejected("invalid_portable_registered_root")
+    members = subject.get("required_member_bindings")
+    required_member = {"alias", "relative_path", "size_bytes", "sha256", "git_blob"}
+    if not isinstance(members, list) or len(members) != len(PORTABLE_SPEC_REQUIRED_MEMBERS):
+        raise AuthorityRejected("invalid_portable_member_bindings")
+    aliases: set[str] = set()
+    paths: set[str] = set()
+    for member in members:
+        if not isinstance(member, Mapping) or set(member) != required_member:
+            raise AuthorityRejected("invalid_portable_member_binding")
+        alias = _identity(member.get("alias"), "member_alias")
+        relative_path = _identity(member.get("relative_path"), "member_relative_path")
+        size = member.get("size_bytes")
+        if (
+            alias in aliases
+            or relative_path in paths
+            or relative_path.startswith("/")
+            or "\\" in relative_path
+            or any(part in {"", ".", ".."} for part in relative_path.split("/"))
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 1
+        ):
+            raise AuthorityRejected("invalid_portable_member_binding")
+        _sha256(member.get("sha256"), "member_sha256")
+        git_blob = member.get("git_blob")
+        if not isinstance(git_blob, str) or len(git_blob) != 40 or any(c not in "0123456789abcdef" for c in git_blob):
+            raise AuthorityRejected("invalid_member_git_blob")
+        aliases.add(alias)
+        paths.add(relative_path)
+    if tuple((str(member["alias"]), str(member["relative_path"])) for member in members) != (
+        PORTABLE_SPEC_REQUIRED_MEMBERS
+    ):
+        raise AuthorityRejected("invalid_portable_member_set")
+
+
+def validate_portable_members_against_expected_set(
+    subject: Mapping[str, object],
+    expected_set: Mapping[str, object],
+) -> None:
+    """Bind portable member identities to the independently accepted dossier set."""
+
+    expected_members = expected_set.get("members")
+    supplied_members = subject.get("required_member_bindings")
+    if not isinstance(expected_members, list) or not isinstance(supplied_members, list):
+        raise AuthorityRejected("invalid_portable_expected_member_set")
+    expected = tuple(
+        (
+            member.get("member_key"),
+            member.get("relative_path"),
+            member.get("sha256"),
+            member.get("size_bytes"),
+        )
+        for member in expected_members
+        if isinstance(member, Mapping)
+    )
+    supplied = tuple(
+        (
+            member.get("alias"),
+            member.get("relative_path"),
+            member.get("sha256"),
+            member.get("size_bytes"),
+        )
+        for member in supplied_members
+        if isinstance(member, Mapping)
+    )
+    if (
+        tuple((alias, relative_path) for alias, relative_path, _, _ in expected) != PORTABLE_SPEC_REQUIRED_MEMBERS
+        or supplied != expected
+    ):
+        raise AuthorityRejected("portable_member_set_differs_from_expected_set")
+
+
 def _validate_registered_subject(
     kind: str,
     subject: Mapping[str, object],
@@ -149,7 +268,10 @@ def _validate_registered_subject(
             raise AuthorityRejected("subject_envelope_mismatch")
         _sha256(subject.get("content_sha256"), "content_sha256")
     else:
-        validate_registered_roots(subject.get("registered_roots"))
+        if is_portable_path_subject(subject):
+            validate_portable_path_subject(subject)
+        else:
+            validate_registered_roots(subject.get("registered_roots"))
         dossier = state.get("dossier_expected_set")
         dossier_subject = dossier.get("subject") if isinstance(dossier, Mapping) else None
         expected = dossier_subject.get("expected_set") if isinstance(dossier_subject, Mapping) else None
@@ -162,6 +284,8 @@ def _validate_registered_subject(
             or subject.get("project_id") != expected.get("project_id")
         ):
             raise AuthorityRejected("path_scope_mismatch")
+        if is_portable_path_subject(subject):
+            validate_portable_members_against_expected_set(subject, expected)
         if content_digest != _content_sha256(subject):
             raise AuthorityRejected("content_hash_mismatch")
 
@@ -239,6 +363,28 @@ def replay_authority(events: Iterable[Mapping[str, object]]) -> dict[str, dict[s
             }
             if any(payload.get(key) != value for key, value in expected_file_identity.items()):
                 raise AuthorityRejected("file_identity_mismatch")
+            if is_portable_path_subject(subject):
+                physical_binding = payload.get("portable_physical_binding")
+                if (
+                    not isinstance(physical_binding, Mapping)
+                    or set(physical_binding)
+                    != {
+                        "root_id",
+                        "root_token",
+                        "registration_revision",
+                        "registration_hash",
+                        "git_commit",
+                        "members_sha256",
+                    }
+                    or physical_binding.get("root_id") != "repository"
+                    or physical_binding.get("root_token") != "repository"
+                    or physical_binding.get("registration_revision") != 1
+                    or physical_binding.get("git_commit") != payload.get("git_commit")
+                ):
+                    raise AuthorityRejected("invalid_portable_physical_binding")
+                _sha256(physical_binding.get("registration_hash"), "registration_hash")
+                _sha256(physical_binding.get("members_sha256"), "members_sha256")
+                current["portable_physical_binding"] = deepcopy(dict(physical_binding))
             current.update(
                 status="observed",
                 file_sha256=_sha256(payload.get("file_sha256"), "file_sha256"),

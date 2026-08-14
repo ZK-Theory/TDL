@@ -1,0 +1,100 @@
+{
+  "schema_id": "ars://contracts/wp6-6/spec-gate6-route",
+  "schema_version": "1.0.0",
+  "route_id": "SPEC-GATE6-RUN-V1",
+  "package_id": "SPEC-GATE6-RUN-V1",
+  "package_version": "1.0.0",
+  "execution_authorized": false,
+  "dispatchable": false,
+  "activation_status": "inert_proposed",
+  "authority_activation": "forbidden",
+  "governing_sources": [
+    "decision:P-042",
+    "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md",
+    "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md",
+    "owner-decision:SPEC-route-for-Gate-6"
+  ],
+  "sources": [
+    {"alias": "SPEC-01", "root_id": "repository", "locator": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md", "media_type": "text/markdown; charset=utf-8", "size_bytes": 4746, "sha256": "93f5fd27ec1d4751a9924e3c59c388ea51739adc950c8757385e0ad7f31032e7", "required": true, "authority_class": "owner_decision_bound_successor", "admitted_member": true},
+    {"alias": "SPEC-02", "root_id": "repository", "locator": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md", "media_type": "text/markdown; charset=utf-8", "size_bytes": 5938, "sha256": "321de42e14da964636fb8385bed8b7241d1239569d75e1b7d20a781c050173dc", "required": true, "authority_class": "owner_decision_bound_successor", "admitted_member": true}
+  ],
+  "lineage_sources": [
+    {"alias": "SPEC-01-lineage", "root_id": "optional_external_lineage", "locator": "vault/00-Meta/Discovery/ars-spec-01-spectral-distance-ph-assay-brief-v1.0.0-2026-07-16.md", "media_type": "text/markdown; charset=utf-8", "size_bytes": 14660, "sha256": "39ee3e5a44ec9dbe25766e7ecf89b98fbae8eedcace2ae40f9d5a0fb32f43b84", "required": false, "authority_class": "lineage_only_not_current", "current_authority": false, "admitted_member": false, "live_root_token": false},
+    {"alias": "SPEC-02-lineage", "root_id": "optional_external_lineage", "locator": "vault/00-Meta/Discovery/ars-spec-02-spectral-distance-ph-micro-spike-template-v1.0.0-2026-07-16.md", "media_type": "text/markdown; charset=utf-8", "size_bytes": 12535, "sha256": "f9316c33844d77c9bde9506decb942354a28441e372a06c7abc2d9ed03d5bec5", "required": false, "authority_class": "lineage_only_not_current", "current_authority": false, "admitted_member": false, "live_root_token": false}
+  ],
+  "identity_slots": [
+    {"slot": "dossier", "id_kind": "object", "minting_time": "runtime_after_accepted_authority", "registry_check": "absent_from_all_replayed_accepted_registries", "uniqueness": "pairwise_distinct_across_route_slots", "value_in_contract": null},
+    {"slot": "scope", "id_kind": "object", "minting_time": "runtime_after_accepted_authority", "registry_check": "absent_from_all_replayed_accepted_registries", "uniqueness": "pairwise_distinct_across_route_slots", "value_in_contract": null},
+    {"slot": "candidate", "id_kind": "object", "minting_time": "runtime_after_accepted_authority", "registry_check": "absent_from_all_replayed_accepted_registries", "uniqueness": "pairwise_distinct_across_route_slots", "value_in_contract": null},
+    {"slot": "assay", "id_kind": "assay", "minting_time": "runtime_after_accepted_authority", "registry_check": "absent_from_all_replayed_accepted_registries", "uniqueness": "pairwise_distinct_across_route_slots", "value_in_contract": null},
+    {"slot": "spike", "id_kind": "spike", "minting_time": "runtime_after_accepted_authority", "registry_check": "absent_from_all_replayed_accepted_registries", "uniqueness": "pairwise_distinct_across_route_slots", "value_in_contract": null}
+  ],
+  "relations": [
+    {"relation_kind": "candidate_to_assay", "from_slot": "candidate", "to_slot": "assay", "schema_id": "ars://portfolio/relation/assay-request", "status": "runtime_exact_hash_binding_required"},
+    {"relation_kind": "assay_to_producer", "from_slot": "assay", "to_slot": "producer_runtime_record", "schema_id": "ars://portfolio/relation/assay-producer", "status": "runtime_exact_hash_binding_required"},
+    {"relation_kind": "assay_to_spike", "from_slot": "assay", "to_slot": "spike", "schema_id": "ars://portfolio/relation/discovery-promotion", "status": "runtime_exact_hash_binding_required"},
+    {"relation_kind": "spike_to_plan", "from_slot": "spike", "to_slot": "spike_plan_runtime_record", "schema_id": "ars://portfolio/relation/spike-plan", "status": "runtime_exact_hash_binding_required"},
+    {"relation_kind": "spike_to_attempt", "from_slot": "spike", "to_slot": "attempt_lease_runtime_record", "schema_id": "ars://portfolio/relation/spike-attempt", "status": "runtime_exact_hash_binding_required"}
+  ],
+  "stage_order": ["genesis", "authority", "admission", "source_observation", "spec_01_assay", "spec_01_outcome_review", "promotion_stop", "spec_02_spike", "spec_02_outcome_review", "result_stop"],
+  "route_steps": [
+    {"step_id": "accepted_catalogue_genesis", "stage": "genesis", "branch": "always", "owner_rows": ["OR-140"]},
+    {"step_id": "assay_bar_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-101", "OR-102", "OR-103", "OR-104", "OR-105", "OR-106", "OR-107", "OR-108"]},
+    {"step_id": "dossier_expected_set_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-110", "OR-111", "OR-112", "OR-113", "OR-114", "OR-115"]},
+    {"step_id": "path_registration_authority", "stage": "authority", "branch": "always", "owner_rows": ["OR-116", "OR-117", "OR-118", "OR-119", "OR-120", "OR-121"]},
+    {"step_id": "dossier_admission", "stage": "admission", "branch": "always", "owner_rows": ["OR-028"]},
+    {"step_id": "source_observation_and_candidate", "stage": "source_observation", "branch": "always", "owner_rows": ["OR-029"]},
+    {"step_id": "assay_request", "stage": "spec_01_assay", "branch": "always", "owner_rows": ["OR-003"]},
+    {"step_id": "assay_score", "stage": "spec_01_assay", "branch": "complete", "owner_rows": ["OR-004"]},
+    {"step_id": "assay_partial", "stage": "spec_01_assay", "branch": "partial", "owner_rows": ["OR-005"]},
+    {"step_id": "assay_complete_review", "stage": "spec_01_outcome_review", "branch": "complete", "owner_rows": ["OR-034", "OR-006"]},
+    {"step_id": "assay_partial_review", "stage": "spec_01_outcome_review", "branch": "partial", "owner_rows": ["OR-035", "OR-007"]},
+    {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "promote_only", "owner_rows": ["OR-012", "OR-013"]},
+    {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "promote_only", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
+    {"step_id": "spike_verdict_complete", "stage": "spec_02_spike", "branch": "complete", "owner_rows": ["OR-018"]},
+    {"step_id": "spike_verdict_partial", "stage": "spec_02_spike", "branch": "partial", "owner_rows": ["OR-019"]},
+    {"step_id": "spike_complete_review_request", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-036"]},
+    {"step_id": "spike_complete_review", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-020"]},
+    {"step_id": "spike_partial_review_request", "stage": "spec_02_outcome_review", "branch": "partial", "owner_rows": ["OR-037"]},
+    {"step_id": "spike_partial_review", "stage": "spec_02_outcome_review", "branch": "partial", "owner_rows": ["OR-021"]},
+    {"step_id": "spike_result_decision", "stage": "result_stop", "branch": "complete", "owner_rows": ["OR-026", "OR-027"]}
+  ],
+  "governed_command_types": [
+    "ImportAcceptedW11CatalogueGenesis", "RegisterAssayRubricContent", "RegisterAssayEvidenceScopeContent", "ObserveW11AuthorityFile", "RequestW11AuthorityReview", "RecordW11AuthorityReview", "ProposeW11AuthorityDecision", "ResolveDecision", "RegisterDossierExpectedSetContent", "RegisterPathRegistrationContent", "AdmitResearchDossier", "IngestScoutObservationBatch", "RequestAssay", "RecordAssayScore", "RecordAssayPartial", "RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome", "ProposePromotionDecision", "RegisterSpikePlan", "ProposeSpikeExecutionDecision", "StartSpike", "RecordSpikeVerdict"
+  ],
+  "intentional_exclusions": [
+    {"owner_rows": ["OR-001", "OR-002"], "reason": "OR-029 atomically records the real source observation and creates the Candidate; direct registration and supersession are unnecessary."},
+    {"owner_rows": ["OR-008", "OR-009", "OR-010", "OR-011"], "reason": "Cancellation, revisit, and retry are outside the one-time route; partial has an honest terminal-for-now branch."},
+    {"owner_rows": ["OR-022", "OR-023", "OR-024", "OR-025"], "reason": "Spike cancellation, revisit, and retry are outside the one-time route."},
+    {"owner_rows": ["OR-030", "OR-031", "OR-032", "OR-033"], "reason": "Annotations and legacy ownership transition or cutover are unrelated to this route."},
+    {"owner_rows": ["OR-038", "OR-039", "OR-040", "OR-041"], "reason": "Cancellation-review routes are excluded because this package does not authorize cancellation execution."},
+    {"owner_rows": ["OR-109"], "reason": "Staleness recording is monitoring outside the one-time command route; entry still requires a current accepted bar."},
+    {"owner_rows": ["OR-122", "OR-123", "OR-124", "OR-125", "OR-126", "OR-127", "OR-128", "OR-129", "OR-130", "OR-131", "OR-132", "OR-133", "OR-134", "OR-135", "OR-136", "OR-137", "OR-138", "OR-139"], "reason": "Legacy inventory, mapping, migration, and cutover authority are unrelated to the SPEC route."}
+  ],
+  "stage_gates": {
+    "spec_01_entry": {"requires_accepted_genesis": true, "requires_accepted_authorities": true, "requires_admitted_dossier": true, "requires_atomic_source_observation": true},
+    "spec_02_entry": {"requires_spec_01_reviewed": true, "requires_spec_01_owner_decision": "PROMOTE", "requires_later_explicit_live_run_approval": true, "automatic_advance": false},
+    "result_stop": {"requires_spike_verdict_review": true, "requires_owner_decision": true, "import_is_result_or_claim_acceptance": false}
+  },
+  "identity_resolution": {"resolution_time": "runtime_from_real_accepted_records", "required_roles": ["operator", "producer", "independent_reviewer", "owner_decider"], "accepted_record_binding": "exact_actor_session_and_authority_subjects", "defaults_allowed": false, "nested_defaults_allowed": false, "distinctness_revalidated": true},
+  "operator_exchange": {"control": "operator_mediated", "brief_binding": "exact_raw_bytes_sha256_and_git_subject", "return_binding": "exact_brief_subject_returned_artifacts_tests_and_unresolved_findings", "session_selection": "authorized_operator_only_runtime_resolution", "ars_transport": "none"},
+  "admission": {"expected_set_authority": "accepted_exact_subject_required", "path_registration_authority": "accepted_exact_subject_required", "read_mode": "registered_roots_independent_handle_read", "current_expected_set_source_aliases": ["SPEC-01", "SPEC-02"], "live_root_tokens": ["repository"], "lineage_excluded": true, "candidate_state_after_import": "registered_only", "result_state_after_import": "absent", "claim_state_after_import": "absent"},
+  "producer_authority_binding": {"sealed_producer_receipt_required": true, "accepted_authority_subject_required": true, "public_accepting_seam_revalidates_join": true, "caller_built_substitute_rejected": true},
+  "atomicity": {"invalid_input_classes": ["missing", "extra", "duplicate", "tampered", "invalid_order", "authority_mismatched"], "failure_outcome": "zero_publication", "zero_publication_surfaces": ["events", "objects", "projections", "receipts", "indexes", "results", "claims"], "duplicate_publication_count": 0, "corrupt_publication_count": 0},
+  "restart": {"idempotency_tuple": ["actor_id", "authority_scope", "command_type", "idempotency_key"], "committed_command_binding": "exact_canonical_command_digest", "same_input_same_receipt_and_event_batch": true, "replay_from_durable_ledger": true, "changed_command_outcome": "conflict_without_publication", "repair_allowed": false, "resume_requires_exact_relations": true},
+  "schema_bindings": [
+    {"schema_id": "ars://portfolio/candidate", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/scout-observation-batch", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/assay-scorecard", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/spike-plan", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/spike-verdict", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/relation/assay-request", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/relation/assay-producer", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/relation/discovery-promotion", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/relation/spike-plan", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/relation/spike-attempt", "schema_version": "1.0.0"},
+    {"schema_id": "ars://portfolio/research-dossier-manifest", "schema_version": "1.0.0"}
+  ],
+  "prohibitions": {"provider_api_call": true, "provider_process_or_cli_launch": true, "oauth_read_store_resolve_or_pass": true, "fabricated_actor_reviewer_or_grant": true, "direct_object_write": true, "automatic_promotion": true, "real_survey_data": true, "scientific_result_or_paper_claim_from_import": true},
+  "assurance": {"current_lanes": ["Output", "Provenance"], "deferred_until_live_run": ["Topology", "Paper Claim"], "current_output": "route_contract_only_no_research_result"}
+}

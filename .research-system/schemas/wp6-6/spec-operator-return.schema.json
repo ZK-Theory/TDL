@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-operator-return",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "document_type", "route_id", "stage", "outcome", "responds_to", "producer", "sources", "decisions", "checks", "artifact_hashes", "resource_use", "deterministic_rerun", "embedded_artefact"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-operator-return"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"enum": ["spec_01_return", "spec_02_return"]},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "stage": {"enum": ["SPEC-01", "SPEC-02"]},
+    "outcome": {"enum": ["COMPLETE", "PARTIAL"]},
+    "responds_to": {
+      "type": "object", "additionalProperties": false,
+      "required": ["brief_artefact_id", "brief_manifest_sha256", "operator_session_id"],
+      "properties": {
+        "brief_artefact_id": {"type": "string", "minLength": 1},
+        "brief_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "operator_session_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "producer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actor_id", "relation_sha256"],
+      "properties": {"actor_id": {"type": "string", "minLength": 1}, "relation_sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "sources": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/hashRef"}},
+    "decisions": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "checks": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "artifact_hashes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/hashRef"}},
+    "resource_use": {
+      "type": "object", "additionalProperties": false,
+      "required": ["elapsed_seconds", "cpu_seconds", "peak_memory_bytes", "external_cost_gbp"],
+      "properties": {
+        "elapsed_seconds": {"type": "number", "minimum": 0}, "cpu_seconds": {"type": "number", "minimum": 0},
+        "peak_memory_bytes": {"type": "integer", "minimum": 0}, "external_cost_gbp": {"type": "number", "minimum": 0}
+      }
+    },
+    "deterministic_rerun": {
+      "type": "object", "additionalProperties": false,
+      "required": ["performed", "evidence_sha256", "same_output"],
+      "properties": {"performed": {"type": "boolean"}, "evidence_sha256": {"$ref": "#/$defs/sha256"}, "same_output": {"type": "boolean"}}
+    },
+    "embedded_artefact": {"type": "object"}
+  },
+  "allOf": [
+    {"if": {"properties": {"stage": {"const": "SPEC-01"}}}, "then": {"properties": {"document_type": {"const": "spec_01_return"}, "embedded_artefact": {"required": ["schema_id", "schema_version"], "properties": {"schema_id": {"enum": ["ars://portfolio/assay-scorecard", "ars://portfolio/assay-partial"]}, "schema_version": {"const": "1.0.0"}}}}}},
+    {"if": {"properties": {"stage": {"const": "SPEC-02"}}}, "then": {"properties": {"document_type": {"const": "spec_02_return"}, "embedded_artefact": {"required": ["schema_id", "schema_version"], "properties": {"schema_id": {"enum": ["ars://portfolio/spike-verdict", "ars://portfolio/spike-partial"]}, "schema_version": {"const": "1.0.0"}}}}}}
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hashRef": {"type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": {"name": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}
+  }
+}

@@ -373,6 +373,10 @@ def replay_discovery(
             # is reduced by replay_control_plane, not by this projection.
             operational_events.append(event)
             continue
+        if partition == "context":
+            # The global replay owns the W3/owner-operated context reducer.
+            # Discovery consumes only the resulting immutable source identity.
+            continue
 
         def required_string(key: str) -> str:
             value = payload.get(key)

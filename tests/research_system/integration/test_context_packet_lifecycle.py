@@ -40,6 +40,10 @@ EVENT_TYPES = {
     "FailContextPacket": "ContextPacketFailed",
     "ExpireContextPacket": "ContextPacketExpired",
     "SupersedeContextPacket": "ContextPacketSuperseded",
+    "PrepareOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffPrepared",
+    "ValidateOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffValidated",
+    "IssueOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffIssued",
+    "RecordOwnerOperatedContextDelivery": "OwnerOperatedContextDelivered",
 }
 
 
@@ -77,6 +81,8 @@ class RecordingContextWriter:
             assert self._lock_depth == 1
         self.events.append(
             {
+                "event_id": new_id("event"),
+                "event_hash": sha256_hex(canonical_bytes(payload)),
                 "event_type": EVENT_TYPES[command_type],
                 "stream_id": context_id,
                 "stream_version": expected_stream_version + 1,
@@ -161,6 +167,253 @@ def compile_valid(service: ContextLifecycleService, context_id: str):
         reference_counter=ReferenceRegexV1(),
         required_source_ids={"method-source"},
     )
+
+
+def test_owner_operated_profile_is_provider_free_and_replayable(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    context_id = new_id("context")
+    compiled = compile_valid(lifecycle, context_id)
+
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id="stephen",
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=(
+            {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},
+            {"artefact_id": new_id("artefact"), "content_sha256": "2" * 64},
+        ),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    assert validated.profile.content["provider_launch"] is False
+    assert "provider" not in validated.profile.content
+    lifecycle.issue_owner_operated(validated)
+    delivered = lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+
+    assert delivered["status"] == "accepted"
+    assert len([event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered"]) == 1
+    prepared = next(
+        event["payload"] for event in writer.events if event["event_type"] == "OwnerOperatedContextHandoffPrepared"
+    )
+    assert prepared["owner_profile"]["provider_launch"] is False
+    assert "provider_template" not in prepared
+
+    with pytest.raises(ArsError, match="semantic identity|durable handoff"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="wrong-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+
+
+@pytest.mark.integration
+def test_owner_operated_lifecycle_uses_real_command_service_and_consumer_resolver(tmp_path) -> None:
+    now = datetime(2026, 8, 14, 11, tzinfo=UTC)
+    harness = control_plane(tmp_path, clock=lambda: now)
+    context_id = new_id("context")
+    commands = (
+        "RequestContextPacket",
+        "BeginContextCompilation",
+        "CompleteContextCompilation",
+        "FailContextPacket",
+        "PrepareOwnerOperatedContextHandoff",
+        "ValidateOwnerOperatedContextHandoff",
+        "IssueOwnerOperatedContextHandoff",
+        "RecordOwnerOperatedContextDelivery",
+    )
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="context",
+        subject_id=context_id,
+        actor_id=ACTORS["actor-a"],
+        command_types=commands,
+    )
+    writer = CommandServiceContextWriter(
+        harness.service,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=grant_id,
+        clock=lambda: now,
+    )
+    lifecycle = ContextLifecycleService(harness.objects, writer, writer_id="spec-owner", clock=lambda: now)
+    content = "governing method and exact source"
+    fragment = SourceFragment(
+        source_id="method-source",
+        revision="1",
+        authority_rank=10,
+        mandatory=True,
+        content=content,
+        content_hash=sha256_hex(content.encode("utf-8")),
+    )
+    source_resolver = StaticSourceResolver(fragment)
+    request = request_payload(context_id)
+    request.update({"project_id": PROJECT_ID, "actor_id": ACTORS["actor-a"]})
+    compiled = lifecycle.compile_packet(
+        request=request,
+        source_resolver=source_resolver,
+        profile=ContextProfile("bounded-r2", 100),
+        reference_counter=ReferenceRegexV1(),
+        required_source_ids={"method-source"},
+    )
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id=ACTORS["actor-a"],
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=(
+            {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},
+            {"artefact_id": new_id("artefact"), "content_sha256": "2" * 64},
+        ),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    lifecycle.issue_owner_operated(validated)
+    first = lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+    restarted = ContextLifecycleService(harness.objects, writer, writer_id="spec-owner", clock=lambda: now)
+    recovered = restarted.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+
+    assert first.command_id == recovered.command_id
+    events = tuple(writer.iter_events(context_id))
+    assert [event["event_type"] for event in events][-4:] == list(EVENT_TYPES.values())[-4:]
+    resolved = resolve_context_packet_for_consumer(
+        events,
+        harness.objects,
+        context_id=context_id,
+        revision=compiled.revision,
+        packet_sha256=compiled.packet_sha256,
+        consumer_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        evaluation_time=now,
+        control_store_identity="store-1",
+        source_position=7,
+        source_hash="a" * 64,
+        source_resolver=source_resolver,
+    )
+    assert resolved.delivery["provider_launch"] is False
+    assert "adapter_id" not in resolved.delivery
+    before = harness.ledger.snapshot()
+    with pytest.raises(ArsError, match="profile does not authorize"):
+        resolve_context_packet_for_consumer(
+            events,
+            harness.objects,
+            context_id=context_id,
+            revision=compiled.revision,
+            packet_sha256=compiled.packet_sha256,
+            consumer_id="foreign-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            evaluation_time=now,
+            control_store_identity="store-1",
+            source_position=7,
+            source_hash="a" * 64,
+            source_resolver=source_resolver,
+        )
+    with pytest.raises(ArsError, match="outside its finite window"):
+        resolve_context_packet_for_consumer(
+            events,
+            harness.objects,
+            context_id=context_id,
+            revision=compiled.revision,
+            packet_sha256=compiled.packet_sha256,
+            consumer_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            evaluation_time=datetime(2026, 8, 14, 12, tzinfo=UTC),
+            control_store_identity="store-1",
+            source_position=7,
+            source_hash="a" * 64,
+            source_resolver=source_resolver,
+        )
+    assert harness.ledger.snapshot() == before
+
+
+@pytest.mark.integration
+def test_owner_operated_delivery_recovers_receipt_written_before_event(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+
+    class InterruptBeforeDelivery(RecordingContextWriter):
+        interrupted = False
+
+        def submit_context(self, **kwargs):
+            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
+                self.interrupted = True
+                raise ConnectionError("delivery event response unavailable")
+            return super().submit_context(**kwargs)
+
+    writer = InterruptBeforeDelivery()
+    first_time = datetime(2026, 8, 14, 11, tzinfo=UTC)
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: first_time)
+    context_id = new_id("context")
+    compiled = compile_valid(lifecycle, context_id)
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id="stephen",
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=(
+            {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},
+            {"artefact_id": new_id("artefact"), "content_sha256": "2" * 64},
+        ),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    lifecycle.issue_owner_operated(validated)
+    with pytest.raises(ConnectionError, match="response unavailable"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+
+    restarted = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, 30, tzinfo=UTC),
+    )
+    receipt = restarted.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+
+    assert receipt["status"] == "accepted"
+    delivered = next(event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered")
+    stored = objects.read("context", delivered["payload"]["delivery_receipt_object_id"], 1)
+    assert stored["delivered_at"] == "2026-08-14T11:00:00Z"
 
 
 class RecordingRoutingEvidence:
