@@ -169,6 +169,14 @@ all of the following together:
    eligibility verdict. The envelope retains `execution_authorized: false` and
    preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5, or
    WP6.6 admission bytes.
+
+   The capability-enforced alternative is narrow: the public preflight must
+   issue sealed read-only application capabilities for the exact registered
+   roots and pass only those capabilities into dossier admission. A JSON
+   `capability_read_only` label, or an otherwise writable root passed directly
+   to admission, is not enforcement. This is not a claim that the owner’s
+   filesystem ACL is read-only; it restricts the Gate 6 preflight itself to
+   the granted read operation.
 5. One named final Gate 6 assembled test selection exercises the coupled public
    seams and the new eligibility envelope's decisive tamper/no-partial-state
    negatives.
@@ -229,16 +237,26 @@ The statuses and GitHub configuration in this table are live observations as at
 | KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
 | KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
 | KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; stale `Blocks` relation `10194` was removed on 2026-08-14 and KAN-61 now only relates to KAN-12 | records clean-up is complete; it is not revived WP6.7 work or a Gate 6 blocker |
-| KAN-12 / Gate 6 | `INCOMPLETE — RUNNABLE`; KAN-103 is the one active delivery campaign | a real public `ars gate6` eligibility path and final real-dossier selection now exist on the candidate branch; final exact-subject proof, review, integration, and decision remain |
+| KAN-12 / Gate 6 | `INCOMPLETE — RUNNABLE`; KAN-103 is the one active delivery campaign | a real public `ars gate6` eligibility path and final real-dossier selection exist on the candidate branch; enforcement/isolation remediation and one admission-identity authority decision remain before final exact-subject proof, review, integration, and decision |
 | GitHub `main` configuration | active ruleset `20822054`, `P-049 Gate 6 main merge admission` | PR, merge queue, required currency checks, and non-fast-forward control are live; this is merge admission, not Gate 6 closure |
 
 The real remaining functional gap is therefore singular:
 
 > **Issue a time-bounded immutable capability-read-only root grant for the
-> accepted real dossier, run the final assembled real-dossier selection at the
-> final candidate head, obtain one independent exact-subject review, integrate
-> the reviewed result, then record Codex's delegated Gate 6 readiness decision.
-> The envelope may make a pilot eligible; the pilot is not executed.**
+> accepted real dossier, bind the sealed accepted admission-event identity,
+> run the final assembled real-dossier selection at the final candidate head,
+> obtain one independent exact-subject review, integrate the reviewed result,
+> then record Codex's delegated Gate 6 readiness decision. The envelope may
+> make a pilot eligible; the pilot is not executed.**
+
+The current WP6.6 expected-set and path-registration authority records do not
+publish a durable, accepted `ResearchDossierAdmitted` event identifier or raw
+hash. The preflight must not invent one by hashing a freshly reconstructed
+event. Before final certification, Stephen must make one bounded authority
+choice: supply the exact accepted event/receipt from the governed Discovery
+ledger for the envelope to verify, or explicitly amend this P-049 requirement
+to bind the accepted deterministic admission result instead. This is one
+visible decision within KAN-103, not a new delivery lane or ticket.
 
 This is one capability campaign under KAN-12. Its eligibility-envelope construction,
 direct testing, review, and owner decision are implementation/evidence within

@@ -51,6 +51,54 @@ class DossierMember:
     provenance_hash: str
 
 
+class ReadOnlyRootCapability:
+    """A sealed application capability for reading one registered root.
+
+    The capability deliberately exposes neither a path nor a write operation.
+    Its factory retains the registered-root binding privately and each read
+    reuses the normal deletion-, alias-, identity-, and content-safe member
+    reader below.
+    """
+
+    __slots__ = ("root_id", "registration_hash", "_seal")
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        raise TypeError("ReadOnlyRootCapability is issued only for a registered root")
+
+    @classmethod
+    def _issue(cls, root: RegisteredRoot, seal: object) -> ReadOnlyRootCapability:
+        if seal is not _READ_ONLY_ROOT_CAPABILITY_SEAL:
+            raise TypeError("ReadOnlyRootCapability is issued only for a registered root")
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "root_id", root.root_id)
+        object.__setattr__(instance, "registration_hash", root.registration_hash)
+        object.__setattr__(instance, "_seal", seal)
+        _READ_ONLY_ROOT_CAPABILITY_ROOTS[instance] = root
+        return instance
+
+    def _read_member(self, member: DossierMember) -> bytes:
+        if type(self) is not ReadOnlyRootCapability or self._seal is not _READ_ONLY_ROOT_CAPABILITY_SEAL:
+            raise DossierAdmissionRejected("invalid_read_only_root_capability")
+        if type(member) is not DossierMember or member.root_id != self.root_id:
+            raise DossierAdmissionRejected("read_only_capability_scope_mismatch")
+        root = _READ_ONLY_ROOT_CAPABILITY_ROOTS.get(self)
+        if root is None or root.root_id != self.root_id or root.registration_hash != self.registration_hash:
+            raise DossierAdmissionRejected("read_only_capability_unavailable")
+        return _open_registered_member(member, {self.root_id: root})
+
+
+_READ_ONLY_ROOT_CAPABILITY_SEAL = object()
+_READ_ONLY_ROOT_CAPABILITY_ROOTS: dict[ReadOnlyRootCapability, RegisteredRoot] = {}
+
+
+def issue_read_only_root_capability(root: RegisteredRoot) -> ReadOnlyRootCapability:
+    """Issue a narrow application capability for one already-registered root."""
+
+    if type(root) is not RegisteredRoot or not root.authorized:
+        raise DossierAdmissionRejected("invalid_read_only_root_capability")
+    return ReadOnlyRootCapability._issue(root, _READ_ONLY_ROOT_CAPABILITY_SEAL)
+
+
 @dataclass(frozen=True)
 class AcceptedExpectedSet:
     expected_set_id: str
@@ -339,6 +387,7 @@ def prepare_dossier_admission(
     candidate_manifest: Mapping[str, Any],
     registered_roots: Mapping[str, RegisteredRoot],
     existing_identities: frozenset[str] = frozenset(),
+    read_only_capabilities: Mapping[str, ReadOnlyRootCapability] | None = None,
 ) -> PreparedDossierAdmission:
     """Validate an exact dossier and return its deterministic atomic event batch.
 
@@ -350,6 +399,9 @@ def prepare_dossier_admission(
         candidate_manifest: Closed semantic dossier manifest supplied for admission.
         registered_roots: Current authorized physical roots keyed by root identity.
         existing_identities: Immutable identities already published by Discovery.
+        read_only_capabilities: Optional sealed application capabilities. When
+            supplied, every accepted member is read only through its exact
+            capability; `registered_roots` is not used as a fallback.
 
     Returns:
         Fully validated in-memory event batch ready for one atomic append.
@@ -374,6 +426,13 @@ def prepare_dossier_admission(
     if not expected_set.members:
         raise DossierAdmissionRejected("incomplete_package")
 
+    if read_only_capabilities is not None:
+        expected_root_ids = {member.root_id for member in expected_set.members}
+        if set(read_only_capabilities) != expected_root_ids or any(
+            type(capability) is not ReadOnlyRootCapability for capability in read_only_capabilities.values()
+        ):
+            raise DossierAdmissionRejected("invalid_read_only_capability_set")
+
     expected = _unique_members(expected_set.members, "expected")
     candidate = _unique_members(candidate_members, "candidate")
     if expected.keys() != candidate.keys():
@@ -396,7 +455,11 @@ def prepare_dossier_admission(
         _validate_sha256(member.provenance_hash, "provenance_hash")
         if member.provenance_revision < 1:
             raise DossierAdmissionRejected("stale_provenance_revision")
-        raw = _open_registered_member(member, registered_roots)
+        raw = (
+            _open_registered_member(member, registered_roots)
+            if read_only_capabilities is None
+            else read_only_capabilities[member.root_id]._read_member(member)
+        )
         digest = hashlib.sha256(raw).hexdigest()
         if len(raw) != member.size_bytes or digest != member.sha256:
             raise DossierAdmissionRejected("member_content_tampered")

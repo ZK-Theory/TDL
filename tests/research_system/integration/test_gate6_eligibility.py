@@ -140,6 +140,39 @@ def test_public_gate6_cli_runs_the_real_positive_path(tmp_path: Path, capsys: py
 
 
 @pytest.mark.integration
+def test_public_gate6_cli_unavailable_repository_root_fails_cleanly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output_path = tmp_path / "must-not-exist.json"
+
+    assert (
+        main(
+            [
+                "gate6",
+                "root-grant",
+                "--repository-root",
+                str(tmp_path / "missing-repository-root"),
+                "--repository-contract-root",
+                str(tmp_path / "irrelevant-contract-root"),
+                "--vault-root",
+                str(tmp_path / "irrelevant-vault-root"),
+                "--expires-at",
+                "2026-09-30T00:00:00Z",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    assert "Gate 6 repository root is unavailable" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
+    assert not output_path.exists()
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("failure", ["missing", "write_capable", "substituted", "expired", "tampered"])
 def test_invalid_root_grants_fail_closed_without_an_envelope(tmp_path: Path, failure: str) -> None:
     roots = _real_roots_or_skip()
@@ -213,6 +246,67 @@ def test_tampered_real_dossier_member_fails_before_eligibility_publication(
 
     assert not output_path.exists()
     assert not output_path.parent.exists()
+
+
+@pytest.mark.integration
+def test_gate6_admission_uses_sealed_read_only_capabilities(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid grant issues narrow readers; raw root paths are not passed to admission."""
+
+    roots = _real_roots_or_skip()
+    grant_path = tmp_path / "scale01-root-grant.json"
+    output_path = tmp_path / "scale01-eligibility-envelope.json"
+    create_scale01_root_grant(
+        repository_root=REPO,
+        roots=roots,
+        output_path=grant_path,
+        expires_at=EXPIRY,
+        now=NOW,
+    )
+    original_prepare = gate6_module.prepare_dossier_admission
+
+    def require_capabilities(**kwargs):
+        capabilities = kwargs["read_only_capabilities"]
+        assert kwargs["registered_roots"] == {}
+        assert set(capabilities) == {"repo", "vault"}
+        assert all(type(capability) is dossier_module.ReadOnlyRootCapability for capability in capabilities.values())
+        assert all(not hasattr(capability, "path") for capability in capabilities.values())
+        return original_prepare(**kwargs)
+
+    monkeypatch.setattr(gate6_module, "prepare_dossier_admission", require_capabilities)
+    envelope = certify_scale01_eligibility(
+        repository_root=REPO,
+        roots=roots,
+        root_grant_path=grant_path,
+        output_path=output_path,
+        now=NOW,
+    )
+
+    assert envelope["eligibility_verdict"] == "eligible"
+    with pytest.raises(TypeError, match="issued only for a registered root"):
+        dossier_module.ReadOnlyRootCapability()
+
+
+@pytest.mark.integration
+def test_output_under_lexical_vault_junction_is_rejected_before_root_grant_publication(tmp_path: Path) -> None:
+    """Physical resolution cannot turn an output inside the vault into an external path."""
+
+    roots = _real_roots_or_skip()
+    output_path = VAULT_ROOT / f"gate6-output-isolation-{tmp_path.name}.json"
+    assert not output_path.exists()
+
+    with pytest.raises(IntegrityError, match="outside every governed input root"):
+        create_scale01_root_grant(
+            repository_root=REPO,
+            roots=roots,
+            output_path=output_path,
+            expires_at=EXPIRY,
+            now=NOW,
+        )
+
+    assert not output_path.exists()
 
 
 @pytest.mark.integration

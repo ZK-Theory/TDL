@@ -25,10 +25,12 @@ from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierAdmissionRejected,
     DossierMember,
+    ReadOnlyRootCapability,
     RegisteredRoot,
     accepted_expected_set_hash,
     admission_profile_hash,
     canonical_dossier_hash,
+    issue_read_only_root_capability,
     prepare_dossier_admission,
     registered_root_identity_hash,
 )
@@ -338,15 +340,44 @@ def _member_set_hash(expected: AcceptedExpectedSet, root_id: str) -> str:
     return canonical_dossier_hash(members)
 
 
+def _resolve_repository_root(repository_root: Path) -> Path:
+    """Resolve the candidate repository or fail through the public ARS error path."""
+
+    try:
+        return repository_root.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise Gate6EligibilityError("Gate 6 repository root is unavailable") from exc
+
+
 def _require_output_outside_roots(output_path: Path, roots: Mapping[str, RegisteredRoot], label: str) -> Path:
-    candidate = output_path.expanduser().resolve(strict=False)
+    lexical_candidate = Path(os.path.abspath(output_path.expanduser()))
+    candidate = lexical_candidate.resolve(strict=False)
     for root in roots.values():
-        try:
-            candidate.relative_to(root.path)
-        except ValueError:
-            continue
-        raise Gate6EligibilityError(f"{label} must be outside every governed input root")
+        root_paths = (Path(os.path.abspath(root.path)), root.path.resolve(strict=True))
+        for candidate_path in (lexical_candidate, candidate):
+            for root_path in root_paths:
+                try:
+                    candidate_path.relative_to(root_path)
+                except ValueError:
+                    continue
+                raise Gate6EligibilityError(f"{label} must be outside every governed input root")
     return candidate
+
+
+def _issue_read_only_capabilities(
+    grant: Mapping[str, Any],
+    registered_roots: Mapping[str, RegisteredRoot],
+) -> dict[str, ReadOnlyRootCapability]:
+    """Turn one validated grant into the only read authority used for admission."""
+
+    if grant.get("enforcement") != "capability_read_only" or grant.get("allowed_operations") != [
+        "read_registered_member"
+    ]:
+        raise Gate6EligibilityError("root grant lacks the read-only capability policy")
+    try:
+        return {root_id: issue_read_only_root_capability(registered_roots[root_id]) for root_id in ("repo", "vault")}
+    except (KeyError, DossierAdmissionRejected) as exc:
+        raise Gate6EligibilityError("root grant cannot issue the read-only capabilities") from exc
 
 
 def _immutable_publish(path: Path, value: Mapping[str, Any], label: str) -> dict[str, Any]:
@@ -530,7 +561,7 @@ def create_scale01_root_grant(
 ) -> dict[str, Any]:
     """Create one immutable capability-read-only grant for the exact real dossier roots."""
 
-    repository_root = repository_root.resolve(strict=True)
+    repository_root = _resolve_repository_root(repository_root)
     contract, _contract_raw = _load_contract(repository_root)
     expected, registration_hashes, authority_hashes = _load_expected_set(repository_root, contract)
     registered_roots = _resolve_roots(roots, registration_hashes)
@@ -648,7 +679,7 @@ def certify_scale01_eligibility(
 ) -> dict[str, Any]:
     """Certify one eligible, provider-free SCALE-01 preflight envelope without writing the dossier."""
 
-    repository_root = repository_root.resolve(strict=True)
+    repository_root = _resolve_repository_root(repository_root)
     contract, contract_raw = _load_contract(repository_root)
     expected, registration_hashes, authority_hashes = _load_expected_set(repository_root, contract)
     registered_roots = _resolve_roots(roots, registration_hashes)
@@ -672,6 +703,7 @@ def certify_scale01_eligibility(
         root_grant_path=grant_path,
         now=current,
     )
+    read_only_capabilities = _issue_read_only_capabilities(grant, registered_roots)
     manifest = _candidate_manifest(expected)
     admission_contract = _require_mapping(contract.get("admission"), "admission contract")
     _require_keys(
@@ -687,7 +719,8 @@ def certify_scale01_eligibility(
             current_expected_set_revision=expected.revision,
             candidate_members=expected.members,
             candidate_manifest=manifest,
-            registered_roots=registered_roots,
+            registered_roots={},
+            read_only_capabilities=read_only_capabilities,
         )
     except DossierAdmissionRejected as exc:
         raise Gate6EligibilityError(f"real dossier admission failed closed: {exc}") from exc
