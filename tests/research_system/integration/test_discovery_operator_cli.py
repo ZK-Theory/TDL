@@ -24,6 +24,8 @@ from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecyc
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_ROOT = REPOSITORY_ROOT / ".research-system" / "schemas"
 CATALOGUE_PATH = SCHEMA_ROOT.parent / "evals" / "expected" / "w11-portfolio-discovery-v1.json"
+CATALOGUE_RELATIVE_PATH = CATALOGUE_PATH.relative_to(REPOSITORY_ROOT)
+BOOTSTRAP_RELATIVE_PATH = Path(".research-system") / "contracts" / "w11" / "w11-materialization-bootstrap-contract.yaml"
 ACTOR_ID = ACTORS["actor-a"]
 
 
@@ -72,6 +74,32 @@ def _clean_w11_repository(tmp_path: Path, *, name: str = "clean-w11-repository")
     _run_git(repository_root, "config", "user.name", "Discovery operator tests")
     _run_git(repository_root, "add", ".")
     _run_git(repository_root, "commit", "--quiet", "-m", "fixture")
+    return repository_root
+
+
+def _candidate_repository_clone(tmp_path: Path, *, name: str) -> Path:
+    """Clone the exact test candidate commit without sharing its working tree."""
+
+    candidate_commit = _run_git(REPOSITORY_ROOT, "rev-parse", "HEAD")
+    repository_root = tmp_path / name
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", "--no-checkout", str(REPOSITORY_ROOT), str(repository_root)],
+        capture_output=True,
+        check=True,
+        text=True,
+        timeout=30,
+    )
+    _run_git(
+        repository_root,
+        "sparse-checkout",
+        "set",
+        "--no-cone",
+        CATALOGUE_RELATIVE_PATH.as_posix(),
+        BOOTSTRAP_RELATIVE_PATH.as_posix(),
+    )
+    _run_git(repository_root, "checkout", "--quiet", "--detach", candidate_commit)
+    assert _run_git(repository_root, "rev-parse", "HEAD") == candidate_commit
+    assert _run_git(repository_root, "status", "--porcelain=v1", "--untracked-files=all") == ""
     return repository_root
 
 
@@ -189,17 +217,52 @@ def _status_argv(inputs: dict[str, Any]) -> list[str]:
 
 
 @pytest.mark.integration
-def test_discovery_cli_rejects_dirty_repository_root_and_legacy_root_token_before_binding(
+def test_discovery_cli_rejects_dirty_repository_root_before_root_token_validation(
+    operator_inputs: dict[str, Any],
     tmp_path: Path,
 ) -> None:
-    config_path = _operator_config(
-        tmp_path,
-        repository_root=REPOSITORY_ROOT,
-        root_tokens={"$REPOSITORY_CONTRACT_ROOT": str(REPOSITORY_ROOT)},
+    dirty_repository = _candidate_repository_clone(tmp_path, name="dirty-candidate-repository")
+    (dirty_repository / "uncommitted-fixture-change.txt").write_text("dirty\n", encoding="utf-8")
+    config = deepcopy(operator_inputs["config"])
+    config.update(
+        {
+            "repository_root": str(dirty_repository),
+            "catalogue_path": str(dirty_repository / CATALOGUE_PATH.relative_to(REPOSITORY_ROOT)),
+            # This deliberately invalid legacy token proves cleanliness is
+            # rejected before root-token validation.
+            "root_tokens": {"$REPOSITORY_CONTRACT_ROOT": str(dirty_repository)},
+        }
     )
+    _write_canonical_json(operator_inputs["config_path"], config)
+    before = _tree_snapshot(operator_inputs["binding"].control_root)
 
     with pytest.raises(ConfigurationError, match="repository_root is not clean"):
-        cli.main(["discovery", "status", "--operator-config", str(config_path)])
+        cli.main(_status_argv(operator_inputs))
+
+    assert _tree_snapshot(operator_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_discovery_cli_rejects_legacy_root_token_after_clean_repository_validation(
+    operator_inputs: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    clean_repository = _candidate_repository_clone(tmp_path, name="clean-candidate-repository")
+    config = deepcopy(operator_inputs["config"])
+    config.update(
+        {
+            "repository_root": str(clean_repository),
+            "catalogue_path": str(clean_repository / CATALOGUE_PATH.relative_to(REPOSITORY_ROOT)),
+            "root_tokens": {"$REPOSITORY_CONTRACT_ROOT": str(clean_repository)},
+        }
+    )
+    _write_canonical_json(operator_inputs["config_path"], config)
+    before = _tree_snapshot(operator_inputs["binding"].control_root)
+
+    with pytest.raises(ConfigurationError, match="root_tokens must contain exactly the repository token"):
+        cli.main(_status_argv(operator_inputs))
+
+    assert _tree_snapshot(operator_inputs["binding"].control_root) == before
 
 
 @pytest.mark.integration
