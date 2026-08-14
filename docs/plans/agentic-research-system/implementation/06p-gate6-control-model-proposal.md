@@ -257,6 +257,9 @@ choice: supply the exact accepted event/receipt from the governed Discovery
 ledger for the envelope to verify, or explicitly amend this P-049 requirement
 to bind the accepted deterministic admission result instead. This is one
 visible decision within KAN-103, not a new delivery lane or ticket.
+Until that owner-selected source is implemented, the preflight must reject every
+placeholder admission-event declaration rather than treating contract metadata
+as evidence.
 
 This is one capability campaign under KAN-12. Its eligibility-envelope construction,
 direct testing, review, and owner decision are implementation/evidence within

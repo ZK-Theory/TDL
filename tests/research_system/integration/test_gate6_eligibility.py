@@ -82,10 +82,10 @@ def test_real_dossier_preflight_refuses_to_publish_without_accepted_admission_ev
 
 
 @pytest.mark.integration
-def test_empty_admission_event_authority_declaration_cannot_enable_publication(
+def test_unverified_admission_event_declaration_cannot_enable_publication(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An arbitrary object cannot turn a reconstructed event into accepted evidence."""
+    """A valid-looking declaration cannot substitute for durable accepted evidence."""
 
     roots = _real_roots_or_skip()
     grant_path = tmp_path / "scale01-root-grant.json"
@@ -99,13 +99,18 @@ def test_empty_admission_event_authority_declaration_cannot_enable_publication(
     )
     original_load_contract = gate6_module._load_contract
 
-    def load_contract_with_empty_event_authority(repository_root: Path):
+    def load_contract_with_unverified_event_authority(repository_root: Path):
         contract, raw = original_load_contract(repository_root)
         modified = json.loads(json.dumps(contract))
-        modified["authority"]["admission_event"] = {}
+        modified["authority"]["admission_event"] = {
+            "event_id": "bogus-not-in-ledger",
+            "event_hash": "0" * 64,
+            "event_type": "ResearchDossierAdmitted",
+            "expected_set_content_sha256": json.loads(AUTHORITY_PATH.read_bytes())["content_sha256"],
+        }
         return modified, raw
 
-    monkeypatch.setattr(gate6_module, "_load_contract", load_contract_with_empty_event_authority)
+    monkeypatch.setattr(gate6_module, "_load_contract", load_contract_with_unverified_event_authority)
 
     with pytest.raises(IntegrityError, match="accepted WP6.6 admission event authority is unavailable"):
         certify_scale01_eligibility(

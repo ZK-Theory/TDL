@@ -41,12 +41,6 @@ _CONTRACT_PATH = Path(".research-system/contracts/gate6/scale01-eligibility-enve
 _DOSSIER_AUTHORITY_PATH = Path(".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json")
 _PATH_AUTHORITY_PATH = Path(".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json")
 _GIT_TIMEOUT_SECONDS = 10
-_ADMISSION_EVENT_DECLARATION_FIELDS = {
-    "event_id",
-    "event_hash",
-    "event_type",
-    "expected_set_content_sha256",
-}
 
 
 class Gate6EligibilityError(IntegrityError):
@@ -314,9 +308,7 @@ def _load_expected_set(
     )
 
 
-def _require_accepted_admission_event_authority(
-    contract: Mapping[str, Any], expected: AcceptedExpectedSet
-) -> Mapping[str, Any]:
+def _require_accepted_admission_event_authority(contract: Mapping[str, Any], _expected: AcceptedExpectedSet) -> None:
     """Require the independent durable admission event promised by the G6 contract.
 
     The preflight deliberately does not turn a freshly prepared in-memory event
@@ -326,23 +318,11 @@ def _require_accepted_admission_event_authority(
     no such durable event identity.
     """
 
-    authority = _require_mapping(contract.get("authority"), "eligibility authority")
-    declaration = authority.get("admission_event")
-    if not isinstance(declaration, Mapping) or set(declaration) != _ADMISSION_EVENT_DECLARATION_FIELDS:
-        raise Gate6EligibilityError("accepted WP6.6 admission event authority is unavailable")
-    event_id = declaration.get("event_id")
-    event_hash = declaration.get("event_hash")
-    if (
-        not isinstance(event_id, str)
-        or not event_id
-        or not isinstance(event_hash, str)
-        or len(event_hash) != 64
-        or any(character not in "0123456789abcdef" for character in event_hash)
-        or declaration.get("event_type") != "ResearchDossierAdmitted"
-        or declaration.get("expected_set_content_sha256") != expected.content_hash
-    ):
-        raise Gate6EligibilityError("accepted WP6.6 admission event authority is unavailable")
-    return declaration
+    _require_mapping(contract.get("authority"), "eligibility authority")
+    # No accepted source exists in the current authority records.  Do not let a
+    # plausible-looking contract declaration act as evidence: a later positive
+    # path must resolve and verify the owner-selected durable event or receipt.
+    raise Gate6EligibilityError("accepted WP6.6 admission event authority is unavailable")
 
 
 def _resolve_roots(roots: Mapping[str, Path], registration_hashes: Mapping[str, str]) -> dict[str, RegisteredRoot]:
