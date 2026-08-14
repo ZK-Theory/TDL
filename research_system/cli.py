@@ -77,6 +77,11 @@ from research_system.evals.retention_authorizer import (
     load_evidence_store_registry,
 )
 from research_system.evidence.consumers import ArtefactConsumerContext
+from research_system.gate6_eligibility import (
+    certify_scale01_eligibility,
+    create_scale01_root_grant,
+    parse_utc_timestamp,
+)
 from research_system.operations.backups import (
     ArtefactBinding,
     BackupArtefactInput,
@@ -1739,6 +1744,38 @@ def _eval_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def _gate6_roots(args: argparse.Namespace) -> dict[str, Path]:
+    """Return the only two physical roots accepted by the Gate 6 public seam."""
+
+    return {"repo": args.repository_contract_root, "vault": args.vault_root}
+
+
+def _gate6_root_grant(args: argparse.Namespace) -> int:
+    """Publish one immutable capability-read-only grant for the real SCALE-01 roots."""
+
+    result = create_scale01_root_grant(
+        repository_root=args.repository_root,
+        roots=_gate6_roots(args),
+        output_path=args.output,
+        expires_at=parse_utc_timestamp(args.expires_at),
+    )
+    _print_json(result)
+    return 0
+
+
+def _gate6_certify(args: argparse.Namespace) -> int:
+    """Run the provider-free public Gate 6 eligibility preflight."""
+
+    result = certify_scale01_eligibility(
+        repository_root=args.repository_root,
+        roots=_gate6_roots(args),
+        root_grant_path=args.root_grant,
+        output_path=args.output,
+    )
+    _print_json(result)
+    return 0
+
+
 _EVAL_ROOT_EXECUTION_CLASSES = {
     _eval_validate: "pure_observation",
     _eval_calibrate: "classified_dispatch",
@@ -1922,6 +1959,25 @@ def _parser() -> argparse.ArgumentParser:
     )
     relationship_facts.set_defaults(handler=_assurance_relationship_facts_publish)
 
+    gate6 = groups.add_parser("gate6")
+    gate6_actions = gate6.add_subparsers(dest="gate6_action", required=True)
+    root_grant = gate6_actions.add_parser("root-grant")
+    root_grant.add_argument("--repository-root", type=Path, required=True)
+    root_grant.add_argument("--repository-contract-root", type=Path, required=True)
+    root_grant.add_argument("--vault-root", type=Path, required=True)
+    root_grant.add_argument(
+        "--expires-at", required=True, help="UTC RFC 3339 grant expiry, for example 2026-09-30T00:00:00Z"
+    )
+    root_grant.add_argument("--output", type=Path, required=True)
+    root_grant.set_defaults(handler=_gate6_root_grant)
+    certify_gate6 = gate6_actions.add_parser("certify")
+    certify_gate6.add_argument("--repository-root", type=Path, required=True)
+    certify_gate6.add_argument("--repository-contract-root", type=Path, required=True)
+    certify_gate6.add_argument("--vault-root", type=Path, required=True)
+    certify_gate6.add_argument("--root-grant", type=Path, required=True)
+    certify_gate6.add_argument("--output", type=Path, required=True)
+    certify_gate6.set_defaults(handler=_gate6_certify)
+
     replay_parser = groups.add_parser("replay")
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)
     verify = replay_actions.add_parser("verify")
@@ -1976,7 +2032,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief", "context-packet"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "gate6"}:
         return int(args.handler(args))
     try:
         if args.group == "eval":
