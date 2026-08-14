@@ -82,6 +82,44 @@ def test_real_dossier_preflight_refuses_to_publish_without_accepted_admission_ev
 
 
 @pytest.mark.integration
+def test_empty_admission_event_authority_declaration_cannot_enable_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An arbitrary object cannot turn a reconstructed event into accepted evidence."""
+
+    roots = _real_roots_or_skip()
+    grant_path = tmp_path / "scale01-root-grant.json"
+    output_path = tmp_path / "scale01-eligibility-envelope.json"
+    create_scale01_root_grant(
+        repository_root=REPO,
+        roots=roots,
+        output_path=grant_path,
+        expires_at=EXPIRY,
+        now=NOW,
+    )
+    original_load_contract = gate6_module._load_contract
+
+    def load_contract_with_empty_event_authority(repository_root: Path):
+        contract, raw = original_load_contract(repository_root)
+        modified = json.loads(json.dumps(contract))
+        modified["authority"]["admission_event"] = {}
+        return modified, raw
+
+    monkeypatch.setattr(gate6_module, "_load_contract", load_contract_with_empty_event_authority)
+
+    with pytest.raises(IntegrityError, match="accepted WP6.6 admission event authority is unavailable"):
+        certify_scale01_eligibility(
+            repository_root=REPO,
+            roots=roots,
+            root_grant_path=grant_path,
+            output_path=output_path,
+            now=NOW,
+        )
+
+    assert not output_path.exists()
+
+
+@pytest.mark.integration
 def test_public_gate6_cli_runs_the_real_positive_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     roots = _real_roots_or_skip()
     grant_path = tmp_path / "scale01-root-grant.json"
@@ -265,7 +303,7 @@ def test_gate6_admission_uses_sealed_read_only_capabilities(
 
     # This test examines the narrow capability route only. The unmocked public
     # seam remains fail-closed until an owner supplies accepted event authority.
-    monkeypatch.setattr(gate6_module, "_require_accepted_admission_event_authority", lambda _contract: None)
+    monkeypatch.setattr(gate6_module, "_require_accepted_admission_event_authority", lambda _contract, _expected: {})
 
     def require_capabilities(**kwargs):
         capabilities = kwargs["read_only_capabilities"]
