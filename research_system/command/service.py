@@ -7582,3 +7582,12 @@ class CommandService:
 
 
 del _release_submit_guard
+
+
+def submit_store_binding_repair(intent: object, **kwargs: object) -> dict[str, object]:
+    """Dispatch the sealed bootstrap command without admitting a generic envelope."""
+    from research_system.store.binding_repair import RepairStoreBinding, repair_store_binding
+
+    if not isinstance(intent, RepairStoreBinding):
+        raise ArsError("store binding repair requires a typed RepairStoreBinding command")
+    return repair_store_binding(intent, **kwargs)  # type: ignore[arg-type]

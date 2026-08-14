@@ -11,6 +11,7 @@ from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.ids import validate_id
 from research_system.store.identity import (
     StoreOriginWitness,
+    _require_physical_regular_file,
     _validate_origin_authority_root,
     _validate_origin_witness_locator,
     load_store_manifest,
@@ -99,7 +100,11 @@ class ApprovedProjectBinding:
     @classmethod
     def load(cls, path: Path) -> "ApprovedProjectBinding":
         try:
-            raw = path.read_bytes()
+            repaired_binding_path = _require_physical_regular_file(
+                path,
+                label="repaired control binding",
+            )
+            raw = repaired_binding_path.read_bytes()
         except OSError as exc:
             raise ConfigurationError(f"invalid approved project binding: {path}") from exc
         return cls.from_raw(raw)
@@ -303,6 +308,75 @@ class ControlBinding:
         if executing_root not in approved.code_roots:
             raise ConfigurationError("binding code roots do not include the canonical foundation root")
         return cls.from_raw(raw, approved=approved)
+
+    @classmethod
+    def load_repaired(cls, path: Path) -> "ControlBinding":
+        """Load only a fully verified store-owned stale-binding successor.
+
+        This is an explicit recovery mode, not a fallback.  Ordinary binding
+        admission remains fail-closed and cannot be enabled by editing the
+        caller-supplied YAML alone.
+        """
+        from research_system.store.binding_repair import load_recovery_binding
+
+        foundation_path = canonical_foundation_path()
+        try:
+            foundation: Any = yaml.safe_load(foundation_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ConfigurationError("recovery foundation is unavailable") from exc
+        if not isinstance(foundation, dict) or foundation.get("binding_source") != "store-recovery":
+            raise ConfigurationError("foundation does not select a repaired binding")
+        project_id = validate_id(_foundation_string(foundation.get("project_id"), "project_id"), "project")
+        store_identity = _foundation_digest(foundation.get("store_identity"), "store_identity")
+        witness_sha256 = _foundation_digest(foundation.get("origin_witness_sha256"), "origin_witness_sha256")
+        control_root = Path(_foundation_string(foundation.get("control_root"), "control_root")).resolve(strict=True)
+        witness_path = Path(_foundation_string(foundation.get("origin_witness_path"), "origin_witness_path"))
+        origin_root = Path(_foundation_string(foundation.get("origin_authority_root"), "origin_authority_root"))
+        witness = load_store_origin_witness(witness_path, expected_sha256=witness_sha256)
+        repaired = load_recovery_binding(
+            control_root,
+            expected_project_id=project_id,
+            expected_store_identity=store_identity,
+            expected_origin_witness_sha256=witness_sha256,
+        )
+        try:
+            raw = path.read_bytes()
+            supplied: Any = yaml.safe_load(raw.decode("utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ConfigurationError(f"invalid repaired binding config: {path}") from exc
+        expected = {
+            "code_roots": repaired["code_roots"],
+            "control_root": str(control_root),
+            "project_id": project_id,
+            "schema_root": repaired["schema_root"],
+            "store_identity": store_identity,
+        }
+        if supplied != expected:
+            raise ConfigurationError("repaired binding config differs from governed recovery record")
+        manifest = load_store_manifest(
+            control_root,
+            approved_witness=witness,
+            approved_witness_path=witness_path,
+        )
+        if (
+            manifest.get("code_roots") != repaired["code_roots"]
+            or manifest.get("schema_root") != repaired["schema_root"]
+        ):
+            raise ConfigurationError("repaired binding differs from store manifest")
+        roots = tuple(Path(item).resolve(strict=True) for item in repaired["code_roots"])
+        schema_root = Path(repaired["schema_root"]).resolve(strict=True)
+        return cls(
+            roots,
+            control_root,
+            project_id,
+            schema_root,
+            store_identity,
+            origin_root.resolve(strict=True),
+            witness_path.resolve(strict=True),
+            witness_sha256,
+            witness,
+            None,
+        )
 
     @classmethod
     def from_raw(cls, raw: bytes, *, approved: ApprovedProjectBinding) -> "ControlBinding":

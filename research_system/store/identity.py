@@ -238,6 +238,34 @@ def _require_physical_path(path: Path, *, require_exists: bool) -> Path:
         raise IntegrityError(f"physical path is unavailable: {candidate}") from exc
 
 
+def _require_physical_directory(path: Path, *, label: str) -> Path:
+    try:
+        resolved = _require_physical_path(path, require_exists=True)
+    except IntegrityError as exc:
+        raise IntegrityError(f"{label} physical path is invalid: {exc}") from exc
+    try:
+        metadata = resolved.lstat()
+    except OSError as exc:
+        raise IntegrityError(f"{label} identity is unavailable") from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise IntegrityError(f"{label} is not a physical directory")
+    return resolved
+
+
+def _require_physical_regular_file(path: Path, *, label: str) -> Path:
+    try:
+        resolved = _require_physical_path(path, require_exists=True)
+    except IntegrityError as exc:
+        raise IntegrityError(f"{label} physical path is invalid: {exc}") from exc
+    try:
+        metadata = resolved.lstat()
+    except OSError as exc:
+        raise IntegrityError(f"{label} identity is unavailable") from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise IntegrityError(f"{label} is not a physical regular file")
+    return resolved
+
+
 def _validate_origin_witness_locator(
     path: Path,
     *,
@@ -837,7 +865,9 @@ def load_store_manifest(
 ) -> dict[str, Any]:
     if approved_witness is None:
         raise IntegrityError("approved origin witness is required")
-    control = control_root.resolve(strict=True)
+    if not control_root.is_absolute():
+        raise IntegrityError("store control root must be the exact absolute physical path")
+    control = _require_physical_directory(control_root, label="store control root")
     manifest = load_store_manifest_unbound(control)
     if manifest.get("control_root") != str(control):
         raise IntegrityError("store control-root binding mismatch")
@@ -2678,6 +2708,200 @@ def _validate_restore_join(
     return manifest
 
 
+def _validate_binding_repair_successor(
+    target: Path,
+    record: dict[str, Any],
+    *,
+    approved_witness_path: Path | None = None,
+) -> dict[str, Any]:
+    """Validate the only admitted successor to one cleared stale restore binding."""
+    target = _require_physical_directory(target, label="binding repair control root")
+    recovery_path = _require_physical_regular_file(
+        target / "manifests" / "binding-repair-current.json",
+        label="binding repair successor",
+    )
+    try:
+        recovery_raw = recovery_path.read_bytes()
+        recovery = json.loads(recovery_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("binding repair successor is unavailable") from exc
+    if not isinstance(recovery, dict) or recovery_raw != canonical_bytes(recovery):
+        raise IntegrityError("binding repair successor is not canonical")
+    code_roots = recovery.get("code_roots")
+    if not isinstance(code_roots, list) or len(code_roots) != 1 or not isinstance(code_roots[0], str):
+        raise IntegrityError("binding repair successor candidate root is invalid")
+    candidate_path = Path(code_roots[0])
+    schema_path = Path(str(recovery.get("schema_root")))
+    if not candidate_path.is_absolute() or not schema_path.is_absolute():
+        raise IntegrityError("binding repair successor candidate paths must be absolute")
+    candidate = _require_physical_directory(candidate_path, label="binding repair candidate root")
+    schema = _require_physical_directory(schema_path, label="binding repair schema root")
+    if candidate != candidate_path or schema != schema_path or schema != candidate / _SCHEMA_SUFFIX:
+        raise IntegrityError("binding repair successor candidate paths are redirected or mismatched")
+    intended_manifest = _from_hex(record.get("intended_manifest_bytes"), "intended_manifest_bytes")
+    intended_evidence = _from_hex(record.get("intended_evidence_bytes"), "intended_evidence_bytes")
+    output_bytes = _from_hex(record.get("output_object_bytes"), "output_object_bytes")
+    if intended_manifest is None or intended_evidence is None or output_bytes is None:
+        raise IntegrityError("binding repair predecessor tuple is incomplete")
+    approval_path = _record_path(target, str(record.get("approval_object_path")))
+    try:
+        approval_raw = approval_path.read_bytes()
+        approval = json.loads(approval_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("binding repair predecessor approval is unavailable") from exc
+    if (
+        not isinstance(approval, dict)
+        or approval_raw != canonical_bytes(approval)
+        or sha256_hex(approval_raw) != record.get("approval_sha256")
+        or record.get("intended_manifest_sha256") != sha256_hex(intended_manifest)
+        or record.get("intended_evidence_sha256") != sha256_hex(intended_evidence)
+        or record.get("output_object_sha256") != sha256_hex(output_bytes)
+    ):
+        raise IntegrityError("binding repair predecessor approval tuple is invalid")
+    evidence_raw = _file_bytes(_restore_binding_evidence_path(target))
+    output_raw = _file_bytes(_record_path(target, str(record["output_object_path"])))
+    payload_hash = recovery.get("command_payload_hash")
+    recovery_sha256 = sha256_hex(recovery_raw)
+    if (
+        recovery.get("schema_id") != "ars://internal/store-binding-recovery"
+        or recovery.get("schema_version") != "1.0.0"
+        or recovery.get("project_id") != record["project_id"]
+        or recovery.get("store_identity") != record["store_identity"]
+        or recovery.get("control_root") != str(target)
+        or recovery.get("origin_witness_sha256") != record["origin_witness_sha256"]
+        or recovery.get("prior_restore_transaction_id") != record["transaction_id"]
+        or recovery.get("prior_restore_intended_manifest_sha256") != record["intended_manifest_sha256"]
+        or not _is_sha256(payload_hash)
+        or evidence_raw != intended_evidence
+        or output_raw != output_bytes
+        or sha256_hex(intended_manifest) != record["intended_manifest_sha256"]
+    ):
+        raise IntegrityError("binding repair successor does not extend the cleared restore transaction")
+    manifest = _read_manifest(
+        _manifest_path(target),
+        require_canonical=True,
+        restore_approval_sha256=str(record["approval_sha256"]),
+    )
+    if (
+        manifest.get("project_id") != recovery["project_id"]
+        or manifest.get("store_identity") != recovery["store_identity"]
+        or manifest.get("control_root") != recovery["control_root"]
+        or manifest.get("code_roots") != recovery.get("code_roots")
+        or manifest.get("schema_root") != recovery.get("schema_root")
+        or manifest.get("origin_witness_path") != record["origin_witness_path"]
+        or manifest.get("origin_witness_sha256") != record["origin_witness_sha256"]
+        or manifest.get("origin_initial_control_root") != record["origin_initial_control_root"]
+    ):
+        raise IntegrityError("binding repair successor manifest identity is invalid")
+    object_path = target / "objects" / "binding-repair" / f"sha256-{recovery_sha256}.json"
+    _require_physical_regular_file(object_path, label="binding repair successor object")
+    if _file_bytes(object_path) != recovery_raw:
+        raise IntegrityError("binding repair successor object is missing or changed")
+    binding_path = target / str(recovery.get("binding_config_path"))
+    _require_physical_regular_file(binding_path, label="binding repair control binding")
+    binding_raw = _file_bytes(binding_path)
+    expected_binding = canonical_bytes(
+        {
+            "code_roots": recovery.get("code_roots"),
+            "control_root": recovery.get("control_root"),
+            "project_id": recovery.get("project_id"),
+            "schema_root": recovery.get("schema_root"),
+            "store_identity": recovery.get("store_identity"),
+        }
+    )
+    if (
+        recovery.get("binding_config_path") != "manifests/binding-repair-control-binding.json"
+        or recovery.get("binding_config_sha256") != sha256_hex(expected_binding)
+        or binding_raw != expected_binding
+    ):
+        raise IntegrityError("binding repair successor control binding is invalid")
+    events: list[dict[str, Any]] = []
+    for path in sorted((target / "events" / record["project_id"]).rglob("*.jsonl")):
+        try:
+            _require_physical_regular_file(path, label="binding repair event segment")
+            events.extend(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("binding repair successor ledger is invalid") from exc
+    matching = [
+        event
+        for event in events
+        if event.get("event_type") == "StoreBindingRepaired"
+        and event.get("command_type") == "RepairStoreBinding"
+        and event.get("command_payload_hash") == payload_hash
+    ]
+    if len(matching) != 1:
+        raise IntegrityError("binding repair successor event is missing or ambiguous")
+    event = matching[0]
+    event_payload = event.get("payload")
+    if (
+        not isinstance(event_payload, dict)
+        or event_payload.get("recovery_binding_sha256") != recovery_sha256
+        or event_payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+        or event_payload.get("object_path") != object_path.relative_to(target).as_posix()
+        or event_payload.get("git_head") != recovery.get("git_head")
+        or event_payload.get("git_tree") != recovery.get("git_tree")
+        or event_payload.get("prior_manifest_sha256") != record["intended_manifest_sha256"]
+    ):
+        raise IntegrityError("binding repair successor event/object relation is invalid")
+    command_id = f"binding-repair-{payload_hash}"
+    receipt_path = _require_physical_regular_file(
+        target / "receipts" / f"{command_id}.json",
+        label="binding repair receipt",
+    )
+    try:
+        receipt_raw = receipt_path.read_bytes()
+        receipt = json.loads(receipt_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("binding repair successor receipt is unavailable") from exc
+    outcome = receipt.get("outcome") if isinstance(receipt, dict) else None
+    if (
+        receipt_raw != canonical_bytes(receipt)
+        or receipt.get("schema_id") != "ars://core/receipt"
+        or receipt.get("schema_version") != "1.0.0"
+        or receipt.get("command_id") != command_id
+        or receipt.get("status") != "accepted"
+        or receipt.get("payload_hash") != payload_hash
+        or not isinstance(outcome, dict)
+        or outcome.get("event_batch_id") != event.get("transaction_id")
+        or outcome.get("observed_stream_version") != event.get("stream_version")
+    ):
+        raise IntegrityError("binding repair successor receipt/event relation is invalid")
+    scope = [
+        recovery.get("owner_actor_id"),
+        "store-binding-recovery",
+        "RepairStoreBinding",
+        recovery.get("idempotency_key"),
+    ]
+    index_path = _require_physical_regular_file(
+        target / "receipts" / "idempotency" / f"{sha256_hex(canonical_bytes(scope))}.json",
+        label="binding repair scoped receipt",
+    )
+    try:
+        index_raw = index_path.read_bytes()
+        index = json.loads(index_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("binding repair successor scoped receipt is unavailable") from exc
+    expected_authority = sha256_hex(
+        canonical_bytes(
+            {
+                "actor_id": recovery.get("owner_actor_id"),
+                "action": recovery.get("owner_action"),
+            }
+        )
+    )
+    if (
+        index_raw != canonical_bytes(index)
+        or index.get("scope") != scope
+        or index.get("payload_hash") != payload_hash
+        or index.get("authority_grant_sha256") != expected_authority
+        or index.get("receipt") != receipt
+        or index.get("project_id") != record["project_id"]
+        or index.get("target_stream_id") != record["project_id"]
+    ):
+        raise IntegrityError("binding repair successor scoped receipt is invalid")
+    return manifest
+
+
 def _require_cleared_without_temporaries(target: Path, record: dict[str, Any]) -> None:
     transition_temporaries = any((target / "manifests").glob(".restore-binding-transaction.*.tmp"))
     approval_temporaries = any(
@@ -3113,7 +3337,9 @@ def verify_restore_binding_admission(
     """Read-only admission for never-restored or durably cleared stores."""
     if not isinstance(approved_witness, StoreOriginWitness):
         raise IntegrityError("approved origin witness is required")
-    target = control_root.resolve(strict=True)
+    if not control_root.is_absolute():
+        raise IntegrityError("store control root must be the exact absolute physical path")
+    target = _require_physical_directory(control_root, label="store control root")
     _assert_no_second_restore_authority(target)
     record, _ = _read_restore_binding_transaction(target)
     resolved_witness_path: Path | None = None
@@ -3180,7 +3406,19 @@ def verify_restore_binding_admission(
         _require_root_identity(source, record["source_root_identity"])
     _require_cleared_without_temporaries(target, record)
     _require_root_identity(target, record["target_root_identity"])
-    _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
+    recovery_path = target / "manifests" / "binding-repair-current.json"
+    try:
+        recovery_path.lstat()
+    except FileNotFoundError:
+        recovery_exists = False
+    except OSError as exc:
+        raise IntegrityError("binding repair successor identity is unavailable") from exc
+    else:
+        recovery_exists = True
+    if recovery_exists:
+        _validate_binding_repair_successor(target, record, approved_witness_path=resolved_witness_path)
+    else:
+        _validate_restore_join(target, record, approved_witness_path=resolved_witness_path)
     return record
 
 

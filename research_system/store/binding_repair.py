@@ -1,0 +1,724 @@
+"""Owner-governed bootstrap repair for a stale store code/schema binding.
+
+This module deliberately does not load :class:`ControlBinding`: that loader is
+the capability being repaired.  It consumes only owner intent, immutable
+foundation identity pins, the origin witness, and independently derived
+candidate repository facts.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess  # nosec B404 - fixed git inspection commands
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Callable, Mapping
+
+import yaml
+
+from research_system.authority import _validate_bootstrap, authority_bootstrap_sha256
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Receipt
+from research_system.errors import ConfigurationError, ConflictError, IntegrityError
+from research_system.ids import validate_id
+from research_system.schema_registry import runtime_schema_registry
+from research_system.store.durability import fsync_directory
+from research_system.store.identity import (
+    _require_physical_directory,
+    _require_physical_regular_file,
+    _restored_manifest_hash,
+    load_store_manifest,
+    load_store_manifest_unbound,
+    load_store_origin_witness,
+    manifest_schema_root,
+)
+from research_system.store.ledger import EventLedger
+from research_system.store.lock import WriterLock
+from research_system.store.receipts import ReceiptStore
+
+
+COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding"
+EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
+OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
+RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+RECOVERY_BINDING_SCHEMA_ID = "ars://internal/store-binding-recovery"
+RECOVERY_BINDING_NAME = "binding-repair-current.json"
+_MARKER_NAME = ".binding-repair-transaction.json"
+_STORE_MANIFEST = Path("manifests/store-identity.json")
+_RESTORE_TRANSACTION = Path("manifests/.restore-binding-transaction.json")
+_ROUTE_RELATIVE = Path(".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json")
+
+
+def _is_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+
+
+def _parse_time(value: object, field: str) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ConfigurationError(f"{field} must be a finite UTC RFC 3339 time")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise ConfigurationError(f"{field} must be a finite UTC RFC 3339 time") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
+        raise ConfigurationError(f"{field} must be UTC")
+    return parsed
+
+
+def _run_git(root: Path, *arguments: str) -> str:
+    try:
+        result = subprocess.run(  # nosec B603 B607 - fixed executable and derived validated root
+            ["git", "-C", str(root), *arguments],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ConfigurationError("candidate Git inspection timed out") from exc
+    if result.returncode != 0:
+        raise ConfigurationError(f"candidate Git inspection failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def _read_canonical_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
+    try:
+        raw = path.read_bytes()
+        value = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError(f"invalid {label}") from exc
+    if not isinstance(value, dict) or raw != canonical_bytes(value):
+        raise IntegrityError(f"{label} is not canonical JSON")
+    return value, raw
+
+
+def _publish(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if not path.is_file() or path.read_bytes() != data:
+            raise ConflictError(f"published binding-repair artifact conflicts: {path.name}")
+        return
+    temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.tmp")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        fsync_directory(path.parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _replace(path: Path, data: bytes) -> None:
+    temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.replace")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        fsync_directory(path.parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+@dataclass(frozen=True)
+class RepairStoreBinding:
+    """Meaningful owner intent; all evidence identities are runtime-derived."""
+
+    control_root: Path
+    candidate_repository_root: Path
+    expected_project_id: str
+    expected_store_identity: str
+    expected_origin_authority_root: Path
+    expected_origin_witness_sha256: str
+    intended_schema_root: Path
+    stale_evidence_refs: tuple[str, ...]
+    spec_route_ref: str
+    spec_source_refs: tuple[str, str]
+    valid_from: str
+    expires_at: str
+    owner_actor_id: str
+    owner_action: str
+    idempotency_key: str
+    reason: str
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "RepairStoreBinding":
+        required = {
+            "schema_id",
+            "schema_version",
+            "command_type",
+            "control_root",
+            "candidate_repository_root",
+            "expected_project_id",
+            "expected_store_identity",
+            "expected_origin_authority_root",
+            "expected_origin_witness_sha256",
+            "intended_schema_root",
+            "stale_evidence_refs",
+            "spec_route_ref",
+            "spec_source_refs",
+            "valid_from",
+            "expires_at",
+            "owner_actor_id",
+            "owner_action",
+            "idempotency_key",
+            "reason",
+        }
+        if set(value) != required:
+            raise ConfigurationError("RepairStoreBinding intent fields are not exact")
+        if value.get("schema_id") != COMMAND_SCHEMA_ID or value.get("schema_version") != "1.0.0":
+            raise ConfigurationError("RepairStoreBinding intent schema is unsupported")
+        if value.get("command_type") != "RepairStoreBinding":
+            raise ConfigurationError("raw generic command forgery is not admitted")
+        stale = value.get("stale_evidence_refs")
+        sources = value.get("spec_source_refs")
+        if not isinstance(stale, list) or not stale or not all(isinstance(item, str) and item for item in stale):
+            raise ConfigurationError("stale evidence refs are required")
+        if (
+            not isinstance(sources, list)
+            or len(sources) != 2
+            or set(sources)
+            != {
+                ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+                ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+            }
+        ):
+            raise ConfigurationError("exact SPEC-01/SPEC-02 source refs are required")
+        text_fields = (
+            "expected_store_identity",
+            "expected_origin_witness_sha256",
+            "spec_route_ref",
+            "valid_from",
+            "expires_at",
+            "owner_actor_id",
+            "owner_action",
+            "idempotency_key",
+            "reason",
+        )
+        if any(not isinstance(value.get(field), str) or not value[field].strip() for field in text_fields):
+            raise ConfigurationError("RepairStoreBinding intent contains an empty field")
+        return cls(
+            Path(str(value["control_root"])),
+            Path(str(value["candidate_repository_root"])),
+            validate_id(str(value["expected_project_id"]), "project"),
+            str(value["expected_store_identity"]),
+            Path(str(value["expected_origin_authority_root"])),
+            str(value["expected_origin_witness_sha256"]),
+            Path(str(value["intended_schema_root"])),
+            tuple(stale),
+            str(value["spec_route_ref"]),
+            (str(sources[0]), str(sources[1])),
+            str(value["valid_from"]),
+            str(value["expires_at"]),
+            validate_id(str(value["owner_actor_id"]), "actor"),
+            str(value["owner_action"]),
+            str(value["idempotency_key"]),
+            str(value["reason"]),
+        )
+
+    def semantic_payload(self) -> dict[str, Any]:
+        return {
+            "control_root": str(self.control_root),
+            "candidate_repository_root": str(self.candidate_repository_root),
+            "expected_project_id": self.expected_project_id,
+            "expected_store_identity": self.expected_store_identity,
+            "expected_origin_authority_root": str(self.expected_origin_authority_root),
+            "expected_origin_witness_sha256": self.expected_origin_witness_sha256,
+            "intended_schema_root": str(self.intended_schema_root),
+            "stale_evidence_refs": list(self.stale_evidence_refs),
+            "spec_route_ref": self.spec_route_ref,
+            "spec_source_refs": list(self.spec_source_refs),
+            "valid_from": self.valid_from,
+            "expires_at": self.expires_at,
+            "owner_actor_id": self.owner_actor_id,
+            "owner_action": self.owner_action,
+            "idempotency_key": self.idempotency_key,
+            "reason": self.reason,
+        }
+
+
+def read_repair_intent(path: Path) -> RepairStoreBinding:
+    value, _raw = _read_canonical_json(path, "RepairStoreBinding intent")
+    return RepairStoreBinding.from_mapping(value)
+
+
+def _foundation_pins(repository: Path, intent: RepairStoreBinding) -> tuple[dict[str, Any], Any, Path]:
+    path = repository / ".research-system" / "config" / "foundation.yaml"
+    try:
+        value = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ConfigurationError("canonical foundation pins are unavailable") from exc
+    if not isinstance(value, dict) or value.get("binding_source") != "store-recovery":
+        raise ConfigurationError("foundation does not explicitly authorize store recovery binding")
+    fixed = {
+        "project_id": intent.expected_project_id,
+        "control_root": str(intent.control_root),
+        "store_identity": intent.expected_store_identity,
+        "origin_authority_root": str(intent.expected_origin_authority_root),
+        "origin_witness_sha256": intent.expected_origin_witness_sha256,
+    }
+    if any(str(value.get(field)) != expected for field, expected in fixed.items()):
+        raise IntegrityError("repair intent differs from immutable foundation identity")
+    witness_path = Path(str(value.get("origin_witness_path")))
+    witness = load_store_origin_witness(witness_path, expected_sha256=intent.expected_origin_witness_sha256)
+    if witness.project_id != intent.expected_project_id or witness.store_identity != intent.expected_store_identity:
+        raise IntegrityError("origin witness identity differs from repair intent")
+    return value, witness, witness_path
+
+
+def _candidate_evidence(intent: RepairStoreBinding) -> dict[str, Any]:
+    candidate = intent.candidate_repository_root.resolve(strict=True)
+    if (
+        candidate != intent.candidate_repository_root
+        or Path(_run_git(candidate, "rev-parse", "--show-toplevel")).resolve(strict=True) != candidate
+    ):
+        raise ConfigurationError("candidate repository root is moved or aliased")
+    if _run_git(candidate, "status", "--porcelain=v1", "--untracked-files=all"):
+        raise ConflictError("candidate repository contains dirty or uncommitted state")
+    head = _run_git(candidate, "rev-parse", "HEAD")
+    tree = _run_git(candidate, "rev-parse", "HEAD^{tree}")
+    schema_root = intent.intended_schema_root.resolve(strict=True)
+    if schema_root != candidate / ".research-system" / "schemas" or not schema_root.is_dir():
+        raise ConfigurationError("intended schema root is not the candidate repository schema root")
+    route_ref = Path(intent.spec_route_ref)
+    if route_ref != _ROUTE_RELATIVE:
+        raise ConfigurationError("SPEC route ref is not the governed route package")
+    route_path = candidate / route_ref
+    try:
+        route_raw = route_path.read_bytes()
+        route = json.loads(route_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("invalid SPEC route package") from exc
+    if not isinstance(route, dict):
+        raise IntegrityError("invalid SPEC route package")
+    if route.get("route_id") != "SPEC-GATE6-RUN-V1" or route.get("execution_authorized") is not False:
+        raise IntegrityError("SPEC route authority state is invalid")
+    source_by_locator = {item.get("locator"): item for item in route.get("sources", []) if isinstance(item, dict)}
+    sources: list[dict[str, Any]] = []
+    for reference in intent.spec_source_refs:
+        record = source_by_locator.get(reference)
+        path = candidate / reference
+        raw = path.read_bytes()
+        if not record or len(raw) != record.get("size_bytes") or sha256_hex(raw) != record.get("sha256"):
+            raise IntegrityError("SPEC route/source SHA mismatch")
+        sources.append({"ref": reference, "sha256": sha256_hex(raw), "size_bytes": len(raw)})
+    schema_records = []
+    for path in sorted(schema_root.rglob("*.schema.json")):
+        raw = path.read_bytes()
+        schema_records.append({"path": path.relative_to(schema_root).as_posix(), "sha256": sha256_hex(raw)})
+    catalogue_sha256 = sha256_hex(canonical_bytes(schema_records))
+    schemas = runtime_schema_registry(schema_root)
+    for schema_id in (COMMAND_SCHEMA_ID, EVENT_SCHEMA_ID, OBJECT_SCHEMA_ID, RECEIPT_SCHEMA_ID):
+        schemas.resolve_identity(schema_id, "1.0.0")
+    return {
+        "repository_root": str(candidate),
+        "git_head": head,
+        "git_tree": tree,
+        "git_clean": True,
+        "schema_root": str(schema_root),
+        "schema_catalogue_sha256": catalogue_sha256,
+        "route": {"ref": route_ref.as_posix(), "sha256": sha256_hex(route_raw)},
+        "sources": sources,
+    }
+
+
+def _validate_owner_authority(control: Path, intent: RepairStoreBinding) -> None:
+    manifest = load_store_manifest_unbound(control)
+    bootstrap, _raw = _read_canonical_json(
+        control / "manifests" / "authority-bootstrap.json", "authority bootstrap manifest"
+    )
+    try:
+        validated, _root, _publication = _validate_bootstrap(bootstrap, intent.expected_project_id)
+    except (TypeError, ValueError) as exc:
+        raise IntegrityError("authority bootstrap manifest is invalid") from exc
+    if (
+        authority_bootstrap_sha256(validated) != manifest.get("bootstrap_manifest_sha256")
+        or validated.get("owner_actor_id") != intent.owner_actor_id
+    ):
+        raise IntegrityError("RepairStoreBinding actor is not the immutable authority owner")
+
+
+def _validate_stale_store(
+    intent: RepairStoreBinding, witness: Any, witness_path: Path
+) -> tuple[dict[str, Any], bytes, dict[str, Any]]:
+    control = intent.control_root.resolve(strict=True)
+    if control != intent.control_root:
+        raise ConfigurationError("control root is moved or aliased")
+    manifest = load_store_manifest_unbound(control)
+    if (
+        manifest.get("control_root") != str(intent.control_root)
+        or manifest.get("project_id") != intent.expected_project_id
+    ):
+        raise IntegrityError("control root or project identity mismatch")
+    if manifest.get("store_identity") != intent.expected_store_identity:
+        raise IntegrityError("store identity mismatch")
+    manifest_path = control / _STORE_MANIFEST
+    manifest_value, manifest_raw = _read_canonical_json(manifest_path, "store manifest")
+    restore_path = _require_physical_regular_file(
+        control / _RESTORE_TRANSACTION,
+        label="cleared restore transaction",
+    )
+    restore, _restore_raw = _read_canonical_json(restore_path, "cleared restore transaction")
+    if manifest_value != manifest or manifest.get("manifest_hash") != _restored_manifest_hash(
+        manifest, str(restore.get("approval_sha256"))
+    ):
+        raise IntegrityError("store manifest hash mismatch")
+    persisted_schema = manifest_schema_root(manifest)
+    bound_code_roots = [Path(str(item)) for item in manifest.get("code_roots", [])]
+    if (
+        persisted_schema is not None
+        and persisted_schema.exists()
+        and bound_code_roots
+        and all(root.exists() for root in bound_code_roots)
+    ):
+        raise ConflictError("store binding is currently valid; repair is forbidden")
+    if (
+        restore.get("state") != "cleared"
+        or restore.get("project_id") != intent.expected_project_id
+        or restore.get("store_identity") != intent.expected_store_identity
+        or restore.get("target_root") != str(control)
+        or restore.get("origin_witness_sha256") != witness.raw_sha256
+        or restore.get("origin_witness_path") != str(witness_path.resolve(strict=True))
+        or restore.get("origin_initial_control_root") != witness.initial_control_root
+        or restore.get("origin_initial_physical_root_identity") != witness.initial_physical_root_identity
+        or restore.get("source_root") != witness.initial_control_root
+        or restore.get("source_root_identity") != witness.initial_physical_root_identity
+        or restore.get("intended_manifest_bytes") != manifest_raw.hex()
+        or restore.get("intended_manifest_sha256") != sha256_hex(manifest_raw)
+    ):
+        raise IntegrityError("cleared restore transaction does not bind the stale manifest and origin witness")
+    stale_paths = []
+    if persisted_schema is not None and not persisted_schema.exists():
+        stale_paths.append(str(persisted_schema))
+    stale_paths.extend(str(root) for root in bound_code_roots if not root.exists())
+    if not Path(str(restore["source_root"])).exists():
+        stale_paths.append(str(restore["source_root"]))
+    if _RESTORE_TRANSACTION.as_posix() not in intent.stale_evidence_refs:
+        raise ConfigurationError("stale evidence must include the exact cleared restore transaction")
+    for reference in intent.stale_evidence_refs:
+        unresolved = control / reference
+        ref_path = _require_physical_regular_file(unresolved, label="stale binding evidence")
+        if control not in ref_path.parents or ref_path != unresolved:
+            raise ConfigurationError("stale evidence ref escapes the exact control root")
+    if not stale_paths:
+        raise ConflictError("store binding is currently valid; repair is forbidden")
+    return manifest, manifest_raw, {"missing_paths": sorted(set(stale_paths)), "refs": list(intent.stale_evidence_refs)}
+
+
+def _event_for_command(ledger: EventLedger, payload_hash: str, idempotency_key: str) -> dict[str, Any] | None:
+    matches = [
+        event
+        for event in ledger.iter_events()
+        if event.get("command_type") == "RepairStoreBinding" and event.get("idempotency_key") == idempotency_key
+    ]
+    if not matches:
+        return None
+    if len(matches) != 1 or matches[0].get("command_payload_hash") != payload_hash:
+        raise ConflictError("binding-repair idempotency key conflicts with durable event")
+    return matches[0]
+
+
+def repair_store_binding(
+    intent: RepairStoreBinding,
+    *,
+    now: Callable[[], datetime] | None = None,
+    phase_hook: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Execute or recover one exact stale-binding repair transaction."""
+
+    clock = datetime.now(UTC) if now is None else now()
+    starts = _parse_time(intent.valid_from, "valid_from")
+    expires = _parse_time(intent.expires_at, "expires_at")
+    if starts >= expires or clock < starts or clock >= expires:
+        raise ConfigurationError("RepairStoreBinding owner intent is expired or nonfinite")
+    if intent.owner_action != "repair-stale-store-binding" or len(intent.reason.strip()) < 12:
+        raise ConfigurationError("RepairStoreBinding requires the exact semantic owner action and reason")
+    if not _is_sha256(intent.expected_store_identity) or not _is_sha256(intent.expected_origin_witness_sha256):
+        raise ConfigurationError("RepairStoreBinding expected identities are invalid")
+    candidate = _candidate_evidence(intent)
+    _foundation, witness, witness_path = _foundation_pins(Path(candidate["repository_root"]), intent)
+    control = intent.control_root.resolve(strict=True)
+    _validate_owner_authority(control, intent)
+    payload = intent.semantic_payload()
+    payload_hash = sha256_hex(canonical_bytes(payload))
+    scope = (intent.owner_actor_id, "store-binding-recovery", "RepairStoreBinding", intent.idempotency_key)
+    authority_hash = sha256_hex(canonical_bytes({"actor_id": intent.owner_actor_id, "action": intent.owner_action}))
+    marker_parent = _require_physical_directory(control / "runtime", label="binding repair marker parent")
+    marker_path = marker_parent / _MARKER_NAME
+    recovery_path = control / "manifests" / RECOVERY_BINDING_NAME
+    binding_path = control / "manifests" / "binding-repair-control-binding.json"
+    receipt_store = ReceiptStore(control)
+    existing_receipt = receipt_store.load_scoped(
+        scope,
+        payload_hash,
+        authority_hash,
+        0,
+        project_id=intent.expected_project_id,
+        target_stream_id=intent.expected_project_id,
+    )
+    if existing_receipt is not None:
+        try:
+            recovery_path.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise IntegrityError("binding recovery manifest identity is unavailable") from exc
+        else:
+            _require_physical_regular_file(recovery_path, label="binding recovery manifest")
+            load_store_manifest(control, approved_witness=witness, approved_witness_path=witness_path)
+            recovery = load_recovery_binding(
+                control,
+                expected_project_id=intent.expected_project_id,
+                expected_store_identity=intent.expected_store_identity,
+                expected_origin_witness_sha256=intent.expected_origin_witness_sha256,
+            )
+            return {
+                "status": "repaired",
+                "recovery_binding": recovery,
+                "binding_config_path": str(binding_path),
+                "receipt": existing_receipt.__dict__,
+            }
+    lock_identity = {"writer_id": f"binding-repair:{payload_hash}", "command_type": "RepairStoreBinding"}
+    with WriterLock(control / "runtime" / "writer.lock", lock_identity):
+        marker: dict[str, Any] | None = None
+        try:
+            marker_path.lstat()
+        except FileNotFoundError:
+            marker_exists = False
+        except OSError as exc:
+            raise IntegrityError("binding repair recovery marker identity is unavailable") from exc
+        else:
+            marker_exists = True
+        if marker_exists:
+            physical_marker = _require_physical_regular_file(
+                marker_path,
+                label="binding repair recovery marker",
+            )
+            marker, _ = _read_canonical_json(physical_marker, "binding repair recovery marker")
+            if marker.get("payload_hash") != payload_hash:
+                raise ConflictError("binding repair recovery marker conflicts with owner intent")
+            original_manifest = bytes.fromhex(str(marker["original_manifest_hex"]))
+            stale = dict(marker["stale_evidence"])
+        else:
+            manifest, original_manifest, stale = _validate_stale_store(intent, witness, witness_path)
+            marker = {
+                "schema_id": "ars://internal/store-binding-repair-transaction",
+                "schema_version": "1.0.0",
+                "state": "prepared",
+                "payload_hash": payload_hash,
+                "original_manifest_hex": original_manifest.hex(),
+                "original_manifest_sha256": sha256_hex(original_manifest),
+                "stale_evidence": stale,
+            }
+            _publish(marker_path, canonical_bytes(marker))
+        old_manifest = json.loads(original_manifest)
+        repaired_manifest = dict(old_manifest)
+        repaired_manifest["code_roots"] = [candidate["repository_root"]]
+        repaired_manifest["schema_root"] = candidate["schema_root"]
+        repaired_manifest["schema_binding_version"] = "1.0.0"
+        restore_path = _require_physical_regular_file(
+            control / _RESTORE_TRANSACTION,
+            label="cleared restore transaction",
+        )
+        restore_record = json.loads(restore_path.read_bytes())
+        repaired_manifest["manifest_hash"] = _restored_manifest_hash(
+            repaired_manifest, str(restore_record["approval_sha256"])
+        )
+        recovery = {
+            "schema_id": RECOVERY_BINDING_SCHEMA_ID,
+            "schema_version": "1.0.0",
+            "project_id": intent.expected_project_id,
+            "store_identity": intent.expected_store_identity,
+            "control_root": str(control),
+            "code_roots": [candidate["repository_root"]],
+            "schema_root": candidate["schema_root"],
+            "origin_witness_sha256": intent.expected_origin_witness_sha256,
+            "git_head": candidate["git_head"],
+            "git_tree": candidate["git_tree"],
+            "git_clean": True,
+            "schema_catalogue_sha256": candidate["schema_catalogue_sha256"],
+            "route": candidate["route"],
+            "sources": candidate["sources"],
+            "stale_evidence": stale,
+            "command_payload_hash": payload_hash,
+            "owner_actor_id": intent.owner_actor_id,
+            "owner_action": intent.owner_action,
+            "idempotency_key": intent.idempotency_key,
+            "prior_restore_transaction_id": restore_record["transaction_id"],
+            "prior_restore_intended_manifest_sha256": restore_record["intended_manifest_sha256"],
+        }
+        binding_value = {
+            "code_roots": [candidate["repository_root"]],
+            "control_root": str(control),
+            "project_id": intent.expected_project_id,
+            "schema_root": candidate["schema_root"],
+            "store_identity": intent.expected_store_identity,
+        }
+        binding_bytes = canonical_bytes(binding_value)
+        recovery["binding_config_path"] = binding_path.relative_to(control).as_posix()
+        recovery["binding_config_sha256"] = sha256_hex(binding_bytes)
+        recovery_bytes = canonical_bytes(recovery)
+        recovery_sha = sha256_hex(recovery_bytes)
+        object_path = control / "objects" / "binding-repair" / f"sha256-{recovery_sha}.json"
+        ledger = EventLedger(
+            control,
+            intent.expected_project_id,
+            runtime_schema_registry(Path(candidate["schema_root"])),
+            store_identity=intent.expected_store_identity,
+        )
+        command_schema = ledger.schemas.resolve_identity(COMMAND_SCHEMA_ID, "1.0.0")
+        ledger.schemas.validate(
+            COMMAND_SCHEMA_ID,
+            {
+                "schema_id": COMMAND_SCHEMA_ID,
+                "schema_version": "1.0.0",
+                "command_type": "RepairStoreBinding",
+                "payload": payload,
+            },
+        )
+        ledger.schemas.validate(OBJECT_SCHEMA_ID, recovery)
+        try:
+            current_raw = (control / _STORE_MANIFEST).read_bytes()
+            if current_raw not in {original_manifest, canonical_bytes(repaired_manifest)}:
+                raise IntegrityError("store manifest changed during binding repair")
+            _replace(control / _STORE_MANIFEST, canonical_bytes(repaired_manifest))
+            if phase_hook:
+                phase_hook("manifest")
+            _publish(object_path, recovery_bytes)
+            if phase_hook:
+                phase_hook("object")
+            event = _event_for_command(ledger, payload_hash, intent.idempotency_key)
+            if event is None:
+                snapshot = ledger.snapshot()
+                result = ledger._append_binding_repair_from_validated_service(
+                    {
+                        "event_type": "StoreBindingRepaired",
+                        "stream_id": intent.expected_project_id,
+                        "schema_id": EVENT_SCHEMA_ID,
+                        "schema_version": "1.0.0",
+                        "command_id": f"binding-repair-{payload_hash}",
+                        "command_type": "RepairStoreBinding",
+                        "idempotency_key": intent.idempotency_key,
+                        "command_payload_hash": payload_hash,
+                        "correlation_id": intent.idempotency_key,
+                        "causation_id": None,
+                        "actor_id": intent.owner_actor_id,
+                        "authority_grant_id": "store-binding-recovery",
+                        "occurred_at": clock.isoformat().replace("+00:00", "Z"),
+                        "command_schema_id": command_schema.schema_id,
+                        "command_schema_version": command_schema.schema_version,
+                        "command_schema_sha256": command_schema.sha256,
+                        "payload": {
+                            "recovery_binding_sha256": recovery_sha,
+                            "recovery_binding_path": recovery_path.relative_to(control).as_posix(),
+                            "object_path": object_path.relative_to(control).as_posix(),
+                            "git_head": candidate["git_head"],
+                            "git_tree": candidate["git_tree"],
+                            "prior_manifest_sha256": sha256_hex(original_manifest),
+                        },
+                    },
+                    snapshot=snapshot,
+                )
+                event_batch_id = str(result["event_batch_id"])
+                observed_version = int(result["resulting_stream_versions"][intent.expected_project_id])
+                event = _event_for_command(ledger, payload_hash, intent.idempotency_key)
+            else:
+                event_batch_id = str(event["transaction_id"])
+                observed_version = int(event["stream_version"])
+            if phase_hook:
+                phase_hook("event")
+            receipt = Receipt(
+                "accepted",
+                f"binding-repair-{payload_hash}",
+                payload_hash,
+                event_batch_id,
+                observed_version,
+                None,
+                None,
+                (),
+            )
+            receipt_store.write_scoped(
+                scope,
+                authority_hash,
+                0,
+                receipt,
+                project_id=intent.expected_project_id,
+                target_stream_id=intent.expected_project_id,
+            )
+            receipt_record = json.loads((control / "receipts" / f"{receipt.command_id}.json").read_bytes())
+            ledger.schemas.validate(RECEIPT_SCHEMA_ID, receipt_record)
+            if phase_hook:
+                phase_hook("receipt")
+            _publish(binding_path, binding_bytes)
+            _publish(recovery_path, recovery_bytes)
+            physical_marker = _require_physical_regular_file(
+                marker_path,
+                label="binding repair recovery marker",
+            )
+            current_marker, _ = _read_canonical_json(physical_marker, "binding repair recovery marker")
+            if current_marker != marker:
+                raise IntegrityError("binding repair recovery marker changed before cleanup")
+            marker_path.unlink(missing_ok=True)
+            fsync_directory(marker_parent)
+            return {
+                "status": "repaired",
+                "recovery_binding": recovery,
+                "binding_config_path": str(binding_path),
+                "receipt": receipt.__dict__,
+            }
+        except BaseException:
+            # Before the event is durable every newly published artifact is safely reversible.
+            if _event_for_command(ledger, payload_hash, intent.idempotency_key) is None:
+                if object_path.exists() and object_path.read_bytes() == recovery_bytes:
+                    object_path.unlink()
+                _replace(control / _STORE_MANIFEST, original_manifest)
+            raise
+
+
+def load_recovery_binding(
+    control_root: Path, *, expected_project_id: str, expected_store_identity: str, expected_origin_witness_sha256: str
+) -> dict[str, Any]:
+    """Load the exact store-owned binding selected by store-recovery foundation policy."""
+    if not control_root.is_absolute():
+        raise IntegrityError("binding recovery control root must be the exact absolute physical path")
+    control = _require_physical_directory(control_root, label="binding recovery control root")
+    recovery_path = _require_physical_regular_file(
+        control / "manifests" / RECOVERY_BINDING_NAME,
+        label="binding recovery manifest",
+    )
+    value, _raw = _read_canonical_json(recovery_path, "binding recovery manifest")
+    if (
+        value.get("schema_id") != RECOVERY_BINDING_SCHEMA_ID
+        or value.get("schema_version") != "1.0.0"
+        or value.get("project_id") != expected_project_id
+        or value.get("store_identity") != expected_store_identity
+        or value.get("control_root") != str(control)
+        or value.get("origin_witness_sha256") != expected_origin_witness_sha256
+        or value.get("git_clean") is not True
+    ):
+        raise IntegrityError("binding recovery manifest identity is invalid")
+    code_roots = value.get("code_roots")
+    if not isinstance(code_roots, list) or len(code_roots) != 1 or not isinstance(code_roots[0], str):
+        raise IntegrityError("binding recovery candidate root is invalid")
+    root_path = Path(code_roots[0])
+    schema_path = Path(str(value.get("schema_root")))
+    if not root_path.is_absolute() or not schema_path.is_absolute():
+        raise IntegrityError("binding recovery candidate paths must be absolute")
+    root = _require_physical_directory(root_path, label="binding recovery candidate root")
+    schema = _require_physical_directory(schema_path, label="binding recovery schema root")
+    if root != root_path or schema != schema_path:
+        raise IntegrityError("binding recovery candidate paths are redirected")
+    if schema != root / ".research-system" / "schemas":
+        raise IntegrityError("binding recovery schema root is not candidate-owned")
+    if _run_git(root, "rev-parse", "HEAD") != value.get("git_head") or _run_git(
+        root, "rev-parse", "HEAD^{tree}"
+    ) != value.get("git_tree"):
+        raise IntegrityError("binding recovery Git subject changed")
+    if _run_git(root, "status", "--porcelain=v1", "--untracked-files=all"):
+        raise IntegrityError("binding recovery repository is dirty")
+    return value

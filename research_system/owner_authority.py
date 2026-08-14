@@ -788,7 +788,10 @@ def load_owner_authority_setup(
     if set(config) != _CONFIG_FIELDS:
         raise ConfigurationError("authority setup config fields must be exact")
     repository_root = _physical_directory(Path(config["repository_root"]), label="repository_root")
-    binding = ControlBinding.load(Path(config["authority_binding"]))
+    try:
+        binding = ControlBinding.load(Path(config["authority_binding"]))
+    except ConfigurationError:
+        binding = ControlBinding.load_repaired(Path(config["authority_binding"]))
     if repository_root not in {Path(path).resolve(strict=True) for path in binding.code_roots}:
         raise ConfigurationError("repository_root is not bound by authority configuration")
     authority_root = _physical_directory(Path(binding.control_root), label="authority store")

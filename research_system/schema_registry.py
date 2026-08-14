@@ -1235,6 +1235,17 @@ _RUNTIME_BINDINGS = (
         event_type="OwnerOperatedContextDelivered",
         producer_command_type="RecordOwnerOperatedContextDelivery",
     ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding",
+        "1.0.0",
+        command_type="RepairStoreBinding",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired",
+        "1.0.0",
+        event_type="StoreBindingRepaired",
+        producer_command_type="RepairStoreBinding",
+    ),
     SchemaBinding("ars://core/command/FailContextPacket", "1.0.0", command_type="FailContextPacket"),
     SchemaBinding(
         "ars://core/event/ContextPacketFailed",

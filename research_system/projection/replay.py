@@ -1100,6 +1100,37 @@ def apply_event(
         }
         releases[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "StoreBindingRepaired":
+        payload = event.get("payload")
+        if (
+            event.get("command_type") != "RepairStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
+            or not isinstance(payload, dict)
+            or set(payload)
+            != {
+                "recovery_binding_sha256",
+                "recovery_binding_path",
+                "object_path",
+                "git_head",
+                "git_tree",
+                "prior_manifest_sha256",
+            }
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+        ):
+            raise IntegrityError("binding repair event relation is invalid")
+        repairs = updated.setdefault("binding_repairs", {})
+        key = str(event.get("command_payload_hash"))
+        existing = repairs.get(key)
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        if existing is not None and existing != projection:
+            raise IntegrityError("binding repair projection conflicts")
+        repairs[key] = projection
     else:
         raise IntegrityError(f"unsupported event type: {event_type}")
     return updated

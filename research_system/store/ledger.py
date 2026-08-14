@@ -192,6 +192,8 @@ def _release_draft_protocol():
 ) = _release_draft_protocol()
 del _release_draft_protocol
 
+_BINDING_REPAIR_DRAFTS: set[int] = set()
+
 
 class EventLedger:
     def __init__(
@@ -262,6 +264,27 @@ class EventLedger:
             return self.append([draft], snapshot=snapshot)
         finally:
             _discard_release_session(session)
+
+    def _append_binding_repair_from_validated_service(
+        self,
+        envelope: Mapping[str, Any],
+        *,
+        snapshot: LedgerSnapshot,
+    ) -> dict[str, Any]:
+        """Append the sealed bootstrap repair event through its one-shot continuation."""
+        candidate = dict(envelope)
+        payload = candidate.pop("payload", None)
+        if not isinstance(payload, Mapping):
+            raise ArsError("binding repair continuation requires an event payload")
+        draft = object.__new__(EventDraft)
+        object.__setattr__(draft, "envelope", candidate)
+        object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
+        object.__setattr__(draft, "admission", "binding_repair")
+        _BINDING_REPAIR_DRAFTS.add(id(draft))
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _BINDING_REPAIR_DRAFTS.discard(id(draft))
 
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
@@ -387,7 +410,12 @@ class EventLedger:
         for offset, proposed_event in enumerate(proposed):
             draft = proposed_event if isinstance(proposed_event, EventDraft) else None
             if draft is not None:
-                _consume_release_draft(self, draft)
+                if draft.admission == "binding_repair":
+                    if id(draft) not in _BINDING_REPAIR_DRAFTS:
+                        raise ArsError("binding repair draft is foreign, forged, or consumed")
+                    _BINDING_REPAIR_DRAFTS.remove(id(draft))
+                else:
+                    _consume_release_draft(self, draft)
             candidate = dict(draft.envelope if draft is not None else proposed_event)
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:
@@ -418,15 +446,19 @@ class EventLedger:
                 ("AuthorityGrantActivated", "ActivateExternalAssuranceRecordGrant"),
                 ("AuthorityGrantRevoked", "RevokeExternalAssuranceRecordGrant"),
             }
+            binding_repair_event = (event_type, producer) == ("StoreBindingRepaired", "RepairStoreBinding")
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(
                     "scoped authority administration requires the validated "
                     "CommandService scoped-authority continuation"
                 )
+            if binding_repair_event and (draft is None or draft.admission != "binding_repair"):
+                raise ArsError("binding repair requires the validated repair-service continuation")
             if draft is not None and (
                 (draft.admission == "release" and event_type != "ReleaseGateDecisionPublished")
                 or (draft.admission == "scoped_authority" and not scoped_authority_event)
-                or draft.admission not in {"release", "scoped_authority"}
+                or (draft.admission == "binding_repair" and not binding_repair_event)
+                or draft.admission not in {"release", "scoped_authority", "binding_repair"}
             ):
                 raise ArsError("event draft admission does not match its event family")
             stream_version = stream_versions.get(stream_id, 0) + 1

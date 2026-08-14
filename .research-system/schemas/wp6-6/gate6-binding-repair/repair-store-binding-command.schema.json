@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "command_type", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding"},
+    "schema_version": {"const": "1.0.0"},
+    "command_type": {"const": "RepairStoreBinding"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_root", "candidate_repository_root", "expected_project_id", "expected_store_identity", "expected_origin_authority_root", "expected_origin_witness_sha256", "intended_schema_root", "stale_evidence_refs", "spec_route_ref", "spec_source_refs", "valid_from", "expires_at", "owner_actor_id", "owner_action", "idempotency_key", "reason"],
+      "properties": {
+        "control_root": {"type": "string", "minLength": 3},
+        "candidate_repository_root": {"type": "string", "minLength": 3},
+        "expected_project_id": {"type": "string", "pattern": "^prj_"},
+        "expected_store_identity": {"$ref": "#/$defs/sha256"},
+        "expected_origin_authority_root": {"type": "string", "minLength": 3},
+        "expected_origin_witness_sha256": {"$ref": "#/$defs/sha256"},
+        "intended_schema_root": {"type": "string", "minLength": 3},
+        "stale_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "spec_route_ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"},
+        "spec_source_refs": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "valid_from": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "owner_actor_id": {"type": "string", "pattern": "^act_"},
+        "owner_action": {"const": "repair-stale-store-binding"},
+        "idempotency_key": {"type": "string", "minLength": 8},
+        "reason": {"type": "string", "minLength": 12}
+      }
+    }
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

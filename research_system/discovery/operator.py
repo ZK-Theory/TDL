@@ -341,8 +341,14 @@ def load_discovery_operator(config_path: Path) -> DiscoveryOperator:
 
     config = DiscoveryOperatorConfig.load(config_path)
     try:
-        binding = ControlBinding.load(config.control_binding_path)
-        authority_binding = ControlBinding.load(config.authority_binding_path)
+        try:
+            binding = ControlBinding.load(config.control_binding_path)
+        except ConfigurationError:
+            binding = ControlBinding.load_repaired(config.control_binding_path)
+        try:
+            authority_binding = ControlBinding.load(config.authority_binding_path)
+        except ConfigurationError:
+            authority_binding = ControlBinding.load_repaired(config.authority_binding_path)
         bound_code_roots = {Path(root).resolve(strict=True) for root in binding.code_roots}
         if config.repository_root not in bound_code_roots:
             raise ConfigurationError("repository_root is not bound by control_binding")

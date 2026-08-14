@@ -33,7 +33,7 @@ from research_system.assurance.runner import (
 )
 from research_system.artefacts.runtime import GoverningScientificReviewStore, build_artefact_consumers
 from research_system.canonical import canonical_bytes, jsonable, sha256_hex
-from research_system.command.service import CommandService
+from research_system.command.service import CommandService, submit_store_binding_repair
 from research_system.config import (
     ApprovedProjectBinding,
     ControlBinding,
@@ -106,6 +106,7 @@ from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from research_system.store.schema_binding import publish_store_schema_binding_activation
+from research_system.store.binding_repair import read_repair_intent
 
 
 def _print_json(value: Any) -> None:
@@ -227,6 +228,12 @@ def _store_init(args: argparse.Namespace) -> int:
             "origin_witness_path": str(identity.witness_path),
         }
     )
+    return 0
+
+
+def _store_repair_binding(args: argparse.Namespace) -> int:
+    """Run the standalone owner-governed stale-binding recovery command."""
+    _print_json(submit_store_binding_repair(read_repair_intent(args.intent)))
     return 0
 
 
@@ -761,7 +768,10 @@ def _brief_runtime(
     CommandService,
 ]:
     """Construct the real 06i/06j/command dependencies for a brief operation."""
-    binding = ControlBinding.load(args.config)
+    try:
+        binding = ControlBinding.load(args.config)
+    except ConfigurationError:
+        binding = ControlBinding.load_repaired(args.config)
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     objects = ObjectStore(binding.control_root)
@@ -1856,6 +1866,10 @@ def _parser() -> argparse.ArgumentParser:
     activate_schema.add_argument("--control-root", type=Path, required=True)
     activate_schema.add_argument("--activation", type=Path, required=True)
     activate_schema.set_defaults(handler=_store_activate_schema_binding)
+
+    repair_binding = store_commands.add_parser("repair-binding")
+    repair_binding.add_argument("--intent", type=Path, required=True)
+    repair_binding.set_defaults(handler=_store_repair_binding)
 
     command = groups.add_parser("command")
     command_actions = command.add_subparsers(dest="command_action", required=True)
