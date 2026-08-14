@@ -12,6 +12,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes
 import research_system.discovery.dossier as dossier_module
+import research_system.gate6_eligibility as gate6_module
 from research_system.errors import IntegrityError
 from research_system.gate6_eligibility import certify_scale01_eligibility, create_scale01_root_grant
 from research_system.cli import main
@@ -212,6 +213,38 @@ def test_tampered_real_dossier_member_fails_before_eligibility_publication(
 
     assert not output_path.exists()
     assert not output_path.parent.exists()
+
+
+@pytest.mark.integration
+def test_uncommitted_gate6_contract_cannot_be_used_for_a_root_grant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public seam binds its candidate contract to the current Git subject."""
+
+    roots = _real_roots_or_skip()
+    original_run = gate6_module.subprocess.run
+
+    def substitute_contract_git_bytes(*args, **kwargs):
+        result = original_run(*args, **kwargs)
+        if args[0][-1] == "HEAD:.research-system/contracts/gate6/scale01-eligibility-envelope-contract.json":
+            return subprocess.CompletedProcess(args[0], 0, stdout=b'{"substituted":true}', stderr=b"")
+        return result
+
+    monkeypatch.setattr(gate6_module.subprocess, "run", substitute_contract_git_bytes)
+    grant_path = tmp_path / "uncommitted-contract" / "scale01-root-grant.json"
+
+    with pytest.raises(IntegrityError, match="differs from its current Git bytes"):
+        create_scale01_root_grant(
+            repository_root=REPO,
+            roots=roots,
+            output_path=grant_path,
+            expires_at=EXPIRY,
+            now=NOW,
+        )
+
+    assert not grant_path.exists()
+    assert not grant_path.parent.exists()
 
 
 @pytest.mark.integration

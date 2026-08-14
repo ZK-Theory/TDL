@@ -1,9 +1,9 @@
-# Proposed P-049 - Gate 6 control model
+# P-049 - Gate 6 control model
 
-**Status:** Proposed - Path A has been selected, but this decision still
-requires reviewed PR integration before a GitHub ruleset or branch-protection
-policy is applied.
-**Repository subject:** `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d`
+**Status:** Adopted and live for merge admission. The remaining Gate 6
+eligibility-envelope capability is active under KAN-12 / KAN-103 and is not
+closed by P-049.
+**Repository subject:** `main` `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`
 (PR #248).
 **Live-state observation:** GitHub and Jira settings/statuses were read on
 2026-08-13. They are external observations, not bytes content-addressed by the
@@ -11,8 +11,10 @@ repository subject above.
 **Owner hosting action (2026-08-13):** Stephen transferred `stephendor/TDL`
 to public organisation `ZK-Theory`; the live repository is now
 `ZK-Theory/TDL`. This selects Path A below. GitHub Actions is enabled, both
-currency workflows are active, and no ruleset is currently installed. These
-are live observations, not bytes content-addressed by the repository subject.
+currency workflows are active, and active ruleset `20822054` (`P-049 Gate 6
+main merge admission`) requires a pull request, the merge queue, the required
+currency checks, and non-fast-forward protection. These are live observations,
+not bytes content-addressed by the repository subject.
 **Scope:** first-release merge control, capability integration control, and
 final Gate 6 closure control.
 **Does not authorize:** provider invocation, credential handling, pilot or
@@ -176,8 +178,10 @@ all of the following together:
    non-pass fails G6 closed. It is run once at final candidate head. A broad
    repository suite is not a substitute for this selection.
 6. One fresh independent exact-subject review covers the assembled candidate,
-   including the new eligibility envelope. Stephen then makes one final Gate 6 owner
-   decision over that exact subject.
+   including the new eligibility envelope. Stephen delegated the final Gate 6
+   readiness decision to Codex on 2026-08-14, bounded to that same exact clean
+   compatible subject. This delegation does not authorize a PR merge: Stephen's
+   current explicit authorization remains required for the exact PR.
 
 The final decision may accept the new eligibility envelope and assembled evidence together;
 it must not manufacture a separate review/acceptance loop merely because the
@@ -216,25 +220,25 @@ baseline exists.
 ## Current Gate 6 register
 
 The statuses and GitHub configuration in this table are live observations as at
-2026-08-13, not claims that Jira/GitHub state is content-addressed by
-`9fb53f53`.
+2026-08-14, not claims that Jira/GitHub state is content-addressed by
+`d64c58fa`.
 
 | Canonical object / immutable evidence | Live observed state (2026-08-13) | Consequence |
 | --- | --- | --- |
 | KAN-65 / WP6.1; PR #243 evidence | `INTEGRATED` | prerequisite evidence, not an open work lane |
 | KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
 | KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
-| KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; the residual `Blocks` edge `10194` to KAN-12 is explicitly labelled `link-reconciliation-required` and non-authoritative in KAN-61 | no open WP6.7 delivery remains; remove the stale structured edge before final KAN-12 transition rather than treating it as a revived functional blocker |
-| KAN-12 / Gate 6 | `INCOMPLETE — NOT RUNNABLE` | the final capability has no current eligibility-envelope entry point, assembled proof, fresh independent review, or owner closure decision; construction may begin, but Gate 6 itself is not runnable |
-| GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
+| KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; stale `Blocks` relation `10194` was removed on 2026-08-14 and KAN-61 now only relates to KAN-12 | records clean-up is complete; it is not revived WP6.7 work or a Gate 6 blocker |
+| KAN-12 / Gate 6 | `INCOMPLETE — RUNNABLE`; KAN-103 is the one active delivery campaign | a real public `ars gate6` eligibility path and final real-dossier selection now exist on the candidate branch; final exact-subject proof, review, integration, and decision remain |
+| GitHub `main` configuration | active ruleset `20822054`, `P-049 Gate 6 main merge admission` | PR, merge queue, required currency checks, and non-fast-forward control are live; this is merge admission, not Gate 6 closure |
 
 The real remaining functional gap is therefore singular:
 
-> **Construct and prove a new immutable eligibility envelope that binds the
-> integrated WP6.6 admission and read-only root grants, then prove the assembled
-> public seam through one final review and owner decision. The envelope may make
-> a pilot eligible; the pilot is not executed. Until that envelope has a real
-> public seam, Gate 6 is NOT RUNNABLE.**
+> **Issue a time-bounded immutable capability-read-only root grant for the
+> accepted real dossier, run the final assembled real-dossier selection at the
+> final candidate head, obtain one independent exact-subject review, integrate
+> the reviewed result, then record Codex's delegated Gate 6 readiness decision.
+> The envelope may make a pilot eligible; the pilot is not executed.**
 
 This is one capability campaign under KAN-12. Its eligibility-envelope construction,
 direct testing, review, and owner decision are implementation/evidence within
@@ -242,27 +246,32 @@ that campaign, not independently completable successor lanes.
 
 ## Jira operation
 
-KAN-12 is the only canonical open Gate 6 capability. Its description must be
-updated now to remove the false statement that WP6.6 is still under
-construction and to name the singular functional gap above.
+KAN-12 is the only canonical open Gate 6 capability. KAN-61's stale structured
+edge was removed and read back at both endpoints on 2026-08-14. KAN-103,
+**[CAPABILITY DELIVERY] Complete final Gate 6 eligibility envelope and
+assembled readiness proof**, is the one active child job and owns the whole
+remaining positive path. Do not create separate Jira tickets for mechanics,
+test harnesses, review administration, or handoffs.
 
-KAN-61 is already a completed milestone, not a missing Gate 6 capability. Its
-residual `Blocks` relation to KAN-12 is an acknowledged stale Jira projection;
-before KAN-12 is transitioned, remove that edge in the Jira UI and read both
-endpoints back. This is a small Jira-coherence action, not a reopened WP6.7
-delivery lane.
+The candidate public seam is:
 
-After this proposal is adopted, create one visible child job under KAN-12:
+```powershell
+ars gate6 root-grant --repository-root <candidate-root> `
+  --repository-contract-root <TDL>/.research-system/contracts/wp6-4 `
+  --vault-root <TDL>/vault --expires-at <owner-selected-UTC-time> `
+  --output <outside-governed-roots>/scale01-root-grant.json
 
-> **[CAPABILITY DELIVERY] Complete final Gate 6 eligibility envelope and assembled
-> readiness proof**
+$env:TDL_GATE6_ROOT_GRANT = '<outside-governed-roots>/scale01-root-grant.json'
+$env:TDL_GATE6_ENVELOPE_OUTPUT = '<outside-governed-roots>/scale01-eligibility-envelope.json'
+tools/certify_gate6_real_dossier.ps1
+```
 
-That job owns the whole remaining positive path. Do not create separate Jira
-tickets for eligibility-envelope mechanics, test harnesses, review administration, or
-handoffs. Review and final owner acceptance are closure evidence on the same
-campaign. The job stays `In Progress` only while its production path is
-actively being executed; otherwise it is `To Do` or `Owner-blocked` with the
-exact next action.
+The root grant carries only the `capability_read_only` operation over the exact
+WP6.6-registered roots and expires at the named operator-selected UTC instant.
+The final script first invokes `tools/certify_wp6_6_real_dossier.ps1` with
+`TDL_REQUIRE_REAL_DOSSIER=1`, then runs the immutable provider-free envelope
+command. It creates no provider session, pilot, research execution, or result
+claim.
 
 The final KAN-12 description must retain this strict order:
 
@@ -272,19 +281,14 @@ The final KAN-12 description must retain this strict order:
 4. next production action;
 5. owner-only action, if one exists.
 
-## Remote enforcement feasibility and choice
+## Remote enforcement: live control and operating boundary
 
-This section is deliberately not yet applied. GitHub currently reports both
-`main` branch protection and repository rulesets absent. It also reports that
-this repository is public and owned by a user account rather than an
-organisation.
-
-GitHub's current merge-queue documentation limits the feature to public
-organisation repositories and private organisation repositories on Enterprise
-Cloud. It is therefore unavailable to this repository as it stands. The
-original proposal's `merge_group` trigger, queue rule, and queue probe are not
-deployable controls here; a dormant trigger would only create a false sense of
-coverage.
+Path A is now applied. `ZK-Theory/TDL` is a public organisation-owned
+repository and active GitHub ruleset `20822054`, **P-049 Gate 6 main merge
+admission**, requires a pull request, merge queue, required currency checks,
+and non-fast-forward protection on `main`. PR #256 supplied the harmless
+queue-probe integration and merged as `d64c58fa` on 2026-08-13. This is live
+merge-admission control, not evidence that the Gate 6 capability is complete.
 
 This is a **solo-owner repository**. GitHub does not let a pull-request author
 approve their own pull request, so a required peer approval or required
@@ -294,15 +298,18 @@ deadlock.
 
 The honest current division of control is:
 
-- GitHub can mechanically require a PR, current passing checks, resolved review
-  conversations, and no direct or force-push route into `main` once a suitable
-  ruleset is applied.
+- GitHub mechanically requires the ordinary P-049 PR/queue/checks path and
+  prohibits non-fast-forward mutation of `main`.
 - For review-required changes, Stephen selects an external review service or
   reviewer, waits for its conclusion, and personally decides whether to merge.
   An automated review is evidence for that decision, not an imaginary peer
   approval.
 - Agents may prepare and remediate PRs, but cannot merge them without Stephen's
   current explicit authorization for that exact PR.
+
+> **Historical feasibility snapshot — superseded on 2026-08-13.** The following
+> pre-transfer analysis records why Path A was selected; it does not describe
+> the live P-049 ruleset or current Gate 6 control.
 
 The independently useful first step is still valid on this repository: both
 currency controls run on every PR to `main`; the watchdog queries the active
@@ -317,7 +324,7 @@ repository has no native merge-queue event to invalidate that snapshot at merge
 time. A scheduled watchdog can detect the condition later, but cannot honestly
 be represented as atomic merge admission.
 
-### Hosting path selected
+### Historical hosting-path selection
 
 **Path A — selected and completed at the hosting boundary.** Stephen
 transferred the repository to public organisation `ZK-Theory` on 2026-08-13.
@@ -347,39 +354,26 @@ to the repository; a rate limit must never be misrepresented as review success.
 For a review-required PR, Stephen's recorded review conclusion and personal
 merge decision are the additional evidence. No bypass actor is proposed.
 
-## Adoption sequence
+## Adoption outcome and remaining sequence
 
-1. Path A is selected by the completed transfer. Keep the solo-owner review
-   threshold: external review is required by default for capability, Gate,
-   recovery, durable-mutation, and decision/control PRs; routine low-risk work
-   remains a Stephen-controlled exception.
-2. Obtain current external-review conclusions and normal reviewed integration
-   for P-049 / PR #251 and the `merge_group` workflow change / PR #252. PR #252
-   has already proved both current PR controls at its exact head; its normal
-   merge is the necessary bootstrap because `main` cannot trigger a merge group
-   before it contains those workflow declarations.
-3. After PR #252 is integrated, Stephen explicitly authorizes one harmless
-   queue-probe PR. Install the minimal temporary queue rule needed to create the
-   candidate, add that no-op PR to the queue, and verify both controls on its
-   fresh merge-group subject. Do not use a real capability PR as this probe and
-   do not infer authorization to merge the probe from this document.
-4. After the queue probe passes, install the final `main` ruleset and perform
-   the complete harmless enforcement probe stated above. Read back every rule
-   setting; do not call the remote control active from an attempted write.
-5. Add the concise solo-owner merge-authority rule to `AGENTS.md`, add accepted
-   P-049 to the decision register, point the historical WP6 Gate
-   6 plan at this live model, and correct the stale disabled-CI comment.
-6. Reconcile the KAN-61 edge, read both Jira endpoints back, and create the
-   single final-capability child job described above.
-7. Launch that capability campaign. Do not launch a separate plan/review
-   campaign first.
+1. Path A, the merge-queue workflows, the harmless probe (PR #256), ruleset
+   `20822054`, the solo-owner merge rule, KAN-61 reconciliation, and KAN-103
+   creation are complete.
+2. KAN-103 now constructs and directly proves the one eligibility-envelope
+   capability. Its root-grant, public CLI, direct negatives, and composed
+   real-dossier script are implementation within that one campaign.
+3. At the final candidate head, issue the operator-selected expiring grant,
+   run the named final script and one selected assembled test command, obtain
+   the fresh independent exact-subject review, then use ordinary P-049 PR
+   admission. Codex records the delegated Gate 6 decision only after the
+   reviewed exact result is integrated on `main`.
 
 ## Evidence consulted
 
 - P-042, P-047, and P-048 in
   `docs/plans/agentic-research-system/03-decisions-and-open-questions.md`.
 - `06g-wp6-owner-operated-session-amendment.md`.
-- KAN-12, KAN-57, KAN-59, KAN-61, and KAN-65 read back on 2026-08-13.
+- KAN-12, KAN-57, KAN-59, KAN-61, KAN-65, and KAN-103 read back on 2026-08-14.
 - PR #248 merge `9fb53f53cf9984a1ac4809962cd033d9ac1b597d` and its two passing
    current-main controls.
 - `.github/workflows/ars-artefact-currency.yml` and
@@ -389,9 +383,9 @@ merge decision are the additional evidence. No bypass actor is proposed.
 - GitHub's documented merge-queue behaviour and availability: `merge_group`
   checks run on a fresh queue candidate, and the queue is available to public
   organisation-owned repositories; `ZK-Theory/TDL` now meets that boundary.
-- Live hosting read-back on 2026-08-13: `ZK-Theory/TDL` is public,
-  organisation-owned, Actions-enabled, and has no existing ruleset; both
-  currency workflows are active. PR #252 head `1d3603f` produced successful
-  `pull_request` runs for both controls.
+- Live hosting/ruleset read-back on 2026-08-14: `ZK-Theory/TDL` is public,
+  organisation-owned, Actions-enabled, with active ruleset `20822054`; both
+  currency workflows are active. PR #256 merged `d64c58fa` after the harmless
+  queue probe.
 - `.research-system/contracts/wp6-4/tda-scale-v1.0.3/scale01-gate6-preflight.json`;
   it correctly remains historical and `pending_wp6_6`.

@@ -76,8 +76,13 @@ def _canonical_json(
         value = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise Gate6EligibilityError(f"invalid {label}: {path}") from exc
-    canonical = canonical_bytes(value)
-    if not isinstance(value, dict) or (require_canonical and raw not in {canonical, canonical + b"\n"}):
+    if not isinstance(value, dict):
+        raise Gate6EligibilityError(f"{label} is not a JSON object: {path}")
+    try:
+        canonical = canonical_bytes(value)
+    except (TypeError, ValueError) as exc:
+        raise Gate6EligibilityError(f"{label} is not canonical JSON: {path}") from exc
+    if require_canonical and raw not in {canonical, canonical + b"\n"}:
         raise Gate6EligibilityError(f"{label} is not canonical JSON: {path}")
     return value, raw
 
@@ -92,6 +97,13 @@ def _tracked_canonical_json(
     value, raw = _canonical_json(path, label, require_canonical=False)
     if sha256_hex(raw) != expected_raw_sha256:
         raise Gate6EligibilityError(f"{label} raw SHA-256 differs from the eligibility contract")
+    _require_current_git_bytes(repository_root, relative_path, raw, label)
+    return value, raw
+
+
+def _require_current_git_bytes(repository_root: Path, relative_path: Path, raw: bytes, label: str) -> None:
+    """Bind an accepted input to the exact bytes at the current Git subject."""
+
     try:
         committed = subprocess.run(  # nosec B603 B607 - fixed repository and path
             ["git", "-C", str(repository_root), "show", f"HEAD:{relative_path.as_posix()}"],
@@ -103,7 +115,6 @@ def _tracked_canonical_json(
         raise Gate6EligibilityError(f"{label} lacks current Git identity") from exc
     if committed != raw:
         raise Gate6EligibilityError(f"{label} differs from its current Git bytes")
-    return value, raw
 
 
 def _require_keys(value: Mapping[str, Any], expected: set[str], label: str) -> None:
@@ -123,6 +134,7 @@ def _load_contract(repository_root: Path) -> tuple[dict[str, Any], bytes]:
         "Gate 6 eligibility contract",
         require_canonical=False,
     )
+    _require_current_git_bytes(repository_root, _CONTRACT_PATH, raw, "Gate 6 eligibility contract")
     _require_keys(
         contract,
         {"schema_id", "schema_version", "authority", "admission", "root_grant", "schemas", "verdict"},
@@ -147,9 +159,11 @@ def _schema_from_contract(
     schema_path = declared.get("repository_path")
     if not isinstance(schema_path, str) or Path(schema_path).is_absolute() or ".." in Path(schema_path).parts:
         raise Gate6EligibilityError(f"invalid {name} schema path")
-    schema, raw = _canonical_json(repository_root / schema_path, f"{name} schema", require_canonical=False)
+    relative_path = Path(schema_path)
+    schema, raw = _canonical_json(repository_root / relative_path, f"{name} schema", require_canonical=False)
     if sha256_hex(raw) != declared.get("raw_sha256"):
         raise Gate6EligibilityError(f"{name} schema differs from the eligibility contract")
+    _require_current_git_bytes(repository_root, relative_path, raw, f"{name} schema")
     if schema.get("$id") != declared.get("schema_id"):
         raise Gate6EligibilityError(f"{name} schema identity mismatch")
     try:
