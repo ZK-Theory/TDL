@@ -31,11 +31,19 @@ def test_spec_replay_source_is_system_derived_and_tail_bound(monkeypatch):
         },
         "candidates": {"can_1": {"status": "assay_requested"}},
     }
-    monkeypatch.setattr("research_system.context.spec_bridge.replay_discovery", lambda events, schemas: projection)
+    validators = []
+
+    def replay(events, schemas, *, authority_state_validator=None):
+        validators.append(authority_state_validator)
+        return projection
+
+    monkeypatch.setattr("research_system.context.spec_bridge.replay_discovery", replay)
+    validator = object()
     first = build_spec_context_snapshot(
         ({"global_position": 7, "event_hash": "a" * 64},),
         schemas=object(),
         route_id="SPEC-GATE6-RUN-V1",
+        authority_state_validator=validator,
     )
     same = build_spec_context_snapshot(
         ({"global_position": 7, "event_hash": "a" * 64},),
@@ -49,6 +57,7 @@ def test_spec_replay_source_is_system_derived_and_tail_bound(monkeypatch):
     )
     assert first == same
     assert first.source.source_id != changed.source.source_id
+    assert validators == [validator, None, None]
 
 
 def _fragment(source_id, content):

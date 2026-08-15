@@ -79,11 +79,16 @@ def build_spec_context_snapshot(
     *,
     schemas: Any,
     route_id: str,
+    authority_state_validator: Any = None,
 ) -> SpecContextSnapshot:
     """Freeze accepted Discovery identities without caller-authored hashes."""
     if not events:
         raise ArsError("SPEC context requires a durable Discovery replay")
-    projection = replay_discovery(events, schemas=schemas)
+    projection = replay_discovery(
+        events,
+        schemas=schemas,
+        authority_state_validator=authority_state_validator,
+    )
     accepted_inputs: list[dict[str, Any]] = []
     durable_approvals: list[dict[str, Any]] = []
     for artefact_id, state in sorted(projection.get("artefact_streams", {}).items()):
@@ -235,7 +240,12 @@ def deliver_spec_owner_context(
             ) in accepted_ids:
                 raise ArsError("Discovery replay or accepted source changed after SPEC context delivery")
     else:
-        snapshot = build_spec_context_snapshot(events, schemas=operator.schemas, route_id="SPEC-GATE6-RUN-V1")
+        snapshot = build_spec_context_snapshot(
+            events,
+            schemas=operator.schemas,
+            route_id="SPEC-GATE6-RUN-V1",
+            authority_state_validator=operator.authority_resolver.validate_replayed_administration_state,
+        )
         compiled = None
     source_resolver = DiscoveryReplaySourceResolver(snapshot)
     if compiled is None:
