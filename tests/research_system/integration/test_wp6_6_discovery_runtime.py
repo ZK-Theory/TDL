@@ -978,6 +978,43 @@ def test_shared_replay_requires_owner_administration_validator_when_history_cont
     assert projection["catalogue"] is None
 
 
+def test_shared_replay_forwards_owner_validator_into_first_discovery_event(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    first_receipt = runtime.submit(_genesis())
+    retry_receipt = runtime.submit(_genesis())
+    assert retry_receipt == first_receipt
+
+    # The authority and Discovery lanes share one replay contract at the
+    # strict runtime boundary.  Re-indexing the two persisted lanes preserves
+    # their semantic records while giving the direct regression one valid
+    # global chain to replay.
+    events = _fully_reindex_and_rehash_events(
+        (
+            *_HARNESSES[tmp_path].authority_ledger.iter_events(),
+            *runtime.ledger.iter_events(),
+        )
+    )
+    validator = runtime.authority_resolver.validate_replayed_administration_state
+
+    with pytest.raises(IntegrityError, match="authority administration decision validator unavailable"):
+        replay_projection(events, schema_registry=runtime.schemas)
+
+    projected = replay_projection(
+        events,
+        schema_registry=runtime.schemas,
+        authority_state_validator=validator,
+    )
+    assert (
+        replay_projection(
+            events,
+            schema_registry=runtime.schemas,
+            authority_state_validator=validator,
+        )
+        == projected
+    )
+    assert projected["last_position"] == len(events)
+
+
 @pytest.mark.parametrize(
     ("verdict", "kill_status", "option", "expected"),
     [

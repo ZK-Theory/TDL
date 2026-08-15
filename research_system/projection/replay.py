@@ -1439,7 +1439,11 @@ def _replay(
         # public shared-ledger replay reject Discovery semantic tampering.
         from research_system.discovery.runtime import replay_discovery
 
-        replay_discovery(ordered_events, schemas=schema_registry)
+        replay_discovery(
+            ordered_events,
+            schemas=schema_registry,
+            authority_state_validator=authority_state_validator,
+        )
     return state
 
 
