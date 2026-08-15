@@ -170,6 +170,7 @@ _SCOPED_ACTOR_CLASSES = frozenset({"human", "agent", "service"})
 SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
     {
         "RecordScientificReview",
+        "RegisterArtefact",
         "StartReview",
         "RecordReviewVerdict",
         "ProposeDecision",
@@ -202,6 +203,13 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "RecordW11AuthorityReview",
         "ProposeW11AuthorityDecision",
         "AdmitResearchDossier",
+        "RequestContextPacket",
+        "BeginContextCompilation",
+        "CompleteContextCompilation",
+        "PrepareOwnerOperatedContextHandoff",
+        "ValidateOwnerOperatedContextHandoff",
+        "IssueOwnerOperatedContextHandoff",
+        "RecordOwnerOperatedContextDelivery",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {
