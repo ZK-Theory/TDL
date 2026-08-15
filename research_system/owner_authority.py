@@ -22,6 +22,7 @@ from research_system.authority import (
     OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
     SCOPED_AUTHORITY_GRANT_SCHEMA_ID,
     SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    _SCOPED_COMMAND_SUBJECT_KINDS,
     LedgerAuthorityGrantResolver,
     OwnerAuthorityAdministrationDecision,
     ScopedAuthorityGrant,
@@ -729,6 +730,20 @@ class OwnerAuthoritySetup:
         actor_class = request.get("target_actor_class")
         if actor_class not in _LANE_ALLOWED_ACTOR_CLASSES[str(lane)]:
             raise ArsError("authority intent actor class does not match the SPEC route")
+        subject_scope = request.get("subject_scope")
+        subject = subject_scope.get("subject") if isinstance(subject_scope, dict) else None
+        subject_kind = subject.get("kind") if isinstance(subject, dict) else None
+        if not isinstance(subject_kind, str):
+            raise ArsError("authority intent subject scope is invalid")
+        command_types = tuple(
+            sorted(
+                command_type
+                for command_type in lane_commands
+                if _SCOPED_COMMAND_SUBJECT_KINDS.get(command_type) == subject_kind
+            )
+        )
+        if not command_types:
+            raise ArsError("authority intent lane has no command for the subject kind")
         effective_at, effective_text = _utc_text(request.get("effective_at"), field="effective_at")
         expires_at, expires_text = _utc_text(request.get("expires_at"), field="expires_at")
         now = self.clock()
@@ -750,7 +765,7 @@ class OwnerAuthoritySetup:
         grant_id = _deterministic_id("owner-authority-grant", "agr", semantic_intent)
         decision_id = _deterministic_id("owner-authority-decision", "arec", semantic_intent)
         allowed_commands = []
-        for command_type in sorted(lane_commands):
+        for command_type in command_types:
             identity = self.schemas.command_binding(command_type)
             if identity is None or not self.schemas.is_active(identity.schema_id, identity.schema_version):
                 raise ArsError("SPEC route command schema is not active")

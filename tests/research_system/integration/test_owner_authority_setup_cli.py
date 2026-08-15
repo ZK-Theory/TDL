@@ -205,6 +205,84 @@ def test_exact_retry_and_changed_intent_conflict_without_mutation(inputs):
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    ("subject_kind", "subject_id", "expected_commands"),
+    [
+        ("scope_definition", "obj_01978abc-3011-7000-8000-000000003011", ("ObserveW11AuthorityFile",)),
+        ("review", "rev_01978abc-3012-7000-8000-000000003012", ("RecordW11AuthorityReview",)),
+    ],
+)
+def test_reviewer_lane_derives_exact_commands_for_subject_kind(inputs, subject_kind, subject_id, expected_commands):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    intent = deepcopy(inputs.intent_value)
+    intent.update(
+        {
+            "retry_key": f"reviewer-{subject_kind}",
+            "authority_lane": "independent_reviewer/authority_observation",
+            "actor_role": "independent verifier",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": subject_kind, "id": subject_id},
+            },
+        }
+    )
+
+    material = setup._derive_publication_material(intent)
+    assert tuple(item["command_type"] for item in material["grant_value"]["allowed_commands"]) == expected_commands
+
+
+@pytest.mark.integration
+def test_reviewer_lane_rejects_unmatched_subject_and_role_without_mutation(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+    unmatched = deepcopy(inputs.intent_value)
+    unmatched.update(
+        {
+            "authority_lane": "independent_reviewer/authority_observation",
+            "actor_role": "independent verifier",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "decision", "id": "dec_01978abc-3013-7000-8000-000000003013"},
+            },
+        }
+    )
+    with pytest.raises(ArsError, match="no command for the subject kind"):
+        setup._derive_publication_material(unmatched)
+
+    wrong_role = deepcopy(unmatched)
+    wrong_role["authority_lane"] = "independent_reviewer/authority_observation"
+    wrong_role["actor_role"] = "Portfolio Steward"
+    wrong_role["subject_scope"] = {
+        "project_id": PROJECT_ID,
+        "subject": {"kind": "scope_definition", "id": "obj_01978abc-3011-7000-8000-000000003011"},
+    }
+    with pytest.raises(ArsError, match="lane and actor role"):
+        setup._derive_publication_material(wrong_role)
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
+def test_reviewer_lane_retry_is_idempotent(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    intent = deepcopy(inputs.intent_value)
+    intent.update(
+        {
+            "retry_key": "reviewer-retry",
+            "authority_lane": "independent_reviewer/authority_observation",
+            "actor_role": "independent verifier",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "review", "id": "rev_01978abc-3012-7000-8000-000000003012"},
+            },
+        }
+    )
+    first = setup.publish(intent)
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+    assert setup.publish(intent) == first
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
 def test_owner_publication_requires_governed_actor_registration(inputs):
     setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     registration = RegisterAuthorityActor(
