@@ -956,6 +956,28 @@ def test_shared_ledger_partition_is_disjoint_and_exhaustive() -> None:
     )
 
 
+def test_shared_replay_requires_owner_administration_validator_when_history_contains_decisions(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    activate_lifecycle_grant(
+        _HARNESSES[tmp_path],
+        subject_kind="scope_definition",
+        subject_id="obj_019fed25-b33e-7740-b280-000000009999",
+        actor_id=ACTOR_ID,
+        command_types=("RegisterCandidate",),
+    )
+    events = tuple(_HARNESSES[tmp_path].authority_ledger.iter_events())
+
+    with pytest.raises(IntegrityError, match="authority administration decision validator unavailable"):
+        replay_discovery(events, schemas=runtime.schemas)
+
+    projection = replay_discovery(
+        events,
+        schemas=runtime.schemas,
+        authority_state_validator=runtime.authority_resolver.validate_replayed_administration_state,
+    )
+    assert projection["catalogue"] is None
+
+
 @pytest.mark.parametrize(
     ("verdict", "kill_status", "option", "expected"),
     [

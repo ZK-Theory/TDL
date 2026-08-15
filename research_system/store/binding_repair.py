@@ -43,6 +43,9 @@ COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding
 EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
 OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
 RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+ADVANCE_COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
+ADVANCE_EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
+ADVANCE_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
 RECOVERY_BINDING_SCHEMA_ID = "ars://internal/store-binding-recovery"
 RECOVERY_BINDING_NAME = "binding-repair-current.json"
 _MARKER_NAME = ".binding-repair-transaction.json"
@@ -247,6 +250,67 @@ def read_repair_intent(path: Path) -> RepairStoreBinding:
     return RepairStoreBinding.from_mapping(value)
 
 
+@dataclass(frozen=True)
+class AdvanceStoreBinding:
+    """Semantic owner intent for one clean descendant binding advance."""
+
+    control_root: Path
+    candidate_repository_root: Path
+    expected_project_id: str
+    expected_store_identity: str
+    expected_origin_authority_root: Path
+    expected_origin_witness_sha256: str
+    intended_schema_root: Path
+    valid_from: str
+    expires_at: str
+    owner_actor_id: str
+    owner_action: str
+    idempotency_key: str
+    reason: str
+
+    @property
+    def spec_route_ref(self) -> str:
+        return _ROUTE_RELATIVE.as_posix()
+
+    @property
+    def spec_source_refs(self) -> tuple[str, str]:
+        return (
+            ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+            ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
+        )
+
+    def semantic_payload(self) -> dict[str, Any]:
+        return {name: str(value) if isinstance(value, Path) else value for name, value in self.__dict__.items()}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "AdvanceStoreBinding":
+        payload = dict(value)
+        if (
+            payload.pop("schema_id", None) != ADVANCE_COMMAND_SCHEMA_ID
+            or payload.pop("schema_version", None) != "1.0.0"
+        ):
+            raise ConfigurationError("AdvanceStoreBinding intent schema is unsupported")
+        if payload.pop("command_type", None) != "AdvanceStoreBinding":
+            raise ConfigurationError("raw generic command forgery is not admitted")
+        if set(payload) != set(cls.__dataclass_fields__):
+            raise ConfigurationError("AdvanceStoreBinding intent fields are not exact")
+        for field in (
+            "control_root",
+            "candidate_repository_root",
+            "expected_origin_authority_root",
+            "intended_schema_root",
+        ):
+            payload[field] = Path(str(payload[field]))
+        payload["expected_project_id"] = validate_id(str(payload["expected_project_id"]), "project")
+        payload["owner_actor_id"] = validate_id(str(payload["owner_actor_id"]), "actor")
+        return cls(**payload)
+
+
+def read_advance_intent(path: Path) -> AdvanceStoreBinding:
+    value, _raw = _read_canonical_json(path, "AdvanceStoreBinding intent")
+    return AdvanceStoreBinding.from_mapping(value)
+
+
 def _foundation_pins(repository: Path, intent: RepairStoreBinding) -> tuple[dict[str, Any], Any, Path]:
     path = repository / ".research-system" / "config" / "foundation.yaml"
     try:
@@ -421,6 +485,238 @@ def _event_for_command(ledger: EventLedger, payload_hash: str, idempotency_key: 
     if len(matches) != 1 or matches[0].get("command_payload_hash") != payload_hash:
         raise ConflictError("binding-repair idempotency key conflicts with durable event")
     return matches[0]
+
+
+def _advance_event_for_command(ledger: EventLedger, payload_hash: str, idempotency_key: str) -> dict[str, Any] | None:
+    matches = [
+        event
+        for event in ledger.iter_events()
+        if event.get("command_type") == "AdvanceStoreBinding" and event.get("idempotency_key") == idempotency_key
+    ]
+    if not matches:
+        return None
+    if len(matches) != 1 or matches[0].get("command_payload_hash") != payload_hash:
+        raise ConflictError("binding-advance idempotency key conflicts with durable event")
+    return matches[0]
+
+
+def _guard_advance_file(path: Path, label: str, expected: bytes | None = None) -> None:
+    """Reject redirected or conflicting AdvanceStoreBinding transaction files."""
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise IntegrityError(f"{label} identity is unavailable") from exc
+    physical = _require_physical_regular_file(path, label=label)
+    if expected is not None and physical.read_bytes() != expected:
+        raise ConflictError(f"{label} conflicts with the binding advance")
+
+
+def advance_store_binding(
+    intent: AdvanceStoreBinding,
+    *,
+    now: Callable[[], datetime] | None = None,
+    phase_hook: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Advance a valid repaired binding only to a clean Git descendant."""
+
+    clock = datetime.now(UTC) if now is None else now()
+    starts = _parse_time(intent.valid_from, "valid_from")
+    expires = _parse_time(intent.expires_at, "expires_at")
+    if starts >= expires or clock < starts or clock >= expires:
+        raise ConfigurationError("AdvanceStoreBinding owner intent is expired or nonfinite")
+    if intent.owner_action != "advance-clean-descendant-store-binding" or len(intent.reason.strip()) < 12:
+        raise ConfigurationError("AdvanceStoreBinding requires the exact semantic owner action and reason")
+    if not _is_sha256(intent.expected_store_identity) or not _is_sha256(intent.expected_origin_witness_sha256):
+        raise ConfigurationError("AdvanceStoreBinding expected identities are invalid")
+    candidate = _candidate_evidence(intent)  # type: ignore[arg-type]
+    _foundation, witness, witness_path = _foundation_pins(  # type: ignore[arg-type]
+        Path(candidate["repository_root"]), intent
+    )
+    control = intent.control_root.resolve(strict=True)
+    _validate_owner_authority(control, intent)  # type: ignore[arg-type]
+    load_store_manifest(control, approved_witness=witness, approved_witness_path=witness_path)
+    recovery_path = _require_physical_regular_file(
+        control / "manifests" / RECOVERY_BINDING_NAME,
+        label="current repaired binding",
+    )
+    predecessor, predecessor_raw = _read_canonical_json(recovery_path, "current repaired binding")
+    if (
+        predecessor.get("schema_id") != RECOVERY_BINDING_SCHEMA_ID
+        or predecessor.get("schema_version") not in {"1.0.0", "1.1.0"}
+        or predecessor.get("project_id") != intent.expected_project_id
+        or predecessor.get("store_identity") != intent.expected_store_identity
+        or predecessor.get("control_root") != str(control)
+        or predecessor.get("origin_witness_sha256") != intent.expected_origin_witness_sha256
+        or predecessor.get("code_roots") != [candidate["repository_root"]]
+        or predecessor.get("schema_root") != candidate["schema_root"]
+    ):
+        raise IntegrityError("current repaired binding identity is invalid")
+    old_head = str(predecessor.get("git_head", ""))
+    old_tree = str(predecessor.get("git_tree", ""))
+    if not (len(old_head) == 40 and len(old_tree) == 40):
+        raise IntegrityError("current repaired binding Git identity is invalid")
+    if _run_git(Path(candidate["repository_root"]), "rev-parse", f"{old_head}^{{tree}}") != old_tree:
+        raise IntegrityError("current repaired binding Git object changed")
+    payload = intent.semantic_payload()
+    payload_hash = sha256_hex(canonical_bytes(payload))
+    scope = (intent.owner_actor_id, "store-binding-recovery", "AdvanceStoreBinding", intent.idempotency_key)
+    authority_hash = sha256_hex(canonical_bytes({"actor_id": intent.owner_actor_id, "action": intent.owner_action}))
+    receipt_store = ReceiptStore(control)
+    existing_receipt = receipt_store.load_scoped(
+        scope,
+        payload_hash,
+        authority_hash,
+        0,
+        project_id=intent.expected_project_id,
+        target_stream_id=intent.expected_project_id,
+    )
+    marker_path = control / "runtime" / ".binding-advance-transaction.json"
+    if predecessor.get("schema_version") == "1.1.0" and predecessor.get("command_payload_hash") == payload_hash:
+        if existing_receipt is None:
+            raise IntegrityError("binding advance recovery exists without its durable receipt")
+        expected_marker = canonical_bytes(
+            {
+                "schema_id": "ars://internal/store-binding-advance-transaction",
+                "schema_version": "1.0.0",
+                "payload_hash": payload_hash,
+                "predecessor_binding_sha256": predecessor.get("predecessor_binding_sha256"),
+                "successor_binding_sha256": sha256_hex(predecessor_raw),
+            }
+        )
+        _guard_advance_file(marker_path, "binding advance recovery marker", expected_marker)
+        marker_path.unlink(missing_ok=True)
+        fsync_directory(marker_path.parent)
+        return {"status": "advanced", "recovery_binding": predecessor, "receipt": existing_receipt.__dict__}
+    _run_git(Path(candidate["repository_root"]), "merge-base", "--is-ancestor", old_head, candidate["git_head"])
+    if old_head == candidate["git_head"]:
+        raise ConflictError("binding advance requires a strict Git descendant")
+    if predecessor.get("route") != candidate["route"] or predecessor.get("sources") != candidate["sources"]:
+        raise IntegrityError("binding advance changed protected route or SPEC bytes")
+
+    ledger = EventLedger(
+        control,
+        intent.expected_project_id,
+        runtime_schema_registry(Path(candidate["schema_root"])),
+        store_identity=intent.expected_store_identity,
+    )
+    successor = {
+        **predecessor,
+        "schema_version": "1.1.0",
+        "git_head": candidate["git_head"],
+        "git_tree": candidate["git_tree"],
+        "schema_catalogue_sha256": candidate["schema_catalogue_sha256"],
+        "predecessor_binding_sha256": sha256_hex(predecessor_raw),
+        "command_payload_hash": payload_hash,
+        "owner_actor_id": intent.owner_actor_id,
+        "owner_action": intent.owner_action,
+        "idempotency_key": intent.idempotency_key,
+    }
+    successor_raw = canonical_bytes(successor)
+    successor_sha = sha256_hex(successor_raw)
+    object_path = control / "objects" / "binding-repair" / f"sha256-{successor_sha}.json"
+    marker = {
+        "schema_id": "ars://internal/store-binding-advance-transaction",
+        "schema_version": "1.0.0",
+        "payload_hash": payload_hash,
+        "predecessor_binding_sha256": sha256_hex(predecessor_raw),
+        "successor_binding_sha256": successor_sha,
+    }
+    command_schema = ledger.schemas.resolve_identity(ADVANCE_COMMAND_SCHEMA_ID, "1.0.0")
+    ledger.schemas.validate(
+        ADVANCE_COMMAND_SCHEMA_ID,
+        {
+            "schema_id": ADVANCE_COMMAND_SCHEMA_ID,
+            "schema_version": "1.0.0",
+            "command_type": "AdvanceStoreBinding",
+            "payload": payload,
+        },
+    )
+    ledger.schemas.validate(ADVANCE_OBJECT_SCHEMA_ID, successor)
+    with WriterLock(control / "runtime" / "writer.lock", {"writer_id": f"binding-advance:{payload_hash}"}):
+        marker_raw = canonical_bytes(marker)
+        _guard_advance_file(marker_path, "binding advance recovery marker", marker_raw)
+        _publish(marker_path, marker_raw)
+        try:
+            _guard_advance_file(object_path, "binding advance object", successor_raw)
+            _publish(object_path, successor_raw)
+            if phase_hook:
+                phase_hook("object")
+            event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
+            if event is None:
+                result = ledger._append_binding_repair_from_validated_service(
+                    {
+                        "event_type": "StoreBindingAdvanced",
+                        "stream_id": intent.expected_project_id,
+                        "schema_id": ADVANCE_EVENT_SCHEMA_ID,
+                        "schema_version": "1.0.0",
+                        "command_id": f"binding-advance-{payload_hash}",
+                        "command_type": "AdvanceStoreBinding",
+                        "idempotency_key": intent.idempotency_key,
+                        "command_payload_hash": payload_hash,
+                        "correlation_id": intent.idempotency_key,
+                        "causation_id": None,
+                        "actor_id": intent.owner_actor_id,
+                        "authority_grant_id": "store-binding-recovery",
+                        "occurred_at": clock.isoformat().replace("+00:00", "Z"),
+                        "command_schema_id": command_schema.schema_id,
+                        "command_schema_version": command_schema.schema_version,
+                        "command_schema_sha256": command_schema.sha256,
+                        "payload": {
+                            "recovery_binding_sha256": successor_sha,
+                            "recovery_binding_path": "manifests/binding-repair-current.json",
+                            "object_path": object_path.relative_to(control).as_posix(),
+                            "git_head": candidate["git_head"],
+                            "git_tree": candidate["git_tree"],
+                            "predecessor_binding_sha256": sha256_hex(predecessor_raw),
+                        },
+                    },
+                    snapshot=ledger.snapshot(),
+                )
+                event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
+                event_batch_id = str(result["event_batch_id"])
+                observed_version = int(result["resulting_stream_versions"][intent.expected_project_id])
+            else:
+                event_batch_id = str(event["transaction_id"])
+                observed_version = int(event["stream_version"])
+            if phase_hook:
+                phase_hook("event")
+            receipt = Receipt(
+                "accepted",
+                f"binding-advance-{payload_hash}",
+                payload_hash,
+                event_batch_id,
+                observed_version,
+                None,
+                None,
+                (),
+            )
+            receipt_store.write_scoped(
+                scope,
+                authority_hash,
+                0,
+                receipt,
+                project_id=intent.expected_project_id,
+                target_stream_id=intent.expected_project_id,
+            )
+            if phase_hook:
+                phase_hook("receipt")
+            _guard_advance_file(recovery_path, "binding advance recovery", predecessor_raw)
+            _replace(recovery_path, successor_raw)
+            if phase_hook:
+                phase_hook("recovery")
+            marker_path.unlink(missing_ok=True)
+            fsync_directory(marker_path.parent)
+            return {"status": "advanced", "recovery_binding": successor, "receipt": receipt.__dict__}
+        except BaseException:
+            if _advance_event_for_command(ledger, payload_hash, intent.idempotency_key) is None:
+                _guard_advance_file(object_path, "binding advance object", successor_raw)
+                if object_path.exists():
+                    object_path.unlink()
+                _guard_advance_file(marker_path, "binding advance recovery marker", marker_raw)
+                marker_path.unlink(missing_ok=True)
+            raise
 
 
 def repair_store_binding(
@@ -694,7 +990,7 @@ def load_recovery_binding(
     value, _raw = _read_canonical_json(recovery_path, "binding recovery manifest")
     if (
         value.get("schema_id") != RECOVERY_BINDING_SCHEMA_ID
-        or value.get("schema_version") != "1.0.0"
+        or value.get("schema_version") not in {"1.0.0", "1.1.0"}
         or value.get("project_id") != expected_project_id
         or value.get("store_identity") != expected_store_identity
         or value.get("control_root") != str(control)
@@ -702,6 +998,8 @@ def load_recovery_binding(
         or value.get("git_clean") is not True
     ):
         raise IntegrityError("binding recovery manifest identity is invalid")
+    if value.get("schema_version") == "1.1.0" and not _is_sha256(value.get("predecessor_binding_sha256")):
+        raise IntegrityError("binding recovery predecessor identity is invalid")
     code_roots = value.get("code_roots")
     if not isinstance(code_roots, list) or len(code_roots) != 1 or not isinstance(code_roots[0], str):
         raise IntegrityError("binding recovery candidate root is invalid")

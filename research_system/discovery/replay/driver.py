@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from collections.abc import Callable
 from typing import Any, Iterable, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -35,6 +36,7 @@ def replay_discovery(
     events: Iterable[dict[str, Any]],
     *,
     schemas: SchemaRegistry | None = None,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Rebuild Discovery state while rejecting malformed transitions.
 
@@ -50,8 +52,27 @@ def replay_discovery(
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
     active_schemas = schemas or _default_replay_schemas()
-    _validate_persisted_event_envelopes(ordered, active_schemas)
+    # Lazy import keeps the shared replay boundary acyclic: projection.replay
+    # imports Discovery's event discriminator but never calls this driver.
+    from research_system.projection.replay import replay as replay_shared_projection
+
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered)
+    control_positions = frozenset(
+        int(event["global_position"])
+        for event in ordered
+        if _shared_event_partition(event, resolve_transaction_ids=resolve_transaction_ids) == "control"
+    )
+    replay_shared_projection(
+        ordered,
+        schema_registry=active_schemas,
+        authority_state_validator=authority_state_validator,
+        validate_discovery_semantics=False,
+    )
+    _validate_persisted_event_envelopes(
+        ordered,
+        active_schemas,
+        globally_validated_control_positions=control_positions,
+    )
     transaction_events: dict[Any, list[dict[str, Any]]] = {}
     for persisted_event in ordered:
         transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
@@ -376,6 +397,9 @@ def replay_discovery(
         if partition == "context":
             # The global replay owns the W3/owner-operated context reducer.
             # Discovery consumes only the resulting immutable source identity.
+            continue
+        if partition == "control":
+            # Already schema- and semantics-checked by replay_shared_projection.
             continue
 
         def required_string(key: str) -> str:

@@ -7593,3 +7593,12 @@ def submit_store_binding_repair(intent: object, **kwargs: object) -> dict[str, o
     if not isinstance(intent, RepairStoreBinding):
         raise ArsError("store binding repair requires a typed RepairStoreBinding command")
     return repair_store_binding(intent, **kwargs)  # type: ignore[arg-type]
+
+
+def submit_store_binding_advance(intent: object, **kwargs: object) -> dict[str, object]:
+    """Dispatch the sealed clean-descendant binding command."""
+    from research_system.store.binding_repair import AdvanceStoreBinding, advance_store_binding
+
+    if not isinstance(intent, AdvanceStoreBinding):
+        raise ArsError("store binding advance requires a typed AdvanceStoreBinding command")
+    return advance_store_binding(intent, **kwargs)  # type: ignore[arg-type]

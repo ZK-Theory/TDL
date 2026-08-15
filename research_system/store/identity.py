@@ -2764,7 +2764,7 @@ def _validate_binding_repair_successor(
     recovery_sha256 = sha256_hex(recovery_raw)
     if (
         recovery.get("schema_id") != "ars://internal/store-binding-recovery"
-        or recovery.get("schema_version") != "1.0.0"
+        or recovery.get("schema_version") not in {"1.0.0", "1.1.0"}
         or recovery.get("project_id") != record["project_id"]
         or recovery.get("store_identity") != record["store_identity"]
         or recovery.get("control_root") != str(target)
@@ -2822,11 +2822,16 @@ def _validate_binding_repair_successor(
             events.extend(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line)
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise IntegrityError("binding repair successor ledger is invalid") from exc
+    advanced = recovery.get("schema_version") == "1.1.0"
     matching = [
         event
         for event in events
-        if event.get("event_type") == "StoreBindingRepaired"
-        and event.get("command_type") == "RepairStoreBinding"
+        if (event.get("event_type"), event.get("command_type"))
+        == (
+            ("StoreBindingAdvanced", "AdvanceStoreBinding")
+            if advanced
+            else ("StoreBindingRepaired", "RepairStoreBinding")
+        )
         and event.get("command_payload_hash") == payload_hash
     ]
     if len(matching) != 1:
@@ -2840,10 +2845,11 @@ def _validate_binding_repair_successor(
         or event_payload.get("object_path") != object_path.relative_to(target).as_posix()
         or event_payload.get("git_head") != recovery.get("git_head")
         or event_payload.get("git_tree") != recovery.get("git_tree")
-        or event_payload.get("prior_manifest_sha256") != record["intended_manifest_sha256"]
+        or (not advanced and event_payload.get("prior_manifest_sha256") != record["intended_manifest_sha256"])
+        or (advanced and event_payload.get("predecessor_binding_sha256") != recovery.get("predecessor_binding_sha256"))
     ):
         raise IntegrityError("binding repair successor event/object relation is invalid")
-    command_id = f"binding-repair-{payload_hash}"
+    command_id = f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}"
     receipt_path = _require_physical_regular_file(
         target / "receipts" / f"{command_id}.json",
         label="binding repair receipt",
@@ -2869,7 +2875,7 @@ def _validate_binding_repair_successor(
     scope = [
         recovery.get("owner_actor_id"),
         "store-binding-recovery",
-        "RepairStoreBinding",
+        "AdvanceStoreBinding" if advanced else "RepairStoreBinding",
         recovery.get("idempotency_key"),
     ]
     index_path = _require_physical_regular_file(

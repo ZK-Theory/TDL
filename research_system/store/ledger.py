@@ -472,7 +472,10 @@ class EventLedger:
                 ("AuthorityGrantActivated", "ActivateExternalAssuranceRecordGrant"),
                 ("AuthorityGrantRevoked", "RevokeExternalAssuranceRecordGrant"),
             }
-            binding_repair_event = (event_type, producer) == ("StoreBindingRepaired", "RepairStoreBinding")
+            binding_repair_event = (event_type, producer) in {
+                ("StoreBindingRepaired", "RepairStoreBinding"),
+                ("StoreBindingAdvanced", "AdvanceStoreBinding"),
+            }
             authority_actor_event = (event_type, producer) == ("AuthorityActorRegistered", "RegisterAuthorityActor")
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(

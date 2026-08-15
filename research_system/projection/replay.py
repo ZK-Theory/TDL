@@ -1175,6 +1175,36 @@ def apply_event(
         if existing is not None and existing != projection:
             raise IntegrityError("binding repair projection conflicts")
         repairs[key] = projection
+    elif event_type == "StoreBindingAdvanced":
+        payload = event.get("payload")
+        expected = {
+            "recovery_binding_sha256",
+            "recovery_binding_path",
+            "object_path",
+            "git_head",
+            "git_tree",
+            "predecessor_binding_sha256",
+        }
+        if (
+            event.get("command_type") != "AdvanceStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+        ):
+            raise IntegrityError("binding advance event relation is invalid")
+        advances = updated.setdefault("binding_advances", {})
+        key = str(event.get("command_payload_hash"))
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        if key in advances and advances[key] != projection:
+            raise IntegrityError("binding advance projection conflicts")
+        advances[key] = projection
     else:
         raise IntegrityError(f"unsupported event type: {event_type}")
     return updated
@@ -1199,6 +1229,7 @@ def replay(
     schema_registry: SchemaRegistry | None = None,
     legacy_command_provenance_through_position: int = 0,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    validate_discovery_semantics: bool = True,
 ) -> dict[str, Any]:
     """Rebuild projection state from canonical ledger events.
 
@@ -1232,6 +1263,7 @@ def replay(
         schema_registry=schema_registry,
         grandfathered_missing_positions=frozenset(),
         authority_state_validator=authority_state_validator,
+        validate_discovery_semantics=validate_discovery_semantics,
     )
 
 
@@ -1242,6 +1274,7 @@ def _replay(
     schema_registry: SchemaRegistry | None,
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
+    validate_discovery_semantics: bool = True,
 ) -> dict[str, Any]:
     ordered_events = tuple(events)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
@@ -1398,7 +1431,7 @@ def _replay(
         if authority_state_validator is None:
             raise IntegrityError("authority administration decision validator unavailable")
         authority_state_validator(state)
-    if any(
+    if validate_discovery_semantics and any(
         is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids)
         for event in ordered_events
     ):

@@ -38,6 +38,8 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 def _validate_persisted_event_envelopes(
     events: tuple[dict[str, Any], ...],
     schemas: SchemaRegistry,
+    *,
+    globally_validated_control_positions: frozenset[int] = frozenset(),
 ) -> None:
     """Validate the exact common, schema, project, stream, and transaction envelope."""
 
@@ -78,7 +80,15 @@ def _validate_persisted_event_envelopes(
             and isinstance(shadow_payload.get("authority_payload"), Mapping)
         )
         try:
-            if is_authority_shadow:
+            if position in globally_validated_control_positions:
+                # Shared control history is validated by the global projection,
+                # including its exact historical-schema exceptions and semantic
+                # authority transitions.  Discovery still validates the common
+                # project/stream/transaction envelope below.
+                continue_schema_validation = False
+            else:
+                continue_schema_validation = True
+            if continue_schema_validation and is_authority_shadow:
                 owner_row_id = shadow_payload.get("owner_row_id")
                 route = DISCOVERY_ROW_ROUTES.get(owner_row_id)
                 if (
@@ -88,19 +98,28 @@ def _validate_persisted_event_envelopes(
                     != (shadow_payload.get("authority_kind"), event_type)
                 ):
                     raise IntegrityError("authority shadow producer mismatch")
-            command_binding = schemas.command_binding(command_type)
-            if command_binding is None or (
+            command_binding = schemas.command_binding(command_type) if continue_schema_validation else None
+            if not continue_schema_validation:
+                pass
+            elif command_binding is None or (
                 event.get("command_schema_id"),
                 event.get("command_schema_version"),
             ) != (command_binding.schema_id, command_binding.schema_version):
                 raise SchemaError("active command binding mismatch")
-            schemas.resolve_identity(
-                str(event.get("command_schema_id", "")),
-                str(event.get("command_schema_version", "")),
-                expected_sha256=str(event.get("command_schema_sha256", "")),
+            if continue_schema_validation:
+                schemas.resolve_identity(
+                    str(event.get("command_schema_id", "")),
+                    str(event.get("command_schema_version", "")),
+                    expected_sha256=str(event.get("command_schema_sha256", "")),
+                )
+            event_binding = (
+                None
+                if not continue_schema_validation or is_authority_shadow
+                else schemas.event_binding(event_type, command_type)
             )
-            event_binding = None if is_authority_shadow else schemas.event_binding(event_type, command_type)
-            if event_binding is not None:
+            if not continue_schema_validation:
+                pass
+            elif event_binding is not None:
                 if (recorded_schema, recorded_version) != (
                     event_binding.schema_id,
                     event_binding.schema_version,

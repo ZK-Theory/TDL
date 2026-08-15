@@ -310,7 +310,11 @@ class DiscoveryOperator:
         """Return deterministic Discovery replay/readback without invoking a writer."""
 
         events = tuple(self.ledger.iter_events())
-        projection = replay_discovery(events, schemas=self.schemas)
+        projection = replay_discovery(
+            events,
+            schemas=self.schemas,
+            authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+        )
         catalogue = projection["catalogue"]
         catalogue_readback: dict[str, object] | None
         if catalogue is None:

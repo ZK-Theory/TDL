@@ -107,7 +107,7 @@ from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from research_system.store.schema_binding import publish_store_schema_binding_activation
-from research_system.store.binding_repair import read_repair_intent
+from research_system.store.binding_repair import advance_store_binding, read_advance_intent, read_repair_intent
 
 
 def _print_json(value: Any) -> None:
@@ -235,6 +235,12 @@ def _store_init(args: argparse.Namespace) -> int:
 def _store_repair_binding(args: argparse.Namespace) -> int:
     """Run the standalone owner-governed stale-binding recovery command."""
     _print_json(submit_store_binding_repair(read_repair_intent(args.intent)))
+    return 0
+
+
+def _store_advance_binding(args: argparse.Namespace) -> int:
+    """Advance a valid repaired binding to an exact clean descendant."""
+    _print_json(advance_store_binding(read_advance_intent(args.intent)))
     return 0
 
 
@@ -1877,6 +1883,10 @@ def _parser() -> argparse.ArgumentParser:
     repair_binding = store_commands.add_parser("repair-binding")
     repair_binding.add_argument("--intent", type=Path, required=True)
     repair_binding.set_defaults(handler=_store_repair_binding)
+
+    advance_binding = store_commands.add_parser("advance-binding")
+    advance_binding.add_argument("--intent", type=Path, required=True)
+    advance_binding.set_defaults(handler=_store_advance_binding)
 
     command = groups.add_parser("command")
     command_actions = command.add_subparsers(dest="command_action", required=True)

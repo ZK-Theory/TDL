@@ -16,8 +16,10 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.binding_repair import (
+    AdvanceStoreBinding,
     COMMAND_SCHEMA_ID,
     RepairStoreBinding,
+    advance_store_binding,
     load_recovery_binding,
     repair_store_binding,
 )
@@ -138,6 +140,163 @@ def test_repair_is_replayable_and_enables_only_governed_repaired_loader(tmp_path
     object.__setattr__(second_repair, "idempotency_key", "binding-repair:test:2")
     with pytest.raises(ConflictError, match="currently valid"):
         repair_store_binding(second_repair, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+
+def _advance_intent(intent: RepairStoreBinding) -> AdvanceStoreBinding:
+    return AdvanceStoreBinding(
+        intent.control_root,
+        intent.candidate_repository_root,
+        intent.expected_project_id,
+        intent.expected_store_identity,
+        intent.expected_origin_authority_root,
+        intent.expected_origin_witness_sha256,
+        intent.intended_schema_root,
+        intent.valid_from,
+        intent.expires_at,
+        intent.owner_actor_id,
+        "advance-clean-descendant-store-binding",
+        "binding-advance:test:1",
+        "Advance the valid repaired binding to its tested clean descendant.",
+    )
+
+
+def test_valid_repaired_binding_advances_only_to_clean_protected_byte_preserving_descendant(
+    tmp_path: Path, monkeypatch
+) -> None:
+    initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repaired = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    old_head = repaired["recovery_binding"]["git_head"]
+    note = candidate / "descendant.txt"
+    note.write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+
+    result = advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    retry = advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert result == retry
+    assert result["status"] == "advanced"
+    assert result["recovery_binding"]["schema_version"] == "1.1.0"
+    assert result["recovery_binding"]["git_head"] != old_head
+    binding_path = _binding_file(tmp_path, target, candidate, witness)
+    assert ControlBinding.load_repaired(binding_path).schema_root == candidate / ".research-system" / "schemas"
+    events = tuple(
+        EventLedger(
+            target,
+            witness.project_id,
+            runtime_schema_registry(candidate / ".research-system" / "schemas"),
+            store_identity=witness.store_identity,
+        ).iter_events()
+    )
+    assert [event["event_type"] for event in events[-2:]] == ["StoreBindingRepaired", "StoreBindingAdvanced"]
+
+
+def test_binding_advance_rejects_changed_spec_bytes_without_store_mutation(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    route = candidate / ".research-system" / "contracts" / "wp6-6" / "spec-gate6-run-v1" / "route-package.json"
+    route.write_bytes(route.read_bytes() + b" ")
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "tamper protected route")
+    before = _publication_snapshot(target)
+    with pytest.raises(IntegrityError, match="protected route or SPEC bytes"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert _publication_snapshot(target) == before
+
+
+@pytest.mark.parametrize("phase", ["object", "event", "receipt", "recovery"])
+def test_binding_advance_recovers_after_each_publication_phase(tmp_path: Path, monkeypatch, phase: str) -> None:
+    _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+
+    def crash(observed: str) -> None:
+        if observed == phase:
+            raise RuntimeError(phase)
+
+    with pytest.raises(RuntimeError, match=phase):
+        advance_store_binding(
+            _advance_intent(intent),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=crash,
+        )
+    assert (
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))["status"]
+        == "advanced"
+    )
+
+
+def test_binding_advance_rejects_dirty_or_non_descendant_candidate(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    before = _publication_snapshot(target)
+    (candidate / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+    with pytest.raises(ConflictError, match="dirty"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert _publication_snapshot(target) == before
+    (candidate / "dirty.txt").unlink()
+    with pytest.raises(ConflictError, match="strict Git descendant"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert _publication_snapshot(target) == before
+
+
+def test_binding_advance_rejects_redirected_marker_and_recovery(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    external = tmp_path / "external.json"
+    external.write_bytes(canonical_bytes({"external": True}))
+    marker = target / "runtime" / ".binding-advance-transaction.json"
+    try:
+        marker.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(IntegrityError, match="marker"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert external.read_bytes() == canonical_bytes({"external": True})
+    marker.unlink()
+    recovery = target / "manifests" / "binding-repair-current.json"
+    recovery.unlink()
+    recovery.symlink_to(external)
+    with pytest.raises(IntegrityError, match="binding repair successor"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert external.read_bytes() == canonical_bytes({"external": True})
+
+
+def test_binding_advance_rejects_redirected_object_without_touching_external_target(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    external = tmp_path / "external-object.json"
+    external_raw = canonical_bytes({"external": True})
+    external.write_bytes(external_raw)
+    existing = set((target / "objects" / "binding-repair").glob("*.json"))
+
+    def redirect(observed: str) -> None:
+        if observed != "object":
+            return
+        created = set((target / "objects" / "binding-repair").glob("*.json")) - existing
+        assert len(created) == 1
+        object_path = created.pop()
+        object_path.unlink()
+        object_path.symlink_to(external)
+        raise RuntimeError("redirected object")
+
+    with pytest.raises(IntegrityError, match="binding advance object"):
+        advance_store_binding(
+            _advance_intent(intent),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=redirect,
+        )
+    assert external.read_bytes() == external_raw
 
 
 @pytest.mark.parametrize("phase", ["manifest", "object", "event", "receipt"])

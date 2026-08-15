@@ -591,7 +591,7 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
 
     # The bootstrap repair and governed actor registration each add one typed
     # command and one producer-bound event.
-    assert len(bindings) == 271
+    assert len(bindings) == 273
     assert bindings == tuple(
         sorted(
             bindings,

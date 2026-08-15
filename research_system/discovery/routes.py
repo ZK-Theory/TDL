@@ -48,6 +48,15 @@ CONTEXT_EVENT_TYPES = {
     "OwnerOperatedContextHandoffIssued",
     "OwnerOperatedContextDelivered",
 }
+CONTROL_EVENT_TYPES = {
+    "AuthorityRootInitialized",
+    "OwnerAuthorityAdministrationDecisionPublished",
+    "AuthorityGrantActivated",
+    "AuthorityGrantRevoked",
+    "AuthorityActorRegistered",
+    "StoreBindingRepaired",
+    "StoreBindingAdvanced",
+}
 
 
 @dataclass(frozen=True)
@@ -311,6 +320,8 @@ def shared_event_partition(
         return "artefact"
     if event_type in CONTEXT_EVENT_TYPES:
         return "context"
+    if event_type in CONTROL_EVENT_TYPES:
+        return "control"
     return "operational"
 
 

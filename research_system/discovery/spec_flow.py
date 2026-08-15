@@ -334,7 +334,11 @@ class SpecFlow:
 
     def _snapshot(self) -> tuple[tuple[dict[str, Any], ...], dict[str, Any], dict[str, list[dict[str, Any]]]]:
         events = tuple(self.operator.ledger.iter_events())
-        projection = replay_discovery(events, schemas=self.operator.schemas)
+        projection = replay_discovery(
+            events,
+            schemas=self.operator.schemas,
+            authority_state_validator=self.operator.authority_resolver.validate_replayed_administration_state,
+        )
         documents = _registered_documents(self.operator, projection)
         return events, projection, documents
 
