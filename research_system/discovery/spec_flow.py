@@ -267,8 +267,15 @@ def _rows(events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any] | N
             ordered.append(row)
     if projection is not None:
         assay_authority = projection.get("assay_bar_authority")
-        if isinstance(assay_authority, Mapping) and assay_authority.get("status") == "accepted":
-            ordered.extend(row for row in (f"OR-{value:03d}" for value in range(101, 109)) if row not in ordered)
+        if isinstance(assay_authority, Mapping):
+            status = assay_authority.get("status")
+            inferred_assay_rows = {
+                "review_requested": ("OR-105",),
+                "reviewed": ("OR-105", "OR-106"),
+                "decision_proposed": ("OR-105", "OR-106", "OR-107"),
+                "accepted": tuple(f"OR-{value:03d}" for value in range(101, 109)),
+            }.get(status, ())
+            ordered.extend(row for row in inferred_assay_rows if row not in ordered)
         authorities = projection.get("authorities")
         if isinstance(authorities, Mapping):
             for kind, start in (("dossier_expected_set", 110), ("path_registration", 116)):

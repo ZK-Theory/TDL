@@ -312,7 +312,7 @@ def _accepted_route_authority(inputs: dict[str, Any], kind: str, offset: int) ->
         assert result.status == "accepted"
 
 
-def _accept_assay_authority(inputs: dict[str, Any]) -> tuple[str, str]:
+def _accept_assay_authority(inputs: dict[str, Any], *, through_index: int | None = None) -> tuple[str, str] | None:
     repository_root = Path(inputs["config"]["repository_root"])
     rubric = json.loads((repository_root / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((repository_root / ASSAY_SCOPE_PATH).read_bytes())
@@ -359,6 +359,8 @@ def _accept_assay_authority(inputs: dict[str, Any]) -> tuple[str, str]:
         ("ResolveDecision", decision, 1, {"decision_id": decision, "decision": "accept"}, "decision"),
     ]
     for index, (command_type, target, version, value, subject_kind) in enumerate(steps):
+        if through_index is not None and index > through_index:
+            break
         if index == 5:
             bar = replay_discovery(load_discovery_operator(inputs["config_path"]).ledger.iter_events())[
                 "assay_bar_authority"
@@ -381,6 +383,8 @@ def _accept_assay_authority(inputs: dict[str, Any]) -> tuple[str, str]:
             subject_kind=subject_kind,
         )
         assert result.status == "accepted"
+    if through_index is not None:
+        return None
     bar = replay_discovery(load_discovery_operator(inputs["config_path"]).ledger.iter_events())["assay_bar_authority"]
     return bar["acceptance_sha256"], bar["producer_relation_sha256"]
 
@@ -2386,6 +2390,104 @@ def test_spec_advance_genesis_restarts_with_same_receipt_and_next_action(
     assert cli.main(_advance_argv(spec_inputs)) == 0
     second = json.loads(capsys.readouterr().out)
     assert second == first
+
+
+@pytest.mark.integration
+def test_public_spec_flow_advances_assay_review_rows_from_projected_state(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(_advance_argv(spec_inputs)) == 0
+    capsys.readouterr()
+    _accept_assay_authority(spec_inputs, through_index=3)
+
+    review_id = "rev_019ffe2b-fd4b-7000-8000-000000000105"
+    requester = ASSAY_AUTHORITY_ACTORS[2]
+    reviewer = ASSAY_AUTHORITY_ACTORS[3]
+    producer_ref = {"id": ACTORS["actor-a"], "record_revision": 1, "content_hash": "3" * 64}
+
+    def command(
+        command_type: str,
+        target: str,
+        version: int,
+        row: str,
+        actor: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        grant_id = activate_lifecycle_grant(
+            spec_inputs["harness"],
+            subject_kind="review",
+            subject_id=target,
+            actor_id=actor,
+            allowed_actor_classes=("agent",),
+            command_types=(command_type,),
+            grant_id=new_id("authority_grant"),
+        )
+        value = _route_command(command_type, target, version, row, payload, actor)
+        value["authority_grant_id"] = grant_id
+        return value
+
+    # Without a durable review request, OR-106 must not be inferred or
+    # accepted as the next public row.
+    invalid_review = _route_command(
+        "RecordW11AuthorityReview",
+        review_id,
+        1,
+        "OR-106",
+        {
+            "authority_kind": "assay_bar",
+            "verdict": "approve",
+            "unchanged_subject_sha256": "0" * 64,
+            "reconstruction_sha256": "0" * 64,
+        },
+        reviewer,
+    )
+    _write_action(spec_inputs, "bootstrap_assay_authority", commands=[invalid_review])
+    with pytest.raises(IntegrityError, match="exact next route row"):
+        cli.main(_advance_argv(spec_inputs, "bootstrap_assay_authority"))
+    capsys.readouterr()
+
+    request = command(
+        "RequestW11AuthorityReview",
+        review_id,
+        0,
+        "OR-105",
+        requester,
+        {
+            "authority_kind": "assay_bar",
+            "reviewer_actor_id": reviewer,
+            "prospective_producer_ref": producer_ref,
+        },
+    )
+    _write_action(spec_inputs, "bootstrap_assay_authority", commands=[request])
+    assert cli.main(_advance_argv(spec_inputs, "bootstrap_assay_authority")) == 0
+    capsys.readouterr()
+    bar = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())[
+        "assay_bar_authority"
+    ]
+    assert bar["status"] == "review_requested"
+
+    review = command(
+        "RecordW11AuthorityReview",
+        review_id,
+        1,
+        "OR-106",
+        reviewer,
+        {
+            "authority_kind": "assay_bar",
+            "verdict": "approve",
+            "unchanged_subject_sha256": bar["subject_sha256"],
+            "reconstruction_sha256": assay_reconstruction_sha256(bar, "ctx_019fed25-b33e-7740-b280-000000000105"),
+        },
+    )
+    _write_action(spec_inputs, "bootstrap_assay_authority", commands=[review])
+    assert cli.main(_advance_argv(spec_inputs, "bootstrap_assay_authority")) == 0
+    capsys.readouterr()
+    assert (
+        replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())[
+            "assay_bar_authority"
+        ]["status"]
+        == "reviewed"
+    )
 
 
 @pytest.mark.integration
