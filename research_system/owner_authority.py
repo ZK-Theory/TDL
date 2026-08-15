@@ -91,6 +91,22 @@ _LANE_COMMAND_POLICY = {
             "RecordOwnerOperatedContextDelivery",
         }
     ),
+    "operator/spec_02_execution": frozenset(
+        {
+            "CreateTask",
+            "RequestReadiness",
+            "ApproveReadiness",
+            "IssueDispatch",
+            "RecordDispatchDelivery",
+            "AcknowledgeDispatch",
+            "ClaimDispatch",
+            "RequestResourceGrant",
+            "ClaimExecutionLease",
+            "CreateAttempt",
+            "ClaimAttempt",
+            "StartAttempt",
+        }
+    ),
     "review_requester/outcome_review": frozenset({"RequestDiscoveryOutcomeReview"}),
     "independent_reviewer/outcome_review": frozenset({"ReviewDiscoveryOutcome"}),
     "portfolio_steward/promotion": frozenset({"ProposePromotionDecision"}),
@@ -118,6 +134,7 @@ _LANE_CONTEXT_POLICY = {
     "independent_reviewer/spec_brief_review": ({"spec_01_brief"}, {"independent verifier"}),
     "owner_decider/spec_brief_use": ({"spec_01_brief"}, {"Stephen"}),
     "operator/spec_01_context": ({"spec_01_brief"}, {"Operator/auditor"}),
+    "operator/spec_02_execution": ({"spec_02_spike"}, {"Operator/auditor"}),
     "review_requester/outcome_review": (
         {"spec_01_outcome_review", "spec_02_outcome_review"},
         {"Portfolio Steward"},
@@ -137,6 +154,7 @@ _SPEC_FLOW_SUPPORT_LANES = frozenset(
         "independent_reviewer/spec_brief_review",
         "owner_decider/spec_brief_use",
         "operator/spec_01_context",
+        "operator/spec_02_execution",
     }
 )
 _LANE_RISK_POLICY = {lane: ("R3" if lane in _SPEC_FLOW_SUPPORT_LANES else "R2") for lane in _LANE_COMMAND_POLICY}

@@ -1654,6 +1654,82 @@ class DiscoveryRuntime:
             )
         )
 
+    def _owner_approved_park_test(self, candidate: Mapping[str, Any]) -> bool:
+        """Resolve the one durable non-promotional SPEC-02 test approval."""
+
+        if candidate.get("status") != "parked" or not isinstance(candidate.get("decision_id"), str):
+            return False
+        events = tuple(self.ledger.iter_events())
+        promotions = [
+            event
+            for event in events
+            if event.get("event_type") == "CandidatePromotionApplied"
+            and event.get("stream_id") == candidate.get("candidate_id")
+            and event.get("payload", {}).get("row_id") == "OR-013"
+            and event.get("payload", {}).get("selected_option") == "PARK"
+        ]
+        if len(promotions) != 1:
+            return False
+        promotion = promotions[0]
+        documents: dict[str, list[tuple[dict[str, Any], str]]] = {}
+        for event in events:
+            if event.get("event_type") != "ArtefactRegistered":
+                continue
+            manifest = event.get("payload", {}).get("manifest")
+            if not isinstance(manifest, Mapping) or manifest.get("artefact_type") not in {
+                "spec_01_source_correction",
+                "spec_02_live_run_approval",
+            }:
+                continue
+            relative = manifest.get("relative_path")
+            content_sha256 = manifest.get("content_sha256")
+            if not isinstance(relative, str) or not isinstance(content_sha256, str):
+                return False
+            path = self.control_root / relative
+            try:
+                raw = path.read_bytes()
+                value = json.loads(raw)
+            except (OSError, json.JSONDecodeError):
+                return False
+            if not isinstance(value, dict) or raw != canonical_bytes(value) or sha256_hex(raw) != content_sha256:
+                return False
+            documents.setdefault(str(manifest["artefact_type"]), []).append((value, content_sha256))
+        correction_rows = documents.get("spec_01_source_correction", [])
+        approval_rows = documents.get("spec_02_live_run_approval", [])
+        if len(correction_rows) != 1 or len(approval_rows) != 1:
+            return False
+        correction, correction_sha256 = correction_rows[0]
+        approval, _approval_sha256 = approval_rows[0]
+        try:
+            self.schemas.validate(
+                "ars://portfolio/spec-01-source-correction",
+                correction,
+                schema_version="1.0.0",
+            )
+            self.schemas.validate(
+                "ars://portfolio/spec-02-live-run-approval",
+                approval,
+                schema_version="1.0.0",
+            )
+            starts = datetime.fromisoformat(approval["valid_window"]["starts_at"].replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError, SchemaError):
+            return False
+        now = self.clock()
+        return bool(
+            now.tzinfo is not None
+            and starts <= now < expires
+            and approval.get("entry_mode") == "owner_approved_park_test"
+            and approval.get("scientific_promotion") is False
+            and approval.get("spec_01_promotion")
+            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+            and approval.get("source_correction")
+            == {"id": correction.get("correction_id"), "sha256": correction_sha256}
+            and correction.get("decision_ref")
+            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+            and correction.get("scientific_disposition") == "PARK"
+        )
+
     def _prepare_spike(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
@@ -1749,8 +1825,12 @@ class DiscoveryRuntime:
             ct == "RegisterSpikePlan"
             and row in {"OR-014", "OR-025"}
             and candidate
-            and candidate.get("status")
-            == ("spike_planning_authorized" if row == "OR-014" else "spike_retry_authorized")
+            and (
+                candidate.get("status")
+                == ("spike_planning_authorized" if row == "OR-014" else "spike_retry_authorized")
+                or row == "OR-014"
+                and self._owner_approved_park_test(candidate)
+            )
             and spike is None
             and not _discovery_identity_exists(projection, spike_id)
             and command.target_stream_id == spike_id
