@@ -839,6 +839,7 @@ class SpecFlow:
         document_actor = (
             document.get("operator_session", {}).get("operator_actor_id")
             or document.get("producer", {}).get("actor_id")
+            or document.get("registrar", {}).get("actor_id")
             or document.get("owner", {}).get("actor_id")
         )
         if registration.get("actor_id") != document_actor:

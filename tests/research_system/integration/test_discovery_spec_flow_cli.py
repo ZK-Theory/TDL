@@ -1285,6 +1285,7 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
         "document_type": "spec_02_live_run_approval",
         "route_id": "SPEC-GATE6-RUN-V1",
         "owner": {"actor_id": owner_id, "role": "Stephen"},
+        "registrar": {"actor_id": owner_id, "role": "governed artefact registrar"},
         "decision": "APPROVE_SPEC_02_LIVE_RUN",
         "approved_at": "2026-08-14T13:00:00Z",
         "valid_window": {
