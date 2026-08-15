@@ -210,6 +210,18 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "ValidateOwnerOperatedContextHandoff",
         "IssueOwnerOperatedContextHandoff",
         "RecordOwnerOperatedContextDelivery",
+        "CreateTask",
+        "RequestReadiness",
+        "ApproveReadiness",
+        "IssueDispatch",
+        "RecordDispatchDelivery",
+        "AcknowledgeDispatch",
+        "ClaimDispatch",
+        "RequestResourceGrant",
+        "ClaimExecutionLease",
+        "CreateAttempt",
+        "ClaimAttempt",
+        "StartAttempt",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {

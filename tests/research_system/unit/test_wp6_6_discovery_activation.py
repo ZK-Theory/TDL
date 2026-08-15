@@ -46,6 +46,23 @@ def test_spec_brief_non_owner_commands_require_proven_scoped_actor_classes():
     }.issubset(SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES)
 
 
+def test_spec_execution_non_owner_commands_require_proven_scoped_actor_classes():
+    assert {
+        "CreateTask",
+        "RequestReadiness",
+        "ApproveReadiness",
+        "IssueDispatch",
+        "RecordDispatchDelivery",
+        "AcknowledgeDispatch",
+        "ClaimDispatch",
+        "RequestResourceGrant",
+        "ClaimExecutionLease",
+        "CreateAttempt",
+        "ClaimAttempt",
+        "StartAttempt",
+    }.issubset(SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES)
+
+
 def test_discovery_initiating_commands_use_candidate_scoped_authority():
     for command_type in (
         "ProposeRevisitDecision",
