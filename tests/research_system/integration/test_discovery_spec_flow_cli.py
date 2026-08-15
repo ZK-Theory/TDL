@@ -32,6 +32,7 @@ from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.spec_flow import SpecFlow, _rows, build_spec_authority_subject
 from research_system.discovery.routes import shared_event_partition
 from research_system.context.spec_bridge import _stable_id as _stable_context_id
+from research_system.context.spec_bridge import derive_spec_owner_context_id
 from research_system.ids import new_id
 from research_system.methods.registration import (
     CandidateDocumentStore,
@@ -699,26 +700,16 @@ def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
         "package_registration": registration(package_id, package_grant, "spec_01_operator_brief"),
     }
     _write_action(inputs, "prepare_spec_01", document=semantic, registration=registrations)
-    retry_id = inputs["packet"]["retry_id"]
-    seed = sha256_hex(
-        canonical_bytes(
-            {
-                "semantic": [
-                    actor_id,
-                    context_grant_id,
-                    semantic["operator_session_id"],
-                    semantic["recipient_id"],
-                    semantic["purpose"],
-                    semantic["scope"],
-                    retry_id,
-                    semantic["application_version"],
-                    semantic["evaluation_time"],
-                    semantic["handoff_expires_at"],
-                ]
-            }
-        )
+    context_id = derive_spec_owner_context_id(
+        actor_id=actor_id,
+        operator_session_id=semantic["operator_session_id"],
+        recipient_id=semantic["recipient_id"],
+        purpose=semantic["purpose"],
+        scope=semantic["scope"],
+        application_version=semantic["application_version"],
+        valid_from=semantic["evaluation_time"],
+        expires_at=semantic["handoff_expires_at"],
     )
-    context_id = _stable_context_id("ctx", f"{seed}:context")
     activate_lifecycle_grant(
         inputs["harness"],
         subject_kind="context",

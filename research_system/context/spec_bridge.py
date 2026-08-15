@@ -27,6 +27,35 @@ def _stable_id(kind: str, seed: str) -> str:
     return f"{kind}_{uuid.UUID(int=value)}"
 
 
+def derive_spec_owner_context_id(
+    *,
+    actor_id: str,
+    operator_session_id: str,
+    recipient_id: str,
+    purpose: str,
+    scope: str,
+    application_version: str,
+    valid_from: str,
+    expires_at: str,
+) -> str:
+    """Derive the governed context target before its scoped grant exists."""
+
+    semantic = [
+        actor_id,
+        operator_session_id,
+        recipient_id,
+        purpose,
+        scope,
+        application_version,
+        valid_from,
+        expires_at,
+    ]
+    if any(not value for value in semantic):
+        raise ArsError("SPEC context semantic identities must be explicit")
+    seed = sha256_hex(canonical_bytes({"semantic": semantic}))
+    return _stable_id("ctx", f"{seed}:context")
+
+
 @dataclass(frozen=True, slots=True)
 class SpecContextSnapshot:
     source: SourceFragment
@@ -138,23 +167,30 @@ def deliver_spec_owner_context(
     expires_at: str,
 ) -> tuple[CompiledContextPacket, DiscoveryReplaySourceResolver]:
     """Compile, validate, issue, and record an honest manual brief handoff."""
+    if not authority_grant_id or not retry_identity:
+        raise ArsError("SPEC context semantic identities and authority must be explicit")
     semantic = [
         actor_id,
-        authority_grant_id,
         operator_session_id,
         recipient_id,
         purpose,
         scope,
-        retry_identity,
         application_version,
         valid_from,
         expires_at,
     ]
-    if any(not value for value in semantic):
-        raise ArsError("SPEC context semantic identities and authority must be explicit")
     events = tuple(operator.ledger.iter_events())
     seed = sha256_hex(canonical_bytes({"semantic": semantic}))
-    context_id = _stable_id("ctx", f"{seed}:context")
+    context_id = derive_spec_owner_context_id(
+        actor_id=actor_id,
+        operator_session_id=operator_session_id,
+        recipient_id=recipient_id,
+        purpose=purpose,
+        scope=scope,
+        application_version=application_version,
+        valid_from=valid_from,
+        expires_at=expires_at,
+    )
     request_id = f"spec-context:{seed}"
     writer = CommandServiceContextWriter(
         command_service,
@@ -306,4 +342,5 @@ __all__ = [
     "SpecContextSnapshot",
     "build_spec_context_snapshot",
     "deliver_spec_owner_context",
+    "derive_spec_owner_context_id",
 ]
