@@ -1061,9 +1061,26 @@ class SpecFlow:
                 raise IntegrityError("SPEC brief-input authority action cannot register a document")
             _events, projection, _documents = self._snapshot()
             expected_type = "RecordScientificReview" if action.startswith("review_") else "SetArtefactUseAuthority"
-            inputs = self._pending_brief_input_authority_states(projection, expected_type)
-            if len(packet["commands"]) != len(inputs):
+            all_inputs = self._brief_input_states(projection)
+            pending_inputs = self._pending_brief_input_authority_states(projection, expected_type)
+            command_targets = [
+                envelope.get("target_stream_id") if isinstance(envelope, dict) else None
+                for envelope in packet["commands"]
+            ]
+            if (
+                len(command_targets) != len(set(command_targets))
+                or not set(pending_inputs).issubset(command_targets)
+                or any(target not in all_inputs for target in command_targets)
+            ):
                 raise IntegrityError("SPEC brief-input authority commands are incomplete")
+            receipt_store = ReceiptStore(self.operator.control_root)
+            for envelope, target in zip(packet["commands"], command_targets, strict=True):
+                if target in pending_inputs:
+                    continue
+                receipt = receipt_store.load(str(envelope.get("command_id")))
+                if receipt is None or receipt.status != "accepted":
+                    raise IntegrityError("SPEC brief-input authority commands are incomplete")
+            inputs = {str(target): all_inputs[str(target)] for target in command_targets}
             review_store = GoverningScientificReviewStore(
                 ObjectStore(self.operator.control_root), self.operator.schemas
             )
@@ -1082,7 +1099,7 @@ class SpecFlow:
                 self.operator.control_root,
                 self.operator.ledger,
                 ObjectStore(self.operator.control_root),
-                ReceiptStore(self.operator.control_root),
+                receipt_store,
                 self.operator.schemas,
                 authority_resolver=self.operator.authority_resolver,
                 governing_evidence_resolver=review_store,
