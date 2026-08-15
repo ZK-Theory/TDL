@@ -261,6 +261,7 @@ def test_spec_brief_lanes_derive_only_the_exact_subject_command(inputs, lane, ro
 
     material = setup._derive_publication_material(intent)
     assert tuple(item["command_type"] for item in material["grant_value"]["allowed_commands"]) == expected_commands
+    assert material["grant_value"]["risk_ceiling"] == "R3"
 
 
 @pytest.mark.integration
@@ -277,6 +278,7 @@ def test_spec_brief_owner_and_context_lanes_are_closed_server_policy():
         "RecordOwnerOperatedContextDelivery",
     }
     assert owner_module._LANE_ALLOWED_ACTOR_CLASSES["operator/spec_01_context"] == {"human", "service"}
+    assert all(owner_module._LANE_RISK_POLICY[lane] == "R3" for lane in owner_module._SPEC_FLOW_SUPPORT_LANES)
 
 
 @pytest.mark.integration

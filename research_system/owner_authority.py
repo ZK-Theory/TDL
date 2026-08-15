@@ -139,6 +139,7 @@ _SPEC_FLOW_SUPPORT_LANES = frozenset(
         "operator/spec_01_context",
     }
 )
+_LANE_RISK_POLICY = {lane: ("R3" if lane in _SPEC_FLOW_SUPPORT_LANES else "R2") for lane in _LANE_COMMAND_POLICY}
 _LANE_ALLOWED_ACTOR_CLASSES = {
     lane: (
         frozenset({"human"})
@@ -822,7 +823,7 @@ class OwnerAuthoritySetup:
             "allowed_commands": allowed_commands,
             "allowed_policy_actions": [],
             "subject_scope": request["subject_scope"],
-            "risk_ceiling": "R2",
+            "risk_ceiling": _LANE_RISK_POLICY[str(lane)],
             "effective_at": effective_text,
             "expires_at": expires_text,
             "delegable": False,
