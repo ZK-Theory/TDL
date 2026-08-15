@@ -391,6 +391,120 @@ def _axis_set_hash(axis_ids: Iterable[str]) -> str:
     return sha256_hex(canonical_bytes(sorted(axis_ids)))
 
 
+_SPEC_GATE6_ASSAY_AXIS_IDS = (
+    "topology_earns_its_keep",
+    "data_feasibility",
+    "novelty_publishability",
+)
+_SPEC_GATE6_MECHANICAL_PREDICATES = (
+    "PROMOTE requires topology_earns_its_keep == true",
+    "PROMOTE requires data_feasibility + novelty_publishability >= 4",
+    "PROMOTE requires data_feasibility > 0 and novelty_publishability > 0",
+)
+_SPEC_GATE6_PARTIAL_PREDICATES = (
+    "Partial requires blocked or incomplete required evidence and cannot be relabelled PROMOTE",
+)
+_SPEC_GATE6_PARK_PREDICATES = (
+    "PARK when topology_earns_its_keep == true, data_feasibility > 0, "
+    "novelty_publishability > 0, and data_feasibility + novelty_publishability < 4, "
+    "with named remediable gaps and revisit requirements",
+    "PARK is required when any additional human-readable promotion gate is unmet or cannot be expressed by the "
+    "machine scorecard",
+)
+_SPEC_GATE6_KILL_PREDICATES = (
+    "KILL when completed evidence has topology_earns_its_keep == false",
+    "KILL when completed evidence has data_feasibility == 0",
+    "KILL when completed evidence has novelty_publishability == 0",
+    "KILL requires a directly verified decisive failure or redundancy",
+)
+
+
+def _mechanical_assay_recommendation(
+    rubric: Mapping[str, Any],
+    axis_definitions: list[Any],
+    results_by_axis: Mapping[str, tuple[Mapping[str, Any], Mapping[str, Any]]],
+) -> str | None:
+    """Evaluate the accepted rubric's named mechanical recommendation algorithm."""
+
+    algorithm_id = rubric.get("rule_evaluation_algorithm_id")
+    if algorithm_id == "spec-gate6-assay-score-v1":
+        required_axis_ids = rubric.get("required_axis_ids")
+        evaluation_order = rubric.get("evaluation_order")
+        recommendation_predicates = rubric.get("recommendation_predicates")
+        partial_predicates = rubric.get("partial_predicates")
+        park_predicates = rubric.get("park_predicates")
+        kill_predicates = rubric.get("kill_predicates")
+        rule_preimage_fields = (
+            "evaluation_order",
+            "recommendation_predicates",
+            "hard_gate_predicates",
+            "partial_predicates",
+            "park_predicates",
+            "kill_predicates",
+            "rule_evaluation_algorithm_id",
+            "rule_evaluation_algorithm_version",
+        )
+        try:
+            expected_rule_hash = sha256_hex(canonical_bytes({field: rubric[field] for field in rule_preimage_fields}))
+        except (KeyError, TypeError, ValueError):
+            return None
+        if (
+            rubric.get("rule_evaluation_algorithm_version") != "1.0.0"
+            or not isinstance(required_axis_ids, list)
+            or tuple(required_axis_ids) != _SPEC_GATE6_ASSAY_AXIS_IDS
+            or not isinstance(evaluation_order, list)
+            or tuple(evaluation_order) != _SPEC_GATE6_ASSAY_AXIS_IDS
+            or not isinstance(recommendation_predicates, list)
+            or tuple(recommendation_predicates[:3]) != _SPEC_GATE6_MECHANICAL_PREDICATES
+            or not isinstance(partial_predicates, list)
+            or tuple(partial_predicates) != _SPEC_GATE6_PARTIAL_PREDICATES
+            or not isinstance(park_predicates, list)
+            or tuple(park_predicates) != _SPEC_GATE6_PARK_PREDICATES
+            or not isinstance(kill_predicates, list)
+            or tuple(kill_predicates) != _SPEC_GATE6_KILL_PREDICATES
+            or rubric.get("rule_evaluation_algorithm_hash") != expected_rule_hash
+            or tuple(definition.get("axis_id") for definition in axis_definitions) != _SPEC_GATE6_ASSAY_AXIS_IDS
+        ):
+            return None
+        topology_definition, topology_result = results_by_axis["topology_earns_its_keep"]
+        data_definition, data_result = results_by_axis["data_feasibility"]
+        novelty_definition, novelty_result = results_by_axis["novelty_publishability"]
+        if (
+            topology_definition.get("axis_kind") != "gate"
+            or topology_definition.get("value_type") != "boolean"
+            or topology_definition.get("allowed_set") != [False, True]
+            or data_definition.get("axis_kind") != "integer_score"
+            or data_definition.get("value_type") != "integer"
+            or data_definition.get("bounds") != {"minimum": 0, "maximum": 3}
+            or novelty_definition.get("axis_kind") != "integer_score"
+            or novelty_definition.get("value_type") != "integer"
+            or novelty_definition.get("bounds") != {"minimum": 0, "maximum": 3}
+            or any(definition.get("required") is not True for definition in axis_definitions)
+        ):
+            return None
+        topology = topology_result.get("value")
+        data_score = data_result.get("value")
+        novelty_score = novelty_result.get("value")
+        if type(data_score) is not int or type(novelty_score) is not int:
+            return None
+        if topology is not True or data_score == 0 or novelty_score == 0:
+            return "KILL"
+        return "PROMOTE" if data_score + novelty_score >= 4 else "PARK"
+
+    required_axis_ids = rubric.get("required_axis_ids")
+    if not isinstance(required_axis_ids, list):
+        return None
+    required_results = [results_by_axis[axis_id] for axis_id in required_axis_ids]
+    return (
+        "PROMOTE"
+        if all(
+            definition.get("axis_kind") != "gate" or result.get("value") is True
+            for definition, result in required_results
+        )
+        else "KILL"
+    )
+
+
 def _assay_scorecard_matches(
     artifact: Mapping[str, Any],
     payload: Mapping[str, Any],
@@ -476,6 +590,8 @@ def _assay_scorecard_matches(
         ):
             return False
     axis_ids = [definition.get("axis_id") for definition in axis_definitions]
+    if not all(isinstance(axis_id, str) and axis_id for axis_id in axis_ids) or len(set(axis_ids)) != len(axis_ids):
+        return False
     expected_candidate = _record_ref(
         payload.get("candidate_id"), candidate.get("revision"), candidate.get("content_sha256")
     )
@@ -503,15 +619,9 @@ def _assay_scorecard_matches(
     }
     if any(axis_id not in results_by_axis for axis_id in required_axis_ids):
         return False
-    required_results = [results_by_axis[axis_id] for axis_id in required_axis_ids]
-    recommendation = (
-        "PROMOTE"
-        if all(
-            definition.get("axis_kind") != "gate" or result.get("value") is True
-            for definition, result in required_results
-        )
-        else "KILL"
-    )
+    recommendation = _mechanical_assay_recommendation(rubric, axis_definitions, results_by_axis)
+    if recommendation is None:
+        return False
     try:
         artifact_sha256 = sha256_hex(canonical_bytes(artifact))
     except (TypeError, ValueError):

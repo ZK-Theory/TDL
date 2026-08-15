@@ -71,8 +71,58 @@ ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.js
 ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
 DOSSIER_AUTHORITY_PATH = ".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json"
 PATH_AUTHORITY_PATH = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
-ASSAY_AUTHORITY_ACTORS = tuple(f"act_019fed25-b33e-7740-b280-{number:012d}" for number in range(201, 207))
+ASSAY_AUTHORITY_AUTHOR = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())["created_by_actor_id"]
+ASSAY_AUTHORITY_ACTORS = tuple(
+    ASSAY_AUTHORITY_AUTHOR if number == 205 else f"act_019fed25-b33e-7740-b280-{number:012d}"
+    for number in range(201, 207)
+)
 _HARNESSES = {}
+
+
+def _authority_repository_root(tmp_path: Path) -> Path:
+    """Expose candidate authority bytes through an honest isolated Git subject."""
+
+    catalogue_path = CATALOGUE.relative_to(REPO_ROOT).as_posix()
+    authority_paths = (
+        ASSAY_RUBRIC_PATH,
+        ASSAY_SCOPE_PATH,
+        DOSSIER_AUTHORITY_PATH,
+        PATH_AUTHORITY_PATH,
+        catalogue_path,
+        ".research-system/contracts/w11/w11-materialization-bootstrap-contract.yaml",
+    )
+    if all(
+        subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "show", f"HEAD:{path}"],
+            capture_output=True,
+            check=True,
+        ).stdout
+        == (REPO_ROOT / path).read_bytes()
+        for path in authority_paths
+    ):
+        return REPO_ROOT
+    candidate_root = tmp_path / "authority-repository"
+    if (candidate_root / ".git").is_dir():
+        return candidate_root
+    for path in authority_paths:
+        destination = candidate_root / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPO_ROOT / path).read_bytes())
+    environment = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "TDL test fixture",
+        "GIT_AUTHOR_EMAIL": "test-fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "TDL test fixture",
+        "GIT_COMMITTER_EMAIL": "test-fixture@example.invalid",
+    }
+    for arguments in (("init", "--quiet"), ("add", "."), ("commit", "--quiet", "-m", "candidate authority")):
+        subprocess.run(
+            ["git", "-C", str(candidate_root), *arguments],
+            check=True,
+            capture_output=True,
+            env=environment,
+        )
+    return candidate_root
 
 
 def _rehash_events(events: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
@@ -132,6 +182,7 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
         _HARNESSES[tmp_path] = harness
     root = tmp_path / "discovery"
     root.mkdir(exist_ok=True)
+    repository_root = _authority_repository_root(tmp_path)
 
     class GovernedDiscoveryRuntime(DiscoveryRuntime):
         def submit(self, envelope):
@@ -204,10 +255,10 @@ def _runtime(tmp_path: Path) -> DiscoveryRuntime:
         root,
         harness.ledger,
         harness.schemas,
-        catalogue_path=CATALOGUE,
+        catalogue_path=repository_root / CATALOGUE.relative_to(REPO_ROOT),
         authority_resolver=harness.authority_resolver,
         clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
-        repository_root=REPO_ROOT,
+        repository_root=repository_root,
         root_tokens={
             "$REPOSITORY_CONTRACT_ROOT": TDA_RUNTIME_ROOT / ".research-system/contracts/wp6-4",
             "$TDA_VAULT_ROOT": TDA_VAULT_ROOT,
@@ -277,18 +328,21 @@ def _assert_nested_decision_authority_rejected(
         assert tuple(runtime.ledger.iter_events()) == before
 
 
-def _sealed_authority_subject(authority_path: str) -> dict[str, object]:
-    raw = (REPO_ROOT / authority_path).read_bytes()
+def _sealed_authority_subject(
+    authority_path: str,
+    repository_root: Path = REPO_ROOT,
+) -> dict[str, object]:
+    raw = (repository_root / authority_path).read_bytes()
     subject: dict[str, object] = json.loads(raw)
     subject.update(
         authority_file_path=authority_path,
         authority_file_size=len(raw),
         authority_file_sha256=hashlib.sha256(raw).hexdigest(),
         authority_file_git_commit=subprocess.check_output(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(repository_root), "rev-parse", "HEAD"], text=True
         ).strip(),
         authority_file_git_blob=subprocess.check_output(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", f"HEAD:{authority_path}"], text=True
+            ["git", "-C", str(repository_root), "rev-parse", f"HEAD:{authority_path}"], text=True
         ).strip(),
     )
     subject["subject_sha256"] = subject_sha256(subject)
@@ -310,7 +364,7 @@ def _advance_w11_authority(
     register_command = (
         "RegisterDossierExpectedSetContent" if kind == "dossier_expected_set" else "RegisterPathRegistrationContent"
     )
-    subject = _sealed_authority_subject(authority_path)
+    subject = _sealed_authority_subject(authority_path, runtime.repository_root)
     actors = tuple(
         ACTOR_ID if number == 5 else f"act_019fed25-b33e-7740-b280-{actor_offset + number:012d}" for number in range(6)
     )
@@ -802,11 +856,11 @@ def test_number_valued_assay_rubric_cannot_activate_before_a_p0_scaled_integer_c
     replay_discovery(before)
 
 
-def test_assay_fixture_axis_and_dependent_content_hashes_are_canonical() -> None:
+def test_assay_authority_axis_and_dependent_content_hashes_are_canonical() -> None:
     rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
 
-    assert rubric["required_axis_set_hash"] == sha256_hex(canonical_bytes(rubric["required_axis_ids"]))
+    assert rubric["required_axis_set_hash"] == sha256_hex(canonical_bytes(sorted(rubric["required_axis_ids"])))
     assert rubric["content_hash"] == sha256_hex(
         canonical_bytes({key: value for key, value in rubric.items() if key != "content_hash"})
     )
@@ -1301,7 +1355,11 @@ def _scorecard(
         _ref(scope["record_id"], scope["record_revision"], bar["observations"]["scope"]["file_sha256"]),
     ]
     producer_ref = acceptance["prospective_producer_ref"]
-    evidence_row = scope["evidence_rows"][0]
+    axis_values = {
+        "topology_earns_its_keep": True,
+        "data_feasibility": 2,
+        "novelty_publishability": 2,
+    }
     return {
         "schema_id": "ars://portfolio/assay-scorecard",
         "schema_version": "1.0.0",
@@ -1316,18 +1374,19 @@ def _scorecard(
         "producer_relation_ref": producer_ref,
         "axis_results": [
             {
-                "axis_id": "identity",
-                "axis_kind": "gate",
-                "value": True,
-                "rationale": "Exact fixture evidence closes the declared axis.",
+                "axis_id": definition["axis_id"],
+                "axis_kind": definition["axis_kind"],
+                "value": axis_values[definition["axis_id"]],
+                "rationale": "Exact SPEC-01 evidence closes the declared authority axis.",
                 "evidence_refs": file_refs,
                 "unmet_condition_codes": [],
                 "validator_id": evidence_row["validator_id"],
                 "validator_hash": evidence_row["validator_hash"],
             }
+            for definition, evidence_row in zip(rubric["axis_definitions"], scope["evidence_rows"], strict=True)
         ],
         "required_axis_set_hash": acceptance["required_axis_set_hash"],
-        "observed_axis_set_hash": sha256_hex(canonical_bytes(["identity"])),
+        "observed_axis_set_hash": sha256_hex(canonical_bytes(sorted(axis_values))),
         "mechanical_recommendation": "PROMOTE",
         "rule_evaluation_ref": _ref(
             rubric["rule_evaluation_algorithm_id"],
@@ -2776,7 +2835,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             )
             with pytest.raises(
                 IntegrityError,
-                match="schema provenance mismatch|invalid Discovery review verdict",
+                match="schema provenance mismatch|event schema validation failed|invalid Discovery review verdict",
             ):
                 replay_discovery(_rehash_events(events))
 
@@ -6073,7 +6132,7 @@ def test_assay_recommendation_uses_the_authoritative_required_axis_ids(tmp_path:
     second_definition = deepcopy(rubric["axis_definitions"][0])
     second_definition.update(axis_id="required_despite_flag", required=False)
     rubric["axis_definitions"].append(second_definition)
-    rubric["required_axis_ids"] = ["identity", "required_despite_flag"]
+    rubric["required_axis_ids"] = [*rubric["required_axis_ids"], "required_despite_flag"]
     scope["evidence_rows"].append(deepcopy(scope["evidence_rows"][0]))
     second_result = deepcopy(artifact["axis_results"][0])
     second_result.update(axis_id="required_despite_flag", value=False)
@@ -6081,7 +6140,9 @@ def test_assay_recommendation_uses_the_authoritative_required_axis_ids(tmp_path:
     required_hash = sha256_hex(canonical_bytes(rubric["required_axis_ids"]))
     bar["acceptance"]["required_axis_set_hash"] = required_hash
     artifact["required_axis_set_hash"] = required_hash
-    artifact["observed_axis_set_hash"] = sha256_hex(canonical_bytes(sorted(("identity", "required_despite_flag"))))
+    artifact["observed_axis_set_hash"] = sha256_hex(
+        canonical_bytes(sorted(result["axis_id"] for result in artifact["axis_results"]))
+    )
     payload = {
         "assay_id": assay_id,
         "candidate_id": candidate_id,
