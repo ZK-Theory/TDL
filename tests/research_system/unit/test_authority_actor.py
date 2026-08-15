@@ -13,6 +13,10 @@ from research_system.authority_actor import (
     RegisterAuthorityActor,
     read_actor_registration_intent,
 )
+from research_system.authority import (
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+    EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+)
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, ConfigurationError, IntegrityError
 from research_system.owner_authority import _known_authority_actor_classes
@@ -222,6 +226,65 @@ def test_generic_assurance_record_does_not_prove_actor(tmp_path: Path) -> None:
     assert _known_authority_actor_classes(tmp_path, objects) == {}
     result = service.register(_intent())
     assert _known_authority_actor_classes(tmp_path, objects)[result["actor_id"]] == frozenset({"agent"})
+
+
+def test_mixed_scoped_grant_families_and_registration_prove_actor_classes(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    result = service.register(_intent(expires_at="2026-08-16T00:00:00Z"))
+    (tmp_path / "objects" / "authority_grant").mkdir(parents=True)
+    objects = ObjectStore(tmp_path)
+    normal_grant = {
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": "2.1.0",
+        "authority_grant_id": "agr_01978abc-1000-7000-8000-000000001010",
+        "actor_id": "act_01978abc-1000-7000-8000-000000001010",
+        "allowed_actor_classes": ["service"],
+        "allowed_commands": [
+            {
+                "command_type": "RequestAssay",
+                "schema_id": "ars://core/command/RequestAssay",
+                "schema_version": "1.0.0",
+                "schema_sha256": "1" * 64,
+            }
+        ],
+        "allowed_policy_actions": [],
+        "subject_scope": {
+            "project_id": PROJECT,
+            "subject": {"kind": "task", "id": "tsk_01978abc-1000-7000-8000-000000001010"},
+        },
+        "risk_ceiling": "R1",
+        "effective_at": "2026-08-14T00:00:00Z",
+        "expires_at": "2026-08-15T00:00:00Z",
+        "delegable": False,
+        "revoked": False,
+    }
+    external_grant = {
+        **normal_grant,
+        "schema_id": EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_ID,
+        "schema_version": EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
+        "authority_grant_id": "agr_01978abc-1000-7000-8000-000000001011",
+        "actor_id": result["actor_id"],
+        "allowed_actor_classes": ["human"],
+        "allowed_commands": [],
+        "allowed_policy_actions": [
+            {
+                "policy_action_type": "publish_external_assurance_record",
+                "schema_id": "ars://core/policy-action/PublishExternalAssuranceRecord",
+                "schema_version": "1.0.0",
+                "schema_sha256": "2" * 64,
+            }
+        ],
+        "subject_scope": {
+            "project_id": PROJECT,
+            "subject": {"kind": "external_assurance_record", "id": "agr_01978abc-1000-7000-8000-000000001011"},
+        },
+    }
+    objects.write("authority_grant", normal_grant["authority_grant_id"], 1, normal_grant)
+    objects.write("authority_grant", external_grant["authority_grant_id"], 1, external_grant)
+
+    known = _known_authority_actor_classes(tmp_path, objects)
+    assert known[normal_grant["actor_id"]] == frozenset({"service"})
+    assert known[result["actor_id"]] == frozenset({"agent", "human"})
 
 
 def test_foreign_registration_context_is_not_known_to_current_owner(tmp_path: Path) -> None:

@@ -270,6 +270,22 @@ def _grant_lanes(grant: ScopedAuthorityGrant) -> frozenset[str]:
     )
 
 
+def _parse_supported_scoped_grant(value: object) -> ScopedAuthorityGrant:
+    """Parse a persisted scoped grant against its exact supported schema identity."""
+
+    if not isinstance(value, dict):
+        raise ValueError("scoped authority grant must be an object")
+    schema_id = value.get("schema_id")
+    schema_version = value.get("schema_version")
+    if not is_scoped_authority_grant_schema(schema_id, schema_version):
+        raise ValueError("unsupported scoped authority grant schema")
+    return ScopedAuthorityGrant.from_dict(
+        value,
+        expected_schema_id=str(schema_id),
+        expected_schema_version=str(schema_version),
+    )
+
+
 def _role_families_conflict(proposed: frozenset[str], existing: frozenset[str]) -> bool:
     if "owner" in proposed and existing - {"owner"}:
         return True
@@ -418,7 +434,7 @@ def _enforce_durable_role_independence(
         ):
             continue
         try:
-            existing = ScopedAuthorityGrant.from_dict(value)
+            existing = _parse_supported_scoped_grant(value)
         except ValueError as exc:
             raise IntegrityError("existing scoped authority grant object is invalid") from exc
         if existing.actor_id != proposed_grant.actor_id or not existing.allowed_commands:
@@ -458,7 +474,7 @@ def _known_authority_actor_classes(
         try:
             value = objects.read("authority_grant", candidate.name, 1)
             if is_scoped_authority_grant_schema(value.get("schema_id"), value.get("schema_version")):
-                grant = ScopedAuthorityGrant.from_dict(value)
+                grant = _parse_supported_scoped_grant(value)
                 actors.setdefault(grant.actor_id, set()).update(grant.allowed_actor_classes)
             else:
                 grant = AuthorityGrant.from_dict(value)
