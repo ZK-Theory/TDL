@@ -859,7 +859,10 @@ class SpecFlow:
             and state.get("content_sha256") == route_source["sha256"]
         ]
         method_rows = [
-            state for state in input_states.values() if state["manifest"]["artefact_type"] == "methods_asset"
+            state
+            for state in input_states.values()
+            if state["manifest"]["artefact_type"] == "methods_asset"
+            and state["manifest"].get("authority", {}).get("accepted_scope") == semantic["scope"]
         ]
         if len(spec_rows) != 1 or not method_rows:
             raise IntegrityError(f"{stage} accepted brief inputs are not exact")
