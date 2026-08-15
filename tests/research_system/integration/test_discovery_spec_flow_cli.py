@@ -76,6 +76,36 @@ ASSAY_SCOPE_PATH = Path(".research-system/contracts/wp6-6/assay-evidence-scope-c
 REVIEWER_ACTOR = "act_019ffe2b-fd4b-7000-8000-000000000901"
 
 
+def test_brief_authority_targets_exclude_already_reviewed_and_accepted_history():
+    projection = {
+        "artefact_streams": {
+            "art_reviewed": {
+                "manifest": {"artefact_type": "methods_asset"},
+                "scientific_reviews": [{"review_id": "rev_existing"}],
+                "use_authority": "accepted_for_scope",
+            },
+            "art_pending_review": {
+                "manifest": {"artefact_type": "spec_operator_source"},
+                "scientific_reviews": [],
+                "use_authority": "candidate",
+            },
+            "art_pending_use": {
+                "manifest": {"artefact_type": "spec_operator_source"},
+                "scientific_reviews": [{"review_id": "rev_new"}],
+                "use_authority": "candidate",
+            },
+        }
+    }
+
+    assert set(SpecFlow._pending_brief_input_authority_states(projection, "RecordScientificReview")) == {
+        "art_pending_review"
+    }
+    assert set(SpecFlow._pending_brief_input_authority_states(projection, "SetArtefactUseAuthority")) == {
+        "art_pending_review",
+        "art_pending_use",
+    }
+
+
 @pytest.fixture
 def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Synthetic governed fixture; it is implementation proof, not Gate 6 proof."""

@@ -370,6 +370,21 @@ class SpecFlow:
             and state["manifest"].get("artefact_type") in _BRIEF_INPUT_TYPES
         }
 
+    @classmethod
+    def _pending_brief_input_authority_states(
+        cls, projection: Mapping[str, Any], command_type: str
+    ) -> dict[str, Mapping[str, Any]]:
+        inputs = cls._brief_input_states(projection)
+        if command_type == "RecordScientificReview":
+            return {stream_id: state for stream_id, state in inputs.items() if not state.get("scientific_reviews")}
+        if command_type == "SetArtefactUseAuthority":
+            return {
+                stream_id: state
+                for stream_id, state in inputs.items()
+                if state.get("use_authority") != "accepted_for_scope"
+            }
+        raise IntegrityError("SPEC brief-input authority command type is unsupported")
+
     def status(self) -> SpecFlowStatus:
         events, projection, documents = self._snapshot()
         rows = set(_rows(events, projection))
@@ -1045,8 +1060,8 @@ class SpecFlow:
             ):
                 raise IntegrityError("SPEC brief-input authority action cannot register a document")
             _events, projection, _documents = self._snapshot()
-            inputs = self._brief_input_states(projection)
             expected_type = "RecordScientificReview" if action.startswith("review_") else "SetArtefactUseAuthority"
+            inputs = self._pending_brief_input_authority_states(projection, expected_type)
             if len(packet["commands"]) != len(inputs):
                 raise IntegrityError("SPEC brief-input authority commands are incomplete")
             review_store = GoverningScientificReviewStore(
