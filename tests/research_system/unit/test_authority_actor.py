@@ -230,7 +230,7 @@ def test_generic_assurance_record_does_not_prove_actor(tmp_path: Path) -> None:
 
 def test_mixed_scoped_grant_families_and_registration_prove_actor_classes(tmp_path: Path) -> None:
     service = _service(tmp_path)
-    result = service.register(_intent(expires_at="2026-08-16T00:00:00Z"))
+    result = service.register(_intent(expires_at="2099-01-01T00:00:00Z"))
     (tmp_path / "objects" / "authority_grant").mkdir(parents=True)
     objects = ObjectStore(tmp_path)
     normal_grant = {
