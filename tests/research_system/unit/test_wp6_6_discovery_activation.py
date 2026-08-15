@@ -17,6 +17,7 @@ from research_system.discovery.routes import (
 )
 from research_system.discovery.replay.transactions import TRANSACTION_CONTRACTS
 from research_system.discovery.runtime import _DISCOVERY_COMMAND_TYPES
+from research_system.discovery.replay.driver import _parked_candidate_test_plan_matches
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.schema_registry import runtime_schema_registry
 
@@ -61,6 +62,22 @@ def test_spec_execution_non_owner_commands_require_proven_scoped_actor_classes()
         "ClaimAttempt",
         "StartAttempt",
     }.issubset(SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES)
+
+
+def test_parked_candidate_replay_requires_exact_non_promotional_test_shape():
+    candidate = {"status": "parked"}
+    decision = {"status": "resolved", "selected_option": "PARK"}
+    payload = {
+        "row_id": "OR-014",
+        "plan_artifact": {"prohibited_work": ["scientific promotion", "automatic promotion"]},
+    }
+    assert _parked_candidate_test_plan_matches(candidate, decision, payload)
+    assert not _parked_candidate_test_plan_matches(candidate, {**decision, "selected_option": "PROMOTE"}, payload)
+    assert not _parked_candidate_test_plan_matches(
+        candidate,
+        decision,
+        {**payload, "plan_artifact": {"prohibited_work": ["scientific promotion"]}},
+    )
 
 
 def test_discovery_initiating_commands_use_candidate_scoped_authority():

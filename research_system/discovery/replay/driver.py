@@ -32,6 +32,27 @@ from research_system.errors import IntegrityError
 from research_system.schema_registry import SchemaRegistry
 
 
+def _parked_candidate_test_plan_matches(
+    candidate: Mapping[str, Any] | None,
+    decision: Mapping[str, Any] | None,
+    payload: Mapping[str, Any],
+) -> bool:
+    """Recognize the non-promotional replay shape admitted by live preflight."""
+
+    plan_artifact = payload.get("plan_artifact")
+    return bool(
+        isinstance(candidate, Mapping)
+        and candidate.get("status") == "parked"
+        and isinstance(decision, Mapping)
+        and decision.get("status") == "resolved"
+        and decision.get("selected_option") == "PARK"
+        and payload.get("row_id") == "OR-014"
+        and isinstance(plan_artifact, Mapping)
+        and "scientific promotion" in plan_artifact.get("prohibited_work", ())
+        and "automatic promotion" in plan_artifact.get("prohibited_work", ())
+    )
+
+
 def replay_discovery(
     events: Iterable[dict[str, Any]],
     *,
@@ -250,6 +271,8 @@ def replay_discovery(
         spike_id = payload.get("spike_id")
         candidate = state["candidates"].get(candidate_id)
         spike = state["spikes"].get(spike_id)
+        decision = state["decisions"].get(candidate.get("decision_id")) if isinstance(candidate, Mapping) else None
+        parked_test_plan = _parked_candidate_test_plan_matches(candidate, decision, payload)
         preceding = [
             transaction_event
             for transaction_event in transaction_events.get(event.get("transaction_id"), ())
@@ -260,7 +283,7 @@ def replay_discovery(
             isinstance(candidate, Mapping)
             and isinstance(spike, Mapping)
             and event.get("stream_id") == candidate_id
-            and candidate.get("status") == "spike_planning_authorized"
+            and (candidate.get("status") == "spike_planning_authorized" or parked_test_plan)
             and spike.get("status") == "approval_pending"
             and spike.get("candidate_id") == candidate_id
             and len(preceding) == 2
