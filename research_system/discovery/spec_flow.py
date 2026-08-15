@@ -280,10 +280,21 @@ def _rows(events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any] | N
         if isinstance(authorities, Mapping):
             for kind, start in (("dossier_expected_set", 110), ("path_registration", 116)):
                 authority = authorities.get(kind)
-                if isinstance(authority, Mapping) and authority.get("status") == "accepted":
-                    ordered.extend(
-                        row for row in (f"OR-{value:03d}" for value in range(start, start + 6)) if row not in ordered
-                    )
+                if not isinstance(authority, Mapping):
+                    continue
+                completed_count = {
+                    "registered": 1,
+                    "observed": 2,
+                    "review_requested": 3,
+                    "reviewed": 4,
+                    "decision_proposed": 5,
+                    "accepted": 6,
+                }.get(authority.get("status"), 0)
+                ordered.extend(
+                    row
+                    for row in (f"OR-{value:03d}" for value in range(start, start + completed_count))
+                    if row not in ordered
+                )
         dossiers = projection.get("dossiers")
         if isinstance(dossiers, Mapping) and dossiers and "OR-028" not in ordered:
             ordered.append("OR-028")

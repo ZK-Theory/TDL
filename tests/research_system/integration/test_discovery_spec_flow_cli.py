@@ -29,7 +29,7 @@ from research_system.discovery.authority import subject_sha256, validate_portabl
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.dossier import canonical_dossier_hash
 from research_system.discovery.replay.driver import replay_discovery
-from research_system.discovery.spec_flow import SpecFlow, build_spec_authority_subject
+from research_system.discovery.spec_flow import SpecFlow, _rows, build_spec_authority_subject
 from research_system.discovery.routes import shared_event_partition
 from research_system.context.spec_bridge import _stable_id as _stable_context_id
 from research_system.ids import new_id
@@ -2488,6 +2488,23 @@ def test_public_spec_flow_advances_assay_review_rows_from_projected_state(
         ]["status"]
         == "reviewed"
     )
+
+
+@pytest.mark.parametrize(
+    ("kind", "status", "expected"),
+    [
+        ("dossier_expected_set", "registered", ("OR-110",)),
+        ("dossier_expected_set", "review_requested", ("OR-110", "OR-111", "OR-112")),
+        ("dossier_expected_set", "decision_proposed", tuple(f"OR-{row:03d}" for row in range(110, 115))),
+        ("path_registration", "observed", ("OR-116", "OR-117")),
+        ("path_registration", "reviewed", tuple(f"OR-{row:03d}" for row in range(116, 120))),
+        ("path_registration", "accepted", tuple(f"OR-{row:03d}" for row in range(116, 122))),
+    ],
+)
+def test_rows_infers_generic_authority_progress_from_projection(
+    kind: str, status: str, expected: tuple[str, ...]
+) -> None:
+    assert _rows((), {"authorities": {kind: {"status": status}}}) == expected
 
 
 @pytest.mark.integration
