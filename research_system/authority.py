@@ -2230,6 +2230,22 @@ class LedgerAuthorityGrantResolver:
             projection,
         )
 
+    def owner_published_grant_ids(self) -> frozenset[str]:
+        """Return grants introduced through the governed owner-decision seam."""
+
+        projection = self._projection()
+        publications = projection.get("owner_authority_decision_publications")
+        if publications is None:
+            return frozenset()
+        if not isinstance(publications, dict):
+            raise IntegrityError("owner authority decision publication projection is invalid")
+        grant_ids: set[str] = set()
+        for publication in publications.values():
+            if not isinstance(publication, dict):
+                raise IntegrityError("owner authority decision publication projection is invalid")
+            grant_ids.add(validate_id(str(publication.get("target_grant_id")), "authority_grant"))
+        return frozenset(grant_ids)
+
     def verify_owner_administration_decision(
         self,
         decision_id: str,

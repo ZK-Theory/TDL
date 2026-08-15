@@ -278,6 +278,35 @@ def test_spec_brief_owner_and_context_lanes_are_closed_server_policy():
         "RecordOwnerOperatedContextDelivery",
     }
     assert owner_module._LANE_ALLOWED_ACTOR_CLASSES["operator/spec_01_context"] == {"human", "service"}
+
+
+def test_legacy_generic_artefact_grant_is_not_reclassified_as_a_spec_role(inputs):
+    owner_actor_id = inputs.harness.authority_resolver.administration_context().owner_actor_id
+    legacy = activate_lifecycle_grant(
+        inputs.harness,
+        subject_kind="artefact",
+        subject_id="art_01978abc-3011-7000-8000-000000003099",
+        actor_id=owner_actor_id,
+        allowed_actor_classes=("human",),
+        command_types=("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
+    )
+    assert legacy not in inputs.harness.authority_resolver.owner_published_grant_ids()
+    request = {
+        **inputs.intent_value,
+        "retry_key": "owner-use-after-legacy-grant",
+        "target_actor_id": owner_actor_id,
+        "target_actor_class": "human",
+        "authority_lane": "owner_decider/spec_brief_use",
+        "actor_role": "Stephen",
+        "subject_scope": {
+            "project_id": PROJECT_ID,
+            "subject": {"kind": "artefact", "id": "art_01978abc-3011-7000-8000-000000003100"},
+        },
+    }
+
+    material = owner_module.load_owner_authority_setup(inputs.config)._derive_publication_material(request)
+
+    assert material["grant"].allowed_commands[0].command_type == "SetArtefactUseAuthority"
     assert all(owner_module._LANE_RISK_POLICY[lane] == "R3" for lane in owner_module._SPEC_FLOW_SUPPORT_LANES)
 
 

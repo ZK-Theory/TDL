@@ -449,6 +449,7 @@ def _enforce_durable_role_independence(
     """Reject incompatible active roles for one actor using verified grant replay."""
 
     proposed_families = frozenset(_lane_family(lane) for lane in _grant_lanes(proposed_grant))
+    governed_grant_ids = resolver.owner_published_grant_ids()
     grant_root = _physical_directory(root / "objects/authority_grant", label="authority grant objects")
     try:
         candidates = tuple(grant_root.iterdir())
@@ -475,6 +476,8 @@ def _enforce_durable_role_independence(
         except ValueError as exc:
             raise IntegrityError("existing scoped authority grant object is invalid") from exc
         if existing.actor_id != proposed_grant.actor_id or not existing.allowed_commands:
+            continue
+        if existing.authority_grant_id not in governed_grant_ids:
             continue
         try:
             resolver.resolve_command(
