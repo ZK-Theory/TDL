@@ -77,6 +77,20 @@ _LANE_COMMAND_POLICY = {
     "scout/source_observation": frozenset({"IngestScoutObservationBatch"}),
     "portfolio_steward/spec_01_assay": frozenset({"RequestAssay"}),
     "producer/spec_01_assay": frozenset({"RecordAssayScore", "RecordAssayPartial"}),
+    "producer/spec_brief_registration": frozenset({"RegisterArtefact"}),
+    "independent_reviewer/spec_brief_review": frozenset({"RecordScientificReview"}),
+    "owner_decider/spec_brief_use": frozenset({"SetArtefactUseAuthority"}),
+    "operator/spec_01_context": frozenset(
+        {
+            "RequestContextPacket",
+            "BeginContextCompilation",
+            "CompleteContextCompilation",
+            "PrepareOwnerOperatedContextHandoff",
+            "ValidateOwnerOperatedContextHandoff",
+            "IssueOwnerOperatedContextHandoff",
+            "RecordOwnerOperatedContextDelivery",
+        }
+    ),
     "review_requester/outcome_review": frozenset({"RequestDiscoveryOutcomeReview"}),
     "independent_reviewer/outcome_review": frozenset({"ReviewDiscoveryOutcome"}),
     "portfolio_steward/promotion": frozenset({"ProposePromotionDecision"}),
@@ -100,6 +114,10 @@ _LANE_CONTEXT_POLICY = {
     "scout/source_observation": ({"source_observation"}, {"Scout"}),
     "portfolio_steward/spec_01_assay": ({"spec_01_assay"}, {"Portfolio Steward"}),
     "producer/spec_01_assay": ({"spec_01_assay"}, {"Assay producer"}),
+    "producer/spec_brief_registration": ({"spec_01_brief"}, {"SPEC brief producer"}),
+    "independent_reviewer/spec_brief_review": ({"spec_01_brief"}, {"independent verifier"}),
+    "owner_decider/spec_brief_use": ({"spec_01_brief"}, {"Stephen"}),
+    "operator/spec_01_context": ({"spec_01_brief"}, {"Operator/auditor"}),
     "review_requester/outcome_review": (
         {"spec_01_outcome_review", "spec_02_outcome_review"},
         {"Portfolio Steward"},
@@ -113,10 +131,18 @@ _LANE_CONTEXT_POLICY = {
     "operator/spec_02_spike": ({"spec_02_spike"}, {"Operator/auditor"}),
     "producer/spec_02_spike": ({"spec_02_spike"}, {"Spike producer"}),
 }
+_SPEC_FLOW_SUPPORT_LANES = frozenset(
+    {
+        "producer/spec_brief_registration",
+        "independent_reviewer/spec_brief_review",
+        "owner_decider/spec_brief_use",
+        "operator/spec_01_context",
+    }
+)
 _LANE_ALLOWED_ACTOR_CLASSES = {
     lane: (
         frozenset({"human"})
-        if lane == "owner_decider/decision"
+        if lane.startswith("owner_decider/")
         else frozenset({"agent", "service"})
         if lane.startswith("producer/")
         else frozenset({"human", "agent"})
@@ -254,7 +280,7 @@ def _require_bounded_object_revision(
 
 
 def _lane_family(lane: str) -> str:
-    if lane == "owner_decider/decision":
+    if lane.startswith("owner_decider/"):
         return "owner"
     if lane.startswith("producer/"):
         return "producer"
@@ -390,16 +416,25 @@ def _load_route(repository_root: Path) -> frozenset[str]:
     if route.get("governed_command_types") != derived:
         raise ConfigurationError("SPEC route governed commands are not independently derived")
     lane_commands = [command for commands in _LANE_COMMAND_POLICY.values() for command in commands]
-    if len(lane_commands) != len(set(lane_commands)) or set(lane_commands) != set(derived):
+    route_lane_commands = [
+        command
+        for lane, commands in _LANE_COMMAND_POLICY.items()
+        if lane not in _SPEC_FLOW_SUPPORT_LANES
+        for command in commands
+    ]
+    if len(lane_commands) != len(set(lane_commands)) or set(route_lane_commands) != set(derived):
         raise ConfigurationError("SPEC route authority lane policy does not partition the accepted commands")
     for lane, commands in _LANE_COMMAND_POLICY.items():
+        if lane in _SPEC_FLOW_SUPPORT_LANES:
+            continue
         stages, profiles = _LANE_CONTEXT_POLICY[lane]
         if any(
             not any(stage in stages and profile in profiles for stage, profile in route_contexts[command])
             for command in commands
         ):
             raise ConfigurationError("SPEC route authority lane role/stage binding mismatch")
-    return frozenset(derived)
+    support_commands = {command for lane in _SPEC_FLOW_SUPPORT_LANES for command in _LANE_COMMAND_POLICY[lane]}
+    return frozenset(derived) | support_commands
 
 
 def _enforce_durable_role_independence(
@@ -698,7 +733,7 @@ class OwnerAuthoritySetup:
             or grant.allowed_actor_classes[0] not in _LANE_ALLOWED_ACTOR_CLASSES[str(authority_lane)]
         ):
             raise ArsError("proposed grant exceeds the independently verified SPEC route")
-        if authority_lane == "owner_decider/decision":
+        if authority_lane.startswith("owner_decider/"):
             if grant.actor_id != context.owner_actor_id or grant.allowed_actor_classes != ("human",):
                 raise ArsError("owner decision lane requires the bound human owner")
         elif grant.actor_id == context.owner_actor_id:

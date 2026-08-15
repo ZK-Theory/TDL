@@ -232,6 +232,54 @@ def test_reviewer_lane_derives_exact_commands_for_subject_kind(inputs, subject_k
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    ("lane", "role", "subject_kind", "expected_commands"),
+    [
+        ("producer/spec_brief_registration", "SPEC brief producer", "artefact", ("RegisterArtefact",)),
+        (
+            "independent_reviewer/spec_brief_review",
+            "independent verifier",
+            "artefact",
+            ("RecordScientificReview",),
+        ),
+    ],
+)
+def test_spec_brief_lanes_derive_only_the_exact_subject_command(inputs, lane, role, subject_kind, expected_commands):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    intent = deepcopy(inputs.intent_value)
+    intent.update(
+        {
+            "retry_key": f"brief-{lane}",
+            "authority_lane": lane,
+            "actor_role": role,
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": subject_kind, "id": "art_01978abc-3014-7000-8000-000000003014"},
+            },
+        }
+    )
+
+    material = setup._derive_publication_material(intent)
+    assert tuple(item["command_type"] for item in material["grant_value"]["allowed_commands"]) == expected_commands
+
+
+@pytest.mark.integration
+def test_spec_brief_owner_and_context_lanes_are_closed_server_policy():
+    assert owner_module._LANE_COMMAND_POLICY["owner_decider/spec_brief_use"] == {"SetArtefactUseAuthority"}
+    assert owner_module._LANE_ALLOWED_ACTOR_CLASSES["owner_decider/spec_brief_use"] == {"human"}
+    assert owner_module._LANE_COMMAND_POLICY["operator/spec_01_context"] == {
+        "RequestContextPacket",
+        "BeginContextCompilation",
+        "CompleteContextCompilation",
+        "PrepareOwnerOperatedContextHandoff",
+        "ValidateOwnerOperatedContextHandoff",
+        "IssueOwnerOperatedContextHandoff",
+        "RecordOwnerOperatedContextDelivery",
+    }
+    assert owner_module._LANE_ALLOWED_ACTOR_CLASSES["operator/spec_01_context"] == {"human", "service"}
+
+
+@pytest.mark.integration
 def test_reviewer_lane_rejects_unmatched_subject_and_role_without_mutation(inputs):
     setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     before = tuple(inputs.harness.authority_ledger.iter_events())
