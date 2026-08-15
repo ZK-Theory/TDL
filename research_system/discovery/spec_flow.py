@@ -106,6 +106,7 @@ _DOCUMENT_ACTION_SCHEMA = {
     "prepare_spec_01": "ars://portfolio/spec-operator-brief-package",
     "return_spec_01_complete": "ars://portfolio/spec-operator-return",
     "return_spec_01_partial": "ars://portfolio/spec-operator-return",
+    "correct_spec_01_source": "ars://portfolio/spec-01-source-correction",
     "approve_spec_02": "ars://portfolio/spec-02-live-run-approval",
     "prepare_spec_02": "ars://portfolio/spec-operator-brief-package",
     "return_spec_02_complete": "ars://portfolio/spec-operator-return",
@@ -115,6 +116,7 @@ _DOCUMENT_TYPES = {
     "prepare_spec_01": "spec_01_operator_brief",
     "return_spec_01_complete": "spec_01_return",
     "return_spec_01_partial": "spec_01_return",
+    "correct_spec_01_source": "spec_01_source_correction",
     "approve_spec_02": "spec_02_live_run_approval",
     "prepare_spec_02": "spec_02_operator_brief",
     "return_spec_02_complete": "spec_02_return",
@@ -146,6 +148,25 @@ def _git(repository_root: Path, *arguments: str) -> str:
     if result.returncode != 0:
         raise ConfigurationError("SPEC route is not committed at operator HEAD")
     return result.stdout.strip()
+
+
+def _resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
+    """Resolve one exact remote tag without treating the heads namespace as exhaustive."""
+
+    try:
+        result = subprocess.run(  # nosec B603 B607 - fixed Git executable and validated semantic inputs
+            ["git", "ls-remote", "--tags", repository_url, resolved_ref],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise IntegrityError("SPEC-01 correction remote reference could not be resolved") from exc
+    lines = [line.split() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode != 0 or len(lines) != 1 or len(lines[0]) != 2 or lines[0][1] != resolved_ref:
+        raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
+    return lines[0][0]
 
 
 def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> dict[str, Any]:
@@ -471,11 +492,26 @@ class SpecFlow:
                 "NOT_RUNNABLE", "decide_spec_01", None, "exact SPEC route Candidate cannot be resolved"
             )
         candidate_status = candidates[0].get("status")
-        if candidate_status in {"parked", "killed"}:
+        if candidate_status == "killed":
+            return SpecFlowStatus("PROVEN", "spec_01_killed", None, "owner decision KILLED is terminal")
+        correction = documents.get("spec_01_source_correction", ())
+        approval = documents.get("spec_02_live_run_approval", ())
+        if candidate_status == "parked" and not correction:
             return SpecFlowStatus(
-                "PROVEN", f"spec_01_{candidate_status}", None, f"owner decision {candidate_status.upper()} is terminal"
+                "NOT_RUNNABLE",
+                "spec_01_parked",
+                "correct_spec_01_source",
+                "the recorded paper-code availability finding must be corrected before any later test",
+            )
+        if candidate_status == "parked" and not approval:
+            return SpecFlowStatus(
+                "OWNER_BLOCKED",
+                "spec_01_parked_corrected",
+                "approve_spec_02",
+                "a separate owner-approved route-validation run is required because PARK remains the scientific disposition",
             )
         if candidate_status not in {
+            "parked",
             "spike_planning_authorized",
             "spike_approval_pending",
             "spike_authorized",
@@ -489,7 +525,7 @@ class SpecFlow:
             return SpecFlowStatus(
                 "NOT_RUNNABLE", "decide_spec_01", None, "SPEC-01 owner decision did not promote the Candidate"
             )
-        if "spec_02_live_run_approval" not in documents:
+        if not approval:
             return SpecFlowStatus(
                 "OWNER_BLOCKED",
                 "spec_01_promoted",
@@ -741,6 +777,25 @@ class SpecFlow:
                 or promotion.get("sha256") != promotion_events[0].get("event_hash")
             ):
                 raise IntegrityError("SPEC-02 approval does not bind the exact SPEC-01 promotion")
+            selected_option = promotion_events[0].get("payload", {}).get("selected_option")
+            entry_mode = document.get("entry_mode")
+            correction_ref = document.get("source_correction")
+            corrections = self._snapshot()[2].get("spec_01_source_correction", ())
+            if entry_mode == "standard_promotion":
+                if selected_option != "PROMOTE" or correction_ref is not None:
+                    raise IntegrityError("standard SPEC-02 approval requires an exact PROMOTE decision")
+            elif entry_mode == "owner_approved_park_test":
+                if selected_option != "PARK" or len(corrections) != 1:
+                    raise IntegrityError("PARK test approval requires one durable SPEC-01 source correction")
+                correction = corrections[0]
+                expected_correction_ref = {
+                    "id": correction.get("correction_id"),
+                    "sha256": sha256_hex(canonical_bytes(correction)),
+                }
+                if correction_ref != expected_correction_ref or document.get("scientific_promotion") is not False:
+                    raise IntegrityError("PARK test approval does not bind the exact correction and non-promotion")
+            else:
+                raise IntegrityError("SPEC-02 approval entry mode is unsupported")
             try:
                 approved = datetime.fromisoformat(document["approved_at"].replace("Z", "+00:00"))
                 starts = datetime.fromisoformat(document["valid_window"]["starts_at"].replace("Z", "+00:00"))
@@ -749,6 +804,30 @@ class SpecFlow:
                 raise IntegrityError("SPEC-02 approval window is invalid") from exc
             if not starts <= approved < expires:
                 raise IntegrityError("SPEC-02 approval is outside its explicit live-run window")
+        if action == "correct_spec_01_source":
+            events, projection, _documents = self._snapshot()
+            assays = [value for value in projection.get("assays", {}).values() if isinstance(value, Mapping)]
+            decisions = [
+                event
+                for event in events
+                if event.get("event_type") == "CandidatePromotionApplied"
+                and isinstance(event.get("payload"), Mapping)
+                and event["payload"].get("row_id") == "OR-013"
+            ]
+            if len(assays) != 1 or len(decisions) != 1:
+                raise IntegrityError("SPEC-01 correction cannot resolve one assay and owner decision")
+            assay = assays[0]
+            decision = decisions[0]
+            if document.get("scorecard_ref") != {
+                "id": assay.get("assay_id"),
+                "sha256": assay.get("scorecard_sha256"),
+            } or document.get("decision_ref") != {"id": decision.get("event_id"), "sha256": decision.get("event_hash")}:
+                raise IntegrityError("SPEC-01 correction does not bind the exact scorecard and owner decision")
+            git_ref = document.get("corrected_git_reference", {})
+            if _resolve_remote_tag(git_ref.get("repository_url"), git_ref.get("resolved_ref")) != git_ref.get(
+                "commit_oid"
+            ):
+                raise IntegrityError("SPEC-01 correction commit differs from the live remote tag")
         if (
             not isinstance(registration, dict)
             or set(registration) != _REGISTRATION_FIELDS

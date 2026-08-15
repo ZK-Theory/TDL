@@ -3,7 +3,7 @@
   "$id": "ars://portfolio/spec-02-live-run-approval",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_id", "schema_version", "document_type", "route_id", "owner", "decision", "approved_at", "valid_window", "spec_02_subject", "spec_01_promotion", "brief_identity", "limits", "automatic_execution"],
+  "required": ["schema_id", "schema_version", "document_type", "route_id", "owner", "decision", "approved_at", "valid_window", "spec_02_subject", "spec_01_promotion", "entry_mode", "source_correction", "scientific_promotion", "brief_identity", "limits", "automatic_execution"],
   "properties": {
     "schema_id": {"const": "ars://portfolio/spec-02-live-run-approval"},
     "schema_version": {"const": "1.0.0"},
@@ -15,6 +15,9 @@
     "valid_window": {"type": "object", "additionalProperties": false, "required": ["starts_at", "expires_at"], "properties": {"starts_at": {"type": "string", "format": "date-time", "pattern": "Z$"}, "expires_at": {"type": "string", "format": "date-time", "pattern": "Z$"}}},
     "spec_02_subject": {"$ref": "#/$defs/hashRef"},
     "spec_01_promotion": {"$ref": "#/$defs/hashRef"},
+    "entry_mode": {"enum": ["standard_promotion", "owner_approved_park_test"]},
+    "source_correction": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/hashRef"}]},
+    "scientific_promotion": {"type": "boolean"},
     "brief_identity": {"$ref": "#/$defs/hashRef"},
     "limits": {
       "type": "object", "additionalProperties": false,
@@ -23,5 +26,9 @@
     },
     "automatic_execution": {"const": false}
   },
+  "allOf": [
+    {"if": {"properties": {"entry_mode": {"const": "standard_promotion"}}}, "then": {"properties": {"source_correction": {"type": "null"}, "scientific_promotion": {"const": true}}}},
+    {"if": {"properties": {"entry_mode": {"const": "owner_approved_park_test"}}}, "then": {"properties": {"source_correction": {"$ref": "#/$defs/hashRef"}, "scientific_promotion": {"const": false}}}}
+  ],
   "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "hashRef": {"type": "object", "additionalProperties": false, "required": ["id", "sha256"], "properties": {"id": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}}
 }

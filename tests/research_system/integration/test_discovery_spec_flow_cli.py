@@ -15,6 +15,7 @@ import pytest
 import research_system.cli as cli
 import research_system.discovery.authority as discovery_authority_module
 import research_system.discovery.operator as discovery_operator_module
+import research_system.discovery.spec_flow as spec_flow_module
 import research_system.methods.registration as registration_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
@@ -1166,7 +1167,101 @@ def _decide_spec_01(
     return decision_id
 
 
-def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True) -> str:
+def _correct_spec_01_source(inputs: dict[str, Any], scorecard_sha256: str) -> str:
+    operator = load_discovery_operator(inputs["config_path"])
+    decision = next(
+        event
+        for event in operator.ledger.iter_events()
+        if event["event_type"] == "CandidatePromotionApplied" and event.get("payload", {}).get("row_id") == "OR-013"
+    )
+    projection = replay_discovery(operator.ledger.iter_events())
+    assay_ids = tuple(projection["assays"])
+    assert len(assay_ids) == 1
+    assay_id = assay_ids[0]
+    correction_id = "correction:spec-01-neurips2024-tag-v1"
+    artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000904"
+    actor_id = ACTORS["actor-b"]
+    grant_id = activate_lifecycle_grant(
+        inputs["harness"],
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=actor_id,
+        command_types=("RegisterArtefact",),
+        grant_id=new_id("authority_grant"),
+    )
+    document = {
+        "schema_id": "ars://portfolio/spec-01-source-correction",
+        "schema_version": "1.0.0",
+        "document_type": "spec_01_source_correction",
+        "route_id": "SPEC-GATE6-RUN-V1",
+        "correction_id": correction_id,
+        "recorded_at": "2026-08-14T12:40:00Z",
+        "producer": {
+            "actor_id": actor_id,
+            "session_id": "independent-source-check",
+            "role": "source-correction verifier",
+        },
+        "scorecard_ref": {"id": assay_id, "sha256": scorecard_sha256},
+        "decision_ref": {"id": decision["event_id"], "sha256": decision["event_hash"]},
+        "incorrect_assertions": [
+            "paper-cited neurips2024 branch is absent from the live Git remote",
+            "primary_paper_code_discrepancy",
+            "paper-code provenance requires a replacement immutable commit",
+        ],
+        "corrected_git_reference": {
+            "cited_locator": "https://github.com/berenslab/eff-ph/tree/neurips2024",
+            "repository_url": "https://github.com/berenslab/eff-ph.git",
+            "requested_ref": "neurips2024",
+            "resolved_ref": "refs/tags/neurips2024",
+            "ref_kind": "tag",
+            "commit_oid": "145efcde673f1a1897eff250b77221d26c34c479",
+            "retrieval_methods": ["direct_locator", "git_ls_remote_tags", "detached_clone"],
+            "required_paths": [
+                {"path": "environment.yml", "sha256": "a" * 64},
+                {"path": "scripts/compute_ph.py", "sha256": "b" * 64},
+            ],
+        },
+        "correction_effect": {
+            "withdrawn_condition_codes": ["primary_paper_code_discrepancy"],
+            "withdrawn_limitations": [
+                "The paper-cited neurips2024 code branch is absent from the live Git remote; only main and scRNA heads were advertised."
+            ],
+            "withdrawn_revisit_triggers": [
+                "paper-code provenance restored",
+                "an immutable replacement for the absent paper-cited branch is supplied",
+            ],
+            "preserved_findings": [
+                "future_estimand_unidentified",
+                "representation_freeze_missing",
+                "primary_claim_missing",
+            ],
+        },
+        "scientific_disposition": "PARK",
+    }
+    manifest = artefact_manifest()
+    manifest.update(
+        artefact_id=artefact_id,
+        artefact_type="spec_01_source_correction",
+        producer_actor_id=actor_id,
+        task_id="tsk_019ffe2b-fd4b-7000-8000-000000000904",
+    )
+    manifest["authority"]["accepted_scope"] = "spec-gate6-run:spec-01-correction"
+    registration = {
+        "artefact_id": artefact_id,
+        "project_id": PROJECT_ID,
+        "actor_id": actor_id,
+        "authority_grant_id": grant_id,
+        "submitted_at": "2026-08-14T12:40:00Z",
+        "correlation_id": correction_id,
+        "reason": "Correct the head-only false negative for the paper-cited Git tag.",
+        "manifest": manifest,
+    }
+    _write_action(inputs, "correct_spec_01_source", document=document, registration=registration)
+    assert cli.main(_advance_argv(inputs, "correct_spec_01_source")) == 0
+    return correction_id
+
+
+def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_override: bool = False) -> str:
     operator = load_discovery_operator(inputs["config_path"])
     promotion = next(
         event
@@ -1198,6 +1293,9 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True) -> str:
         },
         "spec_02_subject": {"id": "SPEC-02", "sha256": source["sha256"]},
         "spec_01_promotion": {"id": promotion["event_id"], "sha256": promotion["event_hash"]},
+        "entry_mode": "owner_approved_park_test" if park_override else "standard_promotion",
+        "source_correction": None,
+        "scientific_promotion": not park_override,
         "brief_identity": {"id": source["locator"], "sha256": source["sha256"]},
         "limits": {
             "budget_gbp": 0,
@@ -1208,6 +1306,12 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True) -> str:
         },
         "automatic_execution": False,
     }
+    if park_override:
+        correction = SpecFlow(operator)._snapshot()[2]["spec_01_source_correction"][0]
+        document["source_correction"] = {
+            "id": correction["correction_id"],
+            "sha256": sha256_hex(canonical_bytes(correction)),
+        }
     manifest = artefact_manifest()
     manifest.update(
         artefact_id=artefact_id,
@@ -2786,14 +2890,57 @@ def test_public_spec_flow_owner_park_or_kill_is_terminal_after_spec_01_review(
     capsys.readouterr()
     assert cli.main(_status_argv(spec_inputs)) == 0
     status = json.loads(capsys.readouterr().out)
-    assert status["capability_state"] == "PROVEN"
-    assert status["completed_stage"] == f"spec_01_{recommendation.casefold()}ed"
-    assert status["next_action"] is None
+    if recommendation == "KILL":
+        assert status["capability_state"] == "PROVEN"
+        assert status["completed_stage"] == "spec_01_killed"
+        assert status["next_action"] is None
+    else:
+        assert status["capability_state"] == "NOT_RUNNABLE"
+        assert status["completed_stage"] == "spec_01_parked"
+        assert status["next_action"] == "correct_spec_01_source"
     projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
     assert projection["candidates"][candidate_id]["status"] == recommendation.casefold() + "ed"
     assert (
         "spec_02_live_run_approval" not in SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
     )
+
+
+@pytest.mark.integration
+def test_public_spec_flow_corrects_false_git_ref_finding_and_allows_owner_approved_park_test(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id, "PARK")
+    capsys.readouterr()
+    monkeypatch.setattr(
+        spec_flow_module,
+        "_resolve_remote_tag",
+        lambda repository_url, resolved_ref: "145efcde673f1a1897eff250b77221d26c34c479",
+    )
+    _correct_spec_01_source(spec_inputs, returned["scorecard_sha256"])
+    capsys.readouterr()
+    assert cli.main(_status_argv(spec_inputs)) == 0
+    corrected = json.loads(capsys.readouterr().out)
+    assert corrected["next_action"] == "approve_spec_02"
+    _approve_spec_02(spec_inputs, park_override=True)
+    capsys.readouterr()
+    assert cli.main(_status_argv(spec_inputs)) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["completed_stage"] == "approve_spec_02"
+    assert status["next_action"] == "prepare_spec_02"
+    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    assert projection["candidates"][candidate_id]["status"] == "parked"
+    assert not projection.get("spikes")
+    assert not projection.get("claims")
 
 
 @pytest.mark.integration
