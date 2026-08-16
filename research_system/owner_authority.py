@@ -531,6 +531,8 @@ def _known_authority_actor_classes(
     owner_actor_id: str | None = None,
 ) -> dict[str, frozenset[str]]:
     actors: dict[str, set[str]] = {}
+    governed_actor_ids: set[str] = set()
+    current_registered_actors: dict[str, set[str]] = {}
     grant_root = _physical_directory(root / "objects/authority_grant", label="authority grant objects")
     for candidate in grant_root.iterdir():
         try:
@@ -630,8 +632,6 @@ def _known_authority_actor_classes(
             expires = datetime.fromisoformat(str(semantic["expires_at"]).replace("Z", "+00:00"))
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError("configured actor registration time is invalid") from exc
-        if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= effective_now < expires:
-            continue
         actor_id = value.get("actor_id")
         _require_bounded_target(
             root,
@@ -658,7 +658,17 @@ def _known_authority_actor_classes(
         actor_class = semantic.get("actor_class")
         if actor_class not in {"agent", "service"}:
             raise IntegrityError("configured actor registration class is invalid")
-        actors.setdefault(str(actor_id), set()).add(str(actor_class))
+        governed_actor_ids.add(str(actor_id))
+        if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= effective_now < expires:
+            continue
+        current_registered_actors.setdefault(str(actor_id), set()).add(str(actor_class))
+    # Once an actor has governed registration evidence, that registration is
+    # the authority for session currency.  Historical grants must not keep an
+    # expired registered session eligible for a fresh grant.
+    for actor_id in governed_actor_ids:
+        actors.pop(actor_id, None)
+    for actor_id, classes in current_registered_actors.items():
+        actors.setdefault(actor_id, set()).update(classes)
     return {actor_id: frozenset(classes) for actor_id, classes in actors.items()}
 
 

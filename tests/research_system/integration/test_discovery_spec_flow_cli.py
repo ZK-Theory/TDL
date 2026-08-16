@@ -107,6 +107,23 @@ def test_brief_authority_targets_exclude_already_reviewed_and_accepted_history()
     }
 
 
+def test_spec_owner_context_identity_includes_retry_identity() -> None:
+    semantic = {
+        "actor_id": "act_019ffe2b-fd4b-7000-8000-000000000001",
+        "operator_session_id": "session-1",
+        "recipient_id": "recipient-1",
+        "purpose": "Prepare the exact SPEC brief.",
+        "scope": "SPEC-GATE6-RUN-V1/SPEC-01",
+        "application_version": "1.0",
+        "valid_from": "2026-08-16T10:00:00Z",
+        "expires_at": "2026-08-16T11:00:00Z",
+    }
+    first = derive_spec_owner_context_id(**semantic, retry_identity="spec-flow:prepare:one")
+    second = derive_spec_owner_context_id(**semantic, retry_identity="spec-flow:prepare:two")
+
+    assert first != second
+
+
 @pytest.fixture
 def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Synthetic governed fixture; it is implementation proof, not Gate 6 proof."""
@@ -193,7 +210,7 @@ def _write_action(
     commands: list[dict[str, Any]] | None = None,
     document: dict[str, Any] | None = None,
     registration: dict[str, Any] | None = None,
-) -> None:
+) -> str:
     packet = {
         "schema_id": "ars://portfolio/spec-flow-action",
         "schema_version": "1.0.0",
@@ -207,6 +224,7 @@ def _write_action(
     _refresh_retry_id(packet)
     inputs["packet"] = packet
     inputs["packet_path"].write_bytes(canonical_bytes(packet))
+    return str(packet["retry_id"])
 
 
 def _artefact_command(
@@ -735,7 +753,7 @@ def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
         "brief_registration": registration(brief_id, brief_grant, "operator_brief_manifest"),
         "package_registration": registration(package_id, package_grant, "spec_01_operator_brief"),
     }
-    _write_action(inputs, "prepare_spec_01", document=semantic, registration=registrations)
+    retry_identity = _write_action(inputs, "prepare_spec_01", document=semantic, registration=registrations)
     context_id = derive_spec_owner_context_id(
         actor_id=actor_id,
         operator_session_id=semantic["operator_session_id"],
@@ -745,6 +763,7 @@ def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
         application_version=semantic["application_version"],
         valid_from=semantic["evaluation_time"],
         expires_at=semantic["handoff_expires_at"],
+        retry_identity=retry_identity,
     )
     activate_lifecycle_grant(
         inputs["harness"],
@@ -1401,7 +1420,7 @@ def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
         "brief_registration": registration(brief_id, brief_grant, "operator_brief_manifest"),
         "package_registration": registration(package_id, package_grant, "spec_02_operator_brief"),
     }
-    _write_action(inputs, "prepare_spec_02", document=semantic, registration=registrations)
+    retry_identity = _write_action(inputs, "prepare_spec_02", document=semantic, registration=registrations)
     context_id = derive_spec_owner_context_id(
         actor_id=actor_id,
         operator_session_id=semantic["operator_session_id"],
@@ -1411,6 +1430,7 @@ def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
         application_version=semantic["application_version"],
         valid_from=semantic["evaluation_time"],
         expires_at=semantic["handoff_expires_at"],
+        retry_identity=retry_identity,
     )
     activate_lifecycle_grant(
         inputs["harness"],
@@ -2451,6 +2471,7 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     )
 
     target = spec_inputs["binding"].control_root / publication.destination_relative_path
+    before_registration_failure = _tree_snapshot(spec_inputs["binding"].control_root)
     with monkeypatch.context() as patch:
         patch.setattr(
             spec_inputs["harness"].service,
@@ -2466,6 +2487,7 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
                 command_service=spec_inputs["harness"].service,
             )
     assert not target.exists()
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_registration_failure
     assert not any(
         event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
         for event in spec_inputs["harness"].ledger.iter_events()
@@ -3210,6 +3232,19 @@ def test_public_spec_flow_starts_spec_02_only_with_exact_lease_and_attempt(
     ):
         replay_discovery(_rehash_events(tampered))
 
+    wrong_brief_type = tuple(
+        deepcopy(event) for event in load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events()
+    )
+    brief_event = next(
+        event
+        for event in wrong_brief_type
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("payload", {}).get("manifest", {}).get("artefact_type") == "spec_02_operator_brief"
+    )
+    brief_event["payload"]["manifest"]["artefact_type"] = "spec_01_operator_brief"
+    with pytest.raises(IntegrityError, match="lacks durable approval|exact lifecycle event provenance mismatch"):
+        replay_discovery(_rehash_events(wrong_brief_type))
+
 
 @pytest.mark.integration
 def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
@@ -3450,6 +3485,30 @@ def test_spec_brief_malformed_or_tampered_is_rejected_before_registration(
 
     with pytest.raises(IntegrityError):
         flow._register_document("prepare_spec_01", document, None)
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_spec_brief_registration_type_must_match_the_validated_document(
+    spec_inputs: dict[str, Any],
+) -> None:
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    document = _brief_document(spec_inputs)
+    registration = {
+        "artefact_id": "art_019ffe2b-fd4b-7000-8000-000000000099",
+        "project_id": PROJECT_ID,
+        "actor_id": document["operator_session"]["operator_actor_id"],
+        "authority_grant_id": "agr_019ffe2b-fd4b-7000-8000-000000000099",
+        "submitted_at": "2026-08-14T12:00:00Z",
+        "correlation_id": "wrong-stage-registration",
+        "reason": "Prove document and registration type cannot diverge.",
+        "manifest": {"artefact_type": "spec_02_operator_brief"},
+    }
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="registration type differs"):
+        flow._register_document("prepare_spec_01", document, registration)
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 
@@ -65,6 +66,18 @@ EXPECTED_STAGE_ORDER = [
     "spec_02_outcome_review",
     "result_stop",
 ]
+
+
+def _committed_blob(relative_path: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "rev-parse", f"HEAD:{relative_path}"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return result.stdout.strip()
+
 
 SCHEMA_BINDINGS = {
     "ars://portfolio/candidate": "candidate.schema.json",
@@ -490,7 +503,7 @@ def test_spec_operator_brief_binds_exact_stage_source_bytes_and_git_blob() -> No
         "route_source": {
             "relative_path": EXPECTED_SOURCES["SPEC-01"][0],
             "raw_sha256": EXPECTED_SOURCES["SPEC-01"][2],
-            "git_blob": "6ee7e7b697621570368632a7598e448bf69f7dc4",
+            "git_blob": _committed_blob(EXPECTED_SOURCES["SPEC-01"][0]),
         },
         "brief_manifest": {},
         "brief_manifest_sha256": "a" * 64,

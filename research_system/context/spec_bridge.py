@@ -37,6 +37,7 @@ def derive_spec_owner_context_id(
     application_version: str,
     valid_from: str,
     expires_at: str,
+    retry_identity: str,
 ) -> str:
     """Derive the governed context target before its scoped grant exists."""
 
@@ -49,6 +50,7 @@ def derive_spec_owner_context_id(
         application_version,
         valid_from,
         expires_at,
+        retry_identity,
     ]
     if any(not value for value in semantic):
         raise ArsError("SPEC context semantic identities must be explicit")
@@ -79,6 +81,7 @@ def build_spec_context_snapshot(
     *,
     schemas: Any,
     route_id: str,
+    required_spec_source_sha256: str | None = None,
     authority_state_validator: Any = None,
 ) -> SpecContextSnapshot:
     """Freeze accepted Discovery identities without caller-authored hashes."""
@@ -109,6 +112,12 @@ def build_spec_context_snapshot(
             "spec_operator_source",
             "methods_asset",
         }:
+            if (
+                manifest.get("artefact_type") == "spec_operator_source"
+                and required_spec_source_sha256 is not None
+                and state.get("content_sha256") != required_spec_source_sha256
+            ):
+                continue
             accepted_inputs.append(
                 {
                     "artefact_id": artefact_id,
@@ -117,7 +126,10 @@ def build_spec_context_snapshot(
                     "relative_path": manifest.get("relative_path"),
                 }
             )
-    if {item["artefact_type"] for item in accepted_inputs} != {"spec_operator_source", "methods_asset"}:
+    if len(accepted_inputs) != 2 or sorted(item["artefact_type"] for item in accepted_inputs) != [
+        "methods_asset",
+        "spec_operator_source",
+    ]:
         raise ArsError("SPEC context requires accepted brief source and Methods artefacts")
     candidates = [
         {"candidate_id": key, "state": value.get("status")}
@@ -170,6 +182,7 @@ def deliver_spec_owner_context(
     application_version: str,
     valid_from: str,
     expires_at: str,
+    required_spec_source_sha256: str,
 ) -> tuple[CompiledContextPacket, DiscoveryReplaySourceResolver]:
     """Compile, validate, issue, and record an honest manual brief handoff."""
     if not authority_grant_id or not retry_identity:
@@ -183,6 +196,7 @@ def deliver_spec_owner_context(
         application_version,
         valid_from,
         expires_at,
+        retry_identity,
     ]
     events = tuple(operator.ledger.iter_events())
     seed = sha256_hex(canonical_bytes({"semantic": semantic}))
@@ -195,6 +209,7 @@ def deliver_spec_owner_context(
         application_version=application_version,
         valid_from=valid_from,
         expires_at=expires_at,
+        retry_identity=retry_identity,
     )
     request_id = f"spec-context:{seed}"
     writer = CommandServiceContextWriter(
@@ -206,6 +221,8 @@ def deliver_spec_owner_context(
     existing = tuple(writer.iter_events(context_id))
     if existing:
         compiled = lifecycle.recover_compiled(context_id)
+        if compiled.request_id != request_id:
+            raise IntegrityError("durable SPEC context retry identity differs")
         manifest = lifecycle.objects.read("context", compiled.manifest_object_id, 1)
         packet = lifecycle.objects.read("context", compiled.packet_object_id, compiled.revision)
         included = manifest.get("included") if isinstance(manifest, Mapping) else None
@@ -215,7 +232,7 @@ def deliver_spec_owner_context(
         rendered = packet.get("rendered_content")
         if not isinstance(row, Mapping) or not isinstance(rendered, str):
             raise IntegrityError("durable SPEC context source bytes are unavailable")
-        snapshot = SpecContextSnapshot(
+        durable_snapshot = SpecContextSnapshot(
             source=SourceFragment(
                 source_id=str(row["source_id"]),
                 revision=str(row["revision"]),
@@ -233,7 +250,20 @@ def deliver_spec_owner_context(
             accepted_ids = {item["artefact_id"] for item in source_value["accepted_inputs"]}
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise IntegrityError("durable SPEC context source record is malformed") from exc
-        for event in events[snapshot.source_position :]:
+        source_position = durable_snapshot.source_position
+        if source_position < 1 or source_position > len(events):
+            raise IntegrityError("durable SPEC context source position is invalid")
+        expected_snapshot = build_spec_context_snapshot(
+            events[:source_position],
+            schemas=operator.schemas,
+            route_id="SPEC-GATE6-RUN-V1",
+            required_spec_source_sha256=required_spec_source_sha256,
+            authority_state_validator=operator.authority_resolver.validate_replayed_administration_state,
+        )
+        if durable_snapshot != expected_snapshot:
+            raise IntegrityError("durable SPEC context source binding differs")
+        snapshot = expected_snapshot
+        for event in events[source_position:]:
             payload = event.get("payload")
             if (isinstance(payload, Mapping) and (payload.get("row_id") or payload.get("owner_row_id"))) or event.get(
                 "stream_id"
@@ -244,6 +274,7 @@ def deliver_spec_owner_context(
             events,
             schemas=operator.schemas,
             route_id="SPEC-GATE6-RUN-V1",
+            required_spec_source_sha256=required_spec_source_sha256,
             authority_state_validator=operator.authority_resolver.validate_replayed_administration_state,
         )
         compiled = None

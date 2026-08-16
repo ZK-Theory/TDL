@@ -105,21 +105,29 @@ _METHODS_ASSET_PREFIX = ".research-system/methods/assets/"
 _RAW_DESTINATION_PREFIX = "methods/content/spec-flow/"
 
 
-def _require_physical_destination(control_root: Path, relative_path: str) -> Path:
+def _require_physical_destination(control_root: Path, relative_path: str, *, create: bool = False) -> Path:
     root = control_root.resolve(strict=True)
     relative = Path(relative_path)
     if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != relative_path:
         raise ConfigurationError("raw content destination is not canonical and control-relative")
     current = root
     reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    missing_parent = False
     for part in relative.parts[:-1]:
         current = current / part
-        try:
-            current.mkdir()
-        except FileExistsError:
-            pass
+        if missing_parent and not create:
+            continue
         try:
             metadata = current.lstat()
+        except FileNotFoundError:
+            if not create:
+                missing_parent = True
+                continue
+            try:
+                current.mkdir()
+                metadata = current.lstat()
+            except OSError as exc:
+                raise ConfigurationError("raw content destination parent is unavailable") from exc
         except OSError as exc:
             raise ConfigurationError("raw content destination parent is unavailable") from exc
         if (
@@ -129,7 +137,7 @@ def _require_physical_destination(control_root: Path, relative_path: str) -> Pat
         ):
             raise ConfigurationError("raw content destination parent is not a physical directory")
     target = current / relative.name
-    if target.exists() or target.is_symlink():
+    if not missing_parent and (target.exists() or target.is_symlink()):
         try:
             metadata = target.lstat()
         except OSError as exc:
@@ -200,7 +208,7 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
 
 
 def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
-    target = _require_physical_destination(control_root, relative_path)
+    target = _require_physical_destination(control_root, relative_path, create=True)
     try:
         fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0))
     except FileExistsError:

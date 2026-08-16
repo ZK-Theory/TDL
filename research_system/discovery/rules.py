@@ -51,6 +51,20 @@ _ASSAY_PARTIAL_FIELDS = frozenset(
 )
 
 
+def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, Any] | None) -> bool:
+    """Return whether the candidate descends from the exact Gate 6 SPEC source query."""
+
+    if not isinstance(candidate, Mapping):
+        return False
+    observations = state.get("source_observations", {})
+    return any(
+        isinstance(observation, Mapping)
+        and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
+        for observation_id in candidate.get("source_observation_refs", ())
+        for observation in (observations.get(observation_id),)
+    )
+
+
 def _valid_assay_partial_shape(artifact: Mapping[str, Any]) -> bool:
     """Validate the closed non-reference shape of an Assay Partial artifact."""
     list_fields = (

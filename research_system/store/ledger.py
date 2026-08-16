@@ -156,6 +156,10 @@ def _release_draft_protocol():
             or session.draft is not None
             or session.consumed
         ):
+            if draft.admission == "binding_repair":
+                raise ArsError("binding repair requires the validated repair-service continuation")
+            if draft.admission == "authority_actor":
+                raise ArsError("authority actor registration requires the validated registration continuation")
             raise ArsError("release publication requires the validated CommandService.submit continuation")
         session.draft = draft
         issued[id(draft)] = (session, ledger, draft)
@@ -181,7 +185,12 @@ def _release_draft_protocol():
         session.draft = None
         session.consumed = True
 
-    return take_guard, register, consume, discard
+    def issue_validated_service_session(ledger: object) -> object:
+        """Mint one private one-shot session for a validated standalone service."""
+
+        return _Session(ledger)
+
+    return take_guard, register, consume, discard, issue_validated_service_session
 
 
 (
@@ -189,11 +198,9 @@ def _release_draft_protocol():
     _register_release_draft,
     _consume_release_draft,
     _discard_release_session,
+    _issue_validated_service_session,
 ) = _release_draft_protocol()
 del _release_draft_protocol
-
-_BINDING_REPAIR_DRAFTS: set[int] = set()
-_AUTHORITY_ACTOR_DRAFTS: set[int] = set()
 
 
 class EventLedger:
@@ -271,6 +278,7 @@ class EventLedger:
         envelope: Mapping[str, Any],
         *,
         snapshot: LedgerSnapshot,
+        session: object | None = None,
     ) -> dict[str, Any]:
         """Append the sealed bootstrap repair event through its one-shot continuation."""
         candidate = dict(envelope)
@@ -281,17 +289,18 @@ class EventLedger:
         object.__setattr__(draft, "envelope", candidate)
         object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
         object.__setattr__(draft, "admission", "binding_repair")
-        _BINDING_REPAIR_DRAFTS.add(id(draft))
+        _register_release_draft(session, self, draft)
         try:
             return self.append([draft], snapshot=snapshot)
         finally:
-            _BINDING_REPAIR_DRAFTS.discard(id(draft))
+            _discard_release_session(session)
 
     def _append_authority_actor_from_validated_service(
         self,
         envelope: Mapping[str, Any],
         *,
         snapshot: LedgerSnapshot,
+        session: object | None = None,
     ) -> dict[str, Any]:
         """Append one actor-registration event through its sealed continuation."""
         candidate = dict(envelope)
@@ -302,11 +311,11 @@ class EventLedger:
         object.__setattr__(draft, "envelope", candidate)
         object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
         object.__setattr__(draft, "admission", "authority_actor")
-        _AUTHORITY_ACTOR_DRAFTS.add(id(draft))
+        _register_release_draft(session, self, draft)
         try:
             return self.append([draft], snapshot=snapshot)
         finally:
-            _AUTHORITY_ACTOR_DRAFTS.discard(id(draft))
+            _discard_release_session(session)
 
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
@@ -432,16 +441,7 @@ class EventLedger:
         for offset, proposed_event in enumerate(proposed):
             draft = proposed_event if isinstance(proposed_event, EventDraft) else None
             if draft is not None:
-                if draft.admission == "binding_repair":
-                    if id(draft) not in _BINDING_REPAIR_DRAFTS:
-                        raise ArsError("binding repair draft is foreign, forged, or consumed")
-                    _BINDING_REPAIR_DRAFTS.remove(id(draft))
-                elif draft.admission == "authority_actor":
-                    if id(draft) not in _AUTHORITY_ACTOR_DRAFTS:
-                        raise ArsError("authority actor draft is foreign, forged, or consumed")
-                    _AUTHORITY_ACTOR_DRAFTS.remove(id(draft))
-                else:
-                    _consume_release_draft(self, draft)
+                _consume_release_draft(self, draft)
             candidate = dict(draft.envelope if draft is not None else proposed_event)
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:

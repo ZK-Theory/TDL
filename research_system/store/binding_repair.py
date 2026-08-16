@@ -34,7 +34,7 @@ from research_system.store.identity import (
     load_store_origin_witness,
     manifest_schema_root,
 )
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, _issue_validated_service_session
 from research_system.store.lock import WriterLock
 from research_system.store.receipts import ReceiptStore
 
@@ -673,6 +673,7 @@ def advance_store_binding(
                         },
                     },
                     snapshot=ledger.snapshot(),
+                    session=_issue_validated_service_session(ledger),
                 )
                 event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
                 event_batch_id = str(result["event_batch_id"])
@@ -730,8 +731,9 @@ def repair_store_binding(
     clock = datetime.now(UTC) if now is None else now()
     starts = _parse_time(intent.valid_from, "valid_from")
     expires = _parse_time(intent.expires_at, "expires_at")
-    if starts >= expires or clock < starts or clock >= expires:
+    if starts >= expires:
         raise ConfigurationError("RepairStoreBinding owner intent is expired or nonfinite")
+    intent_is_current = starts <= clock < expires
     if intent.owner_action != "repair-stale-store-binding" or len(intent.reason.strip()) < 12:
         raise ConfigurationError("RepairStoreBinding requires the exact semantic owner action and reason")
     if not _is_sha256(intent.expected_store_identity) or not _is_sha256(intent.expected_origin_witness_sha256):
@@ -796,20 +798,37 @@ def repair_store_binding(
                 label="binding repair recovery marker",
             )
             marker, _ = _read_canonical_json(physical_marker, "binding repair recovery marker")
+            marker_fields = {
+                "schema_id",
+                "schema_version",
+                "state",
+                "payload_hash",
+                "original_manifest_hex",
+                "original_manifest_sha256",
+                "stale_evidence",
+                "candidate",
+            }
+            if set(marker) != marker_fields or marker.get("schema_version") != "2.0.0":
+                raise IntegrityError("binding repair recovery marker is invalid")
             if marker.get("payload_hash") != payload_hash:
                 raise ConflictError("binding repair recovery marker conflicts with owner intent")
+            if marker.get("candidate") != candidate:
+                raise IntegrityError("binding repair Git candidate changed after transaction start")
             original_manifest = bytes.fromhex(str(marker["original_manifest_hex"]))
             stale = dict(marker["stale_evidence"])
         else:
+            if not intent_is_current:
+                raise ConfigurationError("RepairStoreBinding owner intent is expired or nonfinite")
             manifest, original_manifest, stale = _validate_stale_store(intent, witness, witness_path)
             marker = {
                 "schema_id": "ars://internal/store-binding-repair-transaction",
-                "schema_version": "1.0.0",
+                "schema_version": "2.0.0",
                 "state": "prepared",
                 "payload_hash": payload_hash,
                 "original_manifest_hex": original_manifest.hex(),
                 "original_manifest_sha256": sha256_hex(original_manifest),
                 "stale_evidence": stale,
+                "candidate": candidate,
             }
             _publish(marker_path, canonical_bytes(marker))
         old_manifest = json.loads(original_manifest)
@@ -919,6 +938,7 @@ def repair_store_binding(
                         },
                     },
                     snapshot=snapshot,
+                    session=_issue_validated_service_session(ledger),
                 )
                 event_batch_id = str(result["event_batch_id"])
                 observed_version = int(result["resulting_stream_versions"][intent.expected_project_id])

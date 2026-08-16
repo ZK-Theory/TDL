@@ -28,21 +28,9 @@ from research_system.discovery.replay.scope import EventScope
 from research_system.discovery.replay.transactions import validate_transaction_contract
 from research_system.discovery.routes import discovery_identity_exists as _discovery_identity_exists
 from research_system.discovery.routes import shared_event_partition as _shared_event_partition
-from research_system.discovery.rules import _parked_candidate_test_plan_matches
+from research_system.discovery.rules import _is_spec_route_candidate, _parked_candidate_test_plan_matches
 from research_system.errors import IntegrityError
 from research_system.schema_registry import SchemaRegistry
-
-
-def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, Any] | None) -> bool:
-    if not isinstance(candidate, Mapping):
-        return False
-    observations = state.get("source_observations", {})
-    return any(
-        isinstance(observation, Mapping)
-        and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
-        for observation_id in candidate.get("source_observation_refs", ())
-        for observation in (observations.get(observation_id),)
-    )
 
 
 def replay_discovery(

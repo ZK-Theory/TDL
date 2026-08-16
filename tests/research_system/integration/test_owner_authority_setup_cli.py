@@ -205,6 +205,22 @@ def test_exact_retry_and_changed_intent_conflict_without_mutation(inputs):
 
 
 @pytest.mark.integration
+def test_accepted_publication_retry_requires_exact_materialized_decision(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    published = setup.publish(inputs.intent_value)
+    decision_root = (
+        inputs.harness.authority_root / "objects" / "assurance_record" / published["administration_decision_id"]
+    )
+    decision_path = next(decision_root.glob("*.json"))
+    decision_path.unlink()
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+
+    with pytest.raises(IntegrityError, match="owner publication"):
+        setup.publish(inputs.intent_value)
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     ("subject_kind", "subject_id", "expected_commands"),
     [
@@ -418,13 +434,16 @@ def test_owner_publication_requires_governed_actor_registration(inputs):
 
 @pytest.mark.integration
 def test_owner_publication_evaluates_registered_actor_window_with_setup_clock(inputs, monkeypatch):
+    class OutsideWindowDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = cls(2026, 8, 16, 12, tzinfo=UTC)
+            return value if tz is None else value.astimezone(tz)
+
     monkeypatch.setattr(
         owner_module,
         "datetime",
-        SimpleNamespace(
-            now=lambda _tz: datetime(2026, 8, 16, 12, tzinfo=UTC),
-            fromisoformat=datetime.fromisoformat,
-        ),
+        OutsideWindowDateTime,
     )
     setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     registration = RegisterAuthorityActor(

@@ -22,6 +22,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, ConfigurationError, IntegrityError, SchemaError
 from research_system.owner_authority import _known_authority_actor_classes
 from research_system.schema_registry import bundled_runtime_schema_registry
+from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 
 
@@ -105,6 +106,16 @@ def test_registration_is_durable_and_retry_is_duplicate(tmp_path: Path) -> None:
     registration["semantic_intent"] = {}
     with pytest.raises(SchemaError):
         service.schemas.validate(REGISTRATION_SCHEMA_ID, registration)
+
+
+def test_direct_actor_registration_ledger_continuation_is_rejected(tmp_path: Path) -> None:
+    ledger = EventLedger(tmp_path, PROJECT, bundled_runtime_schema_registry())
+
+    with pytest.raises(ArsError, match="validated registration continuation"):
+        ledger._append_authority_actor_from_validated_service(
+            {"payload": {}},
+            snapshot=ledger.snapshot(),
+        )
 
 
 def test_retry_preserves_acceptance_bytes_when_clock_advances(tmp_path: Path) -> None:
@@ -290,7 +301,45 @@ def test_mixed_scoped_grant_families_and_registration_prove_actor_classes(tmp_pa
 
     known = _known_authority_actor_classes(tmp_path, objects, now=NOW)
     assert known[normal_grant["actor_id"]] == frozenset({"service"})
-    assert known[result["actor_id"]] == frozenset({"agent", "human"})
+    assert known[result["actor_id"]] == frozenset({"agent"})
+
+
+def test_expired_registered_actor_is_not_revived_by_historical_grant(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    result = service.register(_intent(expires_at="2026-08-15T00:00:00Z"))
+    objects = ObjectStore(tmp_path)
+    grant = {
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": "2.1.0",
+        "authority_grant_id": "agr_01978abc-1000-7000-8000-000000001012",
+        "actor_id": result["actor_id"],
+        "allowed_actor_classes": ["agent"],
+        "allowed_commands": [
+            {
+                "command_type": "RequestAssay",
+                "schema_id": "ars://core/command/RequestAssay",
+                "schema_version": "1.0.0",
+                "schema_sha256": "1" * 64,
+            }
+        ],
+        "allowed_policy_actions": [],
+        "subject_scope": {
+            "project_id": PROJECT,
+            "subject": {"kind": "task", "id": "tsk_01978abc-1000-7000-8000-000000001012"},
+        },
+        "risk_ceiling": "R1",
+        "effective_at": "2026-08-14T00:00:00Z",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "delegable": False,
+        "revoked": False,
+    }
+    objects.write("authority_grant", grant["authority_grant_id"], 1, grant)
+
+    assert result["actor_id"] not in _known_authority_actor_classes(
+        tmp_path,
+        objects,
+        now=datetime(2026, 8, 16, tzinfo=UTC),
+    )
 
 
 def test_foreign_registration_context_is_not_known_to_current_owner(tmp_path: Path) -> None:

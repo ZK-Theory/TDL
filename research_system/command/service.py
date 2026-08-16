@@ -1680,6 +1680,10 @@ class CommandService:
             )
             if scoped is not None:
                 if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
+                    if scoped.status == "accepted":
+                        if publication_decision is None:
+                            raise IntegrityError("owner publication decision is unavailable")
+                        self._ensure_owner_publication_materialized(command, publication_decision)
                     self._remove_owner_publication_marker(command.command_id)
                 return scoped
             if not lifecycle:

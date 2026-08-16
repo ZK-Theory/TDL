@@ -29,7 +29,7 @@ from research_system.artefacts.use_resolver import ArtefactUseResolver
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.spec_bridge import deliver_spec_owner_context
 from research_system.discovery.operator import DiscoveryOperator
-from research_system.discovery.path_safety import contained_regular_file
+from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierMember,
@@ -435,9 +435,12 @@ def _registered_documents(
         digest = manifest.get("content_sha256")
         if not isinstance(relative, str) or not isinstance(digest, str):
             continue
-        path = contained_regular_file(operator.control_root, relative, label="registered SPEC document")
         try:
-            raw = path.read_bytes()
+            raw = read_contained_regular_file(
+                operator.control_root,
+                relative,
+                label="registered SPEC document",
+            )
             value = json.loads(raw)
         except (OSError, UnicodeError, json.JSONDecodeError):
             raise IntegrityError("registered SPEC document is unavailable")
@@ -787,6 +790,13 @@ class SpecFlow:
             self.operator.schemas.validate(schema_id, document, schema_version="1.0.0")
         except SchemaError as exc:
             raise IntegrityError("SPEC document schema rejected the action packet") from exc
+        if (
+            isinstance(registration, dict)
+            and set(registration) == _REGISTRATION_FIELDS
+            and isinstance(registration.get("manifest"), dict)
+            and registration["manifest"].get("artefact_type") != document["document_type"]
+        ):
+            raise IntegrityError("SPEC document registration type differs from its validated document")
         if action.startswith("prepare_spec_"):
             manifest = document.get("brief_manifest")
             if not isinstance(manifest, dict):
@@ -1016,6 +1026,7 @@ class SpecFlow:
             ),
             clock=lambda: datetime.now(UTC),
         )
+        route_source = next(item for item in self.route["sources"] if item["alias"] == stage)
         compiled, source_resolver = deliver_spec_owner_context(
             operator=self.operator,
             command_service=service,
@@ -1029,10 +1040,10 @@ class SpecFlow:
             application_version=str(semantic["application_version"]),
             valid_from=str(semantic["evaluation_time"]),
             expires_at=str(semantic["handoff_expires_at"]),
+            required_spec_source_sha256=str(route_source["sha256"]),
         )
         _events, projection, _documents = self._snapshot()
         input_states = self._brief_input_states(projection)
-        route_source = next(item for item in self.route["sources"] if item["alias"] == stage)
         spec_rows = [
             state
             for state in input_states.values()
@@ -1051,11 +1062,11 @@ class SpecFlow:
         assets = []
         for state in method_rows:
             manifest = state["manifest"]
-            raw = contained_regular_file(
+            raw = read_contained_regular_file(
                 self.operator.control_root,
                 manifest["relative_path"],
                 label="registered SPEC artefact",
-            ).read_bytes()
+            )
             matches = [asset for asset in methods_pack.assets if asset.raw_bytes == raw]
             if len(matches) != 1:
                 raise IntegrityError("accepted Methods artefact is not an exact current pack asset")

@@ -358,6 +358,45 @@ def test_crash_at_each_publication_phase_recovers_in_a_fresh_call(tmp_path: Path
     ] == [str(candidate)]
 
 
+def test_started_repair_recovers_after_owner_intent_window_expires(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, _target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+
+    def crash(observed: str) -> None:
+        if observed == "event":
+            raise RuntimeError("crash after event")
+
+    with pytest.raises(RuntimeError, match="crash after event"):
+        repair_store_binding(
+            intent,
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=crash,
+        )
+
+    result = repair_store_binding(intent, now=lambda: datetime(2028, 8, 14, tzinfo=UTC))
+    assert result["status"] == "repaired"
+
+
+def test_started_repair_rejects_candidate_advance_before_recovery(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+
+    def crash(observed: str) -> None:
+        if observed == "event":
+            raise RuntimeError("crash after event")
+
+    with pytest.raises(RuntimeError, match="crash after event"):
+        repair_store_binding(
+            intent,
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=crash,
+        )
+    (candidate / "descendant.txt").write_text("new clean descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+
+    with pytest.raises(IntegrityError, match="Git candidate changed"):
+        repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+
 def test_crash_marker_redirect_is_rejected_without_retry_publication(tmp_path: Path, monkeypatch):
     _initialized, _witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
 
@@ -409,6 +448,11 @@ def test_current_binding_dirty_candidate_and_generic_append_fail_without_repair_
         target, witness.project_id, runtime_schema_registry(candidate / ".research-system" / "schemas")
     )
     command_schema = ledger.schemas.resolve_identity(COMMAND_SCHEMA_ID, "1.0.0")
+    with pytest.raises(ArsError, match="validated repair-service continuation"):
+        ledger._append_binding_repair_from_validated_service(
+            {"payload": {}},
+            snapshot=ledger.snapshot(),
+        )
     with pytest.raises(ArsError, match="validated repair-service continuation"):
         ledger.append(
             [

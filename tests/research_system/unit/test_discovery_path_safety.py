@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from research_system.discovery.path_safety import contained_regular_file
+from research_system.discovery.path_safety import contained_regular_file, read_contained_regular_file
 from research_system.errors import IntegrityError
 
 
@@ -15,6 +15,14 @@ def test_contained_regular_file_rejects_traversal_absolute_and_redirected_paths(
     accepted.parent.mkdir(parents=True)
     accepted.write_text("{}", encoding="utf-8")
     assert contained_regular_file(root, "methods/documents/result.json", label="registered result") == accepted
+    assert read_contained_regular_file(root, "methods/documents/result.json", label="registered result") == b"{}"
+
+    for invalid in (None, ""):
+        with pytest.raises(IntegrityError, match="path is invalid"):
+            contained_regular_file(root, invalid, label="registered result")
+
+    with pytest.raises(IntegrityError, match="is not a regular file"):
+        contained_regular_file(root, "methods/documents", label="registered result")
 
     for relative in ("../outside.json", str((tmp_path / "outside.json").resolve())):
         with pytest.raises(IntegrityError, match="canonical and relative"):

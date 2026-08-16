@@ -22,7 +22,7 @@ from research_system.errors import ArsError, ConfigurationError, ConflictError, 
 from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.durability import fsync_directory
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, _issue_validated_service_session
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 
@@ -458,6 +458,7 @@ class AuthorityActorRegistrationService:
                         "payload": expected_event_payload,
                     },
                     snapshot=ledger.snapshot(),
+                    session=_issue_validated_service_session(ledger),
                 )
                 event = self._existing_event(ledger, intent, payload_hash, expected_event_payload)
                 if event is None:

@@ -45,6 +45,7 @@ from research_system.discovery.rules import (
     _candidate_replacement_is_used,
     _candidate_supersession_lineage,
     _git_blob,
+    _is_spec_route_candidate,
     _promotion_relation_matches,
     _parked_candidate_test_plan_matches,
     _record_ref,
@@ -62,7 +63,7 @@ from research_system.discovery.rules import (
     _valid_spike_execution_proposal,
     _valid_spike_promotion_option,
 )
-from research_system.discovery.path_safety import contained_regular_file
+from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
 from research_system.discovery.commands import (
@@ -1469,11 +1470,16 @@ class DiscoveryRuntime:
             root_values = path_subject.get("registered_roots")
             if isinstance(root_values, list):
                 if is_portable_path_subject(path_subject):
+                    if not root_values:
+                        raise IntegrityError("accepted portable path authority has no registered root")
                     observation = accepted_paths.get("file_observation")
                     accepted_binding = accepted_paths.get("portable_physical_binding")
                     if not isinstance(observation, Mapping) or not isinstance(accepted_binding, Mapping):
                         raise IntegrityError("accepted portable path authority lacks physical observation")
-                    current_binding = self._observe_portable_spec_root(path_subject, str(observation.get("git_commit")))
+                    git_commit = observation.get("git_commit")
+                    if not isinstance(git_commit, str) or not git_commit:
+                        raise IntegrityError("accepted portable path authority lacks a Git commit")
+                    current_binding = self._observe_portable_spec_root(path_subject, git_commit)
                     if current_binding != accepted_binding:
                         raise IntegrityError("accepted portable path authority physical binding differs")
                     root_values = [
@@ -1656,16 +1662,6 @@ class DiscoveryRuntime:
             )
         )
 
-    @staticmethod
-    def _is_spec_route_candidate(candidate: Mapping[str, Any], projection: Mapping[str, Any]) -> bool:
-        observations = projection.get("source_observations", {})
-        return any(
-            isinstance(observation, Mapping)
-            and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
-            for observation_id in candidate.get("source_observation_refs", ())
-            for observation in (observations.get(observation_id),)
-        )
-
     def _spec_02_execution_approved(
         self,
         candidate: Mapping[str, Any],
@@ -1673,7 +1669,7 @@ class DiscoveryRuntime:
     ) -> bool:
         """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
 
-        if not self._is_spec_route_candidate(candidate, projection):
+        if not _is_spec_route_candidate(projection, candidate):
             return True
         if not isinstance(candidate.get("decision_id"), str):
             return False
@@ -1703,9 +1699,12 @@ class DiscoveryRuntime:
             content_sha256 = manifest.get("content_sha256")
             if not isinstance(relative, str) or not isinstance(content_sha256, str):
                 return False
-            path = contained_regular_file(self.control_root, relative, label="SPEC-02 approval artefact")
             try:
-                raw = path.read_bytes()
+                raw = read_contained_regular_file(
+                    self.control_root,
+                    relative,
+                    label="SPEC-02 approval artefact",
+                )
                 value = json.loads(raw)
             except (OSError, json.JSONDecodeError):
                 return False
@@ -1795,6 +1794,19 @@ class DiscoveryRuntime:
         assay = projection["assays"].get(candidate.get("assay_id")) if isinstance(candidate, dict) else None
         decision = projection["decisions"].get(decision_id)
         ct = command.envelope["command_type"]
+        spec_02_approved = (
+            self._spec_02_execution_approved(candidate, projection)
+            if isinstance(candidate, Mapping)
+            and (ct, row)
+            in {
+                ("RegisterSpikePlan", "OR-014"),
+                ("ProposeSpikeExecutionDecision", "OR-015"),
+                ("ResolveDecision", "OR-016"),
+                ("StartSpike", "OR-017"),
+            }
+            and _is_spec_route_candidate(projection, candidate)
+            else True
+        )
 
         if (
             isinstance(candidate, Mapping)
@@ -1805,8 +1817,8 @@ class DiscoveryRuntime:
                 ("ResolveDecision", "OR-016"),
                 ("StartSpike", "OR-017"),
             }
-            and self._is_spec_route_candidate(candidate, projection)
-            and not self._spec_02_execution_approved(candidate, projection)
+            and _is_spec_route_candidate(projection, candidate)
+            and not spec_02_approved
         ):
             raise IntegrityError("SPEC-02 live-run approval and operator brief are required")
 
@@ -1895,7 +1907,7 @@ class DiscoveryRuntime:
             and (
                 row == "OR-014"
                 and candidate.get("status") in {"spike_planning_authorized", "parked"}
-                and self._spec_02_execution_approved(candidate, projection)
+                and spec_02_approved
                 or row == "OR-025"
                 and candidate.get("status") == "spike_retry_authorized"
             )
@@ -1947,7 +1959,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == decision_id
             and decision is None
-            and self._spec_02_execution_approved(candidate, projection)
+            and spec_02_approved
             and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
@@ -1975,7 +1987,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and candidate
             and candidate.get("status") == "spike_approval_pending"
-            and self._spec_02_execution_approved(candidate, projection)
+            and spec_02_approved
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
@@ -2005,7 +2017,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and candidate
             and candidate.get("status") == "spike_authorized"
-            and self._spec_02_execution_approved(candidate, projection)
+            and spec_02_approved
             and command.target_stream_id == spike_id
             and isinstance(p.get("attempt_id"), str)
             and isinstance(p.get("attempt_sha256"), str)
