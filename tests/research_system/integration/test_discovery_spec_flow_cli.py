@@ -5,7 +5,7 @@ import hashlib
 import shutil
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -544,7 +544,12 @@ def _seed_requested_spec_01(inputs: dict[str, Any]) -> tuple[str, str, str]:
     return candidate_id, assay_id, candidate_sha256
 
 
-def _accept_spec_01_brief_inputs(inputs: dict[str, Any], *, entries_mutator=None) -> list[str]:
+def _accept_spec_01_brief_inputs(
+    inputs: dict[str, Any],
+    *,
+    entries_mutator=None,
+    review_mutator=None,
+) -> list[str]:
     repository_root = Path(inputs["config"]["repository_root"])
     sources = [
         (ROUTE_DIRECTORY / "spec-01-assay-brief-v1.1.0.md", "spec_operator_source"),
@@ -650,6 +655,8 @@ def _accept_spec_01_brief_inputs(inputs: dict[str, Any], *, entries_mutator=None
                 },
             }
         )
+    if review_mutator is not None:
+        review_mutator(review_commands, publications)
     _write_action(
         inputs,
         "review_spec_01_brief_inputs",
@@ -1287,7 +1294,13 @@ def _correct_spec_01_source(inputs: dict[str, Any], scorecard_sha256: str) -> st
     return correction_id
 
 
-def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_override: bool = False) -> str:
+def _approve_spec_02(
+    inputs: dict[str, Any],
+    *,
+    execute: bool = True,
+    park_override: bool = False,
+    resource_ids: list[str] | None = None,
+) -> str:
     operator = load_discovery_operator(inputs["config_path"])
     promotion = next(
         event
@@ -1297,6 +1310,10 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
     source = next(item for item in SpecFlow(operator).route["sources"] if item["alias"] == "SPEC-02")
     owner_id = ACTORS["actor-a"]
     registrar_id = ACTORS["actor-b"]
+    now = operator.clock().astimezone(UTC)
+    starts_at = (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    approved_at = now.isoformat().replace("+00:00", "Z")
+    expires_at = (now + timedelta(minutes=45)).isoformat().replace("+00:00", "Z")
     artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000905"
     grant_id = activate_lifecycle_grant(
         inputs["harness"],
@@ -1314,10 +1331,10 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
         "owner": {"actor_id": owner_id, "role": "Stephen"},
         "registrar": {"actor_id": registrar_id, "role": "governed artefact registrar"},
         "decision": "APPROVE_SPEC_02_LIVE_RUN",
-        "approved_at": "2026-08-01T12:20:00Z",
+        "approved_at": approved_at,
         "valid_window": {
-            "starts_at": "2026-08-01T12:15:00Z",
-            "expires_at": "2026-08-01T13:00:00Z",
+            "starts_at": starts_at,
+            "expires_at": expires_at,
         },
         "spec_02_subject": {"id": "SPEC-02", "sha256": source["sha256"]},
         "spec_01_promotion": {"id": promotion["event_id"], "sha256": promotion["event_hash"]},
@@ -1330,7 +1347,7 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
             "wall_time_seconds": 60,
             "cpu_seconds": 60,
             "peak_memory_bytes": 1048576,
-            "resource_ids": ["owner-operated-codex-desktop"],
+            "resource_ids": resource_ids or [C1_RESOURCE_GRANT_ID],
         },
         "automatic_execution": False,
     }
@@ -1755,6 +1772,8 @@ def _return_spec_02_complete(
     started: dict[str, str],
     *,
     partial: bool = False,
+    resource_use: dict[str, int] | None = None,
+    execute: bool = True,
 ) -> dict[str, str]:
     evidence = _register_spike_return_evidence(inputs)
     operator = load_discovery_operator(inputs["config_path"])
@@ -1845,7 +1864,8 @@ def _return_spec_02_complete(
             ),
             {"name": "embedded_artefact", "sha256": verdict_sha256},
         ],
-        "resource_use": {"elapsed_seconds": 1, "cpu_seconds": 1, "peak_memory_bytes": 1, "external_cost_gbp": 0},
+        "resource_use": resource_use
+        or {"elapsed_seconds": 1, "cpu_seconds": 1, "peak_memory_bytes": 1, "external_cost_gbp": 0},
         "deterministic_rerun": {"performed": True, "evidence_sha256": "8" * 64, "same_output": True},
         "embedded_artefact": verdict,
     }
@@ -1885,7 +1905,8 @@ def _return_spec_02_complete(
     }
     action = "return_spec_02_partial" if partial else "return_spec_02_complete"
     _write_action(inputs, action, commands=[command], document=document, registration=registration)
-    assert cli.main(_advance_argv(inputs, action)) == 0
+    if execute:
+        assert cli.main(_advance_argv(inputs, action)) == 0
     return {"return_id": return_id, "verdict_sha256": verdict_sha256}
 
 
@@ -2799,6 +2820,23 @@ def test_brief_input_registration_prevalidates_the_exact_set_before_publication(
 
 
 @pytest.mark.integration
+def test_brief_review_batch_rejects_an_invalid_later_authority_before_any_review_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    baseline = []
+
+    def mutate(commands: list[dict[str, Any]], _publications: list[dict[str, Any]]) -> None:
+        baseline.append(_tree_snapshot(spec_inputs["binding"].control_root))
+        commands[-1]["authority_grant_id"] = new_id("authority_grant")
+
+    with pytest.raises(ArsError):
+        _accept_spec_01_brief_inputs(spec_inputs, review_mutator=mutate)
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == baseline[0]
+
+
+@pytest.mark.integration
 def test_public_spec_flow_records_complete_spec_01_return_without_auto_promotion(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2832,6 +2870,15 @@ def test_public_spec_flow_rejects_malformed_and_wrongly_bound_spec_01_returns_wi
     capsys.readouterr()
     _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256, execute=False)
     original = deepcopy(spec_inputs["packet"])
+    alternate_grant = activate_lifecycle_grant(
+        spec_inputs["harness"],
+        subject_kind="scope_definition",
+        subject_id=candidate_id,
+        actor_id=REVIEWER_ACTOR,
+        allowed_actor_classes=("agent",),
+        command_types=("RecordAssayScore",),
+        grant_id=new_id("authority_grant"),
+    )
     before = _tree_snapshot(spec_inputs["binding"].control_root)
     mutations = []
     wrong_brief = deepcopy(original)
@@ -2843,6 +2890,13 @@ def test_public_spec_flow_rejects_malformed_and_wrongly_bound_spec_01_returns_wi
     wrong_producer = deepcopy(original)
     wrong_producer["document"]["producer"]["actor_id"] = REVIEWER_ACTOR
     mutations.append(wrong_producer)
+    wrong_command_actor = deepcopy(original)
+    wrong_command_actor["commands"][0]["actor_id"] = REVIEWER_ACTOR
+    wrong_command_actor["commands"][0]["authority_grant_id"] = alternate_grant
+    mutations.append(wrong_command_actor)
+    invalid_command_authority = deepcopy(original)
+    invalid_command_authority["commands"][0]["authority_grant_id"] = new_id("authority_grant")
+    mutations.append(invalid_command_authority)
     extra = deepcopy(original)
     extra["document"]["unexpected"] = True
     mutations.append(extra)
@@ -2865,7 +2919,7 @@ def test_public_spec_flow_rejects_malformed_and_wrongly_bound_spec_01_returns_wi
     for malformed in mutations:
         _refresh_retry_id(malformed)
         spec_inputs["packet_path"].write_bytes(canonical_bytes(malformed))
-        with pytest.raises(IntegrityError):
+        with pytest.raises((ArsError, IntegrityError)):
             cli.main(_advance_argv(spec_inputs, "return_spec_01_complete"))
         assert _tree_snapshot(spec_inputs["binding"].control_root) == before
     projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
@@ -3157,6 +3211,14 @@ def test_public_spec_flow_rejects_wrong_spec_02_live_approval_without_registrati
     expired = deepcopy(original)
     expired["document"]["approved_at"] = "2026-08-16T13:00:00Z"
     mutations.append(expired)
+    not_started = deepcopy(original)
+    future = load_discovery_operator(spec_inputs["config_path"]).clock().astimezone(UTC) + timedelta(hours=1)
+    not_started["document"]["approved_at"] = future.isoformat().replace("+00:00", "Z")
+    not_started["document"]["valid_window"] = {
+        "starts_at": future.isoformat().replace("+00:00", "Z"),
+        "expires_at": (future + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+    }
+    mutations.append(not_started)
     for malformed in mutations:
         _refresh_retry_id(malformed)
         spec_inputs["packet_path"].write_bytes(canonical_bytes(malformed))
@@ -3357,6 +3419,76 @@ def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
 
 
 @pytest.mark.integration
+def test_spec_02_approval_resource_allowlist_blocks_execution_decision_without_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs, resource_ids=["rgr_019ffe2b-fd4b-7000-8000-ffffffffffff"])
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        _start_spec_02(spec_inputs, candidate_id, assay_id)
+
+    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    spike = next(iter(projection["spikes"].values()))
+    assert spike["status"] == "approval_pending"
+    assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
+
+
+@pytest.mark.integration
+def test_spec_02_approval_is_revalidated_after_acceptance_before_execution(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+
+    class ExpiredApprovalClock(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            return datetime(2026, 8, 1, 14, 30, tzinfo=UTC)
+
+    monkeypatch.setattr(discovery_operator_module, "datetime", ExpiredApprovalClock)
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="SPEC-02 live-run approval and operator brief are required"):
+        _start_spec_02(spec_inputs, candidate_id, assay_id)
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    assert not projection["spikes"]
+    assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
+
+
+@pytest.mark.integration
 def test_public_spec_flow_rejects_wrong_spec_02_lease_or_attempt_without_start(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3431,6 +3563,53 @@ def test_public_spec_flow_registers_complete_spec_02_return_without_claim(
     assert projection["spikes"][started["spike_id"]]["status"] == "verdict_recorded"
     assert projection["spikes"][started["spike_id"]]["verdict_sha256"] == returned_spike["verdict_sha256"]
     assert not projection.get("claims")
+
+
+@pytest.mark.integration
+def test_spec_02_return_over_approved_resource_limit_rejects_without_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+    started = _start_spec_02(spec_inputs, candidate_id, assay_id)
+    capsys.readouterr()
+    _return_spec_02_complete(
+        spec_inputs,
+        candidate_id,
+        assay_id,
+        started,
+        resource_use={
+            "elapsed_seconds": 61,
+            "cpu_seconds": 1,
+            "peak_memory_bytes": 1,
+            "external_cost_gbp": 0,
+        },
+        execute=False,
+    )
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        cli.main(_advance_argv(spec_inputs, "return_spec_02_complete"))
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    assert projection["spikes"][started["spike_id"]]["status"] == "running"
+    assert "spec_02_return" not in SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
 
 
 @pytest.mark.integration

@@ -535,6 +535,11 @@ def _known_authority_actor_classes(
     current_registered_actors: dict[str, set[str]] = {}
     grant_root = _physical_directory(root / "objects/authority_grant", label="authority grant objects")
     for candidate in grant_root.iterdir():
+        _require_bounded_target(
+            root,
+            Path("objects/authority_grant") / candidate.name,
+            label="configured authority grant object",
+        )
         try:
             value = objects.read("authority_grant", candidate.name, 1)
             if is_scoped_authority_grant_schema(value.get("schema_id"), value.get("schema_version")):

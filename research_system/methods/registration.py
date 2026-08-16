@@ -7,10 +7,11 @@ import os
 import stat
 import subprocess
 import uuid
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConfigurationError, ConflictError
@@ -84,27 +85,33 @@ class CandidateDocumentStore:
         """Return the final control-relative path without publishing bytes."""
         return (self.relative_directory / f"{artefact_id}.json").as_posix()
 
-    def write(self, artefact_id: str, raw_bytes: bytes) -> str:
+    def _write(self, artefact_id: str, raw_bytes: bytes) -> str:
         relative = Path(self.relative_path(artefact_id))
-        target = _require_physical_destination(self.control_root, relative.as_posix(), create=True)
         try:
-            fd = os.open(
-                target,
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
-            )
+            with _open_new_contained_file(self.control_root, relative.as_posix()) as (fd, target):
+                with os.fdopen(fd, "wb") as handle:
+                    if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                        raise ConfigurationError("candidate document destination is not a physical regular file")
+                    handle.write(raw_bytes)
+                    handle.flush()
+                    os.fsync(handle.fileno())
         except FileExistsError:
             target = _require_physical_destination(self.control_root, relative.as_posix())
             if target.read_bytes() != raw_bytes:
                 raise ConflictError("methods document identity already binds different bytes")
             return relative.as_posix()
-        with os.fdopen(fd, "wb") as handle:
-            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-                raise ConfigurationError("candidate document destination is not a physical regular file")
-            handle.write(raw_bytes)
-            handle.flush()
-            os.fsync(handle.fileno())
         fsync_directory(target.parent)
         return relative.as_posix()
+
+    def write(self, artefact_id: str, raw_bytes: bytes) -> str:
+        """Publish candidate document bytes through the historical public seam."""
+
+        return self._write(artefact_id, raw_bytes)
+
+    def publish_bytes(self, artefact_id: str, raw_bytes: bytes) -> str:
+        """Publish non-artefact coordinator bytes without resembling an ObjectStore kind call."""
+
+        return self._write(artefact_id, raw_bytes)
 
 
 @dataclass(frozen=True)
@@ -176,6 +183,168 @@ def _require_physical_destination(control_root: Path, relative_path: str, *, cre
     return target
 
 
+def _hold_windows_directories(paths: list[Path]) -> list[int]:
+    """Hold physical directory handles without delete sharing during a pathname create."""
+
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = (
+        ctypes.c_wchar_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+    )
+    create_file.restype = ctypes.c_void_p
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = (ctypes.c_void_p,)
+    close_handle.restype = ctypes.c_int
+    invalid = ctypes.c_void_p(-1).value
+    handles: list[int] = []
+    flags = 0x02000000 | 0x00200000  # FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT
+    try:
+        for path in paths:
+            desired_access = 0x0001 | 0x0080 | 0x00100000  # LIST_DIRECTORY | READ_ATTRIBUTES | SYNCHRONIZE
+            handle = create_file(str(path), desired_access, 0x1 | 0x2, None, 3, flags, None)
+            if handle == invalid:
+                raise OSError(ctypes.get_last_error(), "physical destination directory is unavailable")
+            handles.append(int(handle))
+            metadata = path.lstat()
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & 0x400
+            ):
+                raise ConfigurationError("raw content destination parent is not a physical directory")
+        return handles
+    except Exception:
+        for handle in reversed(handles):
+            close_handle(ctypes.c_void_p(handle))
+        raise
+
+
+def _open_windows_relative_new_file(parent_handle: int, name: str) -> int:
+    """Create a new leaf relative to an already verified directory handle."""
+
+    import ctypes
+    import msvcrt
+
+    class UnicodeString(ctypes.Structure):
+        _fields_ = (
+            ("Length", ctypes.c_ushort),
+            ("MaximumLength", ctypes.c_ushort),
+            ("Buffer", ctypes.c_wchar_p),
+        )
+
+    class ObjectAttributes(ctypes.Structure):
+        _fields_ = (
+            ("Length", ctypes.c_ulong),
+            ("RootDirectory", ctypes.c_void_p),
+            ("ObjectName", ctypes.POINTER(UnicodeString)),
+            ("Attributes", ctypes.c_ulong),
+            ("SecurityDescriptor", ctypes.c_void_p),
+            ("SecurityQualityOfService", ctypes.c_void_p),
+        )
+
+    class IoStatusBlock(ctypes.Structure):
+        _fields_ = (("Status", ctypes.c_void_p), ("Information", ctypes.c_size_t))
+
+    buffer = ctypes.create_unicode_buffer(name)
+    encoded_length = len(name.encode("utf-16-le"))
+    unicode_name = UnicodeString(encoded_length, encoded_length + 2, ctypes.cast(buffer, ctypes.c_wchar_p))
+    attributes = ObjectAttributes(
+        ctypes.sizeof(ObjectAttributes),
+        ctypes.c_void_p(parent_handle),
+        ctypes.pointer(unicode_name),
+        0x40,  # OBJ_CASE_INSENSITIVE
+        None,
+        None,
+    )
+    status_block = IoStatusBlock()
+    native_handle = ctypes.c_void_p()
+    nt_create_file = ctypes.WinDLL("ntdll").NtCreateFile
+    nt_create_file.argtypes = (
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_ulong,
+        ctypes.POINTER(ObjectAttributes),
+        ctypes.POINTER(IoStatusBlock),
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+    )
+    nt_create_file.restype = ctypes.c_long
+    status = nt_create_file(
+        ctypes.byref(native_handle),
+        0x40000000 | 0x00000080 | 0x00100000,  # GENERIC_WRITE | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+        ctypes.byref(attributes),
+        ctypes.byref(status_block),
+        None,
+        0x80,  # FILE_ATTRIBUTE_NORMAL
+        0x1,  # FILE_SHARE_READ
+        2,  # FILE_CREATE
+        0x40 | 0x20,  # FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT
+        None,
+        0,
+    )
+    if status < 0 or not native_handle.value:
+        raise OSError(status, "raw content destination leaf could not be created")
+    try:
+        return msvcrt.open_osfhandle(native_handle.value, os.O_WRONLY | os.O_BINARY)
+    except Exception:
+        ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle(native_handle)
+        raise
+
+
+@contextmanager
+def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
+    """Create one leaf while its trusted parent chain remains bound."""
+
+    target = _require_physical_destination(control_root, relative_path, create=True)
+    root = control_root.resolve(strict=True)
+    relative = Path(relative_path)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    directory_descriptors: list[int] = []
+    windows_handles: list[int] = []
+    descriptor = -1
+    try:
+        if os.open in os.supports_dir_fd and hasattr(os, "O_DIRECTORY"):
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+            directory_descriptors.append(os.open(root, directory_flags))
+            for part in relative.parts[:-1]:
+                directory_descriptors.append(os.open(part, directory_flags, dir_fd=directory_descriptors[-1]))
+            descriptor = os.open(relative.name, flags, 0o600, dir_fd=directory_descriptors[-1])
+        elif os.name == "nt":
+            parents = [root]
+            for part in relative.parts[:-1]:
+                parents.append(parents[-1] / part)
+            windows_handles = _hold_windows_directories(parents)
+            descriptor = _open_windows_relative_new_file(windows_handles[-1], relative.name)
+        else:
+            raise ConfigurationError("atomic contained file creation is unsupported on this platform")
+        owned_descriptor = descriptor
+        descriptor = -1
+        yield owned_descriptor, target
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+        if windows_handles:
+            import ctypes
+
+            close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+            for handle in reversed(windows_handles):
+                close_handle(ctypes.c_void_p(handle))
+
+
 def _git(repository_root: Path, *arguments: str) -> str:
     result = subprocess.run(  # nosec B603 B607 - fixed Git executable and arguments
         ["git", "-C", str(repository_root), *arguments],
@@ -233,20 +402,19 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
 
 
 def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
-    target = _require_physical_destination(control_root, relative_path, create=True)
     try:
-        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0))
+        with _open_new_contained_file(control_root, relative_path) as (fd, target):
+            with os.fdopen(fd, "wb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    raise ConfigurationError("raw content destination is not a physical regular file")
+                handle.write(raw)
+                handle.flush()
+                os.fsync(handle.fileno())
     except FileExistsError:
         target = _require_physical_destination(control_root, relative_path)
         if target.read_bytes() != raw:
             raise ConflictError("raw content destination already binds different bytes")
         return
-    with os.fdopen(fd, "wb") as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-            raise ConfigurationError("raw content destination is not a physical regular file")
-        handle.write(raw)
-        handle.flush()
-        os.fsync(handle.fileno())
     fsync_directory(target.parent)
 
 

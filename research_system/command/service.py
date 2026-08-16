@@ -1571,6 +1571,40 @@ class CommandService:
             if isinstance(prepared, Receipt):
                 raise ArsError(prepared.explanation or prepared.reason_code or "RegisterArtefact preflight rejected")
 
+    def prevalidate_artefact_authority_batch(self, envelopes: Sequence[dict[str, Any]]) -> None:
+        """Validate an independent artefact-authority batch before any side effect."""
+
+        allowed = {"RecordScientificReview", "SetArtefactUseAuthority"}
+        if not envelopes or len({item.get("target_stream_id") for item in envelopes}) != len(envelopes):
+            raise ArsError("artefact-authority batch targets must be nonempty and distinct")
+        snapshot = self.ledger.snapshot()
+        view = self._view_for(snapshot)
+        for envelope in envelopes:
+            command_type = envelope.get("command_type")
+            if command_type not in allowed:
+                raise ArsError("artefact-authority batch contains another command type")
+            binding = self.schemas.command_binding(str(command_type))
+            if binding is None:
+                raise SchemaError(f"{command_type} has no active command binding")
+            command_schema = self.schemas.validate_active(
+                binding.schema_id,
+                envelope,
+                schema_version=binding.schema_version,
+            )
+            command = Command(deepcopy(envelope))
+            authority, denial = self._resolve_lifecycle_authority(command, command_schema, snapshot)
+            if denial is not None or authority.resolution is None:
+                raise ArsError(denial or f"{command_type} authority is unavailable")
+            existing = self._matching_committed(command, view, command_schema=command_schema)
+            if existing is not None:
+                continue
+            observed_version = view.stream_versions.get(command.target_stream_id, 0)
+            if observed_version != command.expected_stream_version:
+                raise ConflictError("artefact-authority batch stream version conflicts")
+            prepared = self._prepare_artefact_authority_command(command, snapshot, observed_version)
+            if isinstance(prepared, Receipt):
+                raise ArsError(prepared.explanation or prepared.reason_code or f"{command_type} preflight rejected")
+
     @_release_submit_guard
     def submit(
         self,

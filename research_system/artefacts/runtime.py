@@ -69,6 +69,25 @@ class GoverningScientificReviewStore:
             evaluation_time=datetime.now(UTC),
         )
 
+    def prevalidate_publications(self, publications: list[Mapping[str, object]]) -> None:
+        """Validate one exact write-once publication set without creating objects."""
+
+        references: set[str] = set()
+        for publication in publications:
+            if set(publication) != {"reference_id", "record"}:
+                raise ArsError("governing review publication fields are invalid")
+            reference_id = publication.get("reference_id")
+            record = publication.get("record")
+            if not isinstance(reference_id, str) or reference_id in references or not isinstance(record, Mapping):
+                raise ArsError("governing review publication identities are invalid")
+            references.add(reference_id)
+            validate_id(reference_id, "assurance_record")
+            value = dict(record)
+            self.schemas.validate("ars://evidence/governing-scientific-review", value)
+            if self.objects.revision_exists("assurance_record", reference_id, 1):
+                if self.objects.read("assurance_record", reference_id, 1) != value:
+                    raise ArsError("governing review publication identity conflicts")
+
     def resolve(
         self,
         reference_id: str,

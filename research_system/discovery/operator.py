@@ -15,7 +15,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -139,8 +139,8 @@ class DiscoveryOperatorConfig:
         )
 
 
-def _git_result(repository_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    """Run one fixed Git validation command; this never reaches a provider process."""
+def _scrubbed_git_environment() -> dict[str, str]:
+    """Return an environment that cannot redirect fixed Git repository queries."""
 
     environment = dict(os.environ)
     for variable in (
@@ -155,12 +155,18 @@ def _git_result(repository_root: Path, *arguments: str) -> subprocess.CompletedP
     # Git honours this as a read-only hint: configuration admission must not
     # refresh an index or create a lock while deciding whether to reject it.
     environment["GIT_OPTIONAL_LOCKS"] = "0"
+    return environment
+
+
+def _git_result(repository_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    """Run one fixed Git validation command; this never reaches a provider process."""
+
     try:
         return subprocess.run(  # nosec B603 B607 - fixed Git executable and argument vectors
             ["git", "-C", str(repository_root), *arguments],
             capture_output=True,
             check=False,
-            env=environment,
+            env=_scrubbed_git_environment(),
             text=True,
             timeout=_GIT_TIMEOUT_SECONDS,
         )
@@ -290,6 +296,7 @@ class DiscoveryOperator:
     repository_root: Path
     catalogue_path: Path
     root_tokens: Mapping[str, Path]
+    clock: Callable[[], datetime]
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Submit only through the authoritative DiscoveryRuntime public seam."""
@@ -300,11 +307,31 @@ class DiscoveryOperator:
             self.schemas,
             catalogue_path=self.catalogue_path,
             authority_resolver=self.authority_resolver,
-            clock=lambda: datetime.now(UTC),
+            clock=self.clock,
             repository_root=self.repository_root,
             root_tokens=self.root_tokens,
             operational_ledger=self.ledger,
         ).submit(envelope)
+
+    def prevalidate(
+        self,
+        envelope: dict[str, Any],
+        *,
+        prospective_document: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Validate one governed command at the current tail without publishing it."""
+
+        DiscoveryRuntime(
+            self.control_root,
+            self.ledger,
+            self.schemas,
+            catalogue_path=self.catalogue_path,
+            authority_resolver=self.authority_resolver,
+            clock=self.clock,
+            repository_root=self.repository_root,
+            root_tokens=self.root_tokens,
+            operational_ledger=self.ledger,
+        ).prevalidate(envelope, prospective_document=prospective_document)
 
     def status(self) -> dict[str, Any]:
         """Return deterministic Discovery replay/readback without invoking a writer."""
@@ -405,6 +432,7 @@ def load_discovery_operator(config_path: Path) -> DiscoveryOperator:
         repository_root=config.repository_root,
         catalogue_path=config.catalogue_path,
         root_tokens=dict(config.root_tokens),
+        clock=lambda: datetime.now(UTC),
     )
 
 

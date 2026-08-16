@@ -176,6 +176,7 @@ class DiscoveryRuntime:
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
         self.authority_resolver = authority_resolver
         self.clock = clock
+        self._prospective_spec_document: Mapping[str, Any] | None = None
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Authorize and atomically submit one public Discovery command.
@@ -190,15 +191,7 @@ class DiscoveryRuntime:
             ConflictError: If a committed receipt or writer state conflicts with the command identity.
             IntegrityError: If authority, payload, replay state, or the requested transition is invalid.
         """
-        if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
-            raise IntegrityError("invalid Discovery command envelope")
-        command = Command(deepcopy(envelope))
-        try:
-            command.payload_hash
-        except (TypeError, ValueError) as exc:
-            raise IntegrityError("Discovery command payload is not P0-canonical") from exc
-        if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
-            raise IntegrityError("catalogue identity mismatch")
+        command = self._validated_command(envelope)
         with CompositeWriterLock(
             (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
             {"command_id": command.command_id},
@@ -206,6 +199,120 @@ class DiscoveryRuntime:
         ):
             authority_evidence = self._resolve_authority(command)
             return self._submit_authorized(command, authority_evidence)
+
+    def prevalidate(
+        self,
+        envelope: dict[str, Any],
+        *,
+        prospective_document: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Prove one command is currently admissible without publishing it."""
+
+        command = self._validated_command(envelope)
+        with CompositeWriterLock(
+            (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
+            {"command_id": command.command_id, "operation": "prevalidate"},
+            lock_factory=WriterLock,
+        ):
+            self._resolve_authority(command)
+            snapshot = self.ledger.snapshot()
+            projection = replay_discovery(
+                snapshot.events,
+                schemas=self.schemas,
+                authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+            )
+            scope = (
+                command.actor_id,
+                command.envelope["authority_grant_id"],
+                command.envelope["command_type"],
+                command.idempotency_key,
+            )
+            scoped = [
+                event
+                for event in snapshot.events
+                if (
+                    event.get("actor_id"),
+                    event.get("authority_grant_id"),
+                    event.get("command_type"),
+                    event.get("idempotency_key"),
+                )
+                == scope
+            ]
+            if scoped:
+                first = scoped[0]
+                if (
+                    first.get("command_id") == command.command_id
+                    and first.get("command_payload_hash") == command.payload_hash
+                    and first.get("stream_id") == command.target_stream_id
+                ):
+                    return
+                raise ConflictError("idempotency key conflicts with committed Discovery command")
+            if any(event.get("command_id") == command.command_id for event in snapshot.events):
+                raise ConflictError("command ID conflicts with committed Discovery command")
+            observed = snapshot.stream_versions.get(command.target_stream_id, 0)
+            if observed != command.expected_stream_version:
+                raise ConflictError("Discovery command stream version conflicts")
+            self._prospective_spec_document = prospective_document
+            try:
+                self._prepare_transaction(command, projection)
+            finally:
+                self._prospective_spec_document = None
+
+    def _validated_command(self, envelope: dict[str, Any]) -> Command:
+        if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
+            raise IntegrityError("invalid Discovery command envelope")
+        command_type = envelope.get("command_type")
+        binding = self.schemas.command_binding(str(command_type))
+        if binding is None:
+            raise IntegrityError(f"inactive Discovery command binding: {command_type}")
+        try:
+            command = Command(deepcopy(envelope))
+            command.payload_hash
+        except (TypeError, ValueError) as exc:
+            raise IntegrityError("Discovery command canonical payload is invalid") from exc
+        if command_type == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
+            raise IntegrityError("catalogue identity mismatch")
+        return command
+
+    def _prepare_transaction(
+        self,
+        command: Command,
+        projection: dict[str, Any],
+    ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
+        """Prepare and validate one Discovery transaction without publishing it."""
+
+        self._require_admissible_target(command, projection)
+        self._require_candidate_target(command, projection)
+        row_id, route = _discovery_route(command)
+        if route.family == "genesis":
+            event_type, event_payload = self._prepare_genesis(command, projection)
+            prepared = [(event_type, command.target_stream_id, event_payload)]
+        elif route.family == "scout":
+            prepared = self._prepare_scout_observation(command, projection)
+        elif route.family == "candidate":
+            event_type, event_payload = self._prepare_candidate(command, projection)
+            prepared = [(event_type, command.target_stream_id, event_payload)]
+        elif route.family == "supersede":
+            prepared = self._prepare_candidate_supersession(command, projection)
+        elif route.family == "assay":
+            prepared = self._prepare_assay(command, projection)
+        elif route.family == "spike":
+            prepared = self._prepare_spike(command, projection)
+        elif route.family == "dossier":
+            try:
+                prepared = self._prepare_dossier(command, projection)
+            except DossierAdmissionRejected:
+                raise
+            except (TypeError, ValueError) as exc:
+                raise DossierAdmissionRejected("invalid_canonical_value") from exc
+        elif route.family == "assay_authority":
+            prepared = self._prepare_assay_bar_authority(command, projection)
+        elif route.family == "authority":
+            prepared = self._prepare_authority(command, projection)
+        else:
+            raise IntegrityError(f"unsupported Discovery route family: {route.family}")
+        validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
+        return row_id, prepared
 
     def _resolve_authority(self, command: Command) -> Any:
         """Resolve current canonical scoped authority for one command."""
@@ -553,37 +660,7 @@ class DiscoveryRuntime:
             )
             return persist(receipt)
 
-        self._require_admissible_target(command, projection)
-        self._require_candidate_target(command, projection)
-        row_id, route = _discovery_route(command)
-        if route.family == "genesis":
-            event_type, event_payload = self._prepare_genesis(command, projection)
-            prepared = [(event_type, command.target_stream_id, event_payload)]
-        elif route.family == "scout":
-            prepared = self._prepare_scout_observation(command, projection)
-        elif route.family == "candidate":
-            event_type, event_payload = self._prepare_candidate(command, projection)
-            prepared = [(event_type, command.target_stream_id, event_payload)]
-        elif route.family == "supersede":
-            prepared = self._prepare_candidate_supersession(command, projection)
-        elif route.family == "assay":
-            prepared = self._prepare_assay(command, projection)
-        elif route.family == "spike":
-            prepared = self._prepare_spike(command, projection)
-        elif route.family == "dossier":
-            try:
-                prepared = self._prepare_dossier(command, projection)
-            except DossierAdmissionRejected:
-                raise
-            except (TypeError, ValueError) as exc:
-                raise DossierAdmissionRejected("invalid_canonical_value") from exc
-        elif route.family == "assay_authority":
-            prepared = self._prepare_assay_bar_authority(command, projection)
-        elif route.family == "authority":
-            prepared = self._prepare_authority(command, projection)
-        else:
-            raise IntegrityError(f"unsupported Discovery route family: {route.family}")
-        validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
+        row_id, prepared = self._prepare_transaction(command, projection)
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
@@ -1662,17 +1739,17 @@ class DiscoveryRuntime:
             )
         )
 
-    def _spec_02_execution_approved(
+    def _spec_02_execution_approval(
         self,
         candidate: Mapping[str, Any],
         projection: Mapping[str, Any],
-    ) -> bool:
+    ) -> dict[str, Any] | None:
         """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
 
         if not _is_spec_route_candidate(projection, candidate):
-            return True
+            return None
         if not isinstance(candidate.get("decision_id"), str):
-            return False
+            return None
         events = tuple(self.ledger.iter_events())
         promotions = [
             event
@@ -1682,7 +1759,7 @@ class DiscoveryRuntime:
             and event.get("payload", {}).get("row_id") == "OR-013"
         ]
         if len(promotions) != 1:
-            return False
+            return None
         promotion = promotions[0]
         documents: dict[str, list[tuple[dict[str, Any], str]]] = {}
         for event in events:
@@ -1698,7 +1775,7 @@ class DiscoveryRuntime:
             relative = manifest.get("relative_path")
             content_sha256 = manifest.get("content_sha256")
             if not isinstance(relative, str) or not isinstance(content_sha256, str):
-                return False
+                return None
             try:
                 raw = read_contained_regular_file(
                     self.control_root,
@@ -1707,15 +1784,15 @@ class DiscoveryRuntime:
                 )
                 value = json.loads(raw)
             except (OSError, json.JSONDecodeError):
-                return False
+                return None
             if not isinstance(value, dict) or raw != canonical_bytes(value) or sha256_hex(raw) != content_sha256:
-                return False
+                return None
             documents.setdefault(str(manifest["artefact_type"]), []).append((value, content_sha256))
         correction_rows = documents.get("spec_01_source_correction", [])
         approval_rows = documents.get("spec_02_live_run_approval", [])
         brief_rows = [row for row in documents.get("spec_02_operator_brief", []) if row[0].get("stage") == "SPEC-02"]
         if len(approval_rows) != 1 or len(brief_rows) != 1:
-            return False
+            return None
         approval, _approval_sha256 = approval_rows[0]
         brief, _brief_sha256 = brief_rows[0]
         try:
@@ -1733,7 +1810,7 @@ class DiscoveryRuntime:
             expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
             approved_at = datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00"))
         except (KeyError, TypeError, ValueError, SchemaError):
-            return False
+            return None
         now = self.clock()
         route_source = brief.get("route_source", {})
         source_sha256 = route_source.get("raw_sha256") if isinstance(route_source, Mapping) else None
@@ -1752,17 +1829,21 @@ class DiscoveryRuntime:
             and approval.get("brief_identity") == {"id": source_path, "sha256": source_sha256}
         )
         if not common:
-            return False
+            return None
         selected = promotion.get("payload", {}).get("selected_option")
         if approval.get("entry_mode") == "standard_promotion":
-            return bool(
-                selected == "PROMOTE"
-                and approval.get("scientific_promotion") is True
-                and approval.get("source_correction") is None
-                and not correction_rows
+            return (
+                approval
+                if (
+                    selected == "PROMOTE"
+                    and approval.get("scientific_promotion") is True
+                    and approval.get("source_correction") is None
+                    and not correction_rows
+                )
+                else None
             )
         if approval.get("entry_mode") != "owner_approved_park_test" or len(correction_rows) != 1:
-            return False
+            return None
         correction, correction_sha256 = correction_rows[0]
         try:
             self.schemas.validate(
@@ -1771,15 +1852,95 @@ class DiscoveryRuntime:
                 schema_version="1.0.0",
             )
         except SchemaError:
-            return False
+            return None
+        return (
+            approval
+            if (
+                selected == "PARK"
+                and approval.get("scientific_promotion") is False
+                and approval.get("source_correction")
+                == {"id": correction.get("correction_id"), "sha256": correction_sha256}
+                and correction.get("decision_ref")
+                == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+                and correction.get("scientific_disposition") == "PARK"
+            )
+            else None
+        )
+
+    @staticmethod
+    def _spec_02_resource_allowed(approval: Mapping[str, Any], resource_id: object) -> bool:
+        limits = approval.get("limits")
         return bool(
-            selected == "PARK"
-            and approval.get("scientific_promotion") is False
-            and approval.get("source_correction")
-            == {"id": correction.get("correction_id"), "sha256": correction_sha256}
-            and correction.get("decision_ref")
-            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
-            and correction.get("scientific_disposition") == "PARK"
+            isinstance(limits, Mapping)
+            and isinstance(resource_id, str)
+            and resource_id in limits.get("resource_ids", ())
+        )
+
+    @staticmethod
+    def _spec_02_resource_use_allowed(approval: Mapping[str, Any], resource_use: object) -> bool:
+        limits = approval.get("limits")
+        if not isinstance(limits, Mapping) or not isinstance(resource_use, Mapping):
+            return False
+        pairs = (
+            ("external_cost_gbp", "budget_gbp"),
+            ("elapsed_seconds", "wall_time_seconds"),
+            ("cpu_seconds", "cpu_seconds"),
+            ("peak_memory_bytes", "peak_memory_bytes"),
+        )
+        return all(
+            isinstance(resource_use.get(actual), (int, float))
+            and not isinstance(resource_use.get(actual), bool)
+            and isinstance(limits.get(limit), (int, float))
+            and not isinstance(limits.get(limit), bool)
+            and resource_use[actual] <= limits[limit]
+            for actual, limit in pairs
+        )
+
+    def _spec_02_return_allowed(
+        self,
+        *,
+        command: Command,
+        approval: Mapping[str, Any],
+        spike: Mapping[str, Any],
+    ) -> bool:
+        document = self._prospective_spec_document
+        if document is None:
+            rows: list[Mapping[str, Any]] = []
+            for event in self.ledger.iter_events():
+                if event.get("event_type") != "ArtefactRegistered":
+                    continue
+                manifest = event.get("payload", {}).get("manifest")
+                if not isinstance(manifest, Mapping) or manifest.get("artefact_type") != "spec_02_return":
+                    continue
+                relative = manifest.get("relative_path")
+                content_sha256 = manifest.get("content_sha256")
+                if not isinstance(relative, str) or not isinstance(content_sha256, str):
+                    return False
+                try:
+                    raw = read_contained_regular_file(self.control_root, relative, label="SPEC-02 return artefact")
+                    value = json.loads(raw)
+                except (OSError, json.JSONDecodeError):
+                    return False
+                if isinstance(value, Mapping) and raw == canonical_bytes(value) and sha256_hex(raw) == content_sha256:
+                    rows.append(value)
+            if len(rows) != 1:
+                return False
+            document = rows[0]
+        try:
+            self.schemas.validate("ars://portfolio/spec-operator-return", document, schema_version="1.0.0")
+        except SchemaError:
+            return False
+        relation = spike.get("execution_authority_relation")
+        resource_ref = relation.get("resource_ref") if isinstance(relation, Mapping) else None
+        producer = document.get("producer")
+        return bool(
+            document.get("stage") == "SPEC-02"
+            and isinstance(producer, Mapping)
+            and producer.get("actor_id") == command.actor_id
+            and producer.get("relation_sha256") == sha256_hex(canonical_bytes(relation))
+            and isinstance(resource_ref, Mapping)
+            and self._spec_02_resource_allowed(approval, resource_ref.get("id"))
+            and self._spec_02_resource_use_allowed(approval, document.get("resource_use"))
         )
 
     def _prepare_spike(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
@@ -1794,8 +1955,8 @@ class DiscoveryRuntime:
         assay = projection["assays"].get(candidate.get("assay_id")) if isinstance(candidate, dict) else None
         decision = projection["decisions"].get(decision_id)
         ct = command.envelope["command_type"]
-        spec_02_approved = (
-            self._spec_02_execution_approved(candidate, projection)
+        spec_02_approval = (
+            self._spec_02_execution_approval(candidate, projection)
             if isinstance(candidate, Mapping)
             and (ct, row)
             in {
@@ -1803,10 +1964,17 @@ class DiscoveryRuntime:
                 ("ProposeSpikeExecutionDecision", "OR-015"),
                 ("ResolveDecision", "OR-016"),
                 ("StartSpike", "OR-017"),
+                ("RecordSpikeVerdict", "OR-018"),
+                ("RecordSpikeVerdict", "OR-019"),
             }
             and _is_spec_route_candidate(projection, candidate)
-            else True
+            else None
         )
+        spec_02_approved = (
+            not _is_spec_route_candidate(projection, candidate) if isinstance(candidate, Mapping) else True
+        )
+        if isinstance(candidate, Mapping) and _is_spec_route_candidate(projection, candidate):
+            spec_02_approved = spec_02_approval is not None
 
         if (
             isinstance(candidate, Mapping)
@@ -1816,6 +1984,8 @@ class DiscoveryRuntime:
                 ("ProposeSpikeExecutionDecision", "OR-015"),
                 ("ResolveDecision", "OR-016"),
                 ("StartSpike", "OR-017"),
+                ("RecordSpikeVerdict", "OR-018"),
+                ("RecordSpikeVerdict", "OR-019"),
             }
             and _is_spec_route_candidate(projection, candidate)
             and not spec_02_approved
@@ -1972,6 +2142,14 @@ class DiscoveryRuntime:
                 spike=spike,
                 decision_id=decision_id,
             )
+            and (
+                not _is_spec_route_candidate(projection, candidate)
+                or isinstance(spec_02_approval, Mapping)
+                and self._spec_02_resource_allowed(
+                    spec_02_approval,
+                    p.get("execution_authority_relation", {}).get("resource_ref", {}).get("id"),
+                )
+            )
         ):
             return [
                 ("DecisionProposed", decision_id, deepcopy(p["w2_payload"])),
@@ -2003,6 +2181,14 @@ class DiscoveryRuntime:
                 spike=spike,
                 decision_id=decision_id,
             )
+            and (
+                not _is_spec_route_candidate(projection, candidate)
+                or isinstance(spec_02_approval, Mapping)
+                and self._spec_02_resource_allowed(
+                    spec_02_approval,
+                    p.get("execution_authority_relation", {}).get("resource_ref", {}).get("id"),
+                )
+            )
         ):
             return [
                 ("DecisionResolved", decision_id, deepcopy(p["w2_payload"])),
@@ -2030,6 +2216,11 @@ class DiscoveryRuntime:
                 p.get("lease_id"),
             )
             and self._valid_live_spike_lease(p, command)
+            and (
+                not _is_spec_route_candidate(projection, candidate)
+                or isinstance(spec_02_approval, Mapping)
+                and self._spec_02_resource_allowed(spec_02_approval, p.get("resource_grant_id"))
+            )
             and isinstance(spike.get("execution_authority_relation"), Mapping)
             and spike["execution_authority_relation"].get("resource_ref", {}).get("id") == p.get("resource_grant_id")
         ):
@@ -2055,6 +2246,14 @@ class DiscoveryRuntime:
             and candidate
             and candidate.get("status") == "spike_running"
             and command.target_stream_id == spike_id
+            and spec_02_approved
+            and (
+                not _is_spec_route_candidate(projection, candidate)
+                or (
+                    isinstance(spec_02_approval, Mapping)
+                    and self._spec_02_return_allowed(command=command, approval=spec_02_approval, spike=spike)
+                )
+            )
             and isinstance(p.get("verdict_artifact"), dict)
             and self._valid_spike_verdict(p["verdict_artifact"], p, candidate, assay, spike, projection)
         ):

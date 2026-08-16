@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import research_system.discovery.path_safety as path_safety
+import research_system.methods.registration as registration_module
 from research_system.discovery.path_safety import contained_regular_file, read_contained_regular_file
 from research_system.errors import ConfigurationError, IntegrityError
 from research_system.methods.registration import CandidateDocumentStore
@@ -139,3 +140,49 @@ def test_candidate_document_store_rejects_redirected_parent_before_write(tmp_pat
     with pytest.raises(ConfigurationError, match="physical directory"):
         CandidateDocumentStore(root).write("art_example", b"{}")
     assert not list(external.iterdir())
+
+
+def test_candidate_document_store_retains_parent_identity_during_leaf_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "control"
+    parent = root / "methods" / "documents"
+    parent.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    held = root / "methods" / "documents-held"
+    original_open = registration_module.os.open
+    original_windows_open = registration_module._open_windows_relative_new_file
+    attempted = False
+
+    def racing_open(path, flags, *args, **kwargs):
+        nonlocal attempted
+        final_open = path == "art_race.json"
+        if final_open and not attempted:
+            attempted = True
+            parent.rename(held)
+            parent.symlink_to(outside, target_is_directory=True)
+        return original_open(path, flags, *args, **kwargs)
+
+    def racing_windows_open(parent_handle: int, name: str) -> int:
+        nonlocal attempted
+        attempted = True
+        with pytest.raises(OSError):
+            parent.rename(held)
+        return original_windows_open(parent_handle, name)
+
+    if registration_module.os.name == "nt":
+        monkeypatch.setattr(registration_module, "_open_windows_relative_new_file", racing_windows_open)
+    else:
+        monkeypatch.setattr(registration_module.os, "open", racing_open)
+    try:
+        CandidateDocumentStore(root).write("art_race", b"bound")
+    finally:
+        if parent.is_symlink():
+            parent.unlink()
+        if held.exists():
+            held.rename(parent)
+
+    assert attempted is True
+    assert (parent / "art_race.json").read_bytes() == b"bound"
+    assert not list(outside.iterdir())

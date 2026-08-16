@@ -28,7 +28,7 @@ from research_system.artefacts.runtime import (
 from research_system.artefacts.use_resolver import ArtefactUseResolver
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.spec_bridge import deliver_spec_owner_context, derive_spec_owner_context_id
-from research_system.discovery.operator import DiscoveryOperator
+from research_system.discovery.operator import DiscoveryOperator, _git_result, _scrubbed_git_environment
 from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
@@ -154,16 +154,7 @@ class SpecFlowStatus:
 
 
 def _git(repository_root: Path, *arguments: str) -> str:
-    try:
-        result = subprocess.run(  # nosec B603 B607 - fixed Git executable and arguments
-            ["git", "-C", str(repository_root), *arguments],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ConfigurationError("SPEC route Git binding is unavailable") from exc
+    result = _git_result(repository_root, *arguments)
     if result.returncode != 0:
         raise ConfigurationError("SPEC route is not committed at operator HEAD")
     return result.stdout.strip()
@@ -177,6 +168,7 @@ def _resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
             ["git", "ls-remote", "--tags", repository_url, resolved_ref],
             capture_output=True,
             check=False,
+            env=_scrubbed_git_environment(),
             text=True,
             timeout=30,
         )
@@ -525,7 +517,7 @@ class SpecFlow:
                 raise ConflictError("completed SPEC action retry differs from its durable packet")
             return True
         if publish:
-            store.write(action, canonical_bytes(value))
+            store.publish_bytes(action, canonical_bytes(value))
         return False
 
     def _complete_action(self, action: str, packet: Mapping[str, Any], result: dict[str, Any]) -> dict[str, Any]:
@@ -989,7 +981,13 @@ class SpecFlow:
         if row == "OR-027" and actor == spike_reviewer:
             raise IntegrityError("SPEC-02 owner decider must be distinct from the reviewer")
 
-    def _register_document(self, action: str, document: Any, registration: Any) -> dict[str, Any]:
+    def _register_document(
+        self,
+        action: str,
+        document: Any,
+        registration: Any,
+        commands: Sequence[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
         if (
             not isinstance(document, dict)
             or document.get("document_type") != _DOCUMENT_TYPES[action]
@@ -1068,6 +1066,26 @@ class SpecFlow:
             }
             if hashes.get("embedded_artefact") != embedded_sha256:
                 raise IntegrityError("SPEC return does not bind the embedded artefact hash")
+            if len(commands) != 1 or not isinstance(commands[0], Mapping):
+                raise IntegrityError("SPEC return requires one exact producer command")
+            command = commands[0]
+            command_payload = command.get("payload")
+            producer = document.get("producer")
+            if (
+                not isinstance(command_payload, Mapping)
+                or not isinstance(producer, Mapping)
+                or producer.get("actor_id") != command.get("actor_id")
+            ):
+                raise IntegrityError("SPEC return producer differs from its route command actor")
+            if action.startswith("return_spec_01"):
+                expected_relation = command_payload.get("producer_relation_sha256")
+            else:
+                spike_id = command_payload.get("spike_id")
+                spike = projection.get("spikes", {}).get(spike_id)
+                relation = spike.get("execution_authority_relation") if isinstance(spike, Mapping) else None
+                expected_relation = sha256_hex(canonical_bytes(relation)) if isinstance(relation, Mapping) else None
+            if producer.get("relation_sha256") != expected_relation:
+                raise IntegrityError("SPEC return producer relation differs from its route command")
             if action.startswith("return_spec_02") and not {
                 "raw_output",
                 "source",
@@ -1124,7 +1142,10 @@ class SpecFlow:
                 expires = datetime.fromisoformat(document["valid_window"]["expires_at"].replace("Z", "+00:00"))
             except (KeyError, TypeError, ValueError) as exc:
                 raise IntegrityError("SPEC-02 approval window is invalid") from exc
-            if not starts <= approved < expires:
+            now = self.operator.clock()
+            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+                raise IntegrityError("SPEC operator clock must return an aware datetime")
+            if not starts <= approved < expires or not starts <= now.astimezone(UTC) < expires:
                 raise IntegrityError("SPEC-02 approval is outside its explicit live-run window")
         if action == "correct_spec_01_source":
             events, projection, _documents = self._snapshot()
@@ -1547,9 +1568,8 @@ class SpecFlow:
                 self.operator.schemas,
                 authority_resolver=self.operator.authority_resolver,
                 governing_evidence_resolver=review_store,
-                clock=lambda: datetime.now(UTC),
+                clock=self.operator.clock,
             )
-            receipts = []
             for index, envelope in enumerate(packet["commands"]):
                 target = envelope.get("target_stream_id") if isinstance(envelope, dict) else None
                 state = inputs.get(str(target))
@@ -1579,8 +1599,11 @@ class SpecFlow:
                         or publication["record"].get("reviewer_actor_id") != envelope.get("actor_id")
                     ):
                         raise IntegrityError("SPEC brief-input governing review binding differs")
-                    review_store.publish(publication["reference_id"], publication["record"])
-                receipts.append(asdict(service.submit(deepcopy(envelope))))
+            service.prevalidate_artefact_authority_batch(packet["commands"])
+            review_store.prevalidate_publications(publications)
+            for publication in publications:
+                review_store.publish(str(publication["reference_id"]), publication["record"])
+            receipts = [asdict(service.submit(deepcopy(envelope))) for envelope in packet["commands"]]
             return self._complete_action(
                 action,
                 packet,
@@ -1614,8 +1637,18 @@ class SpecFlow:
         if not document_required and (packet.get("document") is not None or packet.get("registration") is not None):
             raise IntegrityError("SPEC command-only action cannot register a document")
         registration_result = None
+        for command in commands:
+            self.operator.prevalidate(
+                command,
+                prospective_document=packet["document"] if document_required else None,
+            )
         if document_required:
-            registration_result = self._register_document(action, packet["document"], packet["registration"])
+            registration_result = self._register_document(
+                action,
+                packet["document"],
+                packet["registration"],
+                commands,
+            )
         receipts = [asdict(self.operator.submit(command)) for command in commands]
         return self._complete_action(
             action,

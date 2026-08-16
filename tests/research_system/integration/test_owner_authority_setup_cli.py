@@ -753,6 +753,30 @@ def test_redirected_recovery_marker_fails_closed_without_mutation(inputs, monkey
 
 
 @pytest.mark.integration
+def test_actor_census_rejects_redirected_grant_child_without_publication(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    grant_root = inputs.harness.authority_root / "objects" / "authority_grant"
+    candidate = next(path for path in grant_root.iterdir() if path.is_dir())
+    external = inputs.tmp_path / "external-grant"
+    shutil.copytree(candidate, external)
+    shutil.rmtree(candidate)
+    try:
+        candidate.symlink_to(external, target_is_directory=True)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("symlink creation is not permitted on this Windows runner")
+        raise
+    before = len(tuple(inputs.harness.authority_ledger.iter_events()))
+    external_before = _tree(external)
+
+    with pytest.raises(ConfigurationError, match="configured authority grant object"):
+        setup.publish(inputs.intent_value)
+
+    assert len(tuple(inputs.harness.authority_ledger.iter_events())) == before
+    assert _tree(external) == external_before
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "field,value",
     [

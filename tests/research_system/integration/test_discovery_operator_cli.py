@@ -265,6 +265,20 @@ def test_discovery_cli_rejects_legacy_root_token_after_clean_repository_validati
     assert _tree_snapshot(operator_inputs["binding"].control_root) == before
 
 
+def test_discovery_git_probe_ignores_repository_override_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository_root = _clean_w11_repository(tmp_path)
+    expected_head = _run_git(repository_root, "rev-parse", "HEAD")
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "foreign.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "foreign-worktree"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "foreign-index"))
+
+    completed = operator_module._git_result(repository_root, "rev-parse", "HEAD")
+
+    assert completed.stdout.strip() == expected_head
+
+
 @pytest.mark.integration
 def test_discovery_cli_rejects_fake_git_marker_before_binding(tmp_path: Path) -> None:
     fake_root = tmp_path / "fake-git-root"
