@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -78,11 +78,14 @@ from research_system.discovery.dossier import (
     prepare_dossier_admission,
     registered_root_identity_hash,
 )
-from research_system.errors import ConflictError, IntegrityError, SchemaError
+from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
+from research_system.git_execution import run_git
+from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import CompositeWriterLock, WriterLock
 from research_system.store.receipts import ReceiptStore
+from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
 _COMMAND_FIELDS = {
@@ -96,6 +99,271 @@ _COMMAND_FIELDS = {
     "payload",
 }
 _GIT_TIMEOUT_SECONDS = 10
+_SPEC_02_GATED_TRANSITIONS = frozenset(
+    {
+        ("RegisterSpikePlan", "OR-014"),
+        ("ProposeSpikeExecutionDecision", "OR-015"),
+        ("ResolveDecision", "OR-016"),
+        ("StartSpike", "OR-017"),
+        ("RecordSpikeVerdict", "OR-018"),
+        ("RecordSpikeVerdict", "OR-019"),
+    }
+)
+
+
+@dataclass(frozen=True)
+class _Spec02ExecutionAuthority:
+    approval: Mapping[str, Any]
+    brief: Mapping[str, Any]
+    correction: Mapping[str, Any] | None
+
+
+class _SpecExecutionAuthorityResolver:
+    """Resolve immutable SPEC execution authority without operator-only configuration."""
+
+    def __init__(
+        self,
+        *,
+        control_root: Path,
+        schemas: SchemaRegistry,
+        authority_resolver: LedgerAuthorityGrantResolver,
+        clock: Callable[[], datetime],
+    ) -> None:
+        self.control_root = control_root
+        self.schemas = schemas
+        self.authority_resolver = authority_resolver
+        self.clock = clock
+
+    def resolve(
+        self,
+        candidate: Mapping[str, Any],
+        projection: Mapping[str, Any],
+        *,
+        events: tuple[dict[str, Any], ...],
+        evaluation_time: datetime | None = None,
+        owner_published_grant_ids: frozenset[str] | None = None,
+    ) -> _Spec02ExecutionAuthority | None:
+        """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
+
+        if not _is_spec_route_candidate(projection, candidate):
+            return None
+        if not isinstance(candidate.get("decision_id"), str):
+            return None
+        promotions = [
+            event
+            for event in events
+            if event.get("event_type") == "CandidatePromotionApplied"
+            and event.get("stream_id") == candidate.get("candidate_id")
+            and event.get("payload", {}).get("row_id") == "OR-013"
+        ]
+        if len(promotions) != 1:
+            return None
+        promotion = promotions[0]
+        documents: dict[str, list[tuple[dict[str, Any], str, object, object, Mapping[str, Any]]]] = {}
+        for event in events:
+            if event.get("event_type") != "ArtefactRegistered":
+                continue
+            manifest = event.get("payload", {}).get("manifest")
+            if not isinstance(manifest, Mapping) or manifest.get("artefact_type") not in {
+                "spec_01_source_correction",
+                "spec_02_live_run_approval",
+                "spec_02_operator_brief",
+            }:
+                continue
+            relative = manifest.get("relative_path")
+            content_sha256 = manifest.get("content_sha256")
+            if not isinstance(relative, str) or not isinstance(content_sha256, str):
+                return None
+            try:
+                raw = read_contained_regular_file(
+                    self.control_root,
+                    relative,
+                    label="SPEC-02 approval artefact",
+                )
+                value = json.loads(raw)
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                return None
+            if not isinstance(value, dict) or raw != canonical_bytes(value) or sha256_hex(raw) != content_sha256:
+                return None
+            documents.setdefault(str(manifest["artefact_type"]), []).append(
+                (value, content_sha256, event.get("actor_id"), event.get("authority_grant_id"), manifest)
+            )
+        correction_rows = documents.get("spec_01_source_correction", [])
+        approval_rows = documents.get("spec_02_live_run_approval", [])
+        brief_rows = [row for row in documents.get("spec_02_operator_brief", []) if row[0].get("stage") == "SPEC-02"]
+        if len(approval_rows) != 1 or len(brief_rows) != 1:
+            return None
+        approval, _approval_sha256, approval_actor_id, approval_grant_id, approval_manifest = approval_rows[0]
+        brief, _brief_sha256, brief_actor_id, _brief_grant_id, brief_manifest = brief_rows[0]
+        try:
+            self.schemas.validate(
+                "ars://portfolio/spec-02-live-run-approval",
+                approval,
+                schema_version="1.0.0",
+            )
+            self.schemas.validate(
+                "ars://portfolio/spec-operator-brief-package",
+                brief,
+                schema_version="1.0.0",
+            )
+            starts = datetime.fromisoformat(approval["valid_window"]["starts_at"].replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
+            approved_at = datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError, SchemaError):
+            return None
+        now = self.clock() if evaluation_time is None else evaluation_time
+        route_source = brief.get("route_source", {})
+        source_sha256 = route_source.get("raw_sha256") if isinstance(route_source, Mapping) else None
+        source_path = route_source.get("relative_path") if isinstance(route_source, Mapping) else None
+        owner = approval.get("owner", {})
+        registrar = approval.get("registrar", {})
+        common = bool(
+            now.tzinfo is not None
+            and now.utcoffset() is not None
+            and starts <= now < expires
+            and starts <= approved_at < expires
+            and approved_at <= now
+            and owner.get("actor_id") == promotion.get("actor_id")
+            and registrar.get("actor_id") != owner.get("actor_id")
+            and registrar.get("actor_id") == approval_actor_id
+            and registrar.get("actor_id") == approval_manifest.get("producer_actor_id")
+            and approval_grant_id
+            in (
+                self.authority_resolver.owner_published_grant_ids()
+                if owner_published_grant_ids is None
+                else owner_published_grant_ids
+            )
+            and brief.get("operator_session", {}).get("operator_actor_id") == brief_actor_id
+            and brief_actor_id == brief_manifest.get("producer_actor_id")
+            and approval.get("spec_01_promotion")
+            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+            and approval.get("spec_02_subject") == {"id": "SPEC-02", "sha256": source_sha256}
+            and approval.get("brief_identity") == {"id": source_path, "sha256": source_sha256}
+        )
+        if not common:
+            return None
+        selected = promotion.get("payload", {}).get("selected_option")
+        if approval.get("entry_mode") == "standard_promotion":
+            return (
+                _Spec02ExecutionAuthority(approval=approval, brief=brief, correction=None)
+                if (
+                    selected == "PROMOTE"
+                    and approval.get("scientific_promotion") is True
+                    and approval.get("source_correction") is None
+                    and not correction_rows
+                )
+                else None
+            )
+        if approval.get("entry_mode") != "owner_approved_park_test" or len(correction_rows) != 1:
+            return None
+        correction, correction_sha256, correction_actor_id, _correction_grant_id, correction_manifest = correction_rows[
+            0
+        ]
+        try:
+            self.schemas.validate(
+                "ars://portfolio/spec-01-source-correction",
+                correction,
+                schema_version="1.0.0",
+            )
+        except SchemaError:
+            return None
+        return (
+            _Spec02ExecutionAuthority(approval=approval, brief=brief, correction=correction)
+            if (
+                selected == "PARK"
+                and approval.get("scientific_promotion") is False
+                and approval.get("source_correction")
+                == {"id": correction.get("correction_id"), "sha256": correction_sha256}
+                and correction.get("decision_ref")
+                == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+                and correction.get("scientific_disposition") == "PARK"
+                and correction.get("producer", {}).get("actor_id") == correction_actor_id
+                and correction_actor_id == correction_manifest.get("producer_actor_id")
+            )
+            else None
+        )
+
+
+def build_spec_execution_authority_validator(
+    *,
+    control_root: Path,
+    schemas: SchemaRegistry,
+    authority_resolver: LedgerAuthorityGrantResolver,
+    events: tuple[dict[str, Any], ...],
+    clock: Callable[[], datetime] | None = None,
+) -> Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]:
+    """Build strict external-document validation for one exact replay snapshot."""
+
+    resolver = _SpecExecutionAuthorityResolver(
+        control_root=control_root,
+        schemas=schemas,
+        authority_resolver=authority_resolver,
+        clock=clock or (lambda: datetime.now(UTC)),
+    )
+    owner_published_grant_ids: frozenset[str] | None = None
+
+    def validate_spec_authority(
+        projection: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        event: Mapping[str, Any],
+        park_test: bool,
+    ) -> None:
+        nonlocal owner_published_grant_ids
+        occurred_at = event.get("occurred_at")
+        try:
+            evaluation_time = datetime.fromisoformat(str(occurred_at).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise IntegrityError("SPEC-02 transition lacks a valid occurrence time") from exc
+        if evaluation_time.tzinfo is None or evaluation_time.utcoffset() is None:
+            raise IntegrityError("SPEC-02 transition lacks a valid occurrence time")
+        if owner_published_grant_ids is None:
+            if authority_resolver.control_root.resolve(strict=False) == control_root.resolve(strict=False):
+                publications = projection.get("owner_authority_decision_publications")
+                if not isinstance(publications, Mapping):
+                    raise IntegrityError("owner authority decision publication projection is invalid")
+                owner_published_grant_ids = frozenset(
+                    validate_id(str(publication.get("target_grant_id")), "authority_grant")
+                    for publication in publications.values()
+                    if isinstance(publication, Mapping)
+                )
+                if len(owner_published_grant_ids) != len(publications):
+                    raise IntegrityError("owner authority decision publication projection is invalid")
+            else:
+                owner_published_grant_ids = authority_resolver.owner_published_grant_ids()
+        authority = resolver.resolve(
+            candidate,
+            projection,
+            events=events,
+            evaluation_time=evaluation_time,
+            owner_published_grant_ids=owner_published_grant_ids,
+        )
+        if authority is None or (authority.correction is not None) != park_test:
+            raise IntegrityError("SPEC-02 execution lacks valid durable approval evidence")
+
+    return validate_spec_authority
+
+
+def _runtime_git(
+    repository_root: Path,
+    *arguments: str,
+    text: bool = True,
+    unavailable_message: str,
+) -> str | bytes:
+    """Run one isolated Git observation and preserve runtime error semantics."""
+
+    try:
+        result = run_git(
+            repository_root,
+            *arguments,
+            text=text,
+            timeout=_GIT_TIMEOUT_SECONDS,
+            unavailable_message=unavailable_message,
+        )
+    except ConfigurationError as exc:
+        raise IntegrityError(unavailable_message) from exc
+    if result.returncode != 0:
+        raise IntegrityError(unavailable_message)
+    return result.stdout
 
 
 def _decision_resolution_authority_matches(command: Command, payload: Mapping[str, Any]) -> bool:
@@ -192,13 +460,14 @@ class DiscoveryRuntime:
             IntegrityError: If authority, payload, replay state, or the requested transition is invalid.
         """
         command = self._validated_command(envelope)
-        with CompositeWriterLock(
-            (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
-            {"command_id": command.command_id},
-            lock_factory=WriterLock,
-        ):
-            authority_evidence = self._resolve_authority(command)
-            return self._submit_authorized(command, authority_evidence)
+        with SpecPreparationFence(self.control_root):
+            with CompositeWriterLock(
+                (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
+                {"command_id": command.command_id},
+                lock_factory=WriterLock,
+            ):
+                authority_evidence = self._resolve_authority(command)
+                return self._submit_authorized(command, authority_evidence)
 
     def prevalidate(
         self,
@@ -216,11 +485,7 @@ class DiscoveryRuntime:
         ):
             self._resolve_authority(command)
             snapshot = self.ledger.snapshot()
-            projection = replay_discovery(
-                snapshot.events,
-                schemas=self.schemas,
-                authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
-            )
+            projection = self.replay(snapshot.events)
             scope = (
                 command.actor_id,
                 command.envelope["authority_grant_id"],
@@ -254,9 +519,35 @@ class DiscoveryRuntime:
                 raise ConflictError("Discovery command stream version conflicts")
             self._prospective_spec_document = prospective_document
             try:
-                self._prepare_transaction(command, projection)
+                self._prepare_transaction(command, projection, events=snapshot.events)
             finally:
                 self._prospective_spec_document = None
+
+    def replay(self, events: tuple[dict[str, Any], ...] | None = None) -> dict[str, Any]:
+        """Replay one exact ledger snapshot with external SPEC evidence revalidated."""
+
+        ordered = self.ledger.snapshot().events if events is None else events
+        validate_spec_authority = self.spec_execution_authority_validator(ordered)
+
+        return replay_discovery(
+            ordered,
+            schemas=self.schemas,
+            authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+            spec_execution_authority_validator=validate_spec_authority,
+        )
+
+    def spec_execution_authority_validator(
+        self, events: tuple[dict[str, Any], ...]
+    ) -> Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]:
+        """Bind shared replay to exact registered SPEC approval bytes."""
+
+        return build_spec_execution_authority_validator(
+            control_root=self.control_root,
+            schemas=self.schemas,
+            authority_resolver=self.authority_resolver,
+            events=events,
+            clock=self.clock,
+        )
 
     def _validated_command(self, envelope: dict[str, Any]) -> Command:
         if set(envelope) != _COMMAND_FIELDS or not isinstance(envelope.get("payload"), dict):
@@ -278,6 +569,8 @@ class DiscoveryRuntime:
         self,
         command: Command,
         projection: dict[str, Any],
+        *,
+        events: tuple[dict[str, Any], ...],
     ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         """Prepare and validate one Discovery transaction without publishing it."""
 
@@ -297,7 +590,7 @@ class DiscoveryRuntime:
         elif route.family == "assay":
             prepared = self._prepare_assay(command, projection)
         elif route.family == "spike":
-            prepared = self._prepare_spike(command, projection)
+            prepared = self._prepare_spike(command, projection, events=events)
         elif route.family == "dossier":
             try:
                 prepared = self._prepare_dossier(command, projection)
@@ -588,11 +881,7 @@ class DiscoveryRuntime:
 
         snapshot = self.ledger.snapshot()
         try:
-            projection = replay_discovery(
-                snapshot.events,
-                schemas=self.schemas,
-                authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
-            )
+            projection = self.replay(snapshot.events)
         except (IntegrityError, TypeError, ValueError) as exc:
             raise DiscoveryLedgerReplayError(
                 "persisted Discovery ledger failed replay before command preparation"
@@ -660,7 +949,7 @@ class DiscoveryRuntime:
             )
             return persist(receipt)
 
-        row_id, prepared = self._prepare_transaction(command, projection)
+        row_id, prepared = self._prepare_transaction(command, projection, events=snapshot.events)
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
@@ -807,29 +1096,29 @@ class DiscoveryRuntime:
             relative_path = authority_file.relative_to(repository_root).as_posix()
             if relative_path != repository_path:
                 raise IntegrityError("authority file path alias is forbidden")
-            try:
-                git_commit = subprocess.run(
-                    ["git", "-C", str(repository_root), "rev-parse", "HEAD"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=_GIT_TIMEOUT_SECONDS,
-                ).stdout.strip()
-                git_blob = subprocess.run(
-                    ["git", "-C", str(repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=_GIT_TIMEOUT_SECONDS,
-                ).stdout.strip()
-                committed_raw = subprocess.run(
-                    ["git", "-C", str(repository_root), "show", f"{git_commit}:{relative_path}"],
-                    check=True,
-                    capture_output=True,
-                    timeout=_GIT_TIMEOUT_SECONDS,
-                ).stdout
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-                raise IntegrityError("authority file lacks current Git identity") from exc
+            git_commit = str(
+                _runtime_git(
+                    repository_root,
+                    "rev-parse",
+                    "HEAD",
+                    unavailable_message="authority file lacks current Git identity",
+                )
+            ).strip()
+            git_blob = str(
+                _runtime_git(
+                    repository_root,
+                    "rev-parse",
+                    f"{git_commit}:{relative_path}",
+                    unavailable_message="authority file lacks current Git identity",
+                )
+            ).strip()
+            committed_raw = _runtime_git(
+                repository_root,
+                "show",
+                f"{git_commit}:{relative_path}",
+                text=False,
+                unavailable_message="authority file lacks current Git identity",
+            )
             computed_blob = _git_blob(raw)
             if committed_raw != raw or computed_blob != git_blob:
                 raise IntegrityError("authority file differs from captured Git bytes")
@@ -994,24 +1283,14 @@ class DiscoveryRuntime:
                 raise IntegrityError("portable repository token does not resolve to operator repository")
         except OSError as exc:
             raise IntegrityError("portable repository token is unavailable") from exc
-        try:
-            dirty = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(self.repository_root),
-                    "status",
-                    "--porcelain=v1",
-                    "--untracked-files=all",
-                    "--ignore-submodules=none",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=_GIT_TIMEOUT_SECONDS,
-            ).stdout
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-            raise IntegrityError("portable repository cleanliness is unavailable") from exc
+        dirty = _runtime_git(
+            self.repository_root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+            unavailable_message="portable repository cleanliness is unavailable",
+        )
         if dirty:
             raise IntegrityError("portable repository contains dirty or uncommitted content")
         observations: list[dict[str, Any]] = []
@@ -1031,20 +1310,22 @@ class DiscoveryRuntime:
                 member_path = (self.repository_root / lexical_path).resolve(strict=True)
                 member_path.relative_to(self.repository_root)
                 raw = member_path.read_bytes()
-                committed = subprocess.run(
-                    ["git", "-C", str(self.repository_root), "show", f"{git_commit}:{relative_path}"],
-                    check=True,
-                    capture_output=True,
-                    timeout=_GIT_TIMEOUT_SECONDS,
-                ).stdout
-                git_blob = subprocess.run(
-                    ["git", "-C", str(self.repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=_GIT_TIMEOUT_SECONDS,
-                ).stdout.strip()
-            except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                committed = _runtime_git(
+                    self.repository_root,
+                    "show",
+                    f"{git_commit}:{relative_path}",
+                    text=False,
+                    unavailable_message="portable SPEC member lacks current Git identity",
+                )
+                git_blob = str(
+                    _runtime_git(
+                        self.repository_root,
+                        "rev-parse",
+                        f"{git_commit}:{relative_path}",
+                        unavailable_message="portable SPEC member lacks current Git identity",
+                    )
+                ).strip()
+            except (OSError, ValueError) as exc:
                 raise IntegrityError("portable SPEC member lacks current Git identity") from exc
             observation = {
                 "alias": expected["alias"],
@@ -1477,32 +1758,32 @@ class DiscoveryRuntime:
             raw = authority_file.read_bytes()
         except (OSError, ValueError) as exc:
             raise IntegrityError("authority file is unavailable") from exc
-        try:
-            relative_path = authority_file.relative_to(self.repository_root).as_posix()
-            if relative_path != repository_path:
-                raise IntegrityError("authority file path alias is forbidden")
-            git_commit = subprocess.run(
-                ["git", "-C", str(self.repository_root), "rev-parse", "HEAD"],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=_GIT_TIMEOUT_SECONDS,
-            ).stdout.strip()
-            git_blob = subprocess.run(
-                ["git", "-C", str(self.repository_root), "rev-parse", f"{git_commit}:{relative_path}"],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=_GIT_TIMEOUT_SECONDS,
-            ).stdout.strip()
-            committed_raw = subprocess.run(
-                ["git", "-C", str(self.repository_root), "show", f"{git_commit}:{relative_path}"],
-                check=True,
-                capture_output=True,
-                timeout=_GIT_TIMEOUT_SECONDS,
-            ).stdout
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-            raise IntegrityError("authority file lacks current Git identity") from exc
+        relative_path = authority_file.relative_to(self.repository_root).as_posix()
+        if relative_path != repository_path:
+            raise IntegrityError("authority file path alias is forbidden")
+        git_commit = str(
+            _runtime_git(
+                self.repository_root,
+                "rev-parse",
+                "HEAD",
+                unavailable_message="authority file lacks current Git identity",
+            )
+        ).strip()
+        git_blob = str(
+            _runtime_git(
+                self.repository_root,
+                "rev-parse",
+                f"{git_commit}:{relative_path}",
+                unavailable_message="authority file lacks current Git identity",
+            )
+        ).strip()
+        committed_raw = _runtime_git(
+            self.repository_root,
+            "show",
+            f"{git_commit}:{relative_path}",
+            text=False,
+            unavailable_message="authority file lacks current Git identity",
+        )
         if committed_raw != raw or _git_blob(raw) != git_blob:
             raise IntegrityError("authority file differs from captured Git bytes")
         try:
@@ -1743,128 +2024,24 @@ class DiscoveryRuntime:
         self,
         candidate: Mapping[str, Any],
         projection: Mapping[str, Any],
-    ) -> dict[str, Any] | None:
+        *,
+        events: tuple[dict[str, Any], ...],
+        evaluation_time: datetime | None = None,
+        owner_published_grant_ids: frozenset[str] | None = None,
+    ) -> _Spec02ExecutionAuthority | None:
         """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
 
-        if not _is_spec_route_candidate(projection, candidate):
-            return None
-        if not isinstance(candidate.get("decision_id"), str):
-            return None
-        events = tuple(self.ledger.iter_events())
-        promotions = [
-            event
-            for event in events
-            if event.get("event_type") == "CandidatePromotionApplied"
-            and event.get("stream_id") == candidate.get("candidate_id")
-            and event.get("payload", {}).get("row_id") == "OR-013"
-        ]
-        if len(promotions) != 1:
-            return None
-        promotion = promotions[0]
-        documents: dict[str, list[tuple[dict[str, Any], str]]] = {}
-        for event in events:
-            if event.get("event_type") != "ArtefactRegistered":
-                continue
-            manifest = event.get("payload", {}).get("manifest")
-            if not isinstance(manifest, Mapping) or manifest.get("artefact_type") not in {
-                "spec_01_source_correction",
-                "spec_02_live_run_approval",
-                "spec_02_operator_brief",
-            }:
-                continue
-            relative = manifest.get("relative_path")
-            content_sha256 = manifest.get("content_sha256")
-            if not isinstance(relative, str) or not isinstance(content_sha256, str):
-                return None
-            try:
-                raw = read_contained_regular_file(
-                    self.control_root,
-                    relative,
-                    label="SPEC-02 approval artefact",
-                )
-                value = json.loads(raw)
-            except (OSError, json.JSONDecodeError):
-                return None
-            if not isinstance(value, dict) or raw != canonical_bytes(value) or sha256_hex(raw) != content_sha256:
-                return None
-            documents.setdefault(str(manifest["artefact_type"]), []).append((value, content_sha256))
-        correction_rows = documents.get("spec_01_source_correction", [])
-        approval_rows = documents.get("spec_02_live_run_approval", [])
-        brief_rows = [row for row in documents.get("spec_02_operator_brief", []) if row[0].get("stage") == "SPEC-02"]
-        if len(approval_rows) != 1 or len(brief_rows) != 1:
-            return None
-        approval, _approval_sha256 = approval_rows[0]
-        brief, _brief_sha256 = brief_rows[0]
-        try:
-            self.schemas.validate(
-                "ars://portfolio/spec-02-live-run-approval",
-                approval,
-                schema_version="1.0.0",
-            )
-            self.schemas.validate(
-                "ars://portfolio/spec-operator-brief-package",
-                brief,
-                schema_version="1.0.0",
-            )
-            starts = datetime.fromisoformat(approval["valid_window"]["starts_at"].replace("Z", "+00:00"))
-            expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
-            approved_at = datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00"))
-        except (KeyError, TypeError, ValueError, SchemaError):
-            return None
-        now = self.clock()
-        route_source = brief.get("route_source", {})
-        source_sha256 = route_source.get("raw_sha256") if isinstance(route_source, Mapping) else None
-        source_path = route_source.get("relative_path") if isinstance(route_source, Mapping) else None
-        owner = approval.get("owner", {})
-        registrar = approval.get("registrar", {})
-        common = bool(
-            now.tzinfo is not None
-            and starts <= now < expires
-            and starts <= approved_at < expires
-            and owner.get("actor_id") == promotion.get("actor_id")
-            and registrar.get("actor_id") != owner.get("actor_id")
-            and approval.get("spec_01_promotion")
-            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
-            and approval.get("spec_02_subject") == {"id": "SPEC-02", "sha256": source_sha256}
-            and approval.get("brief_identity") == {"id": source_path, "sha256": source_sha256}
-        )
-        if not common:
-            return None
-        selected = promotion.get("payload", {}).get("selected_option")
-        if approval.get("entry_mode") == "standard_promotion":
-            return (
-                approval
-                if (
-                    selected == "PROMOTE"
-                    and approval.get("scientific_promotion") is True
-                    and approval.get("source_correction") is None
-                    and not correction_rows
-                )
-                else None
-            )
-        if approval.get("entry_mode") != "owner_approved_park_test" or len(correction_rows) != 1:
-            return None
-        correction, correction_sha256 = correction_rows[0]
-        try:
-            self.schemas.validate(
-                "ars://portfolio/spec-01-source-correction",
-                correction,
-                schema_version="1.0.0",
-            )
-        except SchemaError:
-            return None
-        return (
-            approval
-            if (
-                selected == "PARK"
-                and approval.get("scientific_promotion") is False
-                and approval.get("source_correction")
-                == {"id": correction.get("correction_id"), "sha256": correction_sha256}
-                and correction.get("decision_ref")
-                == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
-                and correction.get("scientific_disposition") == "PARK"
-            )
-            else None
+        return _SpecExecutionAuthorityResolver(
+            control_root=self.control_root,
+            schemas=self.schemas,
+            authority_resolver=self.authority_resolver,
+            clock=self.clock,
+        ).resolve(
+            candidate,
+            projection,
+            events=events,
+            evaluation_time=evaluation_time,
+            owner_published_grant_ids=owner_published_grant_ids,
         )
 
     @staticmethod
@@ -1900,13 +2077,14 @@ class DiscoveryRuntime:
         self,
         *,
         command: Command,
-        approval: Mapping[str, Any],
+        authority: _Spec02ExecutionAuthority,
         spike: Mapping[str, Any],
+        events: tuple[dict[str, Any], ...],
     ) -> bool:
         document = self._prospective_spec_document
         if document is None:
             rows: list[Mapping[str, Any]] = []
-            for event in self.ledger.iter_events():
+            for event in events:
                 if event.get("event_type") != "ArtefactRegistered":
                     continue
                 manifest = event.get("payload", {}).get("manifest")
@@ -1919,7 +2097,7 @@ class DiscoveryRuntime:
                 try:
                     raw = read_contained_regular_file(self.control_root, relative, label="SPEC-02 return artefact")
                     value = json.loads(raw)
-                except (OSError, json.JSONDecodeError):
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                     return False
                 if isinstance(value, Mapping) and raw == canonical_bytes(value) and sha256_hex(raw) == content_sha256:
                     rows.append(value)
@@ -1933,17 +2111,49 @@ class DiscoveryRuntime:
         relation = spike.get("execution_authority_relation")
         resource_ref = relation.get("resource_ref") if isinstance(relation, Mapping) else None
         producer = document.get("producer")
+        embedded = document.get("embedded_artefact")
+        try:
+            embedded_sha256 = sha256_hex(canonical_bytes(embedded)) if isinstance(embedded, Mapping) else None
+        except (TypeError, ValueError):
+            return False
+        embedded_hashes = [
+            item.get("sha256")
+            for item in document.get("artifact_hashes", ())
+            if isinstance(item, Mapping) and item.get("name") == "embedded_artefact"
+        ]
+        brief = authority.brief
+        expected_response = {
+            "brief_artefact_id": brief.get("brief_manifest", {}).get("brief_artefact_id"),
+            "brief_manifest_sha256": brief.get("brief_manifest_sha256"),
+            "operator_session_id": brief.get("operator_session", {}).get("session_id"),
+        }
+        payload = command.envelope["payload"]
         return bool(
             document.get("stage") == "SPEC-02"
+            and document.get("route_id") == "SPEC-GATE6-RUN-V1"
+            and document.get("document_type") == "spec_02_return"
+            and document.get("responds_to") == expected_response
+            and document.get("sources")
+            == [{"name": "accepted-spec-source", "sha256": brief.get("route_source", {}).get("raw_sha256")}]
             and isinstance(producer, Mapping)
             and producer.get("actor_id") == command.actor_id
             and producer.get("relation_sha256") == sha256_hex(canonical_bytes(relation))
+            and embedded == payload.get("verdict_artifact")
+            and embedded_sha256 == payload.get("verdict_sha256")
+            and embedded_hashes == [embedded_sha256]
+            and document.get("outcome") == ("PARTIAL" if payload.get("verdict") == "PARTIAL" else "COMPLETE")
             and isinstance(resource_ref, Mapping)
-            and self._spec_02_resource_allowed(approval, resource_ref.get("id"))
-            and self._spec_02_resource_use_allowed(approval, document.get("resource_use"))
+            and self._spec_02_resource_allowed(authority.approval, resource_ref.get("id"))
+            and self._spec_02_resource_use_allowed(authority.approval, document.get("resource_use"))
         )
 
-    def _prepare_spike(self, command: Command, projection: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+    def _prepare_spike(
+        self,
+        command: Command,
+        projection: dict[str, Any],
+        *,
+        events: tuple[dict[str, Any], ...],
+    ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
         row = p.get("row_id")
@@ -1956,17 +2166,9 @@ class DiscoveryRuntime:
         decision = projection["decisions"].get(decision_id)
         ct = command.envelope["command_type"]
         spec_02_approval = (
-            self._spec_02_execution_approval(candidate, projection)
+            self._spec_02_execution_approval(candidate, projection, events=events)
             if isinstance(candidate, Mapping)
-            and (ct, row)
-            in {
-                ("RegisterSpikePlan", "OR-014"),
-                ("ProposeSpikeExecutionDecision", "OR-015"),
-                ("ResolveDecision", "OR-016"),
-                ("StartSpike", "OR-017"),
-                ("RecordSpikeVerdict", "OR-018"),
-                ("RecordSpikeVerdict", "OR-019"),
-            }
+            and (ct, row) in _SPEC_02_GATED_TRANSITIONS
             and _is_spec_route_candidate(projection, candidate)
             else None
         )
@@ -1978,15 +2180,7 @@ class DiscoveryRuntime:
 
         if (
             isinstance(candidate, Mapping)
-            and (ct, row)
-            in {
-                ("RegisterSpikePlan", "OR-014"),
-                ("ProposeSpikeExecutionDecision", "OR-015"),
-                ("ResolveDecision", "OR-016"),
-                ("StartSpike", "OR-017"),
-                ("RecordSpikeVerdict", "OR-018"),
-                ("RecordSpikeVerdict", "OR-019"),
-            }
+            and (ct, row) in _SPEC_02_GATED_TRANSITIONS
             and _is_spec_route_candidate(projection, candidate)
             and not spec_02_approved
         ):
@@ -2144,9 +2338,9 @@ class DiscoveryRuntime:
             )
             and (
                 not _is_spec_route_candidate(projection, candidate)
-                or isinstance(spec_02_approval, Mapping)
+                or isinstance(spec_02_approval, _Spec02ExecutionAuthority)
                 and self._spec_02_resource_allowed(
-                    spec_02_approval,
+                    spec_02_approval.approval,
                     p.get("execution_authority_relation", {}).get("resource_ref", {}).get("id"),
                 )
             )
@@ -2183,9 +2377,9 @@ class DiscoveryRuntime:
             )
             and (
                 not _is_spec_route_candidate(projection, candidate)
-                or isinstance(spec_02_approval, Mapping)
+                or isinstance(spec_02_approval, _Spec02ExecutionAuthority)
                 and self._spec_02_resource_allowed(
-                    spec_02_approval,
+                    spec_02_approval.approval,
                     p.get("execution_authority_relation", {}).get("resource_ref", {}).get("id"),
                 )
             )
@@ -2218,8 +2412,8 @@ class DiscoveryRuntime:
             and self._valid_live_spike_lease(p, command)
             and (
                 not _is_spec_route_candidate(projection, candidate)
-                or isinstance(spec_02_approval, Mapping)
-                and self._spec_02_resource_allowed(spec_02_approval, p.get("resource_grant_id"))
+                or isinstance(spec_02_approval, _Spec02ExecutionAuthority)
+                and self._spec_02_resource_allowed(spec_02_approval.approval, p.get("resource_grant_id"))
             )
             and isinstance(spike.get("execution_authority_relation"), Mapping)
             and spike["execution_authority_relation"].get("resource_ref", {}).get("id") == p.get("resource_grant_id")
@@ -2250,8 +2444,13 @@ class DiscoveryRuntime:
             and (
                 not _is_spec_route_candidate(projection, candidate)
                 or (
-                    isinstance(spec_02_approval, Mapping)
-                    and self._spec_02_return_allowed(command=command, approval=spec_02_approval, spike=spike)
+                    isinstance(spec_02_approval, _Spec02ExecutionAuthority)
+                    and self._spec_02_return_allowed(
+                        command=command,
+                        authority=spec_02_approval,
+                        spike=spike,
+                        events=events,
+                    )
                 )
             )
             and isinstance(p.get("verdict_artifact"), dict)

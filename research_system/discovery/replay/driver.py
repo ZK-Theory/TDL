@@ -38,11 +38,16 @@ def replay_discovery(
     *,
     schemas: SchemaRegistry | None = None,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    spec_execution_authority_validator: Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]
+    | None = None,
 ) -> dict[str, Any]:
     """Rebuild Discovery state while rejecting malformed transitions.
 
     Args:
         events: Ordered persisted events from one Discovery ledger.
+        schemas: Exact schema registry used to validate persisted envelopes.
+        authority_state_validator: External validator for owner-administration state.
+        spec_execution_authority_validator: External registered-document validator required for gated SPEC-02 history.
 
     Returns:
         The deterministic Discovery projection reconstructed from ``events``.
@@ -696,16 +701,19 @@ def replay_discovery(
             "CandidateSpikeAuthorized",
             "SpikeStarted",
             "CandidateSpikeStarted",
+            "SpikeVerdictRecorded",
+            "SpikePartialRecorded",
         }:
             candidate = state["candidates"].get(payload.get("candidate_id"))
             origin = state["decisions"].get(candidate.get("decision_id")) if isinstance(candidate, Mapping) else None
             selected_option = origin.get("selected_option") if isinstance(origin, Mapping) else None
-            if (
-                _is_spec_route_candidate(state, candidate)
-                and selected_option in {"PROMOTE", "PARK"}
-                and not spec_02_documents_precede(event, park_test=selected_option == "PARK")
-            ):
-                raise IntegrityError("SPEC-02 execution lacks durable approval and prepared brief evidence")
+            if _is_spec_route_candidate(state, candidate) and selected_option in {"PROMOTE", "PARK"}:
+                park_test = selected_option == "PARK"
+                if not spec_02_documents_precede(event, park_test=park_test):
+                    raise IntegrityError("SPEC-02 execution lacks durable approval and prepared brief evidence")
+                if spec_execution_authority_validator is None:
+                    raise IntegrityError("SPEC-02 replay requires external approval evidence validation")
+                spec_execution_authority_validator(state, candidate, event, park_test)
         reducer(
             EventScope(
                 state=state,

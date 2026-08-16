@@ -96,9 +96,18 @@ from research_system.store.lock import (
 from research_system.store.durability import fsync_directory
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
 _release_submit_guard = _take_release_submit_guard()
+_SpecExecutionAuthorityValidator = Callable[
+    [Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool],
+    None,
+]
+_SpecExecutionAuthorityValidatorFactory = Callable[
+    [tuple[dict[str, Any], ...]],
+    _SpecExecutionAuthorityValidator,
+]
 _ARTEFACT_REVIEW_INDEPENDENCE_ORDER = {"I0": 0, "I1": 1, "I2": 2, "I3": 3}
 _CALLER_PROVENANCE_FIELDS = frozenset(
     {
@@ -450,11 +459,13 @@ class _CommandView:
         snapshot: LedgerSnapshot,
         schemas: SchemaRegistry,
         authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+        spec_execution_authority_validator: _SpecExecutionAuthorityValidator | None = None,
     ) -> _CommandView:
         replay(
             snapshot.events,
             schema_registry=schemas,
             authority_state_validator=authority_state_validator,
+            spec_execution_authority_validator=spec_execution_authority_validator,
         )
         view = cls(
             snapshot.fingerprint,
@@ -666,6 +677,7 @@ class CommandService:
         restore_verification_provider: Callable[[Command, LedgerSnapshot], tuple[dict[str, Any], Callable[[], None]]]
         | None = None,
         governing_evidence_resolver: Any | None = None,
+        spec_execution_authority_validator_factory: _SpecExecutionAuthorityValidatorFactory | None = None,
     ) -> None:
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
             raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
@@ -696,6 +708,11 @@ class CommandService:
             raise TypeError("restore_verification_provider must be callable")
         self.restore_verification_provider = restore_verification_provider
         self.governing_evidence_resolver = governing_evidence_resolver
+        if spec_execution_authority_validator_factory is not None and not callable(
+            spec_execution_authority_validator_factory
+        ):
+            raise TypeError("spec_execution_authority_validator_factory must be callable")
+        self._spec_execution_authority_validator_factory = spec_execution_authority_validator_factory
         if message_adapter_registry is None:
             self._message_adapter_registry: tuple[MessageAdapterRegistration, ...] = ()
         else:
@@ -725,7 +742,12 @@ class CommandService:
         self._restore_preflight_result: RestorePreflightResult | None = None
         self._restore_preflight_rechecker: Callable[[], RestorePreflightResult | RestoreAdmissionBundle] | None = None
         self._restore_admission_sequence_lock = threading.Lock()
-        self._recover_scoped_activation_markers()
+        # Startup recovery writes marker/object state.  It must not race an
+        # active SPEC saga whose nested construction of CommandService is a
+        # same-thread re-entry of this fence.
+        with SpecPreparationFence(self.control_root):
+            self._recover_scoped_activation_markers()
+            self._recover_owner_publication_markers()
 
     def _current_trusted_runtime_authority(self) -> TrustedRuntimeAuthority:
         """Return exactly one current trusted runtime authority binding."""
@@ -782,11 +804,12 @@ class CommandService:
     ) -> None:
         marker = {
             "schema_id": "ars://core/runtime/owner-authority-publication-recovery",
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "command_id": command.command_id,
             "command_payload_hash": command.payload_hash,
             "target_stream_id": command.target_stream_id,
             "object_existed_before": existed_before,
+            "command_identity": deepcopy(command.envelope),
             "decision": decision,
         }
         path = self._owner_publication_marker_path(command.command_id)
@@ -830,24 +853,43 @@ class CommandService:
             "command_payload_hash",
             "target_stream_id",
             "object_existed_before",
+            "command_identity",
             "decision",
         }
         decision = marker.get("decision") if isinstance(marker, dict) else None
+        command_identity = marker.get("command_identity") if isinstance(marker, dict) else None
         if (
             not isinstance(marker, dict)
             or set(marker) != fields
             or data != canonical_bytes(marker)
             or marker.get("schema_id") != "ars://core/runtime/owner-authority-publication-recovery"
-            or marker.get("schema_version") != "1.0.0"
+            or marker.get("schema_version") != "2.0.0"
             or not isinstance(marker.get("command_id"), str)
             or path.stem != marker.get("command_id")
             or not _is_sha256(marker.get("command_payload_hash"))
             or not isinstance(marker.get("target_stream_id"), str)
             or not isinstance(marker.get("object_existed_before"), bool)
+            or not isinstance(command_identity, dict)
             or not isinstance(decision, dict)
             or decision.get("record_id") != marker.get("target_stream_id")
         ):
             raise IntegrityError("owner publication recovery marker is invalid")
+        try:
+            marked_command = Command(deepcopy(command_identity))
+            expected_version = marked_command.envelope.get("expected_stream_version")
+            identity_valid = (
+                marked_command.command_id == marker["command_id"]
+                and marked_command.target_stream_id == marker["target_stream_id"]
+                and marked_command.payload_hash == marker["command_payload_hash"]
+                and marked_command.envelope.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
+                and isinstance(expected_version, int)
+                and not isinstance(expected_version, bool)
+                and expected_version >= 0
+            )
+        except (KeyError, TypeError, ValueError):
+            identity_valid = False
+        if not identity_valid:
+            raise IntegrityError("owner publication recovery marker command identity is invalid")
         return marker
 
     @staticmethod
@@ -860,6 +902,7 @@ class CommandService:
             marker.get("command_id") != command.command_id
             or marker.get("command_payload_hash") != command.payload_hash
             or marker.get("target_stream_id") != command.target_stream_id
+            or marker.get("command_identity") != command.envelope
             or marker.get("decision") != decision
         ):
             raise ConflictError("owner publication recovery marker conflicts")
@@ -872,6 +915,24 @@ class CommandService:
             and event.get("stream_id") == target_stream_id
         )
 
+    @staticmethod
+    def _owner_publication_event_matches_marker(event: dict[str, Any], marker: dict[str, Any]) -> bool:
+        command = marker["command_identity"]
+        payload = event.get("payload")
+        return (
+            event.get("event_type") == "OwnerAuthorityAdministrationDecisionPublished"
+            and event.get("stream_id") == marker["target_stream_id"]
+            and event.get("command_id") == marker["command_id"]
+            and event.get("command_payload_hash") == marker["command_payload_hash"]
+            and event.get("command_type") == command.get("command_type")
+            and event.get("actor_id") == command.get("actor_id")
+            and event.get("authority_grant_id") == command.get("authority_grant_id")
+            and event.get("idempotency_key") == command.get("idempotency_key")
+            and event.get("stream_version") == command.get("expected_stream_version", -1) + 1
+            and isinstance(payload, dict)
+            and payload.get("decision") == marker["decision"]
+        )
+
     def _require_exact_owner_publication_object(self, marker: dict[str, Any]) -> None:
         try:
             value = self.objects.read("assurance_record", marker["target_stream_id"], 1)
@@ -879,6 +940,67 @@ class CommandService:
             raise IntegrityError("owner publication recovery object is invalid") from exc
         if canonical_bytes(value) != canonical_bytes(marker["decision"]):
             raise IntegrityError("owner publication recovery object conflicts")
+
+    def _owner_publication_recovery_action(self, marker: dict[str, Any]) -> str:
+        """Validate one marker and return its mutation-free recovery action."""
+
+        events = self._owner_publication_events(marker["target_stream_id"])
+        if events:
+            if len(events) != 1 or not self._owner_publication_event_matches_marker(events[0], marker):
+                raise IntegrityError("owner publication recovery event conflicts")
+            self._require_exact_owner_publication_object(marker)
+            return "remove_marker"
+        if marker["object_existed_before"]:
+            self._require_exact_owner_publication_object(marker)
+            return "retain_marker"
+        if self.objects.revision_exists("assurance_record", marker["target_stream_id"], 1):
+            self._require_exact_owner_publication_object(marker)
+        return "rollback_new_object"
+
+    def _apply_owner_publication_recovery(self, marker: dict[str, Any], action: str) -> None:
+        """Apply one action only after the complete marker set validates."""
+
+        if action == "remove_marker":
+            self._remove_owner_publication_marker(marker["command_id"])
+            return
+        if action == "retain_marker":
+            return
+        if action != "rollback_new_object":
+            raise IntegrityError("owner publication recovery action is invalid")
+        try:
+            self.objects.rollback_new_revision(
+                "assurance_record",
+                marker["target_stream_id"],
+                1,
+                marker["decision"],
+                existed_before=False,
+            )
+        except (ConflictError, IntegrityError, ValueError) as exc:
+            raise IntegrityError("owner publication recovery object conflicts") from exc
+
+    def _recover_owner_publication_markers(self) -> None:
+        """Fence and reconcile durable owner-publication preparation markers."""
+
+        root = self.control_root / "runtime" / "owner-authority-publication-recovery"
+        roots: tuple[Path, ...] = (self.control_root,)
+        resolver = self._canonical_authority_resolver()
+        if resolver is not None:
+            roots = (self.control_root, resolver.control_root)
+        with CompositeWriterLock(
+            roots,
+            {"command_id": "owner-publication-recovery"},
+            lock_factory=WriterLock,
+        ):
+            self._require_physical_owner_publication_marker_path(root / "recovery-sentinel.json")
+            if not root.exists():
+                return
+            markers = tuple(self._load_owner_publication_marker(path) for path in sorted(root.glob("*.json")))
+            targets = [marker["target_stream_id"] for marker in markers]
+            if len(set(targets)) != len(targets):
+                raise IntegrityError("owner publication recovery target is ambiguous")
+            actions = tuple(self._owner_publication_recovery_action(marker) for marker in markers)
+            for marker, action in zip(markers, actions, strict=True):
+                self._apply_owner_publication_recovery(marker, action)
 
     def _reconcile_owner_publication_marker(
         self,
@@ -902,12 +1024,7 @@ class CommandService:
         self._validate_owner_publication_marker_command(selected, command, decision)
         events = self._owner_publication_events(command.target_stream_id)
         if events:
-            if (
-                len(events) != 1
-                or events[0].get("command_id") != command.command_id
-                or events[0].get("command_payload_hash") != command.payload_hash
-                or events[0].get("payload", {}).get("decision") != selected["decision"]
-            ):
+            if len(events) != 1 or not self._owner_publication_event_matches_marker(events[0], selected):
                 raise IntegrityError("owner publication recovery event conflicts")
             self._require_exact_owner_publication_object(selected)
             return
@@ -1548,50 +1665,66 @@ class CommandService:
     def prevalidate_register_artefact_batch(self, envelopes: Sequence[dict[str, Any]]) -> None:
         """Validate a complete independent registration set before its first append."""
 
-        if not envelopes or len({item.get("target_stream_id") for item in envelopes}) != len(envelopes):
-            raise ArsError("RegisterArtefact batch targets must be nonempty and distinct")
-        snapshot = self.ledger.snapshot()
-        for envelope in envelopes:
-            if envelope.get("command_type") != "RegisterArtefact":
-                raise ArsError("RegisterArtefact batch contains another command type")
-            binding = self.schemas.command_binding("RegisterArtefact")
-            if binding is None:
-                raise SchemaError("RegisterArtefact has no active command binding")
-            command_schema = self.schemas.validate_active(
-                binding.schema_id,
-                envelope,
-                schema_version=binding.schema_version,
-            )
-            command = Command(deepcopy(envelope))
-            authority, denial = self._resolve_lifecycle_authority(command, command_schema, snapshot)
-            if denial is not None or authority.resolution is None:
-                raise ArsError(denial or "RegisterArtefact authority is unavailable")
-            observed_version = snapshot.stream_versions.get(command.target_stream_id, 0)
-            prepared = self._prepare_artefact_authority_command(command, snapshot, observed_version)
-            if isinstance(prepared, Receipt):
-                raise ArsError(prepared.explanation or prepared.reason_code or "RegisterArtefact preflight rejected")
+        self._prevalidate_artefact_command_batch(
+            envelopes,
+            allowed=frozenset({"RegisterArtefact"}),
+            label="RegisterArtefact",
+        )
 
     def prevalidate_artefact_authority_batch(self, envelopes: Sequence[dict[str, Any]]) -> None:
         """Validate an independent artefact-authority batch before any side effect."""
 
-        allowed = {"RecordScientificReview", "SetArtefactUseAuthority"}
-        if not envelopes or len({item.get("target_stream_id") for item in envelopes}) != len(envelopes):
-            raise ArsError("artefact-authority batch targets must be nonempty and distinct")
-        snapshot = self.ledger.snapshot()
-        view = self._view_for(snapshot)
+        self._prevalidate_artefact_command_batch(
+            envelopes,
+            allowed=frozenset({"RecordScientificReview", "SetArtefactUseAuthority"}),
+            label="artefact-authority",
+        )
+
+    def _prevalidate_artefact_command_batch(
+        self,
+        envelopes: Sequence[dict[str, Any]],
+        *,
+        allowed: frozenset[str],
+        label: str,
+    ) -> None:
+        """Validate identities and semantics for one independent artefact batch."""
+
+        if not envelopes:
+            raise ArsError(f"{label} batch must be nonempty")
+        commands: list[tuple[Command, SchemaIdentity]] = []
+        target_ids: set[str] = set()
+        command_ids: set[str] = set()
+        idempotency_scopes: set[tuple[str, str, str, str]] = set()
         for envelope in envelopes:
             command_type = envelope.get("command_type")
             if command_type not in allowed:
-                raise ArsError("artefact-authority batch contains another command type")
+                raise ArsError(f"{label} batch contains another command type")
             binding = self.schemas.command_binding(str(command_type))
             if binding is None:
                 raise SchemaError(f"{command_type} has no active command binding")
+            validated_envelope = {key: value for key, value in envelope.items() if key not in _CALLER_PROVENANCE_FIELDS}
             command_schema = self.schemas.validate_active(
                 binding.schema_id,
-                envelope,
+                validated_envelope,
                 schema_version=binding.schema_version,
             )
-            command = Command(deepcopy(envelope))
+            command = Command(deepcopy(validated_envelope))
+            if not command.target_stream_id or command.target_stream_id in target_ids:
+                raise ArsError(f"{label} batch targets must be nonempty and distinct")
+            if not command.command_id or command.command_id in command_ids:
+                raise ArsError(f"{label} batch command IDs must be nonempty and distinct")
+            scope = self._authority_scope(command)
+            if scope in idempotency_scopes:
+                raise ArsError(f"{label} batch idempotency scopes must be distinct")
+            target_ids.add(command.target_stream_id)
+            command_ids.add(command.command_id)
+            idempotency_scopes.add(scope)
+            commands.append((command, command_schema))
+
+        snapshot = self.ledger.snapshot()
+        view = self._view_for(snapshot)
+        for command, command_schema in commands:
+            command_type = command.envelope["command_type"]
             authority, denial = self._resolve_lifecycle_authority(command, command_schema, snapshot)
             if denial is not None or authority.resolution is None:
                 raise ArsError(denial or f"{command_type} authority is unavailable")
@@ -1600,7 +1733,7 @@ class CommandService:
                 continue
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             if observed_version != command.expected_stream_version:
-                raise ConflictError("artefact-authority batch stream version conflicts")
+                raise ConflictError(f"{label} batch stream version conflicts")
             prepared = self._prepare_artefact_authority_command(command, snapshot, observed_version)
             if isinstance(prepared, Receipt):
                 raise ArsError(prepared.explanation or prepared.reason_code or f"{command_type} preflight rejected")
@@ -1616,7 +1749,11 @@ class CommandService:
         if release_append is None or scoped_authority_append is None:
             raise ArsError("CommandService.submit requires its guarded continuations")
         if envelope.get("command_type") in T2_COMMAND_TYPES:
-            return submit_t2(self, envelope)
+            # T2 appends through its own sealed continuation, so it does not
+            # enter ``_submission_lock`` below.  It must still respect an
+            # active SPEC preparation fence before changing the shared ledger.
+            with SpecPreparationFence(self.control_root):
+                return submit_t2(self, envelope)
         if envelope.get("command_type") == "RegisterAuthorityActor":
             raise ArsError("RegisterAuthorityActor is sealed; use the governed owner actor-registration route")
         if (
@@ -1719,15 +1856,10 @@ class CommandService:
                     return rejected
             if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
                 publication_observed_version = snapshot.stream_versions.get(command.target_stream_id, 0)
-                try:
-                    publication_prepared_payload = self._prepare_owner_authority_publication(
-                        command,
-                        publication_observed_version,
-                    )
-                except IntegrityError:
-                    raise
-                except ArsError:
-                    raise
+                publication_prepared_payload = self._prepare_owner_authority_publication(
+                    command,
+                    publication_observed_version,
+                )
                 publication_decision = publication_prepared_payload.get("decision")
                 if not isinstance(publication_decision, dict):
                     raise IntegrityError("owner publication derivation did not produce a decision")
@@ -2258,7 +2390,7 @@ class CommandService:
     @contextmanager
     def _submission_lock(self, command: Command):
         """Serialize authority-governed submits across all participating roots."""
-        with self._restore_admission_sequence_lock:
+        with SpecPreparationFence(self.control_root), self._restore_admission_sequence_lock:
             prepared = self._prepare_moved_restore(command)
             identity = {"command_id": command.command_id}
             command_type = command.envelope["command_type"]
@@ -2341,6 +2473,7 @@ class CommandService:
                 snapshot.events,
                 schema_registry=self.schemas,
                 authority_state_validator=self._authority_state_validator(),
+                spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
             )
             resolved = resolver.resolve(
                 authority_grant_id,
@@ -2444,6 +2577,7 @@ class CommandService:
             snapshot.events,
             schema_registry=self.schemas,
             authority_state_validator=self._authority_state_validator(),
+            spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
         )
         events = tuple(snapshot.events)
         scoped_events = tuple(
@@ -2591,6 +2725,7 @@ class CommandService:
                     snapshot.events,
                     schema_registry=self.schemas,
                     authority_state_validator=self._authority_state_validator(),
+                    spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
                 )
                 batch = tuple(
                     event for event in snapshot.events if event.get("transaction_id") == receipt.event_batch_id
@@ -2812,6 +2947,7 @@ class CommandService:
             snapshot.events,
             schema_registry=self.schemas,
             authority_state_validator=self._authority_state_validator(),
+            spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
         )
         value = projection.get("streams", {}).get(message_id)
         return dict(value) if isinstance(value, dict) else None
@@ -2982,6 +3118,7 @@ class CommandService:
             snapshot.events,
             schema_registry=self.schemas,
             authority_state_validator=self._authority_state_validator(),
+            spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
         )
         streams = projection.get("streams", {})
         if not isinstance(streams, dict):
@@ -5256,6 +5393,7 @@ class CommandService:
             snapshot.events,
             schema_registry=self.schemas,
             authority_state_validator=self._authority_state_validator(),
+            spec_execution_authority_validator=self._spec_execution_authority_validator(snapshot.events),
         )
         owner_actor_id = state.get("authority_owner_actor_id")
         root_id = state.get("authority_root_id")
@@ -5498,6 +5636,12 @@ class CommandService:
         }
         if command_type == "PrepareOwnerOperatedContextHandoff":
             profile = payload.get("owner_profile")
+            accepted_artefacts = payload.get("accepted_artefacts")
+            accepted_ids = (
+                [item.get("artefact_id") for item in accepted_artefacts]
+                if isinstance(accepted_artefacts, list) and all(isinstance(item, dict) for item in accepted_artefacts)
+                else None
+            )
             if (
                 not isinstance(profile, dict)
                 or profile.get("provider_launch") is not False
@@ -5506,11 +5650,21 @@ class CommandService:
                 or profile.get("packet_sha256") != payload.get("packet_sha256")
                 or profile.get("operator_id") != command.actor_id
                 or sha256_hex(canonical_bytes(profile)) != payload.get("owner_profile_sha256")
+                or accepted_ids is None
+                or len(accepted_ids) < 2
+                or any(not isinstance(artefact_id, str) or not artefact_id for artefact_id in accepted_ids)
+                or len(set(accepted_ids)) != len(accepted_ids)
             ):
                 return rejected("invalid_owner_context_profile", "Owner-operated profile binding is invalid.")
         elif command_type in owner_predecessors:
             predecessor_type = owner_predecessors[command_type]
             predecessor = next((event for event in events if event.get("event_type") == predecessor_type), None)
+            prepared = next(
+                (event for event in events if event.get("event_type") == "OwnerOperatedContextHandoffPrepared"),
+                None,
+            )
+            prepared_payload = prepared.get("payload") if isinstance(prepared, dict) else None
+            owner_profile = prepared_payload.get("owner_profile") if isinstance(prepared_payload, dict) else None
             prefix = {
                 "ValidateOwnerOperatedContextHandoff": "prepared",
                 "IssueOwnerOperatedContextHandoff": "validation",
@@ -5532,6 +5686,19 @@ class CommandService:
                 )
             ):
                 return rejected("invalid_owner_context_predecessor", "Owner-operated handoff predecessor differs.")
+            if not isinstance(owner_profile, dict) or owner_profile.get("operator_id") != command.actor_id:
+                return rejected(
+                    "invalid_owner_context_profile",
+                    "Owner-operated commands must retain the prepared operator identity.",
+                )
+            if command_type == "RecordOwnerOperatedContextDelivery" and (
+                payload.get("recipient_id") != owner_profile.get("recipient_id")
+                or payload.get("recipient_session_id") != owner_profile.get("operator_session_id")
+            ):
+                return rejected(
+                    "invalid_owner_context_profile",
+                    "Owner-operated delivery must retain the prepared recipient and operator session.",
+                )
         return deepcopy(payload)
 
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
@@ -7113,6 +7280,7 @@ class CommandService:
                 snapshot,
                 self.schemas,
                 self._authority_state_validator(),
+                self._spec_execution_authority_validator(snapshot.events),
             )
         return self._view
 
@@ -7121,6 +7289,23 @@ class CommandService:
     ) -> Callable[[dict[str, Any]], None] | None:
         resolver = self._canonical_authority_resolver()
         return resolver.validate_replayed_administration_state if resolver is not None else None
+
+    def _spec_execution_authority_validator(
+        self,
+        events: tuple[dict[str, Any], ...],
+    ) -> _SpecExecutionAuthorityValidator | None:
+        factory = self._spec_execution_authority_validator_factory
+        if factory is None:
+            return None
+        try:
+            validator = factory(events)
+        except IntegrityError:
+            raise
+        except Exception as exc:
+            raise IntegrityError("SPEC execution authority validator is unavailable") from exc
+        if not callable(validator):
+            raise IntegrityError("SPEC execution authority validator factory returned an invalid validator")
+        return validator
 
     def _matching_committed(
         self,
@@ -7145,7 +7330,8 @@ class CommandService:
         if scoped is not None:
             first = scoped[0]
             if (
-                command.envelope["command_type"] in {*_MESSAGE_COMMAND_TYPES, "ClaimDispatch"}
+                command.envelope["command_type"]
+                in {*_MESSAGE_COMMAND_TYPES, "ClaimDispatch", *_ARTEFACT_AUTHORITY_COMMAND_TYPES}
                 and first.get("command_id") != command.command_id
             ):
                 raise ConflictError("idempotency key conflicts with committed command")

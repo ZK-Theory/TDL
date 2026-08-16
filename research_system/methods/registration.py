@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
-import subprocess
 import uuid
 from contextlib import contextmanager
 from copy import deepcopy
@@ -15,6 +14,7 @@ from typing import Any, Iterator, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConfigurationError, ConflictError
+from research_system.git_execution import run_git
 from research_system.store.durability import fsync_directory
 
 
@@ -87,20 +87,26 @@ class CandidateDocumentStore:
 
     def _write(self, artefact_id: str, raw_bytes: bytes) -> str:
         relative = Path(self.relative_path(artefact_id))
+        created_identity: os.stat_result | None = None
+        target: Path | None = None
         try:
             with _open_new_contained_file(self.control_root, relative.as_posix()) as (fd, target):
                 with os.fdopen(fd, "wb") as handle:
-                    if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    created_identity = os.fstat(handle.fileno())
+                    if not stat.S_ISREG(created_identity.st_mode):
                         raise ConfigurationError("candidate document destination is not a physical regular file")
                     handle.write(raw_bytes)
                     handle.flush()
                     os.fsync(handle.fileno())
+            fsync_directory(target.parent)
         except FileExistsError:
-            target = _require_physical_destination(self.control_root, relative.as_posix())
-            if target.read_bytes() != raw_bytes:
+            if _read_existing_contained_file(self.control_root, relative.as_posix()) != raw_bytes:
                 raise ConflictError("methods document identity already binds different bytes")
             return relative.as_posix()
-        fsync_directory(target.parent)
+        except Exception:
+            if target is not None and created_identity is not None:
+                _remove_created_file(target, created_identity)
+            raise
         return relative.as_posix()
 
     def write(self, artefact_id: str, raw_bytes: bytes) -> str:
@@ -227,8 +233,8 @@ def _hold_windows_directories(paths: list[Path]) -> list[int]:
         raise
 
 
-def _open_windows_relative_new_file(parent_handle: int, name: str) -> int:
-    """Create a new leaf relative to an already verified directory handle."""
+def _open_windows_relative_file(parent_handle: int, name: str, *, create: bool) -> int:
+    """Open a leaf relative to a held Windows directory without following reparses."""
 
     import ctypes
     import msvcrt
@@ -281,26 +287,46 @@ def _open_windows_relative_new_file(parent_handle: int, name: str) -> int:
         ctypes.c_ulong,
     )
     nt_create_file.restype = ctypes.c_long
+    desired_access = (0x40000000 if create else 0x80000000) | 0x00000080 | 0x00100000
+    options = 0x40 | 0x20 | (0 if create else 0x00200000)
     status = nt_create_file(
         ctypes.byref(native_handle),
-        0x40000000 | 0x00000080 | 0x00100000,  # GENERIC_WRITE | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+        desired_access,
         ctypes.byref(attributes),
         ctypes.byref(status_block),
         None,
-        0x80,  # FILE_ATTRIBUTE_NORMAL
+        0x80 if create else 0,  # FILE_ATTRIBUTE_NORMAL
         0x1,  # FILE_SHARE_READ
-        2,  # FILE_CREATE
-        0x40 | 0x20,  # FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT
+        2 if create else 1,  # FILE_CREATE / FILE_OPEN
+        options,
         None,
         0,
     )
+    if status & 0xFFFFFFFF == 0xC0000035:  # STATUS_OBJECT_NAME_COLLISION
+        raise FileExistsError(name)
+    if status & 0xFFFFFFFF in {0xC0000034, 0xC000003A}:  # name/path not found
+        raise FileNotFoundError(name)
     if status < 0 or not native_handle.value:
-        raise OSError(status, "raw content destination leaf could not be created")
+        operation = "created" if create else "opened"
+        raise OSError(status, f"raw content destination leaf could not be {operation}")
     try:
-        return msvcrt.open_osfhandle(native_handle.value, os.O_WRONLY | os.O_BINARY)
+        access = os.O_WRONLY if create else os.O_RDONLY
+        return msvcrt.open_osfhandle(native_handle.value, access | os.O_BINARY)
     except Exception:
         ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle(native_handle)
         raise
+
+
+def _open_windows_relative_new_file(parent_handle: int, name: str) -> int:
+    """Create a new leaf relative to an already verified directory handle."""
+
+    return _open_windows_relative_file(parent_handle, name, create=True)
+
+
+def _open_windows_relative_existing_file(parent_handle: int, name: str) -> int:
+    """Open an existing regular leaf relative to a held physical directory."""
+
+    return _open_windows_relative_file(parent_handle, name, create=False)
 
 
 @contextmanager
@@ -345,13 +371,84 @@ def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator
                 close_handle(ctypes.c_void_p(handle))
 
 
+@contextmanager
+def _open_existing_contained_file(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
+    """Open one existing leaf while retaining its verified physical parent chain."""
+
+    target = _require_physical_destination(control_root, relative_path)
+    root = control_root.resolve(strict=True)
+    relative = Path(relative_path)
+    directory_descriptors: list[int] = []
+    windows_handles: list[int] = []
+    descriptor = -1
+    try:
+        if os.open in os.supports_dir_fd and hasattr(os, "O_DIRECTORY"):
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+            directory_descriptors.append(os.open(root, directory_flags))
+            for part in relative.parts[:-1]:
+                directory_descriptors.append(os.open(part, directory_flags, dir_fd=directory_descriptors[-1]))
+            descriptor = os.open(
+                relative.name,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_descriptors[-1],
+            )
+        elif os.name == "nt":
+            parents = [root]
+            for part in relative.parts[:-1]:
+                parents.append(parents[-1] / part)
+            windows_handles = _hold_windows_directories(parents)
+            descriptor = _open_windows_relative_existing_file(windows_handles[-1], relative.name)
+        else:
+            raise ConfigurationError("atomic contained file reading is unsupported on this platform")
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ConfigurationError("raw content destination is not a physical regular file")
+        owned_descriptor = descriptor
+        descriptor = -1
+        yield owned_descriptor, target
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+        if windows_handles:
+            import ctypes
+
+            close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+            for handle in reversed(windows_handles):
+                close_handle(ctypes.c_void_p(handle))
+
+
+def _read_existing_contained_file(control_root: Path, relative_path: str) -> bytes:
+    with _open_existing_contained_file(control_root, relative_path) as (fd, _target):
+        with os.fdopen(fd, "rb") as handle:
+            return handle.read()
+
+
+def _remove_created_file(target: Path, identity: os.stat_result) -> None:
+    """Remove only the exact leaf created by the failed publication attempt."""
+
+    try:
+        current = target.lstat()
+        if (
+            stat.S_ISREG(current.st_mode)
+            and not stat.S_ISLNK(current.st_mode)
+            and current.st_dev == identity.st_dev
+            and current.st_ino == identity.st_ino
+        ):
+            target.unlink()
+            try:
+                fsync_directory(target.parent)
+            except OSError:
+                pass
+    except FileNotFoundError:
+        pass
+
+
 def _git(repository_root: Path, *arguments: str) -> str:
-    result = subprocess.run(  # nosec B603 B607 - fixed Git executable and arguments
-        ["git", "-C", str(repository_root), *arguments],
-        capture_output=True,
-        check=False,
-        text=True,
-        timeout=10,
+    result = run_git(
+        repository_root,
+        *arguments,
+        unavailable_message="raw content Git binding is unavailable",
     )
     if result.returncode != 0:
         raise ConfigurationError("raw content Git binding is unavailable")
@@ -373,8 +470,9 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
     )
     if relative.is_absolute() or ".." in relative.parts or not allowed or "scale" in posix.casefold():
         raise ConfigurationError("raw content source is outside the SPEC brief allowlist")
-    if publication.document_type not in {"spec_operator_source", "methods_asset"}:
-        raise ConfigurationError("raw content document type is unsupported")
+    expected_document_type = "spec_operator_source" if posix in _SPEC_SOURCE_PATHS else "methods_asset"
+    if publication.document_type != expected_document_type:
+        raise ConfigurationError("raw content document type does not match its source path")
     if publication.media_type != "text/markdown; charset=utf-8":
         raise ConfigurationError("raw content media type is unsupported")
     destination = Path(publication.destination_relative_path)
@@ -391,9 +489,27 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
         source.relative_to(root)
     except ValueError as exc:
         raise ConfigurationError("raw content source escapes the repository") from exc
-    raw = source.read_bytes()
+    try:
+        raw = source.read_bytes()
+    except OSError as exc:
+        raise ConfigurationError("raw content source is unavailable") from exc
     committed_blob = _git(root, "rev-parse", f"HEAD:{posix}")
-    working_blob = _git(root, "hash-object", "--", posix)
+    working_result = run_git(
+        root,
+        "hash-object",
+        "--path",
+        posix,
+        "--stdin",
+        input=raw,
+        text=False,
+        unavailable_message="raw content Git binding is unavailable",
+    )
+    if working_result.returncode != 0:
+        raise ConfigurationError("raw content Git binding is unavailable")
+    try:
+        working_blob = working_result.stdout.decode("ascii").strip()
+    except (AttributeError, UnicodeError) as exc:
+        raise ConfigurationError("raw content Git binding returned invalid output") from exc
     if committed_blob != publication.source_git_blob or working_blob != committed_blob:
         raise ConfigurationError("raw content source is not the exact committed Git blob")
     if len(raw) != publication.size_bytes or sha256_hex(raw) != publication.content_sha256:
@@ -402,20 +518,26 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
 
 
 def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
+    created_identity: os.stat_result | None = None
+    target: Path | None = None
     try:
         with _open_new_contained_file(control_root, relative_path) as (fd, target):
             with os.fdopen(fd, "wb") as handle:
-                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                created_identity = os.fstat(handle.fileno())
+                if not stat.S_ISREG(created_identity.st_mode):
                     raise ConfigurationError("raw content destination is not a physical regular file")
                 handle.write(raw)
                 handle.flush()
                 os.fsync(handle.fileno())
+        fsync_directory(target.parent)
     except FileExistsError:
-        target = _require_physical_destination(control_root, relative_path)
-        if target.read_bytes() != raw:
+        if _read_existing_contained_file(control_root, relative_path) != raw:
             raise ConflictError("raw content destination already binds different bytes")
         return
-    fsync_directory(target.parent)
+    except Exception:
+        if target is not None and created_identity is not None:
+            _remove_created_file(target, created_identity)
+        raise
 
 
 def publish_registered_raw_content(
@@ -468,8 +590,12 @@ def prepare_registered_raw_content(
     destination = Path(publication.destination_relative_path)
     if destination.stem != registration.artefact_id:
         raise ConfigurationError("raw content destination does not bind the artefact identity")
-    target = _require_physical_destination(control_root, publication.destination_relative_path)
-    if target.exists() and target.read_bytes() != raw:
+    _require_physical_destination(control_root, publication.destination_relative_path)
+    try:
+        existing = _read_existing_contained_file(control_root, publication.destination_relative_path)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and existing != raw:
         raise ConflictError("raw content destination already binds different bytes")
     manifest = deepcopy(registration.manifest)
     if manifest.get("artefact_id") != registration.artefact_id:

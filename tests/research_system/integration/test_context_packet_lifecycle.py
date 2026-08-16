@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 import json
 from types import SimpleNamespace
 
@@ -17,6 +17,7 @@ from research_system.context.command_adapter import CommandServiceContextWriter
 from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.registry import (
     rebuild_context_lifecycle,
+    rebuild_owner_operated_handoff,
     resolve_context_packet_for_consumer,
 )
 from research_system.context.service import ContextLifecycleService
@@ -45,6 +46,14 @@ EVENT_TYPES = {
     "IssueOwnerOperatedContextHandoff": "OwnerOperatedContextHandoffIssued",
     "RecordOwnerOperatedContextDelivery": "OwnerOperatedContextDelivered",
 }
+
+
+class MissingOffsetTimezone(tzinfo):
+    def utcoffset(self, _value):
+        return None
+
+    def dst(self, _value):
+        return None
 
 
 class RecordingContextWriter:
@@ -172,7 +181,12 @@ def compile_valid(service: ContextLifecycleService, context_id: str):
 def test_owner_operated_profile_is_provider_free_and_replayable(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     writer = RecordingContextWriter()
-    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 10, tzinfo=UTC),
+    )
     context_id = new_id("context")
     compiled = compile_valid(lifecycle, context_id)
 
@@ -222,7 +236,12 @@ def test_owner_operated_profile_is_provider_free_and_replayable(tmp_path) -> Non
 def test_owner_operated_profile_rejects_duplicate_accepted_artefacts_before_publication(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
     writer = RecordingContextWriter()
-    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
     compiled = compile_valid(lifecycle, new_id("context"))
     artefact_id = new_id("artefact")
     before = tuple(writer.events)
@@ -248,6 +267,318 @@ def test_owner_operated_profile_rejects_duplicate_accepted_artefacts_before_publ
     assert tuple(writer.events) == before
 
 
+@pytest.mark.parametrize(
+    "now",
+    (
+        datetime(2026, 8, 14, 9, 59, 59, tzinfo=UTC),
+        datetime(2026, 8, 14, 12, tzinfo=UTC),
+    ),
+)
+def test_owner_operated_prevalidation_rejects_outside_half_open_window_without_publication(tmp_path, now) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: now)
+    compiled = compile_valid(lifecycle, new_id("context"))
+    before = tuple(writer.events)
+
+    with pytest.raises(ArsError, match="outside its finite window"):
+        lifecycle.prevalidate_owner_operated(
+            compiled,
+            capability=compiled.capability,
+            operator_id="stephen",
+            operator_session_id="codex-desktop-session-1",
+            recipient_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+            application_version="1.0",
+            valid_from="2026-08-14T10:00:00Z",
+            expires_at="2026-08-14T12:00:00Z",
+        )
+
+    assert tuple(writer.events) == before
+
+
+def test_owner_operated_prevalidation_rechecks_window_before_validation(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
+    compiled = compile_valid(lifecycle, new_id("context"))
+    times = iter(
+        (
+            datetime(2026, 8, 14, 10, tzinfo=UTC),
+            datetime(2026, 8, 14, 12, tzinfo=UTC),
+        )
+    )
+    lifecycle.clock = lambda: next(times)
+
+    with pytest.raises(ArsError, match="outside its finite window"):
+        lifecycle.prevalidate_owner_operated(
+            compiled,
+            capability=compiled.capability,
+            operator_id="stephen",
+            operator_session_id="codex-desktop-session-1",
+            recipient_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+            application_version="1.0",
+            valid_from="2026-08-14T10:00:00Z",
+            expires_at="2026-08-14T12:00:00Z",
+        )
+
+    owner_events = [event["event_type"] for event in writer.events if event["event_type"].startswith("Owner")]
+    assert owner_events == ["OwnerOperatedContextHandoffPrepared"]
+
+
+def test_owner_operated_prevalidation_rejects_clock_with_non_utc_aware_timezone(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    malformed = datetime(2026, 8, 14, 11, tzinfo=MissingOffsetTimezone())
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
+    compiled = compile_valid(lifecycle, new_id("context"))
+    before = tuple(writer.events)
+    lifecycle.clock = lambda: malformed
+
+    with pytest.raises(ArsError, match="timezone-aware"):
+        lifecycle.prevalidate_owner_operated(
+            compiled,
+            capability=compiled.capability,
+            operator_id="stephen",
+            operator_session_id="codex-desktop-session-1",
+            recipient_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+            application_version="1.0",
+            valid_from="2026-08-14T10:00:00Z",
+            expires_at="2026-08-14T12:00:00Z",
+        )
+
+    assert tuple(writer.events) == before
+
+
+def test_context_compilation_rejects_malformed_clock_before_publication(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    malformed = datetime(2026, 8, 14, 11, tzinfo=MissingOffsetTimezone())
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="writer-1", clock=lambda: malformed)
+
+    with pytest.raises(ArsError, match="timezone-aware"):
+        compile_valid(lifecycle, new_id("context"))
+
+    assert writer.events == []
+    assert tuple((tmp_path / "objects" / "context").rglob("*.json")) == ()
+
+
+def test_context_delivery_rejects_malformed_clock_before_receipt_or_event(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="writer-1",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
+    compiled = compile_valid(lifecycle, new_id("context"))
+    before_events = deepcopy(writer.events)
+    before_objects = tuple((tmp_path / "objects" / "context").rglob("*.json"))
+    malformed = datetime(2026, 8, 14, 11, tzinfo=MissingOffsetTimezone())
+    lifecycle.clock = lambda: malformed
+
+    with pytest.raises(ArsError, match="timezone-aware"):
+        lifecycle.record_delivery(
+            compiled,
+            recipient_id="consumer-1",
+            recipient_session_id="session-1",
+            adapter_id="adapter-1",
+            delivered_sha256=compiled.packet_sha256,
+        )
+
+    assert writer.events == before_events
+    assert tuple((tmp_path / "objects" / "context").rglob("*.json")) == before_objects
+
+
+def test_context_command_adapter_rejects_malformed_clock_without_submission() -> None:
+    submissions = []
+    service = SimpleNamespace(
+        ledger=SimpleNamespace(project_id="prj_01978abc-1000-7000-8000-000000001000"),
+        _context_lifecycle_submission_key=object(),
+        submit=submissions.append,
+    )
+    malformed = datetime(2026, 8, 14, 11, tzinfo=MissingOffsetTimezone())
+    writer = CommandServiceContextWriter(
+        service,
+        actor_id="act_01978abc-1000-7000-8000-000000001000",
+        authority_grant_id="agr_01978abc-1000-7000-8000-000000001000",
+        clock=lambda: malformed,
+    )
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        writer.submit_context(
+            command_type="RequestContextPacket",
+            context_id="ctx_01978abc-1000-7000-8000-000000001000",
+            expected_stream_version=0,
+            idempotency_key="context-clock-negative",
+            payload={"context_id": "ctx_01978abc-1000-7000-8000-000000001000"},
+        )
+
+    assert submissions == []
+
+
+def test_owner_operated_replay_rejects_delivery_session_outside_prepared_profile(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
+    compiled = compile_valid(lifecycle, new_id("context"))
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id="stephen",
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    lifecycle.issue_owner_operated(validated)
+    lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+    tampered = deepcopy(writer.events)
+    tampered[-1]["payload"]["recipient_session_id"] = "different-session"
+
+    with pytest.raises(ArsError, match="operator session"):
+        rebuild_owner_operated_handoff(tampered, compiled.context_id)
+
+
+def test_owner_operated_exact_committed_retries_remain_available_after_expiry(tmp_path) -> None:
+    class IdempotentWriter(RecordingContextWriter):
+        def submit_context(self, **kwargs):
+            prior = next(
+                (event for event in self.events if event["idempotency_key"] == kwargs["idempotency_key"]),
+                None,
+            )
+            if prior is not None:
+                assert prior["payload"] == kwargs["payload"]
+                return {"status": "accepted"}
+            return super().submit_context(**kwargs)
+
+    current = [datetime(2026, 8, 14, 11, tzinfo=UTC)]
+    objects = ObjectStore(tmp_path)
+    writer = IdempotentWriter()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: current[0])
+    compiled = compile_valid(lifecycle, new_id("context"))
+    kwargs = {
+        "capability": compiled.capability,
+        "operator_id": "stephen",
+        "operator_session_id": "codex-desktop-session-1",
+        "recipient_id": "spec-brief-consumer",
+        "purpose": "methods_brief",
+        "scope": "rm-03-export",
+        "accepted_artefacts": ({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+        "application_version": "1.0",
+        "valid_from": "2026-08-14T10:00:00Z",
+        "expires_at": "2026-08-14T12:00:00Z",
+    }
+    validated = lifecycle.prevalidate_owner_operated(compiled, **kwargs)
+    lifecycle.issue_owner_operated(validated)
+    lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+    before = deepcopy(writer.events)
+    current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
+
+    assert lifecycle.prevalidate_owner_operated(compiled, **kwargs) == validated
+    assert lifecycle.issue_owner_operated(validated)["status"] == "accepted"
+    assert (
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )["status"]
+        == "accepted"
+    )
+    assert writer.events == before
+
+
+def test_owner_operated_orphan_receipt_cannot_be_promoted_after_expiry(tmp_path) -> None:
+    class InterruptBeforeDelivery(RecordingContextWriter):
+        interrupted = False
+
+        def submit_context(self, **kwargs):
+            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
+                self.interrupted = True
+                raise ConnectionError("delivery event response unavailable")
+            return super().submit_context(**kwargs)
+
+    current = [datetime(2026, 8, 14, 11, tzinfo=UTC)]
+    objects = ObjectStore(tmp_path)
+    writer = InterruptBeforeDelivery()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: current[0])
+    compiled = compile_valid(lifecycle, new_id("context"))
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id="stephen",
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    lifecycle.issue_owner_operated(validated)
+    with pytest.raises(ConnectionError, match="response unavailable"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+    receipt_paths = tuple((tmp_path / "objects" / "context").rglob("*.json"))
+    receipt_bytes = {path: path.read_bytes() for path in receipt_paths}
+    current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
+
+    with pytest.raises(ArsError, match="outside its finite window"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+
+    assert not any(event["event_type"] == "OwnerOperatedContextDelivered" for event in writer.events)
+    assert {path: path.read_bytes() for path in receipt_paths} == receipt_bytes
+
+
 def test_owner_operated_prevalidation_resumes_after_prepare_before_validate(tmp_path) -> None:
     objects = ObjectStore(tmp_path)
 
@@ -263,7 +594,12 @@ def test_owner_operated_prevalidation_resumes_after_prepare_before_validate(tmp_
             return super().submit_context(**kwargs)
 
     writer = InterruptBeforeValidation()
-    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    lifecycle = ContextLifecycleService(
+        objects,
+        writer,
+        writer_id="spec-owner",
+        clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
+    )
     compiled = compile_valid(lifecycle, new_id("context"))
     artefacts = (
         {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},

@@ -4,6 +4,8 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 
+import pytest
+
 from research_system.artefacts.authority import (
     AcceptedContractSubject,
     ArtefactAuthorityContractLoader,
@@ -12,6 +14,7 @@ from research_system.artefacts.authority import (
 from research_system.artefacts.use_resolver import ArtefactUseRequest, ArtefactUseResolver, predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
+from research_system.errors import ArsError, ConflictError
 from research_system.projection.replay import replay
 from research_system.schema_registry import runtime_schema_registry
 from tests.research_system.factories import ACTORS, PROJECT_ID, REPO_ROOT, activate_lifecycle_grant, control_plane
@@ -893,6 +896,81 @@ def test_register_review_and_use_authority_are_real_durable_commands(tmp_path):
     ]
     assert harness.objects.read("artefact", ARTEFACT_ID, 1) == artefact_manifest()
     assert harness.service.submit(deepcopy(commands[0])) == receipts[0]
+
+
+@pytest.mark.parametrize(
+    ("method_name", "command_index"),
+    (
+        ("prevalidate_register_artefact_batch", 0),
+        ("prevalidate_artefact_authority_batch", 1),
+    ),
+)
+@pytest.mark.parametrize("collision", ("command_id", "idempotency_scope"))
+def test_artefact_batch_prevalidation_rejects_duplicate_transaction_identity_without_mutation(
+    tmp_path,
+    method_name,
+    command_index,
+    collision,
+):
+    harness = control_plane(tmp_path)
+    base = accepted_artefact_commands(harness)[command_index]
+    second = deepcopy(base)
+    second["target_stream_id"] = REPLACEMENT_ARTEFACT_ID
+    if second["command_type"] == "RegisterArtefact":
+        second["payload"]["new_artefact_id"] = REPLACEMENT_ARTEFACT_ID
+        second["payload"]["manifest"]["artefact_id"] = REPLACEMENT_ARTEFACT_ID
+    else:
+        second["payload"]["artefact_id"] = REPLACEMENT_ARTEFACT_ID
+    if collision == "idempotency_scope":
+        second["command_id"] = "cmd_019fe47a-1090-7000-8000-000000001090"
+    before = tuple(
+        (path.relative_to(harness.service.control_root).as_posix(), path.read_bytes())
+        for path in sorted(harness.service.control_root.rglob("*"))
+        if path.is_file()
+    )
+
+    with pytest.raises(ArsError, match="command IDs|idempotency scopes"):
+        getattr(harness.service, method_name)([base, second])
+
+    after = tuple(
+        (path.relative_to(harness.service.control_root).as_posix(), path.read_bytes())
+        for path in sorted(harness.service.control_root.rglob("*"))
+        if path.is_file()
+    )
+    assert after == before
+
+
+def test_register_batch_prevalidation_accepts_exact_replay_but_rejects_changed_command_identity(tmp_path):
+    harness = control_plane(tmp_path)
+    register, _, _ = accepted_artefact_commands(harness)
+    harness.service.prevalidate_register_artefact_batch([register])
+    accepted = harness.service.submit(register)
+    before = harness.ledger.snapshot()
+
+    harness.service.prevalidate_register_artefact_batch([deepcopy(register)])
+    changed = deepcopy(register)
+    changed["command_id"] = "cmd_019fe47a-1091-7000-8000-000000001091"
+    with pytest.raises(ConflictError, match="idempotency key"):
+        harness.service.prevalidate_register_artefact_batch([changed])
+    with pytest.raises(ConflictError, match="idempotency key"):
+        harness.service.submit(changed)
+
+    assert harness.ledger.snapshot() == before
+    assert harness.receipts.load(str(changed["command_id"])) is None
+    assert accepted.status == "accepted"
+
+
+def test_register_batch_prevalidation_rejects_expected_version_before_publication(tmp_path):
+    harness = control_plane(tmp_path)
+    register, _, _ = accepted_artefact_commands(harness)
+    register["expected_stream_version"] = 1
+    before = harness.ledger.snapshot()
+
+    with pytest.raises(ConflictError, match="stream version"):
+        harness.service.prevalidate_register_artefact_batch([register])
+
+    assert harness.ledger.snapshot() == before
+    assert harness.receipts.load(str(register["command_id"])) is None
 
 
 def test_owner_activated_agent_grant_records_independent_scientific_review(tmp_path):

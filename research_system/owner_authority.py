@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import stat
-import subprocess  # nosec B404 - fixed-argv, read-only Git identity checks
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -33,6 +32,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError, IntegrityError, SchemaError
+from research_system.git_execution import run_git
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.ids import validate_id
 from research_system.store.ledger import EventLedger
@@ -301,6 +301,30 @@ def _require_bounded_object_revision(
             raise ConfigurationError(f"{label} revision path escapes configured root") from exc
 
 
+def _require_exact_object_revision(
+    root: Path,
+    objects: ObjectStore,
+    kind: str,
+    object_id: str,
+    revision: int,
+    *,
+    label: str,
+) -> None:
+    """Require one physically bounded immutable revision with no later redirect."""
+
+    _require_bounded_object_revision(root, kind, object_id, revision, label=label)
+    if kind == "authority_grant":
+        latest = objects.latest_revision("authority_grant", object_id)
+    elif kind == "assurance_record":
+        latest = objects.latest_revision("assurance_record", object_id)
+    elif kind == "canonical_actor":
+        latest = objects.latest_revision("canonical_actor", object_id)
+    else:
+        raise IntegrityError(f"{label} object kind is unsupported")
+    if latest != revision:
+        raise IntegrityError(f"{label} revision is not exact")
+
+
 def _lane_family(lane: str) -> str:
     if lane.startswith("owner_decider/"):
         return "owner"
@@ -369,16 +393,13 @@ def _utc_text(value: object, *, field: str) -> tuple[datetime, str]:
 
 
 def _git(repository_root: Path, *arguments: str) -> str:
-    try:
-        completed = subprocess.run(  # nosec B603 - fixed executable and caller-independent argv
-            ["git", "-C", str(repository_root), *arguments],
-            capture_output=True,
-            check=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise ConfigurationError("SPEC route Git identity is unavailable") from exc
+    completed = run_git(
+        repository_root,
+        *arguments,
+        unavailable_message="SPEC route Git identity is unavailable",
+    )
+    if completed.returncode != 0:
+        raise ConfigurationError("SPEC route Git identity is unavailable")
     return completed.stdout.strip()
 
 
@@ -485,6 +506,14 @@ def _enforce_durable_role_independence(
             label="existing scoped authority grant object",
         )
         try:
+            _require_exact_object_revision(
+                root,
+                objects,
+                "authority_grant",
+                candidate.name,
+                1,
+                label="existing scoped authority grant object",
+            )
             value = objects.read("authority_grant", candidate.name, 1)
         except ValueError:
             continue
@@ -525,11 +554,23 @@ def _known_authority_actor_classes(
     root: Path,
     objects: ObjectStore,
     *,
-    now: datetime | None = None,
+    now: datetime,
     project_id: str | None = None,
     store_identity: str | None = None,
     owner_actor_id: str | None = None,
+    authority_projection: Mapping[str, Any] | None = None,
 ) -> dict[str, frozenset[str]]:
+    if now.tzinfo != UTC:
+        raise ConfigurationError("authority actor census clock must be UTC")
+    projected_grants: Mapping[str, Any] | None = None
+    projected_actors: Mapping[str, Any] | None = None
+    if authority_projection is not None:
+        grant_value = authority_projection.get("authority_grants")
+        actor_value = authority_projection.get("authority_actors", {})
+        if not isinstance(grant_value, Mapping) or not isinstance(actor_value, Mapping):
+            raise IntegrityError("authority actor census projection is invalid")
+        projected_grants = grant_value
+        projected_actors = actor_value
     actors: dict[str, set[str]] = {}
     governed_actor_ids: set[str] = set()
     current_registered_actors: dict[str, set[str]] = {}
@@ -541,22 +582,41 @@ def _known_authority_actor_classes(
             label="configured authority grant object",
         )
         try:
+            _require_exact_object_revision(
+                root,
+                objects,
+                "authority_grant",
+                candidate.name,
+                1,
+                label="configured authority grant object",
+            )
             value = objects.read("authority_grant", candidate.name, 1)
             if is_scoped_authority_grant_schema(value.get("schema_id"), value.get("schema_version")):
                 grant = _parse_supported_scoped_grant(value)
-                actors.setdefault(grant.actor_id, set()).update(grant.allowed_actor_classes)
+                classes = grant.allowed_actor_classes
             else:
                 grant = AuthorityGrant.from_dict(value)
-                actors.setdefault(grant.actor_id, set()).add("human")
+                classes = ("human",)
         except (TypeError, ValueError) as exc:
             raise IntegrityError("configured authority actor evidence is invalid") from exc
+        if project_id is not None and grant.subject_scope.project_id != project_id:
+            continue
+        if projected_grants is not None:
+            projected = projected_grants.get(grant.authority_grant_id)
+            if (
+                not isinstance(projected, Mapping)
+                or projected.get("authority_grant_id") != grant.authority_grant_id
+                or projected.get("authority_grant_sha256") != grant.canonical_sha256
+            ):
+                continue
+        actors.setdefault(grant.actor_id, set()).update(classes)
     # Governed Codex Desktop registrations are immutable evidence in the
     # assurance-record object family.  They supplement (and never replace)
     # the historical grant-derived actor classes above.
     from research_system.authority_actor import ACTOR_SCHEMA_ID, REGISTRATION_SCHEMA_ID
 
     registration_root = _physical_directory(root / "objects/assurance_record", label="actor registration objects")
-    effective_now = now or datetime.now(UTC)
+    effective_now = now
     for candidate in registration_root.iterdir():
         _require_bounded_target(
             root,
@@ -567,26 +627,17 @@ def _known_authority_actor_classes(
             validate_id(candidate.name, "assurance_record")
         except ValueError:
             raise IntegrityError("configured actor registration identity is invalid")
-        # Assurance records also contain owner-publication objects.  Peek at
-        # the raw JSON marker first so unrelated records (including an object
-        # left in a recovery state) remain available to their existing
-        # recovery validator instead of being parsed as actor registrations.
-        registration_marker = None
         try:
-            revision_paths = sorted(candidate.glob("*.json"))
+            children = tuple(candidate.iterdir())
         except OSError as exc:
             raise IntegrityError("configured actor registration evidence is unavailable") from exc
-        for revision_path in revision_paths:
-            try:
-                raw = revision_path.read_bytes()
-                parsed = json.loads(raw)
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-                continue
-            if isinstance(parsed, dict) and parsed.get("schema_id") == REGISTRATION_SCHEMA_ID:
-                registration_marker = revision_path
-                break
-        if registration_marker is None:
+        if not children:
+            # A transaction recovery may roll back its only immutable revision
+            # while retaining the safe identity directory for exact retry.
             continue
+        # Assurance records also contain owner-publication objects.  Safely
+        # inspect only immutable revision 1 before deciding whether this is a
+        # registration; never follow a later revision merely to classify it.
         _require_bounded_object_revision(
             root,
             "assurance_record",
@@ -594,12 +645,17 @@ def _known_authority_actor_classes(
             1,
             label="actor registration object",
         )
-        revision = objects.latest_revision("assurance_record", candidate.name)
-        if revision is None:
-            continue
-        value = objects.read("assurance_record", candidate.name, revision)
+        value = objects.read("assurance_record", candidate.name, 1)
         if not isinstance(value, dict) or value.get("schema_id") != REGISTRATION_SCHEMA_ID:
             continue
+        _require_exact_object_revision(
+            root,
+            objects,
+            "assurance_record",
+            candidate.name,
+            1,
+            label="actor registration object",
+        )
         required = {
             "schema_id",
             "schema_version",
@@ -643,10 +699,17 @@ def _known_authority_actor_classes(
             Path("objects/canonical_actor") / str(actor_id),
             label="canonical actor object",
         )
-        actor_revision = objects.latest_revision("canonical_actor", str(actor_id))
-        if actor_revision is None:
-            raise IntegrityError("configured actor registration actor object is missing")
-        actor = objects.read("canonical_actor", str(actor_id), actor_revision)
+        _require_exact_object_revision(
+            root,
+            objects,
+            "canonical_actor",
+            str(actor_id),
+            1,
+            label="configured actor registration actor object",
+        )
+        actor = objects.read("canonical_actor", str(actor_id), 1)
+        actor_sha256 = sha256_hex(canonical_bytes(actor))
+        registration_sha256 = sha256_hex(canonical_bytes(value))
         if (
             not isinstance(actor, dict)
             or actor.get("schema_id") != ACTOR_SCHEMA_ID
@@ -656,10 +719,49 @@ def _known_authority_actor_classes(
             or (project_id is not None and actor.get("project_id") != project_id)
             or (store_identity is not None and actor.get("store_identity") != store_identity)
             or (owner_actor_id is not None and actor.get("owner_actor_id") != owner_actor_id)
-            or sha256_hex(canonical_bytes(actor)) != value.get("actor_sha256")
+            or actor_sha256 != value.get("actor_sha256")
             or semantic != {key: actor.get(key) for key in semantic}
         ):
             raise IntegrityError("configured actor registration actor evidence is invalid")
+        marker_path = (
+            root
+            / "runtime"
+            / f".authority-actor-registration-{sha256_hex(str(value['idempotency_key']).encode('utf-8'))}.json"
+        )
+        marker_exists = False
+        try:
+            marker_metadata = marker_path.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise ConfigurationError("actor registration recovery marker is unavailable") from exc
+        else:
+            reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            if stat.S_ISLNK(marker_metadata.st_mode) or getattr(marker_metadata, "st_file_attributes", 0) & reparse:
+                raise ConfigurationError("actor registration recovery marker has a reparse component")
+            if not stat.S_ISREG(marker_metadata.st_mode):
+                raise ConfigurationError("actor registration recovery marker is not a regular file")
+            marker_exists = True
+        if marker_exists:
+            continue
+        if projected_actors is None:
+            continue
+        projected_actor = projected_actors.get(str(actor_id))
+        if (
+            not isinstance(projected_actor, Mapping)
+            or projected_actor.get("project_id") != value.get("project_id")
+            or projected_actor.get("store_identity") != value.get("store_identity")
+            or projected_actor.get("owner_actor_id") != value.get("owner_actor_id")
+            or projected_actor.get("actor_id") != actor_id
+            or projected_actor.get("actor_sha256") != actor_sha256
+            or projected_actor.get("actor_object_path")
+            != f"objects/canonical_actor/{actor_id}/00000001-{actor_sha256}.json"
+            or projected_actor.get("registration_id") != candidate.name
+            or projected_actor.get("registration_sha256") != registration_sha256
+            or projected_actor.get("registration_object_path")
+            != f"objects/assurance_record/{candidate.name}/00000001-{registration_sha256}.json"
+        ):
+            continue
         actor_class = semantic.get("actor_class")
         if actor_class not in {"agent", "service"}:
             raise IntegrityError("configured actor registration class is invalid")
@@ -677,7 +779,12 @@ def _known_authority_actor_classes(
     return {actor_id: frozenset(classes) for actor_id, classes in actors.items()}
 
 
-def _registered_actor_lane_is_compatible(objects: ObjectStore, actor_id: str, authority_lane: str) -> bool:
+def _registered_actor_lane_is_compatible(
+    root: Path,
+    objects: ObjectStore,
+    actor_id: str,
+    authority_lane: str,
+) -> bool:
     """Keep governed session roles from crossing operator/reviewer/producer boundaries."""
 
     from research_system.authority_actor import ACTOR_SCHEMA_ID
@@ -685,7 +792,15 @@ def _registered_actor_lane_is_compatible(objects: ObjectStore, actor_id: str, au
     revision = objects.latest_revision("canonical_actor", actor_id)
     if revision is None:
         return True  # Historical grant-derived actors remain governed by their active grants.
-    actor = objects.read("canonical_actor", actor_id, revision)
+    _require_exact_object_revision(
+        root,
+        objects,
+        "canonical_actor",
+        actor_id,
+        1,
+        label="registered authority actor object",
+    )
+    actor = objects.read("canonical_actor", actor_id, 1)
     if not isinstance(actor, Mapping) or actor.get("schema_id") != ACTOR_SCHEMA_ID:
         return True
     role = actor.get("actor_role")
@@ -854,10 +969,12 @@ class OwnerAuthoritySetup:
             project_id=str(context.project_id),
             store_identity=str(context.store_identity),
             owner_actor_id=str(context.owner_actor_id),
+            authority_projection=self.resolver._projection(),
         )
         if actor_class not in known.get(str(request.get("target_actor_id")), ()):
             raise ArsError("authority intent target actor is not a real configured authority actor")
         if not _registered_actor_lane_is_compatible(
+            self.root,
             self.objects,
             str(request.get("target_actor_id")),
             lane,

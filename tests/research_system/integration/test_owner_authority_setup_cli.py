@@ -594,7 +594,9 @@ def test_ordinary_receipt_failure_recovers_committed_publication(inputs, monkeyp
         len(tuple((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))) == 1
     )
 
-    recovered = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW).publish(inputs.intent_value)
+    restarted = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    assert not tuple((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
+    recovered = restarted.publish(inputs.intent_value)
     assert recovered["status"] == "accepted"
     assert recovered["event_batch_id"] == publications[0]["transaction_id"]
     assert not tuple((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
@@ -658,13 +660,16 @@ def test_object_only_hard_stop_reconciles_on_fresh_setup_and_retry(inputs, monke
         inputs.harness.authority_objects.read("assurance_record", marker["target_stream_id"], 1) == marker["decision"]
     )
 
+    fresh = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    assert not inputs.harness.authority_objects.revision_exists("assurance_record", marker["target_stream_id"], 1)
+    assert marker_paths[0].exists()
     before_alternate_retry = _tree(inputs.harness.authority_root)
     alternate_retry = {**inputs.intent_value, "retry_key": "owner-intent-2"}
     with pytest.raises(ConflictError, match="different recovery command"):
-        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW).publish(alternate_retry)
+        fresh.publish(alternate_retry)
     assert _tree(inputs.harness.authority_root) == before_alternate_retry
 
-    recovered = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW).publish(inputs.intent_value)
+    recovered = fresh.publish(inputs.intent_value)
     assert recovered["status"] == "accepted"
     publications = [
         event
@@ -715,11 +720,67 @@ def test_object_only_restart_tampering_fails_closed(inputs, monkeypatch, tamper)
         changed = deepcopy(marker["decision"])
         changed["state"] = "tampered"
         object_path.write_bytes(canonical_bytes(changed))
-    fresh = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     before = _tree(inputs.harness.authority_root)
     with pytest.raises((ArsError, ConfigurationError), match="owner publication recovery"):
-        fresh.publish(inputs.intent_value)
+        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     assert _tree(inputs.harness.authority_root) == before
+
+
+@pytest.mark.integration
+def test_object_only_restart_rejects_competing_publication_without_mutation(inputs, monkeypatch):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    def stop_after_object(*_args, **_kwargs):
+        raise KeyboardInterrupt("injected hard stop before event")
+
+    monkeypatch.setattr(setup.service.ledger, "_append_scoped_authority_from_validated_submit", stop_after_object)
+    with pytest.raises(KeyboardInterrupt):
+        setup.publish(inputs.intent_value)
+    marker_path = next((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
+    marker_bytes = marker_path.read_bytes()
+    marker_path.unlink()
+
+    alternate_retry = {**inputs.intent_value, "retry_key": "owner-intent-2"}
+    assert (
+        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW).publish(alternate_retry)["status"]
+        == "accepted"
+    )
+    marker_path.write_bytes(marker_bytes)
+    before = _tree(inputs.harness.authority_root)
+
+    with pytest.raises(IntegrityError, match="owner publication recovery event conflicts"):
+        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    assert _tree(inputs.harness.authority_root) == before
+
+
+@pytest.mark.integration
+def test_object_only_restart_rejects_ambiguous_markers_before_rollback(inputs, monkeypatch):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    def stop_after_object(*_args, **_kwargs):
+        raise KeyboardInterrupt("injected hard stop before event")
+
+    monkeypatch.setattr(setup.service.ledger, "_append_scoped_authority_from_validated_submit", stop_after_object)
+    with pytest.raises(KeyboardInterrupt):
+        setup.publish(inputs.intent_value)
+    marker_path = next((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
+    competing = json.loads(marker_path.read_bytes())
+    competing_id = "cmd_01978abc-3998-7000-8000-000000003998"
+    competing["command_id"] = competing_id
+    competing["command_identity"]["command_id"] = competing_id
+    competing_path = marker_path.with_name(f"{competing_id}.json")
+    competing_path.write_bytes(canonical_bytes(competing))
+    before = _tree(inputs.harness.authority_root)
+
+    with pytest.raises(IntegrityError, match="owner publication recovery target is ambiguous"):
+        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    assert _tree(inputs.harness.authority_root) == before
+    marker = json.loads(marker_path.read_bytes())
+    assert (
+        inputs.harness.authority_objects.read("assurance_record", marker["target_stream_id"], 1) == marker["decision"]
+    )
 
 
 @pytest.mark.integration

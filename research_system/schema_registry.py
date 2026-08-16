@@ -1269,6 +1269,14 @@ _RUNTIME_BINDINGS = (
         event_type="StoreBindingAdvanced",
         producer_command_type="AdvanceStoreBinding",
     ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair",
+        "1.0.0",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingAdvance",
+        "1.0.0",
+    ),
     SchemaBinding("ars://core/command/FailContextPacket", "1.0.0", command_type="FailContextPacket"),
     SchemaBinding(
         "ars://core/event/ContextPacketFailed",

@@ -1337,6 +1337,8 @@ def _verify_complete_store(
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
 ) -> str:
+    from research_system.discovery.runtime import build_spec_execution_authority_validator
+
     from research_system.projection.replay import replay
 
     try:
@@ -1390,6 +1392,12 @@ def _verify_complete_store(
         events,
         schema_registry=schemas,
         authority_state_validator=resolver.validate_replayed_administration_state,
+        spec_execution_authority_validator=build_spec_execution_authority_validator(
+            control_root=store_root,
+            schemas=schemas,
+            authority_resolver=resolver,
+            events=events,
+        ),
     )
     _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
@@ -1876,6 +1884,7 @@ class LedgerAuthorityGrantResolver:
         self.schema_registry = schema_registry
 
     def _projection(self) -> dict[str, Any]:
+        from research_system.discovery.runtime import build_spec_execution_authority_validator
         from research_system.projection.replay import replay
         from research_system.store.identity import load_store_manifest, verify_store_identity
         from research_system.store.ledger import EventLedger
@@ -1928,6 +1937,12 @@ class LedgerAuthorityGrantResolver:
             events,
             schema_registry=self.schema_registry,
             authority_state_validator=self.validate_replayed_administration_state,
+            spec_execution_authority_validator=build_spec_execution_authority_validator(
+                control_root=self.control_root,
+                schemas=self.schema_registry,
+                authority_resolver=self,
+                events=events,
+            ),
         )
         if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
             raise IntegrityError("authority bootstrap ledger binding mismatch")

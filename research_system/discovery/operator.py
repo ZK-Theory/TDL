@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import stat
-import subprocess
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,10 +21,10 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command, Receipt
 from research_system.config import ControlBinding
 from research_system.discovery.accepted_w11 import ACCEPTED, CATALOGUE_STREAM_ID
-from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.rules import _git_blob
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.git_execution import run_git, scrubbed_git_environment
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger
@@ -142,36 +141,18 @@ class DiscoveryOperatorConfig:
 def _scrubbed_git_environment() -> dict[str, str]:
     """Return an environment that cannot redirect fixed Git repository queries."""
 
-    environment = dict(os.environ)
-    for variable in (
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    ):
-        environment.pop(variable, None)
-    # Git honours this as a read-only hint: configuration admission must not
-    # refresh an index or create a lock while deciding whether to reject it.
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
-    return environment
+    return scrubbed_git_environment()
 
 
-def _git_result(repository_root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def _git_result(repository_root: Path, *arguments: str):
     """Run one fixed Git validation command; this never reaches a provider process."""
 
-    try:
-        return subprocess.run(  # nosec B603 B607 - fixed Git executable and argument vectors
-            ["git", "-C", str(repository_root), *arguments],
-            capture_output=True,
-            check=False,
-            env=_scrubbed_git_environment(),
-            text=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise _configuration_error("repository_root Git validation is unavailable", exc)
+    return run_git(
+        repository_root,
+        *arguments,
+        timeout=_GIT_TIMEOUT_SECONDS,
+        unavailable_message="repository_root Git validation is unavailable",
+    )
 
 
 def _git_output(repository_root: Path, *arguments: str) -> str:
@@ -337,11 +318,17 @@ class DiscoveryOperator:
         """Return deterministic Discovery replay/readback without invoking a writer."""
 
         events = tuple(self.ledger.iter_events())
-        projection = replay_discovery(
-            events,
-            schemas=self.schemas,
-            authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
-        )
+        projection = DiscoveryRuntime(
+            self.control_root,
+            self.ledger,
+            self.schemas,
+            catalogue_path=self.catalogue_path,
+            authority_resolver=self.authority_resolver,
+            clock=self.clock,
+            repository_root=self.repository_root,
+            root_tokens=self.root_tokens,
+            operational_ledger=self.ledger,
+        ).replay(events)
         catalogue = projection["catalogue"]
         catalogue_readback: dict[str, object] | None
         if catalogue is None:

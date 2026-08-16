@@ -1062,6 +1062,7 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             snapshot.events,
             schema_registry=service.schemas,
             authority_state_validator=service._authority_state_validator(),
+            spec_execution_authority_validator=service._spec_execution_authority_validator(snapshot.events),
         )
         batches: dict[str, list[dict[str, Any]]] = {}
         for event in snapshot.events:

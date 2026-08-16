@@ -28,6 +28,7 @@ from research_system.store.objects import ObjectStore
 
 
 COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor"
+INTENT_SCHEMA_ID = "ars://wp6-6/gate6/authority/intent/RegisterAuthorityActor"
 EVENT_SCHEMA_ID = "ars://wp6-6/gate6/authority/event/AuthorityActorRegistered"
 ACTOR_SCHEMA_ID = "ars://wp6-6/gate6/authority/object/CanonicalAuthorityActor"
 REGISTRATION_SCHEMA_ID = "ars://wp6-6/gate6/authority/object/AuthorityActorRegistration"
@@ -56,6 +57,25 @@ def _deterministic_id(kind: str, prefix: str, value: object) -> str:
     digest[6] = (digest[6] & 0x0F) | 0x70
     digest[8] = (digest[8] & 0x3F) | 0x80
     return f"{prefix}_{uuid.UUID(bytes=bytes(digest))}"
+
+
+def authority_actor_idempotency_key(retry_key: str) -> str:
+    """Map the public retry identity to the durable idempotency identity."""
+    if not isinstance(retry_key, str) or not retry_key.strip():
+        raise ConfigurationError("RegisterAuthorityActor retry_key must be non-empty")
+    return retry_key
+
+
+def authority_actor_command_id(owner_actor_id: str, retry_key: str) -> str:
+    """Derive the durable command identity from owner and retry identities."""
+    return _deterministic_id(
+        "authority-actor-command",
+        "cmd",
+        {
+            "owner_actor_id": validate_id(owner_actor_id, "actor"),
+            "retry_key": authority_actor_idempotency_key(retry_key),
+        },
+    )
 
 
 def _utc_text(value: object, field: str) -> tuple[datetime, str]:
@@ -107,6 +127,8 @@ class RegisterAuthorityActor:
     reason: str
     owner_action: str
     retry_key: str
+    input_schema_id: str = INTENT_SCHEMA_ID
+    input_schema_version: str = "1.0.0"
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "RegisterAuthorityActor":
@@ -131,8 +153,9 @@ class RegisterAuthorityActor:
         }
         if set(value) != expected:
             raise ConfigurationError("RegisterAuthorityActor intent fields are not exact")
+        input_schema_id = value.get("schema_id")
         if (
-            value.get("schema_id") != COMMAND_SCHEMA_ID
+            input_schema_id not in {INTENT_SCHEMA_ID, COMMAND_SCHEMA_ID}
             or value.get("schema_version") != "1.0.0"
             or value.get("command_type") != "RegisterAuthorityActor"
         ):
@@ -179,7 +202,18 @@ class RegisterAuthorityActor:
             reason=str(value["reason"]),
             owner_action=str(value["owner_action"]),
             retry_key=str(value["retry_key"]),
+            input_schema_id=str(input_schema_id),
         )
+
+    def input_mapping(self) -> dict[str, Any]:
+        """Return the exact flat document governed by the input schema."""
+        return {
+            "schema_id": self.input_schema_id,
+            "schema_version": self.input_schema_version,
+            "command_type": "RegisterAuthorityActor",
+            "retry_key": self.retry_key,
+            **self.semantic_payload(),
+        }
 
     def semantic_payload(self) -> dict[str, Any]:
         return {
@@ -207,7 +241,18 @@ def read_actor_registration_intent(path: Path) -> RegisterAuthorityActor:
         raise ConfigurationError("invalid RegisterAuthorityActor intent") from exc
     if not isinstance(value, dict) or raw != canonical_bytes(value):
         raise ConfigurationError("RegisterAuthorityActor intent must be canonical JSON")
-    return RegisterAuthorityActor.from_mapping(value)
+    intent = RegisterAuthorityActor.from_mapping(value)
+    if intent.input_schema_id == INTENT_SCHEMA_ID:
+        # The CLI's flat semantic input is a distinct public contract.  The
+        # durable command envelope remains validated separately at publication.
+        from research_system.schema_registry import bundled_schema_registry
+
+        bundled_schema_registry().validate(
+            INTENT_SCHEMA_ID,
+            value,
+            schema_version=intent.input_schema_version,
+        )
+    return intent
 
 
 class AuthorityActorRegistrationService:
@@ -301,8 +346,17 @@ class AuthorityActorRegistrationService:
         expires, expires_text = _utc_text(intent.expires_at, "expires_at")
         marker_path = self.root / "runtime" / f"{_MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
         marker_started = marker_path.exists()
-        if effective >= expires or (not marker_started and (now < effective or now >= expires)):
+        if effective >= expires:
             raise ConfigurationError("actor registration window is not current and finite")
+        window_is_current = effective <= now < expires
+        if intent.input_schema_id == INTENT_SCHEMA_ID:
+            self.schemas.validate(
+                INTENT_SCHEMA_ID,
+                intent.input_mapping(),
+                schema_version=intent.input_schema_version,
+            )
+        elif intent.input_schema_id != COMMAND_SCHEMA_ID or intent.input_schema_version != "1.0.0":
+            raise ConfigurationError("RegisterAuthorityActor intent schema is unsupported")
         self._validate_lane(intent)
         context = self.resolver.administration_context()
         owner_actor_id = context.owner_actor_id
@@ -326,9 +380,8 @@ class AuthorityActorRegistrationService:
         registration_id = _deterministic_id(
             "authority-actor-registration", "arec", {"owner_actor_id": owner_actor_id, "semantic": semantic}
         )
-        command_id = _deterministic_id(
-            "authority-actor-command", "cmd", {"owner_actor_id": owner_actor_id, "retry_key": intent.retry_key}
-        )
+        idempotency_key = authority_actor_idempotency_key(intent.retry_key)
+        command_id = authority_actor_command_id(owner_actor_id, intent.retry_key)
         ledger = EventLedger(self.root, self.project_id, self.schemas, store_identity=self.store_identity)
         actor_existing = None
         _require_physical_target(self.root, Path("objects/canonical_actor") / actor_id, label="canonical actor")
@@ -394,6 +447,12 @@ class AuthorityActorRegistrationService:
             "registration_object_path": registration_path,
         }
         existing_event = self._existing_event(ledger, intent, payload_hash, expected_event_payload)
+        if not marker_started and existing_event is None and not window_is_current:
+            raise ConfigurationError("actor registration window is not current and finite")
+        if intent.input_schema_id == COMMAND_SCHEMA_ID and existing_event is None:
+            raise ConflictError(
+                "legacy RegisterAuthorityActor intent identity is permitted only for an exact committed retry"
+            )
         # A matching recovery marker means this invocation is completing an
         # interrupted publication and may legitimately find the actor object
         # already durable.
@@ -450,7 +509,7 @@ class AuthorityActorRegistrationService:
                         "schema_version": "1.0.0",
                         "command_id": command_id,
                         "command_type": "RegisterAuthorityActor",
-                        "idempotency_key": intent.retry_key,
+                        "idempotency_key": idempotency_key,
                         "command_payload_hash": payload_hash,
                         "correlation_id": intent.retry_key,
                         "causation_id": None,

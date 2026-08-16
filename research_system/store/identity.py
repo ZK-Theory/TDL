@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.ids import validate_id
+from research_system.schema_registry import runtime_schema_registry
 from research_system.store.layout import (
     require_existing_control_root,
     require_external_control_root,
@@ -2845,6 +2846,15 @@ def _validate_binding_repair_successor(
         receipt = json.loads(receipt_raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise IntegrityError("binding repair successor receipt is unavailable") from exc
+    receipt_schema_id = (
+        "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingAdvance"
+        if advanced
+        else "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+    )
+    try:
+        runtime_schema_registry(schema).validate(receipt_schema_id, receipt)
+    except SchemaError as exc:
+        raise IntegrityError("binding repair successor receipt is invalid") from exc
     outcome = receipt.get("outcome") if isinstance(receipt, dict) else None
     event_batch_id = outcome.get("event_batch_id") if isinstance(outcome, dict) else None
     if not isinstance(event_batch_id, str):

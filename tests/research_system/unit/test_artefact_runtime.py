@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -26,6 +26,7 @@ from tests.research_system.factories import (
 
 
 REFERENCE_ID = "arec_019fe47a-1007-7000-8000-000000001007"
+SECOND_REFERENCE_ID = "arec_019fe47a-1007-7000-8000-000000001008"
 REVIEW_ID = "rev_019fe47a-1005-7000-8000-000000001005"
 
 
@@ -44,8 +45,12 @@ def _record() -> dict[str, object]:
     }
 
 
-def test_governing_review_store_is_write_once_and_project_bound(tmp_path):
-    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+@pytest.fixture(scope="module")
+def schemas() -> SchemaRegistry:
+    return SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+
+
+def test_governing_review_store_is_write_once_and_project_bound(tmp_path, schemas):
     store = GoverningScientificReviewStore(ObjectStore(tmp_path), schemas)
 
     first = store.publish(REFERENCE_ID, _record())
@@ -62,6 +67,153 @@ def test_governing_review_store_is_write_once_and_project_bound(tmp_path):
             REFERENCE_ID,
             project_id="prj_01978abc-1000-7000-8000-000000001001",
             evaluation_time=datetime(2026, 8, 9, tzinfo=UTC),
+        )
+
+
+@pytest.mark.parametrize(
+    "publications, message",
+    [
+        ({}, "must be a list"),
+        ([None], "must be a mapping"),
+        ([{"reference_id": REFERENCE_ID}], "fields are invalid"),
+        ([{"reference_id": REFERENCE_ID, "record": []}], "identities are invalid"),
+        ([{"reference_id": None, "record": _record()}], "reference identity is invalid"),
+    ],
+)
+def test_governing_review_batch_rejects_malformed_container_and_members_as_ars_error(
+    tmp_path,
+    schemas,
+    publications,
+    message,
+):
+    store = GoverningScientificReviewStore(ObjectStore(tmp_path), schemas)
+
+    with pytest.raises(ArsError, match=message):
+        store.prevalidate_publications(publications)
+
+
+def test_governing_review_direct_publication_rejects_malformed_identity_and_record_as_ars_error(
+    tmp_path,
+    schemas,
+):
+    store = GoverningScientificReviewStore(ObjectStore(tmp_path), schemas)
+
+    with pytest.raises(ArsError, match="reference identity is invalid"):
+        store.publish(None, _record())
+    with pytest.raises(ArsError, match="record must be a mapping"):
+        store.publish(REFERENCE_ID, [])
+
+
+def test_governing_review_batch_rejects_duplicates_and_wrong_project_before_publication(tmp_path, schemas):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+    publication = {"reference_id": REFERENCE_ID, "record": _record()}
+    now = datetime(2026, 8, 9, tzinfo=UTC)
+
+    with pytest.raises(ArsError, match="identities are invalid"):
+        store.publish_batch(
+            [publication, publication],
+            project_id=PROJECT_ID,
+            evaluation_time=now,
+        )
+    assert not objects.revision_exists("assurance_record", REFERENCE_ID, 1)
+
+    with pytest.raises(ArsError, match="different project"):
+        store.publish_batch(
+            [publication],
+            project_id="prj_01978abc-1000-7000-8000-000000001001",
+            evaluation_time=now,
+        )
+    assert not objects.revision_exists("assurance_record", REFERENCE_ID, 1)
+
+
+def test_governing_review_batch_is_exactly_idempotent_and_changed_retry_conflicts(tmp_path, schemas):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+    publication = {"reference_id": REFERENCE_ID, "record": _record()}
+    now = datetime(2026, 8, 9, tzinfo=UTC)
+
+    first = store.publish_batch([publication], project_id=PROJECT_ID, evaluation_time=now)
+    retry = store.publish_batch([publication], project_id=PROJECT_ID, evaluation_time=now)
+
+    assert retry == first
+    changed = _record()
+    changed["subject_sha256"] = "2" * 64
+    with pytest.raises(ArsError, match="identity conflicts"):
+        store.publish_batch(
+            [{"reference_id": REFERENCE_ID, "record": changed}],
+            project_id=PROJECT_ID,
+            evaluation_time=now,
+        )
+    assert objects.read("assurance_record", REFERENCE_ID, 1) == _record()
+
+
+def test_governing_review_batch_rolls_back_only_new_members_on_synchronous_failure(tmp_path, schemas, monkeypatch):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+    second = {**_record(), "review_id": "rev_019fe47a-1005-7000-8000-000000001006"}
+    original_write = objects.write
+
+    def fail_second(kind, object_id, revision, value):
+        if object_id == SECOND_REFERENCE_ID:
+            raise OSError("injected second-member failure")
+        return original_write(kind, object_id, revision, value)
+
+    monkeypatch.setattr(objects, "write", fail_second)
+    with pytest.raises(OSError, match="second-member"):
+        store.publish_batch(
+            [
+                {"reference_id": REFERENCE_ID, "record": _record()},
+                {"reference_id": SECOND_REFERENCE_ID, "record": second},
+            ],
+            project_id=PROJECT_ID,
+            evaluation_time=datetime(2026, 8, 9, tzinfo=UTC),
+        )
+
+    assert not objects.revision_exists("assurance_record", REFERENCE_ID, 1)
+    assert not objects.revision_exists("assurance_record", SECOND_REFERENCE_ID, 1)
+
+
+def test_governing_review_batch_never_rolls_back_a_preexisting_exact_retry(tmp_path, schemas, monkeypatch):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+    existing = _record()
+    second = {**existing, "review_id": "rev_019fe47a-1005-7000-8000-000000001006"}
+    store.publish(REFERENCE_ID, existing)
+    original_write = objects.write
+
+    def fail_second(kind, object_id, revision, value):
+        if object_id == SECOND_REFERENCE_ID:
+            raise OSError("injected second-member failure")
+        return original_write(kind, object_id, revision, value)
+
+    monkeypatch.setattr(objects, "write", fail_second)
+    with pytest.raises(OSError, match="second-member"):
+        store.publish_batch(
+            [
+                {"reference_id": REFERENCE_ID, "record": existing},
+                {"reference_id": SECOND_REFERENCE_ID, "record": second},
+            ],
+            project_id=PROJECT_ID,
+            evaluation_time=datetime(2026, 8, 9, tzinfo=UTC),
+        )
+
+    assert objects.read("assurance_record", REFERENCE_ID, 1) == existing
+    assert not objects.revision_exists("assurance_record", SECOND_REFERENCE_ID, 1)
+
+
+@pytest.mark.parametrize(
+    "evaluation_time",
+    [None, datetime(2026, 8, 9), datetime(2026, 8, 9, tzinfo=timezone(timedelta(hours=1)))],
+)
+def test_governing_review_batch_rejects_invalid_evaluation_time(tmp_path, schemas, evaluation_time):
+    store = GoverningScientificReviewStore(ObjectStore(tmp_path), schemas)
+
+    with pytest.raises(ArsError, match="evaluation time must be UTC"):
+        store.publish_batch(
+            [{"reference_id": REFERENCE_ID, "record": _record()}],
+            project_id=PROJECT_ID,
+            evaluation_time=evaluation_time,
         )
 
 

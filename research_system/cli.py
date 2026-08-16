@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess  # nosec B404 - fixed git discovery command
 import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -41,6 +40,7 @@ from research_system.config import (
     load_foundation_origin_pins,
 )
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.git_execution import run_git
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
 from research_system.evals.harness import (
@@ -64,6 +64,7 @@ from research_system.ids import new_id
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.sources import FileSourceResolver
 from research_system.discovery.operator import load_discovery_operator, read_discovery_command
+from research_system.discovery.runtime import build_spec_execution_authority_validator
 from research_system.discovery.spec_flow import SpecFlow
 from research_system.owner_authority import load_owner_authority_setup, read_owner_authority_input
 from research_system.authority_actor import read_actor_registration_intent
@@ -118,20 +119,63 @@ def _authority_clock() -> datetime:
     return datetime.now(UTC)
 
 
+def _spec_replay_validator(
+    control_root: Path,
+    schemas: SchemaRegistry,
+    resolver: LedgerAuthorityGrantResolver,
+    events: tuple[dict[str, Any], ...],
+) -> Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]:
+    """Bind one production replay to its exact immutable SPEC documents."""
+
+    return build_spec_execution_authority_validator(
+        control_root=control_root,
+        schemas=schemas,
+        authority_resolver=resolver,
+        events=events,
+        clock=_authority_clock,
+    )
+
+
+def _authority_resolver_from_config(
+    authority_config: Path,
+    *,
+    project_id: str,
+    schemas: SchemaRegistry,
+    expected_schema_root: Path,
+) -> LedgerAuthorityGrantResolver:
+    """Load an exact separately governed authority store for replay."""
+
+    try:
+        binding = ControlBinding.load(authority_config)
+    except ConfigurationError:
+        binding = ControlBinding.load_repaired(authority_config)
+    if binding.project_id != project_id:
+        raise ConfigurationError("authority binding project differs from the replayed control store")
+    if binding.schema_root.resolve(strict=True) != expected_schema_root.resolve(strict=True):
+        raise ConfigurationError("authority binding schema root differs from the replayed control store")
+    return LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+
+
 def _registered_code_roots(roots: list[Path]) -> list[Path]:
     registered: set[Path] = set()
     for root in roots:
         resolved = root.resolve(strict=True)
-        try:
-            result = subprocess.run(  # nosec B603 B607 - fixed git argv
-                ["git", "-C", str(resolved), "worktree", "list", "--porcelain"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise ConfigurationError(f"git worktree enumeration timed out for {resolved}") from exc
+        result = run_git(
+            resolved,
+            "worktree",
+            "list",
+            "--porcelain",
+            text=True,
+            timeout=10,
+            unavailable_message=f"git worktree enumeration is unavailable for {resolved}",
+        )
         if result.returncode != 0:
             detail = result.stderr.strip() or "unknown git error"
             raise ConfigurationError(f"cannot enumerate git worktrees for {resolved}: {detail}")
@@ -355,6 +399,24 @@ def _store_backup(args: argparse.Namespace) -> int:
     destination_root = destination_root.resolve(strict=False)
     stage_root = destination_root.parent / f".{destination_root.name}.{request['command_id']}.stage"
     schemas = runtime_schema_registry(binding.schema_root)
+    authority_config = getattr(args, "authority_config", None)
+    authority = (
+        LedgerAuthorityGrantResolver(
+            source_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
+        if authority_config is None
+        else _authority_resolver_from_config(
+            authority_config,
+            project_id=binding.project_id,
+            schemas=schemas,
+            expected_schema_root=binding.schema_root,
+        )
+    )
     registry = load_evidence_store_registry(args.registry, schemas)
     materializer = BackupMaterializer(
         command_id=request["command_id"],
@@ -370,6 +432,7 @@ def _store_backup(args: argparse.Namespace) -> int:
         verification_authority_grant_id=request["verification_authority_grant_id"],
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
+        authority_resolver=authority,
     )
     ledger = EventLedger(source_root, binding.project_id, schemas)
     snapshot = ledger.snapshot()
@@ -417,16 +480,12 @@ def _store_backup(args: argparse.Namespace) -> int:
         ObjectStore(source_root),
         ReceiptStore(source_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
-            source_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        ),
+        authority_resolver=authority,
         clock=_authority_clock,
         backup_materializer=materializer,
+        spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+            source_root, schemas, authority, events
+        ),
     ).submit(command)
     if receipt.status != "accepted":
         _print_json(
@@ -568,6 +627,24 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
     command = _read_json(args.command)
     receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     schemas = runtime_schema_registry(binding.schema_root)
+    authority_config = getattr(args, "authority_config", None)
+    authority = (
+        LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
+        if authority_config is None
+        else _authority_resolver_from_config(
+            authority_config,
+            project_id=binding.project_id,
+            schemas=schemas,
+            expected_schema_root=binding.schema_root,
+        )
+    )
     registry = load_evidence_store_registry(args.registry, schemas)
     target_root = args.target_root.resolve(strict=True)
 
@@ -583,6 +660,7 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
             authority_grant_id=command["authority_grant_id"],
             approved_witness=binding.origin_witness,
             approved_witness_path=binding.origin_witness_path,
+            authority_resolver=authority,
         )
 
     def verification_provider(_command: Any, _source_snapshot: Any) -> tuple[dict[str, Any], Callable[[], None]]:
@@ -642,16 +720,12 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
-            binding.control_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        ),
+        authority_resolver=authority,
         clock=_authority_clock,
         restore_verification_provider=verification_provider,
+        spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+            binding.control_root, schemas, authority, events
+        ),
     ).submit(command)
     _print_json(
         {
@@ -737,22 +811,26 @@ def _command_submit(args: argparse.Namespace) -> int:
         )
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
     service = CommandService(
         binding.control_root,
         ledger,
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
-            binding.control_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        ),
+        authority_resolver=authority,
         clock=_authority_clock,
         trusted_runtime_authority_provider=trusted_runtime_authority_provider,
+        spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+            binding.control_root, schemas, authority, events
+        ),
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
@@ -782,22 +860,26 @@ def _brief_runtime(
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     objects = ObjectStore(binding.control_root)
+    authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
     service = CommandService(
         binding.control_root,
         ledger,
         objects,
         ReceiptStore(binding.control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
-            binding.control_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        ),
+        authority_resolver=authority,
         governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
         clock=_authority_clock,
+        spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+            binding.control_root, schemas, authority, events
+        ),
     )
     return binding, schemas, ledger, objects, service
 
@@ -1152,6 +1234,7 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
 
 def _verified_ledger(
     control_root: Path,
+    authority_config: Path | None = None,
 ) -> tuple[
     EventLedger,
     SchemaRegistry,
@@ -1165,9 +1248,7 @@ def _verified_ledger(
     )
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
-    return (
-        EventLedger(resolved_root, manifest["project_id"], schemas),
-        schemas,
+    resolver = (
         LedgerAuthorityGrantResolver(
             resolved_root,
             manifest["project_id"],
@@ -1175,17 +1256,29 @@ def _verified_ledger(
             schemas,
             approved_witness=approved.origin_witness,
             approved_witness_path=approved.origin_witness_path,
-        ),
+        )
+        if authority_config is None
+        else _authority_resolver_from_config(
+            authority_config,
+            project_id=manifest["project_id"],
+            schemas=schemas,
+            expected_schema_root=_schema_root_for_store_manifest(manifest),
+        )
     )
+    return EventLedger(resolved_root, manifest["project_id"], schemas), schemas, resolver
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
-    ledger, schemas, resolver = _verified_ledger(args.control_root)
+    ledger, schemas, resolver = _verified_ledger(args.control_root, getattr(args, "authority_config", None))
+    snapshot = ledger.snapshot()
     _print_json(
         replay(
-            ledger.iter_events(),
+            snapshot.events,
             schema_registry=schemas,
             authority_state_validator=resolver.validate_replayed_administration_state,
+            spec_execution_authority_validator=_spec_replay_validator(
+                ledger.control_root, schemas, resolver, snapshot.events
+            ),
         )
     )
     return 0
@@ -1207,19 +1300,30 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
         raise ArsError("projection output must use an ARS namespaced projection root")
     schemas = _schemas_for_store_manifest(manifest)
     ledger = EventLedger(control_root, manifest["project_id"], schemas)
-    resolver = LedgerAuthorityGrantResolver(
-        control_root,
-        manifest["project_id"],
-        manifest["store_identity"],
-        schemas,
-        approved_witness=approved.origin_witness,
-        approved_witness_path=approved.origin_witness_path,
+    resolver = (
+        LedgerAuthorityGrantResolver(
+            control_root,
+            manifest["project_id"],
+            manifest["store_identity"],
+            schemas,
+            approved_witness=approved.origin_witness,
+            approved_witness_path=approved.origin_witness_path,
+        )
+        if getattr(args, "authority_config", None) is None
+        else _authority_resolver_from_config(
+            args.authority_config,
+            project_id=manifest["project_id"],
+            schemas=schemas,
+            expected_schema_root=_schema_root_for_store_manifest(manifest),
+        )
     )
+    snapshot = ledger.snapshot()
     state = rebuild_projection(
-        ledger.iter_events(),
+        snapshot.events,
         output,
         schemas,
         resolver.validate_replayed_administration_state,
+        _spec_replay_validator(control_root, schemas, resolver, snapshot.events),
     )
     _print_json(state)
     return 0
@@ -1309,9 +1413,7 @@ def _eval_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _schemas_for_store_manifest(
-    manifest: dict[str, Any],
-) -> SchemaRegistry:
+def _schema_root_for_store_manifest(manifest: dict[str, Any]) -> Path:
     try:
         persisted = manifest_schema_root(manifest)
     except IntegrityError as exc:
@@ -1319,11 +1421,7 @@ def _schemas_for_store_manifest(
     if persisted is not None:
         if not persisted.is_dir():
             raise ConfigurationError("store manifest schema root is missing")
-        try:
-            registry = runtime_schema_registry(persisted)
-            return require_authority_schemas(registry)
-        except ArsError as exc:
-            raise ConfigurationError("store manifest schema root is unusable") from exc
+        return persisted.resolve(strict=True)
     candidates = [Path(root) / ".research-system" / "schemas" for root in manifest.get("code_roots", [])]
     existing = [
         path.resolve(strict=True)
@@ -1335,8 +1433,16 @@ def _schemas_for_store_manifest(
     unique = sorted(set(existing), key=str)
     if len(unique) != 1:
         raise ConfigurationError("store manifest has ambiguous schema roots")
-    registry = runtime_schema_registry(unique[0])
-    return require_authority_schemas(registry)
+    return unique[0]
+
+
+def _schemas_for_store_manifest(
+    manifest: dict[str, Any],
+) -> SchemaRegistry:
+    try:
+        return require_authority_schemas(runtime_schema_registry(_schema_root_for_store_manifest(manifest)))
+    except ArsError as exc:
+        raise ConfigurationError("store manifest schema root is unusable") from exc
 
 
 def _rederive_bound_decision(
@@ -1376,10 +1482,15 @@ def _publication_evidence(
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
     )
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    snapshot = ledger.snapshot()
     existing_projection = replay(
-        EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
+        snapshot.events,
         schema_registry=schemas,
         authority_state_validator=authority.validate_replayed_administration_state,
+        spec_execution_authority_validator=_spec_replay_validator(
+            binding.control_root, schemas, authority, snapshot.events
+        ),
     )
 
     def stored_evidence_resolver() -> StoredReleasePublicationEvidence:
@@ -1492,6 +1603,9 @@ def _publication_evidence(
         authority_resolver=authority,
         governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
         clock=_authority_clock,
+        spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+            binding.control_root, schemas, authority, events
+        ),
     )
     store = CandidateDocumentStore(
         binding.control_root,
@@ -1582,8 +1696,23 @@ def _publication_context_for_reference(
     """Build exact replay-derived contexts for release publication evidence."""
 
     def resolve(reference: str) -> ArtefactConsumerContext:
+        ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+        snapshot = ledger.snapshot()
+        authority = LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
         state = replay(
-            EventLedger(binding.control_root, binding.project_id, schemas).iter_events(), schema_registry=schemas
+            snapshot.events,
+            schema_registry=schemas,
+            authority_state_validator=authority.validate_replayed_administration_state,
+            spec_execution_authority_validator=_spec_replay_validator(
+                binding.control_root, schemas, authority, snapshot.events
+            ),
         )
         stream = state.get("streams", {}).get(reference)
         if not isinstance(stream, dict):
@@ -1725,6 +1854,9 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             authority_resolver=authority,
             release_publication_evidence=evidence,
             clock=_authority_clock,
+            spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
+                binding.control_root, schemas, authority, events
+            ),
         ).submit(command)
         reserved_descriptor = descriptor
         descriptor = -1
@@ -1763,10 +1895,14 @@ def _eval_release(args: argparse.Namespace) -> int:
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
     )
+    snapshot = ledger.snapshot()
     projection = replay(
-        ledger.iter_events(),
+        snapshot.events,
         schema_registry=schema_registry,
         authority_state_validator=authority_resolver.validate_replayed_administration_state,
+        spec_execution_authority_validator=_spec_replay_validator(
+            binding.control_root, schema_registry, authority_resolver, snapshot.events
+        ),
     )
     decision_id = supplied_document["release_gate_decision_id"]
     projected = projection.get("release_decisions", {}).get(decision_id)
@@ -1844,6 +1980,7 @@ def _parser() -> argparse.ArgumentParser:
 
     backup = store_commands.add_parser("backup")
     backup.add_argument("--config", type=Path, required=True)
+    backup.add_argument("--authority-config", type=Path, default=None)
     backup.add_argument("--request", type=Path, required=True)
     backup.add_argument("--registry", type=Path, required=True)
     backup.add_argument("--destination-root", type=Path, required=True)
@@ -1866,6 +2003,7 @@ def _parser() -> argparse.ArgumentParser:
 
     verify_restore = store_commands.add_parser("verify-restore")
     verify_restore.add_argument("--config", type=Path, required=True)
+    verify_restore.add_argument("--authority-config", type=Path, default=None)
     verify_restore.add_argument("--command", type=Path, required=True)
     verify_restore.add_argument("--target-root", type=Path, required=True)
     verify_restore.add_argument("--receipt", type=Path, required=True)
@@ -2041,12 +2179,14 @@ def _parser() -> argparse.ArgumentParser:
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)
     verify = replay_actions.add_parser("verify")
     verify.add_argument("--control-root", type=Path, required=True)
+    verify.add_argument("--authority-config", type=Path, default=None)
     verify.set_defaults(handler=_replay_verify)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
     rebuild = projection_actions.add_parser("rebuild")
     rebuild.add_argument("--control-root", type=Path, required=True)
+    rebuild.add_argument("--authority-config", type=Path, default=None)
     rebuild.add_argument("--output", type=Path, required=True)
     rebuild.set_defaults(handler=_projection_rebuild)
 

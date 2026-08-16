@@ -82,7 +82,10 @@ class CommandServiceContextWriter:
             schema_id = _SCHEMA_IDS[command_type]
         except KeyError as exc:
             raise ValueError(f"unsupported context command: {command_type}") from exc
-        submitted_at = self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z")
+        observed_at = self.clock()
+        if not isinstance(observed_at, datetime) or observed_at.tzinfo is None or observed_at.utcoffset() is None:
+            raise ValueError("context command clock must be timezone-aware")
+        submitted_at = observed_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
         envelope = {
             "command_id": _stable_command_id(idempotency_key),
             "command_type": command_type,

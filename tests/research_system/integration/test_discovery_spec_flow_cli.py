@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import hashlib
 import shutil
+import threading
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 
@@ -17,6 +18,7 @@ import research_system.discovery.authority as discovery_authority_module
 import research_system.discovery.operator as discovery_operator_module
 import research_system.discovery.spec_flow as spec_flow_module
 import research_system.methods.registration as registration_module
+import research_system.owner_authority as owner_authority_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
@@ -24,6 +26,7 @@ from research_system.errors import ArsError, ConfigurationError, ConflictError, 
 from research_system.artefacts.authority import ArtefactAuthorityContractLoader
 from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
 from research_system.artefacts.use_resolver import predicate_reference
+from research_system.authority_actor import RegisterAuthorityActor
 from research_system.discovery.operator import load_discovery_operator
 from research_system.discovery.assay_authority import assay_reconstruction_sha256
 from research_system.discovery.authority import subject_sha256, validate_portable_path_subject
@@ -43,6 +46,7 @@ from research_system.methods.registration import (
 )
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+from research_system.store.spec_preparation_fence import SpecPreparationFence
 from tests.research_system.factories import (
     ACTORS,
     PROJECT_ID,
@@ -72,6 +76,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
 
 
 ROUTE_DIRECTORY = Path(".research-system/contracts/wp6-6/spec-gate6-run-v1")
+ROUTE_SCHEMA_PATH = Path(".research-system/schemas/contracts/wp6-6/spec-gate6-route.schema.json")
 ASSAY_RUBRIC_PATH = Path(".research-system/contracts/wp6-6/assay-rubric-content-v1.json")
 ASSAY_SCOPE_PATH = Path(".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json")
 REVIEWER_ACTOR = "act_019ffe2b-fd4b-7000-8000-000000000901"
@@ -81,18 +86,35 @@ def test_brief_authority_targets_exclude_already_reviewed_and_accepted_history()
     projection = {
         "artefact_streams": {
             "art_reviewed": {
-                "manifest": {"artefact_type": "methods_asset"},
+                "manifest": {
+                    "artefact_type": "methods_asset",
+                    "authority": {"accepted_scope": "spec-gate6-run"},
+                },
                 "scientific_reviews": [{"review_id": "rev_existing"}],
                 "use_authority": "accepted_for_scope",
             },
             "art_pending_review": {
-                "manifest": {"artefact_type": "spec_operator_source"},
+                "manifest": {
+                    "artefact_type": "spec_operator_source",
+                    "authority": {"accepted_scope": "spec-gate6-run"},
+                },
                 "scientific_reviews": [],
                 "use_authority": "candidate",
             },
             "art_pending_use": {
-                "manifest": {"artefact_type": "spec_operator_source"},
+                "manifest": {
+                    "artefact_type": "spec_operator_source",
+                    "authority": {"accepted_scope": "spec-gate6-run"},
+                },
                 "scientific_reviews": [{"review_id": "rev_new"}],
+                "use_authority": "candidate",
+            },
+            "art_foreign_route": {
+                "manifest": {
+                    "artefact_type": "methods_asset",
+                    "authority": {"accepted_scope": "another-route"},
+                },
+                "scientific_reviews": [],
                 "use_authority": "candidate",
             },
         }
@@ -129,12 +151,20 @@ def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, An
     """Synthetic governed fixture; it is implementation proof, not Gate 6 proof."""
 
     operator_inputs = _operator_inputs_fixture.__wrapped__(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        owner_authority_module,
+        "ControlBinding",
+        SimpleNamespace(
+            load=lambda _path: operator_inputs["authority_binding"],
+            load_repaired=lambda _path: operator_inputs["authority_binding"],
+        ),
+    )
     repository_root = Path(operator_inputs["config"]["repository_root"])
     for source in (REPOSITORY_ROOT / ROUTE_DIRECTORY).iterdir():
         target = repository_root / ROUTE_DIRECTORY / source.name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    for relative in (ASSAY_RUBRIC_PATH, ASSAY_SCOPE_PATH):
+    for relative in (ROUTE_SCHEMA_PATH, ASSAY_RUBRIC_PATH, ASSAY_SCOPE_PATH):
         target = repository_root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPOSITORY_ROOT / relative, target)
@@ -156,6 +186,7 @@ def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, An
         repository_root,
         "add",
         ROUTE_DIRECTORY.as_posix(),
+        ROUTE_SCHEMA_PATH.as_posix(),
         ASSAY_RUBRIC_PATH.as_posix(),
         ASSAY_SCOPE_PATH.as_posix(),
         decision_path.as_posix(),
@@ -549,7 +580,11 @@ def _accept_spec_01_brief_inputs(
     *,
     entries_mutator=None,
     review_mutator=None,
+    execute: bool = True,
+    stop_after: str | None = None,
 ) -> list[str]:
+    if stop_after not in {None, "registration", "review"}:
+        raise ValueError("stop_after must be registration, review, or None")
     repository_root = Path(inputs["config"]["repository_root"])
     sources = [
         (ROUTE_DIRECTORY / "spec-01-assay-brief-v1.1.0.md", "spec_operator_source"),
@@ -603,6 +638,8 @@ def _accept_spec_01_brief_inputs(
     if entries_mutator is not None:
         entries_mutator(entries)
     _write_action(inputs, "register_spec_01_brief_inputs", registration={"raw_publications": entries})
+    if not execute:
+        return artefact_ids
     assert cli.main(_advance_argv(inputs, "register_spec_01_brief_inputs")) == 0
 
     review_commands = []
@@ -663,6 +700,8 @@ def _accept_spec_01_brief_inputs(
         commands=review_commands,
         registration={"governing_reviews": publications},
     )
+    if stop_after == "registration":
+        return artefact_ids
     assert cli.main(_advance_argv(inputs, "review_spec_01_brief_inputs")) == 0
 
     contract = ArtefactAuthorityContractLoader(ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT).load()
@@ -700,12 +739,17 @@ def _accept_spec_01_brief_inputs(
             )
         )
     _write_action(inputs, "accept_spec_01_brief_inputs", commands=use_commands)
+    if stop_after == "review":
+        return artefact_ids
     assert cli.main(_advance_argv(inputs, "accept_spec_01_brief_inputs")) == 0
     return artefact_ids
 
 
-def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
+def _prepare_spec_01(inputs: dict[str, Any], *, execute: bool = True) -> dict[str, Any]:
     actor_id = ACTORS["actor-a"]
+    now = load_discovery_operator(inputs["config_path"]).clock().astimezone(UTC)
+    handoff_start = (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    handoff_end = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
     context_grant_id = new_id("authority_grant")
     brief_id = "art_019ffe2b-fd4b-7000-8000-000000000701"
     package_id = "art_019ffe2b-fd4b-7000-8000-000000000702"
@@ -731,10 +775,10 @@ def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
         "recipient_id": "codex-desktop-operator-exchange",
         "purpose": "result_analysis",
         "scope": "spec-gate6-run",
-        "evaluation_time": "2026-08-14T12:00:00Z",
-        "created_at": "2026-08-14T12:00:00Z",
+        "evaluation_time": handoff_start,
+        "created_at": handoff_start,
         "application_version": "1",
-        "handoff_expires_at": "2026-08-15T12:00:00Z",
+        "handoff_expires_at": handoff_end,
     }
 
     def registration(artefact_id: str, grant_id: str, artefact_type: str) -> dict[str, Any]:
@@ -790,7 +834,8 @@ def _prepare_spec_01(inputs: dict[str, Any]) -> dict[str, Any]:
         ),
         grant_id=context_grant_id,
     )
-    assert cli.main(_advance_argv(inputs, "prepare_spec_01")) == 0
+    if execute:
+        assert cli.main(_advance_argv(inputs, "prepare_spec_01")) == 0
     return {"context_id": context_id, "brief_id": brief_id, "package_id": package_id}
 
 
@@ -803,7 +848,7 @@ def _return_spec_01_complete(
     execute: bool = True,
 ) -> dict[str, Any]:
     operator = load_discovery_operator(inputs["config_path"])
-    projection = replay_discovery(operator.ledger.iter_events(), schemas=operator.schemas)
+    projection = SpecFlow(operator)._snapshot()[1]
     relation_sha256 = projection["assays"][assay_id]["producer_relation_sha256"]
     scorecard = _scorecard(
         SimpleNamespace(ledger=operator.ledger), candidate_id, assay_id, candidate_sha256, relation_sha256
@@ -1309,20 +1354,66 @@ def _approve_spec_02(
     )
     source = next(item for item in SpecFlow(operator).route["sources"] if item["alias"] == "SPEC-02")
     owner_id = ACTORS["actor-a"]
-    registrar_id = ACTORS["actor-b"]
     now = operator.clock().astimezone(UTC)
     starts_at = (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
     approved_at = now.isoformat().replace("+00:00", "Z")
     expires_at = (now + timedelta(minutes=45)).isoformat().replace("+00:00", "Z")
     artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000905"
-    grant_id = activate_lifecycle_grant(
-        inputs["harness"],
-        subject_kind="artefact",
-        subject_id=artefact_id,
-        actor_id=registrar_id,
-        command_types=("RegisterArtefact",),
-        grant_id=new_id("authority_grant"),
+    owner_setup_path = Path(inputs["config_path"]).with_name("owner-authority-setup.json")
+    owner_setup_path.write_bytes(
+        canonical_bytes(
+            {
+                "authority_binding": inputs["config"]["authority_binding"],
+                "repository_root": inputs["config"]["repository_root"],
+            }
+        )
     )
+    owner_setup = owner_authority_module.load_owner_authority_setup(owner_setup_path, clock=operator.clock)
+    registrar_id = owner_setup.register_actor(
+        RegisterAuthorityActor(
+            "Codex SPEC approval registrar",
+            "agent",
+            "codex_desktop",
+            "1.0",
+            "spec-02-live-run-approval-registrar-session",
+            "Publish the exact owner-approved SPEC-02 live-run decision.",
+            "producer",
+            "producer/spec_brief_registration",
+            starts_at,
+            expires_at,
+            ("spec-route:spec-02-live-run-approval",),
+            "Register the observed governed SPEC approval registrar session.",
+            "register-codex-desktop-actor",
+            "spec-02-live-run-approval:register-actor",
+        )
+    )["actor_id"]
+    publication = owner_setup.publish(
+        {
+            "retry_key": "spec-02-live-run-approval:publish-authority",
+            "target_actor_id": registrar_id,
+            "target_actor_class": "agent",
+            "authority_lane": "producer/spec_brief_registration",
+            "actor_role": "SPEC brief producer",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "artefact", "id": artefact_id},
+            },
+            "evidence_refs": ["spec-route:spec-02-live-run-approval"],
+            "effective_at": starts_at,
+            "expires_at": expires_at,
+            "reason": "Authorize exact governed publication of the owner-approved SPEC-02 run decision.",
+            "owner_action": "activate_authority_grant",
+        }
+    )
+    owner_setup.activate(
+        {
+            "retry_key": "spec-02-live-run-approval:activate-authority",
+            "publication_command_id": publication["command_id"],
+            "reason": "Activate the exact owner-published SPEC-02 approval registration grant.",
+            "evidence_refs": ["spec-route:spec-02-live-run-approval"],
+        }
+    )
+    grant_id = publication["authority_grant_id"]
     document = {
         "schema_id": "ars://portfolio/spec-02-live-run-approval",
         "schema_version": "1.0.0",
@@ -1383,6 +1474,9 @@ def _approve_spec_02(
 
 def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
     actor_id = ACTORS["actor-a"]
+    now = load_discovery_operator(inputs["config_path"]).clock().astimezone(UTC)
+    handoff_start = (now - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    handoff_end = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
     context_grant_id = new_id("authority_grant")
     brief_id = "art_019ffe2b-fd4b-7000-8000-000000000906"
     package_id = "art_019ffe2b-fd4b-7000-8000-000000000907"
@@ -1408,10 +1502,10 @@ def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
         "recipient_id": "codex-desktop-operator-exchange",
         "purpose": "result_analysis",
         "scope": "spec-gate6-run",
-        "evaluation_time": "2026-08-14T13:15:00Z",
-        "created_at": "2026-08-14T13:15:00Z",
+        "evaluation_time": handoff_start,
+        "created_at": handoff_start,
         "application_version": "1",
-        "handoff_expires_at": "2026-08-15T13:00:00Z",
+        "handoff_expires_at": handoff_end,
     }
 
     def registration(artefact_id: str, grant_id: str, artefact_type: str) -> dict[str, Any]:
@@ -1701,7 +1795,8 @@ def _register_spike_return_evidence(inputs: dict[str, Any]) -> dict[str, dict[st
         ReceiptStore(operator.control_root),
         operator.schemas,
         authority_resolver=operator.authority_resolver,
-        clock=lambda: datetime(2026, 8, 1, 12, 31, tzinfo=UTC),
+        spec_execution_authority_validator_factory=SpecFlow(operator)._runtime().spec_execution_authority_validator,
+        clock=operator.clock,
     )
     registered: dict[str, dict[str, Any]] = {}
     for index, (name, artefact_type) in enumerate(
@@ -1777,7 +1872,7 @@ def _return_spec_02_complete(
 ) -> dict[str, str]:
     evidence = _register_spike_return_evidence(inputs)
     operator = load_discovery_operator(inputs["config_path"])
-    projection = replay_discovery(operator.ledger.iter_events(), schemas=operator.schemas)
+    projection = SpecFlow(operator)._snapshot()[1]
     candidate = projection["candidates"][candidate_id]
     assay = projection["assays"][assay_id]
     spike = projection["spikes"][started["spike_id"]]
@@ -2048,7 +2143,7 @@ def _decide_spec_02(
         "consequences": ["record terminal SPEC-02 disposition without claim publication"],
     }
     operator = load_discovery_operator(inputs["config_path"])
-    spike = replay_discovery(operator.ledger.iter_events())["spikes"][spike_id]
+    spike = SpecFlow(operator)._snapshot()[1]["spikes"][spike_id]
     proposal = _route_command(
         "ProposePromotionDecision",
         decision_id,
@@ -2795,6 +2890,220 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("crash_phase", ("context", "brief", "package"))
+def test_spec_preparation_recovers_exactly_after_each_precompletion_phase(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, crash_phase: str
+) -> None:
+    """A partial preparation never claims completion and resumes without duplicates."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    identities = _prepare_spec_01(spec_inputs, execute=False)
+    action = "prepare_spec_01"
+    packet = deepcopy(spec_inputs["packet"])
+    failed = False
+
+    if crash_phase == "context":
+        original = spec_flow_module.deliver_spec_owner_context
+
+        def crash_after_context(*args: Any, **kwargs: Any) -> Any:
+            nonlocal failed
+            result = original(*args, **kwargs)
+            if not failed:
+                failed = True
+                raise RuntimeError("injected crash after durable SPEC context")
+            return result
+
+        monkeypatch.setattr(spec_flow_module, "deliver_spec_owner_context", crash_after_context)
+    elif crash_phase == "brief":
+        original = spec_flow_module.export_brief
+
+        def crash_after_brief(*args: Any, **kwargs: Any) -> Any:
+            nonlocal failed
+            result = original(*args, **kwargs)
+            if not failed:
+                failed = True
+                raise RuntimeError("injected crash after durable SPEC brief")
+            return result
+
+        monkeypatch.setattr(spec_flow_module, "export_brief", crash_after_brief)
+    else:
+        original = SpecFlow._prepare_spec
+
+        def crash_after_package(self: SpecFlow, stage: str, supplied_packet: Mapping[str, Any]) -> dict[str, Any]:
+            nonlocal failed
+            result = original(self, stage, supplied_packet)
+            if not failed:
+                failed = True
+                raise RuntimeError("injected crash after durable SPEC package")
+            return result
+
+        monkeypatch.setattr(SpecFlow, "_prepare_spec", crash_after_package)
+
+    with pytest.raises(RuntimeError, match="injected crash"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert failed
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert flow._action_identity(action, packet, publish=False) is False
+    context_events_before_retry = tuple(
+        event for event in flow.operator.ledger.iter_events() if event["stream_id"] == identities["context_id"]
+    )
+    assert context_events_before_retry
+
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    capsys.readouterr()
+    recovered = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert recovered._action_identity(action, packet, publish=False) is True
+    assert (
+        tuple(
+            event for event in recovered.operator.ledger.iter_events() if event["stream_id"] == identities["context_id"]
+        )
+        == context_events_before_retry
+    )
+    documents = recovered._snapshot()[2]
+    assert len(documents["spec_01_operator_brief"]) == 1
+    for artefact_id in (identities["brief_id"], identities["package_id"]):
+        assert (
+            sum(
+                event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+                for event in recovered.operator.ledger.iter_events()
+            )
+            == 1
+        )
+
+
+@pytest.mark.integration
+def test_brief_input_registration_recovers_after_partial_publication_without_claiming_completion(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A raw-registration retry resumes its partial batch without an early marker."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    artefact_ids = _accept_spec_01_brief_inputs(spec_inputs, execute=False)
+    action = "register_spec_01_brief_inputs"
+    packet = deepcopy(spec_inputs["packet"])
+    original = spec_flow_module.publish_registered_raw_content
+    failed = False
+
+    def crash_after_first_registration(*args: Any, **kwargs: Any) -> Any:
+        nonlocal failed
+        registered = original(*args, **kwargs)
+        if not failed:
+            failed = True
+            raise RuntimeError("injected crash after first durable brief-input registration")
+        return registered
+
+    monkeypatch.setattr(spec_flow_module, "publish_registered_raw_content", crash_after_first_registration)
+    with pytest.raises(RuntimeError, match="injected crash"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert failed
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert flow._action_identity(action, packet, publish=False) is False
+    registrations_before_retry = [
+        sum(
+            event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+            for event in flow.operator.ledger.iter_events()
+        )
+        for artefact_id in artefact_ids
+    ]
+    assert registrations_before_retry == [1, 0, 0]
+
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    capsys.readouterr()
+    recovered = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert recovered._action_identity(action, packet, publish=False) is True
+    assert [
+        sum(
+            event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+            for event in recovered.operator.ledger.iter_events()
+        )
+        for artefact_id in artefact_ids
+    ] == [1, 1, 1]
+
+
+@pytest.mark.integration
+def test_brief_input_review_holds_the_saga_fence_until_its_batch_completes(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-preparation review action excludes a concurrent public writer."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs, stop_after="registration")
+    action = "review_spec_01_brief_inputs"
+    entered = threading.Event()
+    release = threading.Event()
+    outcome: list[int | BaseException] = []
+    original = spec_flow_module.GoverningScientificReviewStore.publish_batch
+
+    def pause_before_review_batch(*args: Any, **kwargs: Any) -> Any:
+        entered.set()
+        assert release.wait(timeout=5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(spec_flow_module.GoverningScientificReviewStore, "publish_batch", pause_before_review_batch)
+
+    def advance_review() -> None:
+        try:
+            outcome.append(cli.main(_advance_argv(spec_inputs, action)))
+        except BaseException as error:  # asserted by the owning thread
+            outcome.append(error)
+
+    worker = threading.Thread(target=advance_review)
+    worker.start()
+    assert entered.wait(timeout=5)
+    with pytest.raises(ConflictError):
+        with SpecPreparationFence(spec_inputs["binding"].control_root):
+            pass
+    release.set()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert outcome == [0]
+
+
+@pytest.mark.integration
+def test_brief_input_review_recovers_after_partial_submission_without_claiming_completion(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A review retry keeps its published evidence and resumes accepted commands exactly."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs, stop_after="registration")
+    action = "review_spec_01_brief_inputs"
+    packet = deepcopy(spec_inputs["packet"])
+    original = CommandService.submit
+    submissions = 0
+
+    def crash_after_first_review_submission(self: CommandService, *args: Any, **kwargs: Any) -> Any:
+        nonlocal submissions
+        receipt = original(self, *args, **kwargs)
+        submissions += 1
+        if submissions == 1:
+            raise RuntimeError("injected crash after first durable brief-input review")
+        return receipt
+
+    monkeypatch.setattr(CommandService, "submit", crash_after_first_review_submission)
+    with pytest.raises(RuntimeError, match="injected crash"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert submissions == 1
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert flow._action_identity(action, packet, publish=False) is False
+    assert sum(event["event_type"] == "ScientificReviewRecorded" for event in flow.operator.ledger.iter_events()) == 1
+
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    capsys.readouterr()
+    recovered = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert recovered._action_identity(action, packet, publish=False) is True
+    assert (
+        sum(event["event_type"] == "ScientificReviewRecorded" for event in recovered.operator.ledger.iter_events()) == 3
+    )
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("mutation", ("unauthorized_last", "duplicate_source"))
 def test_brief_input_registration_prevalidates_the_exact_set_before_publication(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], mutation: str
@@ -2834,6 +3143,103 @@ def test_brief_review_batch_rejects_an_invalid_later_authority_before_any_review
     with pytest.raises(ArsError):
         _accept_spec_01_brief_inputs(spec_inputs, review_mutator=mutate)
     assert _tree_snapshot(spec_inputs["binding"].control_root) == baseline[0]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("mutation", ("command_id", "idempotency_key", "review_id"))
+def test_brief_review_batch_rejects_duplicate_semantic_identities_before_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], mutation: str
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    baseline = []
+
+    def mutate(commands: list[dict[str, Any]], publications: list[dict[str, Any]]) -> None:
+        baseline.append(_tree_snapshot(spec_inputs["binding"].control_root))
+        if mutation in {"command_id", "idempotency_key"}:
+            commands[-1][mutation] = commands[0][mutation]
+        else:
+            publications[-1]["record"]["review_id"] = publications[0]["record"]["review_id"]
+
+    with pytest.raises(IntegrityError):
+        _accept_spec_01_brief_inputs(spec_inputs, review_mutator=mutate)
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == baseline[0]
+
+
+@pytest.mark.integration
+def test_brief_review_batch_rejects_malformed_operator_timezone_without_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    class MissingUtcOffset(tzinfo):
+        def utcoffset(self, _value: datetime | None) -> None:
+            return None
+
+        def dst(self, _value: datetime | None) -> None:
+            return None
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs, stop_after="registration")
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    malformed = replace(
+        operator,
+        clock=lambda: datetime(2026, 8, 1, 12, tzinfo=MissingUtcOffset()),
+    )
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="clock must return an aware datetime"):
+        SpecFlow(malformed).advance("review_spec_01_brief_inputs", spec_inputs["packet_path"])
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+def test_source_correction_required_paths_are_validated_before_remote_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        spec_flow_module,
+        "run_git",
+        lambda *args, **kwargs: pytest.fail("malformed required paths must fail before Git access"),
+    )
+    with pytest.raises(IntegrityError, match="required path binding"):
+        spec_flow_module._verify_remote_commit_paths(
+            "https://github.com/berenslab/eff-ph.git",
+            "refs/tags/neurips2024",
+            "145efcde673f1a1897eff250b77221d26c34c479",
+            [
+                {"path": "scripts/compute_ph.py", "sha256": "a" * 64},
+                {"path": "scripts/compute_ph.py", "sha256": "b" * 64},
+            ],
+        )
+
+
+def test_source_correction_verifies_every_required_path_at_the_pinned_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = "145efcde673f1a1897eff250b77221d26c34c479"
+    content = {"environment.yml": b"environment", "scripts/compute_ph.py": b"compute"}
+    observed: list[tuple[str, ...]] = []
+
+    def fake_git(_root: Path, *arguments: str, text: bool = True, **_kwargs: Any) -> Any:
+        observed.append(arguments)
+        if arguments[:2] == ("rev-parse", "FETCH_HEAD^{commit}"):
+            return SimpleNamespace(returncode=0, stdout=f"{commit}\n")
+        if arguments and arguments[0] == "show":
+            path = arguments[1].split(":", 1)[1]
+            return SimpleNamespace(returncode=0, stdout=content[path])
+        return SimpleNamespace(returncode=0, stdout="" if text else b"")
+
+    monkeypatch.setattr(spec_flow_module, "run_git", fake_git)
+    spec_flow_module._verify_remote_commit_paths(
+        "https://github.com/berenslab/eff-ph.git",
+        "refs/tags/neurips2024",
+        commit,
+        [{"path": path, "sha256": sha256_hex(raw)} for path, raw in content.items()],
+    )
+
+    assert {arguments[1] for arguments in observed if arguments and arguments[0] == "show"} == {
+        f"{commit}:{path}" for path in content
+    }
 
 
 @pytest.mark.integration
@@ -3111,6 +3517,7 @@ def test_public_spec_flow_corrects_false_git_ref_finding_and_allows_owner_approv
         "_resolve_remote_tag",
         lambda repository_url, resolved_ref: "145efcde673f1a1897eff250b77221d26c34c479",
     )
+    monkeypatch.setattr(spec_flow_module, "_verify_remote_commit_paths", lambda *args: None)
     _correct_spec_01_source(spec_inputs, returned["scorecard_sha256"])
     capsys.readouterr()
     assert cli.main(_status_argv(spec_inputs)) == 0
@@ -3211,6 +3618,13 @@ def test_public_spec_flow_rejects_wrong_spec_02_live_approval_without_registrati
     expired = deepcopy(original)
     expired["document"]["approved_at"] = "2026-08-16T13:00:00Z"
     mutations.append(expired)
+    future_decision = deepcopy(original)
+    future_decision["document"]["approved_at"] = (
+        (load_discovery_operator(spec_inputs["config_path"]).clock().astimezone(UTC) + timedelta(minutes=5))
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    mutations.append(future_decision)
     not_started = deepcopy(original)
     future = load_discovery_operator(spec_inputs["config_path"]).clock().astimezone(UTC) + timedelta(hours=1)
     not_started["document"]["approved_at"] = future.isoformat().replace("+00:00", "Z")
@@ -3328,7 +3742,10 @@ def test_public_spec_flow_starts_spec_02_only_with_exact_lease_and_attempt(
     status = json.loads(capsys.readouterr().out)
     assert status["completed_stage"] == "start_spec_02"
     assert status["next_action"] == "return_spec_02"
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    with pytest.raises(IntegrityError, match="requires external approval evidence validation"):
+        replay_discovery(operator.ledger.iter_events())
+    projection = SpecFlow(operator)._snapshot()[1]
     spike = projection["spikes"][started["spike_id"]]
     assert spike["status"] == "running"
     assert spike["attempt_id"] == C1_ATTEMPT_ID
@@ -3366,6 +3783,133 @@ def test_public_spec_flow_starts_spec_02_only_with_exact_lease_and_attempt(
 
 
 @pytest.mark.integration
+def test_replay_verify_revalidates_completed_spec_history_and_external_documents(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The generic public replay seam must carry the same strict validator as DiscoveryRuntime."""
+
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+    _start_spec_02(spec_inputs, candidate_id, assay_id)
+    capsys.readouterr()
+
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    authority_config = Path(spec_inputs["config"]["authority_binding"])
+    monkeypatch.setattr(
+        cli.ControlBinding,
+        "load",
+        lambda path: spec_inputs["authority_binding"]
+        if path == authority_config
+        else pytest.fail("replay loaded an unexpected authority binding"),
+    )
+    bound_authority = cli._authority_resolver_from_config(
+        authority_config,
+        project_id=spec_inputs["binding"].project_id,
+        schemas=operator.schemas,
+        expected_schema_root=spec_inputs["binding"].schema_root,
+    )
+    assert bound_authority.control_root == operator.authority_resolver.control_root
+    assert bound_authority.expected_store_identity == operator.authority_resolver.expected_store_identity
+
+    def verified_ledger(control_root: Path, supplied_authority_config: Path | None = None):
+        assert control_root == operator.control_root
+        assert supplied_authority_config == authority_config
+        return operator.ledger, operator.schemas, operator.authority_resolver
+
+    monkeypatch.setattr(
+        cli,
+        "_verified_ledger",
+        verified_ledger,
+    )
+    replay_argv = [
+        "replay",
+        "verify",
+        "--control-root",
+        str(operator.control_root),
+        "--authority-config",
+        str(authority_config),
+    ]
+    assert cli.main(replay_argv) == 0
+    capsys.readouterr()
+    approval_manifest = next(
+        event["payload"]["manifest"]
+        for event in operator.ledger.iter_events()
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("payload", {}).get("manifest", {}).get("artefact_type") == "spec_02_live_run_approval"
+    )
+    approval_path = operator.control_root / approval_manifest["relative_path"]
+    original = approval_path.read_bytes()
+    approval_path.write_bytes(original + b" ")
+    with pytest.raises(IntegrityError, match="lacks valid durable approval evidence"):
+        cli.main(replay_argv)
+    approval_path.write_bytes(original)
+
+    approval_path.unlink()
+    with pytest.raises(IntegrityError, match="approval artefact is unavailable"):
+        cli.main(replay_argv)
+    approval_path.write_bytes(original)
+    assert cli.main(replay_argv) == 0
+    capsys.readouterr()
+
+
+def test_authority_resolver_accepts_a_verified_repaired_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Separate authority configuration may be the governed repaired binding."""
+
+    authority_config = tmp_path / "binding-repair-control-binding.json"
+    authority_config.write_text("{}", encoding="utf-8")
+    schema_root = tmp_path / "schemas"
+    schema_root.mkdir()
+    binding = SimpleNamespace(
+        project_id=PROJECT_ID,
+        schema_root=schema_root,
+        control_root=tmp_path / "authority",
+        store_identity="store-authority",
+        origin_witness={"witness": "exact"},
+        origin_witness_path=tmp_path / "origin-witness.json",
+    )
+    monkeypatch.setattr(
+        cli.ControlBinding,
+        "load",
+        lambda _path: (_ for _ in ()).throw(ConfigurationError("canonical binding unavailable")),
+    )
+    monkeypatch.setattr(cli.ControlBinding, "load_repaired", lambda path: binding if path == authority_config else None)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *args, **kwargs: (args, kwargs))
+
+    args, kwargs = cli._authority_resolver_from_config(
+        authority_config,
+        project_id=PROJECT_ID,
+        schemas=SimpleNamespace(),
+        expected_schema_root=schema_root,
+    )
+
+    assert args[:3] == (binding.control_root, PROJECT_ID, binding.store_identity)
+    assert kwargs == {
+        "approved_witness": binding.origin_witness,
+        "approved_witness_path": binding.origin_witness_path,
+    }
+
+
+@pytest.mark.integration
 def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3387,6 +3931,7 @@ def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
         "_resolve_remote_tag",
         lambda repository_url, resolved_ref: "145efcde673f1a1897eff250b77221d26c34c479",
     )
+    monkeypatch.setattr(spec_flow_module, "_verify_remote_commit_paths", lambda *args: None)
     _correct_spec_01_source(spec_inputs, returned["scorecard_sha256"])
     capsys.readouterr()
     _approve_spec_02(spec_inputs, park_override=True)
@@ -3412,7 +3957,10 @@ def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
     ):
         _start_spec_02(spec_inputs, candidate_id, assay_id, after_plan=tamper_approval)
 
-    projection = replay_discovery(operator.ledger.iter_events())
+    projection = replay_discovery(
+        operator.ledger.iter_events(),
+        spec_execution_authority_validator=lambda _state, _candidate, _event, _park: None,
+    )
     spike = next(iter(projection["spikes"].values()))
     assert spike["status"] == "approval_pending"
     assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
@@ -3443,7 +3991,7 @@ def test_spec_02_approval_resource_allowlist_blocks_execution_decision_without_p
     with pytest.raises(IntegrityError, match="invalid Spike transition"):
         _start_spec_02(spec_inputs, candidate_id, assay_id)
 
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     spike = next(iter(projection["spikes"].values()))
     assert spike["status"] == "approval_pending"
     assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
@@ -3483,7 +4031,7 @@ def test_spec_02_approval_is_revalidated_after_acceptance_before_execution(
         _start_spec_02(spec_inputs, candidate_id, assay_id)
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert not projection["spikes"]
     assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
 
@@ -3525,7 +4073,7 @@ def test_public_spec_flow_rejects_wrong_spec_02_lease_or_attempt_without_start(
         with pytest.raises(IntegrityError, match="invalid Spike transition"):
             cli.main(_advance_argv(spec_inputs, "start_spec_02"))
         assert _tree_snapshot(spec_inputs["binding"].control_root) == before
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["spikes"][started["spike_id"]]["status"] == "authorized"
     assert projection["candidates"][candidate_id]["status"] == "spike_authorized"
 
@@ -3559,7 +4107,7 @@ def test_public_spec_flow_registers_complete_spec_02_return_without_claim(
     status = json.loads(capsys.readouterr().out)
     assert status["completed_stage"] == "return_spec_02"
     assert status["next_action"] == "review_spec_02"
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["spikes"][started["spike_id"]]["status"] == "verdict_recorded"
     assert projection["spikes"][started["spike_id"]]["verdict_sha256"] == returned_spike["verdict_sha256"]
     assert not projection.get("claims")
@@ -3607,7 +4155,7 @@ def test_spec_02_return_over_approved_resource_limit_rejects_without_publication
         cli.main(_advance_argv(spec_inputs, "return_spec_02_complete"))
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["spikes"][started["spike_id"]]["status"] == "running"
     assert "spec_02_return" not in SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
 
@@ -3650,7 +4198,7 @@ def test_public_spec_flow_partial_spec_02_return_and_review_is_terminal(
     assert status["capability_state"] == "PROVEN"
     assert status["completed_stage"] == "spec_02_partial_reviewed"
     assert status["next_action"] is None
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["reviews"][review_id]["status"] == "satisfied"
     assert projection["spikes"][started["spike_id"]]["status"] == "partial_reviewed"
     assert not projection.get("claims")
@@ -3692,7 +4240,7 @@ def test_public_spec_flow_reviews_and_owner_decides_spec_02_without_scientific_c
     assert status["capability_state"] == "PROVEN"
     assert status["completed_stage"] == "spec_02_owner_decided"
     assert status["next_action"] is None
-    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["reviews"][spike_review_id]["status"] == "satisfied"
     assert projection["candidates"][candidate_id]["status"] == "preregistration_authorized"
     assert not projection.get("claims")

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 import yaml
 from jsonschema import Draft202012Validator
+
+from research_system.errors import ConfigurationError
+from research_system.git_execution import run_git
 
 
 METHODS_ROOT = PurePosixPath(".research-system/methods")
@@ -200,19 +202,8 @@ def _canonical_lf(raw: bytes) -> bytes:
 
 
 def _git_blob_sha1(raw: bytes) -> str:
-    completed = subprocess.run(
-        ["git", "hash-object", "--no-filters", "--stdin"],
-        input=raw,
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        diagnostic = completed.stderr.decode("utf-8", errors="replace").strip()
-        raise MethodsPackError(f"git hash-object failed: {diagnostic}")
-    identity = completed.stdout.decode("ascii").strip()
-    if len(identity) != 40:
-        raise MethodsPackError("git hash-object returned an invalid blob identity")
-    return identity
+    header = f"blob {len(raw)}\0".encode("ascii")
+    return hashlib.sha1(header + raw).hexdigest()  # nosec B324 - Git object identity
 
 
 def _asset_identity(raw: bytes, scheme: str) -> str:
@@ -452,13 +443,19 @@ def verify_methods_pack_lineage(
                 raise MethodsPackError(f"nonexistent lineage section {section!r} for methods asset {asset.asset_id}")
 
 
-def _git(root: Path, *args: str, input_bytes: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        ["git", "-c", "core.autocrlf=false", "-C", str(root), *args],
-        input=input_bytes,
-        capture_output=True,
-        check=False,
-    )
+def _git(root: Path, *args: str, input_bytes: bytes | None = None) -> Any:
+    try:
+        return run_git(
+            root,
+            "-c",
+            "core.autocrlf=false",
+            *args,
+            input=input_bytes,
+            text=False,
+            unavailable_message="methods Git inspection is unavailable",
+        )
+    except ConfigurationError as exc:
+        raise MethodsPackError("methods Git inspection is unavailable") from exc
 
 
 def _resolve_commit(root: Path, ref: str, label: str) -> str:

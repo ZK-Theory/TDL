@@ -17,6 +17,7 @@ from typing import Any
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
+from research_system.discovery.runtime import build_spec_execution_authority_validator
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import validate_id
 from research_system.projection.replay import replay
@@ -662,10 +663,13 @@ class BackupMaterializer:
     verification_authority_grant_id: str
     approved_witness: StoreOriginWitness
     approved_witness_path: Path
+    authority_resolver: LedgerAuthorityGrantResolver | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.command_id, str) or not self.command_id:
             raise ArsError("backup command identity is required")
+        if self.authority_resolver is not None and type(self.authority_resolver) is not LedgerAuthorityGrantResolver:
+            raise TypeError("backup authority resolver must be LedgerAuthorityGrantResolver")
         source = _canonical_backup_root(self.source_root, "Source", require_exists=True)
         destination = _canonical_backup_root(self.destination_root, "destination", require_exists=False)
         stage = _canonical_backup_root(self.stage_root, "stage", require_exists=False)
@@ -1007,7 +1011,7 @@ class BackupMaterializer:
             or current.fingerprint != ledger_snapshot.fingerprint
         ):
             raise IntegrityError("backup ledger snapshot is not the current Source ledger")
-        resolver = LedgerAuthorityGrantResolver(
+        resolver = self.authority_resolver or LedgerAuthorityGrantResolver(
             self.source_root,
             project_id,
             store_identity,
@@ -1019,6 +1023,12 @@ class BackupMaterializer:
             ledger_snapshot.events,
             schema_registry=schemas,
             authority_state_validator=resolver.validate_replayed_administration_state,
+            spec_execution_authority_validator=build_spec_execution_authority_validator(
+                control_root=self.source_root,
+                schemas=schemas,
+                authority_resolver=resolver,
+                events=ledger_snapshot.events,
+            ),
         )
         source_file_bindings = _capture_source_store_bindings(self.source_root)
         snapshot = {
@@ -1468,7 +1478,7 @@ class BackupMaterializer:
         candidate_ledger = EventLedger(root, project_id, schemas).snapshot()
         if candidate_ledger.global_position != tail_position or candidate_ledger.event_hash != tail_hash:
             raise IntegrityError("backup candidate ledger differs from the committed pre-event tail")
-        resolver = LedgerAuthorityGrantResolver(
+        resolver = self.authority_resolver or LedgerAuthorityGrantResolver(
             root,
             project_id,
             store_identity,
@@ -1481,6 +1491,12 @@ class BackupMaterializer:
             candidate_ledger.events,
             schema_registry=schemas,
             authority_state_validator=resolver.validate_replayed_administration_state,
+            spec_execution_authority_validator=build_spec_execution_authority_validator(
+                control_root=root,
+                schemas=schemas,
+                authority_resolver=resolver,
+                events=candidate_ledger.events,
+            ),
         )
         expected_snapshot = {
             "snapshot_id": snapshot_id,
@@ -1634,6 +1650,7 @@ def verify_restore_before_writer_lease(
     authority_grant_id: str,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
+    authority_resolver: LedgerAuthorityGrantResolver | None = None,
     _capture_bundle: bool = False,
 ) -> RestorePreflightResult | RestoreAdmissionBundle:
     """Independently inspect a moved store and derive a pre-writer result."""
@@ -1767,7 +1784,7 @@ def verify_restore_before_writer_lease(
             raise ArsError("store code roots are unavailable")
         require_existing_control_root([Path(root) for root in code_roots], target)
         ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
-        resolver = LedgerAuthorityGrantResolver(
+        resolver = authority_resolver or LedgerAuthorityGrantResolver(
             target,
             receipt.project_id,
             receipt.store_identity,
@@ -1780,6 +1797,12 @@ def verify_restore_before_writer_lease(
             ledger_snapshot.events,
             schema_registry=schemas,
             authority_state_validator=resolver.validate_replayed_administration_state,
+            spec_execution_authority_validator=build_spec_execution_authority_validator(
+                control_root=target,
+                schemas=schemas,
+                authority_resolver=resolver,
+                events=ledger_snapshot.events,
+            ),
         )
         ledger_hash = sha256_hex(canonical_bytes(list(ledger_snapshot.events)))
         if (
@@ -1997,6 +2020,7 @@ def prepare_restore_admission_before_writer_lease(
     authority_grant_id: str,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
+    authority_resolver: LedgerAuthorityGrantResolver | None = None,
 ) -> RestoreAdmissionBundle:
     """Run the full preflight once and retain its exact bounded input closure."""
     bundle = verify_restore_before_writer_lease(
@@ -2010,6 +2034,7 @@ def prepare_restore_admission_before_writer_lease(
         authority_grant_id=authority_grant_id,
         approved_witness=approved_witness,
         approved_witness_path=approved_witness_path,
+        authority_resolver=authority_resolver,
         _capture_bundle=True,
     )
     if not isinstance(bundle, RestoreAdmissionBundle):

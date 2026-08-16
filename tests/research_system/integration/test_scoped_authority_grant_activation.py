@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import research_system.cli as cli
 from research_system.authority import (
     GrantedCommandIdentity,
     GrantedPolicyActionIdentity,
@@ -1503,8 +1504,9 @@ def test_restart_revalidates_immutable_revocation_decision(tmp_path) -> None:
 def test_cli_replay_uses_bound_owner_decision_validator(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
-    control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
     grant = _scoped_grant(schemas)
     decision = _decision(
         resolver,
@@ -1520,6 +1522,13 @@ def test_cli_replay_uses_bound_owner_decision_validator(
         decision,
     )
     assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
+
+    def verified_ledger(root, authority_config=None):
+        assert root == control_root
+        assert authority_config is None
+        return ledger, schemas, resolver
+
+    monkeypatch.setattr(cli, "_verified_ledger", verified_ledger)
 
     assert _replay_verify(SimpleNamespace(control_root=control_root)) == 0
     assert GRANT_ID in capsys.readouterr().out

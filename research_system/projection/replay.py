@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -1229,6 +1229,8 @@ def replay(
     schema_registry: SchemaRegistry | None = None,
     legacy_command_provenance_through_position: int = 0,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    spec_execution_authority_validator: Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]
+    | None = None,
     validate_discovery_semantics: bool = True,
 ) -> dict[str, Any]:
     """Rebuild projection state from canonical ledger events.
@@ -1241,6 +1243,7 @@ def replay(
             nonzero value raises ``IntegrityError``. Use
             ``replay_grandfathered`` for exact G-RM-8 prefix admission.
         authority_state_validator: Optional validator for authority projections.
+        spec_execution_authority_validator: External registered-document validator for gated SPEC-02 history.
 
     Returns:
         The rebuilt projection state.
@@ -1263,6 +1266,7 @@ def replay(
         schema_registry=schema_registry,
         grandfathered_missing_positions=frozenset(),
         authority_state_validator=authority_state_validator,
+        spec_execution_authority_validator=spec_execution_authority_validator,
         validate_discovery_semantics=validate_discovery_semantics,
     )
 
@@ -1274,6 +1278,8 @@ def _replay(
     schema_registry: SchemaRegistry | None,
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
+    spec_execution_authority_validator: Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]
+    | None = None,
     validate_discovery_semantics: bool = True,
 ) -> dict[str, Any]:
     ordered_events = tuple(events)
@@ -1443,6 +1449,7 @@ def _replay(
             ordered_events,
             schemas=schema_registry,
             authority_state_validator=authority_state_validator,
+            spec_execution_authority_validator=spec_execution_authority_validator,
         )
     return state
 
@@ -1452,11 +1459,14 @@ def rebuild_projection(
     output: Path,
     schema_registry: SchemaRegistry | None = None,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    spec_execution_authority_validator: Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None]
+    | None = None,
 ) -> dict[str, Any]:
     state = replay(
         events,
         schema_registry=schema_registry,
         authority_state_validator=authority_state_validator,
+        spec_execution_authority_validator=spec_execution_authority_validator,
     )
     data = canonical_bytes(state) + b"\n"
     output.parent.mkdir(parents=True, exist_ok=True)

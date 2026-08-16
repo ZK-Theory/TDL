@@ -15,7 +15,6 @@ import json
 import os
 import platform
 import re
-import shutil
 import stat
 import subprocess  # nosec B404 - fixed interpreter and Git metadata probes
 import sys
@@ -29,7 +28,8 @@ from jsonschema import Draft202012Validator
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ApprovedProjectBinding, ControlBinding, canonical_foundation_path
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConfigurationError, ConflictError
+from research_system.git_execution import run_git
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.operations.backups import (
     ArtefactBinding,
@@ -1230,8 +1230,9 @@ def _fresh_process_binding_load(
                 cwd=str(resolved_code_root),
                 capture_output=True,
                 check=False,
+                timeout=30,
             )
-    except OSError as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         raise EvidenceHarnessError("fresh-process ControlBinding probe could not start") from exc
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace").strip().replace("\r", " ").replace("\n", " ")
@@ -1346,19 +1347,17 @@ def _git(repo_root: Path, *args: str) -> str:
 
 def _git_bytes(repo_root: Path, *args: str) -> bytes:
     try:
-        git_executable = shutil.which("git")
-        if git_executable is None:
-            raise EvidenceHarnessError("Git executable is unavailable")
-        resolved_git = Path(git_executable).resolve(strict=True)
-        if not resolved_git.is_file():
-            raise EvidenceHarnessError("Git executable is not a physical file")
-        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit  # nosec B603
-            [str(resolved_git), "-C", str(repo_root), *args],
-            capture_output=True,
-            check=True,
+        result = run_git(
+            repo_root,
+            *args,
+            text=False,
+            timeout=30,
+            unavailable_message="exact Git identity could not be captured",
         )
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except ConfigurationError as exc:
         raise EvidenceHarnessError("exact Git identity could not be captured") from exc
+    if result.returncode != 0:
+        raise EvidenceHarnessError("exact Git identity could not be captured")
     return result.stdout
 
 

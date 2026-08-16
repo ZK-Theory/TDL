@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 
 import pytest
 
@@ -18,6 +18,35 @@ class MappingObjects:
 class UnusedSourceResolver:
     def resolve(self, source_ids: set[str]):
         raise AssertionError(f"source resolution should not be reached: {source_ids}")
+
+
+class MissingOffsetTimezone(tzinfo):
+    def utcoffset(self, _value):
+        return None
+
+    def dst(self, _value):
+        return None
+
+
+def test_resolver_rejects_malformed_timezone_before_replay_or_object_read() -> None:
+    malformed = datetime(2026, 8, 14, 11, tzinfo=MissingOffsetTimezone())
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        resolve_context_packet_for_consumer(
+            (),
+            MappingObjects({}),
+            context_id="ctx_01978abc-1000-7000-8000-000000001000",
+            revision=1,
+            packet_sha256="1" * 64,
+            consumer_id="consumer-1",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            evaluation_time=malformed,
+            control_store_identity="store-1",
+            source_position=1,
+            source_hash="3" * 64,
+            source_resolver=UnusedSourceResolver(),
+        )
 
 
 def test_resolver_fails_closed_on_wrong_recipient_and_changed_currency() -> None:

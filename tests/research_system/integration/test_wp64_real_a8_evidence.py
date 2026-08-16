@@ -61,10 +61,11 @@ def test_fresh_process_records_the_interpreter_it_executed(
         project_id=PROJECT_ID,
         store_identity="store-identity",
     )
-    executed: dict[str, str] = {}
+    executed: dict[str, object] = {}
 
-    def fake_run(argv, **_kwargs):
+    def fake_run(argv, **kwargs):
         executed["interpreter"] = argv[0]
+        executed["timeout"] = kwargs.get("timeout")
         monkeypatch.setattr(harness_module.sys, "executable", str(tmp_path / "different-python"))
         stdout = json.dumps(
             {
@@ -85,6 +86,7 @@ def test_fresh_process_records_the_interpreter_it_executed(
 
     assert restart["interpreter"] == executed["interpreter"]
     assert restart["interpreter"] != str(Path(harness_module.sys.executable).resolve(strict=False))
+    assert executed["timeout"] == 30
 
 
 def _write_json(path: Path, value: dict[str, object]) -> None:

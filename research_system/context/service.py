@@ -367,6 +367,12 @@ class ContextLifecycleService:
             command_type,
         )
 
+    def _clock_utc(self, boundary: str) -> datetime:
+        observed_at = self.clock()
+        if not isinstance(observed_at, datetime) or observed_at.tzinfo is None or observed_at.utcoffset() is None:
+            raise ArsError(f"{boundary} clock must be timezone-aware")
+        return observed_at.astimezone(UTC)
+
     def _mint(self, context_id: str, request_id: str, revision: int, packet_sha256: str) -> ContextLifecycleCapability:
         return ContextLifecycleCapability(
             context_id=context_id,
@@ -750,6 +756,7 @@ class ContextLifecycleService:
                 if prior.state not in {"compiled", "validated", "issued", "delivered"}:
                     raise ArsError(f"context compilation is terminal in state {prior.state}")
                 return self.recover_compiled(context_id)
+        created_at = self._clock_utc("context compilation")
         request_receipt = self._submit("RequestContextPacket", context_id, request_id, request_payload)
         begin_receipt = self._submit(
             "BeginContextCompilation",
@@ -808,7 +815,7 @@ class ContextLifecycleService:
                 ],
                 "conflicts": list(candidate.conflicts),
                 "freshness_verdict": "current",
-                "created_at": self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                "created_at": created_at.isoformat().replace("+00:00", "Z"),
             }
             packet_sha256 = sha256_hex(canonical_bytes(packet))
             manifest_sha256 = sha256_hex(canonical_bytes(manifest))
@@ -987,6 +994,28 @@ class ContextLifecycleService:
             },
         )
 
+    @staticmethod
+    def _owner_window(profile: Mapping[str, Any]) -> tuple[datetime, datetime]:
+        valid_from = profile.get("valid_from")
+        expires_at = profile.get("expires_at")
+        if not isinstance(valid_from, str) or not isinstance(expires_at, str):
+            raise ArsError("owner-operated handoff window is invalid")
+        try:
+            starts = datetime.fromisoformat(valid_from.replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ArsError("owner-operated handoff window is invalid") from exc
+        if not valid_from.endswith("Z") or not expires_at.endswith("Z") or starts >= expires:
+            raise ArsError("owner-operated handoff window must be finite and increasing")
+        return starts.astimezone(UTC), expires.astimezone(UTC)
+
+    def _require_current_owner_window(self, profile: Mapping[str, Any]) -> datetime:
+        observed_at = self._clock_utc("owner-operated handoff")
+        starts, expires = self._owner_window(profile)
+        if not starts <= observed_at < expires:
+            raise ArsError("owner-operated delivery is outside its finite window")
+        return observed_at
+
     def prevalidate_owner_operated(
         self,
         compiled: CompiledContextPacket,
@@ -1019,13 +1048,7 @@ class ContextLifecycleService:
             )
         ):
             raise ArsError("owner-operated handoff identities must be explicit")
-        try:
-            starts = datetime.fromisoformat(valid_from.replace("Z", "+00:00"))
-            expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ArsError("owner-operated handoff window is invalid") from exc
-        if not valid_from.endswith("Z") or not expires_at.endswith("Z") or starts >= expires:
-            raise ArsError("owner-operated handoff window must be finite and increasing")
+        self._owner_window({"valid_from": valid_from, "expires_at": expires_at})
         artefact_ids: set[str] = set()
         for accepted in accepted_artefacts:
             artefact_id = accepted.get("artefact_id")
@@ -1073,27 +1096,37 @@ class ContextLifecycleService:
             "owner_profile_sha256": profile.sha256,
         }
         with self.commands.lifecycle_lock(compiled.context_id):
-            self._submit(
-                "PrepareOwnerOperatedContextHandoff",
-                compiled.context_id,
-                compiled.request_id,
-                {
-                    **binding,
-                    "owner_profile": dict(profile.content),
-                    "accepted_artefacts": [dict(item) for item in accepted_artefacts],
-                },
-            )
+            prepare_payload = {
+                **binding,
+                "owner_profile": dict(profile.content),
+                "accepted_artefacts": [dict(item) for item in accepted_artefacts],
+            }
+            existing_types = {event.get("event_type") for event in self.commands.iter_events(compiled.context_id)}
+            if "OwnerOperatedContextHandoffPrepared" not in existing_types:
+                self._require_current_owner_window(profile.content)
+                self._submit(
+                    "PrepareOwnerOperatedContextHandoff",
+                    compiled.context_id,
+                    compiled.request_id,
+                    prepare_payload,
+                )
             prepared = self._owner_event(compiled.context_id, "OwnerOperatedContextHandoffPrepared")
-            self._submit(
-                "ValidateOwnerOperatedContextHandoff",
-                compiled.context_id,
-                compiled.request_id,
-                {
-                    **binding,
-                    "prepared_event_id": prepared["event_id"],
-                    "prepared_event_sha256": prepared["event_hash"],
-                },
-            )
+            if prepared.get("payload") != prepare_payload:
+                raise ArsError("owner-operated handoff retry changed the prepared profile")
+            if "OwnerOperatedContextHandoffValidated" not in existing_types:
+                self._require_current_owner_window(profile.content)
+                self._submit(
+                    "ValidateOwnerOperatedContextHandoff",
+                    compiled.context_id,
+                    compiled.request_id,
+                    {
+                        **binding,
+                        "prepared_event_id": prepared["event_id"],
+                        "prepared_event_sha256": prepared["event_hash"],
+                    },
+                )
+            if self.recover_owner_operated_validated(compiled.context_id) != validated:
+                raise ArsError("validated owner-operated context recovery identity changed")
         return validated
 
     def issue_owner_operated(self, validated: ValidatedOwnerOperatedContextPacket) -> Any:
@@ -1103,6 +1136,15 @@ class ContextLifecycleService:
             if state != validated:
                 raise ArsError("validated owner-operated context recovery identity changed")
             validation = self._owner_event(validated.context_id, "OwnerOperatedContextHandoffValidated")
+            issued = tuple(
+                event
+                for event in self.commands.iter_events(validated.context_id)
+                if event.get("event_type") == "OwnerOperatedContextHandoffIssued"
+            )
+            if len(issued) > 1:
+                raise ArsError("owner-operated issuance event is not unique")
+            if not issued:
+                self._require_current_owner_window(validated.profile.content)
             return self._submit(
                 "IssueOwnerOperatedContextHandoff",
                 validated.context_id,
@@ -1219,6 +1261,7 @@ class ContextLifecycleService:
     ) -> Any:
         if delivered_sha256 != compiled.packet_sha256:
             raise ArsError("delivery hash does not match issued packet bytes")
+        delivered_at = self._clock_utc("context delivery")
         delivery_receipt_id = new_id("context")
         delivery_receipt = {
             "schema_id": "ars://context/context-delivery-receipt",
@@ -1230,7 +1273,7 @@ class ContextLifecycleService:
             "recipient_id": recipient_id,
             "recipient_session_id": recipient_session_id,
             "adapter_id": adapter_id,
-            "delivered_at": self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "delivered_at": delivered_at.isoformat().replace("+00:00", "Z"),
         }
         delivery_receipt_sha256 = sha256_hex(canonical_bytes(delivery_receipt))
         self.objects.write("context", delivery_receipt_id, 1, delivery_receipt)
@@ -1261,82 +1304,106 @@ class ContextLifecycleService:
         recipient_session_id: str,
     ) -> Any:
         """Record manual receipt evidence without an adapter, transport, or provider claim."""
-        delivered = [
-            event
-            for event in self.commands.iter_events(compiled.context_id)
-            if event.get("event_type") == "OwnerOperatedContextDelivered"
-        ]
-        if delivered:
-            if len(delivered) != 1:
-                raise ArsError("owner-operated delivery event is not unique")
-            prior = delivered[0].get("payload")
+        with self.commands.lifecycle_lock(compiled.context_id):
+            delivered = [
+                event
+                for event in self.commands.iter_events(compiled.context_id)
+                if event.get("event_type") == "OwnerOperatedContextDelivered"
+            ]
+            if delivered:
+                if len(delivered) != 1:
+                    raise ArsError("owner-operated delivery event is not unique")
+                prior = delivered[0].get("payload")
+                if (
+                    not isinstance(prior, Mapping)
+                    or prior.get("recipient_id") != recipient_id
+                    or prior.get("recipient_session_id") != recipient_session_id
+                    or prior.get("packet_sha256") != compiled.packet_sha256
+                    or prior.get("owner_profile_sha256") != validated.profile.sha256
+                ):
+                    raise ArsError("owner-operated delivery retry changed the durable handoff")
+                receipt_object_id = prior.get("delivery_receipt_object_id")
+                receipt_revision = prior.get("delivery_receipt_revision")
+                if not isinstance(receipt_object_id, str) or type(receipt_revision) is not int:
+                    raise ArsError("owner-operated delivery receipt identity is invalid")
+                receipt = self.objects.read(
+                    "context",
+                    receipt_object_id,
+                    receipt_revision,
+                )
+                if (
+                    not isinstance(receipt, Mapping)
+                    or sha256_hex(canonical_bytes(receipt)) != prior.get("delivery_receipt_sha256")
+                    or receipt.get("owner_profile_sha256") != validated.profile.sha256
+                    or receipt.get("recipient_id") != recipient_id
+                    or receipt.get("recipient_session_id") != recipient_session_id
+                ):
+                    raise ArsError("owner-operated delivery receipt changed after commitment")
+                return self._submit(
+                    "RecordOwnerOperatedContextDelivery", compiled.context_id, compiled.request_id, prior
+                )
+            if self.recover_owner_operated_validated(compiled.context_id) != validated:
+                raise ArsError("validated owner-operated context recovery identity changed")
+            issuance = self._owner_event(compiled.context_id, "OwnerOperatedContextHandoffIssued")
+            if validated.packet_sha256 != compiled.packet_sha256:
+                raise ArsError("owner-operated delivery packet identity differs")
+            profile = validated.profile.content
             if (
-                not isinstance(prior, Mapping)
-                or prior.get("recipient_id") != recipient_id
-                or prior.get("recipient_session_id") != recipient_session_id
-                or prior.get("packet_sha256") != compiled.packet_sha256
+                profile.get("provider_launch") is not False
+                or profile.get("recipient_id") != recipient_id
+                or profile.get("operator_session_id") != recipient_session_id
             ):
-                raise ArsError("owner-operated delivery retry changed the durable handoff")
-            return self._submit("RecordOwnerOperatedContextDelivery", compiled.context_id, compiled.request_id, prior)
-        issuance = self._owner_event(compiled.context_id, "OwnerOperatedContextHandoffIssued")
-        if validated.packet_sha256 != compiled.packet_sha256:
-            raise ArsError("owner-operated delivery packet identity differs")
-        profile = validated.profile.content
-        if (
-            profile.get("provider_launch") is not False
-            or profile.get("recipient_id") != recipient_id
-            or profile.get("operator_session_id") != recipient_session_id
-        ):
-            raise ArsError("owner-operated delivery semantic identity differs")
-        receipt_id = _stable_context_id(
-            f"{compiled.request_id}:{compiled.packet_sha256}:{recipient_id}:{recipient_session_id}:owner-operated"
-        )
-        receipt_identity = {
-            "schema_id": "ars://wp6-6/owner-operated-context-delivery-receipt",
-            "schema_version": "1.0.0",
-            "delivery_receipt_id": receipt_id,
-            "context_id": compiled.context_id,
-            "packet_revision": compiled.revision,
-            "packet_sha256": compiled.packet_sha256,
-            "owner_profile_sha256": validated.profile.sha256,
-            "recipient_id": recipient_id,
-            "recipient_session_id": recipient_session_id,
-            "provider_launch": False,
-        }
-        if self.objects.revision_exists("context", receipt_id, 1):
-            receipt = self.objects.read("context", receipt_id, 1)
-            if not isinstance(receipt, Mapping) or any(
-                receipt.get(field) != expected for field, expected in receipt_identity.items()
-            ):
-                raise ArsError("owner-operated delivery receipt conflicts with the durable handoff")
-        else:
-            receipt = {
-                **receipt_identity,
-                "delivered_at": self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
-            }
-        receipt_sha256 = sha256_hex(canonical_bytes(receipt))
-        if not self.objects.revision_exists("context", receipt_id, 1):
-            self.objects.write("context", receipt_id, 1, receipt)
-        return self._submit(
-            "RecordOwnerOperatedContextDelivery",
-            compiled.context_id,
-            compiled.request_id,
-            {
+                raise ArsError("owner-operated delivery semantic identity differs")
+            delivered_at = self._require_current_owner_window(profile)
+            receipt_id = _stable_context_id(
+                f"{compiled.request_id}:{compiled.packet_sha256}:{recipient_id}:{recipient_session_id}:owner-operated"
+            )
+            receipt_identity = {
+                "schema_id": "ars://wp6-6/owner-operated-context-delivery-receipt",
+                "schema_version": "1.0.0",
+                "delivery_receipt_id": receipt_id,
                 "context_id": compiled.context_id,
-                "request_id": compiled.request_id,
                 "packet_revision": compiled.revision,
                 "packet_sha256": compiled.packet_sha256,
-                "manifest_sha256": compiled.manifest_sha256,
                 "owner_profile_sha256": validated.profile.sha256,
-                "issuance_event_id": issuance["event_id"],
-                "issuance_event_sha256": issuance["event_hash"],
                 "recipient_id": recipient_id,
                 "recipient_session_id": recipient_session_id,
-                "delivery_receipt_object_id": receipt_id,
-                "delivery_receipt_revision": 1,
-                "delivery_receipt_sha256": receipt_sha256,
-            },
-        )
+                "provider_launch": False,
+            }
+            if self.objects.revision_exists("context", receipt_id, 1):
+                receipt = self.objects.read("context", receipt_id, 1)
+                if not isinstance(receipt, Mapping) or any(
+                    receipt.get(field) != expected for field, expected in receipt_identity.items()
+                ):
+                    raise ArsError("owner-operated delivery receipt conflicts with the durable handoff")
+            else:
+                receipt = {
+                    **receipt_identity,
+                    "delivered_at": delivered_at.isoformat().replace("+00:00", "Z"),
+                }
+            receipt_sha256 = sha256_hex(canonical_bytes(receipt))
+            if not self.objects.revision_exists("context", receipt_id, 1):
+                self.objects.write("context", receipt_id, 1, receipt)
+            return self._submit(
+                "RecordOwnerOperatedContextDelivery",
+                compiled.context_id,
+                compiled.request_id,
+                {
+                    "context_id": compiled.context_id,
+                    "request_id": compiled.request_id,
+                    "packet_revision": compiled.revision,
+                    "packet_sha256": compiled.packet_sha256,
+                    "manifest_sha256": compiled.manifest_sha256,
+                    "owner_profile_sha256": validated.profile.sha256,
+                    "issuance_event_id": issuance["event_id"],
+                    "issuance_event_sha256": issuance["event_hash"],
+                    "recipient_id": recipient_id,
+                    "recipient_session_id": recipient_session_id,
+                    "delivery_receipt_object_id": receipt_id,
+                    "delivery_receipt_revision": 1,
+                    "delivery_receipt_sha256": receipt_sha256,
+                },
+            )
 
     def fail(
         self,

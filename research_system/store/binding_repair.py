@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import os
 import stat
-import subprocess  # nosec B404 - fixed git inspection commands
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +22,7 @@ from research_system.authority import _validate_bootstrap, authority_bootstrap_s
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError
+from research_system.git_execution import run_git
 from research_system.ids import validate_id
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.durability import fsync_directory
@@ -44,6 +44,7 @@ COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding
 EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
 OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
 RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+ADVANCE_RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingAdvance"
 ADVANCE_COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
 ADVANCE_EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
 ADVANCE_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
@@ -72,31 +73,11 @@ def _parse_time(value: object, field: str) -> datetime:
 
 
 def _run_git(root: Path, *arguments: str) -> str:
-    environment = dict(os.environ)
-    for variable in (
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_GRAFT_FILE",
-        "GIT_SHALLOW_FILE",
-        "GIT_REPLACE_REF_BASE",
-    ):
-        environment.pop(variable, None)
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
-    try:
-        result = subprocess.run(  # nosec B603 B607 - fixed executable and derived validated root
-            ["git", "-C", str(root), *arguments],
-            capture_output=True,
-            env=environment,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise ConfigurationError("candidate Git inspection timed out") from exc
+    result = run_git(
+        root,
+        *arguments,
+        unavailable_message="candidate Git inspection timed out or is unavailable",
+    )
     if result.returncode != 0:
         raise ConfigurationError(f"candidate Git inspection failed: {result.stderr.strip()}")
     return result.stdout.strip()
@@ -444,7 +425,13 @@ def _candidate_evidence(intent: RepairStoreBinding) -> dict[str, Any]:
         schema_records.append({"path": path.relative_to(schema_root).as_posix(), "sha256": sha256_hex(raw)})
     catalogue_sha256 = sha256_hex(canonical_bytes(schema_records))
     schemas = runtime_schema_registry(schema_root)
-    for schema_id in (COMMAND_SCHEMA_ID, EVENT_SCHEMA_ID, OBJECT_SCHEMA_ID, RECEIPT_SCHEMA_ID):
+    for schema_id in (
+        COMMAND_SCHEMA_ID,
+        EVENT_SCHEMA_ID,
+        OBJECT_SCHEMA_ID,
+        RECEIPT_SCHEMA_ID,
+        ADVANCE_RECEIPT_SCHEMA_ID,
+    ):
         schemas.resolve_identity(schema_id, "1.0.0")
     return {
         "repository_root": str(candidate),
@@ -554,6 +541,22 @@ def _event_for_command(ledger: EventLedger, payload_hash: str, idempotency_key: 
     return matches[0]
 
 
+def _binding_receipt_record(receipt: Receipt) -> dict[str, Any]:
+    """Render the generic durable receipt for command-specific validation."""
+    return {
+        "schema_id": "ars://core/receipt",
+        "schema_version": "1.0.0",
+        "command_id": receipt.command_id,
+        "status": receipt.status,
+        "payload_hash": receipt.payload_hash,
+        "outcome": {
+            "event_batch_id": receipt.event_batch_id,
+            "observed_stream_version": receipt.observed_stream_version,
+            "reason_code": receipt.reason_code,
+        },
+    }
+
+
 def _advance_event_for_command(ledger: EventLedger, payload_hash: str, idempotency_key: str) -> dict[str, Any] | None:
     matches = [
         event
@@ -632,6 +635,7 @@ def advance_store_binding(
     payload_hash = sha256_hex(canonical_bytes(payload))
     scope = (intent.owner_actor_id, "store-binding-recovery", "AdvanceStoreBinding", intent.idempotency_key)
     authority_hash = sha256_hex(canonical_bytes({"actor_id": intent.owner_actor_id, "action": intent.owner_action}))
+    schemas = runtime_schema_registry(Path(candidate["schema_root"]))
     receipt_store = ReceiptStore(control)
     existing_receipt = receipt_store.load_scoped(
         scope,
@@ -645,6 +649,7 @@ def advance_store_binding(
     if predecessor.get("schema_version") == "1.1.0" and predecessor.get("command_payload_hash") == payload_hash:
         if existing_receipt is None:
             raise IntegrityError("binding advance recovery exists without its durable receipt")
+        schemas.validate(ADVANCE_RECEIPT_SCHEMA_ID, _binding_receipt_record(existing_receipt))
         expected_marker = canonical_bytes(
             {
                 "schema_id": "ars://internal/store-binding-advance-transaction",
@@ -763,6 +768,7 @@ def advance_store_binding(
                 None,
                 (),
             )
+            ledger.schemas.validate(ADVANCE_RECEIPT_SCHEMA_ID, _binding_receipt_record(receipt))
             receipt_store.write_scoped(
                 scope,
                 authority_hash,
@@ -820,6 +826,7 @@ def repair_store_binding(
     marker_path = marker_parent / _MARKER_NAME
     recovery_path = control / "manifests" / RECOVERY_BINDING_NAME
     binding_path = control / "manifests" / "binding-repair-control-binding.json"
+    schemas = runtime_schema_registry(Path(candidate["schema_root"]))
     receipt_store = ReceiptStore(control)
     existing_receipt = receipt_store.load_scoped(
         scope,
@@ -830,6 +837,7 @@ def repair_store_binding(
         target_stream_id=intent.expected_project_id,
     )
     if existing_receipt is not None:
+        schemas.validate(RECEIPT_SCHEMA_ID, _binding_receipt_record(existing_receipt))
         try:
             recovery_path.lstat()
         except FileNotFoundError:
@@ -1034,6 +1042,7 @@ def repair_store_binding(
                 None,
                 (),
             )
+            ledger.schemas.validate(RECEIPT_SCHEMA_ID, _binding_receipt_record(receipt))
             receipt_store.write_scoped(
                 scope,
                 authority_hash,
@@ -1042,8 +1051,6 @@ def repair_store_binding(
                 project_id=intent.expected_project_id,
                 target_stream_id=intent.expected_project_id,
             )
-            receipt_record = json.loads((control / "receipts" / f"{receipt.command_id}.json").read_bytes())
-            ledger.schemas.validate(RECEIPT_SCHEMA_ID, receipt_record)
             if phase_hook:
                 phase_hook("receipt")
             _publish(control, binding_path, binding_bytes)

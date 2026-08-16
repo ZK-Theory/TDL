@@ -14,7 +14,6 @@ import json
 import os
 import re
 import secrets
-import subprocess
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -38,7 +37,8 @@ from research_system.assurance.tdl_private_semantics import validate_tdl_private
 from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.git_execution import run_git
 from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.durability import fsync_directory
@@ -236,12 +236,13 @@ class _GitObjectReader:
 
     def _run(self, *arguments: str) -> bytes:
         try:
-            result = subprocess.run(  # nosec B603 - fixed git executable and argv
-                ["git", "-C", str(self.repository_root), *arguments],
-                capture_output=True,
-                check=False,
+            result = run_git(
+                self.repository_root,
+                *arguments,
+                text=False,
+                unavailable_message="Git object resolution is unavailable",
             )
-        except OSError as exc:
+        except ConfigurationError as exc:
             raise PackUnconsumable("Git object resolution is unavailable") from exc
         if result.returncode != 0:
             detail = result.stderr.decode("utf-8", "replace").strip()

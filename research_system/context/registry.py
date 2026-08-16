@@ -105,6 +105,12 @@ def rebuild_owner_operated_handoff(
         payload.get(field) != payloads[0].get(field) for payload in payloads[1:] for field in binding_fields
     ):
         raise IntegrityError("owner-operated context handoff identity changed")
+    profile = payloads[0].get("owner_profile")
+    delivery = payloads[-1]
+    if not isinstance(profile, Mapping) or delivery.get("recipient_session_id") != profile.get("operator_session_id"):
+        raise ArsError("owner-operated delivery does not bind the prepared operator session")
+    if delivery.get("recipient_id") != profile.get("recipient_id"):
+        raise ArsError("owner-operated delivery does not bind the prepared recipient")
     return payloads
 
 
@@ -207,8 +213,13 @@ def resolve_context_packet_for_consumer(
     source_resolver: SourceResolver,
 ) -> ResolvedContextPacket:
     """Resolve only an exact delivered, current packet from verified ledger state."""
-    if evaluation_time.tzinfo is None:
+    if (
+        not isinstance(evaluation_time, datetime)
+        or evaluation_time.tzinfo is None
+        or evaluation_time.utcoffset() is None
+    ):
         raise ValueError("evaluation_time must be timezone-aware")
+    evaluated_at = evaluation_time.astimezone(UTC)
     event_values = tuple(events)
     state = rebuild_context_lifecycle(event_values, context_id)
     owner = rebuild_owner_operated_handoff(event_values, context_id)
@@ -231,9 +242,9 @@ def resolve_context_packet_for_consumer(
             or profile.get("recipient_id") != consumer_id
             or profile.get("purpose") != purpose
             or profile.get("scope") != scope
+            or delivery.get("recipient_session_id") != profile.get("operator_session_id")
         ):
             raise ArsError("owner-operated profile does not authorize this consumer request")
-        evaluated_at = evaluation_time.astimezone(UTC)
         if not (
             _parse_z(profile.get("valid_from"), "owner valid_from")
             <= evaluated_at
@@ -317,7 +328,7 @@ def resolve_context_packet_for_consumer(
         ):
             raise ArsError(f"direct source changed since compilation: {source_id}")
     expires_at = manifest.get("expires_at")
-    if expires_at is not None and evaluation_time.astimezone(UTC) >= _parse_z(expires_at, "expires_at"):
+    if expires_at is not None and evaluated_at >= _parse_z(expires_at, "expires_at"):
         raise ArsError("context packet has expired")
     delivery_receipt = _read_exact(
         objects,

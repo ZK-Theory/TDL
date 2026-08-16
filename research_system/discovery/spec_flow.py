@@ -9,7 +9,7 @@ evidence required by the one next route action.
 from __future__ import annotations
 
 import json
-import subprocess
+import tempfile
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -26,9 +26,10 @@ from research_system.artefacts.runtime import (
     GoverningScientificReviewStore,
 )
 from research_system.artefacts.use_resolver import ArtefactUseResolver
+from research_system.authority import GrantedCommandIdentity
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.spec_bridge import deliver_spec_owner_context, derive_spec_owner_context_id
-from research_system.discovery.operator import DiscoveryOperator, _git_result, _scrubbed_git_environment
+from research_system.discovery.operator import DiscoveryOperator
 from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
@@ -39,9 +40,10 @@ from research_system.discovery.authority import (
     PORTABLE_SPEC_REQUIRED_MEMBERS,
     validate_portable_path_subject,
 )
-from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.routes import discovery_route
+from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
+from research_system.git_execution import run_git
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -56,6 +58,7 @@ from research_system.methods.brief import export_brief
 from research_system.methods.pack import load_methods_pack
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
 ROUTE_ID = "SPEC-GATE6-RUN-V1"
@@ -154,7 +157,11 @@ class SpecFlowStatus:
 
 
 def _git(repository_root: Path, *arguments: str) -> str:
-    result = _git_result(repository_root, *arguments)
+    result = run_git(
+        repository_root,
+        *arguments,
+        unavailable_message="SPEC route Git validation is unavailable",
+    )
     if result.returncode != 0:
         raise ConfigurationError("SPEC route is not committed at operator HEAD")
     return result.stdout.strip()
@@ -164,20 +171,102 @@ def _resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
     """Resolve one exact remote tag without treating the heads namespace as exhaustive."""
 
     try:
-        result = subprocess.run(  # nosec B603 B607 - fixed Git executable and validated semantic inputs
-            ["git", "ls-remote", "--tags", repository_url, resolved_ref],
-            capture_output=True,
-            check=False,
-            env=_scrubbed_git_environment(),
-            text=True,
-            timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+        with tempfile.TemporaryDirectory(prefix="ars-spec-ls-remote-") as directory:
+            result = run_git(
+                Path(directory),
+                "ls-remote",
+                "--tags",
+                repository_url,
+                resolved_ref,
+                timeout=30,
+                unavailable_message="SPEC-01 correction remote reference could not be resolved",
+            )
+    except ConfigurationError as exc:
         raise IntegrityError("SPEC-01 correction remote reference could not be resolved") from exc
     lines = [line.split() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode != 0 or len(lines) != 1 or len(lines[0]) != 2 or lines[0][1] != resolved_ref:
         raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
     return lines[0][0]
+
+
+def _verify_remote_commit_paths(
+    repository_url: str,
+    resolved_ref: str,
+    commit_oid: str,
+    required_paths: Sequence[Mapping[str, Any]],
+) -> None:
+    """Verify every correction path against bytes fetched from the pinned remote ref."""
+
+    if not isinstance(repository_url, str) or not isinstance(resolved_ref, str):
+        raise IntegrityError("SPEC-01 correction remote identity is invalid")
+    if not isinstance(commit_oid, str) or len(commit_oid) != 40:
+        raise IntegrityError("SPEC-01 correction commit identity is invalid")
+    if not required_paths:
+        raise IntegrityError("SPEC-01 correction required paths are empty")
+    expected: dict[str, str] = {}
+    for item in required_paths:
+        path = item.get("path") if isinstance(item, Mapping) else None
+        digest = item.get("sha256") if isinstance(item, Mapping) else None
+        relative = Path(path) if isinstance(path, str) else None
+        if (
+            relative is None
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or relative.as_posix() != path
+            or not isinstance(digest, str)
+            or len(digest) != 64
+            or path in expected
+        ):
+            raise IntegrityError("SPEC-01 correction required path binding is invalid")
+        expected[path] = digest
+    try:
+        with tempfile.TemporaryDirectory(prefix="ars-spec-correction-") as directory:
+            checkout = Path(directory)
+            commands = (("init", "--quiet"), ("remote", "add", "origin", repository_url))
+            for arguments in commands:
+                result = run_git(
+                    checkout,
+                    *arguments,
+                    timeout=30,
+                    text=False,
+                    unavailable_message="SPEC-01 correction remote content could not be fetched",
+                )
+                if result.returncode != 0:
+                    raise IntegrityError("SPEC-01 correction remote content could not be fetched")
+            fetched = run_git(
+                checkout,
+                "fetch",
+                "--quiet",
+                "--depth=1",
+                "origin",
+                resolved_ref,
+                timeout=30,
+                unavailable_message="SPEC-01 correction remote content could not be fetched",
+            )
+            if fetched.returncode != 0:
+                raise IntegrityError("SPEC-01 correction remote content could not be fetched")
+            resolved = run_git(
+                checkout,
+                "rev-parse",
+                "FETCH_HEAD^{commit}",
+                timeout=30,
+                unavailable_message="SPEC-01 correction fetched ref could not be resolved",
+            )
+            if resolved.returncode != 0 or resolved.stdout.strip() != commit_oid:
+                raise IntegrityError("SPEC-01 correction fetched ref differs from its pinned commit")
+            for path, digest in expected.items():
+                content = run_git(
+                    checkout,
+                    "show",
+                    f"{commit_oid}:{path}",
+                    text=False,
+                    timeout=30,
+                    unavailable_message="SPEC-01 correction remote path could not be read",
+                )
+                if content.returncode != 0 or sha256_hex(content.stdout) != digest:
+                    raise IntegrityError("SPEC-01 correction required path differs from the pinned commit")
+    except ConfigurationError as exc:
+        raise IntegrityError("SPEC-01 correction remote content could not be verified") from exc
 
 
 def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> dict[str, Any]:
@@ -480,15 +569,72 @@ class SpecFlow:
         self.operator = operator
         self.route = _validate_route(operator)
 
-    def _snapshot(self) -> tuple[tuple[dict[str, Any], ...], dict[str, Any], dict[str, list[dict[str, Any]]]]:
-        events = tuple(self.operator.ledger.iter_events())
-        projection = replay_discovery(
-            events,
-            schemas=self.operator.schemas,
-            authority_state_validator=self.operator.authority_resolver.validate_replayed_administration_state,
+    def _runtime(self) -> DiscoveryRuntime:
+        return DiscoveryRuntime(
+            self.operator.control_root,
+            self.operator.ledger,
+            self.operator.schemas,
+            catalogue_path=self.operator.catalogue_path,
+            authority_resolver=self.operator.authority_resolver,
+            clock=self.operator.clock,
+            repository_root=self.operator.repository_root,
+            root_tokens=self.operator.root_tokens,
+            operational_ledger=self.operator.ledger,
         )
+
+    def _trusted_now(self) -> datetime:
+        """Return the operator clock as one validated UTC instant."""
+
+        try:
+            value = self.operator.clock()
+        except Exception as exc:
+            raise IntegrityError("SPEC operator clock is unavailable") from exc
+        if not isinstance(value, datetime) or value.tzinfo is None:
+            raise IntegrityError("SPEC operator clock must return an aware datetime")
+        try:
+            offset = value.utcoffset()
+            normalized = value.astimezone(UTC)
+        except Exception as exc:
+            raise IntegrityError("SPEC operator clock must return an aware datetime") from exc
+        if offset is None:
+            raise IntegrityError("SPEC operator clock must return an aware datetime")
+        return normalized
+
+    def _snapshot(self) -> tuple[tuple[dict[str, Any], ...], dict[str, Any], dict[str, list[dict[str, Any]]]]:
+        events = self.operator.ledger.snapshot().events
+        projection = self._runtime().replay(events)
         documents = _registered_documents(self.operator, projection)
         return events, projection, documents
+
+    def _prevalidate_lifecycle_grant(
+        self,
+        *,
+        grant_id: str,
+        actor_id: str,
+        command_type: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> None:
+        binding = self.operator.schemas.command_binding(command_type)
+        if binding is None:
+            raise IntegrityError(f"{command_type} has no active schema binding")
+        identity = self.operator.schemas.resolve_identity(binding.schema_id, binding.schema_version)
+        self.operator.authority_resolver.resolve_lifecycle_command(
+            grant_id=grant_id,
+            actor_id=actor_id,
+            command=GrantedCommandIdentity(
+                command_type=command_type,
+                schema_id=identity.schema_id,
+                schema_version=identity.schema_version,
+                schema_sha256=identity.sha256,
+            ),
+            required_risk="R3",
+            project_id=self.operator.ledger.project_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            now=now,
+        )
 
     def _action_identity(self, action: str, packet: Mapping[str, Any], *, publish: bool) -> bool:
         if action not in _SINGLE_SHOT_ACTIONS:
@@ -694,6 +840,8 @@ class SpecFlow:
             if isinstance(state, Mapping)
             and isinstance(state.get("manifest"), Mapping)
             and state["manifest"].get("artefact_type") in _BRIEF_INPUT_TYPES
+            and isinstance(state["manifest"].get("authority"), Mapping)
+            and state["manifest"].get("authority", {}).get("accepted_scope") == "spec-gate6-run"
         }
 
     @classmethod
@@ -725,16 +873,19 @@ class SpecFlow:
                 )
             completed = action
         brief_inputs = self._brief_input_states(projection)
-        input_types = {state["manifest"].get("artefact_type") for state in brief_inputs.values()}
-        required_source_hashes = {
+        required_source_hashes = [
             source["sha256"] for source in self.route["sources"] if source["alias"] in {"SPEC-01", "SPEC-02"}
-        }
-        registered_source_hashes = {
-            state.get("content_sha256")
-            for state in brief_inputs.values()
-            if state["manifest"].get("artefact_type") == "spec_operator_source"
-        }
-        if input_types != _BRIEF_INPUT_TYPES or registered_source_hashes != required_source_hashes:
+        ]
+        required_hashes = sorted(
+            required_source_hashes
+            + [
+                sha256_hex((self.operator.repository_root / path).read_bytes())
+                for path, kind in _BRIEF_INPUT_SOURCE_TYPES.items()
+                if kind == "methods_asset"
+            ]
+        )
+        registered_hashes = sorted(state.get("content_sha256") for state in brief_inputs.values())
+        if registered_hashes != required_hashes:
             return SpecFlowStatus(
                 "NOT_RUNNABLE",
                 "request_spec_01",
@@ -1097,10 +1248,20 @@ class SpecFlow:
         if action == "approve_spec_02":
             events = tuple(self.operator.ledger.iter_events())
             owner_actor = _actor_for_row(events, "OR-013")
-            if document.get("owner", {}).get("actor_id") != owner_actor:
-                raise IntegrityError("SPEC-02 approval is not the promoting owner")
+            administration = self.operator.authority_resolver.administration_context()
+            if (
+                owner_actor != administration.owner_actor_id
+                or document.get("owner", {}).get("actor_id") != administration.owner_actor_id
+            ):
+                raise IntegrityError("SPEC-02 approval is not bound to the authenticated project owner")
             if document.get("registrar", {}).get("actor_id") == owner_actor:
                 raise IntegrityError("SPEC-02 approval owner and registrar must be independent")
+            if (
+                not isinstance(registration, Mapping)
+                or registration.get("authority_grant_id")
+                not in self.operator.authority_resolver.owner_published_grant_ids()
+            ):
+                raise IntegrityError("SPEC-02 approval registrar lacks owner-published exact-subject authority")
             source = next(item for item in self.route["sources"] if item["alias"] == "SPEC-02")
             if document.get("spec_02_subject", {}).get("sha256") != source["sha256"]:
                 raise IntegrityError("SPEC-02 approval subject differs from the governed source")
@@ -1142,10 +1303,8 @@ class SpecFlow:
                 expires = datetime.fromisoformat(document["valid_window"]["expires_at"].replace("Z", "+00:00"))
             except (KeyError, TypeError, ValueError) as exc:
                 raise IntegrityError("SPEC-02 approval window is invalid") from exc
-            now = self.operator.clock()
-            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-                raise IntegrityError("SPEC operator clock must return an aware datetime")
-            if not starts <= approved < expires or not starts <= now.astimezone(UTC) < expires:
+            trusted_now = self._trusted_now()
+            if not starts <= approved <= trusted_now < expires:
                 raise IntegrityError("SPEC-02 approval is outside its explicit live-run window")
         if action == "correct_spec_01_source":
             events, projection, _documents = self._snapshot()
@@ -1171,6 +1330,12 @@ class SpecFlow:
                 "commit_oid"
             ):
                 raise IntegrityError("SPEC-01 correction commit differs from the live remote tag")
+            _verify_remote_commit_paths(
+                git_ref.get("repository_url"),
+                git_ref.get("resolved_ref"),
+                git_ref.get("commit_oid"),
+                git_ref.get("required_paths"),
+            )
         if (
             not isinstance(registration, dict)
             or set(registration) != _REGISTRATION_FIELDS
@@ -1194,7 +1359,8 @@ class SpecFlow:
             ReceiptStore(self.operator.control_root),
             self.operator.schemas,
             authority_resolver=self.operator.authority_resolver,
-            clock=lambda: datetime.now(UTC),
+            spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
+            clock=self.operator.clock,
         )
         registered = register_candidate_document(
             value=document,
@@ -1253,27 +1419,13 @@ class SpecFlow:
             ReceiptStore(self.operator.control_root),
             self.operator.schemas,
             authority_resolver=self.operator.authority_resolver,
+            spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
             governing_evidence_resolver=GoverningScientificReviewStore(
                 ObjectStore(self.operator.control_root), self.operator.schemas
             ),
-            clock=lambda: datetime.now(UTC),
+            clock=self.operator.clock,
         )
         route_source = next(item for item in self.route["sources"] if item["alias"] == stage)
-        compiled, source_resolver = deliver_spec_owner_context(
-            operator=self.operator,
-            command_service=service,
-            actor_id=actor_id,
-            authority_grant_id=str(registrations["context_authority_grant_id"]),
-            operator_session_id=str(semantic["operator_session_id"]),
-            recipient_id=str(semantic["recipient_id"]),
-            purpose=str(semantic["purpose"]),
-            scope=str(semantic["scope"]),
-            retry_identity=str(packet["retry_id"]),
-            application_version=str(semantic["application_version"]),
-            valid_from=str(semantic["evaluation_time"]),
-            expires_at=str(semantic["handoff_expires_at"]),
-            required_spec_source_sha256=str(route_source["sha256"]),
-        )
         _events, projection, _documents = self._snapshot()
         input_states = self._brief_input_states(projection)
         spec_rows = [
@@ -1316,6 +1468,68 @@ class SpecFlow:
             )
         spec_state = spec_rows[0]
         spec_manifest = spec_state["manifest"]
+        context_id = derive_spec_owner_context_id(
+            actor_id=str(actor_id),
+            operator_session_id=str(semantic["operator_session_id"]),
+            recipient_id=str(semantic["recipient_id"]),
+            purpose=str(semantic["purpose"]),
+            scope=str(semantic["scope"]),
+            application_version=str(semantic["application_version"]),
+            valid_from=str(semantic["evaluation_time"]),
+            expires_at=str(semantic["handoff_expires_at"]),
+            retry_identity=str(packet["retry_id"]),
+        )
+        trusted_now = self._trusted_now()
+        context_exists = any(event.get("stream_id") == context_id for event in _events)
+        if not context_exists:
+            for command_type in (
+                "RequestContextPacket",
+                "BeginContextCompilation",
+                "CompleteContextCompilation",
+                "PrepareOwnerOperatedContextHandoff",
+                "ValidateOwnerOperatedContextHandoff",
+                "IssueOwnerOperatedContextHandoff",
+                "RecordOwnerOperatedContextDelivery",
+            ):
+                self._prevalidate_lifecycle_grant(
+                    grant_id=str(registrations["context_authority_grant_id"]),
+                    actor_id=str(actor_id),
+                    command_type=command_type,
+                    subject_kind="context",
+                    subject_id=context_id,
+                    now=trusted_now,
+                )
+        for registration_key in ("brief_registration", "package_registration"):
+            registration = registrations[registration_key]
+            if str(registration["artefact_id"]) in projection.get("artefact_streams", {}):
+                continue
+            self._prevalidate_lifecycle_grant(
+                grant_id=str(registration["authority_grant_id"]),
+                actor_id=str(actor_id),
+                command_type="RegisterArtefact",
+                subject_kind="artefact",
+                subject_id=str(registration["artefact_id"]),
+                now=trusted_now,
+            )
+        current = self.operator.ledger.snapshot()
+        if current.events != _events:
+            raise ConflictError("Discovery ledger changed during SPEC preparation preflight")
+        compiled, source_resolver = deliver_spec_owner_context(
+            operator=self.operator,
+            command_service=service,
+            actor_id=actor_id,
+            authority_grant_id=str(registrations["context_authority_grant_id"]),
+            operator_session_id=str(semantic["operator_session_id"]),
+            recipient_id=str(semantic["recipient_id"]),
+            purpose=str(semantic["purpose"]),
+            scope=str(semantic["scope"]),
+            retry_identity=str(packet["retry_id"]),
+            application_version=str(semantic["application_version"]),
+            valid_from=str(semantic["evaluation_time"]),
+            expires_at=str(semantic["handoff_expires_at"]),
+            required_spec_source_sha256=str(route_source["sha256"]),
+            projection_for_events=self._runtime().replay,
+        )
         consumers = ArtefactEvidenceConsumers(
             ArtefactUseResolver(
                 ledger=self.operator.ledger,
@@ -1327,6 +1541,7 @@ class SpecFlow:
                 ),
                 content_reader=ControlRootArtefactContentReader(self.operator.control_root),
                 authority_state_validator=self.operator.authority_resolver.validate_replayed_administration_state,
+                spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
             )
         )
         try:
@@ -1415,6 +1630,17 @@ class SpecFlow:
         return {"registration": result, "context_id": compiled.context_id, "brief": package}
 
     def advance(self, action: str, packet_path: Path) -> dict[str, Any]:
+        """Advance one public SPEC action through its authoritative seam."""
+
+        # Every public SPEC action may make several independently durable
+        # writes before its completion identity.  Hold one recoverable fence
+        # over the whole action so neither a context/brief/package preparation
+        # nor a raw-registration/review batch can bind a stale Discovery tail.
+        # Nested CommandService and DiscoveryRuntime submissions re-enter it.
+        with SpecPreparationFence(self.operator.control_root):
+            return self._advance_unfenced(action, packet_path)
+
+    def _advance_unfenced(self, action: str, packet_path: Path) -> dict[str, Any]:
         packet = self._canonical_packet(packet_path)
         if packet.get("action") != action:
             raise IntegrityError("SPEC action argument and packet differ")
@@ -1465,7 +1691,8 @@ class SpecFlow:
                 ReceiptStore(self.operator.control_root),
                 self.operator.schemas,
                 authority_resolver=self.operator.authority_resolver,
-                clock=lambda: datetime.now(UTC),
+                spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
+                clock=self.operator.clock,
             )
             prepared_entries = []
             for entry in entries:
@@ -1532,8 +1759,18 @@ class SpecFlow:
                 envelope.get("target_stream_id") if isinstance(envelope, dict) else None
                 for envelope in packet["commands"]
             ]
+            command_ids = [
+                envelope.get("command_id") if isinstance(envelope, dict) else None for envelope in packet["commands"]
+            ]
+            idempotency_keys = [
+                envelope.get("idempotency_key") if isinstance(envelope, dict) else None
+                for envelope in packet["commands"]
+            ]
             if (
                 len(command_targets) != len(set(command_targets))
+                or len(command_ids) != len(set(command_ids))
+                or len(idempotency_keys) != len(set(idempotency_keys))
+                or any(not isinstance(value, str) or not value for value in command_ids + idempotency_keys)
                 or not set(pending_inputs).issubset(command_targets)
                 or any(target not in all_inputs for target in command_targets)
             ):
@@ -1558,8 +1795,25 @@ class SpecFlow:
                 ):
                     raise IntegrityError("SPEC brief-input governing reviews are incomplete")
                 publications = review_publications["governing_reviews"]
+                reference_ids = [
+                    publication.get("reference_id") if isinstance(publication, dict) else None
+                    for publication in publications
+                ]
+                review_ids = [
+                    publication.get("record", {}).get("review_id")
+                    if isinstance(publication, dict) and isinstance(publication.get("record"), dict)
+                    else None
+                    for publication in publications
+                ]
+                if (
+                    len(reference_ids) != len(set(reference_ids))
+                    or len(review_ids) != len(set(review_ids))
+                    or any(not isinstance(value, str) or not value for value in reference_ids + review_ids)
+                ):
+                    raise IntegrityError("SPEC brief-input governing review identities are not unique")
             else:
                 publications = []
+            evaluation_time = self._trusted_now()
             service = CommandService(
                 self.operator.control_root,
                 self.operator.ledger,
@@ -1567,6 +1821,7 @@ class SpecFlow:
                 receipt_store,
                 self.operator.schemas,
                 authority_resolver=self.operator.authority_resolver,
+                spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
                 governing_evidence_resolver=review_store,
                 clock=self.operator.clock,
             )
@@ -1595,14 +1850,19 @@ class SpecFlow:
                         or not isinstance(evidence_refs, list)
                         or evidence_refs != [publication.get("reference_id")]
                         or not isinstance(publication.get("record"), dict)
+                        or publication["record"].get("project_id") != self.operator.ledger.project_id
+                        or publication["record"].get("review_id") != payload.get("review_id")
                         or publication["record"].get("subject_sha256") != state.get("content_sha256")
                         or publication["record"].get("reviewer_actor_id") != envelope.get("actor_id")
                     ):
                         raise IntegrityError("SPEC brief-input governing review binding differs")
             service.prevalidate_artefact_authority_batch(packet["commands"])
             review_store.prevalidate_publications(publications)
-            for publication in publications:
-                review_store.publish(str(publication["reference_id"]), publication["record"])
+            review_store.publish_batch(
+                publications,
+                project_id=self.operator.ledger.project_id,
+                evaluation_time=evaluation_time,
+            )
             receipts = [asdict(service.submit(deepcopy(envelope))) for envelope in packet["commands"]]
             return self._complete_action(
                 action,

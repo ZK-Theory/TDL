@@ -12,17 +12,14 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
-
-# Required for the narrow argv-only Git identity checks below; shell=False is explicit.
-import subprocess  # nosec B404
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from math import isfinite
 from pathlib import Path
 from typing import Any, NoReturn
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import SchemaError
+from research_system.errors import ConfigurationError, SchemaError
+from research_system.git_execution import run_git
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -45,10 +42,6 @@ _SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _OBJ_ID_RE = re.compile(r"^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _ART_ID_RE = re.compile(r"^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-_GIT_EXECUTABLE = shutil.which("git")
-if _GIT_EXECUTABLE is not None:
-    _GIT_EXECUTABLE = str(Path(_GIT_EXECUTABLE).resolve())
-
 W11_CONTENT_SCHEMA_IDS = frozenset(
     {
         "ars://portfolio/programme",
@@ -1070,28 +1063,21 @@ def _require_sha1(value: Any, field: str) -> str:
     return value
 
 
-def _git_executable() -> str:
-    if _GIT_EXECUTABLE is None:
-        _envelope_error("Git executable could not be resolved from PATH")
-    return _GIT_EXECUTABLE
-
-
 def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool:
     base_commit = _require_sha1(base_commit, "base_commit")
     subject_commit = _require_sha1(subject_commit, "subject_commit")
     try:
-        result = subprocess.run(  # nosec B603 - required argv-only Git ancestry check with validated SHAs.
-            [_git_executable(), "merge-base", "--is-ancestor", base_commit, subject_commit],
-            cwd=repo_root,
-            check=False,
-            shell=False,
+        result = run_git(
+            repo_root,
+            "merge-base",
+            "--is-ancestor",
+            base_commit,
+            subject_commit,
             text=True,
-            encoding="utf-8",
-            errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            timeout=30,
+            unavailable_message="Git ancestry lookup is unavailable",
         )
-    except OSError as exc:
+    except ConfigurationError as exc:
         _envelope_error(f"Git ancestry lookup failed for {base_commit}..{subject_commit}: {exc}")
     if result.returncode == 0:
         return True
@@ -1103,36 +1089,36 @@ def _is_ancestor(repo_root: Path, base_commit: str, subject_commit: str) -> bool
 
 def _git(repo_root: Path, *args: str) -> str:
     try:
-        result = subprocess.run(  # nosec B603 - required argv-only Git identity check with shell disabled.
-            [_git_executable(), *args],
-            cwd=repo_root,
-            check=True,
-            shell=False,
+        result = run_git(
+            repo_root,
+            *args,
             text=True,
-            encoding="utf-8",
-            errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            timeout=30,
+            unavailable_message="Git identity lookup is unavailable",
         )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        detail = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+    except ConfigurationError as exc:
+        detail = str(exc)
+        _envelope_error(f"Git identity lookup failed for {' '.join(args)}: {detail}")
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"exit status {result.returncode}"
         _envelope_error(f"Git identity lookup failed for {' '.join(args)}: {detail}")
     return result.stdout.strip()
 
 
 def _git_raw(repo_root: Path, *args: str) -> bytes:
     try:
-        result = subprocess.run(
-            ["git", *args],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        result = run_git(
+            repo_root,
+            *args,
+            text=False,
+            timeout=30,
+            unavailable_message="Git raw identity lookup is unavailable",
         )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        detail = (
-            exc.stderr.decode(errors="replace").strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
-        )
+    except ConfigurationError as exc:
+        detail = str(exc)
+        _envelope_error(f"Git raw identity lookup failed for {' '.join(args)}: {detail}")
+    if result.returncode != 0:
+        detail = result.stderr.decode(errors="replace").strip() or f"exit status {result.returncode}"
         _envelope_error(f"Git raw identity lookup failed for {' '.join(args)}: {detail}")
     return result.stdout
 

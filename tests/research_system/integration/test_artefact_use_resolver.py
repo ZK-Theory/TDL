@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+import research_system.artefacts.use_resolver as use_resolver_module
 from research_system.artefacts.authority import (
     ArtefactAuthorityContractLoader,
     GoverningEvidenceResolution,
@@ -105,6 +106,38 @@ def test_public_resolver_reads_real_replay_and_immutable_object_state(tmp_path):
     assert resolved.canonical_manifest_bytes == canonical_bytes(harness.objects.read("artefact", ARTEFACT_ID, 1))
     assert resolved.content_bytes == CONTENT_BYTES
     assert content_reader.reads == [("control", "evidence/evaluation-run.json")]
+
+
+def test_public_resolver_binds_spec_validator_to_the_exact_replay_snapshot(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    for value in accepted_artefact_commands(harness):
+        assert harness.service.submit(value).status == "accepted"
+    loader = ArtefactAuthorityContractLoader(SUBJECT)
+    captured_events = []
+
+    def sentinel(_projection, _candidate, _event, _park_test):
+        return None
+
+    original_replay = use_resolver_module.replay
+
+    def observed_replay(events, **kwargs):
+        assert kwargs["spec_execution_authority_validator"] is sentinel
+        return original_replay(events, **kwargs)
+
+    monkeypatch.setattr(use_resolver_module, "replay", observed_replay)
+    resolver = ArtefactUseResolver(
+        ledger=harness.ledger,
+        objects=harness.objects,
+        schemas=harness.schemas,
+        contract_loader=loader,
+        governing_evidence=EvidenceResolver(),
+        content_reader=ContentReader(),
+        spec_execution_authority_validator_factory=lambda events: captured_events.append(events) or sentinel,
+    )
+
+    resolver.resolve(request(loader))
+
+    assert captured_events == [harness.ledger.snapshot().events]
 
 
 @pytest.mark.parametrize(

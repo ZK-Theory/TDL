@@ -197,6 +197,90 @@ def test_repair_publication_schemas_reject_underbound_object_event_and_receipt(t
             registry.validate(schema_id, invalid)
 
 
+def test_binding_receipt_schemas_are_active_and_command_specific(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    registry = runtime_schema_registry(candidate / ".research-system" / "schemas")
+    repair_schema = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+    advance_schema = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingAdvance"
+    assert registry.is_active(repair_schema, "1.0.0")
+    assert registry.is_active(advance_schema, "1.0.0")
+    repair_receipt = json.loads(
+        (intent.control_root / "receipts" / f"{repair['receipt']['command_id']}.json").read_bytes()
+    )
+    registry.validate(repair_schema, repair_receipt)
+    with pytest.raises(SchemaError):
+        registry.validate(advance_schema, repair_receipt)
+
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    advance = advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    advance_receipt = json.loads(
+        (intent.control_root / "receipts" / f"{advance['receipt']['command_id']}.json").read_bytes()
+    )
+    registry.validate(advance_schema, advance_receipt)
+    with pytest.raises(SchemaError):
+        registry.validate(repair_schema, advance_receipt)
+
+
+def test_repair_receipt_schema_rejects_invalid_identity_fields(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    result = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    receipt = json.loads((intent.control_root / "receipts" / f"{result['receipt']['command_id']}.json").read_bytes())
+    invalid_receipts = []
+    for mutation in ("missing", "wrong_type", "null", "cross_command"):
+        invalid = deepcopy(receipt)
+        if mutation == "missing":
+            invalid.pop("status")
+        elif mutation == "wrong_type":
+            invalid["outcome"]["observed_stream_version"] = "1"
+        elif mutation == "null":
+            invalid["command_id"] = None
+        else:
+            invalid["command_id"] = invalid["command_id"].replace("binding-repair-", "binding-advance-")
+        invalid_receipts.append(invalid)
+    registry = runtime_schema_registry(candidate / ".research-system" / "schemas")
+    for invalid in invalid_receipts:
+        with pytest.raises(SchemaError):
+            registry.validate(
+                "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair",
+                invalid,
+            )
+
+
+def test_repaired_loader_rejects_invalid_typed_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    result = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    receipt_path = target / "receipts" / f"{result['receipt']['command_id']}.json"
+    receipt = json.loads(receipt_path.read_bytes())
+    index_path = next((target / "receipts" / "idempotency").glob("*.json"))
+    index = json.loads(index_path.read_bytes())
+    binding_path = _binding_file(tmp_path, target, candidate, witness)
+    for mutation in ("missing", "wrong_type", "null", "cross_command"):
+        invalid = deepcopy(receipt)
+        if mutation == "missing":
+            invalid.pop("status")
+        elif mutation == "wrong_type":
+            invalid["outcome"]["observed_stream_version"] = "1"
+        elif mutation == "null":
+            invalid["command_id"] = None
+        else:
+            invalid["command_id"] = invalid["command_id"].replace("binding-repair-", "binding-advance-")
+        receipt_path.write_bytes(canonical_bytes(invalid))
+        invalid_index = deepcopy(index)
+        invalid_index["receipt"] = invalid
+        index_path.write_bytes(canonical_bytes(invalid_index))
+        with pytest.raises(IntegrityError, match="receipt is invalid"):
+            ControlBinding.load_repaired(binding_path)
+
+
 def test_repaired_loader_requires_executing_repository_in_governed_code_roots(tmp_path: Path, monkeypatch):
     _initialized, _witness, target, _candidate, foundation, intent = _fixture(tmp_path, monkeypatch)
     repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))

@@ -15,7 +15,7 @@ class _Resolver:
         return tuple(fragment for fragment in self.fragments if fragment.source_id in source_ids)
 
 
-def test_spec_replay_source_is_system_derived_and_tail_bound(monkeypatch):
+def test_spec_replay_source_is_system_derived_and_tail_bound():
     projection = {
         "artefact_streams": {
             "art_source": {
@@ -31,33 +31,46 @@ def test_spec_replay_source_is_system_derived_and_tail_bound(monkeypatch):
         },
         "candidates": {"can_1": {"status": "assay_requested"}},
     }
-    validators = []
+    replayed = []
 
-    def replay(events, schemas, *, authority_state_validator=None):
-        validators.append(authority_state_validator)
+    def replay(events):
+        replayed.append(tuple(events))
         return projection
 
-    monkeypatch.setattr("research_system.context.spec_bridge.replay_discovery", replay)
-    validator = object()
     first = build_spec_context_snapshot(
         ({"global_position": 7, "event_hash": "a" * 64},),
-        schemas=object(),
+        projection_for_events=replay,
         route_id="SPEC-GATE6-RUN-V1",
-        authority_state_validator=validator,
     )
     same = build_spec_context_snapshot(
         ({"global_position": 7, "event_hash": "a" * 64},),
-        schemas=object(),
+        projection_for_events=replay,
         route_id="SPEC-GATE6-RUN-V1",
     )
     changed = build_spec_context_snapshot(
         ({"global_position": 8, "event_hash": "b" * 64},),
-        schemas=object(),
+        projection_for_events=replay,
         route_id="SPEC-GATE6-RUN-V1",
     )
     assert first == same
     assert first.source.source_id != changed.source.source_id
-    assert validators == [validator, None, None]
+    assert replayed == [
+        ({"global_position": 7, "event_hash": "a" * 64},),
+        ({"global_position": 7, "event_hash": "a" * 64},),
+        ({"global_position": 8, "event_hash": "b" * 64},),
+    ]
+
+
+def test_spec_replay_source_propagates_production_projection_rejection():
+    def rejected(_events):
+        raise ArsError("SPEC-02 execution lacks valid durable approval evidence")
+
+    with pytest.raises(ArsError, match="valid durable approval"):
+        build_spec_context_snapshot(
+            ({"global_position": 7, "event_hash": "a" * 64},),
+            projection_for_events=rejected,
+            route_id="SPEC-GATE6-RUN-V1",
+        )
 
 
 def _fragment(source_id, content):

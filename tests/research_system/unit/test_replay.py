@@ -813,7 +813,7 @@ def test_store_init_fails_closed_when_worktrees_cannot_be_enumerated(tmp_path, m
     code_root = tmp_path / "repo"
     code_root.mkdir()
     monkeypatch.setattr(
-        "research_system.cli.subprocess.run",
+        "research_system.cli.run_git",
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="git unavailable"),
     )
     with pytest.raises(ConfigurationError, match="cannot enumerate git worktrees"):
@@ -869,7 +869,7 @@ def test_s006_cli_requires_materialized_canonical_origin_pins(tmp_path, monkeypa
         code_root / ".research-system" / "schemas",
     )
     monkeypatch.setattr(
-        "research_system.cli.subprocess.run",
+        "research_system.cli.run_git",
         lambda *args, **kwargs: SimpleNamespace(
             returncode=0,
             stdout=f"worktree {code_root.resolve()}\n",

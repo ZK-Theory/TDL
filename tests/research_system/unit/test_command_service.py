@@ -4,7 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from research_system.canonical import canonical_bytes
+import research_system.command.service as command_service_module
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import reduce_task
 from research_system.command.service import CommandService
@@ -228,6 +229,232 @@ def test_activate_lifecycle_grant_rejects_mismatched_existing_scope(tmp_path, ac
             command_types=command_types,
             grant_id=grant_id,
         )
+
+
+def _owner_context_snapshot(context_id: str, *, through: str) -> LedgerSnapshot:
+    binding = {
+        "context_id": context_id,
+        "request_id": "request-1",
+        "packet_revision": 1,
+        "packet_sha256": "1" * 64,
+        "manifest_sha256": "2" * 64,
+        "owner_profile_sha256": "3" * 64,
+    }
+    profile = {
+        "operator_id": ACTORS["actor-a"],
+        "operator_session_id": "owner-session-1",
+        "recipient_id": "spec-brief-consumer",
+    }
+    event_types = [
+        ("ContextPacketRequested", {"context_id": context_id, "revision": 1}),
+        ("ContextPacketCompiled", {**binding, "owner_profile_sha256": None}),
+        ("OwnerOperatedContextHandoffPrepared", {**binding, "owner_profile": profile}),
+        ("OwnerOperatedContextHandoffValidated", binding),
+        ("OwnerOperatedContextHandoffIssued", binding),
+    ]
+    terminal_index = {
+        "ContextPacketCompiled": 1,
+        "OwnerOperatedContextHandoffPrepared": 2,
+        "OwnerOperatedContextHandoffIssued": 4,
+    }[through]
+    events = tuple(
+        {
+            "event_type": event_type,
+            "stream_id": context_id,
+            "stream_version": index + 1,
+            "event_id": f"evt-{index + 1}",
+            "event_hash": str(index + 1) * 64,
+            "payload": payload,
+        }
+        for index, (event_type, payload) in enumerate(event_types[: terminal_index + 1])
+    )
+    return LedgerSnapshot(
+        events=events,
+        global_position=len(events),
+        event_hash=events[-1]["event_hash"],
+        stream_versions={context_id: len(events)},
+        fingerprint=(),
+    )
+
+
+def _owner_context_command(
+    context_id: str,
+    *,
+    command_type: str,
+    actor_id: str,
+    expected_version: int,
+    payload: dict,
+) -> Command:
+    return Command(
+        {
+            "command_id": "cmd_owner-context-boundary",
+            "command_type": command_type,
+            "actor_id": actor_id,
+            "authority_grant_id": "agr_owner-context-boundary",
+            "target_stream_id": context_id,
+            "expected_stream_version": expected_version,
+            "idempotency_key": f"owner-context:{command_type}",
+            "project_id": PROJECT_ID,
+            "payload": payload,
+        }
+    )
+
+
+def test_owner_context_validation_rejects_actor_outside_prepared_profile(tmp_path):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2010-7000-8000-000000002010"
+    snapshot = _owner_context_snapshot(context_id, through="OwnerOperatedContextHandoffPrepared")
+    prepared = snapshot.events[-1]
+    binding = {
+        key: prepared["payload"][key]
+        for key in (
+            "context_id",
+            "request_id",
+            "packet_revision",
+            "packet_sha256",
+            "manifest_sha256",
+            "owner_profile_sha256",
+        )
+    }
+    command = _owner_context_command(
+        context_id,
+        command_type="ValidateOwnerOperatedContextHandoff",
+        actor_id=ACTORS["actor-b"],
+        expected_version=3,
+        payload={
+            **binding,
+            "prepared_event_id": prepared["event_id"],
+            "prepared_event_sha256": prepared["event_hash"],
+        },
+    )
+
+    result = harness.service._prepare_context_packet_command(command, snapshot, 3)
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+def test_owner_context_prepare_rejects_duplicate_artefact_identity_at_command_boundary(tmp_path):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2012-7000-8000-000000002012"
+    snapshot = _owner_context_snapshot(context_id, through="ContextPacketCompiled")
+    compiled = snapshot.events[-1]["payload"]
+    profile = {
+        "provider_launch": False,
+        "context_id": context_id,
+        "packet_revision": compiled["packet_revision"],
+        "packet_sha256": compiled["packet_sha256"],
+        "operator_id": ACTORS["actor-a"],
+    }
+    artefact_id = "art_01978abc-2013-7000-8000-000000002013"
+    payload = {
+        **compiled,
+        "owner_profile": profile,
+        "owner_profile_sha256": sha256_hex(canonical_bytes(profile)),
+        "accepted_artefacts": [
+            {"artefact_id": artefact_id, "content_sha256": "4" * 64},
+            {"artefact_id": artefact_id, "content_sha256": "5" * 64},
+        ],
+    }
+    command = _owner_context_command(
+        context_id,
+        command_type="PrepareOwnerOperatedContextHandoff",
+        actor_id=ACTORS["actor-a"],
+        expected_version=2,
+        payload=payload,
+    )
+
+    result = harness.service._prepare_context_packet_command(command, snapshot, 2)
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+def test_owner_context_delivery_rejects_session_outside_prepared_profile(tmp_path):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2011-7000-8000-000000002011"
+    snapshot = _owner_context_snapshot(context_id, through="OwnerOperatedContextHandoffIssued")
+    issued = snapshot.events[-1]
+    binding = {
+        key: issued["payload"][key]
+        for key in (
+            "context_id",
+            "request_id",
+            "packet_revision",
+            "packet_sha256",
+            "manifest_sha256",
+            "owner_profile_sha256",
+        )
+    }
+    command = _owner_context_command(
+        context_id,
+        command_type="RecordOwnerOperatedContextDelivery",
+        actor_id=ACTORS["actor-a"],
+        expected_version=5,
+        payload={
+            **binding,
+            "issuance_event_id": issued["event_id"],
+            "issuance_event_sha256": issued["event_hash"],
+            "recipient_id": "spec-brief-consumer",
+            "recipient_session_id": "foreign-session",
+        },
+    )
+
+    result = harness.service._prepare_context_packet_command(command, snapshot, 5)
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+def test_command_view_builds_spec_validator_from_exact_replay_snapshot(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    factory_events = []
+    replay_validators = []
+
+    def validator(_state, _candidate, _event, _park_test):
+        return None
+
+    def factory(events):
+        factory_events.append(events)
+        return validator
+
+    def recording_replay(_events, **kwargs):
+        replay_validators.append(kwargs.get("spec_execution_authority_validator"))
+        return {"streams": {}}
+
+    service = CommandService(
+        harness.service.control_root,
+        harness.ledger,
+        harness.objects,
+        harness.receipts,
+        harness.schemas,
+        authority_resolver=harness.authority_resolver,
+        spec_execution_authority_validator_factory=factory,
+    )
+    monkeypatch.setattr(command_service_module, "replay", recording_replay)
+    snapshot = harness.ledger.snapshot()
+
+    service._view_for(snapshot)
+
+    assert factory_events == [snapshot.events]
+    assert replay_validators == [validator]
+
+
+def test_command_view_rejects_invalid_spec_validator_factory_result(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    service = CommandService(
+        harness.service.control_root,
+        harness.ledger,
+        harness.objects,
+        harness.receipts,
+        harness.schemas,
+        authority_resolver=harness.authority_resolver,
+        spec_execution_authority_validator_factory=lambda _events: None,
+    )
+    monkeypatch.setattr(command_service_module, "replay", lambda *_args, **_kwargs: {"streams": {}})
+
+    with pytest.raises(IntegrityError, match="returned an invalid validator"):
+        service._view_for(harness.ledger.snapshot())
 
 
 def test_generic_command_history_is_not_idempotent_with_exact_create_task(tmp_path):

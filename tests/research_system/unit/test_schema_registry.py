@@ -633,7 +633,7 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
 
     # The bootstrap repair and governed actor registration each add one typed
     # command and one producer-bound event.
-    assert len(bindings) == 273
+    assert len(bindings) == 275
     assert bindings == tuple(
         sorted(
             bindings,
@@ -648,6 +648,7 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
         )
     )
     assert len(set(bindings)) == len(bindings)
+    assert runtime_schema_registry(SCHEMAS).contains("ars://wp6-6/gate6/authority/intent/RegisterAuthorityActor")
     new_schema_ids = {
         "ars://core/command/PublishOwnerAuthorityAdministrationDecision",
         "ars://core/event/OwnerAuthorityAdministrationDecisionPublished",

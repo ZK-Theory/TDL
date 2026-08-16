@@ -6,7 +6,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
@@ -15,7 +15,6 @@ from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import CompiledContextPacket, ContextLifecycleService
 from research_system.context.tokenizers import ReferenceRegexV1
 from research_system.discovery.operator import DiscoveryOperator
-from research_system.discovery.replay.driver import replay_discovery
 from research_system.errors import ArsError, IntegrityError
 from research_system.store.objects import ObjectStore
 
@@ -79,19 +78,16 @@ class DiscoveryReplaySourceResolver:
 def build_spec_context_snapshot(
     events: Sequence[Mapping[str, Any]],
     *,
-    schemas: Any,
+    projection_for_events: Callable[[tuple[Mapping[str, Any], ...]], Mapping[str, Any]],
     route_id: str,
     required_spec_source_sha256: str | None = None,
-    authority_state_validator: Any = None,
 ) -> SpecContextSnapshot:
-    """Freeze accepted Discovery identities without caller-authored hashes."""
+    """Freeze identities from the production-validated Discovery projection."""
     if not events:
         raise ArsError("SPEC context requires a durable Discovery replay")
-    projection = replay_discovery(
-        events,
-        schemas=schemas,
-        authority_state_validator=authority_state_validator,
-    )
+    projection = projection_for_events(tuple(events))
+    if not isinstance(projection, Mapping):
+        raise IntegrityError("validated Discovery projection is unavailable")
     accepted_inputs: list[dict[str, Any]] = []
     durable_approvals: list[dict[str, Any]] = []
     for artefact_id, state in sorted(projection.get("artefact_streams", {}).items()):
@@ -183,6 +179,7 @@ def deliver_spec_owner_context(
     valid_from: str,
     expires_at: str,
     required_spec_source_sha256: str,
+    projection_for_events: Callable[[tuple[Mapping[str, Any], ...]], Mapping[str, Any]],
 ) -> tuple[CompiledContextPacket, DiscoveryReplaySourceResolver]:
     """Compile, validate, issue, and record an honest manual brief handoff."""
     if not authority_grant_id or not retry_identity:
@@ -216,8 +213,14 @@ def deliver_spec_owner_context(
         command_service,
         actor_id=actor_id,
         authority_grant_id=authority_grant_id,
+        clock=operator.clock,
     )
-    lifecycle = ContextLifecycleService(ObjectStore(operator.control_root), writer, writer_id="spec-owner-operated-v1")
+    lifecycle = ContextLifecycleService(
+        ObjectStore(operator.control_root),
+        writer,
+        writer_id="spec-owner-operated-v1",
+        clock=operator.clock,
+    )
     existing = tuple(writer.iter_events(context_id))
     if existing:
         compiled = lifecycle.recover_compiled(context_id)
@@ -255,10 +258,9 @@ def deliver_spec_owner_context(
             raise IntegrityError("durable SPEC context source position is invalid")
         expected_snapshot = build_spec_context_snapshot(
             events[:source_position],
-            schemas=operator.schemas,
+            projection_for_events=projection_for_events,
             route_id="SPEC-GATE6-RUN-V1",
             required_spec_source_sha256=required_spec_source_sha256,
-            authority_state_validator=operator.authority_resolver.validate_replayed_administration_state,
         )
         if durable_snapshot != expected_snapshot:
             raise IntegrityError("durable SPEC context source binding differs")
@@ -272,10 +274,9 @@ def deliver_spec_owner_context(
     else:
         snapshot = build_spec_context_snapshot(
             events,
-            schemas=operator.schemas,
+            projection_for_events=projection_for_events,
             route_id="SPEC-GATE6-RUN-V1",
             required_spec_source_sha256=required_spec_source_sha256,
-            authority_state_validator=operator.authority_resolver.validate_replayed_administration_state,
         )
         compiled = None
     source_resolver = DiscoveryReplaySourceResolver(snapshot)

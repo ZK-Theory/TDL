@@ -184,6 +184,11 @@ class ArtefactUseResolver:
         governing_evidence: GoverningEvidenceResolver,
         content_reader: ArtefactContentReader,
         authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+        spec_execution_authority_validator_factory: Callable[
+            [tuple[dict[str, Any], ...]],
+            Callable[[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], bool], None],
+        ]
+        | None = None,
         legacy_command_provenance_through_position: int = 0,
     ) -> None:
         if ledger.schemas is not schemas:
@@ -197,6 +202,11 @@ class ArtefactUseResolver:
         self.governing_evidence = governing_evidence
         self.content_reader = content_reader
         self.authority_state_validator = authority_state_validator
+        if spec_execution_authority_validator_factory is not None and not callable(
+            spec_execution_authority_validator_factory
+        ):
+            raise TypeError("SPEC execution authority validator factory must be callable")
+        self.spec_execution_authority_validator_factory = spec_execution_authority_validator_factory
         self.legacy_command_provenance_through_position = legacy_command_provenance_through_position
 
     def resolve(self, request: ArtefactUseRequest) -> ResolvedArtefactEvidence:
@@ -216,11 +226,19 @@ class ArtefactUseResolver:
         self._validate_predicate_request(request, predicate, accepted_predicate_hash)
 
         before = self.ledger.snapshot()
+        spec_validator = (
+            None
+            if self.spec_execution_authority_validator_factory is None
+            else self.spec_execution_authority_validator_factory(before.events)
+        )
+        if spec_validator is not None and not callable(spec_validator):
+            _deny("authority_resolution_failed", "SPEC execution authority validator is unavailable")
         state = replay(
             before.events,
             schema_registry=self.schemas,
             legacy_command_provenance_through_position=self.legacy_command_provenance_through_position,
             authority_state_validator=self.authority_state_validator,
+            spec_execution_authority_validator=spec_validator,
         )
         if state.get("project_id") != request.project_id:
             _deny("project_mismatch", "replay state is foreign to the requested project")
