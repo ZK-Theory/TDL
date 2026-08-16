@@ -5,6 +5,15 @@
 **Authority:** P-026/P-034, the accepted WP6 plan, P-042, and the exact current Git/Jira evidence recorded below
 **Jira homes:** KAN-60 (aggregate WP6.7 closure), KAN-22–26 (Gate-6-to-7 consistency), KAN-21 (later-gate planning sweep), KAN-61 (hard-stop control), KAN-12 (completion campaign)
 
+**Gate 6 input update (2026-08-16):** `SPEC-GATE6-RUN-V1` has completed a
+real SPEC-01/SPEC-02 path and is `PROVEN` at the candidate branch represented
+by draft PR #258. The terminal research decision is PARK, with no scientific
+claim and no permitted route action. This supplies real pilot evidence but
+does not by itself satisfy or waive the separate owner decision required to
+open Gate 7, migrate legacy authority, cut over a path, or retire an APM
+surface. See [06q](06q-gate6-spec-real-run-integration-and-follow-up.md) and
+P-050.
+
 ## 1. Decision boundary
 
 WP6.7 is a gated sequencing lane, not a migration ticket. It defines the
@@ -330,14 +339,13 @@ retirement proof exists at the current state.
 
 ## 6. Current next transition
 
-The only bounded next transition is **Step 0 W9/Gate-7 document authoring and
-independent review under the owner-approved authoring brief**. This work may
-produce a reviewable W9 specification and Gate-7 definition, followed by their
-reconciliation and exact-revision acceptance. It is distinct from the later
-Gate-7 opening/dispatch decision: that decision remains blocked on exact Gate-6
-pilot-promotion evidence and Stephen's separate recorded approval. The W0
-addendum and bounded delta review are the first Gate-7 intake deliverable after
-opening, not an authoring or opening prerequisite.
+The current bounded next transition is **integration of Gate 6 PR #258 and
+read-back of the merged capability state**, followed by the already-authorized
+Step 0 W9/Gate-7 document authoring and independent review. Gate-7 opening
+remains a later distinct decision. The real PARK result is evidence about a
+completed bounded pilot, not pilot promotion and not an automatic opening. The
+W0 addendum and bounded delta review remain the first Gate-7 intake deliverable
+after opening, not an authoring or opening prerequisite.
 
 The next actor must not execute a pilot, open Gate 7, treat a W0 draft as
 accepted, write a transition event, migrate a paper or Discovery item, cut over

@@ -1,8 +1,14 @@
 # Design and Deliverables Roadmap
 
 **Purpose:** Decompose the transition into independently reviewable design products before implementation.  
-**Revised:** 2026-07-01<br>
-**Current programme decision:** P-026 authorizes a parallel specification → narrow foundation → greenfield pilot lane while T1.28 remains legacy-owned.
+**Revised:** 2026-08-16<br>
+**Current programme position:** the specification, foundation, and WP6 Gate 6
+construction sequence has produced a real public SPEC-01/SPEC-02 run. The
+route is `PROVEN`; draft PR #258 is awaiting integration. Current execution is
+governed by P-049/P-050 and
+`implementation/06q-gate6-spec-real-run-integration-and-follow-up.md`.
+The dated W0-W8 statuses below remain design-history snapshots rather than the
+current delivery queue.
 
 ## 1. Delivery model
 
@@ -331,4 +337,10 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 4. completed adversarial review and reconciliation of the combined Gate 3 interfaces;
 5. the written review-pending P0 materialization and narrow-foundation plan suite, followed by adversarial review and Stephen's exact-scope approval.
 
-Gate 3 W6–W8/06c is accepted under P-030. The P0 materialization and foundation implementation plan suite is written and review pending; runtime remains unauthorized until review closes and Stephen approves its exact scope. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+Gate 3 W6–W8/06c was accepted under P-030 and the later P0/WP6 programme
+implemented the production runtime. The real Gate 6 route has now completed
+through SPEC-02 owner decision with no scientific claim. The immediate
+deliverable is integration of PR #258, followed by the bounded residual jobs
+in implementation plan 06q. T1.28 and the original W0 records remain
+historical authority for the legacy evidence they governed; they are not the
+current Gate 6 work queue.

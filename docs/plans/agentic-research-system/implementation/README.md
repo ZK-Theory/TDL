@@ -20,7 +20,13 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (P-042/06g governs; WP6.3 and WP6.4 integrated)
+## WP6 suite (real Gate 6 route proven; PR #258 integration pending)
+
+The current WP6/Gate 6 control document is
+[06q — Gate 6 SPEC real-run integration and follow-up](06q-gate6-spec-real-run-integration-and-follow-up.md).
+The public route completed SPEC-01 and SPEC-02, ended at
+`PROVEN / spec_02_owner_decided`, and published no scientific claim. The
+entries below preserve the construction and accepted-plan lineage.
 
 1. [WP6 master — historical Gate 6 launch-basis snapshot](06-wp6-gate6-readiness-and-integration-plan.md) (exact revision `fe5f1d40` preserved under P-036)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
@@ -36,6 +42,7 @@
 9. [WP6.1 artefact authority and production-consumer firewall](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md) — **integrated on `main`**. The production path uses real command submission, replay-derived authority, governing scientific-review evidence, root-bound content reads and the fixed production-consumer ports.
 10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **integrated on `main` after exact-subject remediation and G-RM-12 acceptance**. The nine-command lifecycle, immutable packet/delivery objects, consumer resolver and real CommandService adapter execute through the public brief round trip.
 11. [WP6.7 legacy consolidation sequencing](06l-wp6-7-legacy-consolidation-sequencing.md) — sequencing only; this is a distinct legacy-integration scope and path from 06i's artefact-authority and production-consumer firewall plan, not a collision or supersession.
+12. [Gate 6 SPEC real-run integration and follow-up](06q-gate6-spec-real-run-integration-and-follow-up.md) — current PR #258 integration boundary, terminal research disposition, and owned residual jobs.
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) retain
@@ -47,12 +54,12 @@ P-042 and the 06g acceptance record supersede the direct-provider WP6.2
 sequence. The governing first-release dependency path is WP6.1 plus WP6.3 into
 WP6.4 and Gate 6. WP6.3 and WP6.4 are integrated; WP6.4's D-G6-5 decision is
 accepted and its SCALE-01 v1.0.3 package remains `pending_wp6_6`,
-`dispatchable: false` and `execution_authorized: false`. WP6.5 remains an
-independent specification lane under P-042/06g. WP6.6 dossier admission and
-WP6.7 legacy consolidation retain their separate gates. The remaining Gate 6
-path is WP6.6 dossier admission and final assembled Gate 6 acceptance; WP6.7
-remains a separately gated legacy-consolidation sequence. ARS does
-not invoke Claude or Codex or handle their OAuth credentials.
+`dispatchable: false` and `execution_authorized: false` as historical
+SCALE-01 subjects. WP6.5/WP6.6 authority and dossier admission have now been
+exercised in the real SPEC route. Draft PR #258 is the assembled integration
+candidate. WP6.7 remains a separately gated legacy-consolidation sequence;
+the PARK research result does not automatically open it. ARS does not invoke
+Claude or Codex or handle their OAuth credentials.
 
 ## Research Methods obligations — integrated by P-047, **WP6.4 production path integrated**
 

@@ -21,6 +21,16 @@ cleared and Gate 6 planning is eligible; every "Gate 5 close" dispatch gate in t
 suite is satisfied by that event. Stephen confirmed the P-031–P-034 wording the same
 day (D-G6-1 closed). Dispatch of any WP6 work still requires this suite's own review
 gate and Stephen's approval of the dispatching plan revision.
+**Implementation result update (2026-08-16):** this file remains the accepted
+historical launch-basis snapshot. Its construction sequence has now produced a
+real public SPEC-01/SPEC-02 route. The live route is `PROVEN` through
+`spec_02_owner_decided`; draft PR #258 is awaiting integration. The current
+integration boundary and residual work are governed by
+[06q](06q-gate6-spec-real-run-integration-and-follow-up.md), and the human
+result is recorded in
+[the Gate 6 real-run handoff](../handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md).
+Historical SCALE-01 and preflight statements below remain provenance for their
+accepted subjects; they are not the current run status.
 **Goal:** Define the exact work standing between Gate 5 foundation acceptance and (a) a
 Gate 6 preflight-eligible pilot, (b) a dispatchable first research programme (the
 vault-side "Evidence-Led TDA Scale and Research Programme for ARS" v1.0.0), and (c) the

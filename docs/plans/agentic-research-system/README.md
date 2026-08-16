@@ -1,6 +1,14 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P-042/06g accepted for governing planning; WP6.3 readiness is blocked and Gate A A7 remains open; runtime remains gated. This line decays between updates — for the current blocker set and delivery sequence, treat [handoffs/32](handoffs/32-wp6-3-management-handoff-authority-model-and-acceptance-tooling.md) (or the newest `handoffs/*` file) as authoritative over this summary.<br>
+**Status (2026-08-16):** the real public `SPEC-GATE6-RUN-V1` path is
+`PROVEN` through terminal SPEC-02 owner decision and cleanup. The assembled
+candidate is draft PR [#258](https://github.com/ZK-Theory/TDL/pull/258), so the
+capability is not yet `INTEGRATED`. The current result is
+[the Gate 6 real-run record](handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md)
+and the current execution/integration plan is
+[implementation/06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+Older plans, reviews, and handoffs remain historical evidence and must not be
+read as current status over those two records.<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -33,6 +41,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/large-workflow-completed-cycle-assessment-2026-07-23.md](reviews/large-workflow-completed-cycle-assessment-2026-07-23.md) | Completed-cycle `approve_advisory_v1_1_with_revisions` assessment: research-value intake, second-cycle rescope, integration lanes, validation hygiene, prospective metrics, and CodeRabbit's 100-file PR limit |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Historical owner-approved WP6 launch-basis snapshot at exact reviewed revision `fe5f1d40`; P-042/06g now supplies the governing planning amendment |
+| [implementation/06q-gate6-spec-real-run-integration-and-follow-up.md](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md) | Current Gate 6 integration boundary, real-run result interpretation, PR #258 closure conditions, and bounded follow-on jobs |
+| [handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md](handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md) | Human-readable result, durable artefact identities and hashes, and the exact remaining gaps after the live SPEC-01/SPEC-02 run |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
 | [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Owner-approved WP6.2 dispatch-plan content at exact reviewed revision `fe5f1d40`: live adapters, parity, threshold policy, and evaluated model profiles; future evidence gates remain |
 | [implementation/06g-wp6-owner-operated-session-amendment.md](implementation/06g-wp6-owner-operated-session-amendment.md) | Reviewed P-042 owner-operated-session candidate; effective status is `accepted_for_governing_planning` through the external acceptance record, while the embedded pending field remains snapshot-qualified |

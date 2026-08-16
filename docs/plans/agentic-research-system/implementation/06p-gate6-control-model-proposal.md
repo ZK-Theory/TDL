@@ -19,6 +19,13 @@ final Gate 6 closure control.
 research execution, result/claim promotion, live restore cutover, KAN-69
 transition work, WP6.7, or Gate 7-9 work.
 
+**Current disposition (2026-08-16):** P-049 adopts the three-decision control
+model. The real SPEC route is `PROVEN`, and draft PR #258 is the current merge
+admission subject. Neither capability integration nor final programme closure
+has been recorded. The organisation transfer is complete, but the ruleset and
+harmless merge-queue enforcement probe described below remain separate hosting
+work. See [06q](06q-gate6-spec-real-run-integration-and-follow-up.md).
+
 ## Decision requested
 
 Adopt one small control model:

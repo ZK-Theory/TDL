@@ -1,8 +1,15 @@
 # Agentic Research System — Master Transition Plan
 
 **Date:** 2026-06-27  
-**Revised:** 2026-07-01<br>
-**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P0 implementation plan suite written and review pending; implementation remains gated<br>
+**Revised:** 2026-08-16<br>
+**Status:** the successor runtime and real Gate 6 SPEC route are implemented
+and `PROVEN` in the live control store; draft PR #258 is the assembled
+integration candidate. The system is not yet `INTEGRATED` on `main`, and the
+PARK research result creates no scientific claim or automatic Gate 7 opening.<br>
+**Current execution authority:**
+[implementation/06q-gate6-spec-real-run-integration-and-follow-up.md](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+The original transition phases below remain architectural and historical
+context; their old “next action” language is superseded by section 12.<br>
 **Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
 **Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
@@ -552,11 +559,17 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-The Gate 4 P0 plan suite is written at `05-p0-materialization-and-foundation-implementation-plan.md` and `implementation/`. It defines four independently testable work packages and a 37-case P0 materialization closure. The next sequence is:
+The P0 and WP6 construction sequence has been executed. The current sequence
+is now:
 
-1. run a bounded adversarial review of the master plan and four child plans;
-2. reconcile file ownership, dependency order, fixture closure, provider/live-use boundary, and stop conditions;
-3. obtain Stephen's explicit acceptance of the exact implementation scope;
-4. only then create an isolated worktree and execute Work Package 1 through its test/review checkpoint.
+1. review draft PR #258 as the assembled Gate 6 candidate at its exact head;
+2. remediate only findings that remain valid at that head;
+3. merge and verify the public SPEC status, repository identities, Jira state,
+   and required currency controls on `main`;
+4. make the bounded residual jobs in implementation plan 06q visible and
+   owned; and
+5. decide any later Gate 7 opening separately. The PARK research disposition
+   does not itself authorize migration, claim promotion, or Gate 7.
 
-No executable P0 evidence, `.research-system/` runtime definition tree, control root, adapter, process, migration, pilot, or current-paper change is authorized by the review-pending plan.
+The real-run result is recorded at
+`handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md`.

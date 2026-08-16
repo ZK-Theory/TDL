@@ -1072,6 +1072,55 @@ branch-protection policy requires its own owner decision.<br>
 **Affected specifications:** 06i artefact-authority interface; WP6.4 session
 exchange; ARS post-merge currency control.
 
+### P-049 - Separate merge admission, capability integration, and Gate 6 closure
+
+**Date:** 2026-08-16<br>
+**Status:** Accepted by Stephen as the control model for the Gate 6 campaign;
+the remote ruleset and merge-queue enforcement work described in 06p remains a
+separate hosting action and is not implied complete.<br>
+**Decision:** Merge admission, named-capability integration, and final Gate 6
+programme closure are three different decisions. A real run or a green PR may
+prove a capability without integrating it; a merge may integrate code without
+closing every programme residual. Jira must preserve those distinctions.<br>
+**Current application:** The real SPEC route is `PROVEN`. Draft PR #258 is the
+merge-admission subject. KAN-103 and KAN-12 remain open until integration and
+the residual work is explicitly disposed.<br>
+**Boundary:** This decision does not authorize merge, install a ruleset, close
+Gate 6, open Gate 7, or promote a scientific claim. Those actions retain their
+own evidence and authority.<br>
+**Evidence:** `implementation/06p-gate6-control-model-proposal.md`; draft PR
+#258; KAN-103 and KAN-12 read-back on 2026-08-16.<br>
+**Affected specifications:** Gate 6 merge/control model; Jira capability
+control; implementation plan 06q.
+
+### P-050 - Gate 6 SPEC real-run outcome and research-use disposition
+
+**Date:** 2026-08-16<br>
+**Status:** Accepted through the recorded SPEC-01/SPEC-02 owner decisions and
+Stephen's direction to preserve the result and form the assembled PR.<br>
+**Decision:** The live `SPEC-GATE6-RUN-V1` execution is the required real Gate
+6 research test. Its purpose was to judge whether the spectral
+persistent-homology method belongs in the ongoing project, not to manufacture
+a research claim. The terminal disposition is `PARK`: retain the method as an
+experimental or benchmark candidate, but do not yet make it the default
+empirical method or a claim basis.<br>
+**Source correction:** The paper-cited `neurips2024` locator is a valid
+lightweight Git tag at
+`145efcde673f1a1897eff250b77221d26c34c479`. The prior source-absence
+limitation is withdrawn by the durable append-only correction; the generic
+heads/tags/direct-commit resolver gap remains required follow-up work.<br>
+**Evidence:** 126 frozen configurations; 42 deterministic reruns; six passing
+spectral configurations; byte-identical whole-run repetition; live terminal
+status `PROVEN / spec_02_owner_decided`; ledger tail position 444
+`ResourcesReleased`; and the durable result record
+`handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md`.<br>
+**Boundary:** This accepts the bounded system proof and research-use
+disposition. It does not publish a scientific claim, establish empirical
+validity, authorize wider adoption, open Gate 7, or waive integration and
+follow-up work.<br>
+**Affected specifications:** SPEC-01/SPEC-02 route; WP6/Gate 6 integration;
+source resolution; human-readable results; Gate 7 sequencing input.
+
 ## WP6.4 mechanics integration status (non-decision)
 
 PR #208 was merged at
