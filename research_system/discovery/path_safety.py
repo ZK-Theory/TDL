@@ -66,10 +66,19 @@ def _descriptor_final_path(descriptor: int) -> Path | None:
     import msvcrt
 
     handle = msvcrt.get_osfhandle(descriptor)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_final_path = kernel32.GetFinalPathNameByHandleW
+    get_final_path.argtypes = (
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_wchar),
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    )
+    get_final_path.restype = ctypes.c_ulong
     size = 512
     while True:
         buffer = ctypes.create_unicode_buffer(size)
-        length = ctypes.windll.kernel32.GetFinalPathNameByHandleW(handle, buffer, size, 0)
+        length = get_final_path(ctypes.c_void_p(handle), buffer, size, 0)
         if length == 0:
             raise OSError(ctypes.get_last_error(), "GetFinalPathNameByHandleW failed")
         if length < size:
@@ -109,7 +118,7 @@ def read_contained_regular_file(root: Path, relative_path: object, *, label: str
                 opened_relative = final_path.relative_to(resolved_root)
             except ValueError as exc:
                 raise IntegrityError(f"{label} escapes its configured root") from exc
-            if opened_relative != relative:
+            if os.path.normcase(opened_relative) != os.path.normcase(relative):
                 raise IntegrityError(f"{label} changed during read")
         with os.fdopen(descriptor, "rb") as handle:
             descriptor = -1

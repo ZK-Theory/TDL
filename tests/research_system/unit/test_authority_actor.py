@@ -162,6 +162,43 @@ def test_registration_recovers_after_each_publication_boundary(tmp_path: Path, b
     assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
 
 
+def test_started_registration_recovers_after_owner_window_expires(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+
+    def crash(stage: str) -> None:
+        if stage == "actor":
+            raise RuntimeError("crash after actor")
+
+    with pytest.raises(RuntimeError, match="crash after actor"):
+        service.register(_intent(), phase_hook=crash)
+    service.clock = lambda: datetime(2028, 8, 14, tzinfo=UTC)
+    recovered = service.register(_intent())
+    assert recovered["status"] == "accepted"
+    assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+
+
+def test_registered_actor_class_must_be_usable_by_its_selected_lane(tmp_path: Path) -> None:
+    with pytest.raises(ArsError, match="class is not permitted"):
+        _service(tmp_path).register(
+            _intent(
+                actor_class="service",
+                actor_role="independent_reviewer",
+                authority_lane="independent_reviewer/outcome_review",
+            )
+        )
+    operator_service = _service(tmp_path)
+    operator_service.route_commands |= {"ImportAcceptedW11CatalogueGenesis"}
+    with pytest.raises(ArsError, match="class is not permitted"):
+        operator_service.register(
+            _intent(
+                actor_class="agent",
+                actor_role="operator",
+                authority_lane="operator/genesis",
+            )
+        )
+    assert not list((tmp_path / "events").rglob("*.jsonl"))
+
+
 @pytest.mark.parametrize("first_role", ["producer", "independent_reviewer"])
 def test_same_session_cannot_hold_producer_and_reviewer_in_either_order(tmp_path: Path, first_role: str) -> None:
     service = _service(tmp_path)

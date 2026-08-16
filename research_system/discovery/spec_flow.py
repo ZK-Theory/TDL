@@ -27,7 +27,7 @@ from research_system.artefacts.runtime import (
 )
 from research_system.artefacts.use_resolver import ArtefactUseResolver
 from research_system.context.registry import resolve_context_packet_for_consumer
-from research_system.context.spec_bridge import deliver_spec_owner_context
+from research_system.context.spec_bridge import deliver_spec_owner_context, derive_spec_owner_context_id
 from research_system.discovery.operator import DiscoveryOperator
 from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.dossier import (
@@ -45,9 +45,12 @@ from research_system.errors import ConfigurationError, ConflictError, IntegrityE
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
+    RawContentPublication,
+    prepare_candidate_document,
+    prepare_registered_raw_content,
+    publish_registered_raw_content,
     register_candidate_document,
 )
-from research_system.methods.registration import RawContentPublication, publish_registered_raw_content
 from research_system.evidence.consumers import ArtefactEvidenceConsumers
 from research_system.methods.brief import export_brief
 from research_system.methods.pack import load_methods_pack
@@ -127,6 +130,18 @@ _DOCUMENT_TYPES = {
     "return_spec_02_partial": "spec_02_return",
 }
 _BRIEF_INPUT_TYPES = {"spec_operator_source", "methods_asset"}
+_BRIEF_INPUT_SOURCE_TYPES = {
+    _SPEC_01_PATH.as_posix(): "spec_operator_source",
+    _SPEC_02_PATH.as_posix(): "spec_operator_source",
+    ".research-system/methods/assets/adversarial-review-protocol.md": "methods_asset",
+}
+_SINGLE_SHOT_ACTIONS = frozenset(_DOCUMENT_ACTION_SCHEMA) | frozenset(
+    {
+        "register_spec_01_brief_inputs",
+        "review_spec_01_brief_inputs",
+        "accept_spec_01_brief_inputs",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -482,6 +497,202 @@ class SpecFlow:
         )
         documents = _registered_documents(self.operator, projection)
         return events, projection, documents
+
+    def _action_identity(self, action: str, packet: Mapping[str, Any], *, publish: bool) -> bool:
+        if action not in _SINGLE_SHOT_ACTIONS:
+            return False
+        value = {
+            "schema_id": "ars://internal/spec-flow-action-identity",
+            "schema_version": "1.0.0",
+            "route_id": ROUTE_ID,
+            "action": action,
+            "retry_id": packet.get("retry_id"),
+            "packet_sha256": sha256_hex(canonical_bytes(packet)),
+        }
+        store = CandidateDocumentStore(
+            self.operator.control_root,
+            relative_directory=Path("runtime/spec-flow-actions"),
+        )
+        relative = store.relative_path(action)
+        target = self.operator.control_root / relative
+        if target.exists() or target.is_symlink():
+            raw = read_contained_regular_file(
+                self.operator.control_root,
+                relative,
+                label="SPEC action retry identity",
+            )
+            if raw != canonical_bytes(value):
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            return True
+        if publish:
+            store.write(action, canonical_bytes(value))
+        return False
+
+    def _complete_action(self, action: str, packet: Mapping[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        self._action_identity(action, packet, publish=True)
+        return result
+
+    @staticmethod
+    def _registration_event_matches(events: Sequence[Mapping[str, Any]], command: Mapping[str, Any]) -> bool:
+        matches = [
+            event
+            for event in events
+            if event.get("event_type") == "ArtefactRegistered"
+            and event.get("stream_id") == command.get("target_stream_id")
+        ]
+        if len(matches) != 1:
+            return False
+        event = matches[0]
+        # Keep the comparison limited to identities that the event envelope
+        # durably records; submitted_at/reason/evidence are represented by the
+        # canonical payload and command identity rather than copied verbatim.
+        return (
+            all(
+                event.get(key) == command.get(key)
+                for key in (
+                    "command_id",
+                    "command_type",
+                    "actor_id",
+                    "authority_grant_id",
+                    "idempotency_key",
+                    "correlation_id",
+                    "causation_id",
+                    "project_id",
+                )
+            )
+            and event.get("command_payload_hash") == sha256_hex(canonical_bytes(command.get("payload")))
+            and event.get("payload") == command.get("payload")
+        )
+
+    def _validate_completed_document_retry(
+        self,
+        action: str,
+        packet: Mapping[str, Any],
+        events: Sequence[Mapping[str, Any]],
+        projection: Mapping[str, Any],
+        documents: Mapping[str, list[dict[str, Any]]],
+    ) -> None:
+        document_type = _DOCUMENT_TYPES[action]
+        durable = documents.get(document_type, ())
+        if len(durable) != 1:
+            raise IntegrityError("completed SPEC document action has no exact durable document")
+        stream_rows = [
+            (str(stream_id), state)
+            for stream_id, state in projection.get("artefact_streams", {}).items()
+            if isinstance(state, Mapping)
+            and isinstance(state.get("manifest"), Mapping)
+            and state["manifest"].get("artefact_type") == document_type
+        ]
+        if len(stream_rows) != 1:
+            raise IntegrityError("completed SPEC document action has no exact durable registration")
+        package_id, _state = stream_rows[0]
+        registrations = packet.get("registration")
+        supplied_document = packet.get("document")
+        if action in {"prepare_spec_01", "prepare_spec_02"}:
+            required_semantic = {
+                "operator_actor_id",
+                "operator_session_id",
+                "recipient_id",
+                "purpose",
+                "scope",
+                "evaluation_time",
+                "created_at",
+                "application_version",
+                "handoff_expires_at",
+            }
+            if not isinstance(supplied_document, dict) or set(supplied_document) != required_semantic:
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            if not isinstance(registrations, dict) or set(registrations) != {
+                "context_authority_grant_id",
+                "brief_registration",
+                "package_registration",
+            }:
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            package = durable[0]
+            context_id = derive_spec_owner_context_id(
+                actor_id=str(supplied_document["operator_actor_id"]),
+                operator_session_id=str(supplied_document["operator_session_id"]),
+                recipient_id=str(supplied_document["recipient_id"]),
+                purpose=str(supplied_document["purpose"]),
+                scope=str(supplied_document["scope"]),
+                application_version=str(supplied_document["application_version"]),
+                valid_from=str(supplied_document["evaluation_time"]),
+                expires_at=str(supplied_document["handoff_expires_at"]),
+                retry_identity=str(packet["retry_id"]),
+            )
+            manifest = package.get("brief_manifest")
+            context = manifest.get("context_packet") if isinstance(manifest, Mapping) else None
+            if (
+                not isinstance(context, Mapping)
+                or context.get("context_id") != context_id
+                or manifest.get("brief_purpose") != supplied_document["purpose"]
+                or manifest.get("created_at") != supplied_document["created_at"]
+                or package.get("operator_session")
+                != {
+                    "session_id": supplied_document["operator_session_id"],
+                    "operator_actor_id": supplied_document["operator_actor_id"],
+                    "application": "Codex desktop",
+                    "application_version": supplied_document["application_version"],
+                    "manually_operated": True,
+                }
+            ):
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            registration = registrations.get("package_registration")
+            brief_registration = registrations.get("brief_registration")
+            if (
+                not isinstance(registration, dict)
+                or not isinstance(brief_registration, dict)
+                or registration.get("artefact_id") != package_id
+                or brief_registration.get("artefact_id") != manifest.get("brief_artefact_id")
+                or not any(
+                    event.get("stream_id") == context_id
+                    and event.get("authority_grant_id") == registrations.get("context_authority_grant_id")
+                    for event in events
+                )
+            ):
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            brief_id = str(brief_registration["artefact_id"])
+            brief_state = projection.get("artefact_streams", {}).get(brief_id)
+            brief_manifest = brief_state.get("manifest") if isinstance(brief_state, Mapping) else None
+            if not isinstance(brief_manifest, Mapping):
+                raise IntegrityError("completed SPEC brief registration is unavailable")
+            try:
+                brief_value = json.loads(
+                    read_contained_regular_file(
+                        self.operator.control_root,
+                        brief_manifest.get("relative_path"),
+                        label="completed SPEC brief",
+                    )
+                )
+                prepared_brief = prepare_candidate_document(
+                    value=brief_value,
+                    registration=CandidateRegistration(**deepcopy(brief_registration)),
+                    document_store=CandidateDocumentStore(
+                        self.operator.control_root,
+                        relative_directory=Path("methods/documents/spec-flow"),
+                    ),
+                )
+            except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+                raise ConflictError("completed SPEC action retry differs from its durable packet") from exc
+            if not self._registration_event_matches(events, prepared_brief.command):
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+        else:
+            if supplied_document != durable[0] or not isinstance(registrations, dict):
+                raise ConflictError("completed SPEC action retry differs from its durable packet")
+            registration = registrations
+        try:
+            prepared = prepare_candidate_document(
+                value=durable[0],
+                registration=CandidateRegistration(**deepcopy(registration)),
+                document_store=CandidateDocumentStore(
+                    self.operator.control_root,
+                    relative_directory=Path("methods/documents/spec-flow"),
+                ),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ConflictError("completed SPEC action retry differs from its durable packet") from exc
+        if not self._registration_event_matches(events, prepared.command):
+            raise ConflictError("completed SPEC action retry differs from its durable packet")
 
     @staticmethod
     def _brief_input_states(projection: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
@@ -1186,6 +1397,7 @@ class SpecFlow:
         packet = self._canonical_packet(packet_path)
         if packet.get("action") != action:
             raise IntegrityError("SPEC action argument and packet differ")
+        action_identity_exists = self._action_identity(action, packet, publish=False)
         status = self.status()
         accepted_actions = {status.next_action}
         if status.next_action == "return_spec_01":
@@ -1207,6 +1419,10 @@ class SpecFlow:
         )
         if action not in accepted_actions and not already_completed:
             raise IntegrityError(f"SPEC action is not next; exact next action is {status.next_action}")
+        if already_completed and expected_document is not None:
+            if not action_identity_exists:
+                self._validate_completed_document_retry(action, packet, events, _projection, documents)
+                self._action_identity(action, packet, publish=True)
         brief_input_action = action in {
             "register_spec_01_brief_inputs",
             "review_spec_01_brief_inputs",
@@ -1219,7 +1435,7 @@ class SpecFlow:
             if packet.get("document") is not None or not isinstance(packet.get("registration"), dict):
                 raise IntegrityError("SPEC brief-input registration packet is malformed")
             entries = packet["registration"].get("raw_publications")
-            if not isinstance(entries, list) or len(entries) < 2 or packet["commands"]:
+            if not isinstance(entries, list) or len(entries) != len(_BRIEF_INPUT_SOURCE_TYPES) or packet["commands"]:
                 raise IntegrityError("SPEC brief-input registrations are incomplete")
             service = CommandService(
                 self.operator.control_root,
@@ -1230,28 +1446,57 @@ class SpecFlow:
                 authority_resolver=self.operator.authority_resolver,
                 clock=lambda: datetime.now(UTC),
             )
-            registrations = []
+            prepared_entries = []
             for entry in entries:
                 if not isinstance(entry, dict) or set(entry) != {"publication", "registration"}:
                     raise IntegrityError("SPEC brief-input registration entry is malformed")
+                try:
+                    publication = RawContentPublication(**entry["publication"])
+                    registration = CandidateRegistration(**entry["registration"])
+                except (TypeError, ValueError) as exc:
+                    raise IntegrityError("SPEC brief-input registration entry is malformed") from exc
+                if _BRIEF_INPUT_SOURCE_TYPES.get(publication.source_relative_path) != publication.document_type:
+                    raise IntegrityError("SPEC brief-input registrations are not the exact required set")
+                prepared_entries.append(
+                    prepare_registered_raw_content(
+                        repository_root=self.operator.repository_root,
+                        publication=publication,
+                        registration=registration,
+                        control_root=self.operator.control_root,
+                    )
+                )
+            if (
+                {item.publication.source_relative_path for item in prepared_entries} != set(_BRIEF_INPUT_SOURCE_TYPES)
+                or len({item.registration.artefact_id for item in prepared_entries}) != len(prepared_entries)
+                or len({item.publication.destination_relative_path for item in prepared_entries})
+                != len(prepared_entries)
+            ):
+                raise IntegrityError("SPEC brief-input registrations are not the exact required set")
+            service.prevalidate_register_artefact_batch([item.command for item in prepared_entries])
+            registrations = []
+            for item in prepared_entries:
                 registered = publish_registered_raw_content(
                     repository_root=self.operator.repository_root,
-                    publication=RawContentPublication(**entry["publication"]),
-                    registration=CandidateRegistration(**entry["registration"]),
+                    publication=item.publication,
+                    registration=item.registration,
                     control_root=self.operator.control_root,
                     command_service=service,
                 )
                 registrations.append(
                     {"artefact_id": registered.artefact_id, "content_sha256": registered.content_sha256}
                 )
-            return {
-                "route_id": ROUTE_ID,
-                "action": action,
-                "retry_id": packet["retry_id"],
-                "registration": registrations,
-                "receipts": [],
-                "status": asdict(self.status()),
-            }
+            return self._complete_action(
+                action,
+                packet,
+                {
+                    "route_id": ROUTE_ID,
+                    "action": action,
+                    "retry_id": packet["retry_id"],
+                    "registration": registrations,
+                    "receipts": [],
+                    "status": asdict(self.status()),
+                },
+            )
         if action in {"review_spec_01_brief_inputs", "accept_spec_01_brief_inputs"}:
             review_publications = packet.get("registration")
             if packet.get("document") is not None or (
@@ -1336,26 +1581,34 @@ class SpecFlow:
                         raise IntegrityError("SPEC brief-input governing review binding differs")
                     review_store.publish(publication["reference_id"], publication["record"])
                 receipts.append(asdict(service.submit(deepcopy(envelope))))
-            return {
-                "route_id": ROUTE_ID,
-                "action": action,
-                "retry_id": packet["retry_id"],
-                "registration": None,
-                "receipts": receipts,
-                "status": asdict(self.status()),
-            }
+            return self._complete_action(
+                action,
+                packet,
+                {
+                    "route_id": ROUTE_ID,
+                    "action": action,
+                    "retry_id": packet["retry_id"],
+                    "registration": None,
+                    "receipts": receipts,
+                    "status": asdict(self.status()),
+                },
+            )
         if action in {"prepare_spec_01", "prepare_spec_02"}:
             if packet["commands"]:
                 raise IntegrityError("SPEC preparation cannot submit a Discovery route command")
             prepared = self._prepare_spec("SPEC-01" if action == "prepare_spec_01" else "SPEC-02", packet)
-            return {
-                "route_id": ROUTE_ID,
-                "action": action,
-                "retry_id": packet["retry_id"],
-                **prepared,
-                "receipts": [],
-                "status": asdict(self.status()),
-            }
+            return self._complete_action(
+                action,
+                packet,
+                {
+                    "route_id": ROUTE_ID,
+                    "action": action,
+                    "retry_id": packet["retry_id"],
+                    **prepared,
+                    "receipts": [],
+                    "status": asdict(self.status()),
+                },
+            )
         if document_required != (packet.get("document") is not None and packet.get("registration") is not None):
             raise IntegrityError("SPEC action document/registration presence differs")
         if not document_required and (packet.get("document") is not None or packet.get("registration") is not None):
@@ -1364,14 +1617,18 @@ class SpecFlow:
         if document_required:
             registration_result = self._register_document(action, packet["document"], packet["registration"])
         receipts = [asdict(self.operator.submit(command)) for command in commands]
-        return {
-            "route_id": ROUTE_ID,
-            "action": action,
-            "retry_id": packet["retry_id"],
-            "registration": registration_result,
-            "receipts": receipts,
-            "status": asdict(self.status()),
-        }
+        return self._complete_action(
+            action,
+            packet,
+            {
+                "route_id": ROUTE_ID,
+                "action": action,
+                "retry_id": packet["retry_id"],
+                "registration": registration_result,
+                "receipts": receipts,
+                "status": asdict(self.status()),
+            },
+        )
 
 
 __all__ = ["ROUTE_ID", "SpecFlow", "SpecFlowStatus", "build_spec_authority_subject"]

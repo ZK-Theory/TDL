@@ -142,6 +142,31 @@ def test_repair_is_replayable_and_enables_only_governed_repaired_loader(tmp_path
         repair_store_binding(second_repair, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
 
 
+def test_repair_scrubs_repository_overriding_git_environment(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, _target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "not-the-candidate.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "not-the-candidate"))
+    monkeypatch.setenv("GIT_REPLACE_REF_BASE", "refs/replace/hostile/")
+    assert repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))["status"] == "repaired"
+
+
+def test_repair_rejects_redirected_object_parent_before_publication(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    object_parent = target / "objects" / "binding-repair"
+    external = tmp_path / "external-binding-repair"
+    external.mkdir()
+    try:
+        object_parent.symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    before = _publication_snapshot(target)
+
+    with pytest.raises(IntegrityError, match="artifact parent is redirected"):
+        repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert _publication_snapshot(target) == before
+    assert not list(external.iterdir())
+
+
 def test_repair_publication_schemas_reject_underbound_object_event_and_receipt(tmp_path: Path, monkeypatch):
     _initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     result = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
@@ -268,6 +293,30 @@ def test_binding_advance_recovers_after_each_publication_phase(tmp_path: Path, m
         advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))["status"]
         == "advanced"
     )
+
+
+def test_started_binding_advance_recovers_after_owner_window_expires(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+
+    def crash(observed: str) -> None:
+        if observed == "event":
+            raise RuntimeError("crash after event")
+
+    with pytest.raises(RuntimeError, match="crash after event"):
+        advance_store_binding(
+            _advance_intent(intent),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=crash,
+        )
+    result = advance_store_binding(
+        _advance_intent(intent),
+        now=lambda: datetime(2028, 8, 14, tzinfo=UTC),
+    )
+    assert result["status"] == "advanced"
 
 
 def test_binding_advance_rejects_dirty_or_non_descendant_candidate(tmp_path: Path, monkeypatch) -> None:

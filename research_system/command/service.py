@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from research_system.authority import (
     AuthorityAdministrationContext,
@@ -1544,6 +1544,32 @@ class CommandService:
         """Retire historical preflight state only after an EventLedger append."""
         self._restore_preflight_result = None
         self._restore_preflight_rechecker = None
+
+    def prevalidate_register_artefact_batch(self, envelopes: Sequence[dict[str, Any]]) -> None:
+        """Validate a complete independent registration set before its first append."""
+
+        if not envelopes or len({item.get("target_stream_id") for item in envelopes}) != len(envelopes):
+            raise ArsError("RegisterArtefact batch targets must be nonempty and distinct")
+        snapshot = self.ledger.snapshot()
+        for envelope in envelopes:
+            if envelope.get("command_type") != "RegisterArtefact":
+                raise ArsError("RegisterArtefact batch contains another command type")
+            binding = self.schemas.command_binding("RegisterArtefact")
+            if binding is None:
+                raise SchemaError("RegisterArtefact has no active command binding")
+            command_schema = self.schemas.validate_active(
+                binding.schema_id,
+                envelope,
+                schema_version=binding.schema_version,
+            )
+            command = Command(deepcopy(envelope))
+            authority, denial = self._resolve_lifecycle_authority(command, command_schema, snapshot)
+            if denial is not None or authority.resolution is None:
+                raise ArsError(denial or "RegisterArtefact authority is unavailable")
+            observed_version = snapshot.stream_versions.get(command.target_stream_id, 0)
+            prepared = self._prepare_artefact_authority_command(command, snapshot, observed_version)
+            if isinstance(prepared, Receipt):
+                raise ArsError(prepared.explanation or prepared.reason_code or "RegisterArtefact preflight rejected")
 
     @_release_submit_guard
     def submit(

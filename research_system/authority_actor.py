@@ -235,7 +235,11 @@ class AuthorityActorRegistrationService:
     def _validate_lane(self, intent: RegisterAuthorityActor) -> None:
         # Import lazily so owner_authority can consume registration evidence
         # without creating a module import cycle.
-        from research_system.owner_authority import _LANE_COMMAND_POLICY, _LANE_CONTEXT_POLICY
+        from research_system.owner_authority import (
+            _LANE_ALLOWED_ACTOR_CLASSES,
+            _LANE_COMMAND_POLICY,
+            _LANE_CONTEXT_POLICY,
+        )
 
         lane_commands = _LANE_COMMAND_POLICY.get(intent.authority_lane)
         lane_context = _LANE_CONTEXT_POLICY.get(intent.authority_lane)
@@ -249,9 +253,7 @@ class AuthorityActorRegistrationService:
             raise ArsError("independent reviewer must use an independent-reviewer SPEC lane")
         if intent.actor_role == "operator" and not intent.authority_lane.startswith("operator/"):
             raise ArsError("operator actor must use an operator SPEC lane")
-        allowed = {"agent", "service"}
-        if intent.actor_role == "independent_reviewer":
-            allowed = {"agent", "service"}
+        allowed = _LANE_ALLOWED_ACTOR_CLASSES[intent.authority_lane]
         if intent.actor_class not in allowed:
             raise ArsError("authority actor class is not permitted for this SPEC lane")
 
@@ -297,7 +299,9 @@ class AuthorityActorRegistrationService:
             raise ConfigurationError("actor registration clock must be UTC")
         effective, effective_text = _utc_text(intent.effective_at, "effective_at")
         expires, expires_text = _utc_text(intent.expires_at, "expires_at")
-        if effective >= expires or now < effective or now >= expires:
+        marker_path = self.root / "runtime" / f"{_MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
+        marker_started = marker_path.exists()
+        if effective >= expires or (not marker_started and (now < effective or now >= expires)):
             raise ConfigurationError("actor registration window is not current and finite")
         self._validate_lane(intent)
         context = self.resolver.administration_context()
@@ -325,7 +329,6 @@ class AuthorityActorRegistrationService:
         command_id = _deterministic_id(
             "authority-actor-command", "cmd", {"owner_actor_id": owner_actor_id, "retry_key": intent.retry_key}
         )
-        marker_path = self.root / "runtime" / f"{_MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
         ledger = EventLedger(self.root, self.project_id, self.schemas, store_identity=self.store_identity)
         actor_existing = None
         _require_physical_target(self.root, Path("objects/canonical_actor") / actor_id, label="canonical actor")
@@ -369,6 +372,8 @@ class AuthorityActorRegistrationService:
             "accepted_at": (
                 registration_existing.get("accepted_at")
                 if isinstance(registration_existing, dict)
+                else effective_text
+                if marker_started
                 else now.isoformat().replace("+00:00", "Z")
             ),
             "revoked": False,

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import subprocess  # nosec B404 - fixed git inspection commands
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -71,10 +72,25 @@ def _parse_time(value: object, field: str) -> datetime:
 
 
 def _run_git(root: Path, *arguments: str) -> str:
+    environment = dict(os.environ)
+    for variable in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_GRAFT_FILE",
+        "GIT_SHALLOW_FILE",
+        "GIT_REPLACE_REF_BASE",
+    ):
+        environment.pop(variable, None)
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
     try:
         result = subprocess.run(  # nosec B603 B607 - fixed executable and derived validated root
             ["git", "-C", str(root), *arguments],
             capture_output=True,
+            env=environment,
             text=True,
             timeout=10,
             check=False,
@@ -97,15 +113,62 @@ def _read_canonical_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]
     return value, raw
 
 
-def _publish(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _physical_artifact_path(control_root: Path, path: Path, *, create_parent: bool) -> Path:
+    root = control_root.resolve(strict=True)
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise IntegrityError("binding-repair artifact escapes the control root") from exc
+    current = root
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for part in relative.parts[:-1]:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            if not create_parent:
+                raise IntegrityError("binding-repair artifact parent is unavailable") from None
+            try:
+                current.mkdir()
+                metadata = current.lstat()
+            except OSError as exc:
+                raise IntegrityError("binding-repair artifact parent is unavailable") from exc
+        except OSError as exc:
+            raise IntegrityError("binding-repair artifact parent is unavailable") from exc
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or getattr(metadata, "st_file_attributes", 0) & reparse
+        ):
+            raise IntegrityError("binding-repair artifact parent is redirected")
+    target = current / relative.name
+    try:
+        metadata = target.lstat()
+    except FileNotFoundError:
+        return target
+    except OSError as exc:
+        raise IntegrityError("binding-repair artifact identity is unavailable") from exc
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or getattr(metadata, "st_file_attributes", 0) & reparse
+    ):
+        raise IntegrityError("binding-repair artifact is redirected")
+    return target
+
+
+def _publish(control_root: Path, path: Path, data: bytes) -> None:
+    path = _physical_artifact_path(control_root, path, create_parent=True)
     if path.exists():
-        if not path.is_file() or path.read_bytes() != data:
+        if path.read_bytes() != data:
             raise ConflictError(f"published binding-repair artifact conflicts: {path.name}")
         return
     temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.tmp")
     try:
-        with temporary.open("xb") as handle:
+        with os.fdopen(
+            os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)),
+            "wb",
+        ) as handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
@@ -115,10 +178,14 @@ def _publish(path: Path, data: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _replace(path: Path, data: bytes) -> None:
+def _replace(control_root: Path, path: Path, data: bytes) -> None:
+    path = _physical_artifact_path(control_root, path, create_parent=False)
     temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.replace")
     try:
-        with temporary.open("xb") as handle:
+        with os.fdopen(
+            os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)),
+            "wb",
+        ) as handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
@@ -524,7 +591,9 @@ def advance_store_binding(
     clock = datetime.now(UTC) if now is None else now()
     starts = _parse_time(intent.valid_from, "valid_from")
     expires = _parse_time(intent.expires_at, "expires_at")
-    if starts >= expires or clock < starts or clock >= expires:
+    marker_path = intent.control_root / "runtime" / ".binding-advance-transaction.json"
+    intent_is_current = starts <= clock < expires
+    if starts >= expires or (not intent_is_current and not marker_path.exists()):
         raise ConfigurationError("AdvanceStoreBinding owner intent is expired or nonfinite")
     if intent.owner_action != "advance-clean-descendant-store-binding" or len(intent.reason.strip()) < 12:
         raise ConfigurationError("AdvanceStoreBinding requires the exact semantic owner action and reason")
@@ -636,11 +705,12 @@ def advance_store_binding(
     ledger.schemas.validate(ADVANCE_OBJECT_SCHEMA_ID, successor)
     with WriterLock(control / "runtime" / "writer.lock", {"writer_id": f"binding-advance:{payload_hash}"}):
         marker_raw = canonical_bytes(marker)
+        _physical_artifact_path(control, object_path, create_parent=True)
         _guard_advance_file(marker_path, "binding advance recovery marker", marker_raw)
-        _publish(marker_path, marker_raw)
+        _publish(control, marker_path, marker_raw)
         try:
             _guard_advance_file(object_path, "binding advance object", successor_raw)
-            _publish(object_path, successor_raw)
+            _publish(control, object_path, successor_raw)
             if phase_hook:
                 phase_hook("object")
             event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
@@ -704,7 +774,7 @@ def advance_store_binding(
             if phase_hook:
                 phase_hook("receipt")
             _guard_advance_file(recovery_path, "binding advance recovery", predecessor_raw)
-            _replace(recovery_path, successor_raw)
+            _replace(control, recovery_path, successor_raw)
             if phase_hook:
                 phase_hook("recovery")
             marker_path.unlink(missing_ok=True)
@@ -784,6 +854,7 @@ def repair_store_binding(
     lock_identity = {"writer_id": f"binding-repair:{payload_hash}", "command_type": "RepairStoreBinding"}
     with WriterLock(control / "runtime" / "writer.lock", lock_identity):
         marker: dict[str, Any] | None = None
+        marker_new = False
         try:
             marker_path.lstat()
         except FileNotFoundError:
@@ -830,7 +901,7 @@ def repair_store_binding(
                 "stale_evidence": stale,
                 "candidate": candidate,
             }
-            _publish(marker_path, canonical_bytes(marker))
+            marker_new = True
         old_manifest = json.loads(original_manifest)
         repaired_manifest = dict(old_manifest)
         repaired_manifest["code_roots"] = [candidate["repository_root"]]
@@ -880,6 +951,11 @@ def repair_store_binding(
         recovery_bytes = canonical_bytes(recovery)
         recovery_sha = sha256_hex(recovery_bytes)
         object_path = control / "objects" / "binding-repair" / f"sha256-{recovery_sha}.json"
+        _physical_artifact_path(control, object_path, create_parent=True)
+        _physical_artifact_path(control, binding_path, create_parent=False)
+        _physical_artifact_path(control, recovery_path, create_parent=False)
+        if marker_new:
+            _publish(control, marker_path, canonical_bytes(marker))
         ledger = EventLedger(
             control,
             intent.expected_project_id,
@@ -901,10 +977,10 @@ def repair_store_binding(
             current_raw = (control / _STORE_MANIFEST).read_bytes()
             if current_raw not in {original_manifest, canonical_bytes(repaired_manifest)}:
                 raise IntegrityError("store manifest changed during binding repair")
-            _replace(control / _STORE_MANIFEST, canonical_bytes(repaired_manifest))
+            _replace(control, control / _STORE_MANIFEST, canonical_bytes(repaired_manifest))
             if phase_hook:
                 phase_hook("manifest")
-            _publish(object_path, recovery_bytes)
+            _publish(control, object_path, recovery_bytes)
             if phase_hook:
                 phase_hook("object")
             event = _event_for_command(ledger, payload_hash, intent.idempotency_key)
@@ -970,8 +1046,8 @@ def repair_store_binding(
             ledger.schemas.validate(RECEIPT_SCHEMA_ID, receipt_record)
             if phase_hook:
                 phase_hook("receipt")
-            _publish(binding_path, binding_bytes)
-            _publish(recovery_path, recovery_bytes)
+            _publish(control, binding_path, binding_bytes)
+            _publish(control, recovery_path, recovery_bytes)
             physical_marker = _require_physical_regular_file(
                 marker_path,
                 label="binding repair recovery marker",
@@ -992,7 +1068,7 @@ def repair_store_binding(
             if _event_for_command(ledger, payload_hash, intent.idempotency_key) is None:
                 if object_path.exists() and object_path.read_bytes() == recovery_bytes:
                     object_path.unlink()
-                _replace(control / _STORE_MANIFEST, original_manifest)
+                _replace(control, control / _STORE_MANIFEST, original_manifest)
             raise
 
 

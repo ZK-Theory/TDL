@@ -20,7 +20,7 @@ import research_system.methods.registration as registration_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
-from research_system.errors import ConfigurationError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.artefacts.authority import ArtefactAuthorityContractLoader
 from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
 from research_system.artefacts.use_resolver import predicate_reference
@@ -544,7 +544,7 @@ def _seed_requested_spec_01(inputs: dict[str, Any]) -> tuple[str, str, str]:
     return candidate_id, assay_id, candidate_sha256
 
 
-def _accept_spec_01_brief_inputs(inputs: dict[str, Any]) -> list[str]:
+def _accept_spec_01_brief_inputs(inputs: dict[str, Any], *, entries_mutator=None) -> list[str]:
     repository_root = Path(inputs["config"]["repository_root"])
     sources = [
         (ROUTE_DIRECTORY / "spec-01-assay-brief-v1.1.0.md", "spec_operator_source"),
@@ -595,6 +595,8 @@ def _accept_spec_01_brief_inputs(inputs: dict[str, Any]) -> list[str]:
                 },
             }
         )
+    if entries_mutator is not None:
+        entries_mutator(entries)
     _write_action(inputs, "register_spec_01_brief_inputs", registration={"raw_publications": entries})
     assert cli.main(_advance_argv(inputs, "register_spec_01_brief_inputs")) == 0
 
@@ -2755,6 +2757,46 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
     assert context_events[-4]["payload"]["owner_profile"]["provider_launch"] is False
     assert all("provider_template_sha256" not in event["payload"] for event in context_events[-4:])
 
+    exact_packet = deepcopy(spec_inputs["packet"])
+    before_retry = _tree_snapshot(spec_inputs["binding"].control_root)
+    assert cli.main(_advance_argv(spec_inputs, "prepare_spec_01")) == 0
+    capsys.readouterr()
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+    changed = deepcopy(exact_packet)
+    changed["document"]["purpose"] = "Changed purpose after completed preparation"
+    _refresh_retry_id(changed)
+    spec_inputs["packet"] = changed
+    spec_inputs["packet_path"].write_bytes(canonical_bytes(changed))
+    with pytest.raises(ConflictError, match="completed SPEC action retry differs"):
+        cli.main(_advance_argv(spec_inputs, "prepare_spec_01"))
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("mutation", ("unauthorized_last", "duplicate_source"))
+def test_brief_input_registration_prevalidates_the_exact_set_before_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], mutation: str
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    baseline = []
+
+    def mutate(entries: list[dict[str, Any]]) -> None:
+        if mutation == "unauthorized_last":
+            entries[-1]["registration"]["authority_grant_id"] = new_id("authority_grant")
+        else:
+            entries[-1]["publication"]["source_relative_path"] = entries[0]["publication"]["source_relative_path"]
+            entries[-1]["publication"]["source_git_blob"] = entries[0]["publication"]["source_git_blob"]
+            entries[-1]["publication"]["content_sha256"] = entries[0]["publication"]["content_sha256"]
+            entries[-1]["publication"]["size_bytes"] = entries[0]["publication"]["size_bytes"]
+            entries[-1]["publication"]["document_type"] = entries[0]["publication"]["document_type"]
+        baseline.append(_tree_snapshot(spec_inputs["binding"].control_root))
+
+    with pytest.raises((ArsError, IntegrityError)):
+        _accept_spec_01_brief_inputs(spec_inputs, entries_mutator=mutate)
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == baseline[0]
+
 
 @pytest.mark.integration
 def test_public_spec_flow_records_complete_spec_01_return_without_auto_promotion(
@@ -3063,6 +3105,21 @@ def test_public_spec_flow_requires_and_records_separate_spec_02_live_approval(
     assert projection["artefact_streams"][approval_id]["manifest"]["artefact_type"] == "spec_02_live_run_approval"
     assert not projection.get("spikes")
     assert not projection.get("claims")
+
+    exact_packet = deepcopy(spec_inputs["packet"])
+    before_retry = _tree_snapshot(spec_inputs["binding"].control_root)
+    assert cli.main(_advance_argv(spec_inputs, "approve_spec_02")) == 0
+    capsys.readouterr()
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+    changed = deepcopy(exact_packet)
+    changed["registration"]["correlation_id"] = "changed-completed-action"
+    _refresh_retry_id(changed)
+    spec_inputs["packet"] = changed
+    spec_inputs["packet_path"].write_bytes(canonical_bytes(changed))
+    with pytest.raises(ConflictError, match="completed SPEC action retry differs"):
+        cli.main(_advance_argv(spec_inputs, "approve_spec_02"))
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
 
 
 @pytest.mark.integration

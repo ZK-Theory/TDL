@@ -44,6 +44,26 @@ class RegisteredCandidate:
     receipt: Any
 
 
+@dataclass(frozen=True)
+class PreparedRawRegistration:
+    """Fully validated raw publication material with no durable side effect."""
+
+    registration: CandidateRegistration
+    publication: RawContentPublication
+    raw_bytes: bytes
+    command: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class PreparedCandidateRegistration:
+    value: dict[str, Any]
+    registration: CandidateRegistration
+    raw_bytes: bytes
+    content_sha256: str
+    relative_path: str
+    command: dict[str, Any]
+
+
 class CandidateDocumentStore:
     """Write exact canonical bytes once beneath the configured control root."""
 
@@ -66,15 +86,20 @@ class CandidateDocumentStore:
 
     def write(self, artefact_id: str, raw_bytes: bytes) -> str:
         relative = Path(self.relative_path(artefact_id))
-        target = self.control_root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
+        target = _require_physical_destination(self.control_root, relative.as_posix(), create=True)
         try:
-            fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            fd = os.open(
+                target,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            )
         except FileExistsError:
+            target = _require_physical_destination(self.control_root, relative.as_posix())
             if target.read_bytes() != raw_bytes:
                 raise ConflictError("methods document identity already binds different bytes")
             return relative.as_posix()
         with os.fdopen(fd, "wb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise ConfigurationError("candidate document destination is not a physical regular file")
             handle.write(raw_bytes)
             handle.flush()
             os.fsync(handle.fileno())
@@ -240,6 +265,37 @@ def publish_registered_raw_content(
     missing immutable bytes, matching candidate-document recovery semantics.
     """
 
+    prepared = prepare_registered_raw_content(
+        repository_root=repository_root,
+        publication=publication,
+        registration=registration,
+        control_root=control_root,
+    )
+    raw = prepared.raw_bytes
+    command = prepared.command
+    receipt = command_service.submit(command)
+    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
+        raise ArsError(f"raw artefact registration was not accepted ({reason})")
+    _write_immutable_raw(control_root, publication.destination_relative_path, raw)
+    return RegisteredCandidate(
+        registration.artefact_id,
+        publication.content_sha256,
+        raw,
+        publication.destination_relative_path,
+        receipt,
+    )
+
+
+def prepare_registered_raw_content(
+    *,
+    repository_root: Path,
+    publication: RawContentPublication,
+    registration: CandidateRegistration,
+    control_root: Path,
+) -> PreparedRawRegistration:
+    """Validate and derive one raw-content registration without publishing it."""
+
     raw = _validate_committed_raw_source(repository_root, publication)
     destination = Path(publication.destination_relative_path)
     if destination.stem != registration.artefact_id:
@@ -285,18 +341,7 @@ def publish_registered_raw_content(
         "payload": {"new_artefact_id": registration.artefact_id, "manifest": manifest},
         "project_id": registration.project_id,
     }
-    receipt = command_service.submit(command)
-    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
-        reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
-        raise ArsError(f"raw artefact registration was not accepted ({reason})")
-    _write_immutable_raw(control_root, publication.destination_relative_path, raw)
-    return RegisteredCandidate(
-        registration.artefact_id,
-        publication.content_sha256,
-        raw,
-        publication.destination_relative_path,
-        receipt,
-    )
+    return PreparedRawRegistration(registration, publication, raw, command)
 
 
 def _stable_command_id(idempotency_key: str) -> str:
@@ -315,9 +360,39 @@ def register_candidate_document(
     command_service: CommandSubmitter,
 ) -> RegisteredCandidate:
     """Persist and register exact bytes, always forcing initial candidate authority."""
+    prepared = prepare_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=document_store,
+    )
+    receipt = command_service.submit(prepared.command)
+    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
+        explanation = getattr(receipt, "explanation", None)
+        detail = f": {explanation}" if explanation else ""
+        raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
+    document_store.write(registration.artefact_id, prepared.raw_bytes)
+    return RegisteredCandidate(
+        registration.artefact_id,
+        prepared.content_sha256,
+        prepared.raw_bytes,
+        prepared.relative_path,
+        receipt,
+    )
+
+
+def prepare_candidate_document(
+    *,
+    value: dict[str, Any],
+    registration: CandidateRegistration,
+    document_store: CandidateDocumentStore,
+) -> PreparedCandidateRegistration:
+    """Derive one candidate-document registration without publishing it."""
+
     raw = canonical_bytes(value)
     digest = sha256_hex(raw)
     relative_path = document_store.relative_path(registration.artefact_id)
+    _require_physical_destination(document_store.control_root, relative_path)
     manifest = deepcopy(registration.manifest)
     if manifest.get("artefact_id") != registration.artefact_id:
         raise ArsError("registration manifest does not bind the document artefact")
@@ -354,22 +429,19 @@ def register_candidate_document(
         "payload": {"new_artefact_id": registration.artefact_id, "manifest": manifest},
         "project_id": registration.project_id,
     }
-    receipt = command_service.submit(command)
-    if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
-        reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
-        explanation = getattr(receipt, "explanation", None)
-        detail = f": {explanation}" if explanation else ""
-        raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
-    document_store.write(registration.artefact_id, raw)
-    return RegisteredCandidate(registration.artefact_id, digest, raw, relative_path, receipt)
+    return PreparedCandidateRegistration(value, registration, raw, digest, relative_path, command)
 
 
 __all__ = [
     "CandidateDocumentStore",
     "CandidateRegistration",
+    "PreparedRawRegistration",
+    "PreparedCandidateRegistration",
     "CommandSubmitter",
     "RawContentPublication",
     "RegisteredCandidate",
     "publish_registered_raw_content",
+    "prepare_registered_raw_content",
+    "prepare_candidate_document",
     "register_candidate_document",
 ]
