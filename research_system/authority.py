@@ -222,6 +222,8 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "CreateAttempt",
         "ClaimAttempt",
         "StartAttempt",
+        "CompleteAttempt",
+        "ReleaseResources",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {

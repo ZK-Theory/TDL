@@ -14,7 +14,7 @@ import pytest
 
 import research_system.cli as cli
 from research_system import owner_authority as owner_module
-from research_system.authority import GrantedCommandIdentity
+from research_system.authority import GrantedCommandIdentity, SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES
 from research_system.canonical import canonical_bytes
 from research_system.errors import (
     ArsError,
@@ -290,6 +290,11 @@ def test_spec_02_execution_lane_includes_terminal_operational_cleanup():
     assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["CompleteAttempt"] == "attempt"
     assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["ReleaseExecutionLease"] == "lease"
     assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["ReleaseResources"] == "resource"
+    assert {
+        "CompleteAttempt",
+        "ReleaseExecutionLease",
+        "ReleaseResources",
+    }.issubset(SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES)
 
 
 def test_legacy_generic_artefact_grant_is_not_reclassified_as_a_spec_role(inputs):
