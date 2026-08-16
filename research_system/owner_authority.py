@@ -105,6 +105,9 @@ _LANE_COMMAND_POLICY = {
             "CreateAttempt",
             "ClaimAttempt",
             "StartAttempt",
+            "CompleteAttempt",
+            "ReleaseExecutionLease",
+            "ReleaseResources",
         }
     ),
     "review_requester/outcome_review": frozenset({"RequestDiscoveryOutcomeReview"}),

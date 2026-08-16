@@ -280,6 +280,18 @@ def test_spec_brief_owner_and_context_lanes_are_closed_server_policy():
     assert owner_module._LANE_ALLOWED_ACTOR_CLASSES["operator/spec_01_context"] == {"human", "service"}
 
 
+@pytest.mark.integration
+def test_spec_02_execution_lane_includes_terminal_operational_cleanup():
+    assert {
+        "CompleteAttempt",
+        "ReleaseExecutionLease",
+        "ReleaseResources",
+    }.issubset(owner_module._LANE_COMMAND_POLICY["operator/spec_02_execution"])
+    assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["CompleteAttempt"] == "attempt"
+    assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["ReleaseExecutionLease"] == "lease"
+    assert owner_module._SCOPED_COMMAND_SUBJECT_KINDS["ReleaseResources"] == "resource"
+
+
 def test_legacy_generic_artefact_grant_is_not_reclassified_as_a_spec_role(inputs):
     owner_actor_id = inputs.harness.authority_resolver.administration_context().owner_actor_id
     legacy = activate_lifecycle_grant(
