@@ -5,7 +5,7 @@
         "record_revision": 1
     },
     "author": "Stephen",
-    "closure_hash": "d438afcfecf29db9fc4b420b7efbf88e46308358719c44d8895199f883c76ae3",
+    "closure_hash": "1582f2c1c9ad86e67dcbb2fd459ddf5f1f0cc3da97ccbed1ff62b0112d0feada",
     "component_count": 2,
     "components": [
         {
@@ -48,7 +48,7 @@
     "edge_count": 0,
     "governing_decisions": [
         {
-            "content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "content_hash": "77d49ebdae72ada62430c7bf265dd04c62a63dc5d2e644dc5e475578157c1986",
             "id": "decision:P-042",
             "record_revision": 1
         }
@@ -124,7 +124,7 @@
     "source_dependencies": [
         {
             "confidentiality_class": "internal",
-            "independent_resolution_policy_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+            "independent_resolution_policy_hash": "0e88a93f429c0a264f35267c28934f0084b732722fc1190635d2d8b9179e9aff",
             "independent_resolution_policy_id": "policy:wp6.6:registered-path-read",
             "permitted_consumers": [
                 "portfolio-admission"
@@ -133,8 +133,8 @@
             "required": true,
             "root_id": "repository",
             "schema_or_media_type": "application/json",
-            "sha256": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
-            "size_bytes": 13502,
+            "sha256": "fad7c5a9c9fd3cdec85125b20f006b7989c050d3050ec7fe7e7eb531744692d4",
+            "size_bytes": 13854,
             "source_authority_class": "independently_observed",
             "source_key": "route-package",
             "source_kind": "package_index"

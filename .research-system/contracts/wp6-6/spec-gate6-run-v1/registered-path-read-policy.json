@@ -1,0 +1,17 @@
+{
+  "schema_id": "ars://contracts/wp6-6/registered-path-read-policy",
+  "schema_version": "1.0.0",
+  "policy_id": "policy:wp6.6:registered-path-read",
+  "policy_revision": 1,
+  "root_authority": "accepted registered root with held physical identity",
+  "read_semantics": "open the accepted relative member beneath the held root without following redirects",
+  "required_checks": [
+    "canonical relative path is within the registered root",
+    "root and member path components are regular and non-reparse",
+    "held physical root identity equals the accepted registration",
+    "member size and sha256 equal the accepted expected set",
+    "clean Git subject and required member binding remain exact"
+  ],
+  "failure_outcome": "reject without publication",
+  "independent_observation_required": true
+}

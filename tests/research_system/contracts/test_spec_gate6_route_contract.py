@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
+from research_system.discovery.spec_flow import validate_spec_route_contract
+from research_system.errors import ConfigurationError, SchemaError
+from research_system.schema_registry import cached_schema_registry
 
 
 REPO = Path(__file__).resolve().parents[3]
@@ -20,6 +23,7 @@ GOVERNING_SOURCES = [
     "decision:P-042",
     "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md",
     "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md",
+    "repo:.research-system/contracts/wp6-6/spec-gate6-run-v1/registered-path-read-policy.json",
     "owner-decision:SPEC-route-for-Gate-6",
 ]
 
@@ -100,6 +104,12 @@ def _validate_contract(contract: dict[str, object], *, lineage_root: Path | None
     schema = json.loads(SCHEMA_PATH.read_bytes())
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(contract)
+    validate_spec_route_contract(
+        REPO,
+        CATALOGUE_PATH,
+        cached_schema_registry(REPO / ".research-system/schemas"),
+        contract,
+    )
     _validate_semantics(contract, lineage_root=lineage_root)
 
 
@@ -374,7 +384,7 @@ def test_spec_gate6_route_mutations_reject_through_public_validator(mutation) ->
     _, contract = _load()
     invalid = deepcopy(contract)
     mutation(invalid)
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -396,7 +406,7 @@ def test_rework_rejects_selected_row_stage_swap_even_after_command_recompute() -
     assay_step = next(step for step in invalid["route_steps"] if step["step_id"] == "assay_request")
     source_step["owner_rows"], assay_step["owner_rows"] = assay_step["owner_rows"], source_step["owner_rows"]
     _recompute_governed_commands(invalid)
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -408,7 +418,7 @@ def test_rework_rejects_selected_excluded_substitution_after_command_recompute()
     assay_step["owner_rows"] = ["OR-030"]
     exclusion["owner_rows"][exclusion["owner_rows"].index("OR-030")] = "OR-003"
     _recompute_governed_commands(invalid)
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -417,7 +427,7 @@ def test_rework_rejects_or029_stage_mutation() -> None:
     invalid = deepcopy(contract)
     source_step = next(step for step in invalid["route_steps"] if step["step_id"] == "source_observation_and_candidate")
     source_step["stage"] = "spec_01_assay"
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -439,7 +449,7 @@ def test_rework_rejects_or029_step_swap_with_later_step() -> None:
         invalid["route_steps"][source_index],
     )
     _recompute_governed_commands(invalid)
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -453,7 +463,7 @@ def test_rework_rejects_later_row_swap_after_command_recompute() -> None:
         start_step["owner_rows"][-1],
     )
     _recompute_governed_commands(invalid)
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
 
 
@@ -464,5 +474,61 @@ def test_rework_rejects_command_order_swap_for_authoritative_rows() -> None:
     observation_index = commands.index("IngestScoutObservationBatch")
     assay_index = commands.index("RequestAssay")
     commands[observation_index], commands[assay_index] = commands[assay_index], commands[observation_index]
-    with pytest.raises((ValueError, ValidationError)):
+    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
         _validate_contract(invalid)
+
+
+def test_spec_operator_brief_binds_exact_stage_source_bytes_and_git_blob() -> None:
+    registry = cached_schema_registry(REPO / ".research-system/schemas")
+    brief = {
+        "schema_id": "ars://portfolio/spec-operator-brief-package",
+        "schema_version": "1.0.0",
+        "document_type": "spec_01_operator_brief",
+        "route_id": "SPEC-GATE6-RUN-V1",
+        "stage": "SPEC-01",
+        "route_expected_return_type": "AssayScorecard",
+        "route_source": {
+            "relative_path": EXPECTED_SOURCES["SPEC-01"][0],
+            "raw_sha256": EXPECTED_SOURCES["SPEC-01"][2],
+            "git_blob": "6ee7e7b697621570368632a7598e448bf69f7dc4",
+        },
+        "brief_manifest": {},
+        "brief_manifest_sha256": "a" * 64,
+        "operator_session": {
+            "session_id": "session-1",
+            "operator_actor_id": "actor-1",
+            "application": "Codex desktop",
+            "application_version": "1",
+            "manually_operated": True,
+        },
+        "prohibitions": [
+            "no provider or model launch",
+            "no automatic promotion",
+            "import is candidate evidence only",
+        ],
+    }
+    registry.validate("ars://portfolio/spec-operator-brief-package", brief, schema_version="1.0.0")
+
+    for field, changed in (("raw_sha256", "f" * 64), ("git_blob", "f" * 40)):
+        invalid = deepcopy(brief)
+        invalid["route_source"][field] = changed
+        with pytest.raises(SchemaError):
+            registry.validate("ars://portfolio/spec-operator-brief-package", invalid, schema_version="1.0.0")
+
+
+def test_dossier_governing_decision_binds_exact_p042_section_bytes() -> None:
+    decisions = (REPO / "docs/plans/agentic-research-system/03-decisions-and-open-questions.md").read_bytes()
+    start = decisions.index(b"### P-042 - Owner-operated external model sessions")
+    end = decisions.find(b"\n### P-", start + 1)
+    section = decisions[start:] if end < 0 else decisions[start : end + 1]
+    manifest = json.loads(
+        (REPO / ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-research-dossier-manifest.json").read_bytes()
+    )
+
+    assert manifest["governing_decisions"] == [
+        {
+            "id": "decision:P-042",
+            "record_revision": 1,
+            "content_hash": hashlib.sha256(section).hexdigest(),
+        }
+    ]

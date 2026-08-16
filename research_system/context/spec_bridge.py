@@ -301,7 +301,7 @@ def deliver_spec_owner_context(
         for event in writer.iter_events(compiled.context_id)
         if str(event.get("event_type", "")).startswith("OwnerOperatedContext")
     }
-    if "OwnerOperatedContextHandoffPrepared" not in owner_types:
+    if "OwnerOperatedContextHandoffValidated" not in owner_types:
         source_value = json.loads(snapshot.source.content)
         validated = lifecycle.prevalidate_owner_operated(
             compiled,

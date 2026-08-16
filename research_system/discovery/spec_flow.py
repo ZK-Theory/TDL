@@ -29,6 +29,7 @@ from research_system.artefacts.use_resolver import ArtefactUseResolver
 from research_system.context.registry import resolve_context_packet_for_consumer
 from research_system.context.spec_bridge import deliver_spec_owner_context
 from research_system.discovery.operator import DiscoveryOperator
+from research_system.discovery.path_safety import contained_regular_file
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierMember,
@@ -61,6 +62,9 @@ _SPEC_02_PATH = _ROUTE_PATH.parent / "spec-02-micro-spike-contract-v1.1.0.md"
 _DOSSIER_AUTHORITY_PATH = _ROUTE_PATH.parent / "spec-dossier-expected-set-authority.json"
 _PATH_AUTHORITY_PATH = _ROUTE_PATH.parent / "spec-path-registration-authority.json"
 _DOSSIER_MANIFEST_PATH = _ROUTE_PATH.parent / "spec-research-dossier-manifest.json"
+_REGISTERED_PATH_POLICY_PATH = _ROUTE_PATH.parent / "registered-path-read-policy.json"
+_P042_DECISION_PATH = Path("docs/plans/agentic-research-system/03-decisions-and-open-questions.md")
+_P042_HEADING = b"### P-042 - Owner-operated external model sessions"
 _PACKET_FIELDS = frozenset(
     {"schema_id", "schema_version", "route_id", "action", "retry_id", "commands", "document", "registration"}
 )
@@ -245,6 +249,115 @@ def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> 
     return subject
 
 
+def validate_spec_route_contract(
+    repository_root: Path,
+    catalogue_path: Path,
+    schemas: Any,
+    route: Mapping[str, Any],
+) -> None:
+    """Validate the closed semantics consumed by the public SPEC coordinator."""
+
+    if not isinstance(route, dict) or route.get("route_id") != ROUTE_ID:
+        raise ConfigurationError("SPEC route package is not the exact governed route")
+    try:
+        schemas.validate("ars://contracts/wp6-6/spec-gate6-route", route, schema_version="1.0.0")
+    except SchemaError as exc:
+        raise ConfigurationError("SPEC route package schema binding differs") from exc
+    if route.get("activation_status") != "inert_proposed" or route.get("authority_activation") != "forbidden":
+        raise ConfigurationError("SPEC route package is not inert")
+    try:
+        catalogue = json.loads(catalogue_path.read_bytes())
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ConfigurationError("SPEC route catalogue is unavailable") from exc
+    catalogue_rows = {
+        row.get("owner_row_id"): row
+        for row in catalogue.get("owner_contract_rows", ())
+        if isinstance(row, Mapping) and isinstance(row.get("owner_row_id"), str)
+    }
+    route_steps = route.get("route_steps")
+    exclusions = route.get("intentional_exclusions")
+    if not isinstance(route_steps, list) or not isinstance(exclusions, list):
+        raise ConfigurationError("SPEC route row partition is malformed")
+    route_rows = [row for step in route_steps if isinstance(step, Mapping) for row in step.get("owner_rows", ())]
+    excluded_rows = [row for group in exclusions if isinstance(group, Mapping) for row in group.get("owner_rows", ())]
+    if (
+        not all(isinstance(row, str) and row in catalogue_rows for row in (*route_rows, *excluded_rows))
+        or len(route_rows) != len(set(route_rows))
+        or len(excluded_rows) != len(set(excluded_rows))
+        or set(route_rows) & set(excluded_rows)
+        or set(route_rows) | set(excluded_rows) != set(catalogue_rows)
+    ):
+        raise ConfigurationError("SPEC route row partition differs from the accepted catalogue")
+    governed_commands: list[str] = []
+    for row_id in route_rows:
+        command_type = catalogue_rows[row_id].get("command_type")
+        if not isinstance(command_type, str):
+            raise ConfigurationError("SPEC route catalogue command is invalid")
+        if command_type not in governed_commands:
+            governed_commands.append(command_type)
+    if route.get("governed_command_types") != governed_commands:
+        raise ConfigurationError("SPEC route command derivation differs from the accepted catalogue")
+    stage_order = route.get("stage_order")
+    if not isinstance(stage_order, list) or len(stage_order) != len(set(stage_order)):
+        raise ConfigurationError("SPEC route stage order is invalid")
+    stage_positions = {stage: index for index, stage in enumerate(stage_order)}
+    try:
+        positions = [stage_positions[step["stage"]] for step in route_steps]
+    except (KeyError, TypeError) as exc:
+        raise ConfigurationError("SPEC route stage binding is invalid") from exc
+    if positions != sorted(positions):
+        raise ConfigurationError("SPEC route steps are out of order")
+    policy_source = f"repo:{_REGISTERED_PATH_POLICY_PATH.as_posix()}"
+    if policy_source not in route.get("governing_sources", ()):
+        raise ConfigurationError("SPEC route omits its registered-path read policy")
+    try:
+        policy_raw = (repository_root / _REGISTERED_PATH_POLICY_PATH).read_bytes()
+        policy = json.loads(policy_raw)
+        schemas.validate(
+            "ars://contracts/wp6-6/registered-path-read-policy",
+            policy,
+            schema_version="1.0.0",
+        )
+        manifest = json.loads((repository_root / _DOSSIER_MANIFEST_PATH).read_bytes())
+    except (OSError, UnicodeError, json.JSONDecodeError, SchemaError) as exc:
+        raise ConfigurationError("SPEC route registered-path read policy is invalid") from exc
+    dependencies = manifest.get("source_dependencies") if isinstance(manifest, Mapping) else None
+    if not isinstance(dependencies, list) or len(dependencies) != 1:
+        raise ConfigurationError("SPEC route dossier source policy binding is invalid")
+    policy_ref = dependencies[0]
+    if policy_ref.get("independent_resolution_policy_id") != policy.get("policy_id") or policy_ref.get(
+        "independent_resolution_policy_hash"
+    ) != sha256_hex(policy_raw):
+        raise ConfigurationError("SPEC route dossier source policy hash differs")
+    try:
+        decisions_raw = (repository_root / _P042_DECISION_PATH).read_bytes()
+        decision_start = decisions_raw.index(_P042_HEADING)
+        decision_end = decisions_raw.find(b"\n### P-", decision_start + len(_P042_HEADING))
+    except (OSError, ValueError) as exc:
+        raise ConfigurationError("SPEC route P-042 decision authority is unavailable") from exc
+    if decision_end < 0:
+        decision_end = len(decisions_raw)
+    else:
+        decision_end += 1
+    if manifest.get("governing_decisions") != [
+        {
+            "id": "decision:P-042",
+            "record_revision": 1,
+            "content_hash": sha256_hex(decisions_raw[decision_start:decision_end]),
+        }
+    ]:
+        raise ConfigurationError("SPEC route P-042 decision content binding differs")
+    sources = {item.get("alias"): item for item in route.get("sources", ()) if isinstance(item, dict)}
+    for alias, relative in (("SPEC-01", _SPEC_01_PATH), ("SPEC-02", _SPEC_02_PATH)):
+        source = sources.get(alias)
+        try:
+            data = (repository_root / relative).read_bytes()
+        except OSError as exc:
+            raise ConfigurationError(f"{alias} governed source is unavailable") from exc
+        if source is None or source.get("size_bytes") != len(data) or source.get("sha256") != sha256_hex(data):
+            raise ConfigurationError(f"{alias} governed source binding differs")
+
+
 def _validate_route(operator: DiscoveryOperator) -> dict[str, Any]:
     route_path = operator.repository_root / _ROUTE_PATH
     try:
@@ -252,24 +365,8 @@ def _validate_route(operator: DiscoveryOperator) -> dict[str, Any]:
         route = json.loads(raw)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ConfigurationError("SPEC route package is unavailable") from exc
-    if not isinstance(route, dict) or route.get("route_id") != ROUTE_ID:
-        raise ConfigurationError("SPEC route package is not the exact governed route")
-    try:
-        operator.schemas.validate("ars://contracts/wp6-6/spec-gate6-route", route, schema_version="1.0.0")
-    except SchemaError as exc:
-        raise ConfigurationError("SPEC route package schema binding differs") from exc
-    if route.get("activation_status") != "inert_proposed" or route.get("authority_activation") != "forbidden":
-        raise ConfigurationError("SPEC route package is not inert")
-    sources = {item.get("alias"): item for item in route.get("sources", ()) if isinstance(item, dict)}
-    for alias, relative in (("SPEC-01", _SPEC_01_PATH), ("SPEC-02", _SPEC_02_PATH)):
-        source = sources.get(alias)
-        try:
-            data = (operator.repository_root / relative).read_bytes()
-        except OSError as exc:
-            raise ConfigurationError(f"{alias} governed source is unavailable") from exc
-        if source is None or source.get("size_bytes") != len(data) or source.get("sha256") != sha256_hex(data):
-            raise ConfigurationError(f"{alias} governed source binding differs")
-    for relative in (_ROUTE_PATH, _SPEC_01_PATH, _SPEC_02_PATH):
+    validate_spec_route_contract(operator.repository_root, operator.catalogue_path, operator.schemas, route)
+    for relative in (_ROUTE_PATH, _SPEC_01_PATH, _SPEC_02_PATH, _REGISTERED_PATH_POLICY_PATH):
         working_blob = _git(operator.repository_root, "hash-object", "--", relative.as_posix())
         committed_blob = _git(operator.repository_root, "rev-parse", f"HEAD:{relative.as_posix()}")
         if working_blob != committed_blob:
@@ -338,7 +435,7 @@ def _registered_documents(
         digest = manifest.get("content_sha256")
         if not isinstance(relative, str) or not isinstance(digest, str):
             continue
-        path = operator.control_root / relative
+        path = contained_regular_file(operator.control_root, relative, label="registered SPEC document")
         try:
             raw = path.read_bytes()
             value = json.loads(raw)
@@ -361,7 +458,9 @@ def _actor_for_row(events: Sequence[Mapping[str, Any]], row: str) -> str | None:
         if isinstance(event.get("payload"), Mapping)
         and (event["payload"].get("row_id") == row or event["payload"].get("owner_row_id") == row)
     }
-    return next(iter(actors)) if len(actors) == 1 else None
+    if len(actors) > 1:
+        raise IntegrityError(f"multiple actors are bound to route row {row}")
+    return next(iter(actors)) if actors else None
 
 
 class SpecFlow:
@@ -761,6 +860,8 @@ class SpecFlow:
             owner_actor = _actor_for_row(events, "OR-013")
             if document.get("owner", {}).get("actor_id") != owner_actor:
                 raise IntegrityError("SPEC-02 approval is not the promoting owner")
+            if document.get("registrar", {}).get("actor_id") == owner_actor:
+                raise IntegrityError("SPEC-02 approval owner and registrar must be independent")
             source = next(item for item in self.route["sources"] if item["alias"] == "SPEC-02")
             if document.get("spec_02_subject", {}).get("sha256") != source["sha256"]:
                 raise IntegrityError("SPEC-02 approval subject differs from the governed source")
@@ -950,7 +1051,11 @@ class SpecFlow:
         assets = []
         for state in method_rows:
             manifest = state["manifest"]
-            raw = (self.operator.control_root / manifest["relative_path"]).read_bytes()
+            raw = contained_regular_file(
+                self.operator.control_root,
+                manifest["relative_path"],
+                label="registered SPEC artefact",
+            ).read_bytes()
             matches = [asset for asset in methods_pack.assets if asset.raw_bytes == raw]
             if len(matches) != 1:
                 raise IntegrityError("accepted Methods artefact is not an exact current pack asset")

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-6/registered-path-read-policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_id",
+    "policy_revision",
+    "root_authority",
+    "read_semantics",
+    "required_checks",
+    "failure_outcome",
+    "independent_observation_required"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-6/registered-path-read-policy"},
+    "schema_version": {"const": "1.0.0"},
+    "policy_id": {"const": "policy:wp6.6:registered-path-read"},
+    "policy_revision": {"const": 1},
+    "root_authority": {"const": "accepted registered root with held physical identity"},
+    "read_semantics": {"const": "open the accepted relative member beneath the held root without following redirects"},
+    "required_checks": {
+      "const": [
+        "canonical relative path is within the registered root",
+        "root and member path components are regular and non-reparse",
+        "held physical root identity equals the accepted registration",
+        "member size and sha256 equal the accepted expected set",
+        "clean Git subject and required member binding remain exact"
+      ]
+    },
+    "failure_outcome": {"const": "reject without publication"},
+    "independent_observation_required": {"const": true}
+  }
+}

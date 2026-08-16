@@ -2526,6 +2526,7 @@ def _validate_restore_transaction_approval(
     *,
     approval: dict[str, Any] | None = None,
     approved_witness_path: Path | None = None,
+    historical_paths_may_be_unavailable: bool = False,
 ) -> tuple[dict[str, Any], str, bytes, bytes, bytes]:
     """Bind mutable transaction intent to the immutable approval object."""
     if approval is None:
@@ -2550,13 +2551,24 @@ def _validate_restore_transaction_approval(
         str(record["approval_sha256"]),
     )
     independently_intended_manifest = canonical_bytes(intended_manifest_value)
-    independently_expected_output = canonical_restore_binding_output(
-        target,
-        str(preflight["project_id"]),
-        str(preflight["store_identity"]),
-        [Path(root) for root in preflight["code_roots"]],
-        Path(str(preflight["schema_root"])),
-    )
+    if historical_paths_may_be_unavailable:
+        independently_expected_output = canonical_bytes(
+            {
+                "code_roots": sorted(str(Path(root)) for root in preflight["code_roots"]),
+                "control_root": str(target.resolve(strict=False)),
+                "project_id": validate_id(str(preflight["project_id"]), "project"),
+                "schema_root": str(Path(str(preflight["schema_root"]))),
+                "store_identity": str(preflight["store_identity"]),
+            }
+        )
+    else:
+        independently_expected_output = canonical_restore_binding_output(
+            target,
+            str(preflight["project_id"]),
+            str(preflight["store_identity"]),
+            [Path(root) for root in preflight["code_roots"]],
+            Path(str(preflight["schema_root"])),
+        )
     output_digest = sha256_hex(independently_expected_output)
     output_relative = _relative_path(target, restore_binding_output_object_path(target, output_digest))
     independently_expected_evidence = canonical_bytes(
@@ -2758,6 +2770,13 @@ def _validate_binding_repair_successor(
         or record.get("output_object_sha256") != sha256_hex(output_bytes)
     ):
         raise IntegrityError("binding repair predecessor approval tuple is invalid")
+    _validate_restore_transaction_approval(
+        target,
+        record,
+        approval=approval,
+        approved_witness_path=approved_witness_path,
+        historical_paths_may_be_unavailable=True,
+    )
     evidence_raw = _file_bytes(_restore_binding_evidence_path(target))
     output_raw = _file_bytes(_record_path(target, str(record["output_object_path"])))
     payload_hash = recovery.get("command_payload_hash")
@@ -2815,25 +2834,42 @@ def _validate_binding_repair_successor(
         or binding_raw != expected_binding
     ):
         raise IntegrityError("binding repair successor control binding is invalid")
-    events: list[dict[str, Any]] = []
-    for path in sorted((target / "events" / record["project_id"]).rglob("*.jsonl")):
+    advanced = recovery.get("schema_version") == "1.1.0"
+    command_id = f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}"
+    receipt_path = _require_physical_regular_file(
+        target / "receipts" / f"{command_id}.json",
+        label="binding repair receipt",
+    )
+    try:
+        receipt_raw = receipt_path.read_bytes()
+        receipt = json.loads(receipt_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("binding repair successor receipt is unavailable") from exc
+    outcome = receipt.get("outcome") if isinstance(receipt, dict) else None
+    event_batch_id = outcome.get("event_batch_id") if isinstance(outcome, dict) else None
+    if not isinstance(event_batch_id, str):
+        raise IntegrityError("binding repair successor receipt is invalid")
+    matching: list[dict[str, Any]] = []
+    for path in reversed(sorted((target / "events" / record["project_id"]).rglob("*.jsonl"))):
         try:
             _require_physical_regular_file(path, label="binding repair event segment")
-            events.extend(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line)
+            segment = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise IntegrityError("binding repair successor ledger is invalid") from exc
-    advanced = recovery.get("schema_version") == "1.1.0"
-    matching = [
-        event
-        for event in events
-        if (event.get("event_type"), event.get("command_type"))
-        == (
-            ("StoreBindingAdvanced", "AdvanceStoreBinding")
-            if advanced
-            else ("StoreBindingRepaired", "RepairStoreBinding")
-        )
-        and event.get("command_payload_hash") == payload_hash
-    ]
+        transaction = [event for event in segment if event.get("transaction_id") == event_batch_id]
+        if transaction:
+            matching = [
+                event
+                for event in transaction
+                if (event.get("event_type"), event.get("command_type"))
+                == (
+                    ("StoreBindingAdvanced", "AdvanceStoreBinding")
+                    if advanced
+                    else ("StoreBindingRepaired", "RepairStoreBinding")
+                )
+                and event.get("command_payload_hash") == payload_hash
+            ]
+            break
     if len(matching) != 1:
         raise IntegrityError("binding repair successor event is missing or ambiguous")
     event = matching[0]
@@ -2849,17 +2885,6 @@ def _validate_binding_repair_successor(
         or (advanced and event_payload.get("predecessor_binding_sha256") != recovery.get("predecessor_binding_sha256"))
     ):
         raise IntegrityError("binding repair successor event/object relation is invalid")
-    command_id = f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}"
-    receipt_path = _require_physical_regular_file(
-        target / "receipts" / f"{command_id}.json",
-        label="binding repair receipt",
-    )
-    try:
-        receipt_raw = receipt_path.read_bytes()
-        receipt = json.loads(receipt_raw.decode("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise IntegrityError("binding repair successor receipt is unavailable") from exc
-    outcome = receipt.get("outcome") if isinstance(receipt, dict) else None
     if (
         receipt_raw != canonical_bytes(receipt)
         or receipt.get("schema_id") != "ars://core/receipt"

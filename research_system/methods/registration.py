@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 import subprocess
 import uuid
 from copy import deepcopy
@@ -104,6 +105,44 @@ _METHODS_ASSET_PREFIX = ".research-system/methods/assets/"
 _RAW_DESTINATION_PREFIX = "methods/content/spec-flow/"
 
 
+def _require_physical_destination(control_root: Path, relative_path: str) -> Path:
+    root = control_root.resolve(strict=True)
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != relative_path:
+        raise ConfigurationError("raw content destination is not canonical and control-relative")
+    current = root
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    for part in relative.parts[:-1]:
+        current = current / part
+        try:
+            current.mkdir()
+        except FileExistsError:
+            pass
+        try:
+            metadata = current.lstat()
+        except OSError as exc:
+            raise ConfigurationError("raw content destination parent is unavailable") from exc
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or getattr(metadata, "st_file_attributes", 0) & reparse
+        ):
+            raise ConfigurationError("raw content destination parent is not a physical directory")
+    target = current / relative.name
+    if target.exists() or target.is_symlink():
+        try:
+            metadata = target.lstat()
+        except OSError as exc:
+            raise ConfigurationError("raw content destination is unavailable") from exc
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or getattr(metadata, "st_file_attributes", 0) & reparse
+        ):
+            raise ConfigurationError("raw content destination is not a physical regular file")
+    return target
+
+
 def _git(repository_root: Path, *arguments: str) -> str:
     result = subprocess.run(  # nosec B603 B607 - fixed Git executable and arguments
         ["git", "-C", str(repository_root), *arguments],
@@ -161,15 +200,17 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
 
 
 def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
-    target = control_root.resolve(strict=True) / Path(relative_path)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    target = _require_physical_destination(control_root, relative_path)
     try:
-        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0))
     except FileExistsError:
+        target = _require_physical_destination(control_root, relative_path)
         if target.read_bytes() != raw:
             raise ConflictError("raw content destination already binds different bytes")
         return
     with os.fdopen(fd, "wb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise ConfigurationError("raw content destination is not a physical regular file")
         handle.write(raw)
         handle.flush()
         os.fsync(handle.fileno())
@@ -195,7 +236,7 @@ def publish_registered_raw_content(
     destination = Path(publication.destination_relative_path)
     if destination.stem != registration.artefact_id:
         raise ConfigurationError("raw content destination does not bind the artefact identity")
-    target = control_root.resolve(strict=True) / destination
+    target = _require_physical_destination(control_root, publication.destination_relative_path)
     if target.exists() and target.read_bytes() != raw:
         raise ConflictError("raw content destination already binds different bytes")
     manifest = deepcopy(registration.manifest)

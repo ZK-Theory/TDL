@@ -1026,6 +1026,15 @@ class ContextLifecycleService:
             raise ArsError("owner-operated handoff window is invalid") from exc
         if not valid_from.endswith("Z") or not expires_at.endswith("Z") or starts >= expires:
             raise ArsError("owner-operated handoff window must be finite and increasing")
+        artefact_ids: set[str] = set()
+        for accepted in accepted_artefacts:
+            artefact_id = accepted.get("artefact_id")
+            content_sha256 = accepted.get("content_sha256")
+            if not isinstance(artefact_id, str) or not isinstance(content_sha256, str):
+                raise ArsError("accepted owner-operated artefact identity is invalid")
+            if artefact_id in artefact_ids:
+                raise ArsError("accepted owner-operated artefact IDs must be unique")
+            artefact_ids.add(artefact_id)
         profile_value = {
             "schema_id": "ars://context/owner-operated-delivery-profile",
             "schema_version": "1.0.0",
@@ -1306,7 +1315,8 @@ class ContextLifecycleService:
                 "delivered_at": self.clock().astimezone(UTC).isoformat().replace("+00:00", "Z"),
             }
         receipt_sha256 = sha256_hex(canonical_bytes(receipt))
-        self.objects.write("context", receipt_id, 1, receipt)
+        if not self.objects.revision_exists("context", receipt_id, 1):
+            self.objects.write("context", receipt_id, 1, receipt)
         return self._submit(
             "RecordOwnerOperatedContextDelivery",
             compiled.context_id,

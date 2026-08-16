@@ -713,6 +713,27 @@ def _spike_plan_matches(
     )
 
 
+def _parked_candidate_test_plan_matches(
+    candidate: Mapping[str, Any] | None,
+    decision: Mapping[str, Any] | None,
+    payload: Mapping[str, Any],
+) -> bool:
+    """Require an explicit non-promotional plan for an owner-approved PARK test."""
+
+    plan_artifact = payload.get("plan_artifact")
+    return bool(
+        isinstance(candidate, Mapping)
+        and candidate.get("status") == "parked"
+        and isinstance(decision, Mapping)
+        and decision.get("status") == "resolved"
+        and decision.get("selected_option") == "PARK"
+        and payload.get("row_id") == "OR-014"
+        and isinstance(plan_artifact, Mapping)
+        and "scientific promotion" in plan_artifact.get("prohibited_work", ())
+        and "automatic promotion" in plan_artifact.get("prohibited_work", ())
+    )
+
+
 def _spike_verdict_matches(
     artifact: Mapping[str, Any],
     payload: Mapping[str, Any],

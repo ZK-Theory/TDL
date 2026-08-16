@@ -28,28 +28,20 @@ from research_system.discovery.replay.scope import EventScope
 from research_system.discovery.replay.transactions import validate_transaction_contract
 from research_system.discovery.routes import discovery_identity_exists as _discovery_identity_exists
 from research_system.discovery.routes import shared_event_partition as _shared_event_partition
+from research_system.discovery.rules import _parked_candidate_test_plan_matches
 from research_system.errors import IntegrityError
 from research_system.schema_registry import SchemaRegistry
 
 
-def _parked_candidate_test_plan_matches(
-    candidate: Mapping[str, Any] | None,
-    decision: Mapping[str, Any] | None,
-    payload: Mapping[str, Any],
-) -> bool:
-    """Recognize the non-promotional replay shape admitted by live preflight."""
-
-    plan_artifact = payload.get("plan_artifact")
-    return bool(
-        isinstance(candidate, Mapping)
-        and candidate.get("status") == "parked"
-        and isinstance(decision, Mapping)
-        and decision.get("status") == "resolved"
-        and decision.get("selected_option") == "PARK"
-        and payload.get("row_id") == "OR-014"
-        and isinstance(plan_artifact, Mapping)
-        and "scientific promotion" in plan_artifact.get("prohibited_work", ())
-        and "automatic promotion" in plan_artifact.get("prohibited_work", ())
+def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, Any] | None) -> bool:
+    if not isinstance(candidate, Mapping):
+        return False
+    observations = state.get("source_observations", {})
+    return any(
+        isinstance(observation, Mapping)
+        and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
+        for observation_id in candidate.get("source_observation_refs", ())
+        for observation in (observations.get(observation_id),)
     )
 
 
@@ -99,6 +91,31 @@ def replay_discovery(
         transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
     for transaction in transaction_events.values():
         validate_transaction_contract(transaction)
+    spec_02_document_positions: dict[str, list[int]] = {
+        "spec_01_source_correction": [],
+        "spec_02_live_run_approval": [],
+        "spec_02_operator_brief": [],
+    }
+    for persisted_event in ordered:
+        manifest = persisted_event.get("payload", {}).get("manifest")
+        artefact_type = manifest.get("artefact_type") if isinstance(manifest, Mapping) else None
+        if persisted_event.get("event_type") == "ArtefactRegistered" and artefact_type in spec_02_document_positions:
+            if not isinstance(manifest.get("content_sha256"), str) or not isinstance(
+                manifest.get("relative_path"), str
+            ):
+                raise IntegrityError("SPEC-02 approval artefact manifest is invalid")
+            spec_02_document_positions[str(artefact_type)].append(int(persisted_event["global_position"]))
+
+    def spec_02_documents_precede(event: Mapping[str, Any], *, park_test: bool) -> bool:
+        position = int(event["global_position"])
+        required = {"spec_02_live_run_approval", "spec_02_operator_brief"}
+        if park_test:
+            required.add("spec_01_source_correction")
+        return all(
+            len(spec_02_document_positions[name]) == 1 and spec_02_document_positions[name][0] < position
+            for name in required
+        )
+
     state: dict[str, Any] = {
         "catalogue": None,
         "source_observations": {},
@@ -685,6 +702,22 @@ def replay_discovery(
         reducer = REDUCERS.get(event_type)
         if reducer is None:
             raise IntegrityError(f"unsupported Discovery event: {event_type}")
+        if event_type in {
+            "SpikeExecutionDecisionRequested",
+            "SpikeAuthorized",
+            "CandidateSpikeAuthorized",
+            "SpikeStarted",
+            "CandidateSpikeStarted",
+        }:
+            candidate = state["candidates"].get(payload.get("candidate_id"))
+            origin = state["decisions"].get(candidate.get("decision_id")) if isinstance(candidate, Mapping) else None
+            selected_option = origin.get("selected_option") if isinstance(origin, Mapping) else None
+            if (
+                _is_spec_route_candidate(state, candidate)
+                and selected_option in {"PROMOTE", "PARK"}
+                and not spec_02_documents_precede(event, park_test=selected_option == "PARK")
+            ):
+                raise IntegrityError("SPEC-02 execution lacks durable approval and prepared brief evidence")
         reducer(
             EventScope(
                 state=state,

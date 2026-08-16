@@ -4719,7 +4719,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "DecisionProposed",
             "ProposePromotionDecision",
             "new_decision_id",
-            "schema provenance mismatch|invalid Discovery decision proposal|transaction stream mismatch",
+            "event schema validation failed|schema provenance mismatch|invalid Discovery decision proposal|transaction stream mismatch",
         ),
         (
             "ReviewRequested",
@@ -6137,7 +6137,7 @@ def test_assay_recommendation_uses_the_authoritative_required_axis_ids(tmp_path:
     second_result = deepcopy(artifact["axis_results"][0])
     second_result.update(axis_id="required_despite_flag", value=False)
     artifact["axis_results"].append(second_result)
-    required_hash = sha256_hex(canonical_bytes(rubric["required_axis_ids"]))
+    required_hash = sha256_hex(canonical_bytes(sorted(rubric["required_axis_ids"])))
     bar["acceptance"]["required_axis_set_hash"] = required_hash
     artifact["required_axis_set_hash"] = required_hash
     artifact["observed_axis_set_hash"] = sha256_hex(

@@ -875,7 +875,7 @@ class CommandService:
     def _require_exact_owner_publication_object(self, marker: dict[str, Any]) -> None:
         try:
             value = self.objects.read("assurance_record", marker["target_stream_id"], 1)
-        except (ConflictError, IntegrityError) as exc:
+        except (ConflictError, IntegrityError, ValueError) as exc:
             raise IntegrityError("owner publication recovery object is invalid") from exc
         if canonical_bytes(value) != canonical_bytes(marker["decision"]):
             raise IntegrityError("owner publication recovery object conflicts")

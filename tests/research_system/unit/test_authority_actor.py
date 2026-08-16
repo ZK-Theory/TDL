@@ -10,6 +10,7 @@ import pytest
 
 from research_system.authority_actor import (
     AuthorityActorRegistrationService,
+    REGISTRATION_SCHEMA_ID,
     RegisterAuthorityActor,
     read_actor_registration_intent,
 )
@@ -18,7 +19,7 @@ from research_system.authority import (
     EXTERNAL_RECORD_SCOPED_GRANT_SCHEMA_VERSION,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConflictError, ConfigurationError, IntegrityError
+from research_system.errors import ArsError, ConflictError, ConfigurationError, IntegrityError, SchemaError
 from research_system.owner_authority import _known_authority_actor_classes
 from research_system.schema_registry import bundled_runtime_schema_registry
 from research_system.store.objects import ObjectStore
@@ -99,6 +100,11 @@ def test_registration_is_durable_and_retry_is_duplicate(tmp_path: Path) -> None:
     assert first["actor_id"] == second["actor_id"]
     assert (tmp_path / "receipts" / "authority_actor" / f"{first['registration_id']}.json").exists()
     assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+
+    registration = ObjectStore(tmp_path).read("assurance_record", first["registration_id"], 1)
+    registration["semantic_intent"] = {}
+    with pytest.raises(SchemaError):
+        service.schemas.validate(REGISTRATION_SCHEMA_ID, registration)
 
 
 def test_retry_preserves_acceptance_bytes_when_clock_advances(tmp_path: Path) -> None:
@@ -223,9 +229,9 @@ def test_generic_assurance_record_does_not_prove_actor(tmp_path: Path) -> None:
             "actor_id": "act_01978abc-1000-7000-8000-000000001004",
         },
     )
-    assert _known_authority_actor_classes(tmp_path, objects) == {}
+    assert _known_authority_actor_classes(tmp_path, objects, now=NOW) == {}
     result = service.register(_intent())
-    assert _known_authority_actor_classes(tmp_path, objects)[result["actor_id"]] == frozenset({"agent"})
+    assert _known_authority_actor_classes(tmp_path, objects, now=NOW)[result["actor_id"]] == frozenset({"agent"})
 
 
 def test_mixed_scoped_grant_families_and_registration_prove_actor_classes(tmp_path: Path) -> None:
@@ -282,7 +288,7 @@ def test_mixed_scoped_grant_families_and_registration_prove_actor_classes(tmp_pa
     objects.write("authority_grant", normal_grant["authority_grant_id"], 1, normal_grant)
     objects.write("authority_grant", external_grant["authority_grant_id"], 1, external_grant)
 
-    known = _known_authority_actor_classes(tmp_path, objects)
+    known = _known_authority_actor_classes(tmp_path, objects, now=NOW)
     assert known[normal_grant["actor_id"]] == frozenset({"service"})
     assert known[result["actor_id"]] == frozenset({"agent", "human"})
 
@@ -317,6 +323,7 @@ def test_foreign_registration_context_is_not_known_to_current_owner(tmp_path: Pa
             project_id=PROJECT,
             store_identity=STORE,
             owner_actor_id=OWNER,
+            now=NOW,
         )
         == {}
     )
@@ -374,7 +381,7 @@ def test_registration_evidence_is_tamper_detected_before_owner_publication(tmp_p
     actor_path = next((tmp_path / "objects" / "canonical_actor" / result["actor_id"]).glob("*.json"))
     actor_path.write_bytes(actor_path.read_bytes().replace(b"Codex producer", b"Tampered producer"))
     with pytest.raises(IntegrityError):
-        _known_authority_actor_classes(tmp_path, ObjectStore(tmp_path))
+        _known_authority_actor_classes(tmp_path, ObjectStore(tmp_path), now=NOW)
 
 
 @pytest.mark.parametrize("field", ["actor_id", "actor_sha256"])

@@ -365,6 +365,12 @@ class ControlBinding:
             raise ConfigurationError("repaired binding differs from store manifest")
         roots = tuple(Path(item).resolve(strict=True) for item in repaired["code_roots"])
         schema_root = Path(repaired["schema_root"]).resolve(strict=True)
+        try:
+            executing_root = foundation_path.parents[2].resolve(strict=True)
+        except (IndexError, OSError) as exc:
+            raise ConfigurationError("recovery foundation root is unavailable") from exc
+        if executing_root not in roots:
+            raise ConfigurationError("repaired binding code roots do not include the executing repository root")
         return cls(
             roots,
             control_root,

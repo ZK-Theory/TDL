@@ -1,27 +1,30 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired",
-  "type": "object",
-  "required": ["event_id", "event_type", "project_id", "stream_id", "stream_version", "global_position", "transaction_id", "transaction_index", "transaction_count", "recorded_at", "schema_id", "schema_version", "command_id", "command_type", "idempotency_key", "command_payload_hash", "actor_id", "payload", "previous_event_hash", "event_hash"],
-  "properties": {
-    "event_type": {"const": "StoreBindingRepaired"},
-    "schema_id": {"const": "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"},
-    "schema_version": {"const": "1.0.0"},
-    "command_type": {"const": "RepairStoreBinding"},
-    "command_payload_hash": {"$ref": "#/$defs/sha256"},
-    "event_hash": {"$ref": "#/$defs/sha256"},
-    "previous_event_hash": {"$ref": "#/$defs/sha256"},
-    "payload": {
-      "type": "object", "additionalProperties": false,
-      "required": ["recovery_binding_sha256", "recovery_binding_path", "object_path", "git_head", "git_tree", "prior_manifest_sha256"],
+  "properties": {"schema_version": {"const": "1.0.0"}},
+  "allOf": [
+    {"$ref": "ars://wp6-6/gate6/binding-repair/event-common#/$defs/envelope"},
+    {
       "properties": {
-        "recovery_binding_sha256": {"$ref": "#/$defs/sha256"}, "recovery_binding_path": {"const": "manifests/binding-repair-current.json"},
-        "object_path": {"type": "string", "pattern": "^objects/binding-repair/sha256-[0-9a-f]{64}\\.json$"},
-        "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "prior_manifest_sha256": {"$ref": "#/$defs/sha256"}
-      }
+        "event_type": {"const": "StoreBindingRepaired"},
+        "schema_id": {"const": "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"},
+        "command_type": {"const": "RepairStoreBinding"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["recovery_binding_sha256", "recovery_binding_path", "object_path", "git_head", "git_tree", "prior_manifest_sha256"],
+          "properties": {
+            "recovery_binding_sha256": {"$ref": "#/$defs/sha256"},
+            "recovery_binding_path": {"const": "manifests/binding-repair-current.json"},
+            "object_path": {"type": "string", "pattern": "^objects/binding-repair/sha256-[0-9a-f]{64}\\.json$"},
+            "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "prior_manifest_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      },
+      "required": ["event_type", "schema_id", "command_type", "payload"]
     }
-  },
-  "additionalProperties": true,
+  ],
   "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
 }

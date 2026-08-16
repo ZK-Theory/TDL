@@ -12,6 +12,7 @@
     "decision:P-042",
     "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md",
     "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md",
+    "repo:.research-system/contracts/wp6-6/spec-gate6-run-v1/registered-path-read-policy.json",
     "owner-decision:SPEC-route-for-Gate-6"
   ],
   "sources": [
@@ -49,8 +50,8 @@
     {"step_id": "assay_partial", "stage": "spec_01_assay", "branch": "partial", "owner_rows": ["OR-005"]},
     {"step_id": "assay_complete_review", "stage": "spec_01_outcome_review", "branch": "complete", "owner_rows": ["OR-034", "OR-006"]},
     {"step_id": "assay_partial_review", "stage": "spec_01_outcome_review", "branch": "partial", "owner_rows": ["OR-035", "OR-007"]},
-    {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "promote_only", "owner_rows": ["OR-012", "OR-013"]},
-    {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "promote_only", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
+    {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "owner_decision", "owner_rows": ["OR-012", "OR-013"]},
+    {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "approved_entry", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
     {"step_id": "spike_verdict_complete", "stage": "spec_02_spike", "branch": "complete", "owner_rows": ["OR-018"]},
     {"step_id": "spike_verdict_partial", "stage": "spec_02_spike", "branch": "partial", "owner_rows": ["OR-019"]},
     {"step_id": "spike_complete_review_request", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-036"]},
@@ -73,7 +74,7 @@
   ],
   "stage_gates": {
     "spec_01_entry": {"requires_accepted_genesis": true, "requires_accepted_authorities": true, "requires_admitted_dossier": true, "requires_atomic_source_observation": true},
-    "spec_02_entry": {"requires_spec_01_reviewed": true, "requires_spec_01_owner_decision": "PROMOTE", "requires_later_explicit_live_run_approval": true, "automatic_advance": false},
+    "spec_02_entry": {"requires_spec_01_reviewed": true, "accepted_entry_modes": [{"entry_mode": "standard_promotion", "requires_spec_01_owner_decision": "PROMOTE"}, {"entry_mode": "owner_approved_park_test", "requires_spec_01_owner_decision": "PARK"}], "park_test_requires_source_correction": true, "park_test_requires_scientific_promotion_false": true, "requires_later_explicit_live_run_approval": true, "automatic_advance": false},
     "result_stop": {"requires_spike_verdict_review": true, "requires_owner_decision": true, "import_is_result_or_claim_acceptance": false}
   },
   "identity_resolution": {"resolution_time": "runtime_from_real_accepted_records", "required_roles": ["operator", "producer", "independent_reviewer", "owner_decider"], "accepted_record_binding": "exact_actor_session_and_authority_subjects", "defaults_allowed": false, "nested_defaults_allowed": false, "distinctness_revalidated": true},

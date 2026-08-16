@@ -3,7 +3,7 @@
     "authority_profile_id": "spec-portable-repository-path-authority",
     "authority_profile_version": "1.0.0",
     "collision_status": "no_collision",
-    "content_sha256": "db5c9f9789ee18e16e80e98753e17db3c7b69f7c302a4a23578a0e904bf0f942",
+    "content_sha256": "677682582d7734499506723df2eea5615029874fc210030861f27bf186e0c193",
     "environment_scope": "owner-accepted-stephen-windows-spec-runtime",
     "identity_scheme": "portable-git-subject-plus-windows-file-id-v1",
     "owner_requirement_refs": [
@@ -25,10 +25,10 @@
     "required_member_bindings": [
         {
             "alias": "route-package",
-            "git_blob": "23b6017625520c310202fd84ee45223ba6fecdf5",
+            "git_blob": "c27ade3dc00e69c5707afc604c113f028a8a29df",
             "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
-            "sha256": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
-            "size_bytes": 13502
+            "sha256": "fad7c5a9c9fd3cdec85125b20f006b7989c050d3050ec7fe7e7eb531744692d4",
+            "size_bytes": 13854
         },
         {
             "alias": "SPEC-01",

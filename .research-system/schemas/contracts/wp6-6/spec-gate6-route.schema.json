@@ -13,7 +13,7 @@
     "dispatchable": {"const": false},
     "activation_status": {"const": "inert_proposed"},
     "authority_activation": {"const": "forbidden"},
-    "governing_sources": {"const": ["decision:P-042", "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md", "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md", "owner-decision:SPEC-route-for-Gate-6"]},
+    "governing_sources": {"const": ["decision:P-042", "repo:docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md", "repo:docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md", "repo:.research-system/contracts/wp6-6/spec-gate6-run-v1/registered-path-read-policy.json", "owner-decision:SPEC-route-for-Gate-6"]},
     "sources": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/source"}},
     "lineage_sources": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/lineageSource"}},
     "identity_slots": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/identitySlot"}},
@@ -31,8 +31,8 @@
       {"step_id": "assay_partial", "stage": "spec_01_assay", "branch": "partial", "owner_rows": ["OR-005"]},
       {"step_id": "assay_complete_review", "stage": "spec_01_outcome_review", "branch": "complete", "owner_rows": ["OR-034", "OR-006"]},
       {"step_id": "assay_partial_review", "stage": "spec_01_outcome_review", "branch": "partial", "owner_rows": ["OR-035", "OR-007"]},
-      {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "promote_only", "owner_rows": ["OR-012", "OR-013"]},
-      {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "promote_only", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
+      {"step_id": "assay_promotion_decision", "stage": "promotion_stop", "branch": "owner_decision", "owner_rows": ["OR-012", "OR-013"]},
+      {"step_id": "spike_plan_authority_and_start", "stage": "spec_02_spike", "branch": "approved_entry", "owner_rows": ["OR-014", "OR-015", "OR-016", "OR-017"]},
       {"step_id": "spike_verdict_complete", "stage": "spec_02_spike", "branch": "complete", "owner_rows": ["OR-018"]},
       {"step_id": "spike_verdict_partial", "stage": "spec_02_spike", "branch": "partial", "owner_rows": ["OR-019"]},
       {"step_id": "spike_complete_review_request", "stage": "spec_02_outcome_review", "branch": "complete", "owner_rows": ["OR-036"]},
@@ -68,10 +68,17 @@
         },
         "spec_02_entry": {
           "type": "object",
-          "required": ["requires_spec_01_reviewed", "requires_spec_01_owner_decision", "requires_later_explicit_live_run_approval", "automatic_advance"],
+          "required": ["requires_spec_01_reviewed", "accepted_entry_modes", "park_test_requires_source_correction", "park_test_requires_scientific_promotion_false", "requires_later_explicit_live_run_approval", "automatic_advance"],
           "properties": {
             "requires_spec_01_reviewed": {"const": true},
-            "requires_spec_01_owner_decision": {"const": "PROMOTE"},
+            "accepted_entry_modes": {
+              "const": [
+                {"entry_mode": "standard_promotion", "requires_spec_01_owner_decision": "PROMOTE"},
+                {"entry_mode": "owner_approved_park_test", "requires_spec_01_owner_decision": "PARK"}
+              ]
+            },
+            "park_test_requires_source_correction": {"const": true},
+            "park_test_requires_scientific_promotion_false": {"const": true},
             "requires_later_explicit_live_run_approval": {"const": true},
             "automatic_advance": {"const": false}
           },

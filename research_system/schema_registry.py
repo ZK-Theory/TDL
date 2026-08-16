@@ -16,6 +16,7 @@ from jsonschema.exceptions import SchemaError as JsonSchemaError
 from jsonschema.validators import extend
 from referencing import Registry as ReferenceRegistry
 from referencing import Resource
+from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from research_system.errors import SchemaError
@@ -1345,15 +1346,21 @@ class SchemaRegistry:
             )
             self._schemas[key] = registered
             self._schemas_by_id.setdefault(schema_id, {})[schema_version] = registered
+        # A referencing.Registry is keyed only by URI.  Registering every
+        # version under the same $id silently made filesystem sort order choose
+        # which version cross-schema refs resolved.  Keep only unambiguous IDs
+        # in the shared registry; validate() adds the exact selected root
+        # version under its own URI for local/recursive references.
         self._reference_registry = ReferenceRegistry().with_resources(
             (
-                registered.schema_id,
+                schema_id,
                 Resource.from_contents(
-                    json.loads(registered.raw_bytes),
+                    json.loads(next(iter(versions.values())).raw_bytes),
                     default_specification=DRAFT202012,
                 ),
             )
-            for registered in self._schemas.values()
+            for schema_id, versions in self._schemas_by_id.items()
+            if len(versions) == 1
         )
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
@@ -1424,14 +1431,24 @@ class SchemaRegistry:
         entry = self._resolve(schema_id, schema_version)
         if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
             raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.schema_version}")
-        errors = sorted(
-            _ImmutableSchemaValidator(
-                entry.parsed,
-                format_checker=Draft202012Validator.FORMAT_CHECKER,
-                registry=self._reference_registry,
-            ).iter_errors(value),
-            key=lambda error: list(error.absolute_path),
+        validation_registry = self._reference_registry.with_resource(
+            entry.schema_id,
+            Resource.from_contents(
+                json.loads(entry.raw_bytes),
+                default_specification=DRAFT202012,
+            ),
         )
+        try:
+            errors = sorted(
+                _ImmutableSchemaValidator(
+                    entry.parsed,
+                    format_checker=Draft202012Validator.FORMAT_CHECKER,
+                    registry=validation_registry,
+                ).iter_errors(value),
+                key=lambda error: list(error.absolute_path),
+            )
+        except Unresolvable as exc:
+            raise SchemaError(f"schema reference is ambiguous or unavailable: {exc.ref}") from exc
         if errors:
             message = "; ".join(
                 f"{'.'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}" for error in errors

@@ -219,6 +219,82 @@ def test_owner_operated_profile_is_provider_free_and_replayable(tmp_path) -> Non
         )
 
 
+def test_owner_operated_profile_rejects_duplicate_accepted_artefacts_before_publication(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+    writer = RecordingContextWriter()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    compiled = compile_valid(lifecycle, new_id("context"))
+    artefact_id = new_id("artefact")
+    before = tuple(writer.events)
+
+    with pytest.raises(ArsError, match="artefact IDs must be unique"):
+        lifecycle.prevalidate_owner_operated(
+            compiled,
+            capability=compiled.capability,
+            operator_id="stephen",
+            operator_session_id="codex-desktop-session-1",
+            recipient_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            accepted_artefacts=(
+                {"artefact_id": artefact_id, "content_sha256": "1" * 64},
+                {"artefact_id": artefact_id, "content_sha256": "2" * 64},
+            ),
+            application_version="1.0",
+            valid_from="2026-08-14T10:00:00Z",
+            expires_at="2026-08-14T12:00:00Z",
+        )
+
+    assert tuple(writer.events) == before
+
+
+def test_owner_operated_prevalidation_resumes_after_prepare_before_validate(tmp_path) -> None:
+    objects = ObjectStore(tmp_path)
+
+    class InterruptBeforeValidation(RecordingContextWriter):
+        interrupted = False
+
+        def submit_context(self, **kwargs):
+            if any(event["idempotency_key"] == kwargs["idempotency_key"] for event in self.events):
+                return {"status": "accepted"}
+            if kwargs["command_type"] == "ValidateOwnerOperatedContextHandoff" and not self.interrupted:
+                self.interrupted = True
+                raise ConnectionError("validation response unavailable")
+            return super().submit_context(**kwargs)
+
+    writer = InterruptBeforeValidation()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner")
+    compiled = compile_valid(lifecycle, new_id("context"))
+    artefacts = (
+        {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},
+        {"artefact_id": new_id("artefact"), "content_sha256": "2" * 64},
+    )
+
+    def prevalidate() -> object:
+        return lifecycle.prevalidate_owner_operated(
+            compiled,
+            capability=compiled.capability,
+            operator_id="stephen",
+            operator_session_id="codex-desktop-session-1",
+            recipient_id="spec-brief-consumer",
+            purpose="methods_brief",
+            scope="rm-03-export",
+            accepted_artefacts=artefacts,
+            application_version="1.0",
+            valid_from="2026-08-14T10:00:00Z",
+            expires_at="2026-08-14T12:00:00Z",
+        )
+
+    with pytest.raises(ConnectionError, match="validation response unavailable"):
+        prevalidate()
+    assert [event["event_type"] for event in writer.events].count("OwnerOperatedContextHandoffPrepared") == 1
+
+    validated = prevalidate()
+    assert validated is not None
+    assert [event["event_type"] for event in writer.events].count("OwnerOperatedContextHandoffPrepared") == 1
+    assert [event["event_type"] for event in writer.events].count("OwnerOperatedContextHandoffValidated") == 1
+
+
 @pytest.mark.integration
 def test_owner_operated_lifecycle_uses_real_command_service_and_consumer_resolver(tmp_path) -> None:
     now = datetime(2026, 8, 14, 11, tzinfo=UTC)
@@ -396,6 +472,14 @@ def test_owner_operated_delivery_recovers_receipt_written_before_event(tmp_path)
             recipient_id="spec-brief-consumer",
             recipient_session_id="codex-desktop-session-1",
         )
+    receipt_paths = tuple((tmp_path / "objects" / "context").rglob("*.json"))
+    receipt_path = next(
+        path
+        for path in receipt_paths
+        if json.loads(path.read_text(encoding="utf-8")).get("schema_id")
+        == "ars://wp6-6/owner-operated-context-delivery-receipt"
+    )
+    receipt_bytes_before_retry = receipt_path.read_bytes()
 
     restarted = ContextLifecycleService(
         objects,
@@ -414,6 +498,7 @@ def test_owner_operated_delivery_recovers_receipt_written_before_event(tmp_path)
     delivered = next(event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered")
     stored = objects.read("context", delivered["payload"]["delivery_receipt_object_id"], 1)
     assert stored["delivered_at"] == "2026-08-14T11:00:00Z"
+    assert receipt_path.read_bytes() == receipt_bytes_before_retry
 
 
 class RecordingRoutingEvidence:

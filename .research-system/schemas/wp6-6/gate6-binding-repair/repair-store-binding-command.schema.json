@@ -22,7 +22,7 @@
         "intended_schema_root": {"type": "string", "minLength": 3},
         "stale_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "spec_route_ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"},
-        "spec_source_refs": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "spec_source_refs": {"const": [".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md", ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"]},
         "valid_from": {"type": "string", "format": "date-time"},
         "expires_at": {"type": "string", "format": "date-time"},
         "owner_actor_id": {"type": "string", "pattern": "^act_"},

@@ -163,6 +163,48 @@ def test_registry_validates_command_envelope():
     SchemaRegistry(SCHEMAS).validate("ars://core/command", _command_payload())
 
 
+def test_duplicate_schema_ids_require_exact_root_version_and_never_resolve_cross_refs_by_path_order(tmp_path):
+    shared_id = "ars://test/versioned"
+    for version, required_value in (("1.0.0", "one"), ("2.0.0", "two")):
+        (tmp_path / f"versioned-{version}.schema.json").write_text(
+            json.dumps(
+                {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$id": shared_id,
+                    "type": "object",
+                    "properties": {
+                        "schema_version": {"const": version},
+                        "value": {"const": required_value},
+                    },
+                    "required": ["schema_version", "value"],
+                    "additionalProperties": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+    (tmp_path / "wrapper.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "ars://test/wrapper",
+                "type": "object",
+                "properties": {"schema_version": {"const": "1.0.0"}, "nested": {"$ref": shared_id}},
+                "required": ["schema_version", "nested"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = SchemaRegistry(tmp_path)
+
+    registry.validate(shared_id, {"schema_version": "1.0.0", "value": "one"}, schema_version="1.0.0")
+    registry.validate(shared_id, {"schema_version": "2.0.0", "value": "two"}, schema_version="2.0.0")
+    with pytest.raises(SchemaError, match="reference is ambiguous or unavailable"):
+        registry.validate(
+            "ars://test/wrapper",
+            {"schema_version": "1.0.0", "nested": {"schema_version": "1.0.0", "value": "one"}},
+        )
+
+
 def test_generic_event_envelope_accepts_optional_command_schema_provenance():
     registry = SchemaRegistry(SCHEMAS)
     legacy = _event_payload()

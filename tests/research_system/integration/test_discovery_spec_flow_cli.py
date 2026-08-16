@@ -30,9 +30,8 @@ from research_system.discovery.authority import subject_sha256, validate_portabl
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.dossier import canonical_dossier_hash
 from research_system.discovery.replay.driver import replay_discovery
-from research_system.discovery.spec_flow import SpecFlow, _rows, build_spec_authority_subject
+from research_system.discovery.spec_flow import SpecFlow, _actor_for_row, _rows, build_spec_authority_subject
 from research_system.discovery.routes import shared_event_partition
-from research_system.context.spec_bridge import _stable_id as _stable_context_id
 from research_system.context.spec_bridge import derive_spec_owner_context_id
 from research_system.ids import new_id
 from research_system.methods.registration import (
@@ -66,6 +65,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     C1_TRUSTED_RUNTIME_AUTHORITY,
     _promotion_relation,
     _ref,
+    _rehash_events,
     _scorecard,
     _seed_running_attempt,
 )
@@ -121,6 +121,10 @@ def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, An
         target = repository_root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPOSITORY_ROOT / relative, target)
+    decision_path = Path("docs/plans/agentic-research-system/03-decisions-and-open-questions.md")
+    decision_target = repository_root / decision_path
+    decision_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(REPOSITORY_ROOT / decision_path, decision_target)
     shutil.copytree(
         REPOSITORY_ROOT / ".research-system" / "methods",
         repository_root / ".research-system" / "methods",
@@ -137,6 +141,7 @@ def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, An
         ROUTE_DIRECTORY.as_posix(),
         ASSAY_RUBRIC_PATH.as_posix(),
         ASSAY_SCOPE_PATH.as_posix(),
+        decision_path.as_posix(),
         ".research-system/methods",
         ".research-system/schemas/methods",
     )
@@ -1270,12 +1275,13 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
     )
     source = next(item for item in SpecFlow(operator).route["sources"] if item["alias"] == "SPEC-02")
     owner_id = ACTORS["actor-a"]
+    registrar_id = ACTORS["actor-b"]
     artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000905"
     grant_id = activate_lifecycle_grant(
         inputs["harness"],
         subject_kind="artefact",
         subject_id=artefact_id,
-        actor_id=owner_id,
+        actor_id=registrar_id,
         command_types=("RegisterArtefact",),
         grant_id=new_id("authority_grant"),
     )
@@ -1285,12 +1291,12 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
         "document_type": "spec_02_live_run_approval",
         "route_id": "SPEC-GATE6-RUN-V1",
         "owner": {"actor_id": owner_id, "role": "Stephen"},
-        "registrar": {"actor_id": owner_id, "role": "governed artefact registrar"},
+        "registrar": {"actor_id": registrar_id, "role": "governed artefact registrar"},
         "decision": "APPROVE_SPEC_02_LIVE_RUN",
-        "approved_at": "2026-08-14T13:00:00Z",
+        "approved_at": "2026-08-01T12:20:00Z",
         "valid_window": {
-            "starts_at": "2026-08-14T12:45:00Z",
-            "expires_at": "2026-08-15T13:00:00Z",
+            "starts_at": "2026-08-01T12:15:00Z",
+            "expires_at": "2026-08-01T13:00:00Z",
         },
         "spec_02_subject": {"id": "SPEC-02", "sha256": source["sha256"]},
         "spec_01_promotion": {"id": promotion["event_id"], "sha256": promotion["event_hash"]},
@@ -1317,16 +1323,16 @@ def _approve_spec_02(inputs: dict[str, Any], *, execute: bool = True, park_overr
     manifest.update(
         artefact_id=artefact_id,
         artefact_type="spec_02_live_run_approval",
-        producer_actor_id=owner_id,
+        producer_actor_id=registrar_id,
         task_id="tsk_019ffe2b-fd4b-7000-8000-000000000905",
     )
     manifest["authority"]["accepted_scope"] = "spec-gate6-run:spec-02"
     registration = {
         "artefact_id": artefact_id,
         "project_id": PROJECT_ID,
-        "actor_id": owner_id,
+        "actor_id": registrar_id,
         "authority_grant_id": grant_id,
-        "submitted_at": "2026-08-14T13:00:00Z",
+        "submitted_at": "2026-08-01T12:20:00Z",
         "correlation_id": "spec-02-live-run-approval",
         "reason": "Record Stephen's explicit bounded SPEC-02 live-run approval.",
         "manifest": manifest,
@@ -1396,26 +1402,16 @@ def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
         "package_registration": registration(package_id, package_grant, "spec_02_operator_brief"),
     }
     _write_action(inputs, "prepare_spec_02", document=semantic, registration=registrations)
-    retry_id = inputs["packet"]["retry_id"]
-    seed = sha256_hex(
-        canonical_bytes(
-            {
-                "semantic": [
-                    actor_id,
-                    context_grant_id,
-                    semantic["operator_session_id"],
-                    semantic["recipient_id"],
-                    semantic["purpose"],
-                    semantic["scope"],
-                    retry_id,
-                    semantic["application_version"],
-                    semantic["evaluation_time"],
-                    semantic["handoff_expires_at"],
-                ]
-            }
-        )
+    context_id = derive_spec_owner_context_id(
+        actor_id=actor_id,
+        operator_session_id=semantic["operator_session_id"],
+        recipient_id=semantic["recipient_id"],
+        purpose=semantic["purpose"],
+        scope=semantic["scope"],
+        application_version=semantic["application_version"],
+        valid_from=semantic["evaluation_time"],
+        expires_at=semantic["handoff_expires_at"],
     )
-    context_id = _stable_context_id("ctx", f"{seed}:context")
     activate_lifecycle_grant(
         inputs["harness"],
         subject_kind="context",
@@ -1437,28 +1433,14 @@ def _prepare_spec_02(inputs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _start_spec_02(
-    inputs: dict[str, Any], candidate_id: str, assay_id: str, *, execute_start: bool = True
+    inputs: dict[str, Any],
+    candidate_id: str,
+    assay_id: str,
+    *,
+    execute_start: bool = True,
+    direct_plan_submit: bool = False,
+    after_plan: Any = None,
 ) -> dict[str, str]:
-    all_events = tuple(inputs["harness"].ledger.iter_events())
-    resolve_ids = discovery_resolve_transaction_ids(all_events)
-    operational_events = tuple(
-        event
-        for event in all_events
-        if shared_event_partition(event, resolve_transaction_ids=resolve_ids) == "operational"
-    )
-    operational = replay_control_plane(operational_events).stream_states
-    if C1_ATTEMPT_ID not in operational:
-        _seed_running_attempt(inputs["harness"])
-        all_events = tuple(inputs["harness"].ledger.iter_events())
-        resolve_ids = discovery_resolve_transaction_ids(all_events)
-        operational_events = tuple(
-            event
-            for event in all_events
-            if shared_event_partition(event, resolve_transaction_ids=resolve_ids) == "operational"
-        )
-        operational = replay_control_plane(operational_events).stream_states
-    attempt_sha256 = sha256_hex(canonical_bytes(operational[C1_ATTEMPT_ID]))
-    resource_sha256 = sha256_hex(canonical_bytes(operational[C1_RESOURCE_GRANT_ID]))
     operator = load_discovery_operator(inputs["config_path"])
     projection = replay_discovery(operator.ledger.iter_events(), schemas=operator.schemas)
     candidate = projection["candidates"][candidate_id]
@@ -1494,10 +1476,55 @@ def _start_spec_02(
         "partial_rules": ["unable to evaluate is partial"],
         "planned_contracts": ["W11:OR-018"],
         "outputs": ["spike verdict"],
-        "prohibited_work": ["provider execution"],
+        "prohibited_work": ["provider execution", "scientific promotion", "automatic promotion"],
         "outcome_to_next_step": {"PASS": "review"},
     }
     plan_sha256 = sha256_hex(canonical_bytes(plan))
+    plan_grant = activate_lifecycle_grant(
+        inputs["harness"],
+        subject_kind="scope_definition",
+        subject_id=candidate_id,
+        actor_id=owner_id,
+        command_types=("RegisterSpikePlan",),
+        grant_id=new_id("authority_grant"),
+    )
+    plan_command = _route_command(
+        "RegisterSpikePlan",
+        spike_id,
+        0,
+        "OR-014",
+        {"candidate_id": candidate_id, "spike_id": spike_id, "plan_sha256": plan_sha256, "plan_artifact": plan},
+        owner_id,
+    )
+    plan_command["authority_grant_id"] = plan_grant
+    _write_action(inputs, "start_spec_02", commands=[plan_command])
+    if direct_plan_submit:
+        load_discovery_operator(inputs["config_path"]).submit(plan_command)
+    else:
+        assert cli.main(_advance_argv(inputs, "start_spec_02")) == 0
+    if after_plan is not None:
+        after_plan()
+
+    all_events = tuple(inputs["harness"].ledger.iter_events())
+    resolve_ids = discovery_resolve_transaction_ids(all_events)
+    operational_events = tuple(
+        event
+        for event in all_events
+        if shared_event_partition(event, resolve_transaction_ids=resolve_ids) == "operational"
+    )
+    operational = replay_control_plane(operational_events).stream_states
+    if C1_ATTEMPT_ID not in operational:
+        _seed_running_attempt(inputs["harness"])
+        all_events = tuple(inputs["harness"].ledger.iter_events())
+        resolve_ids = discovery_resolve_transaction_ids(all_events)
+        operational_events = tuple(
+            event
+            for event in all_events
+            if shared_event_partition(event, resolve_transaction_ids=resolve_ids) == "operational"
+        )
+        operational = replay_control_plane(operational_events).stream_states
+    attempt_sha256 = sha256_hex(canonical_bytes(operational[C1_ATTEMPT_ID]))
+    resource_sha256 = sha256_hex(canonical_bytes(operational[C1_RESOURCE_GRANT_ID]))
     plan_ref = _ref(spike_id, 1, plan_sha256)
     execution_relation = {
         "schema_id": "ars://portfolio/relation/spike-execution-authority",
@@ -1528,25 +1555,6 @@ def _start_spec_02(
         "review_date": "2026-08-14T13:30:00Z",
         "consequences": ["authorize bounded SPEC-02 attempt"],
     }
-    plan_grant = activate_lifecycle_grant(
-        inputs["harness"],
-        subject_kind="scope_definition",
-        subject_id=candidate_id,
-        actor_id=owner_id,
-        command_types=("RegisterSpikePlan",),
-        grant_id=new_id("authority_grant"),
-    )
-    plan_command = _route_command(
-        "RegisterSpikePlan",
-        spike_id,
-        0,
-        "OR-014",
-        {"candidate_id": candidate_id, "spike_id": spike_id, "plan_sha256": plan_sha256, "plan_artifact": plan},
-        owner_id,
-    )
-    plan_command["authority_grant_id"] = plan_grant
-    _write_action(inputs, "start_spec_02", commands=[plan_command])
-    assert cli.main(_advance_argv(inputs, "start_spec_02")) == 0
 
     proposal_grant = activate_lifecycle_grant(
         inputs["harness"],
@@ -2122,6 +2130,15 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
+def test_route_actor_resolution_rejects_multiple_durable_actors_for_one_row() -> None:
+    events = (
+        {"actor_id": "act_one", "payload": {"row_id": "OR-013"}},
+        {"actor_id": "act_two", "payload": {"owner_row_id": "OR-013"}},
+    )
+    with pytest.raises(IntegrityError, match="multiple actors are bound"):
+        _actor_for_row(events, "OR-013")
+
+
 @pytest.mark.integration
 def test_spec_identity_producers_match_clean_post_format_fixture_commit(
     spec_inputs: dict[str, Any],
@@ -2477,6 +2494,24 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     assert event["payload"]["manifest"]["content_sha256"] == sha256_hex(raw)
     assert event["payload"]["manifest"]["relative_path"] == publication.destination_relative_path
 
+    target.parent.mkdir(parents=True, exist_ok=True)
+    external = spec_inputs["binding"].control_root.parent / "external-raw-target.md"
+    external.write_bytes(raw)
+    try:
+        target.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(ConfigurationError, match="physical regular file"):
+        publish_registered_raw_content(
+            repository_root=repository_root,
+            publication=publication,
+            registration=registration,
+            control_root=spec_inputs["binding"].control_root,
+            command_service=spec_inputs["harness"].service,
+        )
+    assert external.read_bytes() == raw
+    target.unlink()
+
     monkeypatch.setattr(registration_module, "_write_immutable_raw", original_write)
     result = publish_registered_raw_content(
         repository_root=repository_root,
@@ -2756,6 +2791,13 @@ def test_public_spec_flow_rejects_malformed_and_wrongly_bound_spec_01_returns_wi
     tampered = deepcopy(original)
     tampered["document"]["embedded_artefact"]["recommendation"] = "PARK"
     mutations.append(tampered)
+    wrong_stage = deepcopy(original)
+    wrong_stage["document"]["stage"] = "SPEC-02"
+    wrong_stage["document"]["document_type"] = "spec_02_return"
+    mutations.append(wrong_stage)
+    wrong_outcome = deepcopy(original)
+    wrong_outcome["document"]["outcome"] = "PARTIAL"
+    mutations.append(wrong_outcome)
     for malformed in mutations:
         _refresh_retry_id(malformed)
         spec_inputs["packet_path"].write_bytes(canonical_bytes(malformed))
@@ -2870,6 +2912,30 @@ def test_public_spec_flow_owner_promotes_reviewed_spec_01_without_auto_execution
     assert projection["candidates"][candidate_id]["status"] == "spike_planning_authorized"
     assert not projection.get("spikes")
     assert not projection.get("claims")
+
+
+@pytest.mark.integration
+def test_generic_discovery_submit_cannot_bypass_spec_02_approval_and_brief(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+
+    with pytest.raises(IntegrityError, match="SPEC-02 live-run approval and operator brief"):
+        _start_spec_02(spec_inputs, candidate_id, assay_id, direct_plan_submit=True)
+
+    projection = replay_discovery(load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events())
+    assert not projection.get("spikes")
 
 
 @pytest.mark.integration
@@ -3000,6 +3066,9 @@ def test_public_spec_flow_rejects_wrong_spec_02_live_approval_without_registrati
     wrong_owner = deepcopy(original)
     wrong_owner["document"]["owner"]["actor_id"] = REVIEWER_ACTOR
     mutations.append(wrong_owner)
+    owner_as_registrar = deepcopy(original)
+    owner_as_registrar["document"]["registrar"]["actor_id"] = owner_as_registrar["document"]["owner"]["actor_id"]
+    mutations.append(owner_as_registrar)
     wrong_subject = deepcopy(original)
     wrong_subject["document"]["spec_02_subject"]["sha256"] = "f" * 64
     mutations.append(wrong_subject)
@@ -3124,6 +3193,75 @@ def test_public_spec_flow_starts_spec_02_only_with_exact_lease_and_attempt(
     assert spike["attempt_id"] == C1_ATTEMPT_ID
     assert spike["lease_id"] == C1_LEASE_ID
     assert not projection.get("claims")
+
+    tampered = tuple(
+        deepcopy(event) for event in load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events()
+    )
+    approval_event = next(
+        event
+        for event in tampered
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("payload", {}).get("manifest", {}).get("artefact_type") == "spec_02_live_run_approval"
+    )
+    approval_event["payload"]["manifest"]["artefact_type"] = "evaluation_run"
+    with pytest.raises(
+        IntegrityError,
+        match="lacks durable approval|event schema validation failed|exact lifecycle event provenance mismatch",
+    ):
+        replay_discovery(_rehash_events(tampered))
+
+
+@pytest.mark.integration
+def test_spec_02_approval_is_rechecked_after_plan_before_execution_decision(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id, "PARK")
+    capsys.readouterr()
+    monkeypatch.setattr(
+        spec_flow_module,
+        "_resolve_remote_tag",
+        lambda repository_url, resolved_ref: "145efcde673f1a1897eff250b77221d26c34c479",
+    )
+    _correct_spec_01_source(spec_inputs, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs, park_override=True)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    approval_manifest = next(
+        event["payload"]["manifest"]
+        for event in operator.ledger.iter_events()
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("payload", {}).get("manifest", {}).get("artefact_type") == "spec_02_live_run_approval"
+    )
+    approval_path = operator.control_root / approval_manifest["relative_path"]
+
+    def tamper_approval() -> None:
+        approval_path.write_bytes(approval_path.read_bytes() + b" ")
+
+    with pytest.raises(
+        IntegrityError,
+        match="SPEC-02 live-run approval and operator brief|registered SPEC document binding differs",
+    ):
+        _start_spec_02(spec_inputs, candidate_id, assay_id, after_plan=tamper_approval)
+
+    projection = replay_discovery(operator.ledger.iter_events())
+    spike = next(iter(projection["spikes"].values()))
+    assert spike["status"] == "approval_pending"
+    assert not projection["decisions"].get("dec_019ffe2b-fd4b-7000-8000-000000000910")
 
 
 @pytest.mark.integration

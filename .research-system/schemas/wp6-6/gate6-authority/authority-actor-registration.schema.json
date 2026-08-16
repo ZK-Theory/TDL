@@ -17,7 +17,7 @@
     "command_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "actor_id": {"type": "string", "pattern": "^act_"},
     "actor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "semantic_intent": {"type": "object"},
+    "semantic_intent": {"$ref": "ars://wp6-6/gate6/authority/command/RegisterAuthorityActor#/$defs/intent"},
     "accepted_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"},
     "revoked": {"const": false}
   }

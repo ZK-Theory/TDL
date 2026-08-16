@@ -417,6 +417,81 @@ def test_owner_publication_requires_governed_actor_registration(inputs):
 
 
 @pytest.mark.integration
+def test_owner_publication_evaluates_registered_actor_window_with_setup_clock(inputs, monkeypatch):
+    monkeypatch.setattr(
+        owner_module,
+        "datetime",
+        SimpleNamespace(
+            now=lambda _tz: datetime(2026, 8, 16, 12, tzinfo=UTC),
+            fromisoformat=datetime.fromisoformat,
+        ),
+    )
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    registration = RegisterAuthorityActor(
+        "Codex producer",
+        "agent",
+        "codex_desktop",
+        "1.0",
+        "clock-bound-owner-join-session",
+        "SPEC-01 producer",
+        "producer",
+        "producer/spec_01_assay",
+        "2026-08-14T10:00:00Z",
+        "2026-08-15T10:00:00Z",
+        ("spec-route:test",),
+        "Register the observed live Codex producer session.",
+        "register-codex-desktop-actor",
+        "actor-clock-join-retry",
+    )
+    accepted = setup.register_actor(registration)
+    intent = deepcopy(inputs.intent_value)
+    intent["target_actor_id"] = accepted["actor_id"]
+
+    assert setup.publish(intent)["status"] == "accepted"
+
+
+@pytest.mark.integration
+def test_owner_publication_rejects_registered_actor_role_lane_crossing_without_mutation(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    accepted = setup.register_actor(
+        RegisterAuthorityActor(
+            "Codex producer",
+            "agent",
+            "codex_desktop",
+            "1.0",
+            "producer-role-bound-session",
+            "SPEC-01 producer",
+            "producer",
+            "producer/spec_01_assay",
+            "2026-08-14T10:00:00Z",
+            "2026-08-15T10:00:00Z",
+            ("spec-route:test",),
+            "Register the observed live Codex producer session.",
+            "register-codex-desktop-actor",
+            "actor-role-bound-retry",
+        )
+    )
+    intent = deepcopy(inputs.intent_value)
+    intent.update(
+        {
+            "target_actor_id": accepted["actor_id"],
+            "authority_lane": "independent_reviewer/authority_observation",
+            "actor_role": "independent verifier",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "review", "id": "rev_01978abc-3012-7000-8000-000000003012"},
+            },
+        }
+    )
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+
+    with pytest.raises(ArsError, match="governed session role"):
+        setup.publish(intent)
+
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
 def test_publication_failure_before_event_rolls_back_and_retries(inputs, monkeypatch):
     setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
     original_write = setup.objects.write
@@ -453,6 +528,24 @@ def test_ordinary_failure_before_publication_commit_leaves_zero_durable_state(in
         setup.publish(inputs.intent_value)
     assert tuple(inputs.harness.authority_ledger.iter_events()) == before_events
     assert tuple(sorted((inputs.harness.authority_root / "receipts").rglob("*.json"))) == before_receipts
+    assert tuple(sorted((inputs.harness.authority_root / "objects/assurance_record").rglob("*.json"))) == before_objects
+
+
+@pytest.mark.integration
+def test_value_error_before_publication_commit_rolls_back_new_decision_object(inputs, monkeypatch):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    def fail(*_args, **_kwargs):
+        raise ValueError("injected semantic append failure")
+
+    monkeypatch.setattr(setup.service.ledger, "_append_scoped_authority_from_validated_submit", fail)
+    before_events = tuple(inputs.harness.authority_ledger.iter_events())
+    before_objects = tuple(sorted((inputs.harness.authority_root / "objects/assurance_record").rglob("*.json")))
+
+    with pytest.raises(ValueError, match="semantic append failure"):
+        setup.publish(inputs.intent_value)
+
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before_events
     assert tuple(sorted((inputs.harness.authority_root / "objects/assurance_record").rglob("*.json"))) == before_objects
     assert not tuple((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
 

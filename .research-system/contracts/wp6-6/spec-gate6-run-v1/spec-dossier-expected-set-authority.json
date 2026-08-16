@@ -6,26 +6,26 @@
         "provider_execution": "forbidden"
     },
     "authority_kind": "dossier_expected_set",
-    "content_sha256": "5d0eaabc72e180bd192dc227fac685a221fb6fe1e1fef90b6dd6be55da677d04",
+    "content_sha256": "e4bf32606ae06850073be172930dbcd8af28560c274bbff0660f9cb9ac7ed38f",
     "expected_set": {
         "admission_profile_hash": "ea676eb492849a00fd681141e5c6c2946ba3c7cbc756c6f0f5dab3b43827ffb0",
         "admission_profile_id": "profile:wp6.6:dossier-admission",
         "admission_profile_revision": 1,
-        "content_hash": "5d0eaabc72e180bd192dc227fac685a221fb6fe1e1fef90b6dd6be55da677d04",
+        "content_hash": "e4bf32606ae06850073be172930dbcd8af28560c274bbff0660f9cb9ac7ed38f",
         "dossier_id": "obj_019ffe2b-fd4b-7000-8000-000000000101",
         "expected_set_id": "expected:spec-gate6-run-v1:1.0.0",
-        "manifest_sha256": "360672a95e502baffd413137ec4596de642be33d3270daa0c9d12ed1b6ed52fb",
+        "manifest_sha256": "2b9ff0bc84996e01b0c7aa7f10299e634c178a88288e7bb24b797ca8a1b83e4b",
         "members": [
             {
                 "member_key": "route-package",
                 "member_kind": "package_index",
-                "provenance_hash": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
+                "provenance_hash": "fad7c5a9c9fd3cdec85125b20f006b7989c050d3050ec7fe7e7eb531744692d4",
                 "provenance_id": "prov:route-package",
                 "provenance_revision": 1,
                 "relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
                 "root_id": "repository",
-                "sha256": "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f",
-                "size_bytes": 13502
+                "sha256": "fad7c5a9c9fd3cdec85125b20f006b7989c050d3050ec7fe7e7eb531744692d4",
+                "size_bytes": 13854
             },
             {
                 "member_key": "SPEC-01",

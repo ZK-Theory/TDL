@@ -46,6 +46,7 @@ from research_system.discovery.rules import (
     _candidate_supersession_lineage,
     _git_blob,
     _promotion_relation_matches,
+    _parked_candidate_test_plan_matches,
     _record_ref,
     _review_policy_status,
     _revisit_relation_matches,
@@ -61,6 +62,7 @@ from research_system.discovery.rules import (
     _valid_spike_execution_proposal,
     _valid_spike_promotion_option,
 )
+from research_system.discovery.path_safety import contained_regular_file
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
 from research_system.discovery.commands import (
@@ -1654,10 +1656,26 @@ class DiscoveryRuntime:
             )
         )
 
-    def _owner_approved_park_test(self, candidate: Mapping[str, Any]) -> bool:
-        """Resolve the one durable non-promotional SPEC-02 test approval."""
+    @staticmethod
+    def _is_spec_route_candidate(candidate: Mapping[str, Any], projection: Mapping[str, Any]) -> bool:
+        observations = projection.get("source_observations", {})
+        return any(
+            isinstance(observation, Mapping)
+            and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
+            for observation_id in candidate.get("source_observation_refs", ())
+            for observation in (observations.get(observation_id),)
+        )
 
-        if candidate.get("status") != "parked" or not isinstance(candidate.get("decision_id"), str):
+    def _spec_02_execution_approved(
+        self,
+        candidate: Mapping[str, Any],
+        projection: Mapping[str, Any],
+    ) -> bool:
+        """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
+
+        if not self._is_spec_route_candidate(candidate, projection):
+            return True
+        if not isinstance(candidate.get("decision_id"), str):
             return False
         events = tuple(self.ledger.iter_events())
         promotions = [
@@ -1666,7 +1684,6 @@ class DiscoveryRuntime:
             if event.get("event_type") == "CandidatePromotionApplied"
             and event.get("stream_id") == candidate.get("candidate_id")
             and event.get("payload", {}).get("row_id") == "OR-013"
-            and event.get("payload", {}).get("selected_option") == "PARK"
         ]
         if len(promotions) != 1:
             return False
@@ -1679,13 +1696,14 @@ class DiscoveryRuntime:
             if not isinstance(manifest, Mapping) or manifest.get("artefact_type") not in {
                 "spec_01_source_correction",
                 "spec_02_live_run_approval",
+                "spec_02_operator_brief",
             }:
                 continue
             relative = manifest.get("relative_path")
             content_sha256 = manifest.get("content_sha256")
             if not isinstance(relative, str) or not isinstance(content_sha256, str):
                 return False
-            path = self.control_root / relative
+            path = contained_regular_file(self.control_root, relative, label="SPEC-02 approval artefact")
             try:
                 raw = path.read_bytes()
                 value = json.loads(raw)
@@ -1696,33 +1714,68 @@ class DiscoveryRuntime:
             documents.setdefault(str(manifest["artefact_type"]), []).append((value, content_sha256))
         correction_rows = documents.get("spec_01_source_correction", [])
         approval_rows = documents.get("spec_02_live_run_approval", [])
-        if len(correction_rows) != 1 or len(approval_rows) != 1:
+        brief_rows = [row for row in documents.get("spec_02_operator_brief", []) if row[0].get("stage") == "SPEC-02"]
+        if len(approval_rows) != 1 or len(brief_rows) != 1:
+            return False
+        approval, _approval_sha256 = approval_rows[0]
+        brief, _brief_sha256 = brief_rows[0]
+        try:
+            self.schemas.validate(
+                "ars://portfolio/spec-02-live-run-approval",
+                approval,
+                schema_version="1.0.0",
+            )
+            self.schemas.validate(
+                "ars://portfolio/spec-operator-brief-package",
+                brief,
+                schema_version="1.0.0",
+            )
+            starts = datetime.fromisoformat(approval["valid_window"]["starts_at"].replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
+            approved_at = datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError, SchemaError):
+            return False
+        now = self.clock()
+        route_source = brief.get("route_source", {})
+        source_sha256 = route_source.get("raw_sha256") if isinstance(route_source, Mapping) else None
+        source_path = route_source.get("relative_path") if isinstance(route_source, Mapping) else None
+        owner = approval.get("owner", {})
+        registrar = approval.get("registrar", {})
+        common = bool(
+            now.tzinfo is not None
+            and starts <= now < expires
+            and starts <= approved_at < expires
+            and owner.get("actor_id") == promotion.get("actor_id")
+            and registrar.get("actor_id") != owner.get("actor_id")
+            and approval.get("spec_01_promotion")
+            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
+            and approval.get("spec_02_subject") == {"id": "SPEC-02", "sha256": source_sha256}
+            and approval.get("brief_identity") == {"id": source_path, "sha256": source_sha256}
+        )
+        if not common:
+            return False
+        selected = promotion.get("payload", {}).get("selected_option")
+        if approval.get("entry_mode") == "standard_promotion":
+            return bool(
+                selected == "PROMOTE"
+                and approval.get("scientific_promotion") is True
+                and approval.get("source_correction") is None
+                and not correction_rows
+            )
+        if approval.get("entry_mode") != "owner_approved_park_test" or len(correction_rows) != 1:
             return False
         correction, correction_sha256 = correction_rows[0]
-        approval, _approval_sha256 = approval_rows[0]
         try:
             self.schemas.validate(
                 "ars://portfolio/spec-01-source-correction",
                 correction,
                 schema_version="1.0.0",
             )
-            self.schemas.validate(
-                "ars://portfolio/spec-02-live-run-approval",
-                approval,
-                schema_version="1.0.0",
-            )
-            starts = datetime.fromisoformat(approval["valid_window"]["starts_at"].replace("Z", "+00:00"))
-            expires = datetime.fromisoformat(approval["valid_window"]["expires_at"].replace("Z", "+00:00"))
-        except (KeyError, TypeError, ValueError, SchemaError):
+        except SchemaError:
             return False
-        now = self.clock()
         return bool(
-            now.tzinfo is not None
-            and starts <= now < expires
-            and approval.get("entry_mode") == "owner_approved_park_test"
+            selected == "PARK"
             and approval.get("scientific_promotion") is False
-            and approval.get("spec_01_promotion")
-            == {"id": promotion.get("event_id"), "sha256": promotion.get("event_hash")}
             and approval.get("source_correction")
             == {"id": correction.get("correction_id"), "sha256": correction_sha256}
             and correction.get("decision_ref")
@@ -1742,6 +1795,20 @@ class DiscoveryRuntime:
         assay = projection["assays"].get(candidate.get("assay_id")) if isinstance(candidate, dict) else None
         decision = projection["decisions"].get(decision_id)
         ct = command.envelope["command_type"]
+
+        if (
+            isinstance(candidate, Mapping)
+            and (ct, row)
+            in {
+                ("RegisterSpikePlan", "OR-014"),
+                ("ProposeSpikeExecutionDecision", "OR-015"),
+                ("ResolveDecision", "OR-016"),
+                ("StartSpike", "OR-017"),
+            }
+            and self._is_spec_route_candidate(candidate, projection)
+            and not self._spec_02_execution_approved(candidate, projection)
+        ):
+            raise IntegrityError("SPEC-02 live-run approval and operator brief are required")
 
         def out(*events: tuple[str, str]) -> list[tuple[str, str, dict[str, Any]]]:
             return [(event, stream, deepcopy(p.get("w2_payload", p))) for event, stream in events]
@@ -1826,10 +1893,11 @@ class DiscoveryRuntime:
             and row in {"OR-014", "OR-025"}
             and candidate
             and (
-                candidate.get("status")
-                == ("spike_planning_authorized" if row == "OR-014" else "spike_retry_authorized")
-                or row == "OR-014"
-                and self._owner_approved_park_test(candidate)
+                row == "OR-014"
+                and candidate.get("status") in {"spike_planning_authorized", "parked"}
+                and self._spec_02_execution_approved(candidate, projection)
+                or row == "OR-025"
+                and candidate.get("status") == "spike_retry_authorized"
             )
             and spike is None
             and not _discovery_identity_exists(projection, spike_id)
@@ -1841,6 +1909,14 @@ class DiscoveryRuntime:
                 candidate,
                 assay,
                 projection["decisions"].get(candidate.get("decision_id")),
+            )
+            and (
+                candidate.get("status") != "parked"
+                or _parked_candidate_test_plan_matches(
+                    candidate,
+                    projection["decisions"].get(candidate.get("decision_id")),
+                    p,
+                )
             )
         ):
             if row == "OR-025":
@@ -1871,6 +1947,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and command.target_stream_id == decision_id
             and decision is None
+            and self._spec_02_execution_approved(candidate, projection)
             and not _discovery_identity_exists(projection, decision_id)
             and isinstance(p.get("w2_payload"), dict)
             and p["w2_payload"].get("new_decision_id") == decision_id
@@ -1898,6 +1975,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and candidate
             and candidate.get("status") == "spike_approval_pending"
+            and self._spec_02_execution_approved(candidate, projection)
             and command.target_stream_id == decision_id
             and isinstance(p.get("w2_payload"), dict)
             and p.get("w2_payload", {}).get("decision_id") == decision_id
@@ -1927,6 +2005,7 @@ class DiscoveryRuntime:
             and spike.get("candidate_id") == candidate_id
             and candidate
             and candidate.get("status") == "spike_authorized"
+            and self._spec_02_execution_approved(candidate, projection)
             and command.target_stream_id == spike_id
             and isinstance(p.get("attempt_id"), str)
             and isinstance(p.get("attempt_sha256"), str)

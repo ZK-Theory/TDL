@@ -13,7 +13,7 @@ import yaml
 import research_system.config as config_module
 from research_system.canonical import canonical_bytes
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.binding_repair import (
     AdvanceStoreBinding,
@@ -140,6 +140,48 @@ def test_repair_is_replayable_and_enables_only_governed_repaired_loader(tmp_path
     object.__setattr__(second_repair, "idempotency_key", "binding-repair:test:2")
     with pytest.raises(ConflictError, match="currently valid"):
         repair_store_binding(second_repair, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+
+def test_repair_publication_schemas_reject_underbound_object_event_and_receipt(tmp_path: Path, monkeypatch):
+    _initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    result = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    registry = runtime_schema_registry(candidate / ".research-system" / "schemas")
+    event = tuple(
+        EventLedger(target, witness.project_id, registry, store_identity=witness.store_identity).iter_events()
+    )[-1]
+    receipt_path = next((target / "receipts").glob("binding-repair-*.json"))
+    receipt = json.loads(receipt_path.read_bytes())
+    recovery = result["recovery_binding"]
+
+    registry.validate("ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair", recovery)
+    registry.validate("ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired", event)
+    registry.validate("ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair", receipt)
+
+    invalid_object = deepcopy(recovery)
+    invalid_object.pop("owner_actor_id")
+    invalid_event = deepcopy(event)
+    invalid_event["actor_id"] = "not-an-actor"
+    invalid_receipt = deepcopy(receipt)
+    invalid_receipt["unexpected"] = True
+    for schema_id, invalid in (
+        ("ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair", invalid_object),
+        ("ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired", invalid_event),
+        ("ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair", invalid_receipt),
+    ):
+        with pytest.raises(SchemaError):
+            registry.validate(schema_id, invalid)
+
+
+def test_repaired_loader_requires_executing_repository_in_governed_code_roots(tmp_path: Path, monkeypatch):
+    _initialized, _witness, target, _candidate, foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    foreign_foundation = tmp_path / "foreign-repository" / ".research-system" / "config" / "foundation.yaml"
+    foreign_foundation.parent.mkdir(parents=True)
+    foreign_foundation.write_bytes(foundation.read_bytes())
+    monkeypatch.setattr(config_module, "canonical_foundation_path", lambda: foreign_foundation)
+
+    with pytest.raises(Exception, match="executing repository root"):
+        ControlBinding.load_repaired(target / "manifests" / "binding-repair-control-binding.json")
 
 
 def _advance_intent(intent: RepairStoreBinding) -> AdvanceStoreBinding:

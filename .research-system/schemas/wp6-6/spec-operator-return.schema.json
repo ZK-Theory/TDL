@@ -45,8 +45,10 @@
     "embedded_artefact": {"type": "object"}
   },
   "allOf": [
-    {"if": {"properties": {"stage": {"const": "SPEC-01"}}}, "then": {"properties": {"document_type": {"const": "spec_01_return"}, "embedded_artefact": {"required": ["schema_id", "schema_version"], "properties": {"schema_id": {"enum": ["ars://portfolio/assay-scorecard", "ars://portfolio/assay-partial"]}, "schema_version": {"const": "1.0.0"}}}}}},
-    {"if": {"properties": {"stage": {"const": "SPEC-02"}}}, "then": {"properties": {"document_type": {"const": "spec_02_return"}, "embedded_artefact": {"required": ["schema_id", "schema_version"], "properties": {"schema_id": {"enum": ["ars://portfolio/spike-verdict", "ars://portfolio/spike-partial"]}, "schema_version": {"const": "1.0.0"}}}}}}
+    {"if": {"properties": {"stage": {"const": "SPEC-01"}, "outcome": {"const": "COMPLETE"}}}, "then": {"properties": {"document_type": {"const": "spec_01_return"}, "embedded_artefact": {"$ref": "ars://portfolio/assay-scorecard"}}}},
+    {"if": {"properties": {"stage": {"const": "SPEC-01"}, "outcome": {"const": "PARTIAL"}}}, "then": {"properties": {"document_type": {"const": "spec_01_return"}, "embedded_artefact": {"$ref": "ars://portfolio/assay-partial"}}}},
+    {"if": {"properties": {"stage": {"const": "SPEC-02"}, "outcome": {"const": "COMPLETE"}}}, "then": {"properties": {"document_type": {"const": "spec_02_return"}, "embedded_artefact": {"allOf": [{"$ref": "ars://portfolio/spike-verdict"}, {"properties": {"verdict": {"enum": ["PASS", "FAIL"]}}}]}}}},
+    {"if": {"properties": {"stage": {"const": "SPEC-02"}, "outcome": {"const": "PARTIAL"}}}, "then": {"properties": {"document_type": {"const": "spec_02_return"}, "embedded_artefact": {"allOf": [{"$ref": "ars://portfolio/spike-verdict"}, {"properties": {"verdict": {"const": "PARTIAL"}}}]}}}}
   ],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

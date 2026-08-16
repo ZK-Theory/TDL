@@ -525,6 +525,7 @@ def _known_authority_actor_classes(
     root: Path,
     objects: ObjectStore,
     *,
+    now: datetime | None = None,
     project_id: str | None = None,
     store_identity: str | None = None,
     owner_actor_id: str | None = None,
@@ -548,7 +549,7 @@ def _known_authority_actor_classes(
     from research_system.authority_actor import ACTOR_SCHEMA_ID, REGISTRATION_SCHEMA_ID
 
     registration_root = _physical_directory(root / "objects/assurance_record", label="actor registration objects")
-    now = datetime.now(UTC)
+    effective_now = now or datetime.now(UTC)
     for candidate in registration_root.iterdir():
         _require_bounded_target(
             root,
@@ -629,7 +630,7 @@ def _known_authority_actor_classes(
             expires = datetime.fromisoformat(str(semantic["expires_at"]).replace("Z", "+00:00"))
         except (KeyError, TypeError, ValueError) as exc:
             raise IntegrityError("configured actor registration time is invalid") from exc
-        if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= now < expires:
+        if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= effective_now < expires:
             continue
         actor_id = value.get("actor_id")
         _require_bounded_target(
@@ -659,6 +660,27 @@ def _known_authority_actor_classes(
             raise IntegrityError("configured actor registration class is invalid")
         actors.setdefault(str(actor_id), set()).add(str(actor_class))
     return {actor_id: frozenset(classes) for actor_id, classes in actors.items()}
+
+
+def _registered_actor_lane_is_compatible(objects: ObjectStore, actor_id: str, authority_lane: str) -> bool:
+    """Keep governed session roles from crossing operator/reviewer/producer boundaries."""
+
+    from research_system.authority_actor import ACTOR_SCHEMA_ID
+
+    revision = objects.latest_revision("canonical_actor", actor_id)
+    if revision is None:
+        return True  # Historical grant-derived actors remain governed by their active grants.
+    actor = objects.read("canonical_actor", actor_id, revision)
+    if not isinstance(actor, Mapping) or actor.get("schema_id") != ACTOR_SCHEMA_ID:
+        return True
+    role = actor.get("actor_role")
+    if role == "independent_reviewer":
+        return authority_lane.startswith("independent_reviewer/")
+    if role == "operator":
+        return authority_lane.startswith("operator/")
+    if role == "producer":
+        return not authority_lane.startswith(("independent_reviewer/", "operator/", "owner_decider/"))
+    return False
 
 
 class _RoleSeparatedAuthorityCommandService(CommandService):
@@ -813,12 +835,19 @@ class OwnerAuthoritySetup:
         known = _known_authority_actor_classes(
             self.root,
             self.objects,
+            now=now,
             project_id=str(context.project_id),
             store_identity=str(context.store_identity),
             owner_actor_id=str(context.owner_actor_id),
         )
         if actor_class not in known.get(str(request.get("target_actor_id")), ()):
             raise ArsError("authority intent target actor is not a real configured authority actor")
+        if not _registered_actor_lane_is_compatible(
+            self.objects,
+            str(request.get("target_actor_id")),
+            lane,
+        ):
+            raise ArsError("authority intent conflicts with the actor's governed session role")
         semantic_intent = {
             key: json.loads(canonical_bytes(value)) for key, value in request.items() if key != "retry_key"
         }
