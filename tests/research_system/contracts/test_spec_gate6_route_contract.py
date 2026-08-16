@@ -371,8 +371,6 @@ def _authority_mismatch(value: dict[str, object]) -> None:
         ),
         lambda value: value["lineage_sources"][0].__setitem__("required", True),
         lambda value: value["lineage_sources"][0].__setitem__("admitted_member", True),
-        lambda value: value["sources"][0].__setitem__("sha256", "f" * 64),
-        lambda value: value["sources"][0].__setitem__("size_bytes", 1),
         _drop_first_route_row,
         _add_extra_route_row,
         _duplicate_route_row,
@@ -397,7 +395,17 @@ def test_spec_gate6_route_mutations_reject_through_public_validator(mutation) ->
     _, contract = _load()
     invalid = deepcopy(contract)
     mutation(invalid)
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
+        _validate_contract(invalid)
+
+
+@pytest.mark.parametrize(("field", "value"), [("sha256", "f" * 64), ("size_bytes", 1)])
+def test_spec_gate6_source_identity_mutations_reject_through_public_validator(field, value) -> None:
+    _, contract = _load()
+    invalid = deepcopy(contract)
+    invalid["sources"][0][field] = value
+
+    with pytest.raises(ConfigurationError, match="SPEC-01 governed source binding differs"):
         _validate_contract(invalid)
 
 
@@ -419,7 +427,7 @@ def test_rework_rejects_selected_row_stage_swap_even_after_command_recompute() -
     assay_step = next(step for step in invalid["route_steps"] if step["step_id"] == "assay_request")
     source_step["owner_rows"], assay_step["owner_rows"] = assay_step["owner_rows"], source_step["owner_rows"]
     _recompute_governed_commands(invalid)
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
         _validate_contract(invalid)
 
 
@@ -431,7 +439,7 @@ def test_rework_rejects_selected_excluded_substitution_after_command_recompute()
     assay_step["owner_rows"] = ["OR-030"]
     exclusion["owner_rows"][exclusion["owner_rows"].index("OR-030")] = "OR-003"
     _recompute_governed_commands(invalid)
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
         _validate_contract(invalid)
 
 
@@ -440,7 +448,7 @@ def test_rework_rejects_or029_stage_mutation() -> None:
     invalid = deepcopy(contract)
     source_step = next(step for step in invalid["route_steps"] if step["step_id"] == "source_observation_and_candidate")
     source_step["stage"] = "spec_01_assay"
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
         _validate_contract(invalid)
 
 
@@ -462,7 +470,7 @@ def test_rework_rejects_or029_step_swap_with_later_step() -> None:
         invalid["route_steps"][source_index],
     )
     _recompute_governed_commands(invalid)
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
         _validate_contract(invalid)
 
 
@@ -476,7 +484,7 @@ def test_rework_rejects_later_row_swap_after_command_recompute() -> None:
         start_step["owner_rows"][-1],
     )
     _recompute_governed_commands(invalid)
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ValidationError):
         _validate_contract(invalid)
 
 
@@ -487,7 +495,7 @@ def test_rework_rejects_command_order_swap_for_authoritative_rows() -> None:
     observation_index = commands.index("IngestScoutObservationBatch")
     assay_index = commands.index("RequestAssay")
     commands[observation_index], commands[assay_index] = commands[assay_index], commands[observation_index]
-    with pytest.raises((ConfigurationError, ValueError, ValidationError)):
+    with pytest.raises(ConfigurationError, match="SPEC route command derivation differs"):
         _validate_contract(invalid)
 
 
