@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Self
 
 from research_system.canonical import canonical_bytes
-from research_system.store.lock import WriterLock
+from research_system.errors import ConflictError
+from research_system.store.lock import WriterLock, inspect_lock, remove_stale_lock
 
 
 @dataclass
@@ -64,6 +65,13 @@ class SpecPreparationFence:
             return
         lock.__exit__(None, None, None)
 
+    @staticmethod
+    def _reclaim_stale_lock(lock_path: Path) -> bool:
+        """Remove only an atomically revalidated dead-owner fence generation."""
+
+        state, observed, _ = inspect_lock(lock_path)
+        return state == "stale" and observed is not None and remove_stale_lock(lock_path, observed)
+
     def __enter__(self) -> Self:
         if self._entered:
             raise RuntimeError("SPEC preparation fence instance is already entered")
@@ -81,7 +89,14 @@ class SpecPreparationFence:
                 },
             )
             try:
-                lock.__enter__()
+                while True:
+                    try:
+                        lock.__enter__()
+                    except ConflictError:
+                        if self._reclaim_stale_lock(lock_path):
+                            continue
+                        raise
+                    break
             except BaseException as acquire_error:
                 try:
                     self._rollback_failed_acquire(lock)

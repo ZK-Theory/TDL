@@ -120,6 +120,117 @@ class _Spec02ExecutionAuthority:
     correction: Mapping[str, Any] | None
 
 
+def _exact_record_ref_matches(value: object, record_id: str, content_hash: str) -> bool:
+    """Match one exact revision-1 record reference without accepting aliases."""
+
+    return value == {"id": record_id, "record_revision": 1, "content_hash": content_hash}
+
+
+def _exact_source_ref_matches(value: object, record_id: str, content_hash: str) -> bool:
+    """Match one exact revision-1 artefact source reference."""
+
+    return value == {
+        "ref_kind": "artefact",
+        "id": record_id,
+        "record_revision": 1,
+        "content_hash": content_hash,
+    }
+
+
+def _one_exact_ref(values: object, record_id: str, predicate: Callable[[object], bool]) -> bool:
+    """Require the sole reference for one governed identity to match exactly."""
+
+    if not isinstance(values, list):
+        return False
+    matching_identity = [value for value in values if isinstance(value, Mapping) and value.get("id") == record_id]
+    return len(matching_identity) == 1 and predicate(matching_identity[0])
+
+
+def _assay_content_matches_current_spec_sources(
+    content: object,
+    *,
+    kind: str,
+    route_sha256: str,
+    spec_01_sha256: str,
+) -> bool:
+    """Bind new Assay authority writes to the current committed SPEC route."""
+
+    if not isinstance(content, Mapping):
+        return False
+    source_refs = content.get("source_refs")
+    if not (
+        _one_exact_ref(
+            source_refs,
+            "SPEC-01",
+            lambda value: _exact_source_ref_matches(value, "SPEC-01", spec_01_sha256),
+        )
+        and _one_exact_ref(
+            source_refs,
+            "SPEC-GATE6-RUN-V1",
+            lambda value: _exact_source_ref_matches(value, "SPEC-GATE6-RUN-V1", route_sha256),
+        )
+        and _exact_record_ref_matches(
+            content.get("effective_project_scope_ref"),
+            "prj_01978abc-1000-7000-8000-000000001000",
+            route_sha256,
+        )
+    ):
+        return False
+    if kind == "scope":
+        return True
+    authority_refs = content.get("source_authority_refs")
+    return _one_exact_ref(
+        authority_refs,
+        "SPEC-01",
+        lambda value: _exact_record_ref_matches(value, "SPEC-01", spec_01_sha256),
+    ) and _one_exact_ref(
+        authority_refs,
+        "SPEC-GATE6-RUN-V1",
+        lambda value: _exact_record_ref_matches(value, "SPEC-GATE6-RUN-V1", route_sha256),
+    )
+
+
+def _spec_02_plan_contract_matches(plan: object, authority: _Spec02ExecutionAuthority) -> bool:
+    """Bind the OR-014 plan to the exact owner-governed SPEC-02 source."""
+
+    subject = authority.approval.get("spec_02_subject")
+    source = authority.brief.get("route_source")
+    if not isinstance(plan, Mapping) or not isinstance(subject, Mapping) or not isinstance(source, Mapping):
+        return False
+    source_sha256 = source.get("raw_sha256")
+    planned_contracts = plan.get("planned_contracts")
+    return bool(
+        subject == {"id": "SPEC-02", "sha256": source_sha256}
+        and isinstance(source_sha256, str)
+        and len(source_sha256) == 64
+        and isinstance(planned_contracts, list)
+        and f"SPEC-02:{source_sha256}" in planned_contracts
+    )
+
+
+def _spec_02_pass_rerun_matches(document: object, payload: Mapping[str, Any]) -> bool:
+    """Require a PASS return's rerun assertion to name its exact check evidence."""
+
+    if payload.get("verdict") != "PASS":
+        return True
+    if not isinstance(document, Mapping):
+        return False
+    rerun = document.get("deterministic_rerun")
+    artifact_hashes = document.get("artifact_hashes")
+    if not isinstance(artifact_hashes, list):
+        return False
+    check_hashes = [
+        item.get("sha256") for item in artifact_hashes if isinstance(item, Mapping) and item.get("name") == "checks"
+    ]
+    return bool(
+        isinstance(rerun, Mapping)
+        and rerun.get("performed") is True
+        and rerun.get("same_output") is True
+        and len(check_hashes) == 1
+        and rerun.get("evidence_sha256") == check_hashes[0]
+    )
+
+
 class _SpecExecutionAuthorityResolver:
     """Resolve immutable SPEC execution authority without operator-only configuration."""
 
@@ -136,9 +247,17 @@ class _SpecExecutionAuthorityResolver:
         self.authority_resolver = authority_resolver
         self.clock = clock
 
-    def _authority_decision_context(self) -> tuple[object, tuple[dict[str, Any], ...]]:
+    def _authority_decision_context(
+        self,
+        projection: Mapping[str, Any],
+        events: tuple[dict[str, Any], ...],
+    ) -> tuple[object, tuple[dict[str, Any], ...]]:
         """Load the verified owner anchor and its independently bound authority ledger."""
 
+        if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False):
+            if not isinstance(projection, dict):
+                raise IntegrityError("same-root SPEC authority projection is invalid")
+            return self.authority_resolver._administration_context_from_projection(projection), events
         administration = self.authority_resolver.administration_context()
         events = (
             EventLedger(
@@ -159,6 +278,8 @@ class _SpecExecutionAuthorityResolver:
         approval_sha256: str,
         approval_grant_id: object,
         approval_manifest: Mapping[str, Any],
+        projection: Mapping[str, Any],
+        events: tuple[dict[str, Any], ...],
     ) -> bool:
         """Bind approval bytes to the exact root-owner publication command."""
 
@@ -172,7 +293,7 @@ class _SpecExecutionAuthorityResolver:
             or not isinstance(approval_grant_id, str)
         ):
             return False
-        administration, authority_events = self._authority_decision_context()
+        administration, authority_events = self._authority_decision_context(projection, events)
         intent = {
             "target_actor_id": registrar.get("actor_id"),
             "target_actor_class": "agent",
@@ -318,6 +439,8 @@ class _SpecExecutionAuthorityResolver:
                 approval_sha256=approval_sha256,
                 approval_grant_id=approval_grant_id,
                 approval_manifest=approval_manifest,
+                projection=projection,
+                events=events,
             )
             and brief.get("operator_session", {}).get("operator_actor_id") == brief_actor_id
             and brief_actor_id == brief_manifest.get("producer_actor_id")
@@ -425,6 +548,46 @@ def build_spec_execution_authority_validator(
         )
         if authority is None or (authority.correction is not None) != park_test:
             raise IntegrityError("SPEC-02 execution lacks valid durable approval evidence")
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            raise IntegrityError("SPEC-02 transition payload is invalid")
+        if event.get("command_type") == "RegisterSpikePlan" and payload.get("row_id") == "OR-014":
+            if not _spec_02_plan_contract_matches(payload.get("plan_artifact"), authority):
+                raise IntegrityError("SPEC-02 Spike plan differs from the exact governed contract")
+        if (
+            event.get("command_type") == "RecordSpikeVerdict"
+            and payload.get("row_id") == "OR-018"
+            and payload.get("verdict") == "PASS"
+        ):
+            returns: list[Mapping[str, Any]] = []
+            for registered_event in events:
+                if registered_event.get("event_type") != "ArtefactRegistered":
+                    continue
+                manifest = registered_event.get("payload", {}).get("manifest")
+                if not isinstance(manifest, Mapping) or manifest.get("artefact_type") != "spec_02_return":
+                    continue
+                relative = manifest.get("relative_path")
+                content_sha256 = manifest.get("content_sha256")
+                if not isinstance(relative, str) or not isinstance(content_sha256, str):
+                    raise IntegrityError("SPEC-02 PASS return evidence binding is invalid")
+                try:
+                    raw = read_contained_regular_file(control_root, relative, label="SPEC-02 return artefact")
+                    document = json.loads(raw)
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise IntegrityError("SPEC-02 PASS return evidence is unavailable") from exc
+                if (
+                    not isinstance(document, Mapping)
+                    or raw != canonical_bytes(document)
+                    or sha256_hex(raw) != content_sha256
+                ):
+                    raise IntegrityError("SPEC-02 PASS return evidence binding is invalid")
+                try:
+                    schemas.validate("ars://portfolio/spec-operator-return", document, schema_version="1.0.0")
+                except SchemaError as exc:
+                    raise IntegrityError("SPEC-02 PASS return evidence binding is invalid") from exc
+                returns.append(document)
+            if len(returns) != 1 or not _spec_02_pass_rerun_matches(returns[0], payload):
+                raise IntegrityError("SPEC-02 PASS lacks bound deterministic rerun evidence")
 
     return validate_spec_authority
 
@@ -1438,6 +1601,28 @@ class DiscoveryRuntime:
             "members_sha256": sha256_hex(canonical_bytes(observations)),
         }
 
+    def _current_assay_spec_source_hashes(self) -> tuple[str, str]:
+        """Hash the current committed route package and SPEC-01 source."""
+
+        resolved: dict[str, str] = {}
+        for alias, relative_path in PORTABLE_SPEC_REQUIRED_MEMBERS[:2]:
+            raw = read_contained_regular_file(
+                self.repository_root,
+                relative_path,
+                label=f"current {alias} source",
+            )
+            committed = _runtime_git(
+                self.repository_root,
+                "show",
+                f"HEAD:{relative_path}",
+                text=False,
+                unavailable_message=f"current {alias} source lacks Git identity",
+            )
+            if raw != committed:
+                raise IntegrityError(f"current {alias} source differs from committed bytes")
+            resolved[alias] = sha256_hex(raw)
+        return resolved["route-package"], resolved["SPEC-01"]
+
     def _prepare_assay_bar_authority(
         self,
         command: Command,
@@ -1501,6 +1686,14 @@ class DiscoveryRuntime:
                 self.schemas.validate(schema_id, content, schema_version="1.0.0")
             except SchemaError as exc:
                 raise IntegrityError("invalid Assay-bar content") from exc
+            route_sha256, spec_01_sha256 = self._current_assay_spec_source_hashes()
+            if not _assay_content_matches_current_spec_sources(
+                content,
+                kind=kind,
+                route_sha256=route_sha256,
+                spec_01_sha256=spec_01_sha256,
+            ):
+                raise IntegrityError("Assay-bar content does not bind the current SPEC route")
             axis_definitions = content.get("axis_definitions") if kind == "rubric" else ()
             if kind == "rubric" and (
                 not isinstance(axis_definitions, list)
@@ -2238,6 +2431,7 @@ class DiscoveryRuntime:
             and isinstance(resource_ref, Mapping)
             and self._spec_02_resource_allowed(authority.approval, resource_ref.get("id"))
             and self._spec_02_resource_use_allowed(authority.approval, document.get("resource_use"))
+            and _spec_02_pass_rerun_matches(document, payload)
         )
 
     def _prepare_spike(
@@ -2373,6 +2567,12 @@ class DiscoveryRuntime:
             and not _discovery_identity_exists(projection, spike_id)
             and command.target_stream_id == spike_id
             and isinstance(p.get("plan_artifact"), dict)
+            and (
+                row != "OR-014"
+                or not _is_spec_route_candidate(projection, candidate)
+                or isinstance(spec_02_approval, _Spec02ExecutionAuthority)
+                and _spec_02_plan_contract_matches(p["plan_artifact"], spec_02_approval)
+            )
             and self._valid_spike_plan(
                 p["plan_artifact"],
                 p,
@@ -3043,6 +3243,24 @@ class DiscoveryRuntime:
         review = projection["reviews"].get(review_id)
         command_type = command.envelope["command_type"]
         if command_type == "RequestAssay":
+            route_sha256, spec_01_sha256 = self._current_assay_spec_source_hashes()
+            bar = projection["assay_bar_authority"]
+            bar_contents = bar.get("contents") if isinstance(bar, Mapping) else None
+            rubric_state = bar_contents.get("rubric") if isinstance(bar_contents, Mapping) else None
+            scope_state = bar_contents.get("scope") if isinstance(bar_contents, Mapping) else None
+            rubric_content = rubric_state.get("content") if isinstance(rubric_state, Mapping) else None
+            scope_content = scope_state.get("content") if isinstance(scope_state, Mapping) else None
+            current_bar_sources = _assay_content_matches_current_spec_sources(
+                rubric_content,
+                kind="rubric",
+                route_sha256=route_sha256,
+                spec_01_sha256=spec_01_sha256,
+            ) and _assay_content_matches_current_spec_sources(
+                scope_content,
+                kind="scope",
+                route_sha256=route_sha256,
+                spec_01_sha256=spec_01_sha256,
+            )
             if payload.get("row_id") == "OR-011":
                 old_assay_id = payload.get("old_assay_id")
                 old_assay = projection["assays"].get(old_assay_id)
@@ -3061,6 +3279,7 @@ class DiscoveryRuntime:
                     or payload.get("candidate_revision") != candidate.get("revision")
                     or payload.get("candidate_sha256") != candidate.get("content_sha256")
                     or bar.get("status") != "accepted"
+                    or not current_bar_sources
                     or payload.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
                     or payload.get("producer_relation_sha256") != bar.get("producer_relation_sha256")
                     or not isinstance(producer_ref, dict)
@@ -3074,7 +3293,6 @@ class DiscoveryRuntime:
                     ("AssaySuperseded", old_assay_id, deepcopy(retry_payload)),
                     ("CandidateAssayRetryStarted", candidate_id, deepcopy(retry_payload)),
                 ]
-            bar = projection["assay_bar_authority"]
             producer_ref = bar.get("prospective_producer_ref") if isinstance(bar, dict) else None
             if (
                 payload.get("row_id") != "OR-003"
@@ -3086,6 +3304,7 @@ class DiscoveryRuntime:
                 or assay is not None
                 or _discovery_identity_exists(projection, assay_id)
                 or bar.get("status") != "accepted"
+                or not current_bar_sources
                 or payload.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
                 or payload.get("producer_relation_sha256") != bar.get("producer_relation_sha256")
                 or not isinstance(producer_ref, dict)

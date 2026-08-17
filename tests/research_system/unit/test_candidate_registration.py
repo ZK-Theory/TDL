@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
-from research_system.errors import ArsError
+from research_system.canonical import canonical_bytes
+from research_system.errors import ArsError, ConflictError
+from research_system.methods import registration as registration_module
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
+    prepare_candidate_document,
+    recover_registered_content,
     register_candidate_document,
 )
 
@@ -26,6 +31,16 @@ def registration() -> CandidateRegistration:
         reason="register one exact candidate",
         manifest={"artefact_id": ARTEFACT_ID, "authority": {"use_authority": "candidate"}},
     )
+
+
+def _prepared(tmp_path):
+    store = CandidateDocumentStore(tmp_path)
+    prepared = prepare_candidate_document(
+        value={"document": "returned evidence"},
+        registration=registration(),
+        document_store=store,
+    )
+    return prepared, store
 
 
 def test_rejected_candidate_registration_leaves_no_document_bytes(tmp_path) -> None:
@@ -101,3 +116,111 @@ def test_accepted_registration_recovers_document_publish_on_exact_retry(tmp_path
     )
     assert (tmp_path / recovered.relative_path).read_bytes() == recovered.raw_bytes
     assert service.command_ids[0] == service.command_ids[1]
+
+
+def test_recovery_marker_crash_before_atomic_publish_leaves_final_name_absent(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, _store = _prepared(tmp_path)
+
+    class SimulatedHardStop(BaseException):
+        pass
+
+    observed = []
+
+    def stop_after_fsync(temporary, target):
+        observed.append((temporary, target))
+        assert temporary.read_bytes()
+        assert not target.exists()
+        raise SimulatedHardStop
+
+    monkeypatch.setattr(registration_module, "_after_contained_file_fsync", stop_after_fsync)
+    with pytest.raises(SimulatedHardStop):
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+
+    assert observed
+    assert observed[0][0].exists()
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    assert not tuple(marker_directory.glob("*.json"))
+
+
+def test_partial_abandoned_marker_stage_does_not_wedge_recovery_or_exact_retry(tmp_path) -> None:
+    prepared, _store = _prepared(tmp_path)
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    marker_directory.mkdir(parents=True)
+    abandoned = marker_directory / f".{prepared.command['command_id']}.json.{'a' * 32}.tmp"
+    abandoned.write_bytes(b'{"schema_id":')
+
+    marker_relative = registration_module._publish_recovery_marker(
+        tmp_path,
+        prepared.command,
+        prepared.relative_path,
+        prepared.raw_bytes,
+    )
+    first_bytes = (tmp_path / marker_relative).read_bytes()
+    recover_registered_content(tmp_path, ())
+    retried_relative = registration_module._publish_recovery_marker(
+        tmp_path,
+        prepared.command,
+        prepared.relative_path,
+        prepared.raw_bytes,
+    )
+
+    assert retried_relative == marker_relative
+    assert (tmp_path / marker_relative).read_bytes() == first_bytes
+    assert abandoned.read_bytes() == b'{"schema_id":'
+
+
+def test_live_conflicting_recovery_marker_is_never_replaced(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prepared, _store = _prepared(tmp_path)
+    competing = canonical_bytes({"live": "other registration"})
+
+    def publish_competing_final(_temporary, target):
+        target.write_bytes(competing)
+
+    monkeypatch.setattr(
+        registration_module,
+        "_after_contained_file_fsync",
+        publish_competing_final,
+    )
+
+    with pytest.raises(ConflictError, match="already binds different bytes"):
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    marker = marker_directory / f"{prepared.command['command_id']}.json"
+    assert marker.read_bytes() == competing
+    assert not tuple(marker_directory.glob(".*.tmp"))
+
+
+def test_exact_recovery_marker_publication_is_idempotent(tmp_path) -> None:
+    prepared, _store = _prepared(tmp_path)
+
+    first = registration_module._publish_recovery_marker(
+        tmp_path,
+        prepared.command,
+        prepared.relative_path,
+        prepared.raw_bytes,
+    )
+    first_bytes = (tmp_path / first).read_bytes()
+    second = registration_module._publish_recovery_marker(
+        tmp_path,
+        prepared.command,
+        prepared.relative_path,
+        prepared.raw_bytes,
+    )
+
+    assert second == first
+    assert (tmp_path / first).read_bytes() == first_bytes
+    assert json.loads(first_bytes)["command"]["command_id"] == prepared.command["command_id"]
+    assert not tuple((tmp_path / "runtime/registered-content-recovery").glob(".*.tmp"))

@@ -1729,12 +1729,17 @@ def _publication_context_for_reference(
         manifest_authority = manifest.get("authority")
         if not isinstance(manifest_authority, dict):
             raise ArsError("release publication evidence authority is unavailable")
+        exact_content_sha256 = stream.get("content_sha256")
+        task_id = manifest.get("task_id")
+        scope_id = manifest_authority.get("accepted_scope")
+        if any(not isinstance(value, str) or not value for value in (exact_content_sha256, task_id, scope_id)):
+            raise ArsError("release publication evidence manifest fields are invalid")
         return ArtefactConsumerContext(
             artefact_id=reference,
-            exact_content_sha256=str(stream["content_sha256"]),
+            exact_content_sha256=exact_content_sha256,
             project_id=binding.project_id,
-            task_id=str(manifest["task_id"]),
-            scope_id=str(manifest_authority["accepted_scope"]),
+            task_id=task_id,
+            scope_id=scope_id,
             evaluation_time=evaluation_time,
         )
 

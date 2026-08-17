@@ -43,12 +43,17 @@ def _windows_process_instance_id(pid: int) -> str | None:
         ctypes.POINTER(_FileTime),
     ]
     kernel32.GetProcessTimes.restype = ctypes.c_int
+    kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+    kernel32.GetExitCodeProcess.restype = ctypes.c_int
     kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
     kernel32.CloseHandle.restype = ctypes.c_int
     handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return None
     try:
+        exit_code = ctypes.c_uint32()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)) or exit_code.value != 259:
+            return None
         created = _FileTime()
         exited = _FileTime()
         kernel32_time = _FileTime()
@@ -120,6 +125,27 @@ def current_process_instance_id() -> str:
     return value
 
 
+def _windows_process_has_exited(pid: int) -> bool | None:
+    """Return an observed Windows exit, or ``None`` when it cannot be proved."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+    kernel32.GetExitCodeProcess.restype = ctypes.c_int
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return True if ctypes.get_last_error() == 87 else None  # ERROR_INVALID_PARAMETER: PID no longer exists
+    try:
+        exit_code = ctypes.c_uint32()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return None
+        return exit_code.value != 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def _owner_state(record: object) -> LockOwnerState:
     if not isinstance(record, dict):
         return "malformed"
@@ -137,6 +163,11 @@ def _owner_state(record: object) -> LockOwnerState:
     actual_instance = process_instance_id(pid)
     if actual_instance is not None:
         return "live" if actual_instance == recorded_instance else "stale"
+    if os.name == "nt":
+        exited = _windows_process_has_exited(pid)
+        if exited is True:
+            return "stale"
+        return "unknown"
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

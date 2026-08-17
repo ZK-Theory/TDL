@@ -33,6 +33,11 @@ from research_system.discovery.authority import subject_sha256, validate_portabl
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.dossier import canonical_dossier_hash
 from research_system.discovery.replay.driver import replay_discovery
+from research_system.discovery.runtime import (
+    _Spec02ExecutionAuthority,
+    _SpecExecutionAuthorityResolver,
+    build_spec_execution_authority_validator,
+)
 from research_system.discovery.spec_flow import SpecFlow, _actor_for_row, _rows, build_spec_authority_subject
 from research_system.discovery.routes import shared_event_partition
 from research_system.context.spec_bridge import derive_spec_owner_context_id
@@ -69,6 +74,7 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     C1_LEASE_ID,
     C1_RESOURCE_GRANT_ID,
     C1_TRUSTED_RUNTIME_AUTHORITY,
+    _bind_assay_fixture_to_current_spec_sources,
     _promotion_relation,
     _ref,
     _rehash_events,
@@ -177,6 +183,7 @@ def spec_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, An
         target = repository_root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPOSITORY_ROOT / relative, target)
+    _bind_assay_fixture_to_current_spec_sources(repository_root)
     decision_path = Path("docs/plans/agentic-research-system/03-decisions-and-open-questions.md")
     decision_target = repository_root / decision_path
     decision_target.parent.mkdir(parents=True, exist_ok=True)
@@ -282,7 +289,7 @@ def _artefact_command(
         "command_type": command_type,
         "schema_id": f"ars://core/command/{command_type}",
         "schema_version": "1.0.0",
-        "submitted_at": "2026-08-14T12:00:00Z",
+        "submitted_at": "2026-08-01T12:00:00Z",
         "actor_id": actor_id,
         "on_behalf_of_actor_id": None,
         "authority_grant_id": grant_id,
@@ -519,7 +526,7 @@ def _seed_requested_spec_01(inputs: dict[str, Any]) -> tuple[str, str, str]:
         "schema_version": "1.0.0",
         "source_query": "exact:SPEC-GATE6-RUN-V1",
         "source_version": "1",
-        "observed_at": "2026-08-14T00:00:00Z",
+        "observed_at": "2026-08-01T00:00:00Z",
         "returned_identifiers": [observation_id],
         "normalized_dedup_keys": ["spec-gate6-run-v1"],
         "raw_source_refs": [{"ref_kind": "external", "locator": ROUTE_DIRECTORY.as_posix(), "content_hash": "9" * 64}],
@@ -637,7 +644,7 @@ def _accept_spec_01_brief_inputs(
                     "project_id": PROJECT_ID,
                     "actor_id": ACTORS["actor-a"],
                     "authority_grant_id": grant_id,
-                    "submitted_at": "2026-08-14T12:00:00Z",
+                    "submitted_at": "2026-08-01T12:00:00Z",
                     "correlation_id": "spec-input-registration",
                     "reason": "Register exact committed SPEC brief input.",
                     "manifest": manifest,
@@ -930,7 +937,7 @@ def _return_spec_01_complete(
         "project_id": PROJECT_ID,
         "actor_id": ASSAY_PRODUCER_ACTOR,
         "authority_grant_id": registration_grant,
-        "submitted_at": "2026-08-14T13:00:00Z",
+        "submitted_at": "2026-08-01T12:45:00Z",
         "correlation_id": "spec-01-return",
         "reason": "Register exact manually returned SPEC-01 evidence.",
         "manifest": manifest,
@@ -1039,7 +1046,7 @@ def _return_spec_01_partial(
         "project_id": PROJECT_ID,
         "actor_id": ASSAY_PRODUCER_ACTOR,
         "authority_grant_id": registration_grant,
-        "submitted_at": "2026-08-14T12:00:00Z",
+        "submitted_at": "2026-08-01T12:00:00Z",
         "correlation_id": "spec-01-partial",
         "reason": "Register exact partial SPEC-01 evidence.",
         "manifest": manifest,
@@ -1099,7 +1106,7 @@ def _review_spec_01_complete(
                     "withdrawn",
                 ],
                 "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
-                "deadline": "2026-08-15T12:00:00Z",
+                "deadline": "2026-08-02T12:00:00Z",
                 "escalation_rule": "owner-ruling",
             },
         },
@@ -1186,8 +1193,8 @@ def _decide_spec_01(
         "affected_task_ids": [],
         "affected_claim_ids": [],
         "required_authority": "owner",
-        "expires_at": "2026-08-15T18:00:00Z",
-        "review_date": "2026-08-14T12:00:00Z",
+        "expires_at": "2026-08-02T18:00:00Z",
+        "review_date": "2026-08-01T12:00:00Z",
         "consequences": ["authorize exact next Discovery transition"],
     }
     operator = load_discovery_operator(inputs["config_path"])
@@ -1234,7 +1241,7 @@ def _decide_spec_01(
         "decision_authority_grant_id": resolution_grant,
         "governing_evidence_refs": ["evidence:exact"],
         "considered_review_ids": [review_id],
-        "effective_at": "2026-08-14T12:30:00Z",
+        "effective_at": "2026-08-01T12:30:00Z",
         "permitted_commands": ["RegisterSpikePlan"] if recommendation == "PROMOTE" else [],
         "superseded_decision_ids": [],
         "conditions": [],
@@ -1282,7 +1289,7 @@ def _correct_spec_01_source(inputs: dict[str, Any], scorecard_sha256: str) -> st
         "document_type": "spec_01_source_correction",
         "route_id": "SPEC-GATE6-RUN-V1",
         "correction_id": correction_id,
-        "recorded_at": "2026-08-14T12:40:00Z",
+        "recorded_at": "2026-08-01T12:40:00Z",
         "producer": {
             "actor_id": actor_id,
             "session_id": "independent-source-check",
@@ -1338,7 +1345,7 @@ def _correct_spec_01_source(inputs: dict[str, Any], scorecard_sha256: str) -> st
         "project_id": PROJECT_ID,
         "actor_id": actor_id,
         "authority_grant_id": grant_id,
-        "submitted_at": "2026-08-14T12:40:00Z",
+        "submitted_at": "2026-08-01T12:40:00Z",
         "correlation_id": correction_id,
         "reason": "Correct the head-only false negative for the paper-cited Git tag.",
         "manifest": manifest,
@@ -1581,8 +1588,10 @@ def _start_spec_02(
     assay_id: str,
     *,
     execute_start: bool = True,
+    execute_plan: bool = True,
     direct_plan_submit: bool = False,
     after_plan: Any = None,
+    plan_contract_override: str | None = None,
 ) -> dict[str, str]:
     operator = load_discovery_operator(inputs["config_path"])
     projection = replay_discovery(operator.ledger.iter_events(), schemas=operator.schemas)
@@ -1590,6 +1599,8 @@ def _start_spec_02(
     assay = projection["assays"][assay_id]
     promotion_id = candidate["decision_id"]
     promotion = projection["decisions"][promotion_id]
+    package = SpecFlow(operator)._snapshot()[2]["spec_02_operator_brief"][0]
+    exact_spec_contract = f"SPEC-02:{package['route_source']['raw_sha256']}"
     spike_id = "spk_019ffe2b-fd4b-7000-8000-000000000909"
     execution_id = "dec_019ffe2b-fd4b-7000-8000-000000000910"
     owner_id = ACTORS["actor-a"]
@@ -1617,7 +1628,7 @@ def _start_spec_02(
         "failure_predicates": ["closure fails"],
         "kill_conditions": ["identity mismatch"],
         "partial_rules": ["unable to evaluate is partial"],
-        "planned_contracts": ["W11:OR-018"],
+        "planned_contracts": ["W11:OR-018", plan_contract_override or exact_spec_contract],
         "outputs": ["spike verdict"],
         "prohibited_work": ["provider execution", "scientific promotion", "automatic promotion"],
         "outcome_to_next_step": {"PASS": "review"},
@@ -1643,8 +1654,10 @@ def _start_spec_02(
     _write_action(inputs, "start_spec_02", commands=[plan_command])
     if direct_plan_submit:
         load_discovery_operator(inputs["config_path"]).submit(plan_command)
-    else:
+    elif execute_plan:
         assert cli.main(_advance_argv(inputs, "start_spec_02")) == 0
+    else:
+        return {"spike_id": spike_id, "execution_id": execution_id}
     if after_plan is not None:
         after_plan()
 
@@ -1694,8 +1707,8 @@ def _start_spec_02(
         "affected_task_ids": [],
         "affected_claim_ids": [],
         "required_authority": "owner",
-        "expires_at": "2026-08-15T18:00:00Z",
-        "review_date": "2026-08-14T13:30:00Z",
+        "expires_at": "2026-08-02T18:00:00Z",
+        "review_date": "2026-08-01T12:41:00Z",
         "consequences": ["authorize bounded SPEC-02 attempt"],
     }
 
@@ -1742,7 +1755,7 @@ def _start_spec_02(
         "decision_authority_grant_id": decision_grant,
         "governing_evidence_refs": ["evidence:exact"],
         "considered_review_ids": [],
-        "effective_at": "2026-08-14T13:35:00Z",
+        "effective_at": "2026-08-01T12:42:00Z",
         "permitted_commands": ["StartSpike"],
         "superseded_decision_ids": [],
         "conditions": [],
@@ -1878,6 +1891,7 @@ def _return_spec_02_complete(
     *,
     partial: bool = False,
     resource_use: dict[str, int] | None = None,
+    deterministic_rerun: dict[str, Any] | None = None,
     execute: bool = True,
 ) -> dict[str, str]:
     evidence = _register_spike_return_evidence(inputs)
@@ -1971,7 +1985,12 @@ def _return_spec_02_complete(
         ],
         "resource_use": resource_use
         or {"elapsed_seconds": 1, "cpu_seconds": 1, "peak_memory_bytes": 1, "external_cost_gbp": 0},
-        "deterministic_rerun": {"performed": True, "evidence_sha256": "8" * 64, "same_output": True},
+        "deterministic_rerun": deterministic_rerun
+        or {
+            "performed": True,
+            "evidence_sha256": evidence["checks"]["content_sha256"],
+            "same_output": True,
+        },
         "embedded_artefact": verdict,
     }
     command_grant = activate_lifecycle_grant(
@@ -2279,12 +2298,25 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
 
 
 def test_route_actor_resolution_rejects_multiple_durable_actors_for_one_row() -> None:
+    candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000451"
     events = (
-        {"actor_id": "act_one", "payload": {"row_id": "OR-013"}},
-        {"actor_id": "act_two", "payload": {"owner_row_id": "OR-013"}},
+        {
+            "actor_id": "act_one",
+            "stream_id": candidate_id,
+            "payload": {"row_id": "OR-013", "candidate_id": candidate_id},
+        },
+        {
+            "actor_id": "act_two",
+            "stream_id": candidate_id,
+            "payload": {"owner_row_id": "OR-013", "candidate_id": candidate_id},
+        },
     )
+    projection = {
+        "source_observations": {"obs": {"batch": {"source_query": "exact:SPEC-GATE6-RUN-V1"}}},
+        "candidates": {candidate_id: {"source_observation_refs": ["obs"]}},
+    }
     with pytest.raises(IntegrityError, match="multiple actors are bound"):
-        _actor_for_row(events, "OR-013")
+        _actor_for_row(events, "OR-013", projection)
 
 
 @pytest.mark.integration
@@ -2583,7 +2615,7 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
         project_id=PROJECT_ID,
         actor_id=spec_inputs["command"]["actor_id"],
         authority_grant_id=grant_id,
-        submitted_at="2026-08-14T12:00:00Z",
+        submitted_at="2026-08-01T12:00:00Z",
         correlation_id="spec-flow:raw-source",
         reason="register exact committed SPEC brief source",
         manifest=manifest,
@@ -2702,7 +2734,7 @@ def test_candidate_registration_recovery_tamper_fails_without_publishing_bytes(
         project_id=PROJECT_ID,
         actor_id=ACTORS["actor-a"],
         authority_grant_id="agr_019ffe2b-fd4b-7000-8000-000000000119",
-        submitted_at="2026-08-14T12:00:00Z",
+        submitted_at="2026-08-01T12:00:00Z",
         correlation_id="candidate-recovery-tamper",
         reason="exercise exact recovery binding",
         manifest={
@@ -2972,6 +3004,100 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
     with pytest.raises(ConflictError, match="completed SPEC action retry differs"):
         cli.main(_advance_argv(spec_inputs, "prepare_spec_01"))
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+
+@pytest.mark.integration
+def test_public_spec_flow_ignores_unrelated_dossier_candidate_assay_and_spike_rows(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256, execute=False)
+    capsys.readouterr()
+
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    events, projection, documents = SpecFlow(operator)._snapshot()
+    foreign_candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000401"
+    foreign_assay_id = "asy_019ffe2b-fd4b-7000-8000-000000000402"
+    foreign_spike_id = "spk_019ffe2b-fd4b-7000-8000-000000000403"
+    foreign_decision_id = "dec_019ffe2b-fd4b-7000-8000-000000000404"
+    foreign_review_id = "rev_019ffe2b-fd4b-7000-8000-000000000405"
+    foreign_dossier_id = "obj_019ffe2b-fd4b-7000-8000-000000000406"
+    foreign_projection = deepcopy(projection)
+    foreign_projection["source_observations"]["obj_019ffe2b-fd4b-7000-8000-000000000407"] = {
+        "batch": {"source_query": "unrelated:foreign-candidate"}
+    }
+    foreign_projection["candidates"][foreign_candidate_id] = {
+        "source_observation_refs": ["obj_019ffe2b-fd4b-7000-8000-000000000407"],
+        "assay_id": foreign_assay_id,
+        "spike_id": foreign_spike_id,
+        "decision_id": foreign_decision_id,
+        "status": "promotion_pending",
+    }
+    foreign_projection["assays"][foreign_assay_id] = {
+        "candidate_id": foreign_candidate_id,
+        "review_id": foreign_review_id,
+    }
+    foreign_projection["spikes"][foreign_spike_id] = {
+        "candidate_id": foreign_candidate_id,
+        "decision_id": foreign_decision_id,
+        "review_id": foreign_review_id,
+    }
+    foreign_projection["decisions"][foreign_decision_id] = {"candidate_id": foreign_candidate_id}
+    foreign_projection["reviews"][foreign_review_id] = {"candidate_id": foreign_candidate_id}
+    foreign_projection["dossiers"][foreign_dossier_id] = {"dossier_id": foreign_dossier_id}
+    foreign_events = tuple(
+        {
+            "actor_id": "act_019ffe2b-fd4b-7000-8000-000000000499",
+            "stream_id": stream_id,
+            "payload": {row_field: row_id, **payload},
+        }
+        for row_id, row_field, stream_id, payload in (
+            ("OR-028", "row_id", foreign_dossier_id, {"dossier_id": foreign_dossier_id}),
+            ("OR-029", "row_id", foreign_candidate_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-003", "row_id", foreign_assay_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-004", "row_id", foreign_assay_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-034", "row_id", foreign_review_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-006", "row_id", foreign_assay_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-012", "row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-013", "owner_row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-014", "row_id", foreign_spike_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-015", "row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-016", "row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-017", "row_id", foreign_spike_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-018", "row_id", foreign_spike_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-036", "row_id", foreign_review_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-020", "row_id", foreign_spike_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-026", "row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+            ("OR-027", "row_id", foreign_decision_id, {"candidate_id": foreign_candidate_id}),
+        )
+    )
+    census = SpecFlow(operator)._route_census(events + foreign_events, foreign_projection)
+    assert census.candidate_ids == frozenset({candidate_id})
+    assert {"OR-004", "OR-014", "OR-027"}.isdisjoint(census.rows)
+    assert census.actor_for_row("OR-004") is None
+    monkeypatch.setattr(
+        SpecFlow,
+        "_snapshot",
+        lambda _self: (events + foreign_events, foreign_projection, documents),
+    )
+
+    assert cli.main(_status_argv(spec_inputs)) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "block_reason": "manually produced SPEC-01 return evidence is required",
+        "capability_state": "OWNER_BLOCKED",
+        "completed_stage": "prepare_spec_01",
+        "next_action": "return_spec_01",
+        "route_id": "SPEC-GATE6-RUN-V1",
+    }
+
+    assert cli.main(_advance_argv(spec_inputs, "return_spec_01_complete")) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["receipts"][0]["status"] == "accepted"
 
 
 @pytest.mark.integration
@@ -3851,7 +3977,7 @@ def _seed_governed_operational_attempt(inputs: dict[str, Any], monkeypatch: pyte
     class OperationalClock(datetime):
         @classmethod
         def now(cls, tz: object = None) -> datetime:
-            return datetime(2026, 8, 1, 12, 30, tzinfo=UTC)
+            return datetime(2026, 8, 1, 12, 50, tzinfo=UTC)
 
     monkeypatch.setattr(discovery_operator_module, "datetime", OperationalClock)
     harness = inputs["harness"]
@@ -3902,7 +4028,8 @@ def test_public_spec_flow_starts_spec_02_only_with_exact_lease_and_attempt(
     operator = load_discovery_operator(spec_inputs["config_path"])
     with pytest.raises(IntegrityError, match="requires external approval evidence validation"):
         replay_discovery(operator.ledger.iter_events())
-    projection = SpecFlow(operator)._snapshot()[1]
+    runtime = SpecFlow(operator)._runtime()
+    projection = runtime.replay()
     spike = projection["spikes"][started["spike_id"]]
     assert spike["status"] == "running"
     assert spike["attempt_id"] == C1_ATTEMPT_ID
@@ -4305,6 +4432,30 @@ def test_public_spec_flow_registers_complete_spec_02_return_without_claim(
     assert projection["spikes"][started["spike_id"]]["verdict_sha256"] == returned_spike["verdict_sha256"]
     assert not projection.get("claims")
 
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    tampered = tuple(deepcopy(event) for event in operator.ledger.iter_events())
+    return_event = next(
+        event
+        for event in tampered
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("payload", {}).get("manifest", {}).get("artefact_type") == "spec_02_return"
+    )
+    return_manifest = return_event["payload"]["manifest"]
+    return_path = operator.control_root / return_manifest["relative_path"]
+    original = return_path.read_bytes()
+    document = json.loads(original)
+    document["deterministic_rerun"]["evidence_sha256"] = "f" * 64
+    tampered_raw = canonical_bytes(document)
+    return_path.write_bytes(tampered_raw)
+    return_manifest["content_sha256"] = sha256_hex(tampered_raw)
+    return_manifest["size_bytes"] = len(tampered_raw)
+    return_event["command_payload_hash"] = sha256_hex(canonical_bytes(return_event["payload"]))
+    try:
+        with pytest.raises(IntegrityError, match="PASS lacks bound deterministic rerun evidence"):
+            SpecFlow(operator)._runtime().replay(_rehash_events(tampered))
+    finally:
+        return_path.write_bytes(original)
+
 
 @pytest.mark.integration
 def test_spec_02_return_over_approved_resource_limit_rejects_without_publication(
@@ -4351,6 +4502,91 @@ def test_spec_02_return_over_approved_resource_limit_rejects_without_publication
     projection = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[1]
     assert projection["spikes"][started["spike_id"]]["status"] == "running"
     assert "spec_02_return" not in SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
+
+
+@pytest.mark.integration
+def test_spec_02_plan_must_name_the_exact_governed_contract_before_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+    _start_spec_02(
+        spec_inputs,
+        candidate_id,
+        assay_id,
+        execute_plan=False,
+        plan_contract_override=f"SPEC-02:{'f' * 64}",
+    )
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="invalid Spike transition"):
+        cli.main(_advance_argv(spec_inputs, "start_spec_02"))
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_spec_02_pass_requires_bound_deterministic_rerun_before_publication(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_governed_operational_attempt(spec_inputs, monkeypatch)
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    _approve_spec_02(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_02(spec_inputs)
+    capsys.readouterr()
+    started = _start_spec_02(spec_inputs, candidate_id, assay_id)
+    capsys.readouterr()
+    _return_spec_02_complete(spec_inputs, candidate_id, assay_id, started, execute=False)
+    valid_packet = deepcopy(spec_inputs["packet"])
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+    invalid_reruns = (
+        {
+            "performed": False,
+            "evidence_sha256": valid_packet["document"]["deterministic_rerun"]["evidence_sha256"],
+            "same_output": True,
+        },
+        {
+            "performed": True,
+            "evidence_sha256": valid_packet["document"]["deterministic_rerun"]["evidence_sha256"],
+            "same_output": False,
+        },
+        {"performed": True, "evidence_sha256": "f" * 64, "same_output": True},
+    )
+    for rerun in invalid_reruns:
+        packet = deepcopy(valid_packet)
+        packet["document"]["deterministic_rerun"] = rerun
+        _refresh_retry_id(packet)
+        spec_inputs["packet_path"].write_bytes(canonical_bytes(packet))
+        with pytest.raises(IntegrityError, match="invalid Spike transition"):
+            cli.main(_advance_argv(spec_inputs, "return_spec_02_complete"))
+        assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
 @pytest.mark.integration
@@ -4477,7 +4713,7 @@ def test_spec_brief_registration_type_must_match_the_validated_document(
         "project_id": PROJECT_ID,
         "actor_id": document["operator_session"]["operator_actor_id"],
         "authority_grant_id": "agr_019ffe2b-fd4b-7000-8000-000000000099",
-        "submitted_at": "2026-08-14T12:00:00Z",
+        "submitted_at": "2026-08-01T12:00:00Z",
         "correlation_id": "wrong-stage-registration",
         "reason": "Prove document and registration type cannot diverge.",
         "manifest": {"artefact_type": "spec_02_operator_brief"},
@@ -4513,3 +4749,60 @@ def test_spec_changed_command_same_retry_identity_conflicts_without_new_publicat
         cli.main(_advance_argv(spec_inputs))
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+def test_same_root_spec_authority_uses_the_inflight_replay_context(tmp_path: Path) -> None:
+    observed: list[Mapping[str, Any]] = []
+    context = object()
+    authority_resolver = SimpleNamespace(
+        control_root=tmp_path,
+        _administration_context_from_projection=lambda projection: observed.append(projection) or context,
+        administration_context=lambda: pytest.fail("same-root SPEC validation recursively replayed authority"),
+    )
+    resolver = _SpecExecutionAuthorityResolver(
+        control_root=tmp_path,
+        schemas=SimpleNamespace(),
+        authority_resolver=authority_resolver,
+        clock=lambda: datetime.now(UTC),
+    )
+    projection = {"project_id": PROJECT_ID}
+    events = ({"event_id": "evt_same_root"},)
+
+    resolved_context, resolved_events = resolver._authority_decision_context(projection, events)
+
+    assert resolved_context is context
+    assert resolved_events is events
+    assert observed == [projection]
+
+
+def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_sha256 = "a" * 64
+    authority = _Spec02ExecutionAuthority(
+        approval={"spec_02_subject": {"id": "SPEC-02", "sha256": source_sha256}},
+        brief={"route_source": {"raw_sha256": source_sha256}},
+        correction=None,
+    )
+    monkeypatch.setattr(_SpecExecutionAuthorityResolver, "resolve", lambda *_args, **_kwargs: authority)
+    validator = build_spec_execution_authority_validator(
+        control_root=tmp_path,
+        schemas=SimpleNamespace(),
+        authority_resolver=SimpleNamespace(control_root=tmp_path),
+        events=(),
+    )
+    projection = {"owner_authority_decision_publications": {}}
+    event = {
+        "occurred_at": "2026-08-01T12:40:00Z",
+        "command_type": "RegisterSpikePlan",
+        "payload": {
+            "row_id": "OR-014",
+            "plan_artifact": {"planned_contracts": ["W11:OR-018", f"SPEC-02:{'f' * 64}"]},
+        },
+    }
+
+    with pytest.raises(IntegrityError, match="Spike plan differs from the exact governed contract"):
+        validator(projection, {}, event, False)
+
+    event["payload"]["plan_artifact"]["planned_contracts"][-1] = f"SPEC-02:{source_sha256}"
+    validator(projection, {}, event, False)

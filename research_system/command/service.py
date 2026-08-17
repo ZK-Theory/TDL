@@ -5070,15 +5070,13 @@ class CommandService:
                         "AttemptSuperseded",
                     }
                 ]
-                try:
-                    late_observed_at = datetime.fromisoformat(
-                        str(payload.get("late_observed_at")).replace("Z", "+00:00")
-                    )
-                    terminal_recorded_at = datetime.fromisoformat(
-                        str(terminal_events[-1]["recorded_at"]).replace("Z", "+00:00")
-                    )
-                except (IndexError, KeyError, ValueError):
-                    late_observed_at = terminal_recorded_at = None
+                terminal_event = terminal_events[-1] if terminal_events else None
+                late_observed_at = self._resource_grant_expiry(payload.get("late_observed_at"))
+                terminal_recorded_at = self._resource_grant_expiry(
+                    terminal_event.get("recorded_at") if isinstance(terminal_event, dict) else None
+                )
+                submitted_at = self._resource_grant_expiry(command.envelope.get("submitted_at"))
+                trusted_now = self._c1_trusted_now()
                 review_request = review.get("request") if isinstance(review, dict) else None
                 review_assignment = review.get("assignment") if isinstance(review, dict) else None
                 expected_review_subject = sha256_hex(
@@ -5108,7 +5106,10 @@ class CommandService:
                     or any(event.get("event_type") == "LateArtefactAdopted" for event in artefact_events)
                     or late_observed_at is None
                     or terminal_recorded_at is None
-                    or late_observed_at <= terminal_recorded_at
+                    or submitted_at is None
+                    or trusted_now is None
+                    or not terminal_recorded_at < late_observed_at <= submitted_at
+                    or submitted_at > trusted_now
                 ):
                     return rejected(
                         "late_artefact_adoption_invalid",
@@ -5121,6 +5122,13 @@ class CommandService:
                     "Candidate is established only by RegisterArtefact.",
                 )
             if payload.get("use_authority") == "accepted_for_scope":
+                submitted_at = self._resource_grant_expiry(command.envelope.get("submitted_at"))
+                trusted_now = self._c1_trusted_now()
+                if submitted_at is None or trusted_now is None or submitted_at > trusted_now:
+                    return rejected(
+                        "artefact_authority_time_invalid",
+                        "Accepted artefact authority requires a submitted_at no later than trusted current time.",
+                    )
                 review_binding = self._validate_governing_review_evidence(
                     command,
                     artefact_events,

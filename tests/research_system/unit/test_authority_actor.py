@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from threading import Event, Thread
 from types import SimpleNamespace
 
 import pytest
@@ -195,6 +196,52 @@ def test_registration_is_durable_and_retry_is_duplicate(tmp_path: Path) -> None:
     registration["semantic_intent"] = {}
     with pytest.raises(SchemaError):
         service.schemas.validate(REGISTRATION_SCHEMA_ID, registration)
+
+
+def test_prelock_concurrent_commit_cannot_report_a_second_acceptance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commit between B's pre-lock read and lock acquisition is not a second acceptance."""
+    delayed_service = _service(tmp_path)
+    original_existing_event = delayed_service._existing_event
+    prelock_read = Event()
+    resume_delayed = Event()
+    delayed: dict[str, object] = {}
+    first_read = True
+
+    def pause_after_prelock_read(*args: object, **kwargs: object) -> dict[str, object] | None:
+        nonlocal first_read
+        event = original_existing_event(*args, **kwargs)
+        if first_read:
+            first_read = False
+            prelock_read.set()
+            assert resume_delayed.wait(timeout=5)
+        return event
+
+    monkeypatch.setattr(delayed_service, "_existing_event", pause_after_prelock_read)
+
+    def register_delayed() -> None:
+        try:
+            delayed["result"] = delayed_service.register(_intent())
+        except BaseException as exc:  # pragma: no cover - asserted by the main test thread.
+            delayed["error"] = exc
+
+    thread = Thread(target=register_delayed)
+    thread.start()
+    assert prelock_read.wait(timeout=5)
+
+    first = _service(tmp_path).register(_intent())
+    assert first["status"] == "accepted"
+    resume_delayed.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert isinstance(delayed.get("error"), IntegrityError)
+    assert "receipt path changed before recovery" in str(delayed["error"])
+
+    retry = _service(tmp_path).register(_intent())
+    assert retry["status"] == "duplicate"
+    assert len(list((tmp_path / "events" / PROJECT).rglob("*.jsonl"))) == 1
 
 
 def test_semantic_intent_has_its_own_schema_and_deterministic_command_identity(tmp_path: Path) -> None:

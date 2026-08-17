@@ -4,6 +4,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -22,6 +23,8 @@ CATALOGUE_PATH = REPO_ROOT / ".research-system/evals/expected/w11-portfolio-disc
 
 SPEC_SHA256 = "d3b1eac020b5c94707461c0a475cc911e36ab78e2bc1243c0b28747748106972"
 ROUTE_SHA256 = "4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f"
+ROUTE_SOURCE_COMMIT = "82f86d88e72d33ed9e39ccceac6e3bcdead0bb75"
+ROUTE_SOURCE_BLOB = "23b6017625520c310202fd84ee45223ba6fecdf5"
 CATALOGUE_SHA256 = "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80"
 PRODUCER_ACTOR_ID = "act_e2651127-9ee1-7a64-a2ed-4e44008f1d4e"
 
@@ -183,10 +186,24 @@ def test_spec01_assay_authorities_are_schema_valid_canonical_current_content() -
     _validate_semantics(rubric, scope)
 
 
-def test_spec01_assay_authorities_bind_exact_sources_and_derived_hash_preimages() -> None:
+def test_spec01_assay_authority_revision_1_binds_its_historical_route_source_and_derived_hashes() -> None:
     rubric, scope = _load()
     assert hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest() == SPEC_SHA256
-    assert hashlib.sha256(ROUTE_PATH.read_bytes()).hexdigest() == ROUTE_SHA256
+    historical_route = subprocess.check_output(
+        ["git", "-C", str(REPO_ROOT), "show", f"{ROUTE_SOURCE_COMMIT}:{ROUTE_PATH.relative_to(REPO_ROOT).as_posix()}"],
+    )
+    historical_blob = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(REPO_ROOT),
+            "rev-parse",
+            f"{ROUTE_SOURCE_COMMIT}:{ROUTE_PATH.relative_to(REPO_ROOT).as_posix()}",
+        ],
+        text=True,
+    ).strip()
+    assert historical_blob == ROUTE_SOURCE_BLOB
+    assert hashlib.sha256(historical_route).hexdigest() == ROUTE_SHA256
     assert hashlib.sha256(CATALOGUE_PATH.read_bytes()).hexdigest() == CATALOGUE_SHA256
 
     expected_sources = [SPEC_SHA256, ROUTE_SHA256, CATALOGUE_SHA256]

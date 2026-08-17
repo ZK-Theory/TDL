@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import stat
@@ -623,6 +624,30 @@ def test_writer_lock_publishes_complete_process_instance_metadata(tmp_path):
         assert isinstance(record["process_instance_id"], str)
         assert canonical_bytes(record) == raw
         assert inspect_lock(path)[0] == "live"
+    assert not path.exists()
+
+
+def _acquire_writer_lock_then_crash(lock_path: str, acquired: object) -> None:
+    WriterLock(Path(lock_path), {"writer_id": "crashed-owner"}).__enter__()
+    acquired.set()  # type: ignore[attr-defined]
+    os._exit(23)
+
+
+def test_writer_lock_reclaims_a_real_crashed_process_owner(tmp_path):
+    path = tmp_path / "writer.lock"
+    context = multiprocessing.get_context("spawn")
+    acquired = context.Event()
+    crashed_owner = context.Process(target=_acquire_writer_lock_then_crash, args=(str(path), acquired))
+    crashed_owner.start()
+    assert acquired.wait(timeout=10)
+    crashed_owner.join(timeout=15)
+    assert not crashed_owner.is_alive()
+    assert crashed_owner.exitcode == 23
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
     assert not path.exists()
 
 

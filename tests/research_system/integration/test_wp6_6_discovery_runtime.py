@@ -79,6 +79,69 @@ ASSAY_AUTHORITY_ACTORS = tuple(
 _HARNESSES = {}
 
 
+def _bind_assay_fixture_to_current_spec_sources(repository_root: Path) -> None:
+    """Build mutable test authority content for the current committed SPEC route."""
+
+    route_sha256 = sha256_hex(
+        (repository_root / ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json").read_bytes()
+    )
+    spec_01_sha256 = sha256_hex(
+        (
+            repository_root / ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"
+        ).read_bytes()
+    )
+    rubric_path = repository_root / ASSAY_RUBRIC_PATH
+    scope_path = repository_root / ASSAY_SCOPE_PATH
+    rubric = json.loads(rubric_path.read_bytes())
+    scope = json.loads(scope_path.read_bytes())
+
+    for content in (rubric, scope):
+        for source_ref in content["source_refs"]:
+            if source_ref.get("id") == "SPEC-01":
+                source_ref["content_hash"] = spec_01_sha256
+            elif source_ref.get("id") == "SPEC-GATE6-RUN-V1":
+                source_ref["content_hash"] = route_sha256
+        content["effective_project_scope_ref"]["content_hash"] = route_sha256
+    for authority_ref in rubric["source_authority_refs"]:
+        if authority_ref["id"] == "SPEC-01":
+            authority_ref["content_hash"] = spec_01_sha256
+        elif authority_ref["id"] == "SPEC-GATE6-RUN-V1":
+            authority_ref["content_hash"] = route_sha256
+    rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in rubric.items() if key != "content_hash"})
+    )
+    scope["rubric_ref"]["content_hash"] = rubric["content_hash"]
+    scope["scope_closure_algorithm_hash"] = sha256_hex(
+        canonical_bytes(
+            {
+                field: scope[field]
+                for field in (
+                    "scope_id",
+                    "rubric_ref",
+                    "required_assurance_lanes",
+                    "evidence_rows",
+                    "prohibited_source_classes",
+                    "prohibited_producer_relationships",
+                    "no_compensation_pairs",
+                    "confidentiality_rules",
+                    "stop_conditions",
+                    "partial_conditions",
+                    "evidence_order_constraints",
+                    "scope_closure_algorithm_id",
+                    "scope_closure_algorithm_version",
+                    "effective_candidate_kinds",
+                    "effective_project_scope_ref",
+                )
+            }
+        )
+    )
+    scope["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in scope.items() if key != "content_hash"})
+    )
+    rubric_path.write_bytes(canonical_bytes(rubric) + b"\n")
+    scope_path.write_bytes(canonical_bytes(scope) + b"\n")
+
+
 def _authority_repository_root(tmp_path: Path) -> Path:
     """Expose candidate authority bytes through an honest isolated Git subject."""
 
@@ -89,18 +152,10 @@ def _authority_repository_root(tmp_path: Path) -> Path:
         DOSSIER_AUTHORITY_PATH,
         PATH_AUTHORITY_PATH,
         catalogue_path,
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
+        ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
         ".research-system/contracts/w11/w11-materialization-bootstrap-contract.yaml",
     )
-    if all(
-        subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "show", f"HEAD:{path}"],
-            capture_output=True,
-            check=True,
-        ).stdout
-        == (REPO_ROOT / path).read_bytes()
-        for path in authority_paths
-    ):
-        return REPO_ROOT
     candidate_root = tmp_path / "authority-repository"
     if (candidate_root / ".git").is_dir():
         return candidate_root
@@ -108,6 +163,7 @@ def _authority_repository_root(tmp_path: Path) -> Path:
         destination = candidate_root / path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((REPO_ROOT / path).read_bytes())
+    _bind_assay_fixture_to_current_spec_sources(candidate_root)
     environment = {
         **os.environ,
         "GIT_AUTHOR_NAME": "TDL test fixture",
@@ -413,7 +469,7 @@ def _advance_w11_authority(
 
 
 def _register_assay_rubric(runtime: DiscoveryRuntime) -> dict[str, object]:
-    rubric: dict[str, object] = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    rubric: dict[str, object] = json.loads((runtime.repository_root / ASSAY_RUBRIC_PATH).read_bytes())
     command = _command(
         "RegisterAssayRubricContent",
         str(rubric["record_id"]),
@@ -428,6 +484,68 @@ def _register_assay_rubric(runtime: DiscoveryRuntime) -> dict[str, object]:
     command["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
     assert runtime.submit(command).status == "accepted"
     return rubric
+
+
+def test_assay_authority_registration_rejects_stale_route_sources_without_publication(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    stale_rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    stale_scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+
+    stale_rubric_command = _command(
+        "RegisterAssayRubricContent",
+        str(stale_rubric["record_id"]),
+        0,
+        {
+            "row_id": "OR-101",
+            "authority_kind": "assay_bar",
+            "content": stale_rubric,
+            "authority_file_path": ASSAY_RUBRIC_PATH,
+        },
+    )
+    stale_rubric_command["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="does not bind the current SPEC route"):
+        runtime.submit(stale_rubric_command)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    current_rubric = _register_assay_rubric(runtime)
+    stale_scope_command = _command(
+        "RegisterAssayEvidenceScopeContent",
+        str(stale_scope["record_id"]),
+        0,
+        {
+            "row_id": "OR-102",
+            "authority_kind": "assay_bar",
+            "content": stale_scope,
+            "authority_file_path": ASSAY_SCOPE_PATH,
+        },
+    )
+    stale_scope_command["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="does not bind the current SPEC route"):
+        runtime.submit(stale_scope_command)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    current_scope = json.loads((runtime.repository_root / ASSAY_SCOPE_PATH).read_bytes())
+    assert current_scope["rubric_ref"] == _ref(
+        str(current_rubric["record_id"]),
+        int(current_rubric["record_revision"]),
+        str(current_rubric["content_hash"]),
+    )
+    current_scope_command = _command(
+        "RegisterAssayEvidenceScopeContent",
+        str(current_scope["record_id"]),
+        0,
+        {
+            "row_id": "OR-102",
+            "authority_kind": "assay_bar",
+            "content": current_scope,
+            "authority_file_path": ASSAY_SCOPE_PATH,
+        },
+    )
+    current_scope_command["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(current_scope_command).status == "accepted"
 
 
 def _ingest_candidate(
@@ -1205,8 +1323,8 @@ def _accept_assay_bar(
     *,
     before_submit: Callable[[DiscoveryRuntime, Command, str], None] | None = None,
 ) -> tuple[str, str]:
-    rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
-    scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+    rubric = json.loads((runtime.repository_root / ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((runtime.repository_root / ASSAY_SCOPE_PATH).read_bytes())
     rubric_observer, scope_observer, requester, reviewer, author, decision_proposer = ASSAY_AUTHORITY_ACTORS
     owner = ACTOR_ID
     review_id = "rev_019fed25-b33e-7740-b280-000000000105"
@@ -2919,7 +3037,7 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
         runtime.submit(request(bar_sha256, producer_sha256))
     assert tuple(runtime.ledger.iter_events()) == before
 
-    rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
+    rubric = json.loads((runtime.repository_root / ASSAY_RUBRIC_PATH).read_bytes())
     boolean_revision = deepcopy(rubric)
     boolean_revision.update(record_revision=True, supersedes_revision=1)
     boolean_revision["content_hash"] = sha256_hex(
@@ -2987,7 +3105,7 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     assert successor_state["contents"]["rubric"]["content"]["record_revision"] == 2
     assert successor_state["history"][0]["status"] == "stale"
 
-    scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+    scope = json.loads((runtime.repository_root / ASSAY_SCOPE_PATH).read_bytes())
     scope.update(record_revision=2, supersedes_revision=1)
     scope["rubric_ref"] = _ref(rubric["record_id"], rubric["record_revision"], rubric["content_hash"])
     scope["content_hash"] = sha256_hex(
@@ -3008,6 +3126,61 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     assert runtime.submit(scope_successor).status == "accepted"
     successor_state = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     assert successor_state["contents"]["scope"]["content"]["record_revision"] == 2
+
+
+def test_request_assay_rejects_a_bar_bound_to_a_prior_route_without_rewriting_replay(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff70"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff71"
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff72",
+        title="Assay authority route-drift candidate",
+    )
+    bar_sha256, producer_sha256 = _accept_assay_bar(runtime)
+    historical_events = tuple(runtime.ledger.iter_events())
+
+    route_path = runtime.repository_root / ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"
+    route_path.write_bytes(route_path.read_bytes() + b"\n")
+    environment = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "TDL test fixture",
+        "GIT_AUTHOR_EMAIL": "test-fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "TDL test fixture",
+        "GIT_COMMITTER_EMAIL": "test-fixture@example.invalid",
+    }
+    for arguments in (
+        ("add", route_path.relative_to(runtime.repository_root).as_posix()),
+        ("commit", "--quiet", "-m", "route drift"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(runtime.repository_root), *arguments],
+            check=True,
+            capture_output=True,
+            env=environment,
+        )
+
+    assert replay_discovery(historical_events)["assay_bar_authority"]["status"] == "accepted"
+    request = _command(
+        "RequestAssay",
+        assay_id,
+        0,
+        {
+            "row_id": "OR-003",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "candidate_revision": 1,
+            "candidate_sha256": candidate_sha256,
+            "assay_bar_acceptance_sha256": bar_sha256,
+            "producer_relation_sha256": producer_sha256,
+        },
+    )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid RequestAssay transition"):
+        runtime.submit(request)
+    assert tuple(runtime.ledger.iter_events()) == before
 
 
 @pytest.mark.parametrize(

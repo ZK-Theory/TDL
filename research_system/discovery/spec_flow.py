@@ -40,6 +40,7 @@ from research_system.discovery.authority import (
     PORTABLE_SPEC_REQUIRED_MEMBERS,
     validate_portable_path_subject,
 )
+from research_system.discovery.rules import _is_spec_route_candidate
 from research_system.discovery.routes import discovery_route
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
@@ -475,16 +476,105 @@ def _validate_route(operator: DiscoveryOperator) -> dict[str, Any]:
     return route
 
 
-def _rows(events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any] | None = None) -> tuple[str, ...]:
-    ordered: list[str] = []
-    for event in events:
-        payload = event.get("payload")
-        if not isinstance(payload, Mapping):
-            continue
-        row = payload.get("row_id") or payload.get("owner_row_id")
-        if isinstance(row, str) and row not in ordered:
-            ordered.append(row)
-    if projection is not None:
+@dataclass(frozen=True)
+class _SpecRouteCensus:
+    """One route-subject projection of shared-ledger lifecycle facts."""
+
+    rows: tuple[str, ...]
+    actors: Mapping[str, frozenset[str]]
+    candidate_ids: frozenset[str]
+    events: tuple[Mapping[str, Any], ...]
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        events: Sequence[Mapping[str, Any]],
+        projection: Mapping[str, Any],
+        *,
+        dossier_id: str | None,
+    ) -> "_SpecRouteCensus":
+        """Census only the exact SPEC dossier and its classified Candidate lineage."""
+
+        def records(name: str) -> Mapping[str, Any]:
+            value = projection.get(name)
+            return value if isinstance(value, Mapping) else {}
+
+        candidates = records("candidates")
+        candidate_ids = {
+            candidate_id
+            for candidate_id, candidate in candidates.items()
+            if isinstance(candidate_id, str)
+            and isinstance(candidate, Mapping)
+            and _is_spec_route_candidate(projection, candidate)
+        }
+        entity_ids = set(candidate_ids)
+        linked_fields = ("assay_id", "spike_id", "decision_id", "review_id")
+        changed = True
+        while changed:
+            changed = False
+            for candidate_id in candidate_ids:
+                candidate = candidates.get(candidate_id)
+                if not isinstance(candidate, Mapping):
+                    continue
+                for field in linked_fields:
+                    value = candidate.get(field)
+                    if isinstance(value, str) and value not in entity_ids:
+                        entity_ids.add(value)
+                        changed = True
+            for name in ("assays", "spikes", "decisions", "reviews"):
+                for identity, record in records(name).items():
+                    if not isinstance(identity, str) or not isinstance(record, Mapping):
+                        continue
+                    if identity not in entity_ids and record.get("candidate_id") not in candidate_ids:
+                        continue
+                    if identity not in entity_ids:
+                        entity_ids.add(identity)
+                        changed = True
+                    for field in linked_fields:
+                        value = record.get(field)
+                        if isinstance(value, str) and value not in entity_ids:
+                            entity_ids.add(value)
+                            changed = True
+
+        ordered: list[str] = []
+        actors: dict[str, set[str]] = {}
+        route_events: list[Mapping[str, Any]] = []
+
+        def is_route_event(event: Mapping[str, Any], payload: Mapping[str, Any], row: str) -> bool:
+            if row == "OR-140":
+                return event.get("event_type") == "W11CatalogueGenesisImported"
+            if event.get("stream_id") in entity_ids:
+                return True
+            if isinstance(dossier_id, str) and (
+                event.get("stream_id") == dossier_id or payload.get("dossier_id") == dossier_id
+            ):
+                return True
+            if any(
+                payload.get(field) in entity_ids
+                for field in ("candidate_id", "assay_id", "spike_id", "decision_id", "review_id")
+            ):
+                return True
+            blueprints = payload.get("candidate_blueprints")
+            return isinstance(blueprints, list) and any(
+                isinstance(blueprint, Mapping) and blueprint.get("candidate_id") in candidate_ids
+                for blueprint in blueprints
+            )
+
+        for event in events:
+            payload = event.get("payload")
+            if not isinstance(payload, Mapping):
+                continue
+            row = payload.get("row_id") or payload.get("owner_row_id")
+            if not isinstance(row, str) or not is_route_event(event, payload, row):
+                continue
+            if row not in ordered:
+                ordered.append(row)
+            route_events.append(event)
+            actor_id = event.get("actor_id")
+            if isinstance(actor_id, str):
+                actors.setdefault(row, set()).add(actor_id)
+        if isinstance(dossier_id, str) and dossier_id in records("dossiers") and "OR-028" not in ordered:
+            ordered.append("OR-028")
         assay_authority = projection.get("assay_bar_authority")
         if isinstance(assay_authority, Mapping):
             status = assay_authority.get("status")
@@ -514,10 +604,24 @@ def _rows(events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any] | N
                     for row in (f"OR-{value:03d}" for value in range(start, start + completed_count))
                     if row not in ordered
                 )
-        dossiers = projection.get("dossiers")
-        if isinstance(dossiers, Mapping) and dossiers and "OR-028" not in ordered:
-            ordered.append("OR-028")
-    return tuple(ordered)
+        return cls(
+            tuple(ordered),
+            {row: frozenset(value) for row, value in actors.items()},
+            frozenset(candidate_ids),
+            tuple(route_events),
+        )
+
+    def actor_for_row(self, row: str) -> str | None:
+        actors = self.actors.get(row, frozenset())
+        if len(actors) > 1:
+            raise IntegrityError(f"multiple actors are bound to route row {row}")
+        return next(iter(actors)) if actors else None
+
+
+def _rows(
+    events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any], *, dossier_id: str | None = None
+) -> tuple[str, ...]:
+    return _SpecRouteCensus.from_snapshot(events, projection, dossier_id=dossier_id).rows
 
 
 def _registered_documents(
@@ -555,16 +659,10 @@ def _registered_documents(
     return found
 
 
-def _actor_for_row(events: Sequence[Mapping[str, Any]], row: str) -> str | None:
-    actors = {
-        event.get("actor_id")
-        for event in events
-        if isinstance(event.get("payload"), Mapping)
-        and (event["payload"].get("row_id") == row or event["payload"].get("owner_row_id") == row)
-    }
-    if len(actors) > 1:
-        raise IntegrityError(f"multiple actors are bound to route row {row}")
-    return next(iter(actors)) if actors else None
+def _actor_for_row(
+    events: Sequence[Mapping[str, Any]], row: str, projection: Mapping[str, Any], *, dossier_id: str | None = None
+) -> str | None:
+    return _SpecRouteCensus.from_snapshot(events, projection, dossier_id=dossier_id).actor_for_row(row)
 
 
 class SpecFlow:
@@ -573,6 +671,15 @@ class SpecFlow:
     def __init__(self, operator: DiscoveryOperator) -> None:
         self.operator = operator
         self.route = _validate_route(operator)
+        expected_set = build_spec_authority_subject(operator.repository_root, "dossier_expected_set").get(
+            "expected_set"
+        )
+        if not isinstance(expected_set, Mapping) or not isinstance(expected_set.get("dossier_id"), str):
+            raise ConfigurationError("SPEC route dossier identity is unavailable")
+        self._dossier_id = expected_set["dossier_id"]
+
+    def _route_census(self, events: Sequence[Mapping[str, Any]], projection: Mapping[str, Any]) -> _SpecRouteCensus:
+        return _SpecRouteCensus.from_snapshot(events, projection, dossier_id=self._dossier_id)
 
     def _runtime(self) -> DiscoveryRuntime:
         return DiscoveryRuntime(
@@ -965,7 +1072,8 @@ class SpecFlow:
 
     def status(self) -> SpecFlowStatus:
         events, projection, documents = self._snapshot()
-        rows = set(_rows(events, projection))
+        census = self._route_census(events, projection)
+        rows = set(census.rows)
         completed = "none"
         for action, required in _ACTIONS:
             if not set(required).issubset(rows):
@@ -1029,12 +1137,7 @@ class SpecFlow:
             return SpecFlowStatus(
                 "OWNER_BLOCKED", "review_spec_01", "decide_spec_01", "explicit owner PROMOTE, PARK, or KILL is required"
             )
-        candidate_ids = {
-            event.get("payload", {}).get("candidate_id")
-            for event in events
-            if isinstance(event.get("payload"), Mapping) and event["payload"].get("row_id") == "OR-003"
-        }
-        candidates = [projection["candidates"].get(value) for value in candidate_ids if isinstance(value, str)]
+        candidates = [projection["candidates"].get(value) for value in census.candidate_ids]
         if len(candidates) != 1 or not isinstance(candidates[0], Mapping):
             return SpecFlowStatus(
                 "NOT_RUNNABLE", "decide_spec_01", None, "exact SPEC route Candidate cannot be resolved"
@@ -1205,20 +1308,20 @@ class SpecFlow:
                 raise IntegrityError("SPEC action command is not the exact next route row")
         return validated
 
-    def _validate_roles(self, commands: Sequence[Mapping[str, Any]], events: Sequence[Mapping[str, Any]]) -> None:
+    def _validate_roles(self, commands: Sequence[Mapping[str, Any]], census: _SpecRouteCensus) -> None:
         if not commands:
             return
         command = Command(deepcopy(commands[-1]))
         row, _route = discovery_route(command)
         actor = commands[-1].get("actor_id")
-        producer = _actor_for_row(events, "OR-004") or _actor_for_row(events, "OR-005")
-        reviewer = _actor_for_row(events, "OR-006") or _actor_for_row(events, "OR-007")
+        producer = census.actor_for_row("OR-004") or census.actor_for_row("OR-005")
+        reviewer = census.actor_for_row("OR-006") or census.actor_for_row("OR-007")
         if row in {"OR-006", "OR-007"} and actor == producer:
             raise IntegrityError("SPEC-01 reviewer must be independent of the producer")
         if row == "OR-013" and actor == reviewer:
             raise IntegrityError("SPEC-01 owner decider must be distinct from the reviewer")
-        spike_producer = _actor_for_row(events, "OR-018") or _actor_for_row(events, "OR-019")
-        spike_reviewer = _actor_for_row(events, "OR-020") or _actor_for_row(events, "OR-021")
+        spike_producer = census.actor_for_row("OR-018") or census.actor_for_row("OR-019")
+        spike_reviewer = census.actor_for_row("OR-020") or census.actor_for_row("OR-021")
         if row in {"OR-020", "OR-021"} and actor == spike_producer:
             raise IntegrityError("SPEC-02 reviewer must be independent of the producer")
         if row == "OR-027" and actor == spike_reviewer:
@@ -1338,8 +1441,9 @@ class SpecFlow:
             }.issubset(hashes):
                 raise IntegrityError("SPEC-02 return omits a required raw output/source/check/result hash")
         if action == "approve_spec_02":
-            events = tuple(self.operator.ledger.iter_events())
-            owner_actor = _actor_for_row(events, "OR-013")
+            events, projection, _documents = self._snapshot()
+            census = self._route_census(events, projection)
+            owner_actor = census.actor_for_row("OR-013")
             administration = self.operator.authority_resolver.administration_context()
             if (
                 owner_actor != administration.owner_actor_id
@@ -1365,7 +1469,7 @@ class SpecFlow:
                 raise IntegrityError("SPEC-02 approval does not bind the governed brief identity")
             promotion_events = [
                 event
-                for event in events
+                for event in census.events
                 if isinstance(event.get("payload"), Mapping) and event["payload"].get("row_id") == "OR-013"
             ]
             promotion = document.get("spec_01_promotion", {})
@@ -1404,10 +1508,15 @@ class SpecFlow:
                 raise IntegrityError("SPEC-02 approval is outside its explicit live-run window")
         if action == "correct_spec_01_source":
             events, projection, _documents = self._snapshot()
-            assays = [value for value in projection.get("assays", {}).values() if isinstance(value, Mapping)]
+            census = self._route_census(events, projection)
+            assays = [
+                value
+                for value in projection.get("assays", {}).values()
+                if isinstance(value, Mapping) and value.get("candidate_id") in census.candidate_ids
+            ]
             decisions = [
                 event
-                for event in events
+                for event in census.events
                 if event.get("event_type") == "CandidatePromotionApplied"
                 and isinstance(event.get("payload"), Mapping)
                 and event["payload"].get("row_id") == "OR-013"
@@ -1751,9 +1860,9 @@ class SpecFlow:
             accepted_actions = {"return_spec_02_complete", "return_spec_02_partial"}
         elif status.next_action == "review_spec_02":
             accepted_actions = {"review_spec_02_complete", "review_spec_02_partial"}
-        events = tuple(self.operator.ledger.iter_events())
-        _events, _projection, documents = self._snapshot()
-        completed_rows = set(_rows(events, _projection))
+        events, projection, documents = self._snapshot()
+        census = self._route_census(events, projection)
+        completed_rows = set(census.rows)
         expected_rows = set(_COMMAND_ACTION_ROWS.get(action, ()))
         expected_document = _DOCUMENT_TYPES.get(action)
         already_completed = bool(
@@ -1764,7 +1873,7 @@ class SpecFlow:
             raise IntegrityError(f"SPEC action is not next; exact next action is {status.next_action}")
         if already_completed and expected_document is not None:
             if not action_identity_exists:
-                self._validate_completed_document_retry(action, packet, events, _projection, documents)
+                self._validate_completed_document_retry(action, packet, events, projection, documents)
                 self._action_identity(action, packet, publish=True)
         brief_input_action = action in {
             "register_spec_01_brief_inputs",
@@ -1772,7 +1881,7 @@ class SpecFlow:
             "accept_spec_01_brief_inputs",
         }
         commands = [] if brief_input_action else self._validate_commands(action, packet["commands"], completed_rows)
-        self._validate_roles(commands, events)
+        self._validate_roles(commands, census)
         document_required = action in _DOCUMENT_ACTION_SCHEMA
         if action == "register_spec_01_brief_inputs":
             if packet.get("document") is not None or not isinstance(packet.get("registration"), dict):

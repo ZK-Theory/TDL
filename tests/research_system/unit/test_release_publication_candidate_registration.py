@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from research_system import cli
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.errors import ArsError
 
 
 def test_publication_context_uses_one_exact_same_root_replay(monkeypatch, tmp_path) -> None:
@@ -93,6 +96,66 @@ def test_publication_context_uses_one_exact_same_root_replay(monkeypatch, tmp_pa
     )
     assert first.evaluation_time == second.evaluation_time == evaluation_time
     assert calls == {"ledger": 1, "snapshot": 1, "authority": 1, "replay": 1}
+
+
+@pytest.mark.parametrize(
+    "stream",
+    (
+        {
+            "content_sha256": "1" * 64,
+            "manifest": {"authority": {"accepted_scope": "scope:one"}},
+        },
+        {
+            "content_sha256": "1" * 64,
+            "manifest": {"task_id": "tsk_one", "authority": {}},
+        },
+        {
+            "content_sha256": "1" * 64,
+            "manifest": {"task_id": [], "authority": {"accepted_scope": {}}},
+        },
+    ),
+    ids=(
+        "missing-manifest-task-id",
+        "missing-manifest-accepted-scope",
+        "non-string-manifest-context-values",
+    ),
+)
+def test_publication_context_rejects_malformed_manifest_values(monkeypatch, tmp_path, stream) -> None:
+    binding = SimpleNamespace(
+        control_root=tmp_path,
+        project_id="prj_01978abc-1001-7000-8000-000000001001",
+        store_identity="store-one",
+        origin_witness="witness",
+        origin_witness_path=tmp_path / "witness",
+    )
+
+    class Ledger:
+        def __init__(self, *_args):
+            pass
+
+        def snapshot(self):
+            return SimpleNamespace(events=())
+
+    class Authority:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def validate_replayed_administration_state(self, _state):
+            return None
+
+    monkeypatch.setattr(cli, "EventLedger", Ledger)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", Authority)
+    monkeypatch.setattr(cli, "_spec_replay_validator", lambda *_args: "spec-validator")
+    monkeypatch.setattr(cli, "replay", lambda *_args, **_kwargs: {"streams": {"art_one": stream}})
+
+    context_for_reference = cli._publication_context_for_reference(
+        binding,
+        object(),
+        datetime(2026, 8, 17, 12, tzinfo=UTC),
+    )
+
+    with pytest.raises(ArsError, match="release publication evidence manifest fields are invalid"):
+        context_for_reference("art_one")
 
 
 def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkeypatch, tmp_path) -> None:

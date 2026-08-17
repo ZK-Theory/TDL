@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -21,8 +21,8 @@ from tests.research_system.factories import ACTORS, PROJECT_ID, REPO_ROOT, activ
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     ATTEMPT_ID as C1_ATTEMPT_ID,
     _c1_command,
-    _c1_control_plane,
     _command_id,
+    _mutable_c1_control_plane,
     _seed_running_attempt,
 )
 from tests.research_system.integration.test_wp6_1_c3_completion_review_decision import (
@@ -408,8 +408,12 @@ def test_supersession_rejects_a_non_mapping_registered_manifest(tmp_path):
     assert receipt.reason_code == "artefact_subject_hash_mismatch"
 
 
-def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash(tmp_path):
-    harness = _c1_control_plane(tmp_path)
+def _utc_z(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _prepared_late_adoption(tmp_path):
+    harness, clock = _mutable_c1_control_plane(tmp_path)
     _seed_running_attempt(harness)
     complete = _c1_command(
         _command_id(1040),
@@ -424,6 +428,12 @@ def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash
         },
     )
     assert harness.service.submit(complete).status == "accepted"
+    terminal_event = next(
+        event
+        for event in reversed(harness.ledger.snapshot().events)
+        if event.get("stream_id") == C1_ATTEMPT_ID and event.get("event_type") == "AttemptCompleted"
+    )
+    terminal_recorded_at = datetime.fromisoformat(terminal_event["recorded_at"].replace("Z", "+00:00"))
     grant = activate_lifecycle_grant(
         harness,
         subject_kind="artefact",
@@ -473,16 +483,71 @@ def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash
             "attempt_id": C1_ATTEMPT_ID,
             "review_id": LATE_REVIEW_ID,
             "artefact_sha256": CONTENT_SHA256,
-            "late_observed_at": "2026-08-11T00:00:00Z",
+            "late_observed_at": _utc_z(terminal_recorded_at + timedelta(seconds=1)),
             "lease_id": attempt["lease_id"],
             "allowed_consumer_scope": [SCOPE_ID],
         },
     )
+    adopt["submitted_at"] = _utc_z(terminal_recorded_at + timedelta(seconds=2))
+    clock["now"] = terminal_recorded_at + timedelta(seconds=3)
+    return harness, adopt, terminal_recorded_at
+
+
+def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash(tmp_path):
+    harness, adopt, _terminal_recorded_at = _prepared_late_adoption(tmp_path)
     first = harness.service.submit(adopt)
     assert first.status == "accepted", first
     assert harness.service.submit(deepcopy(adopt)) == first
     projected = replay(tuple(harness.ledger.iter_events()), schema_registry=harness.schemas)["streams"][ARTEFACT_ID]
     assert projected["late_adoptions"][0]["review_id"] == LATE_REVIEW_ID
+
+
+@pytest.mark.parametrize(
+    "late_observed_at",
+    ("before_terminal", "at_terminal", "after_submission"),
+)
+def test_late_adoption_rejects_observation_outside_terminal_to_submission_interval_without_publication(
+    tmp_path,
+    late_observed_at,
+):
+    harness, adopt, terminal_recorded_at = _prepared_late_adoption(tmp_path)
+    submitted_at = datetime.fromisoformat(adopt["submitted_at"].replace("Z", "+00:00"))
+    invalid_times = {
+        "before_terminal": terminal_recorded_at - timedelta(microseconds=1),
+        "at_terminal": terminal_recorded_at,
+        "after_submission": submitted_at + timedelta(microseconds=1),
+    }
+    adopt["payload"]["late_observed_at"] = _utc_z(invalid_times[late_observed_at])
+    before_snapshot = harness.ledger.snapshot()
+    before_batches = tuple(harness.ledger.iter_batches())
+    before_object = deepcopy(harness.objects.read("artefact", ARTEFACT_ID, 1))
+
+    receipt = harness.service.submit(adopt)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "late_artefact_adoption_invalid"
+    assert harness.receipts.load(receipt.command_id) == receipt
+    assert harness.ledger.snapshot() == before_snapshot
+    assert tuple(harness.ledger.iter_batches()) == before_batches
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object
+
+
+def test_late_adoption_rejects_future_observation_and_submission_without_publication(tmp_path):
+    harness, adopt, _terminal_recorded_at = _prepared_late_adoption(tmp_path)
+    adopt["payload"]["late_observed_at"] = "2099-01-01T00:00:00Z"
+    adopt["submitted_at"] = "2099-01-02T00:00:00Z"
+    before_snapshot = harness.ledger.snapshot()
+    before_batches = tuple(harness.ledger.iter_batches())
+    before_object = deepcopy(harness.objects.read("artefact", ARTEFACT_ID, 1))
+
+    receipt = harness.service.submit(adopt)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "late_artefact_adoption_invalid"
+    assert harness.receipts.load(receipt.command_id) == receipt
+    assert harness.ledger.snapshot() == before_snapshot
+    assert tuple(harness.ledger.iter_batches()) == before_batches
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object
 
 
 def test_new_p6_precondition_failures_leave_no_event_or_object_residue(tmp_path):
@@ -581,11 +646,41 @@ def test_new_p6_precondition_failures_leave_no_event_or_object_residue(tmp_path)
     assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object
 
 
-def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_path):
+@pytest.mark.parametrize(
+    ("trusted_now", "submitted_at", "effective_at", "expected_status"),
+    (
+        (
+            datetime(2026, 8, 8, 20, 0, tzinfo=UTC),
+            "2026-08-08T20:00:00Z",
+            "2026-08-08T19:00:00Z",
+            "accepted",
+        ),
+        (
+            datetime(2026, 8, 9, 20, 0, tzinfo=UTC),
+            "2026-08-08T20:00:00Z",
+            "2026-08-08T19:00:00Z",
+            "accepted",
+        ),
+        (
+            datetime(2026, 8, 8, 20, 0, tzinfo=UTC),
+            "2026-08-09T20:00:00Z",
+            "2026-08-09T19:00:00Z",
+            "rejected",
+        ),
+    ),
+    ids=("current_p005_decision", "historical_p005_decision", "future_p005_decision"),
+)
+def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(
+    tmp_path,
+    trusted_now,
+    submitted_at,
+    effective_at,
+    expected_status,
+):
     class I2GoverningEvidenceResolver(StaticGoverningEvidenceResolver):
         independence_grade = "I2"
 
-    base = control_plane(tmp_path)
+    base = control_plane(tmp_path, clock=lambda: trusted_now)
     harness = replace(
         base,
         service=base.authority_service,
@@ -806,7 +901,7 @@ def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_
             "decision_id": CLAIM_DECISION_ID,
             "selected_option": "approve",
             "effective_scope": f"claim_promotion:{SCOPE_ID}",
-            "effective_at": "2026-08-08T19:00:00Z",
+            "effective_at": effective_at,
             "decision_revision": 1,
             "deciding_actor_id": ACTORS["actor-a"],
             "decision_authority_grant_id": decision_owner_grant,
@@ -840,7 +935,19 @@ def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_
             "evidence_refs": [REVIEW_ID, REVIEW_EVIDENCE_ID, CLAIM_DECISION_ID],
         },
     )
+    use["submitted_at"] = submitted_at
+    before_snapshot = harness.ledger.snapshot()
+    before_batches = tuple(harness.ledger.iter_batches())
+    before_object = deepcopy(harness.objects.read("artefact", ARTEFACT_ID, 1))
     accepted = harness.service.submit(use)
+    if expected_status == "rejected":
+        assert accepted.status == "rejected"
+        assert accepted.reason_code == "artefact_authority_time_invalid"
+        assert harness.receipts.load(accepted.command_id) == accepted
+        assert harness.ledger.snapshot() == before_snapshot
+        assert tuple(harness.ledger.iter_batches()) == before_batches
+        assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object
+        return
     assert accepted.status == "accepted", accepted
 
     class ContentReader:
@@ -882,7 +989,7 @@ def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_
 
 
 def test_register_review_and_use_authority_are_real_durable_commands(tmp_path):
-    harness = control_plane(tmp_path)
+    harness = control_plane(tmp_path, clock=lambda: datetime(2026, 8, 8, 20, 0, tzinfo=UTC))
     commands = accepted_artefact_commands(harness)
 
     receipts = [harness.service.submit(value) for value in commands]
@@ -1038,7 +1145,7 @@ def test_register_rejects_caller_selected_accepted_state_without_any_write(tmp_p
 
 
 def test_use_authority_rejects_without_independent_review_resolver(tmp_path):
-    harness = control_plane(tmp_path)
+    harness = control_plane(tmp_path, clock=lambda: datetime(2026, 8, 8, 20, 0, tzinfo=UTC))
     register, review, use = accepted_artefact_commands(harness)
     assert harness.service.submit(register).status == "accepted"
     assert harness.service.submit(review).status == "accepted"
@@ -1051,3 +1158,37 @@ def test_use_authority_rejects_without_independent_review_resolver(tmp_path):
     assert receipt.reason_code == "governing_review_resolver_unavailable"
     after = harness.ledger.snapshot()
     assert (after.global_position, after.event_hash) == (before.global_position, before.event_hash)
+
+
+def test_use_authority_rejects_future_submission_before_resolving_governing_evidence_without_publication(tmp_path):
+    trusted_now = datetime(2026, 8, 8, 20, 0, tzinfo=UTC)
+
+    class FutureGoverningEvidenceResolver(StaticGoverningEvidenceResolver):
+        def __init__(self) -> None:
+            self.evaluation_times: list[datetime] = []
+
+        def resolve(self, reference_id, *, project_id, evaluation_time):
+            self.evaluation_times.append(evaluation_time)
+            assert evaluation_time == trusted_now + timedelta(seconds=1)
+            return super().resolve(reference_id, project_id=project_id, evaluation_time=evaluation_time)
+
+    harness = control_plane(tmp_path, clock=lambda: trusted_now)
+    register, review, use = accepted_artefact_commands(harness)
+    resolver = FutureGoverningEvidenceResolver()
+    harness.service.governing_evidence_resolver = resolver
+    assert harness.service.submit(register).status == "accepted"
+    assert harness.service.submit(review).status == "accepted"
+    use["submitted_at"] = _utc_z(trusted_now + timedelta(seconds=1))
+    before_snapshot = harness.ledger.snapshot()
+    before_batches = tuple(harness.ledger.iter_batches())
+    before_object = deepcopy(harness.objects.read("artefact", ARTEFACT_ID, 1))
+
+    receipt = harness.service.submit(use)
+
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "artefact_authority_time_invalid"
+    assert resolver.evaluation_times == []
+    assert harness.receipts.load(receipt.command_id) == receipt
+    assert harness.ledger.snapshot() == before_snapshot
+    assert tuple(harness.ledger.iter_batches()) == before_batches
+    assert harness.objects.read("artefact", ARTEFACT_ID, 1) == before_object

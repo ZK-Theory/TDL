@@ -90,26 +90,12 @@ class CandidateDocumentStore:
 
     def _write(self, artefact_id: str, raw_bytes: bytes) -> str:
         relative = Path(self.relative_path(artefact_id))
-        created_identity: os.stat_result | None = None
-        target: Path | None = None
-        try:
-            with _open_new_contained_file(self.control_root, relative.as_posix()) as (fd, target):
-                with os.fdopen(fd, "wb") as handle:
-                    created_identity = os.fstat(handle.fileno())
-                    if not stat.S_ISREG(created_identity.st_mode):
-                        raise ConfigurationError("candidate document destination is not a physical regular file")
-                    handle.write(raw_bytes)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-            fsync_directory(target.parent)
-        except FileExistsError:
-            if _read_existing_contained_file(self.control_root, relative.as_posix()) != raw_bytes:
-                raise ConflictError("methods document identity already binds different bytes")
-            return relative.as_posix()
-        except Exception:
-            if target is not None and created_identity is not None:
-                _remove_created_file(target, created_identity)
-            raise
+        _publish_contained_file_no_replace(
+            self.control_root,
+            relative.as_posix(),
+            raw_bytes,
+            conflict_message="methods document identity already binds different bytes",
+        )
         return relative.as_posix()
 
     def write(self, artefact_id: str, raw_bytes: bytes) -> str:
@@ -371,6 +357,101 @@ def _open_windows_relative_existing_file(parent_handle: int, name: str) -> int:
 
 
 @contextmanager
+def _hold_contained_parent(control_root: Path, relative_path: str) -> Iterator[tuple[int | None, Path]]:
+    """Hold the verified parent used for an atomic directory-entry publication."""
+
+    target = _require_physical_destination(control_root, relative_path, create=True)
+    root = control_root.resolve(strict=True)
+    relative = Path(relative_path)
+    directory_descriptors: list[int] = []
+    windows_handles: list[int] = []
+    try:
+        if os.open in os.supports_dir_fd and hasattr(os, "O_DIRECTORY"):
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+            directory_descriptors.append(os.open(root, directory_flags))
+            for part in relative.parts[:-1]:
+                directory_descriptors.append(os.open(part, directory_flags, dir_fd=directory_descriptors[-1]))
+            yield directory_descriptors[-1], target
+        elif os.name == "nt":
+            parents = [root]
+            for part in relative.parts[:-1]:
+                parents.append(parents[-1] / part)
+            windows_handles = _hold_windows_directories(parents)
+            yield None, target
+        else:
+            raise ConfigurationError("atomic contained file publication is unsupported on this platform")
+    finally:
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+        if windows_handles:
+            import ctypes
+
+            close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+            for handle in reversed(windows_handles):
+                close_handle(ctypes.c_void_p(handle))
+
+
+def _after_contained_file_fsync(_temporary: Path, _target: Path) -> None:
+    """Test seam after staging is durable but before the final name exists."""
+
+
+def _publish_contained_file_no_replace(
+    control_root: Path,
+    relative_path: str,
+    data: bytes,
+    *,
+    conflict_message: str,
+) -> None:
+    """Durably stage then atomically publish one complete contained leaf."""
+
+    relative = Path(relative_path)
+    temporary_relative = relative.with_name(f".{relative.name}.{uuid.uuid4().hex}.tmp")
+    temporary_target = control_root.resolve(strict=True) / temporary_relative
+    temporary_identity: os.stat_result | None = None
+    try:
+        with _open_new_contained_file(control_root, temporary_relative.as_posix()) as (fd, opened_target):
+            temporary_target = opened_target
+            with os.fdopen(fd, "wb") as handle:
+                temporary_identity = os.fstat(handle.fileno())
+                if not stat.S_ISREG(temporary_identity.st_mode):
+                    raise ConfigurationError("publication staging destination is not a physical regular file")
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+    except Exception:
+        if temporary_identity is not None:
+            _remove_created_file(temporary_target, temporary_identity)
+        raise
+    target = control_root / relative
+    _after_contained_file_fsync(temporary_target, target)
+    try:
+        with _hold_contained_parent(control_root, relative_path) as (parent_descriptor, held_target):
+            temporary_name = temporary_relative.name
+            try:
+                if parent_descriptor is not None:
+                    os.link(
+                        temporary_name,
+                        relative.name,
+                        src_dir_fd=parent_descriptor,
+                        dst_dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                else:
+                    os.link(held_target.parent / temporary_name, held_target, follow_symlinks=False)
+            except FileExistsError:
+                if _read_existing_contained_file(control_root, relative_path) != data:
+                    raise ConflictError(conflict_message) from None
+            else:
+                if parent_descriptor is not None:
+                    os.fsync(parent_descriptor)
+                else:
+                    fsync_directory(held_target.parent)
+    finally:
+        if temporary_identity is not None:
+            _remove_created_file(temporary_target, temporary_identity)
+
+
+@contextmanager
 def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
     """Create one leaf while its trusted parent chain remains bound."""
 
@@ -559,26 +640,12 @@ def _validate_committed_raw_source(repository_root: Path, publication: RawConten
 
 
 def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> None:
-    created_identity: os.stat_result | None = None
-    target: Path | None = None
-    try:
-        with _open_new_contained_file(control_root, relative_path) as (fd, target):
-            with os.fdopen(fd, "wb") as handle:
-                created_identity = os.fstat(handle.fileno())
-                if not stat.S_ISREG(created_identity.st_mode):
-                    raise ConfigurationError("raw content destination is not a physical regular file")
-                handle.write(raw)
-                handle.flush()
-                os.fsync(handle.fileno())
-        fsync_directory(target.parent)
-    except FileExistsError:
-        if _read_existing_contained_file(control_root, relative_path) != raw:
-            raise ConflictError("raw content destination already binds different bytes")
-        return
-    except Exception:
-        if target is not None and created_identity is not None:
-            _remove_created_file(target, created_identity)
-        raise
+    _publish_contained_file_no_replace(
+        control_root,
+        relative_path,
+        raw,
+        conflict_message="raw content destination already binds different bytes",
+    )
 
 
 def _registration_event_matches(event: object, command: dict[str, Any]) -> bool:
@@ -634,6 +701,18 @@ def _remove_recovery_marker(control_root: Path, command_id: str) -> None:
     _remove_created_file(target, identity)
 
 
+def _is_abandoned_recovery_staging_file(path: Path) -> bool:
+    """Recognize non-authoritative staging leaves left by a hard process stop."""
+
+    name = path.name
+    if not name.startswith(".") or not name.endswith(".tmp"):
+        return False
+    marker_name, separator, nonce = name[1:-4].rpartition(".")
+    if not separator or not marker_name.endswith(".json") or len(nonce) != 32:
+        return False
+    return all(character in "0123456789abcdef" for character in nonce)
+
+
 def recover_registered_content(control_root: Path, events: tuple[dict[str, Any], ...]) -> None:
     """Reconcile committed registrations with their exact pre-submit byte markers."""
 
@@ -650,6 +729,15 @@ def recover_registered_content(control_root: Path, events: tuple[dict[str, Any],
     ):
         raise ConfigurationError("registration recovery directory is not physical")
     for path in sorted(directory.iterdir(), key=lambda item: item.name):
+        if _is_abandoned_recovery_staging_file(path):
+            metadata = path.lstat()
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            ):
+                raise IntegrityError("registration recovery directory contains an invalid staging entry")
+            continue
         if path.suffix != ".json" or not path.is_file() or path.is_symlink():
             raise IntegrityError("registration recovery directory contains an invalid entry")
         relative_marker = path.relative_to(root).as_posix()
