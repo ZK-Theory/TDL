@@ -15,11 +15,16 @@ import uuid
 
 import pytest
 
+from research_system.artefacts.authority import ArtefactAuthorityContractLoader
+from research_system.artefacts.runtime import GoverningScientificReviewStore
+from research_system.artefacts.use_resolver import predicate_reference
 from research_system.discovery import runtime as discovery_runtime_module
+from research_system.discovery import assay_successor as assay_successor_module
 from research_system.discovery.assay_authority import (
     AssayAuthorityRejected,
     assay_reconstruction_sha256,
 )
+from research_system.discovery.assay_successor import register_assay_authority_successor_document
 from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
 from research_system.discovery.routes import (
     DISCOVERY_EXISTING_TARGETS as _DISCOVERY_EXISTING_TARGETS,
@@ -29,14 +34,30 @@ from research_system.discovery.routes import (
     discovery_identity_exists as _discovery_identity_exists,
     shared_event_partition as _shared_event_partition,
 )
-from research_system.discovery.rules import _assay_scorecard_matches, _valid_spike_promotion_option
+from research_system.discovery.rules import (
+    _assay_scorecard_matches,
+    _assay_staleness_matches,
+    _valid_spike_promotion_option,
+)
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.authority import subject_sha256
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import reduce_artefact, replay_control_plane
-from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, IntegrityError, SchemaError
+from research_system.errors import (
+    ArsError,
+    ConfigurationError,
+    ConflictError,
+    IdempotencyConflictError,
+    IntegrityError,
+    SchemaError,
+)
 from research_system.ids import new_id
+from research_system.methods.registration import (
+    CandidateDocumentStore,
+    CandidateRegistration,
+    register_candidate_document,
+)
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
@@ -48,6 +69,10 @@ from tests.research_system.factories import (
     control_plane,
     revoke_lifecycle_grant,
 )
+from tests.research_system.assay_authority_helpers import (
+    SCOPE_HASH_FIELDS,
+    bind_assay_fixture_to_current_spec_sources as _bind_assay_fixture_to_current_spec_sources,
+)
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     ATTEMPT_ID as C1_ATTEMPT_ID,
     LEASE_ID as C1_LEASE_ID,
@@ -58,6 +83,7 @@ from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     _seed_running_attempt,
 )
 from tests.research_system.integration.test_wp6_1_c2_operating_lifecycle import _artefact_manifest
+from tests.research_system.integration.test_artefact_authority_commands import SUBJECT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -69,6 +95,8 @@ ACTOR_ID = ACTORS["actor-a"]
 GRANT_ID = "agr_019fed25-b33e-7740-b280-6f661aaeff58"
 ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
 ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
+ASSAY_RUBRIC_V2_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v2.json"
+ASSAY_SCOPE_V2_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v2.json"
 DOSSIER_AUTHORITY_PATH = ".research-system/contracts/wp6-6/tda-scale-dossier-expected-set-authority.json"
 PATH_AUTHORITY_PATH = ".research-system/contracts/wp6-6/tda-scale-path-registration-authority.json"
 ASSAY_AUTHORITY_AUTHOR = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())["created_by_actor_id"]
@@ -79,69 +107,6 @@ ASSAY_AUTHORITY_ACTORS = tuple(
 _HARNESSES = {}
 
 
-def _bind_assay_fixture_to_current_spec_sources(repository_root: Path) -> None:
-    """Build mutable test authority content for the current committed SPEC route."""
-
-    route_sha256 = sha256_hex(
-        (repository_root / ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json").read_bytes()
-    )
-    spec_01_sha256 = sha256_hex(
-        (
-            repository_root / ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"
-        ).read_bytes()
-    )
-    rubric_path = repository_root / ASSAY_RUBRIC_PATH
-    scope_path = repository_root / ASSAY_SCOPE_PATH
-    rubric = json.loads(rubric_path.read_bytes())
-    scope = json.loads(scope_path.read_bytes())
-
-    for content in (rubric, scope):
-        for source_ref in content["source_refs"]:
-            if source_ref.get("id") == "SPEC-01":
-                source_ref["content_hash"] = spec_01_sha256
-            elif source_ref.get("id") == "SPEC-GATE6-RUN-V1":
-                source_ref["content_hash"] = route_sha256
-        content["effective_project_scope_ref"]["content_hash"] = route_sha256
-    for authority_ref in rubric["source_authority_refs"]:
-        if authority_ref["id"] == "SPEC-01":
-            authority_ref["content_hash"] = spec_01_sha256
-        elif authority_ref["id"] == "SPEC-GATE6-RUN-V1":
-            authority_ref["content_hash"] = route_sha256
-    rubric["content_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in rubric.items() if key != "content_hash"})
-    )
-    scope["rubric_ref"]["content_hash"] = rubric["content_hash"]
-    scope["scope_closure_algorithm_hash"] = sha256_hex(
-        canonical_bytes(
-            {
-                field: scope[field]
-                for field in (
-                    "scope_id",
-                    "rubric_ref",
-                    "required_assurance_lanes",
-                    "evidence_rows",
-                    "prohibited_source_classes",
-                    "prohibited_producer_relationships",
-                    "no_compensation_pairs",
-                    "confidentiality_rules",
-                    "stop_conditions",
-                    "partial_conditions",
-                    "evidence_order_constraints",
-                    "scope_closure_algorithm_id",
-                    "scope_closure_algorithm_version",
-                    "effective_candidate_kinds",
-                    "effective_project_scope_ref",
-                )
-            }
-        )
-    )
-    scope["content_hash"] = sha256_hex(
-        canonical_bytes({key: value for key, value in scope.items() if key != "content_hash"})
-    )
-    rubric_path.write_bytes(canonical_bytes(rubric) + b"\n")
-    scope_path.write_bytes(canonical_bytes(scope) + b"\n")
-
-
 def _authority_repository_root(tmp_path: Path) -> Path:
     """Expose candidate authority bytes through an honest isolated Git subject."""
 
@@ -149,6 +114,8 @@ def _authority_repository_root(tmp_path: Path) -> Path:
     authority_paths = (
         ASSAY_RUBRIC_PATH,
         ASSAY_SCOPE_PATH,
+        ASSAY_RUBRIC_V2_PATH,
+        ASSAY_SCOPE_V2_PATH,
         DOSSIER_AUTHORITY_PATH,
         PATH_AUTHORITY_PATH,
         catalogue_path,
@@ -164,6 +131,24 @@ def _authority_repository_root(tmp_path: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((REPO_ROOT / path).read_bytes())
     _bind_assay_fixture_to_current_spec_sources(candidate_root)
+    successor_rubric_path = candidate_root / ASSAY_RUBRIC_V2_PATH
+    successor_scope_path = candidate_root / ASSAY_SCOPE_V2_PATH
+    successor_rubric = json.loads(successor_rubric_path.read_bytes())
+    successor_scope = json.loads(successor_scope_path.read_bytes())
+    successor_rubric["created_by_actor_id"] = ASSAY_AUTHORITY_AUTHOR
+    successor_rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in successor_rubric.items() if key != "content_hash"})
+    )
+    successor_scope["created_by_actor_id"] = ASSAY_AUTHORITY_AUTHOR
+    successor_scope["rubric_ref"]["content_hash"] = successor_rubric["content_hash"]
+    successor_scope["scope_closure_algorithm_hash"] = sha256_hex(
+        canonical_bytes({field: successor_scope[field] for field in SCOPE_HASH_FIELDS})
+    )
+    successor_scope["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in successor_scope.items() if key != "content_hash"})
+    )
+    successor_rubric_path.write_bytes(canonical_bytes(successor_rubric) + b"\n")
+    successor_scope_path.write_bytes(canonical_bytes(successor_scope) + b"\n")
     environment = {
         **os.environ,
         "GIT_AUTHOR_NAME": "TDL test fixture",
@@ -491,6 +476,10 @@ def test_assay_authority_registration_rejects_stale_route_sources_without_public
     runtime.submit(_genesis())
     stale_rubric = json.loads((REPO_ROOT / ASSAY_RUBRIC_PATH).read_bytes())
     stale_scope = json.loads((REPO_ROOT / ASSAY_SCOPE_PATH).read_bytes())
+    current_rubric = json.loads((runtime.repository_root / ASSAY_RUBRIC_PATH).read_bytes())
+    assert (
+        stale_rubric["content_hash"] != current_rubric["content_hash"]
+    ), "committed authority content already binds the current SPEC route; this test no longer covers staleness"
 
     stale_rubric_command = _command(
         "RegisterAssayRubricContent",
@@ -3126,6 +3115,922 @@ def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(t
     assert runtime.submit(scope_successor).status == "accepted"
     successor_state = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     assert successor_state["contents"]["scope"]["content"]["record_revision"] == 2
+
+
+def _complete_park_assay(runtime: DiscoveryRuntime) -> tuple[dict[str, str], dict[str, str]]:
+    """Create the exact scored Assay and terminal owner PARK decision cited by a correction."""
+
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff63"
+    assay_id = "asy_019fed25-b33e-7740-b280-6f661aaeff61"
+    review_id = "rev_019fed25-b33e-7740-b280-6f661aaeff62"
+    decision_id = "dec_019fed25-b33e-7740-b280-6f661aaeff64"
+    reviewer_id = ASSAY_AUTHORITY_ACTORS[1]
+    candidate_sha256 = _ingest_candidate(
+        runtime,
+        candidate_id,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff60",
+        title="Corrected paper-code Assay candidate",
+    )
+    bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    runtime.submit(
+        _command(
+            "RequestAssay",
+            assay_id,
+            0,
+            {
+                "row_id": "OR-003",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "candidate_revision": 1,
+                "candidate_sha256": candidate_sha256,
+                "assay_bar_acceptance_sha256": bar["acceptance_sha256"],
+                "producer_relation_sha256": bar["producer_relation_sha256"],
+            },
+        )
+    )
+    scorecard = _scorecard(runtime, candidate_id, assay_id, candidate_sha256, bar["producer_relation_sha256"])
+    scorecard_sha256 = sha256_hex(canonical_bytes(scorecard))
+    runtime.submit(
+        _command(
+            "RecordAssayScore",
+            assay_id,
+            2,
+            {
+                "row_id": "OR-004",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "scorecard_sha256": scorecard_sha256,
+                "scorecard_artifact": scorecard,
+                "producer_relation_sha256": bar["producer_relation_sha256"],
+            },
+        )
+    )
+    runtime.submit(
+        _command(
+            "RequestDiscoveryOutcomeReview",
+            review_id,
+            0,
+            {
+                "row_id": "OR-034",
+                "candidate_id": candidate_id,
+                "assay_id": assay_id,
+                "review_id": review_id,
+                "subject_sha256": scorecard_sha256,
+                "review_contract": {
+                    "review_type": "provenance",
+                    "new_review_id": review_id,
+                    "subject_ids": [assay_id],
+                    "subject_hashes": [scorecard_sha256],
+                    "governing_refs": ["W11:OR-034"],
+                    "review_questions": ["Does the correction preserve the PARK decision?"],
+                    "required_evidence_refs": ["scorecard:exact"],
+                    "required_lanes": ["provenance"],
+                    "reviewer_capability": ["assay-independent-review"],
+                    "required_independence_grade": "independent",
+                    "visibility_policy": "owner-visible",
+                    "allowed_verdicts": [
+                        "approve",
+                        "approve_with_conditions",
+                        "changes_requested",
+                        "reject",
+                        "unable_to_verify",
+                        "withdrawn",
+                    ],
+                    "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+                    "deadline": "2026-08-18T00:00:00Z",
+                    "escalation_rule": "owner-ruling",
+                },
+            },
+        )
+    )
+    review = _command(
+        "ReviewDiscoveryOutcome",
+        review_id,
+        1,
+        {
+            "row_id": "OR-006",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": scorecard_sha256,
+            "verdict": "approve",
+            "review_verdict": {
+                "review_id": review_id,
+                "verdict": "approve",
+                "findings": [],
+                "required_evidence_refs": ["scorecard:exact"],
+                "limitations": [],
+                "conditions": [],
+                "reviewer_actor_id": reviewer_id,
+                "reviewer_profile": "independent-assay-reviewer",
+                "reviewer_session": "session-assay-successor",
+                "reviewer_model_metadata": "test",
+                "context_manifest_id": "ctx_019fed25-b33e-7740-b280-6f661aaeff62",
+                "context_manifest_sha256": "7" * 64,
+                "unchanged_subject_sha256": scorecard_sha256,
+                "producing_attempt_id": "att_019fed25-b33e-7740-b280-6f661aaeff62",
+                "trace_visibility_evidence_refs": ["trace:assay-successor"],
+                "computed_independence_grade": "independent",
+            },
+        },
+    )
+    review["actor_id"] = reviewer_id
+    runtime.submit(review)
+    proposed = {
+        "question": "Should the corrected Assay remain PARK?",
+        "recommendation": "PARK",
+        "new_decision_id": decision_id,
+        "decision_revision": 1,
+        "decision_kind": "design_lock",
+        "options": ["PROMOTE", "PARK", "KILL"],
+        "governing_evidence_refs": ["scorecard:exact"],
+        "affected_task_ids": [],
+        "affected_claim_ids": [],
+        "required_authority": "owner",
+        "expires_at": "2026-08-18T00:00:00Z",
+        "review_date": "2026-08-17T00:00:00Z",
+        "consequences": ["preserve the terminal suitability decision"],
+    }
+    runtime.submit(
+        _command(
+            "ProposePromotionDecision",
+            decision_id,
+            0,
+            {
+                "row_id": "OR-012",
+                "candidate_id": candidate_id,
+                "decision_id": decision_id,
+                "review_id": review_id,
+                "w2_payload": proposed,
+                "promotion_relation": _promotion_relation(
+                    runtime,
+                    decision_id=decision_id,
+                    candidate_id=candidate_id,
+                    aggregate_id=assay_id,
+                    review_id=review_id,
+                    gate="assay_to_spike",
+                    recommendation="PARK",
+                ),
+            },
+        )
+    )
+    resolved = {
+        "decision_id": decision_id,
+        "selected_option": "PARK",
+        "effective_scope": "exact corrected Assay",
+        "decision_revision": 1,
+        "deciding_actor_id": ACTOR_ID,
+        "decision_authority_grant_id": GRANT_ID,
+        "governing_evidence_refs": ["scorecard:exact"],
+        "considered_review_ids": [review_id],
+        "effective_at": "2026-08-17T00:00:00Z",
+        "permitted_commands": [],
+        "superseded_decision_ids": [],
+        "conditions": [],
+        "revisit_triggers": [],
+    }
+    runtime.submit(
+        _command(
+            "ResolveDecision",
+            decision_id,
+            1,
+            {
+                "row_id": "OR-013",
+                "candidate_id": candidate_id,
+                "decision_id": decision_id,
+                "w2_payload": resolved,
+            },
+        )
+    )
+    applied = next(
+        event
+        for event in reversed(tuple(runtime.ledger.iter_events()))
+        if event["event_type"] == "CandidatePromotionApplied" and event["payload"].get("decision_id") == decision_id
+    )
+    return {"id": assay_id, "sha256": scorecard_sha256}, {"id": applied["event_id"], "sha256": applied["event_hash"]}
+
+
+def _register_source_correction_artefact(
+    runtime: DiscoveryRuntime,
+    tmp_path: Path,
+    *,
+    scorecard_ref: dict[str, str],
+    decision_ref: dict[str, str],
+) -> dict[str, object]:
+    """Append one governed SPEC correction artefact for an OR-109 trigger test."""
+
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaeff65"
+    document = {
+        "schema_id": "ars://portfolio/spec-01-source-correction",
+        "schema_version": "1.0.0",
+        "document_type": "spec_01_source_correction",
+        "route_id": "SPEC-GATE6-RUN-V1",
+        "correction_id": "correction:assay-authority-successor",
+        "recorded_at": "2026-08-17T19:45:00Z",
+        "producer": {
+            "actor_id": ACTORS["actor-b"],
+            "session_id": "assay-authority-successor-test",
+            "role": "source-correction verifier",
+        },
+        "scorecard_ref": scorecard_ref,
+        "decision_ref": decision_ref,
+        "incorrect_assertions": [
+            "paper-cited neurips2024 branch is absent from the live Git remote",
+            "primary_paper_code_discrepancy",
+            "paper-code provenance requires a replacement immutable commit",
+        ],
+        "corrected_git_reference": {
+            "cited_locator": "https://github.com/berenslab/eff-ph/tree/neurips2024",
+            "repository_url": "https://github.com/berenslab/eff-ph.git",
+            "requested_ref": "neurips2024",
+            "resolved_ref": "refs/tags/neurips2024",
+            "ref_kind": "tag",
+            "commit_oid": "145efcde673f1a1897eff250b77221d26c34c479",
+            "retrieval_methods": ["direct_locator", "git_ls_remote_tags", "detached_clone"],
+            "required_paths": [
+                {"path": "environment.yml", "sha256": "c" * 64},
+                {"path": "scripts/compute_ph.py", "sha256": "d" * 64},
+            ],
+        },
+        "correction_effect": {
+            "withdrawn_condition_codes": ["primary_paper_code_discrepancy"],
+            "withdrawn_limitations": [
+                "The paper-cited neurips2024 code branch is absent from the live Git remote; only main and scRNA heads were advertised."
+            ],
+            "withdrawn_revisit_triggers": [
+                "paper-code provenance restored",
+                "an immutable replacement for the absent paper-cited branch is supplied",
+            ],
+            "preserved_findings": [
+                "future_estimand_unidentified",
+                "representation_freeze_missing",
+                "primary_claim_missing",
+            ],
+        },
+        "scientific_disposition": "PARK",
+    }
+    _HARNESSES[tmp_path].schemas.validate("ars://portfolio/spec-01-source-correction", document, schema_version="1.0.0")
+    manifest = _artefact_manifest(artefact_id)
+    manifest.update(
+        artefact_id=artefact_id,
+        artefact_type="spec_01_source_correction",
+        artefact_schema_id="ars://portfolio/spec-01-source-correction",
+        artefact_schema_version="1.0.0",
+        producer_actor_id=ACTORS["actor-b"],
+    )
+    harness = _HARNESSES[tmp_path]
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=ACTORS["actor-b"],
+        allowed_actor_classes=("agent",),
+        command_types=("RegisterArtefact",),
+    )
+    registered = register_candidate_document(
+        value=document,
+        registration=CandidateRegistration(
+            artefact_id=artefact_id,
+            project_id=PROJECT_ID,
+            actor_id=ACTORS["actor-b"],
+            authority_grant_id=grant_id,
+            submitted_at="2026-08-17T19:45:00Z",
+            correlation_id="assay-authority-source-correction-test",
+            reason="Register exact source correction for the Assay successor.",
+            manifest=manifest,
+        ),
+        document_store=CandidateDocumentStore(
+            harness.ledger.control_root, relative_directory=Path("methods/documents/spec-flow")
+        ),
+        command_service=harness.service,
+    )
+    acceptance_grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=ACTORS["actor-a"],
+        command_types=("SetArtefactUseAuthority",),
+        grant_id=new_id("authority_grant"),
+    )
+    return {
+        "artefact_ref": _ref(artefact_id, 1, registered.content_sha256),
+        "artefact_type": "spec_01_source_correction",
+        "registered_global_position": replay_discovery(runtime.ledger.iter_events())["artefact_registration_positions"][
+            artefact_id
+        ],
+        "document": document,
+        "authority_grant_id": acceptance_grant_id,
+        "acceptor_actor_id": ACTORS["actor-a"],
+    }
+
+
+def _accept_registered_artefact(
+    runtime: DiscoveryRuntime,
+    tmp_path: Path,
+    *,
+    artefact_id: str,
+    content_sha256: str,
+    owner_grant_id: str,
+    owner_actor_id: str,
+) -> None:
+    """Append the existing independent-review and accepted-use transitions."""
+
+    harness = _HARNESSES[tmp_path]
+    review_id = new_id("review")
+    evidence_id = new_id("assurance_record")
+    review_grant = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=ACTORS["actor-a"],
+        command_types=("RecordScientificReview",),
+        grant_id=new_id("authority_grant"),
+    )
+    review = _c1_command(
+        new_id("command"),
+        "RecordScientificReview",
+        artefact_id,
+        1,
+        {
+            "artefact_id": artefact_id,
+            "review_id": review_id,
+            "subject_sha256": content_sha256,
+            "scientific_review": "approved",
+            "evidence_refs": [evidence_id],
+        },
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=review_grant,
+    )
+    assert harness.service.submit(review).status == "accepted"
+    reviews = GoverningScientificReviewStore(harness.objects, harness.schemas)
+    reviews.publish(
+        evidence_id,
+        {
+            "schema_id": "ars://evidence/governing-scientific-review",
+            "schema_version": "1.0.0",
+            "project_id": PROJECT_ID,
+            "review_id": review_id,
+            "subject_sha256": content_sha256,
+            "reviewer_actor_id": ACTORS["actor-a"],
+            "eligible": True,
+            "related": False,
+            "independence_grade": "I1",
+            "status": "active",
+        },
+    )
+    harness.service.governing_evidence_resolver = reviews
+    predicate, predicate_sha = ArtefactAuthorityContractLoader(SUBJECT).load().predicate_for("result_evidence")
+    use = _c1_command(
+        new_id("command"),
+        "SetArtefactUseAuthority",
+        artefact_id,
+        2,
+        {
+            "artefact_id": artefact_id,
+            "use_authority": "accepted_for_scope",
+            "subject_sha256": content_sha256,
+            "consumer_predicate": predicate_reference(
+                str(predicate["predicate_id"]), str(predicate["predicate_version"]), predicate_sha
+            ),
+            "evidence_refs": [review_id, evidence_id],
+        },
+        actor_id=owner_actor_id,
+        authority_grant_id=owner_grant_id,
+    )
+    receipt = harness.service.submit(use)
+    assert receipt.status == "accepted", (receipt.reason_code, receipt.explanation)
+    assert replay_discovery(runtime.ledger.iter_events())["artefact_streams"][artefact_id]["use_authority"] == (
+        "accepted_for_scope"
+    )
+
+
+def _assay_successor_contents(runtime: DiscoveryRuntime) -> tuple[dict[str, object], dict[str, object]]:
+    """Load the exact committed revision-two content pair."""
+
+    rubric: dict[str, object] = json.loads((runtime.repository_root / ASSAY_RUBRIC_V2_PATH).read_bytes())
+    scope: dict[str, object] = json.loads((runtime.repository_root / ASSAY_SCOPE_V2_PATH).read_bytes())
+    return rubric, scope
+
+
+def _register_assay_successor_artefact(
+    runtime: DiscoveryRuntime,
+    tmp_path: Path,
+    *,
+    correction_ref: dict[str, object],
+    correction_document: dict[str, object],
+    accepted: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    reject_first: bool = False,
+) -> dict[str, object]:
+    """Publish one typed successor document through RegisterArtefact."""
+
+    harness = _HARNESSES[tmp_path]
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaeff66"
+    rubric, scope = _assay_successor_contents(runtime)
+    actor_id = str(rubric["created_by_actor_id"])
+    head = subprocess.run(
+        ["git", "-C", str(runtime.repository_root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    document = {
+        "schema_id": "ars://portfolio/assay-authority-successor",
+        "schema_version": "1.0.0",
+        "document_type": "assay_authority_successor",
+        "successor_id": "assay-authority-successor:spec-gate6-run-v1-r2",
+        "route_id": "SPEC-GATE6-RUN-V1",
+        "created_at": "2026-08-17T20:00:00Z",
+        "producer_actor_id": actor_id,
+        "source_correction_ref": correction_ref,
+        "source_correction_document": correction_document,
+        "accepted_authority": {
+            "rubric_ref": _ref(
+                accepted["contents"]["rubric"]["content"]["record_id"],
+                accepted["contents"]["rubric"]["content"]["record_revision"],
+                accepted["contents"]["rubric"]["content_sha256"],
+            ),
+            "scope_ref": _ref(
+                accepted["contents"]["scope"]["content"]["record_id"],
+                accepted["contents"]["scope"]["content"]["record_revision"],
+                accepted["contents"]["scope"]["content_sha256"],
+            ),
+        },
+        "successor_authority": {
+            "rubric_ref": {
+                **_ref(rubric["record_id"], rubric["record_revision"], rubric["content_hash"]),
+                "repository_path": ASSAY_RUBRIC_V2_PATH,
+            },
+            "rubric_content": deepcopy(rubric),
+            "scope_ref": {
+                **_ref(scope["record_id"], scope["record_revision"], scope["content_hash"]),
+                "repository_path": ASSAY_SCOPE_V2_PATH,
+            },
+            "scope_content": deepcopy(scope),
+        },
+        "governed_sources": {
+            "route": {
+                "repository_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json",
+                "content_sha256": sha256_hex(
+                    (
+                        runtime.repository_root
+                        / ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"
+                    ).read_bytes()
+                ),
+            },
+            "spec_01": {
+                "repository_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+                "content_sha256": sha256_hex(
+                    (
+                        runtime.repository_root
+                        / ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"
+                    ).read_bytes()
+                ),
+            },
+        },
+        "git_commit": head,
+    }
+    manifest = _artefact_manifest(artefact_id)
+    manifest.update(
+        artefact_id=artefact_id,
+        artefact_type="assay_authority_successor",
+        artefact_schema_id="ars://portfolio/assay-authority-successor",
+        artefact_schema_version="1.0.0",
+        producer_actor_id=actor_id,
+    )
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=actor_id,
+        allowed_actor_classes=("agent",),
+        command_types=("RegisterArtefact",),
+    )
+    registration = CandidateRegistration(
+        artefact_id=artefact_id,
+        project_id=PROJECT_ID,
+        actor_id=actor_id,
+        authority_grant_id=grant_id,
+        submitted_at="2026-08-17T20:01:00Z",
+        correlation_id="assay-authority-successor-test",
+        reason="Register exact Assay authority successor.",
+        manifest=manifest,
+    )
+    store = CandidateDocumentStore(harness.ledger.control_root, relative_directory=Path("methods/documents/spec-flow"))
+    if reject_first:
+        invalid = deepcopy(document)
+        invalid["governed_sources"]["route"]["content_sha256"] = "f" * 64
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(ConfigurationError, match="source hash differs"):
+            register_assay_authority_successor_document(
+                value=invalid,
+                registration=registration,
+                document_store=store,
+                command_service=harness.service,
+                repository_root=runtime.repository_root,
+                schemas=harness.schemas,
+            )
+        assert tuple(runtime.ledger.iter_events()) == before
+        assert not (harness.ledger.control_root / store.relative_path(artefact_id)).exists()
+        drift_rubric = deepcopy(rubric)
+        drift_rubric["recommendation_predicates"][1] = "PROMOTE requires data_feasibility + novelty_publishability >= 3"
+        drift_rubric["rule_evaluation_algorithm_hash"] = sha256_hex(
+            canonical_bytes({field: drift_rubric[field] for field in assay_successor_module._RULE_HASH_FIELDS})
+        )
+        drift_rubric["content_hash"] = sha256_hex(
+            canonical_bytes({key: value for key, value in drift_rubric.items() if key != "content_hash"})
+        )
+        drift_scope = deepcopy(scope)
+        drift_scope["rubric_ref"]["content_hash"] = drift_rubric["content_hash"]
+        drift_scope["scope_closure_algorithm_hash"] = sha256_hex(
+            canonical_bytes({field: drift_scope[field] for field in SCOPE_HASH_FIELDS})
+        )
+        drift_scope["content_hash"] = sha256_hex(
+            canonical_bytes({key: value for key, value in drift_scope.items() if key != "content_hash"})
+        )
+        drift_document = deepcopy(document)
+        drift_document["successor_authority"]["rubric_ref"]["content_hash"] = drift_rubric["content_hash"]
+        drift_document["successor_authority"]["scope_ref"]["content_hash"] = drift_scope["content_hash"]
+        drift_document["successor_authority"]["rubric_content"] = drift_rubric
+        drift_document["successor_authority"]["scope_content"] = drift_scope
+        original_committed_bytes = assay_successor_module._committed_bytes
+
+        def drifted_committed_bytes(root, commit, relative_path, label):
+            if relative_path == ASSAY_RUBRIC_V2_PATH:
+                return canonical_bytes(drift_rubric) + b"\n"
+            if relative_path == ASSAY_SCOPE_V2_PATH:
+                return canonical_bytes(drift_scope) + b"\n"
+            return original_committed_bytes(root, commit, relative_path, label)
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(assay_successor_module, "_committed_bytes", drifted_committed_bytes)
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(ConfigurationError, match="changes protected semantics"):
+                register_assay_authority_successor_document(
+                    value=drift_document,
+                    registration=registration,
+                    document_store=store,
+                    command_service=harness.service,
+                    repository_root=runtime.repository_root,
+                    schemas=harness.schemas,
+                )
+            assert tuple(runtime.ledger.iter_events()) == before
+            assert not (harness.ledger.control_root / store.relative_path(artefact_id)).exists()
+
+        def assert_field_drift_rejected(mutator: Callable[[dict[str, object], dict[str, object]], None]) -> None:
+            changed_rubric = deepcopy(rubric)
+            changed_scope = deepcopy(scope)
+            mutator(changed_rubric, changed_scope)
+            changed_rubric["content_hash"] = sha256_hex(
+                canonical_bytes({key: value for key, value in changed_rubric.items() if key != "content_hash"})
+            )
+            changed_scope["rubric_ref"] = _ref(
+                changed_rubric["record_id"], changed_rubric["record_revision"], changed_rubric["content_hash"]
+            )
+            changed_scope["scope_closure_algorithm_hash"] = sha256_hex(
+                canonical_bytes({field: changed_scope[field] for field in SCOPE_HASH_FIELDS})
+            )
+            changed_scope["content_hash"] = sha256_hex(
+                canonical_bytes({key: value for key, value in changed_scope.items() if key != "content_hash"})
+            )
+            changed_document = deepcopy(document)
+            changed_document["successor_authority"]["rubric_ref"]["content_hash"] = changed_rubric["content_hash"]
+            changed_document["successor_authority"]["scope_ref"]["content_hash"] = changed_scope["content_hash"]
+            changed_document["successor_authority"]["rubric_content"] = changed_rubric
+            changed_document["successor_authority"]["scope_content"] = changed_scope
+
+            def changed_committed_bytes(root, commit, relative_path, label):
+                if relative_path == ASSAY_RUBRIC_V2_PATH:
+                    return canonical_bytes(changed_rubric) + b"\n"
+                if relative_path == ASSAY_SCOPE_V2_PATH:
+                    return canonical_bytes(changed_scope) + b"\n"
+                return original_committed_bytes(root, commit, relative_path, label)
+
+            with monkeypatch.context() as scoped:
+                scoped.setattr(assay_successor_module, "_committed_bytes", changed_committed_bytes)
+                before = tuple(runtime.ledger.iter_events())
+                with pytest.raises(ConfigurationError, match="protected semantics|binding differs"):
+                    register_assay_authority_successor_document(
+                        value=changed_document,
+                        registration=registration,
+                        document_store=store,
+                        command_service=harness.service,
+                        repository_root=runtime.repository_root,
+                        schemas=harness.schemas,
+                    )
+                assert tuple(runtime.ledger.iter_events()) == before
+                assert not (harness.ledger.control_root / store.relative_path(artefact_id)).exists()
+
+        field_mutators = (
+            lambda rubric_value, _scope_value: rubric_value["effective_project_scope_ref"].update(id="prj_other"),
+            lambda rubric_value, _scope_value: rubric_value["effective_project_scope_ref"].update(record_revision=2),
+            lambda rubric_value, _scope_value: rubric_value["source_authority_refs"][0].update(id="SPEC-OTHER"),
+            lambda rubric_value, _scope_value: rubric_value["source_authority_refs"][0].update(record_revision=2),
+            lambda rubric_value, _scope_value: rubric_value["source_authority_refs"][0].update(content_hash="f" * 64),
+            lambda rubric_value, _scope_value: rubric_value["source_refs"][2].update(locator="other-catalogue"),
+            lambda rubric_value, _scope_value: rubric_value["source_refs"][2].update(content_hash="f" * 64),
+        )
+        for field_mutator in field_mutators:
+            assert_field_drift_rejected(field_mutator)
+    result = register_assay_authority_successor_document(
+        value=document,
+        registration=registration,
+        document_store=store,
+        command_service=harness.service,
+        repository_root=runtime.repository_root,
+        schemas=harness.schemas,
+    )
+    acceptance_grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        actor_id=ACTORS["actor-a"],
+        command_types=("SetArtefactUseAuthority",),
+        grant_id=new_id("authority_grant"),
+    )
+    assert result.raw_bytes == canonical_bytes(document)
+    return {
+        "artefact_ref": _ref(artefact_id, 1, result.content_sha256),
+        "artefact_type": "assay_authority_successor",
+        "registered_global_position": replay_discovery(runtime.ledger.iter_events())["artefact_registration_positions"][
+            artefact_id
+        ],
+        "document": document,
+        "authority_grant_id": acceptance_grant_id,
+        "acceptor_actor_id": ACTORS["actor-a"],
+        "producer_actor_id": actor_id,
+    }
+
+
+def test_source_correction_stales_assay_bar_with_durable_assay_decision_and_seals_successor_hashes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    bar_sha256, _producer_sha256 = _accept_assay_bar(runtime)
+    scorecard_ref, decision_ref = _complete_park_assay(runtime)
+    accepted = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    correction = _register_source_correction_artefact(
+        runtime,
+        tmp_path,
+        scorecard_ref=scorecard_ref,
+        decision_ref=decision_ref,
+    )
+    successor_rubric, successor_scope = _assay_successor_contents(runtime)
+    successor_registration = _register_assay_successor_artefact(
+        runtime,
+        tmp_path,
+        correction_ref=correction["artefact_ref"],
+        correction_document=correction["document"],
+        accepted=accepted,
+        monkeypatch=monkeypatch,
+        reject_first=True,
+    )
+    trigger = {
+        key: successor_registration[key]
+        for key in ("artefact_ref", "artefact_type", "registered_global_position", "document")
+    }
+    stale = _command(
+        "RecordAssayBarStaleness",
+        "dec_019fed25-b33e-7740-b280-000000000107",
+        3,
+        {
+            "row_id": "OR-109",
+            "authority_kind": "assay_bar",
+            "acceptance_sha256": bar_sha256,
+            "trigger_evidence_refs": [correction["artefact_ref"], trigger["artefact_ref"]],
+            "source_correction_trigger": trigger,
+        },
+    )
+    stale["actor_id"] = ASSAY_AUTHORITY_ACTORS[1]
+
+    _accept_registered_artefact(
+        runtime,
+        tmp_path,
+        artefact_id=trigger["artefact_ref"]["id"],
+        content_sha256=trigger["artefact_ref"]["content_hash"],
+        owner_grant_id=successor_registration["authority_grant_id"],
+        owner_actor_id=successor_registration["acceptor_actor_id"],
+    )
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Assay-bar staleness transition"):
+        runtime.submit(stale)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    _accept_registered_artefact(
+        runtime,
+        tmp_path,
+        artefact_id=correction["artefact_ref"]["id"],
+        content_sha256=correction["artefact_ref"]["content_hash"],
+        owner_grant_id=correction["authority_grant_id"],
+        owner_actor_id=correction["acceptor_actor_id"],
+    )
+    accepted_projection = replay_discovery(runtime.ledger.iter_events())
+    accepted_projection["assay_authority_successor_proofs"][trigger["artefact_ref"]["id"]] = {
+        "actor_id": stale["actor_id"],
+        "artefact_ref": deepcopy(trigger["artefact_ref"]),
+        "document_sha256": trigger["artefact_ref"]["content_hash"],
+        "git_commit": trigger["document"]["git_commit"],
+        "governed_sources": deepcopy(trigger["document"]["governed_sources"]),
+        "successor_content_hashes": {
+            "rubric": successor_rubric["content_hash"],
+            "scope": successor_scope["content_hash"],
+        },
+    }
+    correction_position = accepted_projection["artefact_registration_positions"][correction["artefact_ref"]["id"]]
+    successor_position = accepted_projection["artefact_registration_positions"][trigger["artefact_ref"]["id"]]
+    assert correction_position < successor_position
+    assert _assay_staleness_matches(stale["payload"], accepted_projection, schemas=_HARNESSES[tmp_path].schemas), {
+        key: {
+            "position": accepted_projection["artefact_registration_positions"][key],
+            "use": accepted_projection["artefact_streams"][key]["use_authority"],
+            "manifest": accepted_projection["artefact_streams"][key]["manifest"],
+        }
+        for key in (correction["artefact_ref"]["id"], trigger["artefact_ref"]["id"])
+    }
+    for candidate_id in (correction["artefact_ref"]["id"], trigger["artefact_ref"]["id"]):
+        candidate_only = deepcopy(accepted_projection)
+        candidate_only["artefact_streams"][candidate_id]["use_authority"] = "candidate"
+        assert not _assay_staleness_matches(stale["payload"], candidate_only, schemas=_HARNESSES[tmp_path].schemas)
+    inverted = deepcopy(accepted_projection)
+    inverted["artefact_registration_positions"][correction["artefact_ref"]["id"]] = successor_position + 1
+    assert not _assay_staleness_matches(stale["payload"], inverted, schemas=_HARNESSES[tmp_path].schemas)
+
+    authorship_mismatch = deepcopy(accepted_projection)
+    authorship_mismatch["artefact_streams"][correction["artefact_ref"]["id"]]["manifest"]["producer_actor_id"] = ACTORS[
+        "actor-a"
+    ]
+    assert not _assay_staleness_matches(stale["payload"], authorship_mismatch, schemas=_HARNESSES[tmp_path].schemas)
+    scorecard_mismatch = deepcopy(accepted_projection)
+    scorecard_mismatch["assays"][scorecard_ref["id"]]["scorecard_sha256"] = "f" * 64
+    assert not _assay_staleness_matches(stale["payload"], scorecard_mismatch, schemas=_HARNESSES[tmp_path].schemas)
+    decision_mismatch = deepcopy(accepted_projection)
+    terminal_decision = next(
+        value
+        for value in decision_mismatch["decisions"].values()
+        if value.get("terminal_event_id") == decision_ref["id"]
+    )
+    terminal_decision["terminal_event_hash"] = "f" * 64
+    assert not _assay_staleness_matches(stale["payload"], decision_mismatch, schemas=_HARNESSES[tmp_path].schemas)
+
+    generic_bypass_payload = deepcopy(stale["payload"])
+    generic_bypass_projection = deepcopy(accepted_projection)
+    bypass_document = generic_bypass_payload["source_correction_trigger"]["document"]
+    bypass_rubric = bypass_document["successor_authority"]["rubric_content"]
+    bypass_scope = bypass_document["successor_authority"]["scope_content"]
+    bypass_rubric["recommendation_predicates"][1] = "PROMOTE requires a total score of at least three"
+    bypass_rubric["rule_evaluation_algorithm_hash"] = sha256_hex(
+        canonical_bytes({field: bypass_rubric[field] for field in assay_successor_module._RULE_HASH_FIELDS})
+    )
+    bypass_rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in bypass_rubric.items() if key != "content_hash"})
+    )
+    bypass_scope["rubric_ref"]["content_hash"] = bypass_rubric["content_hash"]
+    bypass_scope["scope_closure_algorithm_hash"] = sha256_hex(
+        canonical_bytes({field: bypass_scope[field] for field in SCOPE_HASH_FIELDS})
+    )
+    bypass_scope["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in bypass_scope.items() if key != "content_hash"})
+    )
+    bypass_document["successor_authority"]["rubric_ref"]["content_hash"] = bypass_rubric["content_hash"]
+    bypass_document["successor_authority"]["scope_ref"]["content_hash"] = bypass_scope["content_hash"]
+    bypass_hash = sha256_hex(canonical_bytes(bypass_document))
+    bypass_ref = generic_bypass_payload["source_correction_trigger"]["artefact_ref"]
+    bypass_ref["content_hash"] = bypass_hash
+    generic_bypass_payload["trigger_evidence_refs"][1] = deepcopy(bypass_ref)
+    generic_bypass_projection["artefact_streams"][bypass_ref["id"]]["content_sha256"] = bypass_hash
+    assert not _assay_staleness_matches(
+        generic_bypass_payload, generic_bypass_projection, schemas=_HARNESSES[tmp_path].schemas
+    )
+
+    arbitrary_route_payload = deepcopy(stale["payload"])
+    arbitrary_route_projection = deepcopy(accepted_projection)
+    arbitrary_route_projection["assay_authority_successor_proofs"] = {}
+    arbitrary_document = arbitrary_route_payload["source_correction_trigger"]["document"]
+    arbitrary_rubric = arbitrary_document["successor_authority"]["rubric_content"]
+    arbitrary_scope = arbitrary_document["successor_authority"]["scope_content"]
+    arbitrary_route_hash = "e" * 64
+    arbitrary_document["governed_sources"]["route"]["content_sha256"] = arbitrary_route_hash
+    for authority_content in (arbitrary_rubric, arbitrary_scope):
+        authority_content["effective_project_scope_ref"]["content_hash"] = arbitrary_route_hash
+        next(ref for ref in authority_content["source_refs"] if ref.get("id") == "SPEC-GATE6-RUN-V1")[
+            "content_hash"
+        ] = arbitrary_route_hash
+    next(ref for ref in arbitrary_rubric["source_authority_refs"] if ref.get("id") == "SPEC-GATE6-RUN-V1")[
+        "content_hash"
+    ] = arbitrary_route_hash
+    arbitrary_rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in arbitrary_rubric.items() if key != "content_hash"})
+    )
+    arbitrary_scope["rubric_ref"]["content_hash"] = arbitrary_rubric["content_hash"]
+    arbitrary_scope["scope_closure_algorithm_hash"] = sha256_hex(
+        canonical_bytes({field: arbitrary_scope[field] for field in SCOPE_HASH_FIELDS})
+    )
+    arbitrary_scope["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in arbitrary_scope.items() if key != "content_hash"})
+    )
+    arbitrary_document["successor_authority"]["rubric_ref"]["content_hash"] = arbitrary_rubric["content_hash"]
+    arbitrary_document["successor_authority"]["scope_ref"]["content_hash"] = arbitrary_scope["content_hash"]
+    arbitrary_document_hash = sha256_hex(canonical_bytes(arbitrary_document))
+    arbitrary_ref = arbitrary_route_payload["source_correction_trigger"]["artefact_ref"]
+    arbitrary_ref["content_hash"] = arbitrary_document_hash
+    arbitrary_route_payload["trigger_evidence_refs"][1] = deepcopy(arbitrary_ref)
+    arbitrary_route_projection["artefact_streams"][arbitrary_ref["id"]]["content_sha256"] = arbitrary_document_hash
+    assert not _assay_staleness_matches(
+        arbitrary_route_payload, arbitrary_route_projection, schemas=_HARNESSES[tmp_path].schemas
+    )
+
+    for mutator in (
+        lambda value: value["source_correction_trigger"].update(artefact_type="evaluation_run"),
+        lambda value: value["source_correction_trigger"].update(
+            registered_global_position=value["source_correction_trigger"]["registered_global_position"] + 1
+        ),
+        lambda value: value["source_correction_trigger"]["document"]["accepted_authority"]["rubric_ref"].update(
+            content_hash="f" * 64
+        ),
+        lambda value: value["source_correction_trigger"]["document"]["source_correction_document"].update(
+            scientific_disposition="PROMOTE"
+        ),
+    ):
+        invalid = deepcopy(stale)
+        invalid["command_id"] = new_id("command")
+        invalid["idempotency_key"] = f"{invalid['idempotency_key']}:invalid:{invalid['command_id']}"
+        mutator(invalid["payload"])
+        before = tuple(runtime.ledger.iter_events())
+        with pytest.raises(IntegrityError, match="invalid Assay-bar staleness transition"):
+            runtime.submit(invalid)
+        assert tuple(runtime.ledger.iter_events()) == before
+
+    assert runtime.submit(stale).status == "accepted"
+    projection = replay_discovery(runtime.ledger.iter_events())
+    assert projection["assay_bar_authority"]["status"] == "stale"
+    assert projection["assay_bar_authority"]["staleness"]["source_correction_trigger"] == trigger
+    assert scorecard_ref["id"] in projection["assays"]
+
+    substituted_rubric = deepcopy(successor_rubric)
+    substituted_rubric["created_at"] = "2026-08-02T00:00:00Z"
+    substituted_rubric["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in substituted_rubric.items() if key != "content_hash"})
+    )
+    invalid_successor = _command(
+        "RegisterAssayRubricContent",
+        substituted_rubric["record_id"],
+        2,
+        {
+            "row_id": "OR-101",
+            "authority_kind": "assay_bar",
+            "content": substituted_rubric,
+            "authority_file_path": ASSAY_RUBRIC_V2_PATH,
+        },
+    )
+    invalid_successor["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    before = tuple(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Assay-bar content registration|successor_content_hash_mismatch"):
+        runtime.submit(invalid_successor)
+    assert tuple(runtime.ledger.iter_events()) == before
+
+    rubric_successor = _command(
+        "RegisterAssayRubricContent",
+        successor_rubric["record_id"],
+        2,
+        {
+            "row_id": "OR-101",
+            "authority_kind": "assay_bar",
+            "content": successor_rubric,
+            "authority_file_path": ASSAY_RUBRIC_V2_PATH,
+        },
+    )
+    rubric_successor["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(rubric_successor).status == "accepted"
+    scope_successor = _command(
+        "RegisterAssayEvidenceScopeContent",
+        successor_scope["record_id"],
+        2,
+        {
+            "row_id": "OR-102",
+            "authority_kind": "assay_bar",
+            "content": successor_scope,
+            "authority_file_path": ASSAY_SCOPE_V2_PATH,
+        },
+    )
+    scope_successor["actor_id"] = ASSAY_AUTHORITY_ACTORS[4]
+    assert runtime.submit(scope_successor).status == "accepted"
+    successor_state = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
+    assert successor_state["contents"]["rubric"]["content_sha256"] == successor_rubric["content_hash"]
+    assert successor_state["contents"]["scope"]["content_sha256"] == successor_scope["content_hash"]
+
+    tampered = [deepcopy(event) for event in runtime.ledger.iter_events()]
+    stale_event = next(event for event in tampered if event["event_type"] == "AssayBarStaled")
+    replay_payload = deepcopy(stale["payload"])
+    replay_payload["source_correction_trigger"]["registered_global_position"] += 1
+    stale_event["payload"]["authority_payload"]["source_correction_trigger"]["registered_global_position"] += 1
+    tampered_payload_hash = sha256_hex(canonical_bytes(replay_payload))
+    for transaction_event in tampered:
+        if transaction_event["transaction_id"] == stale_event["transaction_id"]:
+            transaction_event["command_payload_hash"] = tampered_payload_hash
+    with pytest.raises(IntegrityError, match="invalid Assay-bar staleness transition"):
+        replay_discovery(_rehash_events(tuple(tampered)))
 
 
 def test_request_assay_rejects_a_bar_bound_to_a_prior_route_without_rewriting_replay(tmp_path: Path) -> None:

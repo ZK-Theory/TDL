@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
 
 from research_system.canonical import canonical_bytes
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods import registration as registration_module
 from research_system.methods.registration import (
     CandidateDocumentStore,
@@ -201,6 +202,43 @@ def test_live_conflicting_recovery_marker_is_never_replaced(tmp_path, monkeypatc
     marker = marker_directory / f"{prepared.command['command_id']}.json"
     assert marker.read_bytes() == competing
     assert not tuple(marker_directory.glob(".*.tmp"))
+
+
+def test_staging_leaf_remains_bound_until_final_publication(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prepared, _store = _prepared(tmp_path)
+    replacement_attempted = False
+    replacement_blocked = False
+
+    def replace_staging(temporary, _target):
+        nonlocal replacement_attempted, replacement_blocked
+        replacement_attempted = True
+        try:
+            temporary.unlink()
+            temporary.write_bytes(b"attacker replacement")
+        except PermissionError:
+            replacement_blocked = True
+
+    monkeypatch.setattr(registration_module, "_after_contained_file_fsync", replace_staging)
+    marker = tmp_path / "runtime" / "registered-content-recovery" / f"{prepared.command['command_id']}.json"
+    if os.name == "nt":
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+        assert replacement_attempted and replacement_blocked
+        assert json.loads(marker.read_bytes())["command"]["command_id"] == prepared.command["command_id"]
+    else:
+        with pytest.raises(IntegrityError, match="staging identity changed"):
+            registration_module._publish_recovery_marker(
+                tmp_path,
+                prepared.command,
+                prepared.relative_path,
+                prepared.raw_bytes,
+            )
+        assert replacement_attempted
+        assert not marker.exists()
 
 
 def test_exact_recovery_marker_publication_is_idempotent(tmp_path) -> None:

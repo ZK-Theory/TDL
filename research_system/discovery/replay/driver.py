@@ -28,7 +28,11 @@ from research_system.discovery.replay.scope import EventScope
 from research_system.discovery.replay.transactions import validate_transaction_contract
 from research_system.discovery.routes import discovery_identity_exists as _discovery_identity_exists
 from research_system.discovery.routes import shared_event_partition as _shared_event_partition
-from research_system.discovery.rules import _is_spec_route_candidate, _parked_candidate_test_plan_matches
+from research_system.discovery.rules import (
+    _assay_staleness_matches,
+    _is_spec_route_candidate,
+    _parked_candidate_test_plan_matches,
+)
 from research_system.errors import IntegrityError
 from research_system.schema_registry import SchemaRegistry
 
@@ -121,6 +125,8 @@ def replay_discovery(
         "portfolio_objects": {},
         "scopes": {},
         "artefact_streams": {},
+        "artefact_registration_positions": {},
+        "assay_authority_successor_proofs": {},
         "authority_events": [],
         "authorities": {},
         "authority_streams": {},
@@ -417,6 +423,7 @@ def replay_discovery(
                 )
                 if event_type == "ArtefactRegistered":
                     canonical_artefact_streams[stream_id]["registration_actor_id"] = event.get("actor_id")
+                    state["artefact_registration_positions"][stream_id] = event.get("global_position")
                 state["artefact_streams"][stream_id] = deepcopy(canonical_artefact_streams[stream_id])
             except (KeyError, TypeError, ValueError) as exc:
                 raise IntegrityError("invalid canonical artefact evidence") from exc
@@ -494,6 +501,18 @@ def replay_discovery(
                     content = content_state.get("content") if isinstance(content_state, Mapping) else None
                     if not isinstance(content, Mapping) or event.get("stream_id") != content.get("record_id"):
                         raise IntegrityError("Assay-bar observation stream mismatch")
+                if authority_event["event_type"] == "AssayAuthoritySuccessorRegistered":
+                    proof = authority_event["payload"]
+                    artefact_ref = proof.get("artefact_ref") if isinstance(proof, Mapping) else None
+                    artefact_id = artefact_ref.get("id") if isinstance(artefact_ref, Mapping) else None
+                    if not isinstance(artefact_id, str) or artefact_id in state["assay_authority_successor_proofs"]:
+                        raise IntegrityError("invalid Assay authority successor proof")
+                    state["assay_authority_successor_proofs"][artefact_id] = deepcopy(proof)
+                    continue
+                if authority_event["event_type"] == "AssayBarStaled" and not _assay_staleness_matches(
+                    authority_payload, state, schemas=active_schemas
+                ):
+                    raise IntegrityError("invalid Assay-bar staleness transition")
                 state["assay_bar_authority_events"].append(authority_event)
                 claim_authority_stream(event["stream_id"], authority_kind)
                 try:

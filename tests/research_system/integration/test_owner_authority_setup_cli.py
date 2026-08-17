@@ -313,6 +313,154 @@ def test_spec_02_execution_lane_includes_terminal_operational_cleanup():
     }.issubset(SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES)
 
 
+def _monitoring_intent(inputs, actor_id: str) -> dict[str, Any]:
+    intent = deepcopy(inputs.intent_value)
+    intent.update(
+        {
+            "retry_key": "assay-bar-monitoring-grant",
+            "target_actor_id": actor_id,
+            "target_actor_class": "service",
+            "authority_lane": "operator/assay_bar_monitoring",
+            "actor_role": "authority watcher/operator",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "decision", "id": "dec_01978abc-3015-7000-8000-000000003015"},
+            },
+            "reason": "authorize exact OR-109 monitoring for one accepted Assay bar",
+        }
+    )
+    return intent
+
+
+@pytest.mark.integration
+def test_assay_bar_monitoring_lane_is_owner_publishable_without_broadening(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    actor = setup.register_actor(
+        RegisterAuthorityActor(
+            "Assay authority watcher",
+            "service",
+            "codex_desktop",
+            "1.0",
+            "assay-bar-monitoring-session",
+            "Monitor the accepted Assay bar for governed staleness triggers.",
+            "operator",
+            "operator/assay_bar_monitoring",
+            "2026-08-14T10:00:00Z",
+            "2026-08-15T10:00:00Z",
+            ("spec-route:OR-109",),
+            "Register the observed authority-watcher session.",
+            "register-codex-desktop-actor",
+            "assay-bar-monitoring-actor",
+        )
+    )
+    intent = _monitoring_intent(inputs, actor["actor_id"])
+
+    material = setup._derive_publication_material(intent)
+
+    assert material["grant_value"]["allowed_actor_classes"] == ["service"]
+    assert material["grant_value"]["risk_ceiling"] == "R2"
+    assert [item["command_type"] for item in material["grant_value"]["allowed_commands"]] == ["RecordAssayBarStaleness"]
+    published = setup.publish(intent)
+    activation = setup.activate(
+        {
+            "retry_key": "assay-bar-monitoring-activation",
+            "publication_command_id": published["command_id"],
+            "reason": "activate the exact OR-109 monitoring grant",
+            "evidence_refs": ["spec-route:OR-109"],
+        }
+    )
+    assert activation["status"] == "accepted"
+    grant = inputs.harness.authority_objects.read("authority_grant", published["authority_grant_id"], 1)
+    resolved = inputs.harness.authority_resolver.resolve_command(
+        grant["authority_grant_id"],
+        grant["actor_id"],
+        "service",
+        GrantedCommandIdentity.from_dict(grant["allowed_commands"][0]),
+        "R2",
+        PROJECT_ID,
+        "decision",
+        "dec_01978abc-3015-7000-8000-000000003015",
+        NOW,
+    )
+    assert resolved.authority_grant_id == grant["authority_grant_id"]
+
+
+@pytest.mark.integration
+def test_assay_bar_monitoring_lane_rejects_other_subjects_without_publication(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    actor = setup.register_actor(
+        RegisterAuthorityActor(
+            "Assay authority watcher",
+            "service",
+            "codex_desktop",
+            "1.0",
+            "assay-bar-monitoring-negative-session",
+            "Monitor the accepted Assay bar for governed staleness triggers.",
+            "operator",
+            "operator/assay_bar_monitoring",
+            "2026-08-14T10:00:00Z",
+            "2026-08-15T10:00:00Z",
+            ("spec-route:OR-109",),
+            "Register the observed authority-watcher session.",
+            "register-codex-desktop-actor",
+            "assay-bar-monitoring-negative-actor",
+        )
+    )
+    intent = _monitoring_intent(inputs, actor["actor_id"])
+    intent["subject_scope"]["subject"] = {
+        "kind": "scope_definition",
+        "id": "obj_01978abc-3015-7000-8000-000000003015",
+    }
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+
+    with pytest.raises(ArsError, match="no command for the subject kind"):
+        setup.publish(intent)
+
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
+def test_assay_bar_monitoring_registration_rejects_agent_actor_class(inputs):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    before = tuple(inputs.harness.authority_ledger.iter_events())
+
+    with pytest.raises(ArsError, match="actor class is not permitted"):
+        setup.register_actor(
+            RegisterAuthorityActor(
+                "Assay authority watcher",
+                "agent",
+                "codex_desktop",
+                "1.0",
+                "assay-bar-agent-session",
+                "Monitor the accepted Assay bar for governed staleness triggers.",
+                "operator",
+                "operator/assay_bar_monitoring",
+                "2026-08-14T10:00:00Z",
+                "2026-08-15T10:00:00Z",
+                ("spec-route:OR-109",),
+                "Reject an agent from the operator-only monitoring lane.",
+                "register-codex-desktop-actor",
+                "assay-bar-agent-actor",
+            )
+        )
+
+    assert tuple(inputs.harness.authority_ledger.iter_events()) == before
+
+
+@pytest.mark.integration
+def test_assay_bar_monitoring_lane_rejects_catalogue_role_drift(inputs):
+    catalogue_path = inputs.route_root / ".research-system/evals/expected/w11-portfolio-discovery-v1.json"
+    catalogue = json.loads(catalogue_path.read_bytes())
+    row = next(item for item in catalogue["owner_contract_rows"] if item["owner_row_id"] == "OR-109")
+    row["eligible_profile"] = "Operator/auditor"
+    _json(catalogue_path, catalogue)
+    _git(inputs.route_root, "add", catalogue_path.relative_to(inputs.route_root).as_posix())
+    _git(inputs.route_root, "commit", "--quiet", "-m", "drift OR-109 profile")
+
+    with pytest.raises(ConfigurationError, match="monitoring exclusion binding mismatch"):
+        owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+
 def test_legacy_generic_artefact_grant_is_not_reclassified_as_a_spec_role(inputs):
     owner_actor_id = inputs.harness.authority_resolver.administration_context().owner_actor_id
     legacy = activate_lifecycle_grant(
@@ -654,6 +802,38 @@ def test_event_committed_before_receipt_recovers_exact_result(inputs, monkeypatc
         )
         == 1
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("boundary", ["object", "event"])
+def test_exact_owner_publication_recovers_after_window_expiry(inputs, monkeypatch, boundary):
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+
+    def stop_before_event(*_args, **_kwargs):
+        raise KeyboardInterrupt("injected hard stop before event")
+
+    def stop_after_event(*_args, **_kwargs):
+        raise KeyboardInterrupt("injected hard stop after event")
+
+    if boundary == "object":
+        monkeypatch.setattr(setup.service.ledger, "_append_scoped_authority_from_validated_submit", stop_before_event)
+    else:
+        monkeypatch.setattr(setup.service.receipts, "write_scoped", stop_after_event)
+    with pytest.raises(KeyboardInterrupt, match="injected hard stop"):
+        setup.publish(inputs.intent_value)
+
+    expired = datetime(2026, 8, 16, 12, tzinfo=UTC)
+    recovered = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: expired).publish(
+        inputs.intent_value
+    )
+    assert recovered["status"] == "accepted"
+    publications = [
+        event
+        for event in inputs.harness.authority_ledger.iter_events()
+        if event["event_type"] == "OwnerAuthorityAdministrationDecisionPublished"
+    ]
+    assert len(publications) == 1
+    assert not tuple((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
 
 
 @pytest.mark.integration

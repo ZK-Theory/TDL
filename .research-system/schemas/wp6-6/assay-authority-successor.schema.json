@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/assay-authority-successor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "document_type", "successor_id", "route_id", "created_at", "producer_actor_id", "source_correction_ref", "source_correction_document", "accepted_authority", "successor_authority", "governed_sources", "git_commit"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/assay-authority-successor"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "assay_authority_successor"},
+    "successor_id": {"type": "string", "pattern": "^assay-authority-successor:[a-z0-9._:-]+$"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "created_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "source_correction_ref": {"$ref": "#/$defs/recordRef"},
+    "source_correction_document": {"$ref": "ars://portfolio/spec-01-source-correction"},
+    "accepted_authority": {"$ref": "#/$defs/authorityPair"},
+    "successor_authority": {"$ref": "#/$defs/authorityFilePair"},
+    "governed_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route", "spec_01"],
+      "properties": {
+        "route": {"$ref": "#/$defs/fileRef"},
+        "spec_01": {"$ref": "#/$defs/fileRef"}
+      }
+    },
+    "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "recordRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "record_revision", "content_hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "record_revision": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_path", "content_sha256"],
+      "properties": {
+        "repository_path": {"type": "string", "minLength": 1},
+        "content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "contentFileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "record_revision", "content_hash", "repository_path"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "record_revision": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"},
+        "repository_path": {"type": "string", "minLength": 1}
+      }
+    },
+    "authorityPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rubric_ref", "scope_ref"],
+      "properties": {
+        "rubric_ref": {"$ref": "#/$defs/recordRef"},
+        "scope_ref": {"$ref": "#/$defs/recordRef"}
+      }
+    },
+    "authorityFilePair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rubric_ref", "rubric_content", "scope_ref", "scope_content"],
+      "properties": {
+        "rubric_ref": {"$ref": "#/$defs/contentFileRef"},
+        "rubric_content": {"$ref": "ars://portfolio/assay-rubric-content"},
+        "scope_ref": {"$ref": "#/$defs/contentFileRef"},
+        "scope_content": {"$ref": "ars://portfolio/assay-evidence-scope-content"}
+      }
+    }
+  }
+}

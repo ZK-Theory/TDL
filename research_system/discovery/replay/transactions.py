@@ -62,6 +62,10 @@ def _catalogue_write_set(row_id: str) -> tuple[str, ...]:
 
 
 _WRITE_SET_OVERRIDES: dict[str, tuple[tuple[str, ...], ...]] = {
+    "OR-109": (
+        ("AssayBarStaled",),
+        ("AssayAuthoritySuccessorRegistered", "AssayBarStaled"),
+    ),
     "OR-011": (
         (
             "AssayRequested",
@@ -328,7 +332,20 @@ def _command_payload_candidates(row_id: str, events: Sequence[Mapping[str, Any]]
     elif row_id == "OR-140":
         candidates.append(dict(ACCEPTED))
     if events:
-        payload = events[0].get("payload")
+        source_event = (
+            next(
+                (
+                    event
+                    for event in events
+                    if isinstance(event.get("payload"), Mapping)
+                    and event["payload"].get("authority_event_type") == "AssayBarStaled"
+                ),
+                events[0],
+            )
+            if row_id == "OR-109"
+            else events[0]
+        )
+        payload = source_event.get("payload")
         if isinstance(payload, Mapping):
             authority_payload = payload.get("authority_payload")
             authority_kind = payload.get("authority_kind")
@@ -345,13 +362,16 @@ def _command_payload_candidates(row_id: str, events: Sequence[Mapping[str, Any]]
                 elif row_id in {"OR-103", "OR-104"}:
                     candidates.append(base)
                 elif row_id == "OR-109":
-                    candidates.append(
-                        {
-                            **base,
-                            "acceptance_sha256": authority_payload.get("acceptance_sha256"),
-                            "trigger_evidence_refs": deepcopy(authority_payload.get("trigger_evidence_refs")),
-                        }
-                    )
+                    candidate = {
+                        **base,
+                        "acceptance_sha256": authority_payload.get("acceptance_sha256"),
+                        "trigger_evidence_refs": deepcopy(authority_payload.get("trigger_evidence_refs")),
+                    }
+                    if "source_correction_trigger" in authority_payload:
+                        candidate["source_correction_trigger"] = deepcopy(
+                            authority_payload["source_correction_trigger"]
+                        )
+                    candidates.append(candidate)
                 elif row_id in {"OR-110", "OR-116"}:
                     candidates.append({**base, "subject": deepcopy(authority_payload.get("subject"))})
                 elif row_id in {"OR-111", "OR-117"}:

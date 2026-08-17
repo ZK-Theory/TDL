@@ -150,6 +150,26 @@ def test_repair_scrubs_repository_overriding_git_environment(tmp_path: Path, mon
     assert repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))["status"] == "repaired"
 
 
+def test_repair_rejects_a_clean_committed_route_symlink_before_publication(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    route = candidate / intent.spec_route_ref
+    external = tmp_path / "external-route.json"
+    external.write_bytes(route.read_bytes())
+    route.unlink()
+    try:
+        route.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "committed redirected route")
+    before = _publication_snapshot(target)
+
+    with pytest.raises(IntegrityError, match="physical path|redirected"):
+        repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert _publication_snapshot(target) == before
+
+
 def test_repair_rejects_redirected_object_parent_before_publication(tmp_path: Path, monkeypatch) -> None:
     _initialized, _witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     object_parent = target / "objects" / "binding-repair"
@@ -628,6 +648,25 @@ def test_source_mismatch_and_successor_tamper_or_clean_git_drift_fail_closed(tmp
         load_store_manifest(target, approved_witness=witness, approved_witness_path=initialized.witness_path)
     with pytest.raises(IntegrityError, match="successor object"):
         repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+
+def test_recovery_binding_rejects_duplicate_spec_source_identity(tmp_path: Path, monkeypatch):
+    initialized, witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    recovery_path = target / "manifests" / "binding-repair-current.json"
+    recovery = json.loads(recovery_path.read_bytes())
+    recovery["sources"] = [recovery["sources"][0], recovery["sources"][0]]
+    recovery_path.write_bytes(canonical_bytes(recovery))
+
+    with pytest.raises(IntegrityError, match="route evidence is invalid"):
+        load_recovery_binding(
+            target,
+            expected_project_id=witness.project_id,
+            expected_store_identity=witness.store_identity,
+            expected_origin_witness_sha256=witness.raw_sha256,
+        )
+
+    assert initialized.witness_path.exists()
 
 
 def test_repaired_loaders_reject_redirected_successor_paths_without_publication(tmp_path: Path, monkeypatch):

@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any, Iterable, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.discovery.assay_successor import successor_document_hashes
 
 
 class AssayAuthorityRejected(ValueError):
@@ -42,6 +43,26 @@ def _record_ref(value: object, label: str) -> dict[str, Any]:
         "record_revision": revision,
         "content_hash": _digest(value.get("content_hash"), f"{label}_content_hash"),
     }
+
+
+def _declared_successor_hashes(staleness: Mapping[str, Any]) -> dict[str, str] | None:
+    """Return the successor content hashes sealed by a governed OR-109 document."""
+
+    trigger = staleness.get("source_correction_trigger")
+    if trigger is None:
+        return None
+    if not isinstance(trigger, Mapping) or set(trigger) != {
+        "artefact_ref",
+        "artefact_type",
+        "registered_global_position",
+        "document",
+    }:
+        raise AssayAuthorityRejected("invalid_source_correction_trigger")
+    try:
+        hashes = successor_document_hashes(trigger.get("document"))
+    except ValueError as exc:
+        raise AssayAuthorityRejected("invalid_source_correction_trigger") from exc
+    return {kind: _digest(value, f"successor_{kind}_content_hash") for kind, value in hashes.items()}
 
 
 def content_sha256(content: Mapping[str, Any]) -> str:
@@ -126,9 +147,11 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
             content = payload.get("content")
             if not isinstance(content, dict):
                 raise AssayAuthorityRejected("invalid_content")
+            expected_successor_hashes: dict[str, str] | None = None
             if state["status"] == "stale":
                 if kind != "rubric":
                     raise AssayAuthorityRejected("invalid_successor_order")
+                expected_successor_hashes = _declared_successor_hashes(state.get("staleness", {}))
                 prior_revision = state["contents"].get(kind, {}).get("content", {}).get("record_revision")
                 if (
                     type(prior_revision) is not int
@@ -145,13 +168,18 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
                 history = state["history"]
                 history.append({key: deepcopy(value) for key, value in state.items() if key != "history"})
                 predecessor_contents = deepcopy(state["contents"])
+                successor_state = {
+                    "contents": {},
+                    "observations": {},
+                    "status": "empty",
+                    "history": history,
+                    "predecessor_contents": predecessor_contents,
+                }
+                if expected_successor_hashes is not None:
+                    successor_state["expected_successor_content_hashes"] = expected_successor_hashes
                 state.clear()
                 state.update(
-                    contents={},
-                    observations={},
-                    status="empty",
-                    history=history,
-                    predecessor_contents=predecessor_contents,
+                    successor_state,
                 )
                 actors.clear()
             if kind in state["contents"] or state["status"] not in {"empty", "content_registered"}:
@@ -159,6 +187,9 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
             digest = _digest(content.get("content_hash"), "content_hash")
             if content_sha256(content) != digest or payload.get("content_sha256") != digest:
                 raise AssayAuthorityRejected("content_hash_mismatch")
+            expected_successor_hashes = state.get("expected_successor_content_hashes")
+            if isinstance(expected_successor_hashes, Mapping) and digest != expected_successor_hashes.get(kind):
+                raise AssayAuthorityRejected("successor_content_hash_mismatch")
             authority_file_path = payload.get("authority_file_path")
             if not isinstance(authority_file_path, str) or not authority_file_path:
                 raise AssayAuthorityRejected("authority_file_path_missing")
@@ -365,6 +396,7 @@ def replay_assay_bar_authority(events: Iterable[Mapping[str, Any]]) -> dict[str,
         if event_type == "AssayBarStaled":
             if state["status"] != "accepted" or payload.get("acceptance_sha256") != state.get("acceptance_sha256"):
                 raise AssayAuthorityRejected("invalid_staleness_transition")
+            _declared_successor_hashes(payload)
             state.update(status="stale", staleness=deepcopy(payload))
             continue
 

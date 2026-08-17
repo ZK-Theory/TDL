@@ -71,6 +71,7 @@ _LANE_COMMAND_POLICY = {
     "authority_requester/authority": frozenset({"RequestW11AuthorityReview"}),
     "authority_proposer/authority": frozenset({"ProposeW11AuthorityDecision"}),
     "owner_decider/decision": frozenset({"ResolveDecision"}),
+    "operator/assay_bar_monitoring": frozenset({"RecordAssayBarStaleness"}),
     "portfolio_steward/dossier_authority": frozenset({"RegisterDossierExpectedSetContent"}),
     "operator/path_authority": frozenset({"RegisterPathRegistrationContent"}),
     "operator/admission": frozenset({"AdmitResearchDossier"}),
@@ -127,6 +128,7 @@ _LANE_CONTEXT_POLICY = {
         {"authority", "promotion_stop", "spec_02_spike", "result_stop"},
         {"Stephen"},
     ),
+    "operator/assay_bar_monitoring": ({"authority"}, {"authority watcher/operator"}),
     "portfolio_steward/dossier_authority": ({"authority"}, {"Portfolio Steward"}),
     "operator/path_authority": ({"authority"}, {"Operator/auditor"}),
     "operator/admission": ({"admission"}, {"Operator/auditor R2"}),
@@ -160,6 +162,14 @@ _SPEC_FLOW_SUPPORT_LANES = frozenset(
         "operator/spec_02_execution",
     }
 )
+_ROUTE_MONITORING_LANES = frozenset({"operator/assay_bar_monitoring"})
+_ASSAY_STALENESS_EXCLUSION = {
+    "owner_rows": ["OR-109"],
+    "reason": (
+        "Staleness recording is monitoring outside the one-time command route; "
+        "entry still requires a current accepted bar."
+    ),
+}
 _LANE_RISK_POLICY = {lane: ("R3" if lane in _SPEC_FLOW_SUPPORT_LANES else "R2") for lane in _LANE_COMMAND_POLICY}
 _LANE_ALLOWED_ACTOR_CLASSES = {
     lane: (
@@ -459,16 +469,14 @@ def _load_route(repository_root: Path) -> frozenset[str]:
     if route.get("governed_command_types") != derived:
         raise ConfigurationError("SPEC route governed commands are not independently derived")
     lane_commands = [command for commands in _LANE_COMMAND_POLICY.values() for command in commands]
+    external_lanes = _SPEC_FLOW_SUPPORT_LANES | _ROUTE_MONITORING_LANES
     route_lane_commands = [
-        command
-        for lane, commands in _LANE_COMMAND_POLICY.items()
-        if lane not in _SPEC_FLOW_SUPPORT_LANES
-        for command in commands
+        command for lane, commands in _LANE_COMMAND_POLICY.items() if lane not in external_lanes for command in commands
     ]
     if len(lane_commands) != len(set(lane_commands)) or set(route_lane_commands) != set(derived):
         raise ConfigurationError("SPEC route authority lane policy does not partition the accepted commands")
     for lane, commands in _LANE_COMMAND_POLICY.items():
-        if lane in _SPEC_FLOW_SUPPORT_LANES:
+        if lane in external_lanes:
             continue
         stages, profiles = _LANE_CONTEXT_POLICY[lane]
         if any(
@@ -476,8 +484,24 @@ def _load_route(repository_root: Path) -> frozenset[str]:
             for command in commands
         ):
             raise ConfigurationError("SPEC route authority lane role/stage binding mismatch")
+    monitoring_rows = rows.get("OR-109")
+    monitoring_exclusions = [
+        exclusion
+        for exclusion in route.get("intentional_exclusions", [])
+        if isinstance(exclusion, dict) and "OR-109" in exclusion.get("owner_rows", [])
+    ]
+    monitoring_commands = {command for lane in _ROUTE_MONITORING_LANES for command in _LANE_COMMAND_POLICY[lane]}
+    if (
+        monitoring_exclusions != [_ASSAY_STALENESS_EXCLUSION]
+        or not isinstance(monitoring_rows, dict)
+        or monitoring_rows.get("command_type") != "RecordAssayBarStaleness"
+        or monitoring_rows.get("eligible_profile") != "authority watcher/operator"
+        or monitoring_commands != {"RecordAssayBarStaleness"}
+        or monitoring_commands & set(derived)
+    ):
+        raise ConfigurationError("SPEC route monitoring exclusion binding mismatch")
     support_commands = {command for lane in _SPEC_FLOW_SUPPORT_LANES for command in _LANE_COMMAND_POLICY[lane]}
-    return frozenset(derived) | support_commands
+    return frozenset(derived) | support_commands | monitoring_commands
 
 
 def _enforce_durable_role_independence(
@@ -959,13 +983,23 @@ class OwnerAuthoritySetup:
         effective_at, effective_text = _utc_text(request.get("effective_at"), field="effective_at")
         expires_at, expires_text = _utc_text(request.get("expires_at"), field="expires_at")
         now = self.clock()
-        if now.tzinfo != UTC or not effective_at <= now < expires_at or effective_at >= expires_at:
+        semantic_intent = {
+            key: json.loads(canonical_bytes(value)) for key, value in request.items() if key != "retry_key"
+        }
+        command_id = _deterministic_id("owner-authority-publication-command", "cmd", retry_key)
+        payload_hash = sha256_hex(canonical_bytes({"intent": semantic_intent}))
+        recovering = self.service.has_exact_owner_publication_recovery(
+            command_id=command_id,
+            payload_hash=payload_hash,
+            idempotency_key=retry_key,
+        )
+        if now.tzinfo != UTC or effective_at >= expires_at or (not effective_at <= now < expires_at and not recovering):
             raise ArsError("owner authority intent window is not current and finite")
         context = self.resolver.administration_context()
         known = _known_authority_actor_classes(
             self.root,
             self.objects,
-            now=now,
+            now=now if effective_at <= now < expires_at else effective_at,
             project_id=str(context.project_id),
             store_identity=str(context.store_identity),
             owner_actor_id=str(context.owner_actor_id),
@@ -980,9 +1014,6 @@ class OwnerAuthoritySetup:
             lane,
         ):
             raise ArsError("authority intent conflicts with the actor's governed session role")
-        semantic_intent = {
-            key: json.loads(canonical_bytes(value)) for key, value in request.items() if key != "retry_key"
-        }
         grant_id = _deterministic_id("owner-authority-grant", "agr", semantic_intent)
         decision_id = _deterministic_id("owner-authority-decision", "arec", semantic_intent)
         allowed_commands = []

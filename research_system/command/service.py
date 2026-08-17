@@ -923,6 +923,44 @@ class CommandService:
             and event.get("stream_id") == target_stream_id
         )
 
+    def has_exact_owner_publication_recovery(
+        self,
+        *,
+        command_id: str,
+        payload_hash: str,
+        idempotency_key: str,
+    ) -> bool:
+        """Return whether durable state proves this exact publication retry."""
+
+        marker_path = self._owner_publication_marker_path(command_id)
+        self._require_physical_owner_publication_marker_path(marker_path)
+        marker_matches = False
+        if marker_path.exists():
+            marker = self._load_owner_publication_marker(marker_path)
+            identity = marker["command_identity"]
+            marker_matches = (
+                marker["command_id"] == command_id
+                and marker["command_payload_hash"] == payload_hash
+                and identity.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
+                and identity.get("idempotency_key") == idempotency_key
+                and identity.get("command_id") == command_id
+            )
+            if not marker_matches:
+                raise IdempotencyConflictError("owner publication recovery marker conflicts")
+        events = tuple(
+            event
+            for event in self.ledger.snapshot().events
+            if event.get("command_id") == command_id
+            and event.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
+        )
+        if events:
+            if len(events) != 1 or events[0].get("command_payload_hash") != payload_hash:
+                raise IdempotencyConflictError("owner publication durable retry identity conflicts")
+            if events[0].get("idempotency_key") != idempotency_key:
+                raise IdempotencyConflictError("owner publication durable retry key conflicts")
+            return True
+        return marker_matches
+
     @staticmethod
     def _owner_publication_event_matches_marker(event: dict[str, Any], marker: dict[str, Any]) -> bool:
         command = marker["command_identity"]

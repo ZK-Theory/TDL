@@ -74,12 +74,14 @@ from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     C1_LEASE_ID,
     C1_RESOURCE_GRANT_ID,
     C1_TRUSTED_RUNTIME_AUTHORITY,
-    _bind_assay_fixture_to_current_spec_sources,
     _promotion_relation,
     _ref,
     _rehash_events,
     _scorecard,
     _seed_running_attempt,
+)
+from tests.research_system.assay_authority_helpers import (
+    bind_assay_fixture_to_current_spec_sources as _bind_assay_fixture_to_current_spec_sources,
 )
 
 

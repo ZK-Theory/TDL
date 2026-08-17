@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import research_system.authority_actor as authority_actor_module
+
 from research_system.authority_actor import (
     AuthorityActorRegistrationService,
     COMMAND_SCHEMA_ID,
@@ -196,6 +198,71 @@ def test_registration_is_durable_and_retry_is_duplicate(tmp_path: Path) -> None:
     registration["semantic_intent"] = {}
     with pytest.raises(SchemaError):
         service.schemas.validate(REGISTRATION_SCHEMA_ID, registration)
+
+
+def test_abandoned_legacy_staging_names_do_not_wedge_actor_registration(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime"
+    receipts = tmp_path / "receipts" / "authority_actor"
+    runtime.mkdir(parents=True)
+    receipts.mkdir(parents=True)
+    intent = _intent()
+    marker_name = f".authority-actor-registration-{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
+    registration_id = authority_actor_module._deterministic_id(
+        "authority-actor-registration",
+        "arec",
+        {"owner_actor_id": OWNER, "semantic": intent.semantic_payload()},
+    )
+    receipt_name = f"{registration_id}.json"
+    abandoned_marker = runtime / f".{marker_name}.{'1' * 64}.tmp"
+    abandoned_receipt = receipts / f".{receipt_name}.{'2' * 64}.tmp"
+    abandoned_marker.write_bytes(b'{"partial":')
+    abandoned_receipt.write_bytes(b'{"partial":')
+
+    result = _service(tmp_path).register(intent)
+
+    assert result["status"] == "accepted"
+    assert abandoned_marker.read_bytes() == b'{"partial":'
+    assert abandoned_receipt.read_bytes() == b'{"partial":'
+
+
+def test_actor_artifact_publication_keeps_staging_identity_until_link(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_link = authority_actor_module.os.link
+    replacement_succeeded = False
+
+    def replace_staging_before_link(source: Path, destination: Path, **kwargs: object) -> None:
+        nonlocal replacement_succeeded
+        try:
+            source.unlink()
+            source.write_bytes(b"attacker")
+            replacement_succeeded = True
+        except PermissionError:
+            pass
+        original_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(authority_actor_module.os, "link", replace_staging_before_link)
+    relative = Path("runtime") / "probe.json"
+    if os.name == "nt":
+        published = authority_actor_module._publish_physical_json(
+            tmp_path,
+            relative,
+            {"value": "trusted"},
+            label="probe publication",
+        )
+        assert replacement_succeeded is False
+        assert published.read_bytes() == canonical_bytes({"value": "trusted"})
+    else:
+        with pytest.raises(IntegrityError, match="publication identity is not exact"):
+            authority_actor_module._publish_physical_json(
+                tmp_path,
+                relative,
+                {"value": "trusted"},
+                label="probe publication",
+            )
+        assert replacement_succeeded is True
+        assert not (tmp_path / relative).exists()
 
 
 def test_prelock_concurrent_commit_cannot_report_a_second_acceptance(

@@ -91,11 +91,19 @@ def _validate_persisted_event_envelopes(
             if continue_schema_validation and is_authority_shadow:
                 owner_row_id = shadow_payload.get("owner_row_id")
                 route = DISCOVERY_ROW_ROUTES.get(owner_row_id)
+                expected_shadow = DISCOVERY_AUTHORITY_SHADOWS.get(owner_row_id)
+                is_assay_successor_proof = (
+                    owner_row_id == "OR-109"
+                    and shadow_payload.get("authority_kind") == "assay_bar"
+                    and event_type == "AssayAuthoritySuccessorRegistered"
+                )
                 if (
                     route is None
                     or route.command_type != command_type
-                    or DISCOVERY_AUTHORITY_SHADOWS.get(owner_row_id)
-                    != (shadow_payload.get("authority_kind"), event_type)
+                    or (
+                        expected_shadow != (shadow_payload.get("authority_kind"), event_type)
+                        and not is_assay_successor_proof
+                    )
                 ):
                     raise IntegrityError("authority shadow producer mismatch")
             command_binding = schemas.command_binding(command_type) if continue_schema_validation else None

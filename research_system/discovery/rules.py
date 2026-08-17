@@ -19,6 +19,12 @@ from typing import Any, Iterable, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
+from research_system.discovery.assay_successor import DOCUMENT_TYPE as ASSAY_SUCCESSOR_DOCUMENT_TYPE
+from research_system.discovery.assay_successor import SCHEMA_ID as ASSAY_SUCCESSOR_SCHEMA_ID
+from research_system.discovery.assay_successor import (
+    successor_document_hashes,
+    validate_successor_authority_semantics,
+)
 from research_system.discovery.dossier import (
     AcceptedExpectedSet,
     DossierMember,
@@ -26,7 +32,7 @@ from research_system.discovery.dossier import (
     admission_profile_hash,
     canonical_dossier_hash,
 )
-from research_system.errors import IntegrityError
+from research_system.errors import ConfigurationError, IntegrityError, SchemaError
 
 
 _ASSAY_PARTIAL_FIELDS = frozenset(
@@ -956,10 +962,15 @@ def _assay_cancellation_matches(
     )
 
 
-def _assay_staleness_matches(payload: Mapping[str, Any], state: Mapping[str, Any]) -> bool:
-    """Resolve one OR-109 trigger to a later observation proving an exact authority change."""
+def _is_lowercase_sha256(value: Any) -> bool:
+    """Return whether ``value`` is one canonical SHA-256 digest."""
 
-    refs = payload.get("trigger_evidence_refs")
+    return isinstance(value, str) and len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+
+
+def _assay_observation_staleness_matches(refs: Any, state: Mapping[str, Any], accepted_position: int) -> bool:
+    """Resolve the historical OR-109 observation trigger without changing its contract."""
+
     observations = state.get("source_observations")
     if not isinstance(refs, list) or not refs or not isinstance(observations, Mapping):
         return False
@@ -973,9 +984,6 @@ def _assay_staleness_matches(payload: Mapping[str, Any], state: Mapping[str, Any
                 accepted_hashes.add(current["content_sha256"])
     if isinstance(bar, Mapping) and isinstance(bar.get("producer_relation_sha256"), str):
         accepted_hashes.add(bar["producer_relation_sha256"])
-    accepted_position = bar.get("accepted_global_position") if isinstance(bar, Mapping) else None
-    if not isinstance(accepted_position, int):
-        return False
     for ref in refs:
         if not _projection_record_ref_matches(state, ref):
             return False
@@ -996,15 +1004,226 @@ def _assay_staleness_matches(payload: Mapping[str, Any], state: Mapping[str, Any
                 and parts[0] == "assay-bar-change"
                 and parts[1] in {"rubric", "scope", "producer"}
                 and parts[2] in accepted_hashes
-                and len(parts[3]) == 64
+                and _is_lowercase_sha256(parts[3])
                 and parts[3] != parts[2]
-                and all(char in "0123456789abcdef" for char in parts[3])
             ):
                 demonstrated = True
                 break
         if not demonstrated:
             return False
     return True
+
+
+def _assay_source_correction_staleness_matches(
+    trigger: Any,
+    refs: Any,
+    state: Mapping[str, Any],
+    accepted_position: int,
+    schemas: Any,
+) -> bool:
+    """Bind OR-109 to one later immutable authority-successor document."""
+
+    if not isinstance(trigger, Mapping) or set(trigger) != {
+        "artefact_ref",
+        "artefact_type",
+        "registered_global_position",
+        "document",
+    }:
+        return False
+    artefact_ref = trigger.get("artefact_ref")
+    document = trigger.get("document")
+    if (
+        not isinstance(refs, list)
+        or not isinstance(document, Mapping)
+        or not isinstance(artefact_ref, Mapping)
+        or set(artefact_ref) != {"id", "record_revision", "content_hash"}
+        or not _is_lowercase_sha256(artefact_ref.get("content_hash"))
+    ):
+        return False
+    streams = state.get("artefact_streams")
+    registration_positions = state.get("artefact_registration_positions")
+    artefact_id = artefact_ref.get("id")
+    artefact = streams.get(artefact_id) if isinstance(streams, Mapping) and isinstance(artefact_id, str) else None
+    manifest = artefact.get("manifest") if isinstance(artefact, Mapping) else None
+    registered_position = trigger.get("registered_global_position")
+    if not (
+        isinstance(manifest, Mapping)
+        and artefact.get("artefact_id") == artefact_id
+        and manifest.get("artefact_id") == artefact_id
+        and trigger.get("artefact_type") == ASSAY_SUCCESSOR_DOCUMENT_TYPE
+        and manifest.get("artefact_type") == trigger.get("artefact_type")
+        and manifest.get("artefact_schema_id") == ASSAY_SUCCESSOR_SCHEMA_ID
+        and manifest.get("artefact_schema_version") == "1.0.0"
+        and manifest.get("producer_actor_id") == document.get("producer_actor_id")
+        and artefact_ref
+        == {
+            "id": artefact_id,
+            "record_revision": 1,
+            "content_hash": artefact.get("content_sha256"),
+        }
+        and isinstance(registration_positions, Mapping)
+        and registered_position == registration_positions.get(artefact_id)
+        and type(registered_position) is int
+        and registered_position > accepted_position
+        and artefact.get("use_authority") == "accepted_for_scope"
+        and sha256_hex(canonical_bytes(document)) == artefact_ref.get("content_hash")
+    ):
+        return False
+
+    correction_ref = document.get("source_correction_ref")
+    correction_document = document.get("source_correction_document")
+    if (
+        refs != [correction_ref, artefact_ref]
+        or not isinstance(correction_ref, Mapping)
+        or not isinstance(correction_document, Mapping)
+        or sha256_hex(canonical_bytes(correction_document)) != correction_ref.get("content_hash")
+    ):
+        return False
+    try:
+        schemas.validate("ars://portfolio/spec-01-source-correction", correction_document, schema_version="1.0.0")
+    except (AttributeError, SchemaError):
+        return False
+    correction_id = correction_ref.get("id")
+    correction = streams.get(correction_id) if isinstance(streams, Mapping) and isinstance(correction_id, str) else None
+    correction_manifest = correction.get("manifest") if isinstance(correction, Mapping) else None
+    if not (
+        isinstance(correction_manifest, Mapping)
+        and correction_manifest.get("artefact_type") == "spec_01_source_correction"
+        and correction_ref
+        == {
+            "id": correction_id,
+            "record_revision": 1,
+            "content_hash": correction.get("content_sha256"),
+        }
+        and isinstance(registration_positions, Mapping)
+        and type(registration_positions.get(correction_id)) is int
+        and registration_positions[correction_id] > accepted_position
+        and registration_positions[correction_id] < registered_position
+        and correction.get("use_authority") == "accepted_for_scope"
+        and correction_manifest.get("artefact_schema_id") == "ars://portfolio/spec-01-source-correction"
+        and correction_manifest.get("artefact_schema_version") == "1.0.0"
+        and correction_manifest.get("producer_actor_id") == correction_document.get("producer", {}).get("actor_id")
+    ):
+        return False
+
+    bar = state.get("assay_bar_authority")
+    contents = bar.get("contents") if isinstance(bar, Mapping) else None
+    accepted_authority = document.get("accepted_authority")
+    if not isinstance(contents, Mapping) or not isinstance(accepted_authority, Mapping):
+        return False
+    try:
+        successor_hashes = successor_document_hashes(document)
+        successor_authority = document["successor_authority"]
+        successor_rubric = successor_authority["rubric_content"]
+        successor_scope = successor_authority["scope_content"]
+        schemas.validate("ars://portfolio/assay-rubric-content", successor_rubric, schema_version="1.0.0")
+        schemas.validate("ars://portfolio/assay-evidence-scope-content", successor_scope, schema_version="1.0.0")
+        validate_successor_authority_semantics(
+            predecessor_rubric=contents["rubric"]["content"],
+            predecessor_scope=contents["scope"]["content"],
+            successor_rubric=successor_rubric,
+            successor_scope=successor_scope,
+            governed_hashes={
+                "SPEC-GATE6-RUN-V1": document["governed_sources"]["route"]["content_sha256"],
+                "SPEC-01": document["governed_sources"]["spec_01"]["content_sha256"],
+            },
+        )
+    except (KeyError, TypeError, ValueError, ConfigurationError, SchemaError):
+        return False
+    proofs = state.get("assay_authority_successor_proofs")
+    proof = proofs.get(artefact_id) if isinstance(proofs, Mapping) else None
+    if proof != {
+        "actor_id": proof.get("actor_id") if isinstance(proof, Mapping) else None,
+        "artefact_ref": artefact_ref,
+        "document_sha256": artefact_ref.get("content_hash"),
+        "git_commit": document.get("git_commit"),
+        "governed_sources": document.get("governed_sources"),
+        "successor_content_hashes": successor_hashes,
+    }:
+        return False
+    for kind, successor_hash in successor_hashes.items():
+        content_state = contents.get(kind)
+        content = content_state.get("content") if isinstance(content_state, Mapping) else None
+        if (
+            not isinstance(content, Mapping)
+            or accepted_authority.get(f"{kind}_ref")
+            != {
+                "id": content.get("record_id"),
+                "record_revision": content.get("record_revision"),
+                "content_hash": content_state.get("content_sha256"),
+            }
+            or not _is_lowercase_sha256(successor_hash)
+        ):
+            return False
+    scorecard_ref = correction_document.get("scorecard_ref")
+    decision_ref = correction_document.get("decision_ref")
+    assays = state.get("assays")
+    decisions = state.get("decisions")
+    candidates = state.get("candidates")
+    assay = (
+        assays.get(scorecard_ref.get("id"))
+        if isinstance(assays, Mapping) and isinstance(scorecard_ref, Mapping)
+        else None
+    )
+    decision_entry = (
+        next(
+            (
+                (decision_id, item)
+                for decision_id, item in decisions.items()
+                if isinstance(item, Mapping) and item.get("terminal_event_id") == decision_ref.get("id")
+            ),
+            None,
+        )
+        if isinstance(decisions, Mapping) and isinstance(decision_ref, Mapping)
+        else None
+    )
+    decision_id = decision_entry[0] if decision_entry is not None else None
+    decision = decision_entry[1] if decision_entry is not None else None
+    candidate = (
+        next(
+            (
+                item
+                for item in candidates.values()
+                if isinstance(item, Mapping)
+                and item.get("assay_id") == scorecard_ref.get("id")
+                and item.get("decision_id") == decision_id
+            ),
+            None,
+        )
+        if isinstance(candidates, Mapping) and isinstance(scorecard_ref, Mapping) and isinstance(decision_ref, Mapping)
+        else None
+    )
+    if not (
+        isinstance(assay, Mapping)
+        and scorecard_ref == {"id": assay.get("assay_id"), "sha256": assay.get("scorecard_sha256")}
+        and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
+        and assay.get("producer_relation_sha256") == bar.get("producer_relation_sha256")
+        and isinstance(decision, Mapping)
+        and decision_ref == {"id": decision_ref.get("id"), "sha256": decision.get("terminal_event_hash")}
+        and decision.get("terminal_event_id") == decision_ref.get("id")
+        and decision.get("selected_option") == correction_document.get("scientific_disposition")
+        and isinstance(candidate, Mapping)
+        and candidate.get("status")
+        == {"PARK": "parked", "KILL": "killed", "PROMOTE": "spike_planning_authorized"}.get(
+            correction_document.get("scientific_disposition")
+        )
+    ):
+        return False
+    return True
+
+
+def _assay_staleness_matches(payload: Mapping[str, Any], state: Mapping[str, Any], *, schemas: Any = None) -> bool:
+    """Resolve an OR-109 trigger from either the historical observation or a governed correction."""
+
+    refs = payload.get("trigger_evidence_refs")
+    bar = state.get("assay_bar_authority")
+    accepted_position = bar.get("accepted_global_position") if isinstance(bar, Mapping) else None
+    if type(accepted_position) is not int:
+        return False
+    trigger = payload.get("source_correction_trigger")
+    if trigger is not None:
+        return _assay_source_correction_staleness_matches(trigger, refs, state, accepted_position, schemas)
+    return _assay_observation_staleness_matches(refs, state, accepted_position)
 
 
 def _spike_cancellation_matches(

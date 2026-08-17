@@ -5,16 +5,20 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
 
 import pytest
 from jsonschema import Draft202012Validator
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from tests.research_system.assay_authority_helpers import SCOPE_HASH_FIELDS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUBRIC_PATH = REPO_ROOT / ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
 SCOPE_PATH = REPO_ROOT / ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
+RUBRIC_V2_PATH = REPO_ROOT / ".research-system/contracts/wp6-6/assay-rubric-content-v2.json"
+SCOPE_V2_PATH = REPO_ROOT / ".research-system/contracts/wp6-6/assay-evidence-scope-content-v2.json"
 RUBRIC_SCHEMA_PATH = REPO_ROOT / ".research-system/schemas/contracts/w11/assay-rubric-content.schema.json"
 SCOPE_SCHEMA_PATH = REPO_ROOT / ".research-system/schemas/contracts/w11/assay-evidence-scope-content.schema.json"
 SPEC_PATH = REPO_ROOT / ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"
@@ -27,6 +31,7 @@ ROUTE_SOURCE_COMMIT = "82f86d88e72d33ed9e39ccceac6e3bcdead0bb75"
 ROUTE_SOURCE_BLOB = "23b6017625520c310202fd84ee45223ba6fecdf5"
 CATALOGUE_SHA256 = "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80"
 PRODUCER_ACTOR_ID = "act_e2651127-9ee1-7a64-a2ed-4e44008f1d4e"
+SUCCESSOR_PRODUCER_ACTOR_ID = "act_9292d02f-7c6d-70ec-b188-6f1ef0ce36ee"
 
 AXIS_IDS = ["topology_earns_its_keep", "data_feasibility", "novelty_publishability"]
 PROMOTION_PREDICATES = [
@@ -85,23 +90,6 @@ EVIDENCE_ROW_HASH_FIELDS = (
     "independent_review_grade",
     "permitted_omissions",
     "unmet_reason_codes",
-)
-SCOPE_HASH_FIELDS = (
-    "scope_id",
-    "rubric_ref",
-    "required_assurance_lanes",
-    "evidence_rows",
-    "prohibited_source_classes",
-    "prohibited_producer_relationships",
-    "no_compensation_pairs",
-    "confidentiality_rules",
-    "stop_conditions",
-    "partial_conditions",
-    "evidence_order_constraints",
-    "scope_closure_algorithm_id",
-    "scope_closure_algorithm_version",
-    "effective_candidate_kinds",
-    "effective_project_scope_ref",
 )
 
 
@@ -189,12 +177,23 @@ def test_spec01_assay_authorities_are_schema_valid_canonical_current_content() -
 def test_spec01_assay_authority_revision_1_binds_its_historical_route_source_and_derived_hashes() -> None:
     rubric, scope = _load()
     assert hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest() == SPEC_SHA256
+    git = shutil.which("git")
+    assert git is not None, "a full Git checkout is required to verify historical Assay authority"
+    historical_commit = subprocess.run(
+        [git, "-C", str(REPO_ROOT), "rev-parse", "--verify", f"{ROUTE_SOURCE_COMMIT}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (
+        historical_commit.returncode == 0
+    ), "a full Git checkout containing the historical Assay route commit is required"
     historical_route = subprocess.check_output(
-        ["git", "-C", str(REPO_ROOT), "show", f"{ROUTE_SOURCE_COMMIT}:{ROUTE_PATH.relative_to(REPO_ROOT).as_posix()}"],
+        [git, "-C", str(REPO_ROOT), "show", f"{ROUTE_SOURCE_COMMIT}:{ROUTE_PATH.relative_to(REPO_ROOT).as_posix()}"],
     )
     historical_blob = subprocess.check_output(
         [
-            "git",
+            git,
             "-C",
             str(REPO_ROOT),
             "rev-parse",
@@ -226,6 +225,62 @@ def test_spec01_assay_authority_revision_1_binds_its_historical_route_source_and
     assert "1" * 64 not in combined_text
     assert "fixture" not in combined_text
     assert "provider-free" not in combined_text
+
+
+def test_spec01_assay_authority_revision_2_is_an_exact_current_route_successor() -> None:
+    old_rubric, old_scope = _load()
+    rubric = json.loads(RUBRIC_V2_PATH.read_bytes())
+    scope = json.loads(SCOPE_V2_PATH.read_bytes())
+    for path, schema_path, value in (
+        (RUBRIC_V2_PATH, RUBRIC_SCHEMA_PATH, rubric),
+        (SCOPE_V2_PATH, SCOPE_SCHEMA_PATH, scope),
+    ):
+        Draft202012Validator(
+            json.loads(schema_path.read_bytes()),
+            format_checker=Draft202012Validator.FORMAT_CHECKER,
+        ).validate(value)
+        assert path.read_bytes() == canonical_bytes(value) + b"\n"
+        assert value["content_hash"] == _content_hash(value)
+
+    current_route_sha256 = hashlib.sha256(ROUTE_PATH.read_bytes()).hexdigest()
+    assert current_route_sha256 != ROUTE_SHA256
+    for value, old_value in ((rubric, old_rubric), (scope, old_scope)):
+        assert value["record_id"] == old_value["record_id"]
+        assert value["record_revision"] == 2
+        assert value["supersedes_revision"] == 1
+        assert value["created_by_actor_id"] == SUCCESSOR_PRODUCER_ACTOR_ID
+        assert value["effective_project_scope_ref"]["content_hash"] == current_route_sha256
+        source_hashes = {ref.get("id"): ref.get("content_hash") for ref in value["source_refs"]}
+        assert source_hashes["SPEC-01"] == SPEC_SHA256
+        assert source_hashes["SPEC-GATE6-RUN-V1"] == current_route_sha256
+
+    authority_hashes = {ref["id"]: ref["content_hash"] for ref in rubric["source_authority_refs"]}
+    assert authority_hashes == {"SPEC-01": SPEC_SHA256, "SPEC-GATE6-RUN-V1": current_route_sha256}
+    assert scope["rubric_ref"] == {
+        "id": rubric["record_id"],
+        "record_revision": 2,
+        "content_hash": rubric["content_hash"],
+    }
+    assert scope["scope_closure_algorithm_hash"] == _projection_hash(scope, SCOPE_HASH_FIELDS)
+
+    revision_fields = {
+        "content_hash",
+        "created_at",
+        "created_by_actor_id",
+        "effective_project_scope_ref",
+        "record_revision",
+        "source_authority_refs",
+        "source_refs",
+        "supersedes_revision",
+    }
+    assert {key: value for key, value in rubric.items() if key not in revision_fields} == {
+        key: value for key, value in old_rubric.items() if key not in revision_fields
+    }
+    scope_revision_fields = revision_fields | {"rubric_ref", "scope_closure_algorithm_hash"}
+    assert {key: value for key, value in scope.items() if key not in scope_revision_fields} == {
+        key: value for key, value in old_scope.items() if key not in scope_revision_fields
+    }
+    _validate_semantics(rubric, scope)
 
 
 @pytest.mark.parametrize(

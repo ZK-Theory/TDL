@@ -129,5 +129,6 @@ def reduce_candidate_promotion_applied(scope: EventScope) -> None:
     ):
         raise IntegrityError("invalid Candidate promotion application")
     candidate.update(status=next_state, version=event["stream_version"])
+    decision.update(terminal_event_id=event.get("event_id"), terminal_event_hash=event.get("event_hash"))
     if selected_option == "PARK":
         candidate["parked_at_global_position"] = event["global_position"]

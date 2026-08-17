@@ -144,16 +144,53 @@ def _publish_physical_json(
         if existing != data:
             raise ConflictError(f"actor registration artifact conflicts: {path}")
         return path
-    temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.tmp")
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    temporary_identity: os.stat_result | None = None
     try:
         with temporary.open("xb") as handle:
+            temporary_identity = os.fstat(handle.fileno())
+            if not stat.S_ISREG(temporary_identity.st_mode):
+                raise IntegrityError(f"{label} staging file is not physical")
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        fsync_directory(path.parent)
+            metadata = temporary.lstat()
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+                or not os.path.samestat(temporary_identity, metadata)
+            ):
+                raise IntegrityError(f"{label} staging file is not physical")
+            published = False
+            try:
+                os.link(temporary, path, follow_symlinks=False)
+                published = True
+            except FileExistsError:
+                if _physical_file_bytes(root, relative, label=label) != data:
+                    raise ConflictError(f"actor registration artifact conflicts: {path}") from None
+            else:
+                destination_identity = path.lstat()
+                if not os.path.samestat(temporary_identity, destination_identity):
+                    if published:
+                        try:
+                            current_identity = path.lstat()
+                        except FileNotFoundError:
+                            pass
+                        else:
+                            if os.path.samestat(destination_identity, current_identity):
+                                path.unlink()
+                    raise IntegrityError(f"{label} publication identity is not exact")
+                fsync_directory(path.parent)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary_identity is not None:
+            try:
+                current_identity = temporary.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                if os.path.samestat(temporary_identity, current_identity):
+                    temporary.unlink()
     if _physical_file_bytes(root, relative, label=label) != data:
         raise IntegrityError(f"{label} publication is not exact")
     return path

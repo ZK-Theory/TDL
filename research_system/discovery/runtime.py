@@ -21,6 +21,10 @@ from research_system.discovery.assay_authority import (
     content_sha256 as assay_content_sha256,
     replay_assay_bar_authority,
 )
+from research_system.discovery.assay_successor import (
+    successor_document_hashes,
+    validate_assay_authority_successor_document,
+)
 from research_system.discovery.accepted_w11 import (
     ACCEPTED as _ACCEPTED,
     CATALOGUE_STREAM_ID as _CATALOGUE_STREAM_ID,
@@ -2007,24 +2011,88 @@ class DiscoveryRuntime:
             ]
 
         if row == "OR-109":
+            required_fields = {
+                "row_id",
+                "authority_kind",
+                "acceptance_sha256",
+                "trigger_evidence_refs",
+            }
+            if "source_correction_trigger" in payload:
+                required_fields.add("source_correction_trigger")
+            proof: dict[str, Any] | None = None
+            validation_projection = projection
+            source_trigger = payload.get("source_correction_trigger")
+            if isinstance(source_trigger, Mapping):
+                from research_system.methods.registration import CandidateRegistration
+
+                artefact_ref = source_trigger.get("artefact_ref")
+                document = source_trigger.get("document")
+                artefact_id = artefact_ref.get("id") if isinstance(artefact_ref, Mapping) else None
+                artefact = projection.get("artefact_streams", {}).get(artefact_id)
+                manifest = artefact.get("manifest") if isinstance(artefact, Mapping) else None
+                registration_actor = artefact.get("registration_actor_id") if isinstance(artefact, Mapping) else None
+                if not (
+                    isinstance(artefact_id, str)
+                    and isinstance(document, Mapping)
+                    and isinstance(manifest, dict)
+                    and isinstance(registration_actor, str)
+                ):
+                    raise IntegrityError("invalid Assay-bar staleness transition")
+                try:
+                    validate_assay_authority_successor_document(
+                        document,
+                        registration=CandidateRegistration(
+                            artefact_id=artefact_id,
+                            project_id=str(manifest.get("project_id", "assay-authority-successor")),
+                            actor_id=registration_actor,
+                            authority_grant_id="validated-by-record-assay-bar-staleness",
+                            submitted_at=current_time,
+                            correlation_id=command.command_id,
+                            reason="Seal the exact validated Assay authority successor.",
+                            manifest=manifest,
+                        ),
+                        repository_root=self.repository_root,
+                        schemas=self.schemas,
+                    )
+                    successor_hashes = successor_document_hashes(document)
+                except (ConfigurationError, SchemaError, ValueError) as exc:
+                    raise IntegrityError("invalid Assay-bar staleness transition") from exc
+                proof = {
+                    "actor_id": command.actor_id,
+                    "artefact_ref": deepcopy(dict(artefact_ref)),
+                    "document_sha256": artefact_ref.get("content_hash"),
+                    "git_commit": document.get("git_commit"),
+                    "governed_sources": deepcopy(document.get("governed_sources")),
+                    "successor_content_hashes": successor_hashes,
+                }
+                validation_projection = deepcopy(projection)
+                validation_projection.setdefault("assay_authority_successor_proofs", {})[artefact_id] = deepcopy(proof)
             if (
                 command.envelope["command_type"] != "RecordAssayBarStaleness"
                 or state.get("status") != "accepted"
+                or set(payload) != required_fields
                 or payload.get("acceptance_sha256") != state.get("acceptance_sha256")
-                or not _assay_staleness_matches(payload, projection)
+                or not _assay_staleness_matches(payload, validation_projection, schemas=self.schemas)
             ):
                 raise IntegrityError("invalid Assay-bar staleness transition")
-            return [
+            staleness = {
+                "acceptance_sha256": state["acceptance_sha256"],
+                "trigger_evidence_refs": deepcopy(payload["trigger_evidence_refs"]),
+                "effective_at": current_time,
+                "actor_id": command.actor_id,
+            }
+            if "source_correction_trigger" in payload:
+                staleness["source_correction_trigger"] = deepcopy(payload["source_correction_trigger"])
+            prepared = []
+            if proof is not None:
+                prepared.append(wrapped("AssayAuthoritySuccessorRegistered", proof))
+            prepared.append(
                 wrapped(
                     "AssayBarStaled",
-                    {
-                        "acceptance_sha256": state["acceptance_sha256"],
-                        "trigger_evidence_refs": deepcopy(payload["trigger_evidence_refs"]),
-                        "effective_at": current_time,
-                        "actor_id": command.actor_id,
-                    },
+                    staleness,
                 )
-            ]
+            )
+            return prepared
         raise IntegrityError("invalid Assay-bar authority row")
 
     def _observe_assay_authority_content(self, content_state: Mapping[str, Any]) -> dict[str, Any]:

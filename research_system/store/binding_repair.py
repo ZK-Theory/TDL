@@ -54,6 +54,10 @@ _MARKER_NAME = ".binding-repair-transaction.json"
 _STORE_MANIFEST = Path("manifests/store-identity.json")
 _RESTORE_TRANSACTION = Path("manifests/.restore-binding-transaction.json")
 _ROUTE_RELATIVE = Path(".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json")
+_SPEC_SOURCE_RELATIVES = (
+    Path(".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"),
+    Path(".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"),
+)
 
 
 def _is_sha256(value: object) -> bool:
@@ -81,6 +85,33 @@ def _run_git(root: Path, *arguments: str) -> str:
     if result.returncode != 0:
         raise ConfigurationError(f"candidate Git inspection failed: {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def _run_git_bytes(root: Path, *arguments: str) -> bytes:
+    result = run_git(
+        root,
+        *arguments,
+        text=False,
+        unavailable_message="candidate Git inspection timed out or is unavailable",
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ConfigurationError(f"candidate Git inspection failed: {stderr}")
+    return result.stdout
+
+
+def _committed_candidate_file(candidate: Path, relative: Path, *, label: str) -> bytes:
+    if relative.is_absolute() or relative.as_posix() != str(relative).replace("\\", "/"):
+        raise IntegrityError(f"{label} path is not canonical")
+    expected = candidate / relative
+    physical = _require_physical_regular_file(expected, label=label)
+    if physical != expected:
+        raise IntegrityError(f"{label} path is redirected")
+    raw = physical.read_bytes()
+    committed = _run_git_bytes(candidate, "show", f"HEAD:{relative.as_posix()}")
+    if raw != committed:
+        raise IntegrityError(f"{label} differs from the exact Git subject")
+    return raw
 
 
 def _read_canonical_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
@@ -400,9 +431,8 @@ def _candidate_evidence(intent: RepairStoreBinding) -> dict[str, Any]:
     route_ref = Path(intent.spec_route_ref)
     if route_ref != _ROUTE_RELATIVE:
         raise ConfigurationError("SPEC route ref is not the governed route package")
-    route_path = candidate / route_ref
     try:
-        route_raw = route_path.read_bytes()
+        route_raw = _committed_candidate_file(candidate, route_ref, label="SPEC route package")
         route = json.loads(route_raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise IntegrityError("invalid SPEC route package") from exc
@@ -414,8 +444,7 @@ def _candidate_evidence(intent: RepairStoreBinding) -> dict[str, Any]:
     sources: list[dict[str, Any]] = []
     for reference in intent.spec_source_refs:
         record = source_by_locator.get(reference)
-        path = candidate / reference
-        raw = path.read_bytes()
+        raw = _committed_candidate_file(candidate, Path(reference), label="SPEC route source")
         if not record or len(raw) != record.get("size_bytes") or sha256_hex(raw) != record.get("sha256"):
             raise IntegrityError("SPEC route/source SHA mismatch")
         sources.append({"ref": reference, "sha256": sha256_hex(raw), "size_bytes": len(raw)})
@@ -1122,4 +1151,41 @@ def load_recovery_binding(
         raise IntegrityError("binding recovery Git subject changed")
     if _run_git(root, "status", "--porcelain=v1", "--untracked-files=all"):
         raise IntegrityError("binding recovery repository is dirty")
+    route = value.get("route")
+    sources = value.get("sources")
+    if (
+        not isinstance(route, dict)
+        or set(route) != {"ref", "sha256"}
+        or route.get("ref") != _ROUTE_RELATIVE.as_posix()
+        or not _is_sha256(route.get("sha256"))
+        or not isinstance(sources, list)
+        or len(sources) != 2
+        or tuple(
+            Path(source.get("ref"))
+            for source in sources
+            if isinstance(source, dict) and isinstance(source.get("ref"), str)
+        )
+        != _SPEC_SOURCE_RELATIVES
+    ):
+        raise IntegrityError("binding recovery route evidence is invalid")
+    route_raw = _committed_candidate_file(root, _ROUTE_RELATIVE, label="binding recovery route package")
+    if sha256_hex(route_raw) != route["sha256"]:
+        raise IntegrityError("binding recovery route package changed")
+    for source in sources:
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"ref", "sha256", "size_bytes"}
+            or not isinstance(source.get("ref"), str)
+            or not _is_sha256(source.get("sha256"))
+            or not isinstance(source.get("size_bytes"), int)
+            or isinstance(source.get("size_bytes"), bool)
+        ):
+            raise IntegrityError("binding recovery source evidence is invalid")
+        source_raw = _committed_candidate_file(
+            root,
+            Path(source["ref"]),
+            label="binding recovery SPEC source",
+        )
+        if len(source_raw) != source["size_bytes"] or sha256_hex(source_raw) != source["sha256"]:
+            raise IntegrityError("binding recovery SPEC source changed")
     return value

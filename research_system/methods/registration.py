@@ -408,6 +408,7 @@ def _publish_contained_file_no_replace(
     temporary_relative = relative.with_name(f".{relative.name}.{uuid.uuid4().hex}.tmp")
     temporary_target = control_root.resolve(strict=True) / temporary_relative
     temporary_identity: os.stat_result | None = None
+    cleanup_staging = True
     try:
         with _open_new_contained_file(control_root, temporary_relative.as_posix()) as (fd, opened_target):
             temporary_target = opened_target
@@ -418,36 +419,55 @@ def _publish_contained_file_no_replace(
                 handle.write(data)
                 handle.flush()
                 os.fsync(handle.fileno())
-    except Exception:
+                target = control_root / relative
+                _after_contained_file_fsync(temporary_target, target)
+                with _hold_contained_parent(control_root, relative_path) as (parent_descriptor, held_target):
+                    temporary_name = temporary_relative.name
+                    published = False
+                    try:
+                        if parent_descriptor is not None:
+                            source_identity = os.stat(
+                                temporary_name,
+                                dir_fd=parent_descriptor,
+                                follow_symlinks=False,
+                            )
+                            if not os.path.samestat(temporary_identity, source_identity):
+                                raise IntegrityError("publication staging identity changed before finalization")
+                            os.link(
+                                temporary_name,
+                                relative.name,
+                                src_dir_fd=parent_descriptor,
+                                dst_dir_fd=parent_descriptor,
+                                follow_symlinks=False,
+                            )
+                        else:
+                            source_identity = temporary_target.lstat()
+                            if not os.path.samestat(temporary_identity, source_identity):
+                                raise IntegrityError("publication staging identity changed before finalization")
+                            os.link(held_target.parent / temporary_name, held_target, follow_symlinks=False)
+                        published = True
+                    except FileExistsError:
+                        if _read_existing_contained_file(control_root, relative_path) != data:
+                            raise ConflictError(conflict_message) from None
+                    else:
+                        destination_identity = held_target.lstat()
+                        if not os.path.samestat(temporary_identity, destination_identity):
+                            if published:
+                                _remove_created_file(held_target, destination_identity)
+                            raise IntegrityError("published file identity differs from held staging file")
+                        if parent_descriptor is not None:
+                            os.fsync(parent_descriptor)
+                        else:
+                            fsync_directory(held_target.parent)
+    except BaseException as exc:
+        if not isinstance(exc, Exception):
+            cleanup_staging = False
         if temporary_identity is not None:
-            _remove_created_file(temporary_target, temporary_identity)
+            if cleanup_staging:
+                _remove_created_file(temporary_target, temporary_identity)
         raise
-    target = control_root / relative
-    _after_contained_file_fsync(temporary_target, target)
-    try:
-        with _hold_contained_parent(control_root, relative_path) as (parent_descriptor, held_target):
-            temporary_name = temporary_relative.name
-            try:
-                if parent_descriptor is not None:
-                    os.link(
-                        temporary_name,
-                        relative.name,
-                        src_dir_fd=parent_descriptor,
-                        dst_dir_fd=parent_descriptor,
-                        follow_symlinks=False,
-                    )
-                else:
-                    os.link(held_target.parent / temporary_name, held_target, follow_symlinks=False)
-            except FileExistsError:
-                if _read_existing_contained_file(control_root, relative_path) != data:
-                    raise ConflictError(conflict_message) from None
-            else:
-                if parent_descriptor is not None:
-                    os.fsync(parent_descriptor)
-                else:
-                    fsync_directory(held_target.parent)
     finally:
-        if temporary_identity is not None:
+        if cleanup_staging and temporary_identity is not None:
             _remove_created_file(temporary_target, temporary_identity)
 
 
