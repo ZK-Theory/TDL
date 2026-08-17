@@ -151,7 +151,12 @@ def _authority_resolver_from_config(
         binding = ControlBinding.load_repaired(authority_config)
     if binding.project_id != project_id:
         raise ConfigurationError("authority binding project differs from the replayed control store")
-    if binding.schema_root.resolve(strict=True) != expected_schema_root.resolve(strict=True):
+    try:
+        binding_schema_root = binding.schema_root.resolve(strict=True)
+        replay_schema_root = expected_schema_root.resolve(strict=True)
+    except OSError as exc:
+        raise ConfigurationError("authority binding schema root is unavailable") from exc
+    if binding_schema_root != replay_schema_root:
         raise ConfigurationError("authority binding schema root differs from the replayed control store")
     return LedgerAuthorityGrantResolver(
         binding.control_root,
@@ -1695,40 +1700,41 @@ def _publication_context_for_reference(
 ) -> Callable[[str], ArtefactConsumerContext]:
     """Build exact replay-derived contexts for release publication evidence."""
 
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    snapshot = ledger.snapshot()
+    authority_resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    state = replay(
+        snapshot.events,
+        schema_registry=schemas,
+        authority_state_validator=authority_resolver.validate_replayed_administration_state,
+        spec_execution_authority_validator=_spec_replay_validator(
+            binding.control_root, schemas, authority_resolver, snapshot.events
+        ),
+    )
+
     def resolve(reference: str) -> ArtefactConsumerContext:
-        ledger = EventLedger(binding.control_root, binding.project_id, schemas)
-        snapshot = ledger.snapshot()
-        authority = LedgerAuthorityGrantResolver(
-            binding.control_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        )
-        state = replay(
-            snapshot.events,
-            schema_registry=schemas,
-            authority_state_validator=authority.validate_replayed_administration_state,
-            spec_execution_authority_validator=_spec_replay_validator(
-                binding.control_root, schemas, authority, snapshot.events
-            ),
-        )
         stream = state.get("streams", {}).get(reference)
         if not isinstance(stream, dict):
             raise ArsError("release publication evidence is not registered")
         manifest = stream.get("manifest")
         if not isinstance(manifest, dict):
             raise ArsError("release publication evidence manifest is unavailable")
-        authority = manifest.get("authority")
-        if not isinstance(authority, dict):
+        manifest_authority = manifest.get("authority")
+        if not isinstance(manifest_authority, dict):
             raise ArsError("release publication evidence authority is unavailable")
         return ArtefactConsumerContext(
             artefact_id=reference,
             exact_content_sha256=str(stream["content_sha256"]),
             project_id=binding.project_id,
             task_id=str(manifest["task_id"]),
-            scope_id=str(authority["accepted_scope"]),
+            scope_id=str(manifest_authority["accepted_scope"]),
             evaluation_time=evaluation_time,
         )
 

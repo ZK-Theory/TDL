@@ -99,6 +99,8 @@ _COMMAND_FIELDS = {
     "payload",
 }
 _GIT_TIMEOUT_SECONDS = 10
+_SPEC_02_APPROVAL_AUTHORITY_REASON = "Authorize exact governed publication of the owner-approved SPEC-02 run decision."
+_SPEC_02_APPROVAL_EVIDENCE_PREFIX = "spec-02-approval-sha256:"
 _SPEC_02_GATED_TRANSITIONS = frozenset(
     {
         ("RegisterSpikePlan", "OR-014"),
@@ -133,6 +135,84 @@ class _SpecExecutionAuthorityResolver:
         self.schemas = schemas
         self.authority_resolver = authority_resolver
         self.clock = clock
+
+    def _authority_decision_context(self) -> tuple[object, tuple[dict[str, Any], ...]]:
+        """Load the verified owner anchor and its independently bound authority ledger."""
+
+        administration = self.authority_resolver.administration_context()
+        events = (
+            EventLedger(
+                self.authority_resolver.control_root,
+                self.authority_resolver.project_id,
+                self.schemas,
+                store_identity=self.authority_resolver.expected_store_identity,
+            )
+            .snapshot()
+            .events
+        )
+        return administration, events
+
+    def _has_authenticated_owner_approval_decision(
+        self,
+        *,
+        approval: Mapping[str, Any],
+        approval_sha256: str,
+        approval_grant_id: object,
+        approval_manifest: Mapping[str, Any],
+    ) -> bool:
+        """Bind approval bytes to the exact root-owner publication command."""
+
+        registrar = approval.get("registrar")
+        valid_window = approval.get("valid_window")
+        artefact_id = approval_manifest.get("artefact_id")
+        if (
+            not isinstance(registrar, Mapping)
+            or not isinstance(valid_window, Mapping)
+            or not isinstance(artefact_id, str)
+            or not isinstance(approval_grant_id, str)
+        ):
+            return False
+        administration, authority_events = self._authority_decision_context()
+        intent = {
+            "target_actor_id": registrar.get("actor_id"),
+            "target_actor_class": "agent",
+            "authority_lane": "producer/spec_brief_registration",
+            "actor_role": "SPEC brief producer",
+            "subject_scope": {
+                "project_id": self.authority_resolver.project_id,
+                "subject": {"kind": "artefact", "id": artefact_id},
+            },
+            "evidence_refs": [f"{_SPEC_02_APPROVAL_EVIDENCE_PREFIX}{approval_sha256}"],
+            "effective_at": valid_window.get("starts_at"),
+            "expires_at": valid_window.get("expires_at"),
+            "reason": _SPEC_02_APPROVAL_AUTHORITY_REASON,
+            "owner_action": "activate_authority_grant",
+        }
+        expected_payload_hash = sha256_hex(canonical_bytes({"intent": intent}))
+        matches = []
+        for event in authority_events:
+            payload = event.get("payload")
+            decision = payload.get("decision") if isinstance(payload, Mapping) else None
+            proposed_grant = payload.get("proposed_grant") if isinstance(payload, Mapping) else None
+            if (
+                event.get("event_type") == "OwnerAuthorityAdministrationDecisionPublished"
+                and event.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
+                and event.get("actor_id") == getattr(administration, "owner_actor_id", None)
+                and event.get("authority_grant_id") == getattr(administration, "root_grant_id", None)
+                and event.get("command_payload_hash") == expected_payload_hash
+                and isinstance(decision, Mapping)
+                and decision.get("owner_actor_id") == getattr(administration, "owner_actor_id", None)
+                and decision.get("target_grant_id") == approval_grant_id
+                and decision.get("subject_scope") == intent["subject_scope"]
+                and decision.get("effective_at") == intent["effective_at"]
+                and decision.get("expires_at") == intent["expires_at"]
+                and isinstance(proposed_grant, Mapping)
+                and proposed_grant.get("authority_grant_id") == approval_grant_id
+                and proposed_grant.get("actor_id") == registrar.get("actor_id")
+                and proposed_grant.get("subject_scope") == intent["subject_scope"]
+            ):
+                matches.append(event)
+        return len(matches) == 1
 
     def resolve(
         self,
@@ -193,7 +273,7 @@ class _SpecExecutionAuthorityResolver:
         brief_rows = [row for row in documents.get("spec_02_operator_brief", []) if row[0].get("stage") == "SPEC-02"]
         if len(approval_rows) != 1 or len(brief_rows) != 1:
             return None
-        approval, _approval_sha256, approval_actor_id, approval_grant_id, approval_manifest = approval_rows[0]
+        approval, approval_sha256, approval_actor_id, approval_grant_id, approval_manifest = approval_rows[0]
         brief, _brief_sha256, brief_actor_id, _brief_grant_id, brief_manifest = brief_rows[0]
         try:
             self.schemas.validate(
@@ -232,6 +312,12 @@ class _SpecExecutionAuthorityResolver:
                 self.authority_resolver.owner_published_grant_ids()
                 if owner_published_grant_ids is None
                 else owner_published_grant_ids
+            )
+            and self._has_authenticated_owner_approval_decision(
+                approval=approval,
+                approval_sha256=approval_sha256,
+                approval_grant_id=approval_grant_id,
+                approval_manifest=approval_manifest,
             )
             and brief.get("operator_session", {}).get("operator_actor_id") == brief_actor_id
             and brief_actor_id == brief_manifest.get("producer_actor_id")
@@ -444,7 +530,6 @@ class DiscoveryRuntime:
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
         self.authority_resolver = authority_resolver
         self.clock = clock
-        self._prospective_spec_document: Mapping[str, Any] | None = None
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Authorize and atomically submit one public Discovery command.
@@ -517,11 +602,12 @@ class DiscoveryRuntime:
             observed = snapshot.stream_versions.get(command.target_stream_id, 0)
             if observed != command.expected_stream_version:
                 raise ConflictError("Discovery command stream version conflicts")
-            self._prospective_spec_document = prospective_document
-            try:
-                self._prepare_transaction(command, projection, events=snapshot.events)
-            finally:
-                self._prospective_spec_document = None
+            self._prepare_transaction(
+                command,
+                projection,
+                events=snapshot.events,
+                prospective_document=prospective_document,
+            )
 
     def replay(self, events: tuple[dict[str, Any], ...] | None = None) -> dict[str, Any]:
         """Replay one exact ledger snapshot with external SPEC evidence revalidated."""
@@ -571,6 +657,7 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
         *,
         events: tuple[dict[str, Any], ...],
+        prospective_document: Mapping[str, Any] | None = None,
     ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         """Prepare and validate one Discovery transaction without publishing it."""
 
@@ -590,7 +677,12 @@ class DiscoveryRuntime:
         elif route.family == "assay":
             prepared = self._prepare_assay(command, projection)
         elif route.family == "spike":
-            prepared = self._prepare_spike(command, projection, events=events)
+            prepared = self._prepare_spike(
+                command,
+                projection,
+                events=events,
+                prospective_document=prospective_document,
+            )
         elif route.family == "dossier":
             try:
                 prepared = self._prepare_dossier(command, projection)
@@ -2080,8 +2172,9 @@ class DiscoveryRuntime:
         authority: _Spec02ExecutionAuthority,
         spike: Mapping[str, Any],
         events: tuple[dict[str, Any], ...],
+        prospective_document: Mapping[str, Any] | None = None,
     ) -> bool:
-        document = self._prospective_spec_document
+        document = prospective_document
         if document is None:
             rows: list[Mapping[str, Any]] = []
             for event in events:
@@ -2152,7 +2245,8 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
         *,
-        events: tuple[dict[str, Any], ...],
+        events: tuple[dict[str, Any], ...] = (),
+        prospective_document: Mapping[str, Any] | None = None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
         p = command.envelope["payload"]
@@ -2450,6 +2544,7 @@ class DiscoveryRuntime:
                         authority=spec_02_approval,
                         spike=spike,
                         events=events,
+                        prospective_document=prospective_document,
                     )
                 )
             )

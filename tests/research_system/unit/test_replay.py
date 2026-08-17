@@ -376,6 +376,15 @@ def test_broken_event_hash_fails_closed(tmp_path):
         replay(events)
 
 
+def test_replay_rejects_gate6_non_event_schema_namespace(tmp_path):
+    events, _ = _events(tmp_path)
+    events[0]["schema_id"] = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+    events[0] = _rehash(events[0])
+
+    with pytest.raises(IntegrityError, match="unknown event schema at 1"):
+        replay(events)
+
+
 def test_replay_projects_immutable_backup_snapshots_with_event_identity(tmp_path):
     events, harness = _events(tmp_path)
     first = _backup_created_event(
@@ -843,8 +852,8 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(tmp_path, m
             args[0], kwargs["timeout"]
         )
 
-    monkeypatch.setattr("research_system.cli.subprocess.run", time_out)
-    with pytest.raises(ConfigurationError, match="timed out"):
+    monkeypatch.setattr("research_system.git_execution.subprocess.run", time_out)
+    with pytest.raises(ConfigurationError, match="worktree enumeration is unavailable") as exc_info:
         main(
             [
                 "store",
@@ -859,6 +868,7 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(tmp_path, m
                 str(tmp_path / "unread-bootstrap.json"),
             ]
         )
+    assert isinstance(exc_info.value.__cause__, subprocess.TimeoutExpired)
     assert not (tmp_path / "control").exists()
 
 

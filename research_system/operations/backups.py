@@ -35,7 +35,7 @@ from research_system.store.identity import (
 )
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger, LedgerSnapshot
-from research_system.schema_registry import bundled_runtime_schema_registry
+from research_system.schema_registry import SchemaRegistry, bundled_runtime_schema_registry
 
 
 _WINDOWS_RESERVED_FILENAMES = frozenset(
@@ -295,6 +295,41 @@ def seal_backup_receipt(receipt: BackupReceipt) -> BackupReceipt:
 _BACKUP_PREPARATION_PATH = Path("manifests/backup-preparation.json")
 _BACKUP_RECEIPT_PATH = Path("manifests/backup-receipt.json")
 _BACKUP_ARTEFACT_MANIFEST_PATH = Path("manifests/external-artefacts.json")
+
+
+def _store_replay_authorities(
+    *,
+    control_root: Path,
+    project_id: str,
+    store_identity: str,
+    schemas: SchemaRegistry,
+    approved_witness: StoreOriginWitness,
+    approved_witness_path: Path,
+    restore_source_alias: bool,
+    spec_authority_resolver: LedgerAuthorityGrantResolver | None,
+) -> tuple[LedgerAuthorityGrantResolver, LedgerAuthorityGrantResolver]:
+    """Bind local administration and external SPEC authority independently."""
+
+    local_authority = LedgerAuthorityGrantResolver(
+        control_root,
+        project_id,
+        store_identity,
+        schemas,
+        approved_witness=approved_witness,
+        approved_witness_path=approved_witness_path,
+        restore_source_alias=restore_source_alias,
+    )
+    spec_authority = spec_authority_resolver or local_authority
+    if spec_authority.project_id != project_id:
+        raise IntegrityError("SPEC authority resolver belongs to a different project")
+    if (
+        spec_authority.control_root.resolve(strict=False) == control_root.resolve(strict=False)
+        and spec_authority.expected_store_identity != store_identity
+    ):
+        raise IntegrityError("SPEC authority resolver identity differs from the local store")
+    return local_authority, spec_authority
+
+
 _SHA256_CHARS = frozenset("0123456789abcdef")
 
 
@@ -663,6 +698,8 @@ class BackupMaterializer:
     verification_authority_grant_id: str
     approved_witness: StoreOriginWitness
     approved_witness_path: Path
+    # Optional separately governed SPEC authority; local administration is
+    # always validated against source_root (and later the copied candidate).
     authority_resolver: LedgerAuthorityGrantResolver | None = None
 
     def __post_init__(self) -> None:
@@ -1011,22 +1048,24 @@ class BackupMaterializer:
             or current.fingerprint != ledger_snapshot.fingerprint
         ):
             raise IntegrityError("backup ledger snapshot is not the current Source ledger")
-        resolver = self.authority_resolver or LedgerAuthorityGrantResolver(
-            self.source_root,
-            project_id,
-            store_identity,
-            schemas,
+        local_authority, spec_authority = _store_replay_authorities(
+            control_root=self.source_root,
+            project_id=project_id,
+            store_identity=store_identity,
+            schemas=schemas,
             approved_witness=self.approved_witness,
             approved_witness_path=self.approved_witness_path,
+            restore_source_alias=False,
+            spec_authority_resolver=self.authority_resolver,
         )
         state = replay(
             ledger_snapshot.events,
             schema_registry=schemas,
-            authority_state_validator=resolver.validate_replayed_administration_state,
+            authority_state_validator=local_authority.validate_replayed_administration_state,
             spec_execution_authority_validator=build_spec_execution_authority_validator(
                 control_root=self.source_root,
                 schemas=schemas,
-                authority_resolver=resolver,
+                authority_resolver=spec_authority,
                 events=ledger_snapshot.events,
             ),
         )
@@ -1478,23 +1517,24 @@ class BackupMaterializer:
         candidate_ledger = EventLedger(root, project_id, schemas).snapshot()
         if candidate_ledger.global_position != tail_position or candidate_ledger.event_hash != tail_hash:
             raise IntegrityError("backup candidate ledger differs from the committed pre-event tail")
-        resolver = self.authority_resolver or LedgerAuthorityGrantResolver(
-            root,
-            project_id,
-            store_identity,
-            schemas,
+        local_authority, spec_authority = _store_replay_authorities(
+            control_root=root,
+            project_id=project_id,
+            store_identity=store_identity,
+            schemas=schemas,
             approved_witness=self.approved_witness,
             approved_witness_path=self.approved_witness_path,
             restore_source_alias=True,
+            spec_authority_resolver=self.authority_resolver,
         )
         state = replay(
             candidate_ledger.events,
             schema_registry=schemas,
-            authority_state_validator=resolver.validate_replayed_administration_state,
+            authority_state_validator=local_authority.validate_replayed_administration_state,
             spec_execution_authority_validator=build_spec_execution_authority_validator(
                 control_root=root,
                 schemas=schemas,
-                authority_resolver=resolver,
+                authority_resolver=spec_authority,
                 events=candidate_ledger.events,
             ),
         )
@@ -1653,7 +1693,11 @@ def verify_restore_before_writer_lease(
     authority_resolver: LedgerAuthorityGrantResolver | None = None,
     _capture_bundle: bool = False,
 ) -> RestorePreflightResult | RestoreAdmissionBundle:
-    """Independently inspect a moved store and derive a pre-writer result."""
+    """Independently inspect a moved store and derive a pre-writer result.
+
+    ``authority_resolver`` supplies separately governed SPEC authority only;
+    replayed administration evidence is always checked against ``target_root``.
+    """
     target = target_root.resolve(strict=False)
     failed: list[str] = []
     validated_witness_path: Path | None = None
@@ -1784,23 +1828,24 @@ def verify_restore_before_writer_lease(
             raise ArsError("store code roots are unavailable")
         require_existing_control_root([Path(root) for root in code_roots], target)
         ledger_snapshot = EventLedger(target, receipt.project_id, schemas).snapshot()
-        resolver = authority_resolver or LedgerAuthorityGrantResolver(
-            target,
-            receipt.project_id,
-            receipt.store_identity,
-            schemas,
+        local_authority, spec_authority = _store_replay_authorities(
+            control_root=target,
+            project_id=receipt.project_id,
+            store_identity=receipt.store_identity,
+            schemas=schemas,
             approved_witness=approved_witness,
             approved_witness_path=validated_witness_path,
             restore_source_alias=True,
+            spec_authority_resolver=authority_resolver,
         )
         replay_state = replay(
             ledger_snapshot.events,
             schema_registry=schemas,
-            authority_state_validator=resolver.validate_replayed_administration_state,
+            authority_state_validator=local_authority.validate_replayed_administration_state,
             spec_execution_authority_validator=build_spec_execution_authority_validator(
                 control_root=target,
                 schemas=schemas,
-                authority_resolver=resolver,
+                authority_resolver=spec_authority,
                 events=ledger_snapshot.events,
             ),
         )

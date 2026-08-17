@@ -1359,7 +1359,8 @@ def _replay(
             or schema_id.startswith("ars://core/event/")
             or schema_id.startswith("ars://wp6-2/t2/event/")
             or schema_id.startswith("ars://wp6-6/event/")
-            or schema_id.startswith("ars://wp6-6/gate6/")
+            or schema_id.startswith("ars://wp6-6/gate6/authority/event/")
+            or schema_id.startswith("ars://wp6-6/gate6/binding-repair/event/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:

@@ -42,7 +42,9 @@ from research_system.methods.registration import (
     CandidateRegistration,
     RawContentPublication,
     publish_registered_raw_content,
+    recover_registered_content,
     register_candidate_document,
+    spec_brief_input_artefact_id,
 )
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -83,32 +85,37 @@ REVIEWER_ACTOR = "act_019ffe2b-fd4b-7000-8000-000000000901"
 
 
 def test_brief_authority_targets_exclude_already_reviewed_and_accepted_history():
+    def census_entry(artefact_id: str, artefact_type: str, digest: str) -> dict[str, Any]:
+        return {
+            "artefact_id": artefact_id,
+            "artefact_type": artefact_type,
+            "source_relative_path": f"source/{artefact_id}.md",
+            "relative_path": f"methods/content/spec-flow/{artefact_id}.md",
+            "content_sha256": digest,
+            "size_bytes": 10,
+            "media_type": "text/markdown; charset=utf-8",
+        }
+
+    census = {
+        "art_reviewed": census_entry("art_reviewed", "methods_asset", "a" * 64),
+        "art_pending_review": census_entry("art_pending_review", "spec_operator_source", "b" * 64),
+        "art_pending_use": census_entry("art_pending_use", "spec_operator_source", "c" * 64),
+    }
+
+    def state(artefact_id: str, *, reviews: list[dict[str, str]], use: str) -> dict[str, Any]:
+        expected = census[artefact_id]
+        return {
+            "manifest": {key: value for key, value in expected.items() if key != "source_relative_path"},
+            "content_sha256": expected["content_sha256"],
+            "scientific_reviews": reviews,
+            "use_authority": use,
+        }
+
     projection = {
         "artefact_streams": {
-            "art_reviewed": {
-                "manifest": {
-                    "artefact_type": "methods_asset",
-                    "authority": {"accepted_scope": "spec-gate6-run"},
-                },
-                "scientific_reviews": [{"review_id": "rev_existing"}],
-                "use_authority": "accepted_for_scope",
-            },
-            "art_pending_review": {
-                "manifest": {
-                    "artefact_type": "spec_operator_source",
-                    "authority": {"accepted_scope": "spec-gate6-run"},
-                },
-                "scientific_reviews": [],
-                "use_authority": "candidate",
-            },
-            "art_pending_use": {
-                "manifest": {
-                    "artefact_type": "spec_operator_source",
-                    "authority": {"accepted_scope": "spec-gate6-run"},
-                },
-                "scientific_reviews": [{"review_id": "rev_new"}],
-                "use_authority": "candidate",
-            },
+            "art_reviewed": state("art_reviewed", reviews=[{"review_id": "rev_existing"}], use="accepted_for_scope"),
+            "art_pending_review": state("art_pending_review", reviews=[], use="candidate"),
+            "art_pending_use": state("art_pending_use", reviews=[{"review_id": "rev_new"}], use="candidate"),
             "art_foreign_route": {
                 "manifest": {
                     "artefact_type": "methods_asset",
@@ -119,11 +126,13 @@ def test_brief_authority_targets_exclude_already_reviewed_and_accepted_history()
             },
         }
     }
+    flow = object.__new__(SpecFlow)
+    flow._expected_brief_input_census = lambda: census
 
-    assert set(SpecFlow._pending_brief_input_authority_states(projection, "RecordScientificReview")) == {
+    assert set(flow._pending_brief_input_authority_states(projection, "RecordScientificReview")) == {
         "art_pending_review"
     }
-    assert set(SpecFlow._pending_brief_input_authority_states(projection, "SetArtefactUseAuthority")) == {
+    assert set(flow._pending_brief_input_authority_states(projection, "SetArtefactUseAuthority")) == {
         "art_pending_review",
         "art_pending_use",
     }
@@ -594,9 +603,9 @@ def _accept_spec_01_brief_inputs(
     entries = []
     artefact_ids = []
     for index, (source_path, document_type) in enumerate(sources, start=1):
-        artefact_id = f"art_019ffe2b-fd4b-7000-8000-{400 + index:012d}"
-        artefact_ids.append(artefact_id)
         raw = (repository_root / source_path).read_bytes()
+        artefact_id = spec_brief_input_artefact_id(source_path.as_posix(), sha256_hex(raw))
+        artefact_ids.append(artefact_id)
         grant_id = activate_lifecycle_grant(
             inputs["harness"],
             subject_kind="artefact",
@@ -1387,33 +1396,6 @@ def _approve_spec_02(
             "spec-02-live-run-approval:register-actor",
         )
     )["actor_id"]
-    publication = owner_setup.publish(
-        {
-            "retry_key": "spec-02-live-run-approval:publish-authority",
-            "target_actor_id": registrar_id,
-            "target_actor_class": "agent",
-            "authority_lane": "producer/spec_brief_registration",
-            "actor_role": "SPEC brief producer",
-            "subject_scope": {
-                "project_id": PROJECT_ID,
-                "subject": {"kind": "artefact", "id": artefact_id},
-            },
-            "evidence_refs": ["spec-route:spec-02-live-run-approval"],
-            "effective_at": starts_at,
-            "expires_at": expires_at,
-            "reason": "Authorize exact governed publication of the owner-approved SPEC-02 run decision.",
-            "owner_action": "activate_authority_grant",
-        }
-    )
-    owner_setup.activate(
-        {
-            "retry_key": "spec-02-live-run-approval:activate-authority",
-            "publication_command_id": publication["command_id"],
-            "reason": "Activate the exact owner-published SPEC-02 approval registration grant.",
-            "evidence_refs": ["spec-route:spec-02-live-run-approval"],
-        }
-    )
-    grant_id = publication["authority_grant_id"]
     document = {
         "schema_id": "ars://portfolio/spec-02-live-run-approval",
         "schema_version": "1.0.0",
@@ -1448,6 +1430,34 @@ def _approve_spec_02(
             "id": correction["correction_id"],
             "sha256": sha256_hex(canonical_bytes(correction)),
         }
+    approval_sha256 = sha256_hex(canonical_bytes(document))
+    publication = owner_setup.publish(
+        {
+            "retry_key": "spec-02-live-run-approval:publish-authority",
+            "target_actor_id": registrar_id,
+            "target_actor_class": "agent",
+            "authority_lane": "producer/spec_brief_registration",
+            "actor_role": "SPEC brief producer",
+            "subject_scope": {
+                "project_id": PROJECT_ID,
+                "subject": {"kind": "artefact", "id": artefact_id},
+            },
+            "evidence_refs": [f"{spec_flow_module._SPEC_02_APPROVAL_EVIDENCE_PREFIX}{approval_sha256}"],
+            "effective_at": starts_at,
+            "expires_at": expires_at,
+            "reason": spec_flow_module._SPEC_02_APPROVAL_AUTHORITY_REASON,
+            "owner_action": "activate_authority_grant",
+        }
+    )
+    owner_setup.activate(
+        {
+            "retry_key": "spec-02-live-run-approval:activate-authority",
+            "publication_command_id": publication["command_id"],
+            "reason": "Activate the exact owner-published SPEC-02 approval registration grant.",
+            "evidence_refs": ["spec-route:spec-02-live-run-approval"],
+        }
+    )
+    grant_id = publication["authority_grant_id"]
     manifest = artefact_manifest()
     manifest.update(
         artefact_id=artefact_id,
@@ -2554,7 +2564,7 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     repository_root = Path(spec_inputs["config"]["repository_root"])
     source_path = ROUTE_DIRECTORY / "spec-01-assay-brief-v1.1.0.md"
     raw = (repository_root / source_path).read_bytes()
-    artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000111"
+    artefact_id = spec_brief_input_artefact_id(source_path.as_posix(), sha256_hex(raw))
     grant_id = activate_lifecycle_grant(
         spec_inputs["harness"],
         subject_kind="artefact",
@@ -2605,7 +2615,9 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
                 command_service=spec_inputs["harness"].service,
             )
     assert not target.exists()
-    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_registration_failure
+    after_registration_failure = _tree_snapshot(spec_inputs["binding"].control_root)
+    assert after_registration_failure != before_registration_failure
+    assert any("runtime/registered-content-recovery" in row[1] for row in after_registration_failure)
     assert not any(
         event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
         for event in spec_inputs["harness"].ledger.iter_events()
@@ -2677,6 +2689,79 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
             command_service=spec_inputs["harness"].service,
         )
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+def test_candidate_registration_recovery_tamper_fails_without_publishing_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000119"
+    registration = CandidateRegistration(
+        artefact_id=artefact_id,
+        project_id=PROJECT_ID,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id="agr_019ffe2b-fd4b-7000-8000-000000000119",
+        submitted_at="2026-08-14T12:00:00Z",
+        correlation_id="candidate-recovery-tamper",
+        reason="exercise exact recovery binding",
+        manifest={
+            **artefact_manifest(),
+            "artefact_id": artefact_id,
+        },
+    )
+    events: list[dict[str, Any]] = []
+
+    class AcceptAndRecord:
+        def submit(self, command: dict[str, Any]) -> Any:
+            events.append(
+                {
+                    "event_type": "ArtefactRegistered",
+                    "stream_id": command["target_stream_id"],
+                    **{
+                        key: command[key]
+                        for key in (
+                            "command_id",
+                            "command_type",
+                            "actor_id",
+                            "authority_grant_id",
+                            "idempotency_key",
+                            "correlation_id",
+                            "causation_id",
+                            "project_id",
+                        )
+                    },
+                    "command_payload_hash": sha256_hex(canonical_bytes(command["payload"])),
+                    "payload": command["payload"],
+                }
+            )
+            return SimpleNamespace(status="accepted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            registration_module.CandidateDocumentStore,
+            "write",
+            lambda *_args: (_ for _ in ()).throw(OSError("injected after registration")),
+        )
+        with pytest.raises(OSError, match="after registration"):
+            register_candidate_document(
+                value={"document_type": "recovery_test", "value": "exact"},
+                registration=registration,
+                document_store=CandidateDocumentStore(control_root),
+                command_service=AcceptAndRecord(),
+            )
+
+    marker = next((control_root / "runtime/registered-content-recovery").glob("*.json"))
+    marker_value = json.loads(marker.read_bytes())
+    marker_value["raw_sha256"] = "f" * 64
+    marker.write_bytes(canonical_bytes(marker_value))
+    before = _tree_snapshot(control_root)
+
+    with pytest.raises(IntegrityError, match="marker binding differs"):
+        recover_registered_content(control_root, tuple(events))
+
+    assert _tree_snapshot(control_root) == before
+    assert not (control_root / "methods/documents" / f"{artefact_id}.json").exists()
 
 
 @pytest.mark.integration
@@ -3104,7 +3189,7 @@ def test_brief_input_review_recovers_after_partial_submission_without_claiming_c
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("mutation", ("unauthorized_last", "duplicate_source"))
+@pytest.mark.parametrize("mutation", ("unauthorized_last", "duplicate_source", "forged_id"))
 def test_brief_input_registration_prevalidates_the_exact_set_before_publication(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], mutation: str
 ) -> None:
@@ -3115,15 +3200,28 @@ def test_brief_input_registration_prevalidates_the_exact_set_before_publication(
     def mutate(entries: list[dict[str, Any]]) -> None:
         if mutation == "unauthorized_last":
             entries[-1]["registration"]["authority_grant_id"] = new_id("authority_grant")
-        else:
+        elif mutation == "duplicate_source":
             entries[-1]["publication"]["source_relative_path"] = entries[0]["publication"]["source_relative_path"]
             entries[-1]["publication"]["source_git_blob"] = entries[0]["publication"]["source_git_blob"]
             entries[-1]["publication"]["content_sha256"] = entries[0]["publication"]["content_sha256"]
             entries[-1]["publication"]["size_bytes"] = entries[0]["publication"]["size_bytes"]
             entries[-1]["publication"]["document_type"] = entries[0]["publication"]["document_type"]
+        else:
+            forged_id = new_id("artefact")
+            entries[-1]["registration"]["artefact_id"] = forged_id
+            entries[-1]["registration"]["manifest"]["artefact_id"] = forged_id
+            entries[-1]["registration"]["authority_grant_id"] = activate_lifecycle_grant(
+                spec_inputs["harness"],
+                subject_kind="artefact",
+                subject_id=forged_id,
+                actor_id=entries[-1]["registration"]["actor_id"],
+                command_types=("RegisterArtefact",),
+                grant_id=new_id("authority_grant"),
+            )
+            entries[-1]["publication"]["destination_relative_path"] = f"methods/content/spec-flow/{forged_id}.md"
         baseline.append(_tree_snapshot(spec_inputs["binding"].control_root))
 
-    with pytest.raises((ArsError, IntegrityError)):
+    with pytest.raises((ArsError, ConfigurationError, IntegrityError)):
         _accept_spec_01_brief_inputs(spec_inputs, entries_mutator=mutate)
     assert _tree_snapshot(spec_inputs["binding"].control_root) == baseline[0]
 
@@ -3584,6 +3682,65 @@ def test_public_spec_flow_requires_and_records_separate_spec_02_live_approval(
 
 
 @pytest.mark.integration
+def test_status_recovers_approval_bytes_after_registration_event_restart(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    review_id = _review_spec_01_complete(spec_inputs, candidate_id, assay_id, returned["scorecard_sha256"])
+    capsys.readouterr()
+    _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
+    capsys.readouterr()
+    approval_id = _approve_spec_02(spec_inputs, execute=False)
+    packet = deepcopy(spec_inputs["packet"])
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            registration_module.CandidateDocumentStore,
+            "write",
+            lambda *_args: (_ for _ in ()).throw(OSError("injected after ArtefactRegistered")),
+        )
+        with pytest.raises(OSError, match="after ArtefactRegistered"):
+            cli.main(_advance_argv(spec_inputs, "approve_spec_02"))
+
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    events = tuple(operator.ledger.iter_events())
+    registrations = [
+        event
+        for event in events
+        if event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == approval_id
+    ]
+    assert len(registrations) == 1
+    relative_path = registrations[0]["payload"]["manifest"]["relative_path"]
+    target = operator.control_root / relative_path
+    assert not target.exists()
+    assert tuple((operator.control_root / "runtime/registered-content-recovery").glob("*.json"))
+
+    restarted = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    status = restarted.status()
+    assert status.completed_stage == "approve_spec_02"
+    assert status.next_action == "prepare_spec_02"
+    assert target.read_bytes() == canonical_bytes(packet["document"])
+    assert not tuple((operator.control_root / "runtime/registered-content-recovery").glob("*.json"))
+
+    assert cli.main(_advance_argv(spec_inputs, "approve_spec_02")) == 0
+    capsys.readouterr()
+    assert (
+        sum(
+            event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == approval_id
+            for event in load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events()
+        )
+        == 1
+    )
+
+
+@pytest.mark.integration
 def test_public_spec_flow_rejects_wrong_spec_02_live_approval_without_registration(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -3907,6 +4064,42 @@ def test_authority_resolver_accepts_a_verified_repaired_binding(
         "approved_witness": binding.origin_witness,
         "approved_witness_path": binding.origin_witness_path,
     }
+
+
+@pytest.mark.parametrize("missing_root", ["authority", "replay"])
+def test_authority_resolver_translates_unavailable_schema_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_root: str,
+) -> None:
+    authority_config = tmp_path / "authority-binding.json"
+    authority_schema_root = tmp_path / "authority-schemas"
+    replay_schema_root = tmp_path / "replay-schemas"
+    if missing_root != "authority":
+        authority_schema_root.mkdir()
+    if missing_root != "replay":
+        replay_schema_root.mkdir()
+    binding = SimpleNamespace(
+        project_id=PROJECT_ID,
+        schema_root=authority_schema_root,
+        control_root=tmp_path / "separate-authority-control",
+        store_identity="store-authority",
+        origin_witness={"witness": "exact"},
+        origin_witness_path=tmp_path / "origin-witness.json",
+    )
+    monkeypatch.setattr(
+        cli.ControlBinding,
+        "load",
+        lambda path: binding if path == authority_config else None,
+    )
+
+    with pytest.raises(ConfigurationError, match="authority binding schema root is unavailable"):
+        cli._authority_resolver_from_config(
+            authority_config,
+            project_id=PROJECT_ID,
+            schemas=SimpleNamespace(),
+            expected_schema_root=replay_schema_root,
+        )
 
 
 @pytest.mark.integration

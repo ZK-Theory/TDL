@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import research_system.operations.backups as backups_module
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -32,6 +33,28 @@ ARTEFACT_ID = "art_019fcdfa-7700-7000-8000-000000000001"
 
 def _tree_bytes(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def _separate_authority_resolver(tmp_path: Path, *, project_id: str = PROJECT_ID) -> LedgerAuthorityGrantResolver:
+    code_root = tmp_path / "authority-code"
+    origin_root = tmp_path / "authority-origin"
+    control_root = tmp_path / "authority-control"
+    code_root.mkdir(parents=True)
+    origin_root.mkdir(parents=True)
+    store = initialize_control_store(
+        [code_root],
+        control_root,
+        project_id,
+        origin_authority_root=origin_root,
+    )
+    return LedgerAuthorityGrantResolver(
+        control_root,
+        project_id,
+        str(store),
+        bundled_runtime_schema_registry(),
+        approved_witness=store.witness,
+        approved_witness_path=store.witness_path,
+    )
 
 
 def _case(tmp_path: Path) -> dict[str, object]:
@@ -178,6 +201,80 @@ def _append_backup_created(case: dict[str, object]) -> dict[str, object]:
         snapshot=before,
     )
     return ledger.snapshot().events[-1]
+
+
+@pytest.mark.parametrize("authority_mode", ("implicit_same_root", "explicit_same_root", "separate_root"))
+def test_backup_replay_separates_local_store_and_spec_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    authority_mode: str,
+) -> None:
+    case = _case(tmp_path)
+    materializer = case["materializer"]
+    assert isinstance(materializer, BackupMaterializer)
+    if authority_mode == "explicit_same_root":
+        external = LedgerAuthorityGrantResolver(
+            case["source"],
+            PROJECT_ID,
+            materializer.approved_witness.store_identity,
+            bundled_runtime_schema_registry(),
+            approved_witness=materializer.approved_witness,
+            approved_witness_path=materializer.approved_witness_path,
+        )
+    elif authority_mode == "separate_root":
+        external = _separate_authority_resolver(tmp_path / "separate")
+    else:
+        external = None
+    materializer = replace(materializer, authority_resolver=external)
+    observed: dict[str, LedgerAuthorityGrantResolver] = {}
+    original_replay = backups_module.replay
+    original_factory = backups_module.build_spec_execution_authority_validator
+
+    def observed_replay(events, **kwargs):
+        observed["local"] = kwargs["authority_state_validator"].__self__
+        return original_replay(events, **kwargs)
+
+    def observed_factory(**kwargs):
+        observed["spec"] = kwargs["authority_resolver"]
+        return original_factory(**kwargs)
+
+    monkeypatch.setattr(backups_module, "replay", observed_replay)
+    monkeypatch.setattr(backups_module, "build_spec_execution_authority_validator", observed_factory)
+
+    materializer.derive_event_payload(
+        snapshot_id=SNAPSHOT_ID,
+        destination_class="offline-local-copy",
+        schema_versions=("core-1.0.0",),
+        tool_versions=("tdl-backup-1.0.0",),
+        encryption_class="owner-approved-none",
+        redaction_class="owner-approved-complete",
+        ledger_snapshot=case["before"],
+    )
+
+    assert observed["local"].control_root == case["source"]
+    assert observed["spec"] is (external or observed["local"])
+
+
+def test_backup_rejects_spec_authority_from_another_project(tmp_path: Path) -> None:
+    case = _case(tmp_path)
+    materializer = case["materializer"]
+    assert isinstance(materializer, BackupMaterializer)
+    foreign = _separate_authority_resolver(
+        tmp_path / "foreign",
+        project_id="prj_01978abc-1000-7000-8000-000000001999",
+    )
+    materializer = replace(materializer, authority_resolver=foreign)
+
+    with pytest.raises(IntegrityError, match="different project"):
+        materializer.derive_event_payload(
+            snapshot_id=SNAPSHOT_ID,
+            destination_class="offline-local-copy",
+            schema_versions=("core-1.0.0",),
+            tool_versions=("tdl-backup-1.0.0",),
+            encryption_class="owner-approved-none",
+            redaction_class="owner-approved-complete",
+            ledger_snapshot=case["before"],
+        )
 
 
 def test_prepare_is_invisible_and_excludes_mutable_writer_residue(tmp_path: Path) -> None:

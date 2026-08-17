@@ -2273,6 +2273,8 @@ class LedgerAuthorityGrantResolver:
             if not isinstance(publication, dict):
                 raise IntegrityError("owner authority decision publication projection is invalid")
             grant_ids.add(validate_id(str(publication.get("target_grant_id")), "authority_grant"))
+        if len(grant_ids) != len(publications):
+            raise IntegrityError("owner authority decision publication projection is invalid")
         return frozenset(grant_ids)
 
     def verify_owner_administration_decision(

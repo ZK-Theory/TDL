@@ -1,9 +1,98 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from research_system import cli
 from research_system.canonical import canonical_bytes, sha256_hex
+
+
+def test_publication_context_uses_one_exact_same_root_replay(monkeypatch, tmp_path) -> None:
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    binding = SimpleNamespace(
+        control_root=control_root,
+        project_id="prj_01978abc-1001-7000-8000-000000001001",
+        store_identity="store-one",
+        origin_witness="witness",
+        origin_witness_path=tmp_path / "witness",
+    )
+    schemas = object()
+    events = ({"event_id": "evt_one"},)
+    calls = {"ledger": 0, "snapshot": 0, "authority": 0, "replay": 0}
+
+    class Ledger:
+        def __init__(self, root, project_id, supplied_schemas):
+            calls["ledger"] += 1
+            assert (root, project_id, supplied_schemas) == (
+                binding.control_root,
+                binding.project_id,
+                schemas,
+            )
+
+        def snapshot(self):
+            calls["snapshot"] += 1
+            return SimpleNamespace(events=events)
+
+    class Authority:
+        def __init__(self, root, project_id, store_identity, supplied_schemas, **kwargs):
+            calls["authority"] += 1
+            assert (root, project_id, store_identity, supplied_schemas) == (
+                binding.control_root,
+                binding.project_id,
+                binding.store_identity,
+                schemas,
+            )
+            assert kwargs == {
+                "approved_witness": binding.origin_witness,
+                "approved_witness_path": binding.origin_witness_path,
+            }
+
+        def validate_replayed_administration_state(self, _state):
+            return None
+
+    replay_state = {
+        "streams": {
+            "art_one": {
+                "content_sha256": "1" * 64,
+                "manifest": {"task_id": "tsk_one", "authority": {"accepted_scope": "scope:one"}},
+            },
+            "art_two": {
+                "content_sha256": "2" * 64,
+                "manifest": {"task_id": "tsk_two", "authority": {"accepted_scope": "scope:two"}},
+            },
+        }
+    }
+
+    def replay_once(supplied_events, **kwargs):
+        calls["replay"] += 1
+        assert supplied_events == events
+        assert kwargs["schema_registry"] is schemas
+        assert kwargs["spec_execution_authority_validator"] == "spec-validator"
+        return replay_state
+
+    monkeypatch.setattr(cli, "EventLedger", Ledger)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", Authority)
+    monkeypatch.setattr(cli, "_spec_replay_validator", lambda *args: "spec-validator")
+    monkeypatch.setattr(cli, "replay", replay_once)
+
+    evaluation_time = datetime(2026, 8, 17, 12, tzinfo=UTC)
+    context_for_reference = cli._publication_context_for_reference(binding, schemas, evaluation_time)
+    first = context_for_reference("art_one")
+    second = context_for_reference("art_two")
+
+    assert (first.exact_content_sha256, first.task_id, first.scope_id) == (
+        "1" * 64,
+        "tsk_one",
+        "scope:one",
+    )
+    assert (second.exact_content_sha256, second.task_id, second.scope_id) == (
+        "2" * 64,
+        "tsk_two",
+        "scope:two",
+    )
+    assert first.evaluation_time == second.evaluation_time == evaluation_time
+    assert calls == {"ledger": 1, "snapshot": 1, "authority": 1, "replay": 1}
 
 
 def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkeypatch, tmp_path) -> None:
@@ -32,6 +121,9 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
     class Ledger:
         def __init__(self, *args, **kwargs):
             pass
+
+        def snapshot(self):
+            return SimpleNamespace(events=())
 
         def iter_events(self):
             return ()

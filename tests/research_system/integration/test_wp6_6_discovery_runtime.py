@@ -35,7 +35,7 @@ from research_system.discovery.authority import subject_sha256
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import reduce_artefact, replay_control_plane
-from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, IntegrityError, SchemaError
 from research_system.ids import new_id
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaRegistry
@@ -4725,7 +4725,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "ReviewRequested",
             "RequestDiscoveryOutcomeReview",
             "new_review_id",
-            "schema provenance mismatch|invalid Discovery review request|transaction stream mismatch",
+            None,
         ),
     ):
         cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -4735,8 +4735,15 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if event["event_type"] == event_type and event["command_type"] == producer_type
         )
         minted["payload"][identity_field] = CATALOGUE_STREAM_ID
-        with pytest.raises(IntegrityError, match=message):
-            replay_discovery(_rehash_events(cross_namespace))
+        if event_type == "ReviewRequested":
+            with pytest.raises(IntegrityError) as exc_info:
+                replay_discovery(_rehash_events(cross_namespace))
+            assert str(exc_info.value) == f"event schema validation failed at {minted['global_position']}"
+            assert isinstance(exc_info.value.__cause__, SchemaError)
+        else:
+            assert message is not None
+            with pytest.raises(IntegrityError, match=message):
+                replay_discovery(_rehash_events(cross_namespace))
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(
@@ -4761,11 +4768,17 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if tampered_verdict == "approve_with_conditions"
             else []
         )
-        with pytest.raises(
-            IntegrityError,
-            match="schema provenance mismatch|invalid Discovery review verdict",
-        ):
-            replay_discovery(_rehash_events(events))
+        if tampered_verdict == "approve_with_conditions":
+            with pytest.raises(IntegrityError) as exc_info:
+                replay_discovery(_rehash_events(events))
+            assert str(exc_info.value) == f"event schema validation failed at {verdict_event['global_position']}"
+            assert isinstance(exc_info.value.__cause__, SchemaError)
+        else:
+            with pytest.raises(
+                IntegrityError,
+                match="schema provenance mismatch|invalid Discovery review verdict",
+            ):
+                replay_discovery(_rehash_events(events))
 
     shared_events = tuple(runtime.ledger.iter_events())
     resolve_transaction_ids = discovery_resolve_transaction_ids(shared_events)

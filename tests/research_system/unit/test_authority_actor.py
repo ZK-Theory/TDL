@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import json
 import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -36,6 +37,28 @@ STORE = "a" * 64
 OWNER = "act_01978abc-1002-7000-8000-000000001002"
 ROOT_GRANT = "agr_01978abc-1000-7000-8000-000000001000"
 NOW = datetime(2026, 8, 14, tzinfo=UTC)
+
+
+def _redirect_directory(link: Path, target: Path) -> None:
+    """Create the platform's ordinary directory redirection primitive."""
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"Windows junction creation is unavailable: {result.stderr or result.stdout}")
+    else:
+        os.symlink(target, link, target_is_directory=True)
+
+
+def _remove_directory_redirect(path: Path) -> None:
+    if os.name == "nt":
+        os.rmdir(path)
+    else:
+        path.unlink()
 
 
 def _intent(**changes: object) -> RegisterAuthorityActor:
@@ -193,6 +216,74 @@ def test_semantic_intent_has_its_own_schema_and_deterministic_command_identity(t
     assert authority_actor_command_id(OWNER, "other-retry") != event["command_id"]
 
 
+def test_semantic_intent_schema_is_inert_but_format_checked(tmp_path: Path) -> None:
+    schemas = _service(tmp_path).schemas
+    identity = schemas.resolve_identity(INTENT_SCHEMA_ID, "1.0.0")
+    assert not schemas.is_active(INTENT_SCHEMA_ID, "1.0.0")
+    assert identity.parsed["$defs"]["utc"]["format"] == "date-time"
+
+    invalid = _intent().input_mapping()
+    invalid["effective_at"] = "2026-02-30T00:00:00Z"
+    with pytest.raises(SchemaError, match="is not a 'date-time'"):
+        schemas.validate(INTENT_SCHEMA_ID, invalid, schema_version="1.0.0")
+
+
+def test_invalid_receipt_contract_fails_before_any_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = _service(tmp_path)
+    validate = service.schemas.validate
+
+    def reject_receipt(schema_id: str, value: object, **kwargs: object) -> object:
+        if schema_id == "ars://wp6-6/gate6/authority/receipt/AuthorityActorRegistration":
+            raise SchemaError("injected invalid receipt contract")
+        return validate(schema_id, value, **kwargs)
+
+    monkeypatch.setattr(service.schemas, "validate", reject_receipt)
+    with pytest.raises(SchemaError, match="invalid receipt contract"):
+        service.register(_intent())
+
+    assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+    assert not list((tmp_path / "objects" / "canonical_actor").rglob("*.json"))
+    assert not list((tmp_path / "objects" / "assurance_record").rglob("*.json"))
+    assert not list((tmp_path / "events").rglob("*.jsonl"))
+    assert not list((tmp_path / "receipts").rglob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "relative",
+    (
+        Path("objects/canonical_actor"),
+        Path("objects/assurance_record"),
+        Path("receipts/authority_actor"),
+    ),
+    ids=("actor-object", "registration-object", "receipt"),
+)
+def test_redirected_publication_surface_is_rejected_before_transaction(
+    tmp_path: Path,
+    relative: Path,
+) -> None:
+    service = _service(tmp_path)
+    link = tmp_path / relative
+    external = tmp_path / "external" / relative.name
+    external.parent.mkdir(parents=True, exist_ok=True)
+    if link.exists():
+        link.rename(external)
+    else:
+        external.mkdir()
+        link.parent.mkdir(parents=True, exist_ok=True)
+    _redirect_directory(link, external)
+
+    with pytest.raises(IntegrityError, match="redirected component"):
+        service.register(_intent())
+
+    assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+    assert not list((tmp_path / "events").rglob("*.jsonl"))
+    assert not list((tmp_path / "receipts").rglob("*.json"))
+    assert not list(external.rglob("*.json"))
+
+
 def test_legacy_flat_command_identity_is_limited_to_exact_committed_retry(tmp_path: Path) -> None:
     service = _service(tmp_path)
     legacy_path = tmp_path / "legacy-intent.json"
@@ -291,6 +382,86 @@ def test_started_registration_recovers_after_owner_window_expires(tmp_path: Path
     service.clock = lambda: datetime(2028, 8, 14, tzinfo=UTC)
     recovered = service.register(_intent())
     assert recovered["status"] == "accepted"
+    assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+
+
+def test_redirected_recovery_marker_cannot_authorize_future_window_and_retry_recovers(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+
+    def crash_after_actor(stage: str) -> None:
+        if stage == "actor":
+            raise RuntimeError("crash after actor")
+
+    with pytest.raises(RuntimeError, match="crash after actor"):
+        service.register(_intent(), phase_hook=crash_after_actor)
+    assert not list((tmp_path / "events").rglob("*.jsonl"))
+    assert not list((tmp_path / "objects" / "assurance_record").rglob("*.json"))
+
+    runtime = tmp_path / "runtime"
+    external_runtime = tmp_path / "external-runtime"
+    runtime.rename(external_runtime)
+    _redirect_directory(runtime, external_runtime)
+    service.clock = lambda: datetime(2028, 8, 14, tzinfo=UTC)
+
+    with pytest.raises(IntegrityError, match="redirected component"):
+        service.register(_intent())
+    assert not list((tmp_path / "events").rglob("*.jsonl"))
+    assert not list((tmp_path / "objects" / "assurance_record").rglob("*.json"))
+    assert not list((tmp_path / "receipts").rglob("*.json"))
+
+    _remove_directory_redirect(runtime)
+    external_runtime.rename(runtime)
+    recovered = service.register(_intent())
+    assert recovered["status"] == "accepted"
+    assert not list(runtime.glob(".authority-actor-registration-*.json"))
+
+
+@pytest.mark.parametrize(
+    ("phase", "surface", "expected_events"),
+    (
+        ("registration", "receipt", 0),
+        ("event", "actor", 1),
+        ("receipt", "receipt", 1),
+    ),
+)
+def test_redirect_introduced_at_publication_phase_is_detected_and_exact_retry_recovers(
+    tmp_path: Path,
+    phase: str,
+    surface: str,
+    expected_events: int,
+) -> None:
+    service = _service(tmp_path)
+    redirected: dict[str, Path] = {}
+
+    def redirect(stage: str) -> None:
+        if stage != phase:
+            return
+        if surface == "actor":
+            link = next((tmp_path / "objects" / "canonical_actor").iterdir())
+        else:
+            link = tmp_path / "receipts" / "authority_actor"
+        target = tmp_path / f"external-{phase}-{surface}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if link.exists():
+            link.rename(target)
+        else:
+            target.mkdir()
+            link.parent.mkdir(parents=True, exist_ok=True)
+        _redirect_directory(link, target)
+        redirected.update(link=link, target=target)
+
+    with pytest.raises(IntegrityError, match="redirected component"):
+        service.register(_intent(), phase_hook=redirect)
+    assert len(list((tmp_path / "events").rglob("*.jsonl"))) == expected_events
+    assert list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+
+    _remove_directory_redirect(redirected["link"])
+    redirected["target"].rename(redirected["link"])
+    recovered = service.register(_intent())
+    assert recovered["status"] in {"accepted", "duplicate"}
+    assert len(list((tmp_path / "events").rglob("*.jsonl"))) == 1
     assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
 
 

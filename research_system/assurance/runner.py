@@ -9,7 +9,6 @@ party identities.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -38,7 +37,7 @@ from research_system.authority import GrantedPolicyActionIdentity, LedgerAuthori
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
-from research_system.git_execution import run_git
+from research_system.git_execution import git_blob_sha1, run_git
 from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.durability import fsync_directory
@@ -240,6 +239,7 @@ class _GitObjectReader:
                 self.repository_root,
                 *arguments,
                 text=False,
+                timeout=30,
                 unavailable_message="Git object resolution is unavailable",
             )
         except ConfigurationError as exc:
@@ -291,7 +291,7 @@ class _GitObjectReader:
         if self.text("cat-file", "-t", blob) != "blob":
             raise PackUnconsumable("Git accepted subject does not resolve to a blob")
         data = self._run("cat-file", "blob", blob)
-        if _git_blob_id(data) != blob:
+        if git_blob_sha1(data) != blob:
             raise PackUnconsumable("Git blob content identity is inconsistent")
         return data
 
@@ -312,10 +312,6 @@ class _GitObjectReader:
         if sha256_hex(raw) != raw_sha256:
             raise PackUnconsumable("candidate raw SHA-256 no longer resolves exactly")
         return _GitCandidate(commit, tree, repository_path, blob, raw_sha256, raw)
-
-
-def _git_blob_id(data: bytes) -> str:
-    return hashlib.sha1(b"blob %d\0" % len(data) + data, usedforsecurity=False).hexdigest()
 
 
 class GitCurrentReferenceResolver:

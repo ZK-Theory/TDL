@@ -34,6 +34,7 @@ ACTOR_SCHEMA_ID = "ars://wp6-6/gate6/authority/object/CanonicalAuthorityActor"
 REGISTRATION_SCHEMA_ID = "ars://wp6-6/gate6/authority/object/AuthorityActorRegistration"
 RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/authority/receipt/AuthorityActorRegistration"
 _MARKER_PREFIX = ".authority-actor-registration-"
+_RECEIPT_PREFLIGHT_EVENT_BATCH_ID = "txb_00000000-0000-7000-8000-000000000000"
 
 
 def _require_physical_target(root: Path, relative: Path, *, label: str) -> None:
@@ -50,6 +51,40 @@ def _require_physical_target(root: Path, relative: Path, *, label: str) -> None:
             raise IntegrityError(f"{label} path is unavailable") from exc
         if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
             raise IntegrityError(f"{label} path has a redirected component")
+
+
+def _physical_file_bytes(root: Path, relative: Path, *, label: str) -> bytes | None:
+    """Read one regular in-root file without accepting a redirected component."""
+    _require_physical_target(root, relative, label=label)
+    path = root / relative
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise IntegrityError(f"{label} path is unavailable") from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise IntegrityError(f"{label} path is not a regular file")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise IntegrityError(f"{label} path is unreadable") from exc
+    _require_physical_target(root, relative, label=label)
+    return data
+
+
+def _physical_json(root: Path, relative: Path, *, label: str) -> dict[str, Any] | None:
+    """Read and verify one canonical JSON transaction artifact."""
+    data = _physical_file_bytes(root, relative, label=label)
+    if data is None:
+        return None
+    try:
+        value = json.loads(data)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError(f"{label} is invalid") from exc
+    if not isinstance(value, dict) or canonical_bytes(value) != data:
+        raise IntegrityError(f"{label} is not canonical JSON")
+    return value
 
 
 def _deterministic_id(kind: str, prefix: str, value: object) -> str:
@@ -91,11 +126,22 @@ def _utc_text(value: object, field: str) -> tuple[datetime, str]:
     return parsed, canonical
 
 
-def _publish(path: Path, value: Mapping[str, Any]) -> Path:
+def _publish_physical_json(
+    root: Path,
+    relative: Path,
+    value: Mapping[str, Any],
+    *,
+    label: str,
+) -> Path:
+    """Publish canonical JSON only through a verified physical in-root path."""
     data = canonical_bytes(value)
+    _require_physical_target(root, relative, label=label)
+    path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        if path.read_bytes() != data:
+    _require_physical_target(root, relative, label=label)
+    existing = _physical_file_bytes(root, relative, label=label)
+    if existing is not None:
+        if existing != data:
             raise ConflictError(f"actor registration artifact conflicts: {path}")
         return path
     temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.tmp")
@@ -108,6 +154,37 @@ def _publish(path: Path, value: Mapping[str, Any]) -> Path:
         fsync_directory(path.parent)
     finally:
         temporary.unlink(missing_ok=True)
+    if _physical_file_bytes(root, relative, label=label) != data:
+        raise IntegrityError(f"{label} publication is not exact")
+    return path
+
+
+def _physical_revision_paths(
+    root: Path,
+    kind: str,
+    object_id: str,
+    revision: int,
+) -> tuple[Path, ...]:
+    """Return revision paths after rejecting every redirected component."""
+    directory = Path("objects") / kind / object_id
+    _require_physical_target(root, directory, label=f"{kind} object")
+    matches = sorted((root / directory).glob(f"{revision:08d}-*.json"))
+    for path in matches:
+        _require_physical_target(root, path.relative_to(root), label=f"{kind} object revision")
+    return tuple(matches)
+
+
+def _require_physical_written_object(
+    root: Path,
+    kind: str,
+    path: Path,
+) -> Path:
+    """Require an object writer to return one physical in-root path."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise IntegrityError(f"{kind} object publication escaped the control root") from exc
+    _require_physical_target(root, relative, label=f"{kind} object revision")
     return path
 
 
@@ -277,6 +354,83 @@ class AuthorityActorRegistrationService:
         self.route_commands = route_commands
         self.clock = clock or (lambda: datetime.now(UTC))
 
+    def _read_actor_object(self, actor_id: str) -> tuple[int | None, dict[str, Any] | None]:
+        directory = Path("objects/canonical_actor") / actor_id
+        _require_physical_target(self.root, directory, label="canonical actor")
+        revision = self.objects.latest_revision("canonical_actor", actor_id)
+        if revision is None:
+            return None, None
+        paths = _physical_revision_paths(self.root, "canonical_actor", actor_id, revision)
+        value = self.objects.read("canonical_actor", actor_id, revision)
+        for path in paths:
+            _require_physical_target(
+                self.root,
+                path.relative_to(self.root),
+                label="canonical actor revision",
+            )
+        if not isinstance(value, dict):
+            raise IntegrityError("canonical actor revision is not a mapping")
+        return revision, value
+
+    def _read_registration_object(
+        self,
+        registration_id: str,
+    ) -> tuple[int | None, dict[str, Any] | None]:
+        directory = Path("objects/assurance_record") / registration_id
+        _require_physical_target(self.root, directory, label="actor registration")
+        revision = self.objects.latest_revision("assurance_record", registration_id)
+        if revision is None:
+            return None, None
+        paths = _physical_revision_paths(self.root, "assurance_record", registration_id, revision)
+        value = self.objects.read("assurance_record", registration_id, revision)
+        for path in paths:
+            _require_physical_target(
+                self.root,
+                path.relative_to(self.root),
+                label="actor registration revision",
+            )
+        if not isinstance(value, dict):
+            raise IntegrityError("actor registration revision is not a mapping")
+        return revision, value
+
+    def _write_actor_object(self, actor_id: str, value: Mapping[str, Any]) -> None:
+        _require_physical_target(
+            self.root,
+            Path("objects/canonical_actor") / actor_id,
+            label="canonical actor",
+        )
+        path = self.objects.write("canonical_actor", actor_id, 1, value)
+        _require_physical_written_object(self.root, "canonical_actor", path)
+        revision, stored = self._read_actor_object(actor_id)
+        if revision != 1 or stored != dict(value):
+            raise IntegrityError("canonical actor publication is not exact")
+
+    def _write_registration_object(self, registration_id: str, value: Mapping[str, Any]) -> None:
+        _require_physical_target(
+            self.root,
+            Path("objects/assurance_record") / registration_id,
+            label="actor registration",
+        )
+        path = self.objects.write("assurance_record", registration_id, 1, value)
+        _require_physical_written_object(self.root, "assurance_record", path)
+        revision, stored = self._read_registration_object(registration_id)
+        if revision != 1 or stored != dict(value):
+            raise IntegrityError("actor registration publication is not exact")
+
+    def _require_published_objects(
+        self,
+        actor_id: str,
+        actor_value: Mapping[str, Any],
+        registration_id: str,
+        registration_value: Mapping[str, Any],
+    ) -> None:
+        actor_revision, stored_actor = self._read_actor_object(actor_id)
+        registration_revision, stored_registration = self._read_registration_object(registration_id)
+        if actor_revision != 1 or stored_actor != dict(actor_value):
+            raise IntegrityError("canonical actor publication changed during registration")
+        if registration_revision != 1 or stored_registration != dict(registration_value):
+            raise IntegrityError("actor registration publication changed during registration")
+
     def _validate_lane(self, intent: RegisterAuthorityActor) -> None:
         # Import lazily so owner_authority can consume registration evidence
         # without creating a module import cycle.
@@ -344,8 +498,6 @@ class AuthorityActorRegistrationService:
             raise ConfigurationError("actor registration clock must be UTC")
         effective, effective_text = _utc_text(intent.effective_at, "effective_at")
         expires, expires_text = _utc_text(intent.expires_at, "expires_at")
-        marker_path = self.root / "runtime" / f"{_MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
-        marker_started = marker_path.exists()
         if effective >= expires:
             raise ConfigurationError("actor registration window is not current and finite")
         window_is_current = effective <= now < expires
@@ -383,18 +535,34 @@ class AuthorityActorRegistrationService:
         idempotency_key = authority_actor_idempotency_key(intent.retry_key)
         command_id = authority_actor_command_id(owner_actor_id, intent.retry_key)
         ledger = EventLedger(self.root, self.project_id, self.schemas, store_identity=self.store_identity)
-        actor_existing = None
-        _require_physical_target(self.root, Path("objects/canonical_actor") / actor_id, label="canonical actor")
-        _require_physical_target(
-            self.root, Path("objects/assurance_record") / registration_id, label="actor registration"
+        marker_relative = Path("runtime") / (f"{_MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json")
+        marker_path = self.root / marker_relative
+        receipt_relative = Path("receipts") / "authority_actor" / f"{registration_id}.json"
+        _require_physical_target(self.root, marker_relative, label="actor registration recovery marker")
+        _require_physical_target(self.root, receipt_relative, label="actor registration receipt")
+        actor_revision, actor_existing = self._read_actor_object(actor_id)
+        registration_revision, registration_existing = self._read_registration_object(registration_id)
+        marker = {
+            "schema_id": "ars://internal/authority-actor-registration-transaction",
+            "schema_version": "1.0.0",
+            "payload_hash": payload_hash,
+            "retry_key": intent.retry_key,
+            "actor_id": actor_id,
+            "registration_id": registration_id,
+        }
+        stored_marker = _physical_json(
+            self.root,
+            marker_relative,
+            label="actor registration recovery marker",
         )
-        actor_revision = self.objects.latest_revision("canonical_actor", actor_id)
-        if actor_revision is not None:
-            actor_existing = self.objects.read("canonical_actor", actor_id, actor_revision)
-        registration_existing = None
-        registration_revision = self.objects.latest_revision("assurance_record", registration_id)
-        if registration_revision is not None:
-            registration_existing = self.objects.read("assurance_record", registration_id, registration_revision)
+        if stored_marker is not None and stored_marker != marker:
+            raise ConflictError("actor registration recovery marker conflicts with intent")
+        marker_started = stored_marker is not None
+        receipt_existing = _physical_file_bytes(
+            self.root,
+            receipt_relative,
+            label="actor registration receipt",
+        )
         actor_value = {
             "schema_id": ACTOR_SCHEMA_ID,
             "schema_version": "1.0.0",
@@ -456,17 +624,14 @@ class AuthorityActorRegistrationService:
         # A matching recovery marker means this invocation is completing an
         # interrupted publication and may legitimately find the actor object
         # already durable.
-        if actor_existing is not None and existing_event is None and not marker_path.exists():
+        if (
+            (actor_existing is not None or registration_existing is not None)
+            and existing_event is None
+            and not marker_started
+        ):
             raise ConflictError("authority actor session is already registered")
-        receipt_path = self.root / "receipts" / "authority_actor" / f"{registration_id}.json"
-        marker = {
-            "schema_id": "ars://internal/authority-actor-registration-transaction",
-            "schema_version": "1.0.0",
-            "payload_hash": payload_hash,
-            "retry_key": intent.retry_key,
-            "actor_id": actor_id,
-            "registration_id": registration_id,
-        }
+        if receipt_existing is not None and existing_event is None:
+            raise ConflictError("actor registration receipt exists without its durable event")
         command_schema = self.schemas.resolve_identity(COMMAND_SCHEMA_ID, "1.0.0")
         self.schemas.validate(
             COMMAND_SCHEMA_ID,
@@ -479,26 +644,71 @@ class AuthorityActorRegistrationService:
         )
         self.schemas.validate(ACTOR_SCHEMA_ID, actor_value)
         self.schemas.validate(REGISTRATION_SCHEMA_ID, registration_value)
+        receipt_preflight = {
+            "schema_id": RECEIPT_SCHEMA_ID,
+            "schema_version": "1.0.0",
+            "status": "accepted",
+            "command_id": command_id,
+            "command_payload_hash": payload_hash,
+            "event_batch_id": _RECEIPT_PREFLIGHT_EVENT_BATCH_ID,
+            "actor_id": actor_id,
+            "registration_id": registration_id,
+            "actor_sha256": actor_sha,
+            "registration_sha256": registration_sha,
+        }
+        self.schemas.validate(RECEIPT_SCHEMA_ID, receipt_preflight)
 
         with WriterLock(
             self.root / "runtime" / "writer.lock",
             {"writer_id": f"authority-actor:{payload_hash}", "command_type": "RegisterAuthorityActor"},
         ):
-            if marker_path.exists():
-                try:
-                    stored_marker = json.loads(marker_path.read_bytes())
-                except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-                    raise IntegrityError("actor registration recovery marker is invalid") from exc
-                if stored_marker != marker:
-                    raise ConflictError("actor registration recovery marker conflicts with intent")
+            locked_receipt = _physical_file_bytes(
+                self.root,
+                receipt_relative,
+                label="actor registration receipt",
+            )
+            if locked_receipt != receipt_existing:
+                raise IntegrityError("actor registration receipt path changed before recovery")
+            locked_marker = _physical_json(
+                self.root,
+                marker_relative,
+                label="actor registration recovery marker",
+            )
+            if marker_started:
+                if locked_marker != marker:
+                    raise IntegrityError("actor registration recovery marker changed before recovery")
             else:
-                _publish(marker_path, marker)
-            self.objects.write("canonical_actor", actor_id, 1, actor_value)
+                if locked_marker is not None:
+                    raise ConflictError("actor registration recovery marker appeared before publication")
+                _publish_physical_json(
+                    self.root,
+                    marker_relative,
+                    marker,
+                    label="actor registration recovery marker",
+                )
+            locked_actor_revision, locked_actor = self._read_actor_object(actor_id)
+            locked_registration_revision, locked_registration = self._read_registration_object(registration_id)
+            if (locked_actor_revision, locked_actor) != (actor_revision, actor_existing) or (
+                locked_registration_revision,
+                locked_registration,
+            ) != (registration_revision, registration_existing):
+                raise ConflictError("actor registration objects changed before publication")
+            self._write_actor_object(actor_id, actor_value)
             if phase_hook:
                 phase_hook("actor")
-            self.objects.write("assurance_record", registration_id, 1, registration_value)
+            self._write_registration_object(registration_id, registration_value)
             if phase_hook:
                 phase_hook("registration")
+            self._require_published_objects(actor_id, actor_value, registration_id, registration_value)
+            if (
+                _physical_file_bytes(
+                    self.root,
+                    receipt_relative,
+                    label="actor registration receipt",
+                )
+                != locked_receipt
+            ):
+                raise IntegrityError("actor registration receipt path changed before event publication")
             event = self._existing_event(ledger, intent, payload_hash, expected_event_payload)
             if event is None:
                 result = ledger._append_authority_actor_from_validated_service(
@@ -532,26 +742,50 @@ class AuthorityActorRegistrationService:
                 event_batch_id = str(event["transaction_id"])
             if phase_hook:
                 phase_hook("event")
-            receipt = {
-                "schema_id": RECEIPT_SCHEMA_ID,
-                "schema_version": "1.0.0",
-                "status": "accepted",
-                "command_id": command_id,
-                "command_payload_hash": payload_hash,
-                "event_batch_id": event_batch_id,
-                "actor_id": actor_id,
-                "registration_id": registration_id,
-                "actor_sha256": actor_sha,
-                "registration_sha256": registration_sha,
-            }
-            if receipt_path.exists() and receipt_path.read_bytes() != canonical_bytes(receipt):
-                raise ConflictError("actor registration receipt conflicts")
-            _publish(receipt_path, receipt)
+            self._require_published_objects(actor_id, actor_value, registration_id, registration_value)
+            receipt = {**receipt_preflight, "event_batch_id": event_batch_id}
             self.schemas.validate(RECEIPT_SCHEMA_ID, receipt)
+            stored_receipt = _physical_file_bytes(
+                self.root,
+                receipt_relative,
+                label="actor registration receipt",
+            )
+            if stored_receipt is not None and stored_receipt != canonical_bytes(receipt):
+                raise ConflictError("actor registration receipt conflicts")
+            _publish_physical_json(
+                self.root,
+                receipt_relative,
+                receipt,
+                label="actor registration receipt",
+            )
             if phase_hook:
                 phase_hook("receipt")
+            if _physical_file_bytes(
+                self.root,
+                receipt_relative,
+                label="actor registration receipt",
+            ) != canonical_bytes(receipt):
+                raise IntegrityError("actor registration receipt changed before completion")
+            if (
+                _physical_json(
+                    self.root,
+                    marker_relative,
+                    label="actor registration recovery marker",
+                )
+                != marker
+            ):
+                raise IntegrityError("actor registration recovery marker changed before completion")
             marker_path.unlink(missing_ok=True)
             fsync_directory(marker_path.parent)
+            if (
+                _physical_file_bytes(
+                    self.root,
+                    marker_relative,
+                    label="actor registration recovery marker",
+                )
+                is not None
+            ):
+                raise IntegrityError("actor registration recovery marker was not removed")
             return {
                 "status": "accepted" if existing_event is None else "duplicate",
                 "actor_id": actor_id,

@@ -261,6 +261,14 @@ _CONTEXT_PACKET_COMMAND_TYPES = frozenset(
         "RecordOwnerOperatedContextDelivery",
     }
 )
+_OWNER_OPERATED_CONTEXT_COMMAND_TYPES = frozenset(
+    {
+        "PrepareOwnerOperatedContextHandoff",
+        "ValidateOwnerOperatedContextHandoff",
+        "IssueOwnerOperatedContextHandoff",
+        "RecordOwnerOperatedContextDelivery",
+    }
+)
 _LIFECYCLE_COMMAND_TYPES = (
     _SCOPE_COMMAND_TYPES
     | _TASK_REVISION_COMMAND_TYPES
@@ -1908,6 +1916,8 @@ class CommandService:
                 command_schema=command_schema,
             )
             if existing is not None:
+                if command.envelope["command_type"] in _OWNER_OPERATED_CONTEXT_COMMAND_TYPES:
+                    self._validate_committed_owner_context_identity(command, snapshot.events)
                 reconstructed = self._return_or_reconstruct(existing)
                 if command.envelope["command_type"] in _SCOPED_PUBLICATION_COMMAND_TYPES:
                     if publication_decision is None:
@@ -2614,6 +2624,8 @@ class CommandService:
                 or event.get("project_id") != self.ledger.project_id
             ):
                 raise IntegrityError("scoped accepted receipt does not match canonical ledger")
+            if command_type in _OWNER_OPERATED_CONTEXT_COMMAND_TYPES:
+                self._validate_committed_owner_context_identity(command, events)
             if lifecycle_resolution is not None:
                 if command_schema is None:
                     raise IntegrityError("lifecycle command schema evidence is missing")
@@ -5636,6 +5648,7 @@ class CommandService:
         }
         if command_type == "PrepareOwnerOperatedContextHandoff":
             profile = payload.get("owner_profile")
+            identities = self._owner_context_profile_identities(profile)
             accepted_artefacts = payload.get("accepted_artefacts")
             accepted_ids = (
                 [item.get("artefact_id") for item in accepted_artefacts]
@@ -5644,11 +5657,12 @@ class CommandService:
             )
             if (
                 not isinstance(profile, dict)
+                or identities is None
                 or profile.get("provider_launch") is not False
                 or profile.get("context_id") != payload.get("context_id")
                 or profile.get("packet_revision") != payload.get("packet_revision")
                 or profile.get("packet_sha256") != payload.get("packet_sha256")
-                or profile.get("operator_id") != command.actor_id
+                or identities[0] != command.actor_id
                 or sha256_hex(canonical_bytes(profile)) != payload.get("owner_profile_sha256")
                 or accepted_ids is None
                 or len(accepted_ids) < 2
@@ -5665,6 +5679,7 @@ class CommandService:
             )
             prepared_payload = prepared.get("payload") if isinstance(prepared, dict) else None
             owner_profile = prepared_payload.get("owner_profile") if isinstance(prepared_payload, dict) else None
+            identities = self._owner_context_profile_identities(owner_profile)
             prefix = {
                 "ValidateOwnerOperatedContextHandoff": "prepared",
                 "IssueOwnerOperatedContextHandoff": "validation",
@@ -5686,20 +5701,73 @@ class CommandService:
                 )
             ):
                 return rejected("invalid_owner_context_predecessor", "Owner-operated handoff predecessor differs.")
-            if not isinstance(owner_profile, dict) or owner_profile.get("operator_id") != command.actor_id:
+            if (
+                identities is None
+                or identities[0] != command.actor_id
+                or not isinstance(prepared_payload, dict)
+                or sha256_hex(canonical_bytes(owner_profile)) != prepared_payload.get("owner_profile_sha256")
+                or payload.get("owner_profile_sha256") != prepared_payload.get("owner_profile_sha256")
+            ):
                 return rejected(
                     "invalid_owner_context_profile",
-                    "Owner-operated commands must retain the prepared operator identity.",
+                    "Owner-operated commands must retain the exact prepared identities.",
                 )
             if command_type == "RecordOwnerOperatedContextDelivery" and (
-                payload.get("recipient_id") != owner_profile.get("recipient_id")
-                or payload.get("recipient_session_id") != owner_profile.get("operator_session_id")
+                payload.get("recipient_id") != identities[2] or payload.get("recipient_session_id") != identities[1]
             ):
                 return rejected(
                     "invalid_owner_context_profile",
                     "Owner-operated delivery must retain the prepared recipient and operator session.",
                 )
         return deepcopy(payload)
+
+    @staticmethod
+    def _owner_context_profile_identities(profile: object) -> tuple[str, str, str] | None:
+        """Return concrete operator, session, and recipient identities."""
+        if not isinstance(profile, dict):
+            return None
+        identities = (
+            profile.get("operator_id"),
+            profile.get("operator_session_id"),
+            profile.get("recipient_id"),
+        )
+        if any(not isinstance(value, str) or not value.strip() for value in identities):
+            return None
+        return identities
+
+    def _validate_committed_owner_context_identity(
+        self,
+        command: Command,
+        events: Sequence[dict[str, Any]],
+    ) -> None:
+        """Fail closed when an accepted retry is not bound to one prepared identity."""
+        command_type = command.envelope["command_type"]
+        if command_type not in _OWNER_OPERATED_CONTEXT_COMMAND_TYPES:
+            return
+        prepared = [
+            event
+            for event in events
+            if event.get("stream_id") == command.target_stream_id
+            and event.get("event_type") == "OwnerOperatedContextHandoffPrepared"
+        ]
+        if len(prepared) != 1 or not isinstance(prepared[0].get("payload"), dict):
+            raise IntegrityError("owner-operated retry has no unique prepared identity")
+        prepared_payload = prepared[0]["payload"]
+        profile = prepared_payload.get("owner_profile")
+        identities = self._owner_context_profile_identities(profile)
+        profile_hash = prepared_payload.get("owner_profile_sha256")
+        if (
+            identities is None
+            or identities[0] != command.actor_id
+            or sha256_hex(canonical_bytes(profile)) != profile_hash
+            or command.envelope.get("payload", {}).get("owner_profile_sha256") != profile_hash
+        ):
+            raise IntegrityError("owner-operated retry differs from the prepared identities")
+        if command_type == "RecordOwnerOperatedContextDelivery" and (
+            command.envelope["payload"].get("recipient_id") != identities[2]
+            or command.envelope["payload"].get("recipient_session_id") != identities[1]
+        ):
+            raise IntegrityError("owner-operated retry differs from the prepared delivery identities")
 
     def _ensure_resource_grant_materialized(self, command: Command) -> dict[str, Any]:
         """Materialize revision 1 only from the exact committed request event."""

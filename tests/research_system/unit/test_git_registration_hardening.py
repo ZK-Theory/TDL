@@ -3,17 +3,21 @@ from __future__ import annotations
 import ast
 import os
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-import research_system.methods.registration as registration_module
+import research_system.assurance.runner as assurance_runner
 import research_system.evidence.wp64_real_a8 as wp64_real_a8
+import research_system.git_execution as git_execution_module
+import research_system.methods.registration as registration_module
 import tools.verify_w11_materialization as w11_materialization
 from research_system.canonical import sha256_hex
 from research_system.errors import ConfigurationError
-from research_system.git_execution import run_git, scrubbed_git_environment
+from research_system.git_execution import git_blob_sha1, run_git, scrubbed_git_environment
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -99,8 +103,10 @@ def test_git_environment_scrubs_case_variant_repository_and_config_injection() -
     assert not any(
         key.casefold() == "git_dir"
         or key.casefold() == "git_ceiling_directories"
-        or key.casefold().startswith("git_config_")
-        and key not in {"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM"}
+        or (
+            key.casefold().startswith("git_config_")
+            and key not in {"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM"}
+        )
         for key in environment
     )
     assert environment["GIT_CONFIG"] == os.devnull
@@ -108,6 +114,8 @@ def test_git_environment_scrubs_case_variant_repository_and_config_injection() -
     assert environment["GIT_CONFIG_SYSTEM"] == os.devnull
     assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
     assert environment["GIT_OPTIONAL_LOCKS"] == "0"
+    assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+    assert environment["GIT_GRAFT_FILE"] == os.devnull
     assert environment["GIT_TERMINAL_PROMPT"] == "0"
 
 
@@ -139,6 +147,57 @@ def test_git_environment_scrubs_process_transport_and_prompt_injection_case_inse
 
 
 def test_security_sensitive_git_callers_use_the_shared_execution_boundary() -> None:
+    def direct_execution_calls(tree: ast.AST) -> list[tuple[int, str]]:
+        subprocess_execution = {
+            "Popen",
+            "call",
+            "check_call",
+            "check_output",
+            "getoutput",
+            "getstatusoutput",
+            "run",
+        }
+        subprocess_aliases = {"subprocess"}
+        os_aliases = {"os"}
+        imported_calls: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "subprocess":
+                        subprocess_aliases.add(alias.asname or alias.name)
+                    elif alias.name == "os":
+                        os_aliases.add(alias.asname or alias.name)
+            elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+                imported_calls.update(
+                    alias.asname or alias.name for alias in node.names if alias.name in subprocess_execution
+                )
+            elif isinstance(node, ast.ImportFrom) and node.module == "os":
+                imported_calls.update(
+                    alias.asname or alias.name
+                    for alias in node.names
+                    if alias.name in {"system", "popen"}
+                    or alias.name.startswith("exec")
+                    or alias.name.startswith("spawn")
+                )
+
+        calls: list[tuple[int, str]] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id in imported_calls:
+                calls.append((node.lineno, node.func.id))
+                continue
+            if not isinstance(node.func, ast.Attribute) or not isinstance(node.func.value, ast.Name):
+                continue
+            owner = node.func.value.id
+            name = node.func.attr
+            if (owner in subprocess_aliases and name in subprocess_execution) or (
+                owner in os_aliases
+                and (name in {"system", "popen"} or name.startswith("exec") or name.startswith("spawn"))
+            ):
+                calls.append((node.lineno, f"{owner}.{name}"))
+        return calls
+
     repository_root = Path(__file__).resolve().parents[3]
     for relative in (
         "research_system/owner_authority.py",
@@ -148,12 +207,7 @@ def test_security_sensitive_git_callers_use_the_shared_execution_boundary() -> N
         "tools/verify_w11_materialization.py",
     ):
         tree = ast.parse((repository_root / relative).read_text(encoding="utf-8"), filename=relative)
-        direct_calls = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-                continue
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess":
-                direct_calls.append((node.lineno, node.func.attr))
+        direct_calls = direct_execution_calls(tree)
         assert direct_calls == [], f"{relative} bypasses run_git: {direct_calls}"
 
     evidence_relative = "research_system/evidence/wp64_real_a8.py"
@@ -161,21 +215,130 @@ def test_security_sensitive_git_callers_use_the_shared_execution_boundary() -> N
         (repository_root / evidence_relative).read_text(encoding="utf-8"),
         filename=evidence_relative,
     )
-    subprocess_calls = [
-        node
-        for node in ast.walk(evidence_tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "subprocess"
-    ]
+    subprocess_calls = direct_execution_calls(evidence_tree)
     assert len(subprocess_calls) == 1
+    assert subprocess_calls[0][1] == "subprocess.run"
     enclosing = next(
         node
         for node in ast.walk(evidence_tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_fresh_process_binding_load"
     )
-    assert subprocess_calls[0] in tuple(ast.walk(enclosing))
+    assert any(isinstance(node, ast.Call) and node.lineno == subprocess_calls[0][0] for node in ast.walk(enclosing))
+
+
+def test_shared_git_runner_captures_timeout_and_explicit_local_config_neutralization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def capture_run(arguments, **kwargs):
+        captured["arguments"] = arguments
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr(git_execution_module.subprocess, "run", capture_run)
+    completed = run_git(tmp_path, "-c", "core.hooksPath=hostile", "rev-parse", "HEAD", timeout=37)
+
+    arguments = captured["arguments"]
+    assert isinstance(arguments, list)
+    config_values = [arguments[index + 1] for index, value in enumerate(arguments[:-1]) if value == "-c"]
+    assert {
+        "core.fsmonitor=false",
+        "core.untrackedCache=false",
+        f"core.worktree={tmp_path}",
+        "core.bare=false",
+        f"core.attributesFile={os.devnull}",
+        f"core.hooksPath={os.devnull}",
+        "core.pager=",
+        "diff.external=",
+        "core.askPass=",
+        "credential.helper=",
+        "credential.interactive=never",
+        "core.sshCommand=",
+        "core.gitProxy=",
+        "protocol.ext.allow=never",
+        "protocol.file.allow=never",
+    } <= set(config_values)
+    assert arguments.index("core.hooksPath=hostile") < arguments.index(f"core.hooksPath={os.devnull}")
+    assert captured["timeout"] == 37
+    assert captured["shell"] is False
+    assert completed.stdout == "ok\n"
+
+
+def test_shared_git_blob_identity_matches_git_object_format() -> None:
+    assert git_blob_sha1(b"") == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    assert git_blob_sha1(b"test content\n") == "d670460b4b4aece5915caf5c68d12f560a9fe3e4"
+
+
+def test_shared_git_runner_disables_repository_local_clean_filters(
+    tmp_path: Path,
+) -> None:
+    root = _repository(tmp_path)
+    sentinel = tmp_path / "filter-invoked"
+    filter_script = tmp_path / "hostile_filter.py"
+    filter_script.write_text(
+        "import pathlib, sys\n"
+        f"pathlib.Path({str(sentinel)!r}).write_text('invoked', encoding='utf-8')\n"
+        "sys.stdout.buffer.write(sys.stdin.buffer.read())\n",
+        encoding="utf-8",
+    )
+    (root / ".gitattributes").write_text(f"{SPEC_PATH.as_posix()} filter=hostile\n", encoding="utf-8")
+    python = str(Path(sys.executable).resolve()).replace("\\", "/")
+    script = str(filter_script.resolve()).replace("\\", "/")
+    _git(root, "config", "filter.hostile.clean", f'"{python}" "{script}"')
+    raw = (root / SPEC_PATH).read_bytes()
+
+    completed = run_git(
+        root,
+        "hash-object",
+        "--path",
+        SPEC_PATH.as_posix(),
+        "--stdin",
+        input=raw,
+        text=False,
+    )
+
+    assert completed.returncode == 0
+    assert completed.stdout.decode("ascii").strip() == git_blob_sha1(raw)
+    assert not sentinel.exists()
+
+
+def test_assurance_git_reader_passes_extended_blob_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def capture_run_git(repository_root, *arguments, **kwargs):
+        captured["repository_root"] = repository_root
+        captured["arguments"] = arguments
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout=b"blob", stderr=b"")
+
+    monkeypatch.setattr(assurance_runner, "run_git", capture_run_git)
+    reader = assurance_runner._GitObjectReader(tmp_path)
+
+    assert reader._run("cat-file", "blob", "a" * 40) == b"blob"
+    assert captured["timeout"] == 30
+
+
+def test_wp64_git_failure_preserves_bounded_stderr_detail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        wp64_real_a8,
+        "run_git",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=128,
+            stdout=b"",
+            stderr=b"fatal: exact candidate object is unavailable\n",
+        ),
+    )
+
+    with pytest.raises(wp64_real_a8.EvidenceHarnessError, match="exact candidate object is unavailable"):
+        wp64_real_a8._git_bytes(tmp_path, "rev-parse", "HEAD")
 
 
 def test_shared_git_runner_ignores_hostile_repository_config_and_process_environment(
@@ -274,21 +437,38 @@ def test_raw_registration_hashes_the_captured_bytes_not_a_second_path_read(
     control = tmp_path / "control"
     control.mkdir()
     publication = _publication(root, SPEC_PATH, "spec_operator_source")
+    derived_artefact_id = registration_module.spec_brief_input_artefact_id(
+        publication.source_relative_path,
+        publication.content_sha256,
+    )
+    publication = replace(
+        publication,
+        destination_relative_path=f"methods/content/spec-flow/{derived_artefact_id}.md",
+    )
+    registration = _registration("spec_operator_source")
+    registration = replace(
+        registration,
+        artefact_id=derived_artefact_id,
+        manifest={**registration.manifest, "artefact_id": derived_artefact_id},
+    )
     original_run_git = registration_module.run_git
+    replaced: list[tuple[str, ...]] = []
 
     def replace_after_capture(repository_root, *arguments, **kwargs):
         if arguments[:1] == ("hash-object",):
             (root / SPEC_PATH).write_bytes(b"changed after capture\n")
+            replaced.append(arguments)
         return original_run_git(repository_root, *arguments, **kwargs)
 
     monkeypatch.setattr(registration_module, "run_git", replace_after_capture)
     prepared = prepare_registered_raw_content(
         repository_root=root,
         publication=publication,
-        registration=_registration("spec_operator_source"),
+        registration=registration,
         control_root=control,
     )
 
+    assert replaced, "the hash-object capture hook was not exercised"
     assert prepared.raw_bytes == b"# spec-01-assay-brief-v1.1.0.md\n"
     assert (root / SPEC_PATH).read_bytes() == b"changed after capture\n"
 

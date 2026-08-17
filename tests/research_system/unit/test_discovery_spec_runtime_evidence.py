@@ -7,12 +7,60 @@ from types import SimpleNamespace
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.discovery.runtime import DiscoveryRuntime, _Spec02ExecutionAuthority, _runtime_git
+from research_system.discovery.runtime import (
+    DiscoveryRuntime,
+    _Spec02ExecutionAuthority,
+    _SpecExecutionAuthorityResolver,
+    _SPEC_02_APPROVAL_AUTHORITY_REASON,
+    _SPEC_02_APPROVAL_EVIDENCE_PREFIX,
+    _runtime_git,
+)
 
 
 class _AcceptingSchemas:
     def validate(self, _schema_id: str, _value: object, *, schema_version: str) -> None:
         assert schema_version == "1.0.0"
+
+
+class _ReturnValidationHarness:
+    """Expose only the dependencies of the production return validator."""
+
+    _spec_02_resource_allowed = staticmethod(DiscoveryRuntime._spec_02_resource_allowed)
+    _spec_02_resource_use_allowed = staticmethod(DiscoveryRuntime._spec_02_resource_use_allowed)
+    _spec_02_return_allowed = DiscoveryRuntime._spec_02_return_allowed
+
+    def __init__(self, control_root) -> None:
+        self.control_root = control_root
+        self.schemas = _AcceptingSchemas()
+
+
+class _ApprovalResolverHarness(_SpecExecutionAuthorityResolver):
+    """Supply a frozen authority event snapshot while exercising production matching."""
+
+    def __init__(self, *, authority_events: list[dict[str, Any]], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.authority_events = authority_events
+
+    def _authority_decision_context(self) -> tuple[object, tuple[dict[str, Any], ...]]:
+        return SimpleNamespace(owner_actor_id="owner", root_grant_id="root-grant"), tuple(self.authority_events)
+
+
+def _approval_intent(approval: dict[str, Any], approval_sha256: str, artefact_id: str) -> dict[str, Any]:
+    return {
+        "target_actor_id": "registrar",
+        "target_actor_class": "agent",
+        "authority_lane": "producer/spec_brief_registration",
+        "actor_role": "SPEC brief producer",
+        "subject_scope": {
+            "project_id": "project",
+            "subject": {"kind": "artefact", "id": artefact_id},
+        },
+        "evidence_refs": [f"{_SPEC_02_APPROVAL_EVIDENCE_PREFIX}{approval_sha256}"],
+        "effective_at": approval["valid_window"]["starts_at"],
+        "expires_at": approval["valid_window"]["expires_at"],
+        "reason": _SPEC_02_APPROVAL_AUTHORITY_REASON,
+        "owner_action": "activate_authority_grant",
+    }
 
 
 def test_runtime_git_probe_ignores_hostile_configuration_environment(tmp_path, monkeypatch) -> None:
@@ -59,6 +107,7 @@ def _registered_document(
         "authority_grant_id": authority_grant_id,
         "payload": {
             "manifest": {
+                "artefact_id": f"{suffix}-artefact",
                 "artefact_type": artefact_type,
                 "relative_path": relative_path,
                 "content_sha256": sha256_hex(raw),
@@ -68,13 +117,11 @@ def _registered_document(
     }
 
 
-def _approval_fixture(tmp_path) -> tuple[DiscoveryRuntime, dict[str, Any], dict[str, Any], tuple[dict[str, Any], ...]]:
-    runtime = DiscoveryRuntime.__new__(DiscoveryRuntime)
-    runtime.control_root = tmp_path
-    runtime.schemas = _AcceptingSchemas()
-    runtime.clock = lambda: datetime(2026, 8, 1, 12, 30, tzinfo=UTC)
-    runtime.authority_resolver = SimpleNamespace(owner_published_grant_ids=lambda: frozenset({"owner-grant"}))
-    runtime._prospective_spec_document = None
+def _approval_fixture(
+    tmp_path,
+) -> tuple[_SpecExecutionAuthorityResolver, dict[str, Any], dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Build the validator's complete dependency surface and prove its positive control."""
+
     candidate = {
         "candidate_id": "candidate",
         "decision_id": "promotion",
@@ -119,45 +166,95 @@ def _approval_fixture(tmp_path) -> tuple[DiscoveryRuntime, dict[str, Any], dict[
         ),
         _registered_document(tmp_path, "spec_02_operator_brief", brief, "brief", producer_actor_id="owner"),
     )
-    return runtime, candidate, projection, events
+    approval_sha256 = events[1]["payload"]["manifest"]["content_sha256"]
+    artefact_id = events[1]["payload"]["manifest"]["artefact_id"]
+    intent = _approval_intent(approval, approval_sha256, artefact_id)
+    subject_scope = intent["subject_scope"]
+    authority_events = [
+        {
+            "event_type": "OwnerAuthorityAdministrationDecisionPublished",
+            "command_type": "PublishOwnerAuthorityAdministrationDecision",
+            "actor_id": "owner",
+            "authority_grant_id": "root-grant",
+            "command_payload_hash": sha256_hex(canonical_bytes({"intent": intent})),
+            "payload": {
+                "decision": {
+                    "owner_actor_id": "owner",
+                    "target_grant_id": "owner-grant",
+                    "subject_scope": subject_scope,
+                    "effective_at": approval["valid_window"]["starts_at"],
+                    "expires_at": approval["valid_window"]["expires_at"],
+                },
+                "proposed_grant": {
+                    "authority_grant_id": "owner-grant",
+                    "actor_id": "registrar",
+                    "subject_scope": subject_scope,
+                },
+            },
+        }
+    ]
+    resolver = _ApprovalResolverHarness(
+        control_root=tmp_path,
+        schemas=_AcceptingSchemas(),
+        clock=lambda: datetime(2026, 8, 1, 12, 30, tzinfo=UTC),
+        authority_resolver=SimpleNamespace(
+            project_id="project",
+            owner_published_grant_ids=lambda: frozenset({"owner-grant"}),
+        ),
+        authority_events=authority_events,
+    )
+    assert resolver.resolve(candidate, projection, events=events) is not None
+    return resolver, candidate, projection, events
 
 
 def test_spec_runtime_rejects_malformed_utf8_registered_approval(tmp_path) -> None:
-    runtime, candidate, projection, events = _approval_fixture(tmp_path)
+    resolver, candidate, projection, events = _approval_fixture(tmp_path)
     approval_path = tmp_path / events[1]["payload"]["manifest"]["relative_path"]
     approval_path.write_bytes(b"\xff")
 
-    assert runtime._spec_02_execution_approval(candidate, projection, events=events) is None
+    assert resolver.resolve(candidate, projection, events=events) is None
 
 
 def test_spec_runtime_rejects_approval_claimed_after_evaluation_time(tmp_path) -> None:
-    runtime, candidate, projection, events = _approval_fixture(tmp_path)
+    resolver, candidate, projection, events = _approval_fixture(tmp_path)
     approval_path = tmp_path / events[1]["payload"]["manifest"]["relative_path"]
     approval = json.loads(approval_path.read_bytes())
     approval["approved_at"] = "2026-08-01T12:45:00Z"
     raw = canonical_bytes(approval)
     approval_path.write_bytes(raw)
     events[1]["payload"]["manifest"]["content_sha256"] = sha256_hex(raw)
+    artefact_id = events[1]["payload"]["manifest"]["artefact_id"]
+    intent = _approval_intent(approval, sha256_hex(raw), artefact_id)
+    resolver.authority_events[0]["command_payload_hash"] = sha256_hex(canonical_bytes({"intent": intent}))
 
-    assert runtime._spec_02_execution_approval(candidate, projection, events=events) is None
+    assert resolver.resolve(candidate, projection, events=events) is None
 
 
 def test_spec_runtime_rejects_registrar_identity_not_bound_to_registration_event(tmp_path) -> None:
-    runtime, candidate, projection, events = _approval_fixture(tmp_path)
+    resolver, candidate, projection, events = _approval_fixture(tmp_path)
     events[1]["actor_id"] = "owner"
 
-    assert runtime._spec_02_execution_approval(candidate, projection, events=events) is None
+    assert resolver.resolve(candidate, projection, events=events) is None
 
 
 def test_spec_runtime_requires_owner_published_approval_registration_grant(tmp_path) -> None:
-    runtime, candidate, projection, events = _approval_fixture(tmp_path)
+    resolver, candidate, projection, events = _approval_fixture(tmp_path)
     events[1]["authority_grant_id"] = "ordinary-grant"
 
-    assert runtime._spec_02_execution_approval(candidate, projection, events=events) is None
+    assert resolver.resolve(candidate, projection, events=events) is None
+
+
+def test_spec_runtime_rejects_rehashed_owner_decision_without_exact_approval_command(tmp_path) -> None:
+    resolver, candidate, projection, events = _approval_fixture(tmp_path)
+    resolver.authority_events[0]["command_payload_hash"] = sha256_hex(
+        canonical_bytes({"intent": {"evidence_refs": ["spec-02-approval-sha256:" + "f" * 64]}})
+    )
+
+    assert resolver.resolve(candidate, projection, events=events) is None
 
 
 def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None:
-    runtime, _candidate, _projection, _events = _approval_fixture(tmp_path)
+    runtime = _ReturnValidationHarness(tmp_path)
     verdict = {"verdict": "PASS"}
     verdict_sha256 = sha256_hex(canonical_bytes(verdict))
     brief = {
@@ -200,12 +297,29 @@ def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None
         "resource_use": {"external_cost_gbp": 1, "elapsed_seconds": 1, "cpu_seconds": 1, "peak_memory_bytes": 1},
         "embedded_artefact": verdict,
     }
-    runtime._prospective_spec_document = document
     spike = {"execution_authority_relation": relation}
 
-    assert runtime._spec_02_return_allowed(command=command, authority=authority, spike=spike, events=())
+    assert runtime._spec_02_return_allowed(
+        command=command,
+        authority=authority,
+        spike=spike,
+        events=(),
+        prospective_document=document,
+    )
     document["embedded_artefact"] = {"verdict": "PARTIAL"}
-    assert not runtime._spec_02_return_allowed(command=command, authority=authority, spike=spike, events=())
+    assert not runtime._spec_02_return_allowed(
+        command=command,
+        authority=authority,
+        spike=spike,
+        events=(),
+        prospective_document=document,
+    )
     document["embedded_artefact"] = verdict
     document["responds_to"]["brief_artefact_id"] = "other"
-    assert not runtime._spec_02_return_allowed(command=command, authority=authority, spike=spike, events=())
+    assert not runtime._spec_02_return_allowed(
+        command=command,
+        authority=authority,
+        spike=spike,
+        events=(),
+        prospective_document=document,
+    )

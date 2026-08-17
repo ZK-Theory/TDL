@@ -929,7 +929,8 @@ def test_artefact_batch_prevalidation_rejects_duplicate_transaction_identity_wit
         if path.is_file()
     )
 
-    with pytest.raises(ArsError, match="command IDs|idempotency scopes"):
+    expected_message = "command IDs" if collision == "command_id" else "idempotency scopes"
+    with pytest.raises(ArsError, match=expected_message):
         getattr(harness.service, method_name)([base, second])
 
     after = tuple(

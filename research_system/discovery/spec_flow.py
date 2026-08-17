@@ -51,13 +51,16 @@ from research_system.methods.registration import (
     prepare_candidate_document,
     prepare_registered_raw_content,
     publish_registered_raw_content,
+    recover_registered_content,
     register_candidate_document,
+    spec_brief_input_artefact_id,
 )
 from research_system.evidence.consumers import ArtefactEvidenceConsumers
 from research_system.methods.brief import export_brief
 from research_system.methods.pack import load_methods_pack
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+from research_system.store.ledger import EventLedger
 from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
@@ -138,6 +141,8 @@ _BRIEF_INPUT_SOURCE_TYPES = {
     _SPEC_02_PATH.as_posix(): "spec_operator_source",
     ".research-system/methods/assets/adversarial-review-protocol.md": "methods_asset",
 }
+_SPEC_02_APPROVAL_AUTHORITY_REASON = "Authorize exact governed publication of the owner-approved SPEC-02 run decision."
+_SPEC_02_APPROVAL_EVIDENCE_PREFIX = "spec-02-approval-sha256:"
 _SINGLE_SHOT_ACTIONS = frozenset(_DOCUMENT_ACTION_SCHEMA) | frozenset(
     {
         "register_spec_01_brief_inputs",
@@ -602,6 +607,8 @@ class SpecFlow:
 
     def _snapshot(self) -> tuple[tuple[dict[str, Any], ...], dict[str, Any], dict[str, list[dict[str, Any]]]]:
         events = self.operator.ledger.snapshot().events
+        recover_registered_content(self.operator.control_root, events)
+        events = self.operator.ledger.snapshot().events
         projection = self._runtime().replay(events)
         documents = _registered_documents(self.operator, projection)
         return events, projection, documents
@@ -635,6 +642,69 @@ class SpecFlow:
             subject_id=subject_id,
             now=now,
         )
+
+    def _require_owner_authenticated_approval_decision(
+        self,
+        *,
+        document: Mapping[str, Any],
+        registration: Mapping[str, Any],
+    ) -> None:
+        resolver = self.operator.authority_resolver
+        administration = resolver.administration_context()
+        authority_events = (
+            EventLedger(
+                resolver.control_root,
+                self.operator.ledger.project_id,
+                self.operator.schemas,
+                store_identity=resolver.expected_store_identity,
+            )
+            .snapshot()
+            .events
+        )
+        grant_id = registration.get("authority_grant_id")
+        registrar_id = document.get("registrar", {}).get("actor_id")
+        content_sha256 = sha256_hex(canonical_bytes(document))
+        intent = {
+            "target_actor_id": registrar_id,
+            "target_actor_class": "agent",
+            "authority_lane": "producer/spec_brief_registration",
+            "actor_role": "SPEC brief producer",
+            "subject_scope": {
+                "project_id": self.operator.ledger.project_id,
+                "subject": {"kind": "artefact", "id": registration.get("artefact_id")},
+            },
+            "evidence_refs": [f"{_SPEC_02_APPROVAL_EVIDENCE_PREFIX}{content_sha256}"],
+            "effective_at": document.get("valid_window", {}).get("starts_at"),
+            "expires_at": document.get("valid_window", {}).get("expires_at"),
+            "reason": _SPEC_02_APPROVAL_AUTHORITY_REASON,
+            "owner_action": "activate_authority_grant",
+        }
+        expected_payload_hash = sha256_hex(canonical_bytes({"intent": intent}))
+        matches = []
+        for event in authority_events:
+            payload = event.get("payload")
+            decision = payload.get("decision") if isinstance(payload, Mapping) else None
+            proposed_grant = payload.get("proposed_grant") if isinstance(payload, Mapping) else None
+            if (
+                event.get("event_type") == "OwnerAuthorityAdministrationDecisionPublished"
+                and event.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
+                and event.get("actor_id") == administration.owner_actor_id
+                and event.get("authority_grant_id") == administration.root_grant_id
+                and event.get("command_payload_hash") == expected_payload_hash
+                and isinstance(decision, Mapping)
+                and decision.get("owner_actor_id") == administration.owner_actor_id
+                and decision.get("target_grant_id") == grant_id
+                and decision.get("subject_scope") == intent["subject_scope"]
+                and decision.get("effective_at") == intent["effective_at"]
+                and decision.get("expires_at") == intent["expires_at"]
+                and isinstance(proposed_grant, Mapping)
+                and proposed_grant.get("authority_grant_id") == grant_id
+                and proposed_grant.get("actor_id") == registrar_id
+                and proposed_grant.get("subject_scope") == intent["subject_scope"]
+            ):
+                matches.append(event)
+        if len(matches) != 1:
+            raise IntegrityError("SPEC-02 approval bytes lack one authenticated owner decision")
 
     def _action_identity(self, action: str, packet: Mapping[str, Any], *, publish: bool) -> bool:
         if action not in _SINGLE_SHOT_ACTIONS:
@@ -832,23 +902,57 @@ class SpecFlow:
         if not self._registration_event_matches(events, prepared.command):
             raise ConflictError("completed SPEC action retry differs from its durable packet")
 
-    @staticmethod
-    def _brief_input_states(projection: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    def _expected_brief_input_census(self) -> dict[str, dict[str, Any]]:
+        route_sources = {
+            str(source["locator"]): source
+            for source in self.route["sources"]
+            if source.get("alias") in {"SPEC-01", "SPEC-02"}
+        }
+        census: dict[str, dict[str, Any]] = {}
+        for source_path, artefact_type in _BRIEF_INPUT_SOURCE_TYPES.items():
+            try:
+                raw = (self.operator.repository_root / source_path).read_bytes()
+            except OSError as exc:
+                raise IntegrityError("SPEC brief input source is unavailable") from exc
+            content_sha256 = sha256_hex(raw)
+            route_source = route_sources.get(source_path)
+            if artefact_type == "spec_operator_source" and (
+                not isinstance(route_source, Mapping)
+                or route_source.get("sha256") != content_sha256
+                or route_source.get("size_bytes") != len(raw)
+            ):
+                raise IntegrityError("SPEC brief input differs from the exact route source")
+            artefact_id = spec_brief_input_artefact_id(source_path, content_sha256)
+            census[artefact_id] = {
+                "artefact_id": artefact_id,
+                "artefact_type": artefact_type,
+                "source_relative_path": source_path,
+                "relative_path": f"methods/content/spec-flow/{artefact_id}.md",
+                "content_sha256": content_sha256,
+                "size_bytes": len(raw),
+                "media_type": "text/markdown; charset=utf-8",
+            }
+        return census
+
+    def _brief_input_states(self, projection: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+        census = self._expected_brief_input_census()
         return {
             str(stream_id): state
             for stream_id, state in projection.get("artefact_streams", {}).items()
             if isinstance(state, Mapping)
             and isinstance(state.get("manifest"), Mapping)
-            and state["manifest"].get("artefact_type") in _BRIEF_INPUT_TYPES
-            and isinstance(state["manifest"].get("authority"), Mapping)
-            and state["manifest"].get("authority", {}).get("accepted_scope") == "spec-gate6-run"
+            and str(stream_id) in census
+            and all(
+                (state.get("content_sha256") if key == "content_sha256" else state["manifest"].get(key)) == value
+                for key, value in census[str(stream_id)].items()
+                if key != "source_relative_path"
+            )
         }
 
-    @classmethod
     def _pending_brief_input_authority_states(
-        cls, projection: Mapping[str, Any], command_type: str
+        self, projection: Mapping[str, Any], command_type: str
     ) -> dict[str, Mapping[str, Any]]:
-        inputs = cls._brief_input_states(projection)
+        inputs = self._brief_input_states(projection)
         if command_type == "RecordScientificReview":
             return {stream_id: state for stream_id, state in inputs.items() if not state.get("scientific_reviews")}
         if command_type == "SetArtefactUseAuthority":
@@ -873,19 +977,7 @@ class SpecFlow:
                 )
             completed = action
         brief_inputs = self._brief_input_states(projection)
-        required_source_hashes = [
-            source["sha256"] for source in self.route["sources"] if source["alias"] in {"SPEC-01", "SPEC-02"}
-        ]
-        required_hashes = sorted(
-            required_source_hashes
-            + [
-                sha256_hex((self.operator.repository_root / path).read_bytes())
-                for path, kind in _BRIEF_INPUT_SOURCE_TYPES.items()
-                if kind == "methods_asset"
-            ]
-        )
-        registered_hashes = sorted(state.get("content_sha256") for state in brief_inputs.values())
-        if registered_hashes != required_hashes:
+        if set(brief_inputs) != set(self._expected_brief_input_census()):
             return SpecFlowStatus(
                 "NOT_RUNNABLE",
                 "request_spec_01",
@@ -1262,6 +1354,10 @@ class SpecFlow:
                 not in self.operator.authority_resolver.owner_published_grant_ids()
             ):
                 raise IntegrityError("SPEC-02 approval registrar lacks owner-published exact-subject authority")
+            self._require_owner_authenticated_approval_decision(
+                document=document,
+                registration=registration,
+            )
             source = next(item for item in self.route["sources"] if item["alias"] == "SPEC-02")
             if document.get("spec_02_subject", {}).get("sha256") != source["sha256"]:
                 raise IntegrityError("SPEC-02 approval subject differs from the governed source")
@@ -1694,6 +1790,7 @@ class SpecFlow:
                 spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
                 clock=self.operator.clock,
             )
+            expected_census = self._expected_brief_input_census()
             prepared_entries = []
             for entry in entries:
                 if not isinstance(entry, dict) or set(entry) != {"publication", "registration"}:
@@ -1705,20 +1802,30 @@ class SpecFlow:
                     raise IntegrityError("SPEC brief-input registration entry is malformed") from exc
                 if _BRIEF_INPUT_SOURCE_TYPES.get(publication.source_relative_path) != publication.document_type:
                     raise IntegrityError("SPEC brief-input registrations are not the exact required set")
-                prepared_entries.append(
-                    prepare_registered_raw_content(
-                        repository_root=self.operator.repository_root,
-                        publication=publication,
-                        registration=registration,
-                        control_root=self.operator.control_root,
-                    )
+                prepared = prepare_registered_raw_content(
+                    repository_root=self.operator.repository_root,
+                    publication=publication,
+                    registration=registration,
+                    control_root=self.operator.control_root,
                 )
-            if (
-                {item.publication.source_relative_path for item in prepared_entries} != set(_BRIEF_INPUT_SOURCE_TYPES)
-                or len({item.registration.artefact_id for item in prepared_entries}) != len(prepared_entries)
-                or len({item.publication.destination_relative_path for item in prepared_entries})
-                != len(prepared_entries)
-            ):
+                expected = expected_census.get(registration.artefact_id)
+                if expected is None or any(
+                    actual != expected[key]
+                    for key, actual in {
+                        "artefact_id": registration.artefact_id,
+                        "artefact_type": publication.document_type,
+                        "source_relative_path": publication.source_relative_path,
+                        "relative_path": publication.destination_relative_path,
+                        "content_sha256": publication.content_sha256,
+                        "size_bytes": publication.size_bytes,
+                        "media_type": publication.media_type,
+                    }.items()
+                ):
+                    raise IntegrityError("SPEC brief-input registration differs from the exact route census")
+                prepared_entries.append(prepared)
+            if {item.publication.source_relative_path for item in prepared_entries} != set(
+                _BRIEF_INPUT_SOURCE_TYPES
+            ) or {item.registration.artefact_id for item in prepared_entries} != set(expected_census):
                 raise IntegrityError("SPEC brief-input registrations are not the exact required set")
             service.prevalidate_register_artefact_batch([item.command for item in prepared_entries])
             registrations = []

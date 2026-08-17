@@ -12,7 +12,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from research_system.errors import ConfigurationError
-from research_system.git_execution import run_git
+from research_system.git_execution import git_blob_sha1, run_git
 
 
 METHODS_ROOT = PurePosixPath(".research-system/methods")
@@ -201,15 +201,10 @@ def _canonical_lf(raw: bytes) -> bytes:
     return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
-def _git_blob_sha1(raw: bytes) -> str:
-    header = f"blob {len(raw)}\0".encode("ascii")
-    return hashlib.sha1(header + raw).hexdigest()  # nosec B324 - Git object identity
-
-
 def _asset_identity(raw: bytes, scheme: str) -> str:
     canonical = _canonical_lf(raw)
     if scheme == "git_blob_sha1":
-        return _git_blob_sha1(canonical)
+        return git_blob_sha1(canonical)
     if scheme == "lf_canonical_sha256":
         return hashlib.sha256(canonical).hexdigest()
     raise MethodsPackError(f"unsupported methods asset identity scheme: {scheme!r}")

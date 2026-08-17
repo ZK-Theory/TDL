@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
+import json
 import os
 import stat
 import uuid
@@ -13,7 +16,7 @@ from pathlib import Path
 from typing import Any, Iterator, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConfigurationError, ConflictError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.git_execution import run_git
 from research_system.store.durability import fsync_directory
 
@@ -141,6 +144,44 @@ _SPEC_SOURCE_PATHS = frozenset(
 )
 _METHODS_ASSET_PREFIX = ".research-system/methods/assets/"
 _RAW_DESTINATION_PREFIX = "methods/content/spec-flow/"
+_REGISTRATION_RECOVERY_DIRECTORY = Path("runtime/registered-content-recovery")
+_REGISTRATION_RECOVERY_SCHEMA_ID = "ars://internal/registered-content-recovery"
+
+
+def spec_brief_input_artefact_id(source_relative_path: str, content_sha256: str) -> str:
+    """Derive the sole artefact identity for one exact governed brief input."""
+
+    path = Path(source_relative_path)
+    posix = path.as_posix()
+    allowed = posix in _SPEC_SOURCE_PATHS or (
+        posix.startswith(_METHODS_ASSET_PREFIX)
+        and path.parent.as_posix() == _METHODS_ASSET_PREFIX.rstrip("/")
+        and path.suffix == ".md"
+    )
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or posix != source_relative_path
+        or not allowed
+        or not isinstance(content_sha256, str)
+        or len(content_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in content_sha256)
+    ):
+        raise ConfigurationError("SPEC brief input identity is invalid")
+    digest = bytearray(
+        hashlib.sha256(
+            canonical_bytes(
+                {
+                    "kind": "spec-brief-input",
+                    "source_relative_path": source_relative_path,
+                    "content_sha256": content_sha256,
+                }
+            )
+        ).digest()[:16]
+    )
+    digest[6] = (digest[6] & 0x0F) | 0x70
+    digest[8] = (digest[8] & 0x3F) | 0x80
+    return f"art_{uuid.UUID(bytes=bytes(digest))}"
 
 
 def _require_physical_destination(control_root: Path, relative_path: str, *, create: bool = False) -> Path:
@@ -540,6 +581,138 @@ def _write_immutable_raw(control_root: Path, relative_path: str, raw: bytes) -> 
         raise
 
 
+def _registration_event_matches(event: object, command: dict[str, Any]) -> bool:
+    return bool(
+        isinstance(event, dict)
+        and event.get("event_type") == "ArtefactRegistered"
+        and all(
+            event.get(key) == command.get(key)
+            for key in (
+                "command_id",
+                "command_type",
+                "actor_id",
+                "authority_grant_id",
+                "idempotency_key",
+                "correlation_id",
+                "causation_id",
+                "project_id",
+            )
+        )
+        and event.get("stream_id") == command.get("target_stream_id")
+        and event.get("command_payload_hash") == sha256_hex(canonical_bytes(command.get("payload")))
+        and event.get("payload") == command.get("payload")
+    )
+
+
+def _recovery_marker(command: dict[str, Any], relative_path: str, raw: bytes) -> dict[str, Any]:
+    return {
+        "schema_id": _REGISTRATION_RECOVERY_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "command": command,
+        "relative_path": relative_path,
+        "raw_base64": base64.b64encode(raw).decode("ascii"),
+        "raw_sha256": sha256_hex(raw),
+        "size_bytes": len(raw),
+    }
+
+
+def _publish_recovery_marker(control_root: Path, command: dict[str, Any], relative_path: str, raw: bytes) -> str:
+    store = CandidateDocumentStore(control_root, relative_directory=_REGISTRATION_RECOVERY_DIRECTORY)
+    return store.publish_bytes(
+        str(command["command_id"]), canonical_bytes(_recovery_marker(command, relative_path, raw))
+    )
+
+
+def _remove_recovery_marker(control_root: Path, command_id: str) -> None:
+    relative = (_REGISTRATION_RECOVERY_DIRECTORY / f"{command_id}.json").as_posix()
+    try:
+        with _open_existing_contained_file(control_root, relative) as (fd, target):
+            identity = os.fstat(fd)
+            os.close(fd)
+    except FileNotFoundError:
+        return
+    _remove_created_file(target, identity)
+
+
+def recover_registered_content(control_root: Path, events: tuple[dict[str, Any], ...]) -> None:
+    """Reconcile committed registrations with their exact pre-submit byte markers."""
+
+    root = control_root.resolve(strict=True)
+    directory = root / _REGISTRATION_RECOVERY_DIRECTORY
+    try:
+        metadata = directory.lstat()
+    except FileNotFoundError:
+        return
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    ):
+        raise ConfigurationError("registration recovery directory is not physical")
+    for path in sorted(directory.iterdir(), key=lambda item: item.name):
+        if path.suffix != ".json" or not path.is_file() or path.is_symlink():
+            raise IntegrityError("registration recovery directory contains an invalid entry")
+        relative_marker = path.relative_to(root).as_posix()
+        raw_marker = _read_existing_contained_file(root, relative_marker)
+        try:
+            marker = json.loads(raw_marker)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("registration recovery marker is invalid") from exc
+        if (
+            not isinstance(marker, dict)
+            or raw_marker != canonical_bytes(marker)
+            or set(marker)
+            != {
+                "schema_id",
+                "schema_version",
+                "command",
+                "relative_path",
+                "raw_base64",
+                "raw_sha256",
+                "size_bytes",
+            }
+            or marker.get("schema_id") != _REGISTRATION_RECOVERY_SCHEMA_ID
+            or marker.get("schema_version") != "1.0.0"
+        ):
+            raise IntegrityError("registration recovery marker is invalid")
+        command = marker.get("command")
+        relative_path = marker.get("relative_path")
+        try:
+            raw = base64.b64decode(marker.get("raw_base64"), validate=True)
+        except (binascii.Error, TypeError, ValueError) as exc:
+            raise IntegrityError("registration recovery marker bytes are invalid") from exc
+        payload = command.get("payload") if isinstance(command, dict) else None
+        manifest = payload.get("manifest") if isinstance(payload, dict) else None
+        artefact_id = command.get("target_stream_id") if isinstance(command, dict) else None
+        if (
+            not isinstance(relative_path, str)
+            or not isinstance(manifest, dict)
+            or not isinstance(artefact_id, str)
+            or path.name != f"{command.get('command_id')}.json"
+            or payload.get("new_artefact_id") != artefact_id
+            or manifest.get("artefact_id") != artefact_id
+            or manifest.get("relative_path") != relative_path
+            or Path(relative_path).stem != artefact_id
+            or manifest.get("content_sha256") != marker.get("raw_sha256")
+            or manifest.get("size_bytes") != marker.get("size_bytes")
+            or len(raw) != marker.get("size_bytes")
+            or sha256_hex(raw) != marker.get("raw_sha256")
+        ):
+            raise IntegrityError("registration recovery marker binding differs")
+        matches = [event for event in events if _registration_event_matches(event, command)]
+        competing = [
+            event
+            for event in events
+            if event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
+        ]
+        if len(matches) > 1 or (not matches and competing):
+            raise IntegrityError("registration recovery event binding differs")
+        if not matches:
+            continue
+        _write_immutable_raw(root, relative_path, raw)
+        _remove_recovery_marker(root, str(command["command_id"]))
+
+
 def publish_registered_raw_content(
     *,
     repository_root: Path,
@@ -563,11 +736,14 @@ def publish_registered_raw_content(
     )
     raw = prepared.raw_bytes
     command = prepared.command
+    _publish_recovery_marker(control_root, command, publication.destination_relative_path, raw)
     receipt = command_service.submit(command)
     if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        _remove_recovery_marker(control_root, str(command["command_id"]))
         reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
         raise ArsError(f"raw artefact registration was not accepted ({reason})")
     _write_immutable_raw(control_root, publication.destination_relative_path, raw)
+    _remove_recovery_marker(control_root, str(command["command_id"]))
     return RegisteredCandidate(
         registration.artefact_id,
         publication.content_sha256,
@@ -588,7 +764,16 @@ def prepare_registered_raw_content(
 
     raw = _validate_committed_raw_source(repository_root, publication)
     destination = Path(publication.destination_relative_path)
-    if destination.stem != registration.artefact_id:
+    expected_artefact_id = spec_brief_input_artefact_id(
+        publication.source_relative_path,
+        publication.content_sha256,
+    )
+    expected_destination = f"{_RAW_DESTINATION_PREFIX}{expected_artefact_id}.md"
+    if (
+        registration.artefact_id != expected_artefact_id
+        or destination.stem != expected_artefact_id
+        or publication.destination_relative_path != expected_destination
+    ):
         raise ConfigurationError("raw content destination does not bind the artefact identity")
     _require_physical_destination(control_root, publication.destination_relative_path)
     try:
@@ -659,13 +844,21 @@ def register_candidate_document(
         registration=registration,
         document_store=document_store,
     )
+    _publish_recovery_marker(
+        document_store.control_root,
+        prepared.command,
+        prepared.relative_path,
+        prepared.raw_bytes,
+    )
     receipt = command_service.submit(prepared.command)
     if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        _remove_recovery_marker(document_store.control_root, str(prepared.command["command_id"]))
         reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
         explanation = getattr(receipt, "explanation", None)
         detail = f": {explanation}" if explanation else ""
         raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
     document_store.write(registration.artefact_id, prepared.raw_bytes)
+    _remove_recovery_marker(document_store.control_root, str(prepared.command["command_id"]))
     return RegisteredCandidate(
         registration.artefact_id,
         prepared.content_sha256,
@@ -737,5 +930,7 @@ __all__ = [
     "publish_registered_raw_content",
     "prepare_registered_raw_content",
     "prepare_candidate_document",
+    "recover_registered_content",
     "register_candidate_document",
+    "spec_brief_input_artefact_id",
 ]

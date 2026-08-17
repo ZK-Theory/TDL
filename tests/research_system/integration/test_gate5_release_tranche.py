@@ -465,6 +465,93 @@ def _verify_restore(case, **changes):
     return verify_restore_before_writer_lease(**values)
 
 
+def _restore_spec_authority(tmp_path, project_id="prj_01978abc-1000-7000-8000-000000001000"):
+    from research_system.authority import LedgerAuthorityGrantResolver
+    from research_system.schema_registry import runtime_schema_registry
+    from research_system.store.identity import initialize_control_store
+
+    code_root = tmp_path / "code"
+    origin_root = tmp_path / "origin"
+    control_root = tmp_path / "control"
+    code_root.mkdir(parents=True)
+    origin_root.mkdir(parents=True)
+    store = initialize_control_store(
+        [code_root],
+        control_root,
+        project_id,
+        origin_authority_root=origin_root,
+    )
+    return LedgerAuthorityGrantResolver(
+        control_root,
+        project_id,
+        str(store),
+        runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas"),
+        approved_witness=store.witness,
+        approved_witness_path=store.witness_path,
+    )
+
+
+@pytest.mark.parametrize("separate_spec_authority", (False, True))
+def test_restore_replay_separates_local_store_and_external_spec_authority(
+    tmp_path, monkeypatch, separate_spec_authority
+):
+    import research_system.operations.backups as backups_module
+    from research_system.authority import LedgerAuthorityGrantResolver
+    from research_system.schema_registry import runtime_schema_registry
+
+    restore_root = tmp_path / "restore"
+    restore_root.mkdir()
+    case = _build_restore_case(restore_root)
+    external = (
+        _restore_spec_authority(tmp_path / "authority")
+        if separate_spec_authority
+        else LedgerAuthorityGrantResolver(
+            case["target"],
+            case["receipt"].project_id,
+            case["receipt"].store_identity,
+            runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas"),
+            approved_witness=case["witness"],
+            approved_witness_path=case["witness_path"],
+            restore_source_alias=True,
+        )
+    )
+    observed = {}
+    original_replay = backups_module.replay
+    original_factory = backups_module.build_spec_execution_authority_validator
+
+    def observed_replay(events, **kwargs):
+        observed["local"] = kwargs["authority_state_validator"].__self__
+        return original_replay(events, **kwargs)
+
+    def observed_factory(**kwargs):
+        observed["spec"] = kwargs["authority_resolver"]
+        return original_factory(**kwargs)
+
+    monkeypatch.setattr(backups_module, "replay", observed_replay)
+    monkeypatch.setattr(backups_module, "build_spec_execution_authority_validator", observed_factory)
+
+    result = _verify_restore(case, authority_resolver=external)
+
+    assert result.status == "verified"
+    assert observed["local"].control_root == case["target"]
+    assert observed["spec"] is external
+
+
+def test_restore_rejects_spec_authority_from_another_project(tmp_path):
+    restore_root = tmp_path / "restore"
+    restore_root.mkdir()
+    case = _build_restore_case(restore_root)
+    foreign = _restore_spec_authority(
+        tmp_path / "foreign-authority",
+        project_id="prj_01978abc-1000-7000-8000-000000001999",
+    )
+
+    result = _verify_restore(case, authority_resolver=foreign)
+
+    assert result.status == "diagnostic_only"
+    assert "ledger_replay_invalid" in result.failed_predicates
+
+
 def _prepare_restore_admission(case, **changes):
     from research_system.operations.backups import prepare_restore_admission_before_writer_lease
 

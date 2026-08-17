@@ -9,7 +9,6 @@ published after all physical and runtime checks have completed.
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import os
@@ -29,7 +28,7 @@ from jsonschema import Draft202012Validator
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ApprovedProjectBinding, ControlBinding, canonical_foundation_path
 from research_system.errors import ArsError, ConfigurationError, ConflictError
-from research_system.git_execution import run_git
+from research_system.git_execution import git_blob_sha1, run_git
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.operations.backups import (
     ArtefactBinding,
@@ -155,7 +154,7 @@ class ContentAddressedEvidenceStore:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", key):
             raise EvidenceHarnessError("evidence object key is invalid")
         digest = sha256_hex(raw)
-        blob_sha1 = _git_blob_sha1(raw)
+        blob_sha1 = git_blob_sha1(raw)
         claim_path = self.root / "claims" / f"{key}.json"
         object_path = self.root / "objects" / f"sha256-{digest}.json"
         root_was_absent = not self.root.exists()
@@ -1355,9 +1354,11 @@ def _git_bytes(repo_root: Path, *args: str) -> bytes:
             unavailable_message="exact Git identity could not be captured",
         )
     except ConfigurationError as exc:
-        raise EvidenceHarnessError("exact Git identity could not be captured") from exc
+        detail = str(exc.__cause__ or exc).strip().replace("\r", " ").replace("\n", " ")
+        raise EvidenceHarnessError(f"exact Git identity could not be captured: {detail[-400:]}") from exc
     if result.returncode != 0:
-        raise EvidenceHarnessError("exact Git identity could not be captured")
+        detail = result.stderr.decode("utf-8", errors="replace").strip().replace("\r", " ").replace("\n", " ")
+        raise EvidenceHarnessError(f"exact Git identity could not be captured: {(detail or 'unknown error')[-400:]}")
     return result.stdout
 
 
@@ -1472,7 +1473,7 @@ def _read_physical_file_snapshot(path: Path, role: str) -> _PhysicalFileSnapshot
         "role": role,
         "size": len(raw),
         "raw_sha256": sha256_hex(raw),
-        "git_blob_sha1": _git_blob_sha1(raw),
+        "git_blob_sha1": git_blob_sha1(raw),
         "physical_identity": before_identity,
     }
     return _PhysicalFileSnapshot(resolved, raw, record)
@@ -1704,14 +1705,6 @@ def _request_identity(
 
 def _candidate_id(candidate_without_id: Mapping[str, Any]) -> str:
     return f"a8c_{sha256_hex(canonical_bytes(dict(candidate_without_id)))}"
-
-
-def _git_blob_sha1(raw: bytes) -> str:
-    header = f"blob {len(raw)}\0".encode("ascii")
-    return hashlib.sha1(  # nosemgrep: insecure-hash-algorithm-sha1  # nosec B324
-        header + raw,
-        usedforsecurity=False,
-    ).hexdigest()
 
 
 def _validate_claim(

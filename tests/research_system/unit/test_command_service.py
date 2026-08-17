@@ -231,19 +231,28 @@ def test_activate_lifecycle_grant_rejects_mismatched_existing_scope(tmp_path, ac
         )
 
 
-def _owner_context_snapshot(context_id: str, *, through: str) -> LedgerSnapshot:
+def _owner_context_snapshot(
+    context_id: str,
+    *,
+    through: str,
+    profile_update: dict | None = None,
+    profile_remove: str | None = None,
+) -> LedgerSnapshot:
+    profile = {
+        "operator_id": ACTORS["actor-a"],
+        "operator_session_id": "owner-session-1",
+        "recipient_id": "spec-brief-consumer",
+    }
+    profile.update(profile_update or {})
+    if profile_remove is not None:
+        profile.pop(profile_remove)
     binding = {
         "context_id": context_id,
         "request_id": "request-1",
         "packet_revision": 1,
         "packet_sha256": "1" * 64,
         "manifest_sha256": "2" * 64,
-        "owner_profile_sha256": "3" * 64,
-    }
-    profile = {
-        "operator_id": ACTORS["actor-a"],
-        "operator_session_id": "owner-session-1",
-        "recipient_id": "spec-brief-consumer",
+        "owner_profile_sha256": sha256_hex(canonical_bytes(profile)),
     }
     event_types = [
         ("ContextPacketRequested", {"context_id": context_id, "revision": 1}),
@@ -255,6 +264,7 @@ def _owner_context_snapshot(context_id: str, *, through: str) -> LedgerSnapshot:
     terminal_index = {
         "ContextPacketCompiled": 1,
         "OwnerOperatedContextHandoffPrepared": 2,
+        "OwnerOperatedContextHandoffValidated": 3,
         "OwnerOperatedContextHandoffIssued": 4,
     }[through]
     events = tuple(
@@ -368,6 +378,276 @@ def test_owner_context_prepare_rejects_duplicate_artefact_identity_at_command_bo
 
     assert result.status == "rejected"
     assert result.reason_code == "invalid_owner_context_profile"
+
+
+@pytest.mark.parametrize("identity", ("recipient_id", "operator_session_id"))
+@pytest.mark.parametrize("invalid", (None, "", "   "), ids=("null", "empty", "whitespace"))
+def test_owner_context_prepare_requires_concrete_delivery_identities(tmp_path, identity, invalid):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2014-7000-8000-000000002014"
+    snapshot = _owner_context_snapshot(context_id, through="ContextPacketCompiled")
+    compiled = snapshot.events[-1]["payload"]
+    profile = {
+        "provider_launch": False,
+        "context_id": context_id,
+        "packet_revision": compiled["packet_revision"],
+        "packet_sha256": compiled["packet_sha256"],
+        "operator_id": ACTORS["actor-a"],
+        "operator_session_id": "owner-session-1",
+        "recipient_id": "spec-brief-consumer",
+    }
+    profile[identity] = invalid
+    payload = {
+        **compiled,
+        "owner_profile": profile,
+        "owner_profile_sha256": sha256_hex(canonical_bytes(profile)),
+        "accepted_artefacts": [
+            {"artefact_id": "art_01978abc-2015-7000-8000-000000002015", "content_sha256": "4" * 64},
+            {"artefact_id": "art_01978abc-2016-7000-8000-000000002016", "content_sha256": "5" * 64},
+        ],
+    }
+    command = _owner_context_command(
+        context_id,
+        command_type="PrepareOwnerOperatedContextHandoff",
+        actor_id=ACTORS["actor-a"],
+        expected_version=2,
+        payload=payload,
+    )
+
+    result = harness.service._prepare_context_packet_command(command, snapshot, 2)
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+@pytest.mark.parametrize(
+    ("command_type", "through", "prefix"),
+    (
+        ("ValidateOwnerOperatedContextHandoff", "OwnerOperatedContextHandoffPrepared", "prepared"),
+        ("IssueOwnerOperatedContextHandoff", "OwnerOperatedContextHandoffValidated", "validation"),
+        ("RecordOwnerOperatedContextDelivery", "OwnerOperatedContextHandoffIssued", "issuance"),
+    ),
+)
+@pytest.mark.parametrize("identity", ("recipient_id", "operator_session_id"))
+@pytest.mark.parametrize("invalid", (None, ""), ids=("null", "empty"))
+def test_owner_context_later_commands_reject_nonconcrete_prepared_identity(
+    tmp_path,
+    command_type,
+    through,
+    prefix,
+    identity,
+    invalid,
+):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2017-7000-8000-000000002017"
+    snapshot = _owner_context_snapshot(
+        context_id,
+        through=through,
+        profile_update={identity: invalid},
+    )
+    predecessor = snapshot.events[-1]
+    payload = {
+        **{
+            key: predecessor["payload"][key]
+            for key in (
+                "context_id",
+                "request_id",
+                "packet_revision",
+                "packet_sha256",
+                "manifest_sha256",
+                "owner_profile_sha256",
+            )
+        },
+        f"{prefix}_event_id": predecessor["event_id"],
+        f"{prefix}_event_sha256": predecessor["event_hash"],
+    }
+    if command_type == "RecordOwnerOperatedContextDelivery":
+        payload.update(
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="owner-session-1",
+        )
+    command = _owner_context_command(
+        context_id,
+        command_type=command_type,
+        actor_id=ACTORS["actor-a"],
+        expected_version=len(snapshot.events),
+        payload=payload,
+    )
+
+    result = harness.service._prepare_context_packet_command(
+        command,
+        snapshot,
+        len(snapshot.events),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+@pytest.mark.parametrize("identity", ("recipient_id", "operator_session_id"))
+def test_owner_context_prepare_rejects_missing_delivery_identity(tmp_path, identity):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2018-7000-8000-000000002018"
+    snapshot = _owner_context_snapshot(context_id, through="ContextPacketCompiled")
+    compiled = snapshot.events[-1]["payload"]
+    profile = {
+        "provider_launch": False,
+        "context_id": context_id,
+        "packet_revision": compiled["packet_revision"],
+        "packet_sha256": compiled["packet_sha256"],
+        "operator_id": ACTORS["actor-a"],
+        "operator_session_id": "owner-session-1",
+        "recipient_id": "spec-brief-consumer",
+    }
+    profile.pop(identity)
+    command = _owner_context_command(
+        context_id,
+        command_type="PrepareOwnerOperatedContextHandoff",
+        actor_id=ACTORS["actor-a"],
+        expected_version=2,
+        payload={
+            **compiled,
+            "owner_profile": profile,
+            "owner_profile_sha256": sha256_hex(canonical_bytes(profile)),
+            "accepted_artefacts": [
+                {"artefact_id": "art_01978abc-2019-7000-8000-000000002019", "content_sha256": "4" * 64},
+                {"artefact_id": "art_01978abc-2020-7000-8000-000000002020", "content_sha256": "5" * 64},
+            ],
+        },
+    )
+
+    result = harness.service._prepare_context_packet_command(command, snapshot, 2)
+
+    assert result.status == "rejected"
+    assert result.reason_code == "invalid_owner_context_profile"
+
+
+@pytest.mark.parametrize("identity", ("recipient_id", "operator_session_id"))
+@pytest.mark.parametrize("invalid", ("missing", None, ""), ids=("missing", "null", "empty"))
+def test_raw_owner_context_prepare_rejects_nonconcrete_identity_without_mutation(
+    tmp_path,
+    identity,
+    invalid,
+):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2022-7000-8000-000000002022"
+    profile = {
+        "schema_id": "ars://context/owner-operated-delivery-profile",
+        "schema_version": "1.0.0",
+        "delivery_mode": "manual_codex_desktop",
+        "application": "Codex Desktop",
+        "application_version": "1.0",
+        "provider_launch": False,
+        "operator_id": ACTORS["actor-a"],
+        "operator_session_id": "owner-session-1",
+        "recipient_id": "spec-brief-consumer",
+        "purpose": "methods_brief",
+        "scope": "rm-03-export",
+        "context_id": context_id,
+        "packet_revision": 1,
+        "packet_sha256": "1" * 64,
+        "capability_digest": "6" * 64,
+        "valid_from": "2026-08-14T10:00:00Z",
+        "expires_at": "2026-08-14T12:00:00Z",
+    }
+    if invalid == "missing":
+        profile.pop(identity)
+    else:
+        profile[identity] = invalid
+    payload = {
+        "context_id": context_id,
+        "request_id": "request-1",
+        "packet_revision": 1,
+        "packet_sha256": "1" * 64,
+        "manifest_sha256": "2" * 64,
+        "owner_profile_sha256": sha256_hex(canonical_bytes(profile)),
+        "owner_profile": profile,
+        "accepted_artefacts": [
+            {"artefact_id": "art_01978abc-2023-7000-8000-000000002023", "content_sha256": "4" * 64},
+            {"artefact_id": "art_01978abc-2024-7000-8000-000000002024", "content_sha256": "5" * 64},
+        ],
+    }
+    envelope = {
+        "command_id": "cmd_01978abc-2025-7000-8000-000000002025",
+        "command_type": "PrepareOwnerOperatedContextHandoff",
+        "schema_id": "ars://wp6-6/command/PrepareOwnerOperatedContextHandoff",
+        "schema_version": "1.0.0",
+        "submitted_at": "2026-08-14T11:00:00Z",
+        "actor_id": ACTORS["actor-a"],
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": "agr_01978abc-2026-7000-8000-000000002026",
+        "target_stream_id": context_id,
+        "expected_stream_version": 2,
+        "idempotency_key": f"owner-context-raw:{identity}:{invalid}",
+        "correlation_id": f"context:{context_id}",
+        "causation_id": None,
+        "reason": "exercise raw owner-context command validation",
+        "evidence_refs": [],
+        "payload": payload,
+        "project_id": PROJECT_ID,
+        "context_lifecycle_submission_key": harness.service._context_lifecycle_submission_key,
+    }
+    before = harness.ledger.snapshot()
+
+    with pytest.raises(SchemaError, match=identity):
+        harness.service.submit(envelope)
+
+    assert harness.ledger.snapshot() == before
+    assert harness.receipts.load(envelope["command_id"]) is None
+
+
+def test_owner_context_retry_recovery_revalidates_prepared_identity(tmp_path):
+    harness = control_plane(tmp_path)
+    context_id = "ctx_01978abc-2021-7000-8000-000000002021"
+    snapshot = _owner_context_snapshot(context_id, through="OwnerOperatedContextHandoffIssued")
+    issued = snapshot.events[-1]
+    payload = {
+        **{
+            key: issued["payload"][key]
+            for key in (
+                "context_id",
+                "request_id",
+                "packet_revision",
+                "packet_sha256",
+                "manifest_sha256",
+                "owner_profile_sha256",
+            )
+        },
+        "issuance_event_id": issued["event_id"],
+        "issuance_event_sha256": issued["event_hash"],
+        "recipient_id": "spec-brief-consumer",
+        "recipient_session_id": "owner-session-1",
+    }
+    command = _owner_context_command(
+        context_id,
+        command_type="RecordOwnerOperatedContextDelivery",
+        actor_id=ACTORS["actor-a"],
+        expected_version=len(snapshot.events),
+        payload=payload,
+    )
+
+    assert harness.service._validate_committed_owner_context_identity(command, snapshot.events) is None
+
+    malformed = _owner_context_snapshot(
+        context_id,
+        through="OwnerOperatedContextHandoffIssued",
+        profile_remove="recipient_id",
+    )
+    malformed_issued = malformed.events[-1]
+    malformed_payload = {
+        **command.envelope["payload"],
+        "owner_profile_sha256": malformed_issued["payload"]["owner_profile_sha256"],
+    }
+    malformed_command = _owner_context_command(
+        context_id,
+        command_type="RecordOwnerOperatedContextDelivery",
+        actor_id=ACTORS["actor-a"],
+        expected_version=len(malformed.events),
+        payload=malformed_payload,
+    )
+
+    with pytest.raises(IntegrityError, match="prepared identities"):
+        harness.service._validate_committed_owner_context_identity(malformed_command, malformed.events)
 
 
 def test_owner_context_delivery_rejects_session_outside_prepared_profile(tmp_path):

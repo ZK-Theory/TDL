@@ -343,6 +343,23 @@ def test_legacy_generic_artefact_grant_is_not_reclassified_as_a_spec_role(inputs
     assert all(owner_module._LANE_RISK_POLICY[lane] == "R3" for lane in owner_module._SPEC_FLOW_SUPPORT_LANES)
 
 
+def test_owner_published_grant_reader_rejects_duplicate_target_grants(inputs, monkeypatch):
+    target_grant_id = "agr_01978abc-3011-7000-8000-000000003101"
+    monkeypatch.setattr(
+        inputs.harness.authority_resolver,
+        "_projection",
+        lambda: {
+            "owner_authority_decision_publications": {
+                "arec_01978abc-3011-7000-8000-000000003102": {"target_grant_id": target_grant_id},
+                "arec_01978abc-3011-7000-8000-000000003103": {"target_grant_id": target_grant_id},
+            }
+        },
+    )
+
+    with pytest.raises(IntegrityError, match="publication projection is invalid"):
+        inputs.harness.authority_resolver.owner_published_grant_ids()
+
+
 @pytest.mark.integration
 def test_reviewer_lane_rejects_unmatched_subject_and_role_without_mutation(inputs):
     setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)

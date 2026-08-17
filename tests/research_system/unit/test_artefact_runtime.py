@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta, timezone
+from threading import Event
 
 import pytest
 
@@ -12,7 +14,7 @@ from research_system.artefacts.runtime import (
 )
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ArsError
+from research_system.errors import ArsError, ConflictError
 from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.objects import ObjectStore
@@ -68,6 +70,73 @@ def test_governing_review_store_is_write_once_and_project_bound(tmp_path, schema
             project_id="prj_01978abc-1000-7000-8000-000000001001",
             evaluation_time=datetime(2026, 8, 9, tzinfo=UTC),
         )
+
+
+def test_governing_review_direct_publication_is_exactly_idempotent_and_changed_retry_conflicts(
+    tmp_path,
+    schemas,
+    monkeypatch,
+):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+
+    first = store.publish(REFERENCE_ID, _record())
+    retry = store.publish(REFERENCE_ID, _record())
+
+    assert retry == first
+    changed = _record()
+    changed["subject_sha256"] = "2" * 64
+    write_calls: list[str] = []
+    original_write = objects.write
+
+    def record_write(kind, object_id, revision, value):
+        write_calls.append(object_id)
+        return original_write(kind, object_id, revision, value)
+
+    monkeypatch.setattr(objects, "write", record_write)
+    with pytest.raises(ArsError, match="publication identity conflicts"):
+        store.publish(REFERENCE_ID, changed)
+    assert write_calls == []
+    assert objects.read("assurance_record", REFERENCE_ID, 1) == _record()
+
+
+def test_governing_review_direct_and_batch_publications_share_one_writer_fence(
+    tmp_path,
+    schemas,
+    monkeypatch,
+):
+    objects = ObjectStore(tmp_path)
+    store = GoverningScientificReviewStore(objects, schemas)
+    first_write_entered = Event()
+    release_first_write = Event()
+    original_write = objects.write
+
+    def pause_first_write(kind, object_id, revision, value):
+        if object_id == REFERENCE_ID:
+            first_write_entered.set()
+            assert release_first_write.wait(timeout=10)
+        return original_write(kind, object_id, revision, value)
+
+    monkeypatch.setattr(objects, "write", pause_first_write)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(store.publish, REFERENCE_ID, _record())
+        try:
+            assert first_write_entered.wait(timeout=10)
+
+            second = {**_record(), "review_id": "rev_019fe47a-1005-7000-8000-000000001006"}
+            with pytest.raises(ConflictError, match="writer lock exists"):
+                store.publish_batch(
+                    [{"reference_id": SECOND_REFERENCE_ID, "record": second}],
+                    project_id=PROJECT_ID,
+                    evaluation_time=datetime(2026, 8, 9, tzinfo=UTC),
+                )
+            assert not objects.revision_exists("assurance_record", SECOND_REFERENCE_ID, 1)
+        finally:
+            release_first_write.set()
+        first_resolution = first.result(timeout=10)
+
+    assert first_resolution.reference_id == REFERENCE_ID
+    assert objects.read("assurance_record", REFERENCE_ID, 1) == _record()
 
 
 @pytest.mark.parametrize(

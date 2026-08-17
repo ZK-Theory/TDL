@@ -114,6 +114,7 @@ def test_public_resolver_binds_spec_validator_to_the_exact_replay_snapshot(tmp_p
         assert harness.service.submit(value).status == "accepted"
     loader = ArtefactAuthorityContractLoader(SUBJECT)
     captured_events = []
+    captured_validators = []
 
     def sentinel(_projection, _candidate, _event, _park_test):
         return None
@@ -121,8 +122,12 @@ def test_public_resolver_binds_spec_validator_to_the_exact_replay_snapshot(tmp_p
     original_replay = use_resolver_module.replay
 
     def observed_replay(events, **kwargs):
-        assert kwargs["spec_execution_authority_validator"] is sentinel
+        captured_validators.append(kwargs["spec_execution_authority_validator"])
         return original_replay(events, **kwargs)
+
+    def validator_factory(events):
+        captured_events.append(events)
+        return sentinel
 
     monkeypatch.setattr(use_resolver_module, "replay", observed_replay)
     resolver = ArtefactUseResolver(
@@ -132,12 +137,13 @@ def test_public_resolver_binds_spec_validator_to_the_exact_replay_snapshot(tmp_p
         contract_loader=loader,
         governing_evidence=EvidenceResolver(),
         content_reader=ContentReader(),
-        spec_execution_authority_validator_factory=lambda events: captured_events.append(events) or sentinel,
+        spec_execution_authority_validator_factory=validator_factory,
     )
 
     resolver.resolve(request(loader))
 
     assert captured_events == [harness.ledger.snapshot().events]
+    assert captured_validators == [sentinel]
 
 
 @pytest.mark.parametrize(

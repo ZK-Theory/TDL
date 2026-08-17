@@ -309,13 +309,19 @@ def test_owner_operated_prevalidation_rechecks_window_before_validation(tmp_path
         clock=lambda: datetime(2026, 8, 14, 11, tzinfo=UTC),
     )
     compiled = compile_valid(lifecycle, new_id("context"))
-    times = iter(
-        (
-            datetime(2026, 8, 14, 10, tzinfo=UTC),
-            datetime(2026, 8, 14, 12, tzinfo=UTC),
-        )
-    )
-    lifecycle.clock = lambda: next(times)
+
+    class SaturatingClock:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self) -> datetime:
+            self.calls += 1
+            if self.calls == 1:
+                return datetime(2026, 8, 14, 10, tzinfo=UTC)
+            return datetime(2026, 8, 14, 12, tzinfo=UTC)
+
+    clock = SaturatingClock()
+    lifecycle.clock = clock
 
     with pytest.raises(ArsError, match="outside its finite window"):
         lifecycle.prevalidate_owner_operated(
@@ -334,6 +340,7 @@ def test_owner_operated_prevalidation_rechecks_window_before_validation(tmp_path
 
     owner_events = [event["event_type"] for event in writer.events if event["event_type"].startswith("Owner")]
     assert owner_events == ["OwnerOperatedContextHandoffPrepared"]
+    assert clock.calls >= 2
 
 
 def test_owner_operated_prevalidation_rejects_clock_with_non_utc_aware_timezone(tmp_path) -> None:

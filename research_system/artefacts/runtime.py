@@ -108,40 +108,16 @@ class GoverningScientificReviewStore:
                 if self.objects.read("assurance_record", reference_id, 1) != value:
                     raise ArsError("governing review publication identity conflicts")
 
-    def publish(self, reference_id: str, record: Mapping[str, object]) -> GoverningEvidenceResolution:
-        reference_id = self._validate_reference_id(reference_id)
-        if not isinstance(record, Mapping):
-            raise ArsError("governing review record must be a mapping")
-        value = dict(record)
-        self.schemas.validate("ars://evidence/governing-scientific-review", value)
-        self.objects.write("assurance_record", reference_id, 1, value)
-        return self.resolve(
-            reference_id,
-            project_id=str(value["project_id"]),
-            evaluation_time=datetime.now(UTC),
-        )
-
-    def prevalidate_publications(self, publications: list[Mapping[str, object]]) -> None:
-        """Validate one exact write-once publication set without creating objects."""
-
-        self._prevalidate_values(self._validated_publications(publications))
-
-    def publish_batch(
+    def _publish_values(
         self,
-        publications: list[Mapping[str, object]],
+        values: tuple[tuple[str, dict[str, object]], ...],
         *,
         project_id: str,
         evaluation_time: datetime,
     ) -> tuple[GoverningEvidenceResolution, ...]:
-        """Publish one project-bound set after locked, whole-set prevalidation.
-
-        Exact retries are idempotent. A synchronous member failure rolls back
-        only revisions first created by this call while the writer lock remains
-        held; pre-existing matching revisions are never removed.
-        """
+        """Publish one validated set through the sole locked write path."""
 
         evaluation_time = self._validate_evaluation_time(evaluation_time)
-        values = self._validated_publications(publications)
         if not isinstance(project_id, str) or any(value.get("project_id") != project_id for _, value in values):
             raise ArsError("governing review publication belongs to a different project")
         batch_sha256 = sha256_hex(
@@ -180,6 +156,44 @@ class GoverningScientificReviewStore:
                 )
                 for reference_id, _value in values
             )
+
+    def publish(self, reference_id: str, record: Mapping[str, object]) -> GoverningEvidenceResolution:
+        reference_id = self._validate_reference_id(reference_id)
+        if not isinstance(record, Mapping):
+            raise ArsError("governing review record must be a mapping")
+        value = dict(record)
+        self.schemas.validate("ars://evidence/governing-scientific-review", value)
+        return self._publish_values(
+            ((reference_id, value),),
+            project_id=value["project_id"],
+            evaluation_time=datetime.now(UTC),
+        )[0]
+
+    def prevalidate_publications(self, publications: list[Mapping[str, object]]) -> None:
+        """Validate one exact write-once publication set without creating objects."""
+
+        self._prevalidate_values(self._validated_publications(publications))
+
+    def publish_batch(
+        self,
+        publications: list[Mapping[str, object]],
+        *,
+        project_id: str,
+        evaluation_time: datetime,
+    ) -> tuple[GoverningEvidenceResolution, ...]:
+        """Publish one project-bound set after locked, whole-set prevalidation.
+
+        Exact retries are idempotent. A synchronous member failure rolls back
+        only revisions first created by this call while the writer lock remains
+        held; pre-existing matching revisions are never removed.
+        """
+
+        values = self._validated_publications(publications)
+        return self._publish_values(
+            values,
+            project_id=project_id,
+            evaluation_time=evaluation_time,
+        )
 
     def resolve(
         self,
