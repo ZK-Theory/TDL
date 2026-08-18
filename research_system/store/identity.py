@@ -2797,6 +2797,18 @@ def _validate_binding_repair_successor(
         or sha256_hex(intended_manifest) != record["intended_manifest_sha256"]
     ):
         raise IntegrityError("binding repair successor does not extend the cleared restore transaction")
+    # The successor object binds a candidate path, while the recovery loader
+    # owns verification that every runtime schema leaf remains a physical
+    # exact-HEAD object.  Keep this public store-admission path on that same
+    # verification route rather than trusting the persisted catalogue digest.
+    from research_system.store.binding_repair import load_recovery_binding
+
+    load_recovery_binding(
+        target,
+        expected_project_id=recovery["project_id"],
+        expected_store_identity=recovery["store_identity"],
+        expected_origin_witness_sha256=recovery["origin_witness_sha256"],
+    )
     manifest = _read_manifest(
         _manifest_path(target),
         require_canonical=True,

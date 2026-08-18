@@ -33,6 +33,10 @@ SCOPE_HASH_FIELDS = (
 def bind_assay_fixture_to_current_spec_sources(repository_root: Path) -> None:
     """Rebind copied test authority content to the fixture's committed SPEC sources."""
 
+    repository_root = repository_root.resolve(strict=True)
+    if repository_root == Path(__file__).resolve().parents[2]:
+        raise ValueError("refusing to rewrite Assay authority fixture content in the repository root")
+
     route_sha256 = sha256_hex((repository_root / ROUTE_PATH).read_bytes())
     spec_01_sha256 = sha256_hex((repository_root / SPEC_01_PATH).read_bytes())
     rubric_path = repository_root / ASSAY_RUBRIC_PATH

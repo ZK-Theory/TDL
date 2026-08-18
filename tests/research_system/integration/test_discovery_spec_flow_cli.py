@@ -16,6 +16,7 @@ import pytest
 import research_system.cli as cli
 import research_system.discovery.authority as discovery_authority_module
 import research_system.discovery.operator as discovery_operator_module
+import research_system.discovery.source_correction as source_correction_module
 import research_system.discovery.spec_flow as spec_flow_module
 import research_system.methods.registration as registration_module
 import research_system.owner_authority as owner_authority_module
@@ -3423,7 +3424,7 @@ def test_source_correction_required_paths_are_validated_before_remote_access(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        spec_flow_module,
+        source_correction_module,
         "run_git",
         lambda *args, **kwargs: pytest.fail("malformed required paths must fail before Git access"),
     )
@@ -3455,7 +3456,7 @@ def test_source_correction_verifies_every_required_path_at_the_pinned_commit(
             return SimpleNamespace(returncode=0, stdout=content[path])
         return SimpleNamespace(returncode=0, stdout="" if text else b"")
 
-    monkeypatch.setattr(spec_flow_module, "run_git", fake_git)
+    monkeypatch.setattr(source_correction_module, "run_git", fake_git)
     spec_flow_module._verify_remote_commit_paths(
         "https://github.com/berenslab/eff-ph.git",
         "refs/tags/neurips2024",

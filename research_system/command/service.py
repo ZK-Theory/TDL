@@ -32,6 +32,7 @@ from research_system.authority import (
     validate_scoped_grant_activation,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.decision_identity import decision_semantic_sha256
 from research_system.command.lifecycle import (
     changed_task_fields,
     content_hash_matches,
@@ -5532,7 +5533,7 @@ class CommandService:
             f"decision-event-id:{decision_event['event_id']}",
             f"decision-event-hash:{decision_event['event_hash']}",
             f"decision-subject-sha256:{decision_subject_sha256}",
-            f"decision-projection-sha256:{sha256_hex(canonical_bytes(decision))}",
+            f"decision-projection-sha256:{decision_semantic_sha256(decision)}",
             f"decision-authority-grant-id:{decision_event['authority_grant_id']}",
             f"owner-actor-id:{owner_actor_id}",
             f"authority-root-id:{root_id}",

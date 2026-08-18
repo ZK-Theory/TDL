@@ -15,6 +15,7 @@ from research_system.artefacts.authority import (
     GoverningEvidenceResolver,
 )
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.decision_identity import decision_semantic_sha256
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
@@ -616,7 +617,7 @@ class ArtefactUseResolver:
                 if len(decision_events) != 1:
                     _deny("decision_event_ambiguous", "governing owner decision event is missing or ambiguous")
                 decision_event = decision_events[0]
-                projection_sha256 = sha256_hex(canonical_bytes(decision))
+                projection_sha256 = decision_semantic_sha256(decision)
                 reviewed_subject_hashes = {
                     subject_hash
                     for review_id in decision.get("considered_review_ids", [])

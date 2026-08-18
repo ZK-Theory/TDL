@@ -11,7 +11,10 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from tests.research_system.assay_authority_helpers import SCOPE_HASH_FIELDS
+from tests.research_system.assay_authority_helpers import (
+    SCOPE_HASH_FIELDS,
+    bind_assay_fixture_to_current_spec_sources,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -105,6 +108,25 @@ def _content_hash(value: dict[str, object]) -> str:
     preimage = dict(value)
     preimage.pop("content_hash", None)
     return sha256_hex(canonical_bytes(preimage))
+
+
+def test_assay_fixture_rebinding_rejects_repository_root_and_allows_isolated_copy(tmp_path: Path) -> None:
+    source_paths = (RUBRIC_PATH, SCOPE_PATH, ROUTE_PATH, SPEC_PATH)
+    source_bytes = {path: path.read_bytes() for path in source_paths}
+
+    with pytest.raises(ValueError, match="refusing to rewrite Assay authority fixture content"):
+        bind_assay_fixture_to_current_spec_sources(REPO_ROOT)
+    assert {path: path.read_bytes() for path in source_paths} == source_bytes
+
+    fixture_root = tmp_path / "isolated-assay-fixture"
+    for source_path in source_paths:
+        target_path = fixture_root / source_path.relative_to(REPO_ROOT)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_path, target_path)
+    bind_assay_fixture_to_current_spec_sources(fixture_root)
+
+    assert (fixture_root / RUBRIC_PATH.relative_to(REPO_ROOT)).read_bytes() != source_bytes[RUBRIC_PATH]
+    assert (fixture_root / SCOPE_PATH.relative_to(REPO_ROOT)).read_bytes() != source_bytes[SCOPE_PATH]
 
 
 def _validate_semantics(rubric: dict[str, object], scope: dict[str, object]) -> None:

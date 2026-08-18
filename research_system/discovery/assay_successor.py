@@ -9,9 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ConfigurationError
+from research_system.errors import ConfigurationError, IntegrityError
 from research_system.git_execution import run_git
 from research_system.schema_registry import SchemaRegistry
+from research_system.discovery.source_correction import (
+    verify_source_correction_remote as _verify_source_correction_remote,
+)
 
 if TYPE_CHECKING:
     from research_system.methods.registration import (
@@ -246,6 +249,10 @@ def validate_assay_authority_successor_document(
         != document["source_correction_ref"]["content_hash"]
     ):
         raise ConfigurationError("Assay authority successor correction binding differs")
+    try:
+        _verify_source_correction_remote(document["source_correction_document"])
+    except IntegrityError as exc:
+        raise ConfigurationError("Assay authority successor correction remote proof differs") from exc
     manifest = registration.manifest
     if (
         document.get("producer_actor_id") != registration.actor_id

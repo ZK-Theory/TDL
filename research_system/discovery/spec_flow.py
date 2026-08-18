@@ -9,7 +9,6 @@ evidence required by the one next route action.
 from __future__ import annotations
 
 import json
-import tempfile
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -43,6 +42,11 @@ from research_system.discovery.authority import (
 from research_system.discovery.rules import _is_spec_route_candidate
 from research_system.discovery.routes import discovery_route
 from research_system.discovery.runtime import DiscoveryRuntime
+from research_system.discovery.source_correction import (
+    resolve_remote_tag as _resolve_remote_tag,
+    verify_remote_commit_paths as _verify_remote_commit_paths,
+    verify_source_correction_remote as _verify_source_correction_remote,
+)
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
 from research_system.methods.registration import (
@@ -171,108 +175,6 @@ def _git(repository_root: Path, *arguments: str) -> str:
     if result.returncode != 0:
         raise ConfigurationError("SPEC route is not committed at operator HEAD")
     return result.stdout.strip()
-
-
-def _resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
-    """Resolve one exact remote tag without treating the heads namespace as exhaustive."""
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="ars-spec-ls-remote-") as directory:
-            result = run_git(
-                Path(directory),
-                "ls-remote",
-                "--tags",
-                repository_url,
-                resolved_ref,
-                timeout=30,
-                unavailable_message="SPEC-01 correction remote reference could not be resolved",
-            )
-    except ConfigurationError as exc:
-        raise IntegrityError("SPEC-01 correction remote reference could not be resolved") from exc
-    lines = [line.split() for line in result.stdout.splitlines() if line.strip()]
-    if result.returncode != 0 or len(lines) != 1 or len(lines[0]) != 2 or lines[0][1] != resolved_ref:
-        raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
-    return lines[0][0]
-
-
-def _verify_remote_commit_paths(
-    repository_url: str,
-    resolved_ref: str,
-    commit_oid: str,
-    required_paths: Sequence[Mapping[str, Any]],
-) -> None:
-    """Verify every correction path against bytes fetched from the pinned remote ref."""
-
-    if not isinstance(repository_url, str) or not isinstance(resolved_ref, str):
-        raise IntegrityError("SPEC-01 correction remote identity is invalid")
-    if not isinstance(commit_oid, str) or len(commit_oid) != 40:
-        raise IntegrityError("SPEC-01 correction commit identity is invalid")
-    if not required_paths:
-        raise IntegrityError("SPEC-01 correction required paths are empty")
-    expected: dict[str, str] = {}
-    for item in required_paths:
-        path = item.get("path") if isinstance(item, Mapping) else None
-        digest = item.get("sha256") if isinstance(item, Mapping) else None
-        relative = Path(path) if isinstance(path, str) else None
-        if (
-            relative is None
-            or relative.is_absolute()
-            or ".." in relative.parts
-            or relative.as_posix() != path
-            or not isinstance(digest, str)
-            or len(digest) != 64
-            or path in expected
-        ):
-            raise IntegrityError("SPEC-01 correction required path binding is invalid")
-        expected[path] = digest
-    try:
-        with tempfile.TemporaryDirectory(prefix="ars-spec-correction-") as directory:
-            checkout = Path(directory)
-            commands = (("init", "--quiet"), ("remote", "add", "origin", repository_url))
-            for arguments in commands:
-                result = run_git(
-                    checkout,
-                    *arguments,
-                    timeout=30,
-                    text=False,
-                    unavailable_message="SPEC-01 correction remote content could not be fetched",
-                )
-                if result.returncode != 0:
-                    raise IntegrityError("SPEC-01 correction remote content could not be fetched")
-            fetched = run_git(
-                checkout,
-                "fetch",
-                "--quiet",
-                "--depth=1",
-                "origin",
-                resolved_ref,
-                timeout=30,
-                unavailable_message="SPEC-01 correction remote content could not be fetched",
-            )
-            if fetched.returncode != 0:
-                raise IntegrityError("SPEC-01 correction remote content could not be fetched")
-            resolved = run_git(
-                checkout,
-                "rev-parse",
-                "FETCH_HEAD^{commit}",
-                timeout=30,
-                unavailable_message="SPEC-01 correction fetched ref could not be resolved",
-            )
-            if resolved.returncode != 0 or resolved.stdout.strip() != commit_oid:
-                raise IntegrityError("SPEC-01 correction fetched ref differs from its pinned commit")
-            for path, digest in expected.items():
-                content = run_git(
-                    checkout,
-                    "show",
-                    f"{commit_oid}:{path}",
-                    text=False,
-                    timeout=30,
-                    unavailable_message="SPEC-01 correction remote path could not be read",
-                )
-                if content.returncode != 0 or sha256_hex(content.stdout) != digest:
-                    raise IntegrityError("SPEC-01 correction required path differs from the pinned commit")
-    except ConfigurationError as exc:
-        raise IntegrityError("SPEC-01 correction remote content could not be verified") from exc
 
 
 def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> dict[str, Any]:
@@ -1530,16 +1432,10 @@ class SpecFlow:
                 "sha256": assay.get("scorecard_sha256"),
             } or document.get("decision_ref") != {"id": decision.get("event_id"), "sha256": decision.get("event_hash")}:
                 raise IntegrityError("SPEC-01 correction does not bind the exact scorecard and owner decision")
-            git_ref = document.get("corrected_git_reference", {})
-            if _resolve_remote_tag(git_ref.get("repository_url"), git_ref.get("resolved_ref")) != git_ref.get(
-                "commit_oid"
-            ):
-                raise IntegrityError("SPEC-01 correction commit differs from the live remote tag")
-            _verify_remote_commit_paths(
-                git_ref.get("repository_url"),
-                git_ref.get("resolved_ref"),
-                git_ref.get("commit_oid"),
-                git_ref.get("required_paths"),
+            _verify_source_correction_remote(
+                document,
+                resolve_tag=_resolve_remote_tag,
+                verify_paths=_verify_remote_commit_paths,
             )
         if (
             not isinstance(registration, dict)

@@ -357,7 +357,7 @@ def _open_windows_relative_existing_file(parent_handle: int, name: str) -> int:
 
 
 @contextmanager
-def _hold_contained_parent(control_root: Path, relative_path: str) -> Iterator[tuple[int | None, Path]]:
+def _hold_contained_parent(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
     """Hold the verified parent used for an atomic directory-entry publication."""
 
     target = _require_physical_destination(control_root, relative_path, create=True)
@@ -377,7 +377,7 @@ def _hold_contained_parent(control_root: Path, relative_path: str) -> Iterator[t
             for part in relative.parts[:-1]:
                 parents.append(parents[-1] / part)
             windows_handles = _hold_windows_directories(parents)
-            yield None, target
+            yield windows_handles[-1], target
         else:
             raise ConfigurationError("atomic contained file publication is unsupported on this platform")
     finally:
@@ -393,6 +393,107 @@ def _hold_contained_parent(control_root: Path, relative_path: str) -> Iterator[t
 
 def _after_contained_file_fsync(_temporary: Path, _target: Path) -> None:
     """Test seam after staging is durable but before the final name exists."""
+
+
+def _after_contained_file_linked(_temporary: Path, _target: Path) -> None:
+    """Test seam after the final hard link exists but before it is verified."""
+
+
+def _held_parent_matches_destination(parent_descriptor: int, held_target: Path) -> None:
+    """Reject a POSIX pathname redirect after the parent directory was opened."""
+
+    if os.name == "nt":
+        # _hold_windows_directories omits FILE_SHARE_DELETE, so the held parent
+        # cannot be renamed or replaced while the relative leaf operation runs.
+        return
+    try:
+        current_parent = held_target.parent.lstat()
+    except OSError as exc:
+        raise IntegrityError("publication destination parent changed while held") from exc
+    held_parent = os.fstat(parent_descriptor)
+    if (
+        not stat.S_ISDIR(current_parent.st_mode)
+        or stat.S_ISLNK(current_parent.st_mode)
+        or not os.path.samestat(held_parent, current_parent)
+    ):
+        raise IntegrityError("publication destination parent changed while held")
+
+
+def _held_contained_file_identity(parent_descriptor: int, held_target: Path, name: str) -> os.stat_result:
+    """Read a physical leaf identity relative to the held parent directory."""
+
+    if os.name == "nt":
+        # The held directory handle excludes delete sharing, which keeps this
+        # pathname bound to that physical parent.  Reopening the staging inode
+        # relative to the parent would violate its intentionally exclusive
+        # sharing mode, so inspect the leaf through the protected pathname.
+        identity = held_target.with_name(name).lstat()
+    else:
+        identity = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(identity.st_mode)
+        or stat.S_ISLNK(identity.st_mode)
+        or getattr(identity, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    ):
+        raise ConfigurationError("publication destination is not a physical regular file")
+    return identity
+
+
+def _read_held_contained_file(parent_descriptor: int, held_target: Path, name: str) -> bytes:
+    """Read an existing regular leaf relative to the already-held parent."""
+
+    if os.name == "nt":
+        descriptor = _open_windows_relative_existing_file(parent_descriptor, name)
+    else:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_descriptor,
+        )
+    try:
+        identity = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(identity.st_mode)
+            or stat.S_ISLNK(identity.st_mode)
+            or getattr(identity, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        ):
+            raise ConfigurationError("publication destination is not a physical regular file")
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            return handle.read()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _remove_held_created_file(
+    parent_descriptor: int,
+    held_target: Path,
+    name: str,
+    identity: os.stat_result,
+) -> None:
+    """Remove one attempt-owned leaf while its verified parent remains held."""
+
+    try:
+        current = _held_contained_file_identity(parent_descriptor, held_target, name)
+    except (ConfigurationError, OSError):
+        return
+    if not os.path.samestat(current, identity):
+        return
+    try:
+        if os.name == "nt":
+            held_target.with_name(name).unlink()
+        else:
+            os.unlink(name, dir_fd=parent_descriptor)
+    except OSError:
+        return
+    try:
+        if os.name == "nt":
+            fsync_directory(held_target.parent)
+        else:
+            os.fsync(parent_descriptor)
+    except OSError:
+        pass
 
 
 def _publish_contained_file_no_replace(
@@ -423,42 +524,75 @@ def _publish_contained_file_no_replace(
                 _after_contained_file_fsync(temporary_target, target)
                 with _hold_contained_parent(control_root, relative_path) as (parent_descriptor, held_target):
                     temporary_name = temporary_relative.name
-                    published = False
+                    final_link_created = False
+                    cleanup_final_link = False
                     try:
-                        if parent_descriptor is not None:
-                            source_identity = os.stat(
-                                temporary_name,
-                                dir_fd=parent_descriptor,
-                                follow_symlinks=False,
+                        try:
+                            source_identity = (
+                                temporary_target.lstat()
+                                if os.name == "nt"
+                                else _held_contained_file_identity(
+                                    parent_descriptor,
+                                    held_target,
+                                    temporary_name,
+                                )
                             )
                             if not os.path.samestat(temporary_identity, source_identity):
                                 raise IntegrityError("publication staging identity changed before finalization")
-                            os.link(
+                            if os.name == "nt":
+                                os.link(held_target.parent / temporary_name, held_target, follow_symlinks=False)
+                            else:
+                                os.link(
+                                    temporary_name,
+                                    relative.name,
+                                    src_dir_fd=parent_descriptor,
+                                    dst_dir_fd=parent_descriptor,
+                                    follow_symlinks=False,
+                                )
+                            final_link_created = True
+                            _after_contained_file_linked(temporary_target, held_target)
+                        except FileExistsError:
+                            if _read_held_contained_file(parent_descriptor, held_target, relative.name) != data:
+                                raise ConflictError(conflict_message) from None
+                        else:
+                            try:
+                                _held_parent_matches_destination(parent_descriptor, held_target)
+                                destination_identity = _held_contained_file_identity(
+                                    parent_descriptor,
+                                    held_target,
+                                    relative.name,
+                                )
+                                if not os.path.samestat(temporary_identity, destination_identity):
+                                    # This name now belongs to another writer.
+                                    # Never unlink a foreign final entry.
+                                    raise IntegrityError("published file identity differs from held staging file")
+                            except (ConfigurationError, FileNotFoundError, IntegrityError, OSError):
+                                cleanup_final_link = final_link_created
+                                raise
+                            if os.name != "nt":
+                                os.fsync(parent_descriptor)
+                            else:
+                                fsync_directory(held_target.parent)
+                    except BaseException as exc:
+                        if not isinstance(exc, Exception):
+                            cleanup_staging = False
+                        raise
+                    finally:
+                        if cleanup_staging and os.name != "nt":
+                            if cleanup_final_link:
+                                _remove_held_created_file(
+                                    parent_descriptor,
+                                    held_target,
+                                    relative.name,
+                                    temporary_identity,
+                                )
+                            _remove_held_created_file(
+                                parent_descriptor,
+                                held_target,
                                 temporary_name,
-                                relative.name,
-                                src_dir_fd=parent_descriptor,
-                                dst_dir_fd=parent_descriptor,
-                                follow_symlinks=False,
+                                temporary_identity,
                             )
-                        else:
-                            source_identity = temporary_target.lstat()
-                            if not os.path.samestat(temporary_identity, source_identity):
-                                raise IntegrityError("publication staging identity changed before finalization")
-                            os.link(held_target.parent / temporary_name, held_target, follow_symlinks=False)
-                        published = True
-                    except FileExistsError:
-                        if _read_existing_contained_file(control_root, relative_path) != data:
-                            raise ConflictError(conflict_message) from None
-                    else:
-                        destination_identity = held_target.lstat()
-                        if not os.path.samestat(temporary_identity, destination_identity):
-                            if published:
-                                _remove_created_file(held_target, destination_identity)
-                            raise IntegrityError("published file identity differs from held staging file")
-                        if parent_descriptor is not None:
-                            os.fsync(parent_descriptor)
-                        else:
-                            fsync_directory(held_target.parent)
+                            cleanup_staging = False
     except BaseException as exc:
         if not isinstance(exc, Exception):
             cleanup_staging = False

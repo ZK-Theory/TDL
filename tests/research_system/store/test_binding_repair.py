@@ -170,6 +170,26 @@ def test_repair_rejects_a_clean_committed_route_symlink_before_publication(tmp_p
     assert _publication_snapshot(target) == before
 
 
+def test_repair_rejects_a_clean_committed_schema_symlink_before_publication(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    schema = next((candidate / ".research-system" / "schemas").rglob("*.schema.json"))
+    external = tmp_path / "external-schema.json"
+    external.write_bytes(schema.read_bytes())
+    schema.unlink()
+    try:
+        schema.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "committed redirected schema")
+    before = _publication_snapshot(target)
+
+    with pytest.raises(IntegrityError, match="schema.*physical path|schema.*redirected"):
+        repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert _publication_snapshot(target) == before
+
+
 def test_repair_rejects_redirected_object_parent_before_publication(tmp_path: Path, monkeypatch) -> None:
     _initialized, _witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     object_parent = target / "objects" / "binding-repair"
@@ -644,10 +664,59 @@ def test_source_mismatch_and_successor_tamper_or_clean_git_drift_fail_closed(tmp
     recovery = json.loads(recovery_path.read_bytes())
     recovery["schema_catalogue_sha256"] = "f" * 64
     recovery_path.write_bytes(canonical_bytes(recovery))
-    with pytest.raises(IntegrityError, match="successor object"):
+    with pytest.raises(IntegrityError, match="schema catalogue changed"):
         load_store_manifest(target, approved_witness=witness, approved_witness_path=initialized.witness_path)
-    with pytest.raises(IntegrityError, match="successor object"):
+    with pytest.raises(IntegrityError, match="schema catalogue changed"):
         repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+
+def test_recovery_recomputes_the_schema_catalogue_before_returning_a_binding(tmp_path: Path, monkeypatch) -> None:
+    initialized, witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    before = _publication_snapshot(target)
+    recovery_path = target / "manifests" / "binding-repair-current.json"
+    recovery = json.loads(recovery_path.read_bytes())
+    recovery["schema_catalogue_sha256"] = "f" * 64
+    recovery_path.write_bytes(canonical_bytes(recovery))
+
+    with pytest.raises(IntegrityError, match="schema catalogue changed"):
+        load_recovery_binding(
+            target,
+            expected_project_id=witness.project_id,
+            expected_store_identity=witness.store_identity,
+            expected_origin_witness_sha256=witness.raw_sha256,
+        )
+
+    assert _publication_snapshot(target) == before
+    assert initialized.witness_path.exists()
+
+
+def test_repaired_manifest_loader_rejects_a_mutated_schema_leaf_without_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    before = _publication_snapshot(target)
+    schema = next((candidate / ".research-system" / "schemas").rglob("*.schema.json"))
+    schema.write_bytes(schema.read_bytes() + b"\n")
+
+    for load in (
+        lambda: load_recovery_binding(
+            target,
+            expected_project_id=witness.project_id,
+            expected_store_identity=witness.store_identity,
+            expected_origin_witness_sha256=witness.raw_sha256,
+        ),
+        lambda: load_store_manifest(
+            target,
+            approved_witness=witness,
+            approved_witness_path=initialized.witness_path,
+        ),
+    ):
+        with pytest.raises(IntegrityError, match="repository is dirty"):
+            load()
+
+    assert _publication_snapshot(target) == before
 
 
 def test_recovery_binding_rejects_duplicate_spec_source_identity(tmp_path: Path, monkeypatch):

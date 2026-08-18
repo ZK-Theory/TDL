@@ -114,6 +114,32 @@ def _committed_candidate_file(candidate: Path, relative: Path, *, label: str) ->
     return raw
 
 
+def _governed_schema_catalogue(candidate: Path, schema_root: Path, *, label: str) -> str:
+    """Return a catalogue digest only for physical schema files at exact ``HEAD``.
+
+    The runtime registry consumes every ``*.schema.json`` leaf below this root.
+    A clean Git worktree alone does not establish that those bytes are the
+    committed subject: a committed symlink can keep its target outside the
+    repository, and a later target mutation is invisible to Git.  Bind each
+    input individually before constructing the aggregate digest.
+    """
+    expected_root = candidate / ".research-system" / "schemas"
+    physical_root = _require_physical_directory(schema_root, label=f"{label} root")
+    if schema_root != expected_root or physical_root != expected_root:
+        raise IntegrityError(f"{label} root is not candidate-owned")
+    records: list[dict[str, str]] = []
+    for path in sorted(schema_root.rglob("*.schema.json"), key=lambda item: item.as_posix()):
+        relative = path.relative_to(candidate)
+        raw = _committed_candidate_file(candidate, relative, label=f"{label} file")
+        records.append(
+            {
+                "path": path.relative_to(schema_root).as_posix(),
+                "sha256": sha256_hex(raw),
+            }
+        )
+    return sha256_hex(canonical_bytes(records))
+
+
 def _read_canonical_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
     try:
         raw = path.read_bytes()
@@ -448,11 +474,7 @@ def _candidate_evidence(intent: RepairStoreBinding) -> dict[str, Any]:
         if not record or len(raw) != record.get("size_bytes") or sha256_hex(raw) != record.get("sha256"):
             raise IntegrityError("SPEC route/source SHA mismatch")
         sources.append({"ref": reference, "sha256": sha256_hex(raw), "size_bytes": len(raw)})
-    schema_records = []
-    for path in sorted(schema_root.rglob("*.schema.json")):
-        raw = path.read_bytes()
-        schema_records.append({"path": path.relative_to(schema_root).as_posix(), "sha256": sha256_hex(raw)})
-    catalogue_sha256 = sha256_hex(canonical_bytes(schema_records))
+    catalogue_sha256 = _governed_schema_catalogue(candidate, schema_root, label="candidate schema catalogue")
     schemas = runtime_schema_registry(schema_root)
     for schema_id in (
         COMMAND_SCHEMA_ID,
@@ -1151,6 +1173,11 @@ def load_recovery_binding(
         raise IntegrityError("binding recovery Git subject changed")
     if _run_git(root, "status", "--porcelain=v1", "--untracked-files=all"):
         raise IntegrityError("binding recovery repository is dirty")
+    catalogue_sha256 = value.get("schema_catalogue_sha256")
+    if not _is_sha256(catalogue_sha256):
+        raise IntegrityError("binding recovery schema catalogue identity is invalid")
+    if _governed_schema_catalogue(root, schema, label="binding recovery schema catalogue") != catalogue_sha256:
+        raise IntegrityError("binding recovery schema catalogue changed")
     route = value.get("route")
     sources = value.get("sources")
     if (

@@ -241,6 +241,146 @@ def test_staging_leaf_remains_bound_until_final_publication(tmp_path, monkeypatc
         assert not marker.exists()
 
 
+def test_foreign_destination_replacement_survives_failed_publish_and_exact_retry(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, _store = _prepared(tmp_path)
+    foreign = canonical_bytes({"live": "foreign replacement"})
+    replacement_attempted = False
+    replacement_blocked = False
+    replacement_completed = False
+
+    def replace_published_destination(_temporary, target):
+        nonlocal replacement_attempted, replacement_blocked, replacement_completed
+        replacement_attempted = True
+        try:
+            target.unlink()
+            target.write_bytes(foreign)
+        except PermissionError:
+            replacement_blocked = True
+        else:
+            replacement_completed = True
+
+    monkeypatch.setattr(
+        registration_module,
+        "_after_contained_file_linked",
+        replace_published_destination,
+    )
+    marker = tmp_path / "runtime" / "registered-content-recovery" / f"{prepared.command['command_id']}.json"
+
+    publication_error = None
+    try:
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+    except IntegrityError as exc:
+        publication_error = exc
+    monkeypatch.setattr(registration_module, "_after_contained_file_linked", lambda _temporary, _target: None)
+
+    if replacement_completed:
+        assert isinstance(publication_error, IntegrityError)
+        assert "published file identity differs" in str(publication_error)
+        assert replacement_attempted
+        assert marker.read_bytes() == foreign
+        with pytest.raises(ConflictError, match="already binds different bytes"):
+            registration_module._publish_recovery_marker(
+                tmp_path,
+                prepared.command,
+                prepared.relative_path,
+                prepared.raw_bytes,
+            )
+        assert marker.read_bytes() == foreign
+    else:
+        assert publication_error is None
+        assert replacement_attempted and replacement_blocked
+        expected = canonical_bytes(
+            registration_module._recovery_marker(prepared.command, prepared.relative_path, prepared.raw_bytes)
+        )
+        assert marker.read_bytes() == expected
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+        assert marker.read_bytes() == expected
+
+
+def test_parent_redirect_preserves_foreign_destination_and_exact_retry_is_safe(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, _store = _prepared(tmp_path)
+    foreign = canonical_bytes({"live": "redirected destination"})
+    redirect_attempted = False
+    redirect_blocked = False
+    redirect_completed = False
+
+    def redirect_published_parent(_temporary, target):
+        nonlocal redirect_attempted, redirect_blocked, redirect_completed
+        redirect_attempted = True
+        detached = target.parent.with_name(f"{target.parent.name}-detached")
+        try:
+            target.parent.rename(detached)
+            target.parent.mkdir()
+            target.write_bytes(foreign)
+        except PermissionError:
+            redirect_blocked = True
+        else:
+            redirect_completed = True
+
+    monkeypatch.setattr(
+        registration_module,
+        "_after_contained_file_linked",
+        redirect_published_parent,
+    )
+    marker = tmp_path / "runtime" / "registered-content-recovery" / f"{prepared.command['command_id']}.json"
+    detached_parent = marker.parent.with_name(f"{marker.parent.name}-detached")
+
+    publication_error = None
+    try:
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+    except IntegrityError as exc:
+        publication_error = exc
+    monkeypatch.setattr(registration_module, "_after_contained_file_linked", lambda _temporary, _target: None)
+
+    if redirect_completed:
+        assert isinstance(publication_error, IntegrityError)
+        assert redirect_attempted
+        assert marker.read_bytes() == foreign
+        assert not tuple(detached_parent.glob(f".{marker.name}.*.tmp"))
+        assert not (detached_parent / marker.name).exists()
+        with pytest.raises(ConflictError, match="already binds different bytes"):
+            registration_module._publish_recovery_marker(
+                tmp_path,
+                prepared.command,
+                prepared.relative_path,
+                prepared.raw_bytes,
+            )
+        assert marker.read_bytes() == foreign
+    else:
+        assert publication_error is None
+        assert redirect_attempted and redirect_blocked
+        expected = canonical_bytes(
+            registration_module._recovery_marker(prepared.command, prepared.relative_path, prepared.raw_bytes)
+        )
+        assert marker.read_bytes() == expected
+        registration_module._publish_recovery_marker(
+            tmp_path,
+            prepared.command,
+            prepared.relative_path,
+            prepared.raw_bytes,
+        )
+        assert marker.read_bytes() == expected
+
+
 def test_exact_recovery_marker_publication_is_idempotent(tmp_path) -> None:
     prepared, _store = _prepared(tmp_path)
 

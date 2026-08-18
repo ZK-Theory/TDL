@@ -544,11 +544,12 @@ def _ingest_candidate(
     observation_id: str,
     title: str,
     expected_stream_version: int = 0,
+    source_query: str | None = None,
 ) -> str:
     batch = {
         "schema_id": "ars://portfolio/scout-observation-batch",
         "schema_version": "1.0.0",
-        "source_query": f"exact:{observation_id}",
+        "source_query": source_query or f"exact:{observation_id}",
         "source_version": "1",
         "observed_at": "2026-08-01T00:00:00Z",
         "returned_identifiers": [observation_id],
@@ -3130,6 +3131,7 @@ def _complete_park_assay(runtime: DiscoveryRuntime) -> tuple[dict[str, str], dic
         candidate_id,
         observation_id="obj_019fed25-b33e-7740-b280-6f661aaeff60",
         title="Corrected paper-code Assay candidate",
+        source_query="exact:SPEC-GATE6-RUN-V1",
     )
     bar = replay_discovery(runtime.ledger.iter_events())["assay_bar_authority"]
     runtime.submit(
@@ -3348,8 +3350,14 @@ def _register_source_correction_artefact(
             "commit_oid": "145efcde673f1a1897eff250b77221d26c34c479",
             "retrieval_methods": ["direct_locator", "git_ls_remote_tags", "detached_clone"],
             "required_paths": [
-                {"path": "environment.yml", "sha256": "c" * 64},
-                {"path": "scripts/compute_ph.py", "sha256": "d" * 64},
+                {
+                    "path": "environment.yml",
+                    "sha256": "95cbb8d1a8d2161299a3d52754b849ad503cf22140cf42538ad46e97028f6687",
+                },
+                {
+                    "path": "scripts/compute_ph.py",
+                    "sha256": "8c01c4683cf3a23c9c8170ca258386984674fec146408f7e6d0bfe6a18fbdcc8",
+                },
             ],
         },
         "correction_effect": {
@@ -3617,7 +3625,46 @@ def _register_assay_successor_artefact(
         manifest=manifest,
     )
     store = CandidateDocumentStore(harness.ledger.control_root, relative_directory=Path("methods/documents/spec-flow"))
+
+    remote_verifications: list[dict[str, object]] = []
+
+    def verify_remote_correction(value: dict[str, object]) -> None:
+        git_ref = value["corrected_git_reference"]
+        assert isinstance(git_ref, dict)
+        assert git_ref["commit_oid"] == "145efcde673f1a1897eff250b77221d26c34c479"
+        assert git_ref["required_paths"] == [
+            {
+                "path": "environment.yml",
+                "sha256": "95cbb8d1a8d2161299a3d52754b849ad503cf22140cf42538ad46e97028f6687",
+            },
+            {
+                "path": "scripts/compute_ph.py",
+                "sha256": "8c01c4683cf3a23c9c8170ca258386984674fec146408f7e6d0bfe6a18fbdcc8",
+            },
+        ]
+        remote_verifications.append(dict(git_ref))
+
+    monkeypatch.setattr(assay_successor_module, "_verify_source_correction_remote", verify_remote_correction)
     if reject_first:
+
+        def reject_remote_correction(_value: dict[str, object]) -> None:
+            raise ConfigurationError("remote correction proof unavailable")
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(assay_successor_module, "_verify_source_correction_remote", reject_remote_correction)
+            before = tuple(runtime.ledger.iter_events())
+            with pytest.raises(ConfigurationError, match="remote correction proof unavailable"):
+                register_assay_authority_successor_document(
+                    value=document,
+                    registration=registration,
+                    document_store=store,
+                    command_service=harness.service,
+                    repository_root=runtime.repository_root,
+                    schemas=harness.schemas,
+                )
+            assert tuple(runtime.ledger.iter_events()) == before
+            assert not (harness.ledger.control_root / store.relative_path(artefact_id)).exists()
+
         invalid = deepcopy(document)
         invalid["governed_sources"]["route"]["content_sha256"] = "f" * 64
         before = tuple(runtime.ledger.iter_events())
@@ -3740,6 +3787,7 @@ def _register_assay_successor_artefact(
         repository_root=runtime.repository_root,
         schemas=harness.schemas,
     )
+    assert remote_verifications
     acceptance_grant_id = activate_lifecycle_grant(
         harness,
         subject_kind="artefact",
@@ -3760,6 +3808,54 @@ def _register_assay_successor_artefact(
         "acceptor_actor_id": ACTORS["actor-a"],
         "producer_actor_id": actor_id,
     }
+
+
+def test_assay_successor_remote_proof_reuses_the_spec_correction_verifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from research_system.discovery import source_correction as source_correction_module
+
+    git_ref = {
+        "repository_url": "https://github.com/berenslab/eff-ph.git",
+        "resolved_ref": "refs/tags/neurips2024",
+        "commit_oid": "145efcde673f1a1897eff250b77221d26c34c479",
+        "required_paths": [
+            {
+                "path": "environment.yml",
+                "sha256": "95cbb8d1a8d2161299a3d52754b849ad503cf22140cf42538ad46e97028f6687",
+            },
+            {
+                "path": "scripts/compute_ph.py",
+                "sha256": "8c01c4683cf3a23c9c8170ca258386984674fec146408f7e6d0bfe6a18fbdcc8",
+            },
+        ],
+    }
+    calls: list[tuple[object, ...]] = []
+
+    def resolve(repository_url: str, resolved_ref: str) -> str:
+        calls.append(("resolve", repository_url, resolved_ref))
+        return str(git_ref["commit_oid"])
+
+    def verify(repository_url: str, resolved_ref: str, commit_oid: str, required_paths: object) -> None:
+        calls.append(("verify", repository_url, resolved_ref, commit_oid, required_paths))
+
+    monkeypatch.setattr(source_correction_module, "resolve_remote_tag", resolve)
+    monkeypatch.setattr(source_correction_module, "verify_remote_commit_paths", verify)
+    assay_successor_module._verify_source_correction_remote({"corrected_git_reference": git_ref})
+    assert calls == [
+        ("resolve", git_ref["repository_url"], git_ref["resolved_ref"]),
+        (
+            "verify",
+            git_ref["repository_url"],
+            git_ref["resolved_ref"],
+            git_ref["commit_oid"],
+            git_ref["required_paths"],
+        ),
+    ]
+
+    monkeypatch.setattr(source_correction_module, "resolve_remote_tag", lambda *_args: "f" * 40)
+    with pytest.raises(IntegrityError, match="commit differs"):
+        assay_successor_module._verify_source_correction_remote({"corrected_git_reference": git_ref})
 
 
 def test_source_correction_stales_assay_bar_with_durable_assay_decision_and_seals_successor_hashes(
@@ -3826,6 +3922,25 @@ def test_source_correction_stales_assay_bar_with_durable_assay_decision_and_seal
         owner_grant_id=correction["authority_grant_id"],
         owner_actor_id=correction["acceptor_actor_id"],
     )
+    for validation_error in (OSError("successor source unavailable"), TypeError("successor source malformed")):
+        invalid = deepcopy(stale)
+        invalid["command_id"] = new_id("command")
+        invalid["idempotency_key"] = f"{invalid['idempotency_key']}:validation:{invalid['command_id']}"
+        before = tuple(runtime.ledger.iter_events())
+
+        def raise_validation_error(*_args: object, _error: Exception = validation_error, **_kwargs: object) -> None:
+            raise _error
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(
+                discovery_runtime_module,
+                "validate_assay_authority_successor_document",
+                raise_validation_error,
+            )
+            with pytest.raises(IntegrityError, match="invalid Assay-bar staleness transition"):
+                runtime.submit(invalid)
+        assert tuple(runtime.ledger.iter_events()) == before
+
     accepted_projection = replay_discovery(runtime.ledger.iter_events())
     accepted_projection["assay_authority_successor_proofs"][trigger["artefact_ref"]["id"]] = {
         "actor_id": stale["actor_id"],
@@ -3873,6 +3988,24 @@ def test_source_correction_stales_assay_bar_with_durable_assay_decision_and_seal
     )
     terminal_decision["terminal_event_hash"] = "f" * 64
     assert not _assay_staleness_matches(stale["payload"], decision_mismatch, schemas=_HARNESSES[tmp_path].schemas)
+
+    route_candidate = next(
+        value for value in accepted_projection["candidates"].values() if value.get("assay_id") == scorecard_ref["id"]
+    )
+    unrelated_candidate = deepcopy(accepted_projection)
+    unrelated_id = "obj_019fed25-b33e-7740-b280-6f661aaeff6f"
+    unrelated_observation_id = "obj_019fed25-b33e-7740-b280-6f661aaeff6e"
+    unrelated_candidate["source_observations"][unrelated_observation_id] = {
+        "batch": {"source_query": "exact:unrelated-workflow"}
+    }
+    unrelated_candidate["candidates"] = {
+        unrelated_id: {
+            **deepcopy(route_candidate),
+            "candidate_id": unrelated_id,
+            "source_observation_refs": [unrelated_observation_id],
+        }
+    }
+    assert not _assay_staleness_matches(stale["payload"], unrelated_candidate, schemas=_HARNESSES[tmp_path].schemas)
 
     generic_bypass_payload = deepcopy(stale["payload"])
     generic_bypass_projection = deepcopy(accepted_projection)

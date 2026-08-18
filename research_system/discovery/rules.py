@@ -1179,19 +1179,14 @@ def _assay_source_correction_staleness_matches(
     )
     decision_id = decision_entry[0] if decision_entry is not None else None
     decision = decision_entry[1] if decision_entry is not None else None
+    candidate_id = assay.get("candidate_id") if isinstance(assay, Mapping) else None
     candidate = (
-        next(
-            (
-                item
-                for item in candidates.values()
-                if isinstance(item, Mapping)
-                and item.get("assay_id") == scorecard_ref.get("id")
-                and item.get("decision_id") == decision_id
-            ),
-            None,
-        )
-        if isinstance(candidates, Mapping) and isinstance(scorecard_ref, Mapping) and isinstance(decision_ref, Mapping)
-        else None
+        candidates.get(candidate_id) if isinstance(candidates, Mapping) and isinstance(candidate_id, str) else None
+    )
+    spec_candidates = (
+        [item for item in candidates.values() if _is_spec_route_candidate(state, item)]
+        if isinstance(candidates, Mapping)
+        else []
     )
     if not (
         isinstance(assay, Mapping)
@@ -1203,6 +1198,13 @@ def _assay_source_correction_staleness_matches(
         and decision.get("terminal_event_id") == decision_ref.get("id")
         and decision.get("selected_option") == correction_document.get("scientific_disposition")
         and isinstance(candidate, Mapping)
+        and len(spec_candidates) == 1
+        and spec_candidates[0] is candidate
+        and candidate.get("candidate_id") == candidate_id
+        and candidate.get("assay_id") == assay.get("assay_id")
+        and candidate.get("decision_id") == decision_id
+        and candidate.get("revision") == assay.get("candidate_revision")
+        and candidate.get("content_sha256") == assay.get("candidate_sha256")
         and candidate.get("status")
         == {"PARK": "parked", "KILL": "killed", "PROMOTE": "spike_planning_authorized"}.get(
             correction_document.get("scientific_disposition")

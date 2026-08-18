@@ -2055,7 +2055,7 @@ class DiscoveryRuntime:
                         schemas=self.schemas,
                     )
                     successor_hashes = successor_document_hashes(document)
-                except (ConfigurationError, SchemaError, ValueError) as exc:
+                except (ConfigurationError, OSError, SchemaError, TypeError, ValueError) as exc:
                     raise IntegrityError("invalid Assay-bar staleness transition") from exc
                 proof = {
                     "actor_id": command.actor_id,
