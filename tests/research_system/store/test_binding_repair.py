@@ -11,7 +11,9 @@ import pytest
 import yaml
 
 import research_system.config as config_module
-from research_system.canonical import canonical_bytes
+import research_system.store.binding_repair as binding_repair_module
+import research_system.store.contained_files as contained_files_module
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import runtime_schema_registry
@@ -119,6 +121,176 @@ def _publication_snapshot(target: Path) -> tuple[bytes, tuple[tuple[str, bytes],
         for path in sorted((target / "receipts").rglob("*.json"))
     )
     return (target / "manifests" / "store-identity.json").read_bytes(), events, receipts
+
+
+def test_binding_artifact_publication_retries_after_abandoned_staging_file(tmp_path: Path) -> None:
+    """A hard stop after staging must not wedge the next governed publication."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "published.json"
+    data = canonical_bytes({"kind": "published", "revision": 1})
+    control.mkdir()
+    abandoned = target.with_name(f".{target.name}.{sha256_hex(data)[:16]}.tmp")
+    abandoned.parent.mkdir()
+    abandoned.write_bytes(b"tampered abandoned staging")
+
+    binding_repair_module._publish(control, target, data)
+
+    assert target.read_bytes() == data
+    assert abandoned.read_bytes() == b"tampered abandoned staging"
+
+
+def test_binding_repair_retries_after_abandoned_manifest_staging_file(tmp_path: Path, monkeypatch) -> None:
+    """A repair restarts cleanly from the durable post-stage crash boundary."""
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    target_manifest = target / "manifests" / "store-identity.json"
+    repaired_manifest = json.loads(target_manifest.read_bytes())
+    repaired_manifest["code_roots"] = [str(candidate.resolve())]
+    repaired_manifest["schema_root"] = str((candidate / ".research-system" / "schemas").resolve())
+    repaired_manifest["schema_binding_version"] = "1.0.0"
+    restore = json.loads((target / "manifests" / ".restore-binding-transaction.json").read_bytes())
+    repaired_manifest["manifest_hash"] = binding_repair_module._restored_manifest_hash(
+        repaired_manifest, str(restore["approval_sha256"])
+    )
+    repaired_raw = canonical_bytes(repaired_manifest)
+    abandoned = target_manifest.with_name(f".{target_manifest.name}.{sha256_hex(repaired_raw)[:16]}.replace")
+    abandoned.write_bytes(b"tampered abandoned staging")
+
+    result = repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert result["status"] == "repaired"
+    assert target_manifest.read_bytes() == repaired_raw
+    assert abandoned.read_bytes() == b"tampered abandoned staging"
+
+
+def test_binding_artifact_publication_never_replaces_a_competing_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent final leaf wins as a conflict, never an overwrite."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "published.json"
+    data = canonical_bytes({"kind": "published", "revision": 1})
+    competing = b"competing durable artifact"
+    control.mkdir()
+    target.parent.mkdir()
+
+    def publish_competitor(source: str | Path, destination: str | Path, **_kwargs: object) -> None:
+        Path(destination).write_bytes(competing)
+        raise FileExistsError
+
+    monkeypatch.setattr(contained_files_module.os, "link", publish_competitor)
+
+    with pytest.raises(ConflictError, match="conflicts"):
+        binding_repair_module._publish(control, target, data)
+
+    assert target.read_bytes() == competing
+
+
+def test_binding_artifact_replacement_refuses_a_competing_predecessor(tmp_path: Path) -> None:
+    """Mutable binding state is replaced only from its exact verified predecessor."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "current.json"
+    predecessor = canonical_bytes({"revision": 1})
+    successor = canonical_bytes({"revision": 2})
+    competing = canonical_bytes({"revision": "competing"})
+    control.mkdir()
+    target.parent.mkdir()
+    target.write_bytes(competing)
+
+    with pytest.raises(ConflictError, match="replacement conflicts"):
+        binding_repair_module._replace(control, target, successor, expected=predecessor)
+
+    assert target.read_bytes() == competing
+
+
+def test_binding_artifact_replacement_refuses_a_competitor_after_predecessor_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The replacement rechecks the held final leaf immediately before mutation."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "current.json"
+    predecessor = canonical_bytes({"revision": 1})
+    successor = canonical_bytes({"revision": 2})
+    competing = canonical_bytes({"revision": "competing"})
+    control.mkdir()
+    target.parent.mkdir()
+    target.write_bytes(predecessor)
+
+    def inject_competitor(_temporary: Path, destination: Path) -> None:
+        destination.write_bytes(competing)
+
+    monkeypatch.setattr(contained_files_module, "_after_contained_file_predecessor_verified", inject_competitor)
+
+    with pytest.raises(ConflictError, match="replacement conflicts"):
+        binding_repair_module._replace(control, target, successor, expected=predecessor)
+
+    assert target.read_bytes() == competing
+
+
+def test_binding_artifact_replacement_preserves_competitor_after_predecessor_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A competitor claiming the final name after unlink wins and leaves no attempt debris."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "current.json"
+    predecessor = canonical_bytes({"revision": 1})
+    successor = canonical_bytes({"revision": 2})
+    competing = canonical_bytes({"revision": "competing"})
+    control.mkdir()
+    target.parent.mkdir()
+    target.write_bytes(predecessor)
+
+    def inject_competitor(_temporary: Path, destination: Path) -> None:
+        destination.write_bytes(competing)
+
+    monkeypatch.setattr(contained_files_module, "_after_contained_file_predecessor_removed", inject_competitor)
+
+    with pytest.raises(ConflictError, match="replacement conflicts"):
+        binding_repair_module._replace(control, target, successor, expected=predecessor)
+
+    assert target.read_bytes() == competing
+    assert not list(target.parent.glob(f".{target.name}.*.replace"))
+    assert not list(target.parent.glob(f".{target.name}.*.previous"))
+
+
+@pytest.mark.parametrize(
+    "seam_name",
+    (
+        "_after_contained_file_replacement_staged",
+        "_after_contained_file_predecessor_backed_up",
+        "_after_contained_file_predecessor_removed",
+        "_after_contained_file_successor_linked",
+    ),
+)
+def test_binding_artifact_replacement_retries_after_hard_stop_at_each_swap_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seam_name: str
+) -> None:
+    """A fresh binding retry reconciles each durable exact swap state."""
+    control = tmp_path / "control"
+    target = control / "manifests" / "current.json"
+    predecessor = canonical_bytes({"revision": 1})
+    successor = canonical_bytes({"revision": 2})
+    stage = target.with_name(f".{target.name}.{sha256_hex(successor)}.replace")
+    backup = target.with_name(f".{target.name}.{sha256_hex(predecessor)}.previous")
+    control.mkdir()
+    target.parent.mkdir()
+    target.write_bytes(predecessor)
+
+    class SimulatedHardStop(BaseException):
+        pass
+
+    def crash(_temporary: Path, _destination: Path) -> None:
+        raise SimulatedHardStop(seam_name)
+
+    with monkeypatch.context() as crash_patch:
+        crash_patch.setattr(contained_files_module, seam_name, crash)
+        with pytest.raises(SimulatedHardStop, match=seam_name):
+            binding_repair_module._replace(control, target, successor, expected=predecessor)
+
+    binding_repair_module._replace(control, target, successor, expected=predecessor)
+
+    assert target.read_bytes() == successor
+    assert not stage.exists()
+    assert not backup.exists()
 
 
 def test_repair_is_replayable_and_enables_only_governed_repaired_loader(tmp_path: Path, monkeypatch):
@@ -351,7 +523,7 @@ def _advance_intent(intent: RepairStoreBinding) -> AdvanceStoreBinding:
     )
 
 
-def test_valid_repaired_binding_advances_only_to_clean_protected_byte_preserving_descendant(
+def test_valid_repaired_binding_reopens_source_bound_manifest_only_for_clean_protected_byte_preserving_descendant(
     tmp_path: Path, monkeypatch
 ) -> None:
     initialized, witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
@@ -362,6 +534,8 @@ def test_valid_repaired_binding_advances_only_to_clean_protected_byte_preserving
     _git(candidate, "add", "descendant.txt")
     _git(candidate, "commit", "-q", "-m", "descendant")
 
+    # The recovery binding deliberately pins ``old_head`` until this command
+    # validates the clean descendant and publishes its governed successor.
     result = advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
     retry = advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
 
@@ -392,6 +566,30 @@ def test_binding_advance_rejects_changed_spec_bytes_without_store_mutation(tmp_p
     before = _publication_snapshot(target)
     with pytest.raises(IntegrityError, match="protected route or SPEC bytes"):
         advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    assert _publication_snapshot(target) == before
+
+
+def test_binding_advance_rejects_rehashed_misbound_manifest_without_mutation(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    foreign_root = tmp_path / "misbound-code-root"
+    foreign_schema_root = foreign_root / ".research-system" / "schemas"
+    foreign_schema_root.mkdir(parents=True)
+    manifest_path = target / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["code_roots"] = [str(foreign_root.resolve())]
+    manifest["schema_root"] = str(foreign_schema_root.resolve())
+    restore = json.loads((target / "manifests" / ".restore-binding-transaction.json").read_bytes())
+    manifest["manifest_hash"] = binding_repair_module._restored_manifest_hash(manifest, str(restore["approval_sha256"]))
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    before = _publication_snapshot(target)
+
+    with pytest.raises(IntegrityError, match="source-bound manifest identity"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
     assert _publication_snapshot(target) == before
 
 

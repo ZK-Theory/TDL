@@ -16,6 +16,7 @@ from research_system.methods.registration import (
     recover_registered_content,
     register_candidate_document,
 )
+from research_system.store import contained_files
 
 
 ARTEFACT_ID = "art_019fe47a-3001-7000-8000-000000003001"
@@ -44,7 +45,7 @@ def _prepared(tmp_path):
     return prepared, store
 
 
-def test_rejected_candidate_registration_leaves_no_document_bytes(tmp_path) -> None:
+def test_rejected_candidate_registration_leaves_exact_unregistered_document_bytes(tmp_path) -> None:
     class RejectingService:
         def submit(self, envelope):
             del envelope
@@ -58,7 +59,9 @@ def test_rejected_candidate_registration_leaves_no_document_bytes(tmp_path) -> N
             command_service=RejectingService(),
         )
 
-    assert not (tmp_path / "methods" / "documents" / f"{ARTEFACT_ID}.json").exists()
+    prepared, _store = _prepared(tmp_path)
+    assert (tmp_path / prepared.relative_path).read_bytes() == prepared.raw_bytes
+    assert not tuple((tmp_path / "runtime" / "registered-content-recovery").glob("*.json"))
 
 
 def test_accepted_candidate_registration_publishes_exact_document_bytes(tmp_path) -> None:
@@ -80,14 +83,38 @@ def test_accepted_candidate_registration_publishes_exact_document_bytes(tmp_path
     assert (tmp_path / registered.relative_path).read_bytes() == registered.raw_bytes
 
 
-def test_accepted_registration_recovers_document_publish_on_exact_retry(tmp_path) -> None:
+def test_conflicting_existing_document_is_rejected_before_submission(tmp_path) -> None:
+    prepared, store = _prepared(tmp_path)
+    target = tmp_path / prepared.relative_path
+    target.parent.mkdir(parents=True)
+    foreign = canonical_bytes({"document": "foreign bytes"})
+    target.write_bytes(foreign)
+
+    class FailIfSubmitted:
+        def submit(self, envelope):
+            del envelope
+            raise AssertionError("conflicting document bytes must reject before command submission")
+
+    with pytest.raises(ConflictError, match="methods document identity already binds different bytes"):
+        register_candidate_document(
+            value={"document": "returned evidence"},
+            registration=registration(),
+            document_store=store,
+            command_service=FailIfSubmitted(),
+        )
+
+    assert target.read_bytes() == foreign
+    assert not (tmp_path / "runtime" / "registered-content-recovery").exists()
+
+
+def test_pre_submit_document_publication_interruption_recovers_on_exact_retry(tmp_path) -> None:
     class FailOnceStore(CandidateDocumentStore):
         attempts = 0
 
         def write(self, artefact_id, raw_bytes):
             self.attempts += 1
             if self.attempts == 1:
-                raise OSError("simulated post-authority publication interruption")
+                raise OSError("simulated pre-submit publication interruption")
             return super().write(artefact_id, raw_bytes)
 
     class ReplayingService:
@@ -109,14 +136,111 @@ def test_accepted_registration_recovers_document_publish_on_exact_retry(tmp_path
             command_service=service,
         )
 
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    assert not service.command_ids
+    assert tuple(marker_directory.glob("*.json"))
+
     recovered = register_candidate_document(
         value={"document": "returned evidence"},
         registration=registration(),
-        document_store=store,
+        document_store=CandidateDocumentStore(tmp_path),
         command_service=service,
     )
     assert (tmp_path / recovered.relative_path).read_bytes() == recovered.raw_bytes
-    assert service.command_ids[0] == service.command_ids[1]
+    assert len(service.command_ids) == 1
+
+
+def test_post_byte_pre_submit_interruption_recovers_on_exact_retry(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class SimulatedHardStop(BaseException):
+        pass
+
+    class AcceptingService:
+        command_ids: list[str] = []
+
+        def submit(self, envelope):
+            self.command_ids.append(envelope["command_id"])
+            return SimpleNamespace(status="accepted")
+
+    store = CandidateDocumentStore(tmp_path)
+    service = AcceptingService()
+    prepared, _unused = _prepared(tmp_path)
+
+    def stop_after_bytes(control_root, relative_path, raw):
+        assert control_root == tmp_path
+        assert relative_path == prepared.relative_path
+        assert (tmp_path / relative_path).read_bytes() == raw
+        raise SimulatedHardStop
+
+    monkeypatch.setattr(registration_module, "_after_registered_bytes_published", stop_after_bytes)
+    with pytest.raises(SimulatedHardStop):
+        register_candidate_document(
+            value={"document": "returned evidence"},
+            registration=registration(),
+            document_store=store,
+            command_service=service,
+        )
+
+    assert not service.command_ids
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    assert tuple(marker_directory.glob("*.json"))
+    assert (tmp_path / prepared.relative_path).read_bytes() == prepared.raw_bytes
+
+    monkeypatch.setattr(registration_module, "_after_registered_bytes_published", lambda *_args: None)
+    recovered = register_candidate_document(
+        value={"document": "returned evidence"},
+        registration=registration(),
+        document_store=CandidateDocumentStore(tmp_path),
+        command_service=service,
+    )
+
+    assert recovered.receipt.status == "accepted"
+    assert len(service.command_ids) == 1
+    assert not tuple(marker_directory.glob("*.json"))
+
+
+def test_post_admission_byte_corruption_is_never_reported_as_registered(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class AcceptingService:
+        command_ids: list[str] = []
+
+        def submit(self, envelope):
+            self.command_ids.append(envelope["command_id"])
+            return SimpleNamespace(status="accepted")
+
+    prepared, store = _prepared(tmp_path)
+    foreign = canonical_bytes({"document": "foreign replacement"})
+    service = AcceptingService()
+
+    def replace_after_publication(control_root, relative_path, _raw):
+        (control_root / relative_path).write_bytes(foreign)
+
+    monkeypatch.setattr(registration_module, "_after_registered_bytes_published", replace_after_publication)
+    with pytest.raises(IntegrityError, match="differs after command acceptance"):
+        register_candidate_document(
+            value={"document": "returned evidence"},
+            registration=registration(),
+            document_store=store,
+            command_service=service,
+        )
+
+    marker_directory = tmp_path / "runtime" / "registered-content-recovery"
+    assert len(service.command_ids) == 1
+    assert (tmp_path / prepared.relative_path).read_bytes() == foreign
+    assert tuple(marker_directory.glob("*.json"))
+
+    monkeypatch.setattr(registration_module, "_after_registered_bytes_published", lambda *_args: None)
+    with pytest.raises(ConflictError, match="methods document identity already binds different bytes"):
+        register_candidate_document(
+            value={"document": "returned evidence"},
+            registration=registration(),
+            document_store=CandidateDocumentStore(tmp_path),
+            command_service=service,
+        )
+
+    assert len(service.command_ids) == 1
+    assert (tmp_path / prepared.relative_path).read_bytes() == foreign
+    assert tuple(marker_directory.glob("*.json"))
 
 
 def test_recovery_marker_crash_before_atomic_publish_leaves_final_name_absent(
@@ -135,7 +259,7 @@ def test_recovery_marker_crash_before_atomic_publish_leaves_final_name_absent(
         assert not target.exists()
         raise SimulatedHardStop
 
-    monkeypatch.setattr(registration_module, "_after_contained_file_fsync", stop_after_fsync)
+    monkeypatch.setattr(contained_files, "_after_contained_file_fsync", stop_after_fsync)
     with pytest.raises(SimulatedHardStop):
         registration_module._publish_recovery_marker(
             tmp_path,
@@ -185,7 +309,7 @@ def test_live_conflicting_recovery_marker_is_never_replaced(tmp_path, monkeypatc
         target.write_bytes(competing)
 
     monkeypatch.setattr(
-        registration_module,
+        contained_files,
         "_after_contained_file_fsync",
         publish_competing_final,
     )
@@ -218,7 +342,7 @@ def test_staging_leaf_remains_bound_until_final_publication(tmp_path, monkeypatc
         except PermissionError:
             replacement_blocked = True
 
-    monkeypatch.setattr(registration_module, "_after_contained_file_fsync", replace_staging)
+    monkeypatch.setattr(contained_files, "_after_contained_file_fsync", replace_staging)
     marker = tmp_path / "runtime" / "registered-content-recovery" / f"{prepared.command['command_id']}.json"
     if os.name == "nt":
         registration_module._publish_recovery_marker(
@@ -262,7 +386,7 @@ def test_foreign_destination_replacement_survives_failed_publish_and_exact_retry
             replacement_completed = True
 
     monkeypatch.setattr(
-        registration_module,
+        contained_files,
         "_after_contained_file_linked",
         replace_published_destination,
     )
@@ -278,7 +402,7 @@ def test_foreign_destination_replacement_survives_failed_publish_and_exact_retry
         )
     except IntegrityError as exc:
         publication_error = exc
-    monkeypatch.setattr(registration_module, "_after_contained_file_linked", lambda _temporary, _target: None)
+    monkeypatch.setattr(contained_files, "_after_contained_file_linked", lambda _temporary, _target: None)
 
     if replacement_completed:
         assert isinstance(publication_error, IntegrityError)
@@ -332,7 +456,7 @@ def test_parent_redirect_preserves_foreign_destination_and_exact_retry_is_safe(
             redirect_completed = True
 
     monkeypatch.setattr(
-        registration_module,
+        contained_files,
         "_after_contained_file_linked",
         redirect_published_parent,
     )
@@ -349,7 +473,7 @@ def test_parent_redirect_preserves_foreign_destination_and_exact_retry_is_safe(
         )
     except IntegrityError as exc:
         publication_error = exc
-    monkeypatch.setattr(registration_module, "_after_contained_file_linked", lambda _temporary, _target: None)
+    monkeypatch.setattr(contained_files, "_after_contained_file_linked", lambda _temporary, _target: None)
 
     if redirect_completed:
         assert isinstance(publication_error, IntegrityError)

@@ -556,6 +556,17 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
     if schema_root != approved.schema_root:
         raise ConfigurationError("caller schema root differs from approved project binding")
     schemas = require_authority_schemas(runtime_schema_registry(approved.schema_root))
+    authority_config = getattr(args, "authority_config", None)
+    authority = (
+        None
+        if authority_config is None
+        else _authority_resolver_from_config(
+            authority_config,
+            project_id=approved.project_id,
+            schemas=schemas,
+            expected_schema_root=approved.schema_root,
+        )
+    )
     receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     if receipt.project_id != approved.project_id:
         raise ConfigurationError("backup receipt project differs from approved project binding")
@@ -586,6 +597,7 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
         authority_grant_id=args.authority_grant_id,
         approved_witness=approved.origin_witness,
         approved_witness_path=approved.origin_witness_path,
+        authority_resolver=authority,
     )
     if preflight.status != "verified":
         raise ArsError(f"restore preflight is not verified: {', '.join(preflight.failed_predicates)}")
@@ -2009,6 +2021,7 @@ def _parser() -> argparse.ArgumentParser:
     restore_bind.add_argument("--authority-grant-id", required=True)
     restore_bind.add_argument("--foundation-config", type=Path, required=True)
     restore_bind.add_argument("--schema-root", type=Path, required=True)
+    restore_bind.add_argument("--authority-config", type=Path, default=None)
     restore_bind.add_argument("--config-output", type=Path, required=True)
     restore_bind.set_defaults(handler=_store_restore_bind)
 

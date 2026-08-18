@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 import research_system.cli as cli
+import research_system.operations.backups as backups_module
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
@@ -209,6 +211,194 @@ def _registry(
         backup_roots=(destination,),
         restore_roots=(),
     )
+
+
+def test_store_restore_bind_preserves_optional_separate_spec_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public bind command passes external SPEC authority only to replay preflight."""
+
+    code_root = tmp_path / "code"
+    schema_root = code_root / ".research-system" / "schemas"
+    source_root = tmp_path / "source"
+    target_root = tmp_path / "target"
+    for directory in (schema_root, source_root, target_root):
+        directory.mkdir(parents=True, exist_ok=True)
+    approved = SimpleNamespace(
+        control_root=source_root,
+        project_id=PROJECT_ID,
+        store_identity="a" * 64,
+        endpoint_scheme="local-cli",
+        code_roots=(code_root,),
+        schema_root=schema_root,
+        origin_witness="origin-witness",
+        origin_witness_path=tmp_path / "origin-witness.json",
+        origin_witness_sha256="b" * 64,
+    )
+    receipt = SimpleNamespace(
+        project_id=PROJECT_ID,
+        store_identity=approved.store_identity,
+        source_endpoint_scheme=approved.endpoint_scheme,
+        receipt_hash="c" * 64,
+    )
+    external_authority = object()
+    preflight_calls: list[object | None] = []
+    requires_external_authority = True
+
+    def preflight(**kwargs: object) -> object:
+        resolver = kwargs["authority_resolver"]
+        preflight_calls.append(resolver)
+        verified = resolver is external_authority or not requires_external_authority
+        return SimpleNamespace(
+            status="verified" if verified else "unverified",
+            failed_predicates=() if verified else ("external_spec_authority_required",),
+            source_snapshot_hash="d" * 64,
+            target_manifest_bytes_sha256="e" * 64,
+            result_hash="f" * 64,
+        )
+
+    def resolver_from_config(path: Path, **kwargs: object) -> object:
+        assert kwargs == {
+            "project_id": PROJECT_ID,
+            "schemas": schemas,
+            "expected_schema_root": schema_root,
+        }
+        if path.name == "mismatched-authority.json":
+            raise ConfigurationError("authority binding project differs from the replayed control store")
+        return external_authority
+
+    schemas = object()
+    monkeypatch.setattr(cli, "_load_canonical_approved_binding", lambda _path: approved)
+    monkeypatch.setattr(cli, "runtime_schema_registry", lambda _path: schemas)
+    monkeypatch.setattr(cli, "require_authority_schemas", lambda value: value)
+    monkeypatch.setattr(cli, "_backup_receipt_from_json", lambda _value: receipt)
+    monkeypatch.setattr(cli, "_read_canonical_json", lambda _path: {"snapshot_id": "snapshot"})
+    monkeypatch.setattr(cli, "canonical_restore_binding_output", lambda *_args: b"bound-config\n")
+    monkeypatch.setattr(cli, "load_evidence_store_registry", lambda *_args: object())
+    monkeypatch.setattr(cli, "verify_restore_before_writer_lease", preflight)
+    monkeypatch.setattr(cli, "_authority_resolver_from_config", resolver_from_config)
+    monkeypatch.setattr(cli, "asdict", lambda _value: {"status": "verified"})
+    monkeypatch.setattr(cli, "rebind_restored_store", lambda *_args, **_kwargs: {"manifest_hash": "a" * 64})
+
+    def command(config_output: Path, authority_config: Path | None = None) -> list[str]:
+        argv = [
+            "store",
+            "restore-bind",
+            "--control-root",
+            str(target_root),
+            "--source-root",
+            str(source_root),
+            "--receipt",
+            str(tmp_path / "receipt.json"),
+            "--snapshot",
+            str(tmp_path / "snapshot.json"),
+            "--endpoint-ownership",
+            str(tmp_path / "endpoint.json"),
+            "--artefact-manifest",
+            str(tmp_path / "artefacts.json"),
+            "--registry",
+            str(tmp_path / "registry.json"),
+            "--actor-id",
+            ACTOR_ID,
+            "--authority-grant-id",
+            GRANT_ID,
+            "--foundation-config",
+            str(tmp_path / "foundation.yaml"),
+            "--schema-root",
+            str(schema_root),
+            "--config-output",
+            str(config_output),
+        ]
+        if authority_config is not None:
+            argv.extend(("--authority-config", str(authority_config)))
+        return argv
+
+    external_output = tmp_path / "external-binding.json"
+    assert cli.main(command(external_output, tmp_path / "external-authority.json")) == 0
+    assert preflight_calls == [external_authority]
+    assert external_output.read_bytes() == b"bound-config\n"
+    capsys.readouterr()
+
+    missing_output = tmp_path / "missing-binding.json"
+    with pytest.raises(ArsError, match="external_spec_authority_required"):
+        cli.main(command(missing_output))
+    assert preflight_calls[-1] is None
+    assert not missing_output.exists()
+
+    calls_before_mismatch = len(preflight_calls)
+    with pytest.raises(ConfigurationError, match="authority binding project differs"):
+        cli.main(command(tmp_path / "mismatched-binding.json", tmp_path / "mismatched-authority.json"))
+    assert len(preflight_calls) == calls_before_mismatch
+
+    requires_external_authority = False
+    same_root_output = tmp_path / "same-root-binding.json"
+    assert cli.main(command(same_root_output)) == 0
+    assert preflight_calls[-1] is None
+    assert same_root_output.read_bytes() == b"bound-config\n"
+
+
+def test_restore_replay_authorities_keep_local_administration_distinct_from_external_spec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_root = tmp_path / "restored-store"
+    external_root = tmp_path / "spec-authority-store"
+    local_root.mkdir()
+    external_root.mkdir()
+    constructed: list[SimpleNamespace] = []
+
+    def local_resolver(control_root: Path, *args: object, **kwargs: object) -> SimpleNamespace:
+        value = SimpleNamespace(
+            control_root=control_root,
+            project_id=args[0],
+            expected_store_identity=args[1],
+            restore_source_alias=kwargs["restore_source_alias"],
+        )
+        constructed.append(value)
+        return value
+
+    external = SimpleNamespace(
+        control_root=external_root,
+        project_id=PROJECT_ID,
+        expected_store_identity="external-store-identity",
+    )
+    monkeypatch.setattr(backups_module, "LedgerAuthorityGrantResolver", local_resolver)
+
+    local, spec = backups_module._store_replay_authorities(
+        control_root=local_root,
+        project_id=PROJECT_ID,
+        store_identity="restored-store-identity",
+        schemas=object(),
+        approved_witness=object(),
+        approved_witness_path=tmp_path / "origin-witness.json",
+        restore_source_alias=True,
+        spec_authority_resolver=external,
+    )
+
+    assert spec is external
+    assert local.control_root == local_root
+    assert local.project_id == PROJECT_ID
+    assert local.expected_store_identity == "restored-store-identity"
+    assert local.restore_source_alias is True
+    assert constructed == [local]
+
+    with pytest.raises(IntegrityError, match="identity differs from the local store"):
+        backups_module._store_replay_authorities(
+            control_root=local_root,
+            project_id=PROJECT_ID,
+            store_identity="restored-store-identity",
+            schemas=object(),
+            approved_witness=object(),
+            approved_witness_path=tmp_path / "origin-witness.json",
+            restore_source_alias=True,
+            spec_authority_resolver=SimpleNamespace(
+                control_root=local_root,
+                project_id=PROJECT_ID,
+                expected_store_identity="wrong-local-store-identity",
+            ),
+        )
 
 
 @pytest.mark.integration

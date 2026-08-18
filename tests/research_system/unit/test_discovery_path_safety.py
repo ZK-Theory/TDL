@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 import research_system.discovery.path_safety as path_safety
-import research_system.methods.registration as registration_module
 from research_system.discovery.path_safety import contained_regular_file, read_contained_regular_file
 from research_system.errors import ConfigurationError, IntegrityError
 from research_system.methods.registration import CandidateDocumentStore
+from research_system.store import contained_files
 
 
 def test_contained_regular_file_rejects_traversal_absolute_and_redirected_paths(tmp_path: Path) -> None:
@@ -151,8 +151,8 @@ def test_candidate_document_store_retains_parent_identity_during_leaf_creation(
     outside = tmp_path / "outside"
     outside.mkdir()
     held = root / "methods" / "documents-held"
-    original_open = registration_module.os.open
-    original_windows_open = registration_module._open_windows_relative_new_file
+    original_open = contained_files.os.open
+    original_windows_open = contained_files._open_windows_relative_new_file
     attempted = False
 
     def racing_open(path, flags, *args, **kwargs):
@@ -171,10 +171,10 @@ def test_candidate_document_store_retains_parent_identity_during_leaf_creation(
             parent.rename(held)
         return original_windows_open(parent_handle, name)
 
-    if registration_module.os.name == "nt":
-        monkeypatch.setattr(registration_module, "_open_windows_relative_new_file", racing_windows_open)
+    if contained_files.os.name == "nt":
+        monkeypatch.setattr(contained_files, "_open_windows_relative_new_file", racing_windows_open)
     else:
-        monkeypatch.setattr(registration_module.os, "open", racing_open)
+        monkeypatch.setattr(contained_files.os, "open", racing_open)
     try:
         CandidateDocumentStore(root).write("art_race", b"bound")
     finally:

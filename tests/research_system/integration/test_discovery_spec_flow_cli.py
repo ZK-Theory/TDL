@@ -18,6 +18,7 @@ import research_system.discovery.authority as discovery_authority_module
 import research_system.discovery.operator as discovery_operator_module
 import research_system.discovery.source_correction as source_correction_module
 import research_system.discovery.spec_flow as spec_flow_module
+import research_system.git_provenance as git_provenance_module
 import research_system.methods.registration as registration_module
 import research_system.owner_authority as owner_authority_module
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -2388,6 +2389,132 @@ def test_spec_proposed_authorities_are_repository_only_and_portable_between_clea
         build_spec_authority_subject(second, "dossier_expected_set")
 
 
+def _replace_authority_with_clean_external_symlink(
+    repository_root: Path,
+    relative: Path,
+    external: Path,
+) -> None:
+    target = repository_root / relative
+    raw = target.read_bytes()
+    external.write_bytes(raw)
+    target.unlink()
+    try:
+        target.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    _run_git(repository_root, "add", relative.as_posix())
+    _run_git(repository_root, "commit", "--quiet", "-m", "test committed external authority symlink")
+    external.write_bytes(raw + b"\n")
+    assert _run_git(repository_root, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("authority_kind", "filename"),
+    [
+        ("dossier_expected_set", "spec-dossier-expected-set-authority.json"),
+        ("path_registration", "spec-path-registration-authority.json"),
+    ],
+)
+def test_spec_authority_subject_rejects_clean_committed_external_symlink_drift(
+    spec_inputs: dict[str, Any],
+    tmp_path: Path,
+    authority_kind: str,
+    filename: str,
+) -> None:
+    repository_root = Path(spec_inputs["config"]["repository_root"])
+    relative = ROUTE_DIRECTORY / filename
+    _replace_authority_with_clean_external_symlink(
+        repository_root,
+        relative,
+        tmp_path / f"external-{filename}",
+    )
+
+    with pytest.raises(ConfigurationError, match="exact committed physical file"):
+        build_spec_authority_subject(repository_root, authority_kind)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("swap_kind", ["leaf", "parent"])
+def test_spec_authority_reader_rejects_deterministic_external_swap(
+    spec_inputs: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    swap_kind: str,
+) -> None:
+    repository_root = Path(spec_inputs["config"]["repository_root"])
+    relative = ROUTE_DIRECTORY / "spec-dossier-expected-set-authority.json"
+    target = repository_root / relative
+    raw = target.read_bytes()
+
+    if swap_kind == "leaf":
+        external = tmp_path / "external-exact-authority.json"
+        external.write_bytes(raw)
+
+        def swap_leaf(_root: Path, _relative: Path) -> None:
+            target.unlink()
+            target.symlink_to(external)
+
+        monkeypatch.setattr(git_provenance_module, "_after_committed_file_opened", swap_leaf)
+        external_target = external
+    else:
+        external_parent = tmp_path / "external-exact-authority-parent"
+        external_parent.mkdir()
+        external_target = external_parent / target.name
+        external_target.write_bytes(raw)
+        held_parent = target.parent.with_name(f"{target.parent.name}-held")
+
+        def swap_parent(_root: Path, _relative: Path) -> None:
+            target.parent.rename(held_parent)
+            target.parent.symlink_to(external_parent, target_is_directory=True)
+
+        monkeypatch.setattr(git_provenance_module, "_after_committed_parent_held", swap_parent)
+
+    with pytest.raises(ConfigurationError, match="exact committed physical file"):
+        build_spec_authority_subject(repository_root, "dossier_expected_set")
+    assert external_target.read_bytes() == raw
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("authority_kind", "filename", "action"),
+    [
+        ("dossier_expected_set", "spec-dossier-expected-set-authority.json", "bootstrap_genesis"),
+        ("path_registration", "spec-path-registration-authority.json", "bootstrap_path_authority"),
+    ],
+)
+def test_spec_status_and_retry_reject_clean_external_authority_without_publication(
+    spec_inputs: dict[str, Any],
+    tmp_path: Path,
+    authority_kind: str,
+    filename: str,
+    action: str,
+) -> None:
+    if authority_kind == "path_registration":
+        assert cli.main(_advance_argv(spec_inputs)) == 0
+        _accept_assay_authority(spec_inputs)
+        _accepted_route_authority(spec_inputs, "dossier_expected_set", 2110)
+        _write_action(spec_inputs, action)
+    assert SpecFlow(load_discovery_operator(spec_inputs["config_path"])).status().next_action == action
+    repository_root = Path(spec_inputs["config"]["repository_root"])
+    _replace_authority_with_clean_external_symlink(
+        repository_root,
+        ROUTE_DIRECTORY / filename,
+        tmp_path / f"external-public-{filename}",
+    )
+    before_events = tuple(spec_inputs["harness"].ledger.iter_events())
+    before_tree = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(ConfigurationError, match="exact committed physical file"):
+        cli.main(_status_argv(spec_inputs))
+    for _ in range(2):
+        with pytest.raises(ConfigurationError, match="exact committed physical file"):
+            cli.main(_advance_argv(spec_inputs, action))
+
+    assert tuple(spec_inputs["harness"].ledger.iter_events()) == before_events
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_tree
+
+
 @pytest.mark.integration
 def test_spec_portable_authority_producer_rejects_non_exact_member_set(
     spec_inputs: dict[str, Any],
@@ -2637,11 +2764,11 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     before_registration_failure = _tree_snapshot(spec_inputs["binding"].control_root)
     with monkeypatch.context() as patch:
         patch.setattr(
-            spec_inputs["harness"].service,
-            "submit",
-            lambda *_args: (_ for _ in ()).throw(OSError("injected before registration")),
+            registration_module,
+            "_after_registered_bytes_published",
+            lambda *_args: (_ for _ in ()).throw(OSError("injected after byte publication before registration")),
         )
-        with pytest.raises(OSError, match="before registration"):
+        with pytest.raises(OSError, match="after byte publication before registration"):
             publish_registered_raw_content(
                 repository_root=repository_root,
                 publication=publication,
@@ -2649,7 +2776,7 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
                 control_root=spec_inputs["binding"].control_root,
                 command_service=spec_inputs["harness"].service,
             )
-    assert not target.exists()
+    assert target.read_bytes() == raw
     after_registration_failure = _tree_snapshot(spec_inputs["binding"].control_root)
     assert after_registration_failure != before_registration_failure
     assert any("runtime/registered-content-recovery" in row[1] for row in after_registration_failure)
@@ -2657,31 +2784,9 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
         event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
         for event in spec_inputs["harness"].ledger.iter_events()
     )
-    original_write = registration_module._write_immutable_raw
-    with monkeypatch.context() as patch:
-        patch.setattr(
-            registration_module,
-            "_write_immutable_raw",
-            lambda *_args: (_ for _ in ()).throw(OSError("injected after registration")),
-        )
-        with pytest.raises(OSError, match="after registration"):
-            publish_registered_raw_content(
-                repository_root=repository_root,
-                publication=publication,
-                registration=registration,
-                control_root=spec_inputs["binding"].control_root,
-                command_service=spec_inputs["harness"].service,
-            )
-    assert not target.exists()
-    event = next(
-        event
-        for event in spec_inputs["harness"].ledger.iter_events()
-        if event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
-    )
-    assert event["payload"]["manifest"]["content_sha256"] == sha256_hex(raw)
-    assert event["payload"]["manifest"]["relative_path"] == publication.destination_relative_path
 
     target.parent.mkdir(parents=True, exist_ok=True)
+    target.unlink()
     external = spec_inputs["binding"].control_root.parent / "external-raw-target.md"
     external.write_bytes(raw)
     try:
@@ -2699,7 +2804,6 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     assert external.read_bytes() == raw
     target.unlink()
 
-    monkeypatch.setattr(registration_module, "_write_immutable_raw", original_write)
     result = publish_registered_raw_content(
         repository_root=repository_root,
         publication=publication,
@@ -2709,10 +2813,45 @@ def test_spec_raw_brief_publication_registers_exact_committed_bytes_and_restarts
     )
     assert result.content_sha256 == sha256_hex(raw)
     assert target.read_bytes() == raw
+    assert not tuple((spec_inputs["binding"].control_root / "runtime/registered-content-recovery").glob("*.json"))
+    event = next(
+        event
+        for event in spec_inputs["harness"].ledger.iter_events()
+        if event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == artefact_id
+    )
+    assert event["payload"]["manifest"]["content_sha256"] == sha256_hex(raw)
+    assert event["payload"]["manifest"]["relative_path"] == publication.destination_relative_path
     assert (
         len([event for event in spec_inputs["harness"].ledger.iter_events() if event.get("stream_id") == artefact_id])
         == 1
     )
+
+    foreign = b"foreign raw replacement"
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            registration_module,
+            "_after_registered_bytes_published",
+            lambda root, relative, _raw: (root / relative).write_bytes(foreign),
+        )
+        with pytest.raises(IntegrityError, match="differs after command acceptance"):
+            publish_registered_raw_content(
+                repository_root=repository_root,
+                publication=publication,
+                registration=registration,
+                control_root=spec_inputs["binding"].control_root,
+                command_service=spec_inputs["harness"].service,
+            )
+    assert target.read_bytes() == foreign
+    assert tuple((spec_inputs["binding"].control_root / "runtime/registered-content-recovery").glob("*.json"))
+    with pytest.raises(ConflictError, match="raw content destination already binds different bytes"):
+        publish_registered_raw_content(
+            repository_root=repository_root,
+            publication=publication,
+            registration=registration,
+            control_root=spec_inputs["binding"].control_root,
+            command_service=spec_inputs["harness"].service,
+        )
+    assert target.read_bytes() == foreign
 
     before = _tree_snapshot(spec_inputs["binding"].control_root)
     with pytest.raises(ConfigurationError, match="byte binding differs"):

@@ -49,6 +49,7 @@ from research_system.discovery.source_correction import (
 )
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
+from research_system.git_provenance import read_exact_committed_physical_file
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -188,9 +189,14 @@ def build_spec_authority_subject(repository_root: Path, authority_kind: str) -> 
         raise ValueError("unsupported SPEC authority kind")
     authority_path = _DOSSIER_AUTHORITY_PATH if authority_kind == "dossier_expected_set" else _PATH_AUTHORITY_PATH
     try:
-        subject = json.loads((repository_root / authority_path).read_bytes())
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ConfigurationError("proposed SPEC authority is unavailable") from exc
+        raw = read_exact_committed_physical_file(
+            repository_root,
+            authority_path,
+            label=f"proposed SPEC {authority_kind} authority",
+        )
+        subject = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError, IntegrityError) as exc:
+        raise ConfigurationError("proposed SPEC authority is not an exact committed physical file") from exc
     if not isinstance(subject, dict) or subject.get("authority_kind") != authority_kind:
         raise ConfigurationError("proposed SPEC authority kind differs")
     if authority_kind == "dossier_expected_set":
@@ -979,6 +985,12 @@ class SpecFlow:
         completed = "none"
         for action, required in _ACTIONS:
             if not set(required).issubset(rows):
+                authority_kind = {
+                    "bootstrap_dossier_authority": "dossier_expected_set",
+                    "bootstrap_path_authority": "path_registration",
+                }.get(action)
+                if authority_kind is not None:
+                    build_spec_authority_subject(self.operator.repository_root, authority_kind)
                 return SpecFlowStatus(
                     "NOT_RUNNABLE",
                     completed,

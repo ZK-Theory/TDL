@@ -21,11 +21,12 @@ from research_system.context.models import ContextProfile, SourceFragment
 from research_system.context.service import ContextLifecycleService
 from research_system.context.sources import FileSourceResolver
 from research_system.context.tokenizers import ProviderCountEvidence, ReferenceRegexV1
-from research_system.errors import SchemaError
+from research_system.errors import ConflictError, SchemaError
 from research_system.evidence.consumers import ArtefactEvidenceConsumers
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
+    prepare_candidate_document,
     register_candidate_document,
 )
 from research_system.methods.pack import load_methods_pack
@@ -37,6 +38,7 @@ from research_system.methods.verification_records import (
 from research_system.routing.engine import RouteCandidate
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
+from research_system.store import contained_files
 from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant, control_plane
 from tests.research_system.integration.test_artefact_authority_commands import (
     ARTEFACT_ID,
@@ -57,6 +59,8 @@ BRIEF_ID = "art_019fe47a-2000-7000-8000-000000002000"
 IMPORTED_ID = "art_019fe47a-2001-7000-8000-000000002001"
 CONTEXT_ID = "ctx_019fe47a-2002-7000-8000-000000002002"
 RETRY_ID = "art_019fe47a-2005-7000-8000-000000002005"
+CONFLICTING_EXISTING_ID = "art_019fe47a-2020-7000-8000-000000002020"
+EXACT_EXISTING_ID = "art_019fe47a-2021-7000-8000-000000002021"
 METHODS_ASSET_ARTEFACT_ID = "art_019fe47a-2006-7000-8000-000000002006"
 METHODS_ASSET_REVIEW_ID = "rev_019fe47a-2007-7000-8000-000000002007"
 METHODS_ASSET_REVIEW_EVIDENCE_ID = "arec_019fe47a-2008-7000-8000-000000002008"
@@ -572,14 +576,18 @@ def _registration(
 
 
 def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> None:
-    class InterruptOnceStore(CandidateDocumentStore):
+    class InterruptAfterAcceptance:
         attempts = 0
 
-        def write(self, artefact_id, raw_bytes):
+        def __init__(self, service) -> None:
+            self.service = service
+
+        def submit(self, envelope):
+            receipt = self.service.submit(envelope)
             self.attempts += 1
             if self.attempts == 1:
-                raise OSError("simulated post-authority publication interruption")
-            return super().write(artefact_id, raw_bytes)
+                raise OSError("simulated post-acceptance response interruption")
+            return receipt
 
     harness = control_plane(tmp_path)
     activate_lifecycle_grant(
@@ -589,7 +597,7 @@ def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> No
         command_types=("RegisterArtefact",),
     )
     registration = CandidateRegistration(**_registration(RETRY_ID, CONTEXT_ID))
-    store = InterruptOnceStore(harness.objects.control_root)
+    store = CandidateDocumentStore(harness.objects.control_root)
     value = {"document_type": "ReviewFindingSet", "findings": []}
 
     with pytest.raises(OSError, match="interruption"):
@@ -597,12 +605,13 @@ def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> No
             value=value,
             registration=registration,
             document_store=store,
-            command_service=harness.service,
+            command_service=InterruptAfterAcceptance(harness.service),
         )
 
-    assert not (harness.objects.control_root / store.relative_path(RETRY_ID)).exists()
+    assert (harness.objects.control_root / store.relative_path(RETRY_ID)).read_bytes() == canonical_bytes(value)
     events_after_acceptance = tuple(event for event in harness.ledger.iter_events() if event["stream_id"] == RETRY_ID)
     assert len(events_after_acceptance) == 1
+    assert tuple((harness.objects.control_root / "runtime" / "registered-content-recovery").glob("*.json"))
 
     recovered = register_candidate_document(
         value=value,
@@ -614,6 +623,123 @@ def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> No
     assert (harness.objects.control_root / recovered.relative_path).read_bytes() == recovered.raw_bytes
     assert recovered.receipt.status == "accepted"
     assert tuple(event for event in harness.ledger.iter_events() if event["stream_id"] == RETRY_ID) == (
+        events_after_acceptance
+    )
+
+
+def test_candidate_registration_rejects_conflicting_existing_bytes_before_real_command(tmp_path) -> None:
+    harness = control_plane(tmp_path)
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=CONFLICTING_EXISTING_ID,
+        command_types=("RegisterArtefact",),
+    )
+    registration = CandidateRegistration(**_registration(CONFLICTING_EXISTING_ID, CONTEXT_ID))
+    store = CandidateDocumentStore(harness.objects.control_root)
+    value = {"document_type": "ReviewFindingSet", "findings": []}
+    prepared = prepare_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=store,
+    )
+    target = harness.objects.control_root / prepared.relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    foreign = canonical_bytes({"document_type": "ReviewFindingSet", "findings": [{"foreign": True}]})
+    target.write_bytes(foreign)
+    events_before = tuple(harness.ledger.iter_events())
+
+    with pytest.raises(ConflictError, match="methods document identity already binds different bytes"):
+        register_candidate_document(
+            value=value,
+            registration=registration,
+            document_store=store,
+            command_service=harness.service,
+        )
+
+    assert tuple(harness.ledger.iter_events()) == events_before
+    assert target.read_bytes() == foreign
+    assert not (harness.objects.control_root / "runtime" / "registered-content-recovery").exists()
+
+
+def test_candidate_registration_after_preflight_competitor_rejects_before_real_command(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = control_plane(tmp_path)
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=CONFLICTING_EXISTING_ID,
+        command_types=("RegisterArtefact",),
+    )
+    registration = CandidateRegistration(**_registration(CONFLICTING_EXISTING_ID, CONTEXT_ID))
+    store = CandidateDocumentStore(harness.objects.control_root)
+    value = {"document_type": "ReviewFindingSet", "findings": []}
+    target = harness.objects.control_root / store.relative_path(CONFLICTING_EXISTING_ID)
+    foreign = canonical_bytes({"document_type": "ReviewFindingSet", "findings": [{"foreign": True}]})
+
+    def publish_competing_final(_temporary: Path, published_target: Path) -> None:
+        if published_target == target:
+            published_target.write_bytes(foreign)
+
+    monkeypatch.setattr(contained_files, "_after_contained_file_fsync", publish_competing_final)
+    events_before = tuple(harness.ledger.iter_events())
+
+    with pytest.raises(ConflictError, match="methods document identity already binds different bytes"):
+        register_candidate_document(
+            value=value,
+            registration=registration,
+            document_store=store,
+            command_service=harness.service,
+        )
+
+    assert tuple(harness.ledger.iter_events()) == events_before
+    assert target.read_bytes() == foreign
+    assert not tuple((harness.objects.control_root / "runtime" / "registered-content-recovery").glob("*.json"))
+
+
+def test_candidate_registration_accepts_exact_existing_bytes_and_replays_real_command(tmp_path) -> None:
+    harness = control_plane(tmp_path)
+    activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=EXACT_EXISTING_ID,
+        command_types=("RegisterArtefact",),
+    )
+    registration = CandidateRegistration(**_registration(EXACT_EXISTING_ID, CONTEXT_ID))
+    store = CandidateDocumentStore(harness.objects.control_root)
+    value = {"document_type": "ReviewFindingSet", "findings": []}
+    prepared = prepare_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=store,
+    )
+    target = harness.objects.control_root / prepared.relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(prepared.raw_bytes)
+
+    registered = register_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=store,
+        command_service=harness.service,
+    )
+    events_after_acceptance = tuple(
+        event for event in harness.ledger.iter_events() if event["stream_id"] == EXACT_EXISTING_ID
+    )
+    assert len(events_after_acceptance) == 1
+
+    replayed = register_candidate_document(
+        value=value,
+        registration=registration,
+        document_store=store,
+        command_service=harness.service,
+    )
+
+    assert target.read_bytes() == prepared.raw_bytes
+    assert registered.content_sha256 == replayed.content_sha256 == prepared.content_sha256
+    assert tuple(event for event in harness.ledger.iter_events() if event["stream_id"] == EXACT_EXISTING_ID) == (
         events_after_acceptance
     )
 

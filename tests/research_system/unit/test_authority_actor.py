@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 import research_system.authority_actor as authority_actor_module
+from research_system.store import contained_files
 
 from research_system.authority_actor import (
     AuthorityActorRegistrationService,
@@ -229,20 +230,29 @@ def test_actor_artifact_publication_keeps_staging_identity_until_link(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original_link = authority_actor_module.os.link
+    original_link = contained_files.os.link
     replacement_succeeded = False
 
     def replace_staging_before_link(source: Path, destination: Path, **kwargs: object) -> None:
         nonlocal replacement_succeeded
         try:
-            source.unlink()
-            source.write_bytes(b"attacker")
+            source_directory = kwargs.get("src_dir_fd")
+            if source_directory is None:
+                Path(source).unlink()
+                Path(source).write_bytes(b"attacker")
+            else:
+                os.unlink(source, dir_fd=int(source_directory))
+                descriptor = os.open(source, os.O_CREAT | os.O_EXCL | os.O_WRONLY, dir_fd=int(source_directory))
+                try:
+                    os.write(descriptor, b"attacker")
+                finally:
+                    os.close(descriptor)
             replacement_succeeded = True
         except PermissionError:
             pass
         original_link(source, destination, **kwargs)
 
-    monkeypatch.setattr(authority_actor_module.os, "link", replace_staging_before_link)
+    monkeypatch.setattr(contained_files.os, "link", replace_staging_before_link)
     relative = Path("runtime") / "probe.json"
     if os.name == "nt":
         published = authority_actor_module._publish_physical_json(
@@ -254,7 +264,7 @@ def test_actor_artifact_publication_keeps_staging_identity_until_link(
         assert replacement_succeeded is False
         assert published.read_bytes() == canonical_bytes({"value": "trusted"})
     else:
-        with pytest.raises(IntegrityError, match="publication identity is not exact"):
+        with pytest.raises(IntegrityError, match="published file identity differs"):
             authority_actor_module._publish_physical_json(
                 tmp_path,
                 relative,
@@ -262,7 +272,72 @@ def test_actor_artifact_publication_keeps_staging_identity_until_link(
                 label="probe publication",
             )
         assert replacement_succeeded is True
-        assert not (tmp_path / relative).exists()
+        assert (tmp_path / relative).read_bytes() == b"attacker"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    (
+        Path("runtime") / "marker-probe.json",
+        Path("receipts") / "authority_actor" / "receipt-probe.json",
+    ),
+    ids=("marker", "receipt"),
+)
+def test_actor_artifact_publication_retains_physical_parent_until_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    relative: Path,
+) -> None:
+    """A pathname replacement cannot move publication to an unheld parent."""
+
+    expected = canonical_bytes({"value": "trusted"})
+    parent = (tmp_path / relative).parent
+    parent.mkdir(parents=True, exist_ok=True)
+    displaced = tmp_path / f"displaced-{relative.stem}"
+    original_link = contained_files.os.link
+    replacement_succeeded = False
+
+    def replace_parent_before_link(source: object, destination: object, **kwargs: object) -> None:
+        nonlocal replacement_succeeded
+        try:
+            parent.rename(displaced)
+            parent.mkdir(parents=True)
+            replacement_succeeded = True
+        except PermissionError:
+            pass
+        if replacement_succeeded and kwargs.get("src_dir_fd") is None:
+            # Let the former pathname-only implementation finish successfully
+            # in the replacement directory, demonstrating the broken binding.
+            Path(str(source)).write_bytes(expected)
+        original_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(contained_files.os, "link", replace_parent_before_link)
+    try:
+        if os.name == "nt":
+            published = authority_actor_module._publish_physical_json(
+                tmp_path,
+                relative,
+                {"value": "trusted"},
+                label="probe publication",
+            )
+            assert replacement_succeeded is False
+            assert published.read_bytes() == expected
+        else:
+            with pytest.raises(IntegrityError, match="parent changed while held"):
+                authority_actor_module._publish_physical_json(
+                    tmp_path,
+                    relative,
+                    {"value": "trusted"},
+                    label="probe publication",
+                )
+            assert replacement_succeeded is True
+            assert not (tmp_path / relative).exists()
+    finally:
+        if replacement_succeeded:
+            for child in parent.iterdir():
+                child.unlink()
+            parent.rmdir()
+            displaced.rename(parent)
 
 
 def test_prelock_concurrent_commit_cannot_report_a_second_acceptance(
@@ -467,7 +542,7 @@ def test_changed_retry_and_second_role_cannot_mutate_registration(tmp_path: Path
         )
 
 
-@pytest.mark.parametrize("boundary", ["actor", "registration", "event", "receipt"])
+@pytest.mark.parametrize("boundary", ["marker", "actor", "registration", "event", "receipt"])
 def test_registration_recovers_after_each_publication_boundary(tmp_path: Path, boundary: str) -> None:
     service = _service(tmp_path)
 
@@ -484,6 +559,40 @@ def test_registration_recovers_after_each_publication_boundary(tmp_path: Path, b
     assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
 
 
+@pytest.mark.parametrize("boundary", ["marker", "actor", "registration", "event", "receipt"])
+def test_crash_recovery_retains_original_acceptance_instant_when_clock_advances(
+    tmp_path: Path,
+    boundary: str,
+) -> None:
+    current = [NOW]
+    service = _service(tmp_path)
+    service.clock = lambda: current[0]
+
+    def crash(stage: str) -> None:
+        if stage == boundary:
+            raise RuntimeError(f"crash at {stage}")
+
+    with pytest.raises(RuntimeError, match=f"crash at {boundary}"):
+        service.register(_intent(), phase_hook=crash)
+
+    marker_path = next((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+    marker = json.loads(marker_path.read_bytes())
+    accepted_at = NOW.isoformat().replace("+00:00", "Z")
+    assert marker["accepted_at"] == accepted_at
+
+    current[0] = datetime(2028, 8, 14, tzinfo=UTC)
+    recovered = service.register(_intent())
+    registration = ObjectStore(tmp_path).read("assurance_record", recovered["registration_id"], 1)
+    event = next(EventLedger(tmp_path, PROJECT, service.schemas).iter_events())
+
+    assert registration["accepted_at"] == accepted_at
+    assert recovered["registration_sha256"] == sha256_hex(canonical_bytes(registration))
+    assert event["occurred_at"] == accepted_at
+    assert event["payload"]["registration_sha256"] == recovered["registration_sha256"]
+    assert recovered["receipt"]["registration_sha256"] == recovered["registration_sha256"]
+    assert not marker_path.exists()
+
+
 def test_started_registration_recovers_after_owner_window_expires(tmp_path: Path) -> None:
     service = _service(tmp_path)
 
@@ -497,6 +606,48 @@ def test_started_registration_recovers_after_owner_window_expires(tmp_path: Path
     recovered = service.register(_intent())
     assert recovered["status"] == "accepted"
     assert not list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+
+
+def test_exact_legacy_recovery_marker_keeps_historical_acceptance_rule(tmp_path: Path) -> None:
+    intent = _intent()
+    semantic = intent.semantic_payload()
+    actor_id = authority_actor_module._deterministic_id(
+        "authority-actor",
+        "act",
+        {
+            "project_id": PROJECT,
+            "app_family": intent.app_family,
+            "session_identity": intent.session_identity,
+        },
+    )
+    registration_id = authority_actor_module._deterministic_id(
+        "authority-actor-registration",
+        "arec",
+        {"owner_actor_id": OWNER, "semantic": semantic},
+    )
+    marker = {
+        "schema_id": "ars://internal/authority-actor-registration-transaction",
+        "schema_version": "1.0.0",
+        "payload_hash": sha256_hex(canonical_bytes(semantic)),
+        "retry_key": intent.retry_key,
+        "actor_id": actor_id,
+        "registration_id": registration_id,
+    }
+    marker_path = (
+        tmp_path / "runtime" / f".authority-actor-registration-{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
+    )
+    marker_path.parent.mkdir(parents=True)
+    marker_path.write_bytes(canonical_bytes(marker))
+    service = _service(tmp_path)
+    service.clock = lambda: datetime(2028, 8, 14, tzinfo=UTC)
+
+    recovered = service.register(intent)
+    registration = ObjectStore(tmp_path).read("assurance_record", recovered["registration_id"], 1)
+    event = next(EventLedger(tmp_path, PROJECT, service.schemas).iter_events())
+
+    assert registration["accepted_at"] == intent.effective_at
+    assert event["occurred_at"] == intent.effective_at
+    assert not marker_path.exists()
 
 
 def test_redirected_recovery_marker_cannot_authorize_future_window_and_retry_recovers(

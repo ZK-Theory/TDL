@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import hashlib
-import os
 import uuid
 import stat
 from dataclasses import dataclass
@@ -21,6 +20,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry
+from research_system.store.contained_files import publish_contained_exact_no_replace
 from research_system.store.durability import fsync_directory
 from research_system.store.ledger import EventLedger, _issue_validated_service_session
 from research_system.store.lock import WriterLock
@@ -133,66 +133,21 @@ def _publish_physical_json(
     *,
     label: str,
 ) -> Path:
-    """Publish canonical JSON only through a verified physical in-root path."""
+    """Publish canonical JSON through one held physical parent directory."""
     data = canonical_bytes(value)
     _require_physical_target(root, relative, label=label)
     path = root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _require_physical_target(root, relative, label=label)
     existing = _physical_file_bytes(root, relative, label=label)
     if existing is not None:
         if existing != data:
             raise ConflictError(f"actor registration artifact conflicts: {path}")
         return path
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    temporary_identity: os.stat_result | None = None
-    try:
-        with temporary.open("xb") as handle:
-            temporary_identity = os.fstat(handle.fileno())
-            if not stat.S_ISREG(temporary_identity.st_mode):
-                raise IntegrityError(f"{label} staging file is not physical")
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-            metadata = temporary.lstat()
-            if (
-                not stat.S_ISREG(metadata.st_mode)
-                or stat.S_ISLNK(metadata.st_mode)
-                or getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-                or not os.path.samestat(temporary_identity, metadata)
-            ):
-                raise IntegrityError(f"{label} staging file is not physical")
-            published = False
-            try:
-                os.link(temporary, path, follow_symlinks=False)
-                published = True
-            except FileExistsError:
-                if _physical_file_bytes(root, relative, label=label) != data:
-                    raise ConflictError(f"actor registration artifact conflicts: {path}") from None
-            else:
-                destination_identity = path.lstat()
-                if not os.path.samestat(temporary_identity, destination_identity):
-                    if published:
-                        try:
-                            current_identity = path.lstat()
-                        except FileNotFoundError:
-                            pass
-                        else:
-                            if os.path.samestat(destination_identity, current_identity):
-                                path.unlink()
-                    raise IntegrityError(f"{label} publication identity is not exact")
-                fsync_directory(path.parent)
-    finally:
-        if temporary_identity is not None:
-            try:
-                current_identity = temporary.lstat()
-            except FileNotFoundError:
-                pass
-            else:
-                if os.path.samestat(temporary_identity, current_identity):
-                    temporary.unlink()
-    if _physical_file_bytes(root, relative, label=label) != data:
-        raise IntegrityError(f"{label} publication is not exact")
+    publish_contained_exact_no_replace(
+        root,
+        relative.as_posix(),
+        data,
+        conflict_message=f"actor registration artifact conflicts: {path}",
+    )
     return path
 
 
@@ -579,7 +534,7 @@ class AuthorityActorRegistrationService:
         _require_physical_target(self.root, receipt_relative, label="actor registration receipt")
         actor_revision, actor_existing = self._read_actor_object(actor_id)
         registration_revision, registration_existing = self._read_registration_object(registration_id)
-        marker = {
+        legacy_marker = {
             "schema_id": "ars://internal/authority-actor-registration-transaction",
             "schema_version": "1.0.0",
             "payload_hash": payload_hash,
@@ -592,9 +547,36 @@ class AuthorityActorRegistrationService:
             marker_relative,
             label="actor registration recovery marker",
         )
-        if stored_marker is not None and stored_marker != marker:
-            raise ConflictError("actor registration recovery marker conflicts with intent")
         marker_started = stored_marker is not None
+        if isinstance(registration_existing, dict):
+            _, acceptance_text = _utc_text(registration_existing.get("accepted_at"), "accepted_at")
+        elif stored_marker == legacy_marker:
+            # Exact legacy markers predate a durable acceptance instant.  Keep
+            # their established recovery identity rather than rewriting them.
+            acceptance_text = effective_text
+        elif stored_marker is None:
+            acceptance_text = now.isoformat().replace("+00:00", "Z")
+        else:
+            marker_without_acceptance = dict(stored_marker)
+            stored_acceptance = marker_without_acceptance.pop("accepted_at", None)
+            expected_marker_without_acceptance = {**legacy_marker, "schema_version": "1.1.0"}
+            if marker_without_acceptance != expected_marker_without_acceptance:
+                raise ConflictError("actor registration recovery marker conflicts with intent")
+            _, acceptance_text = _utc_text(stored_acceptance, "accepted_at")
+        acceptance, acceptance_text = _utc_text(acceptance_text, "accepted_at")
+        if (marker_started or isinstance(registration_existing, dict)) and not effective <= acceptance < expires:
+            raise IntegrityError("actor registration recovery marker acceptance is outside its owner window")
+        marker = {
+            **legacy_marker,
+            "schema_version": "1.1.0",
+            "accepted_at": acceptance_text,
+        }
+        if stored_marker is not None:
+            if stored_marker != legacy_marker and stored_marker != marker:
+                raise ConflictError("actor registration recovery marker conflicts with intent")
+            if isinstance(registration_existing, dict) and registration_existing.get("accepted_at") != acceptance_text:
+                raise IntegrityError("actor registration recovery marker conflicts with the durable acceptance instant")
+            marker = stored_marker
         receipt_existing = _physical_file_bytes(
             self.root,
             receipt_relative,
@@ -627,13 +609,7 @@ class AuthorityActorRegistrationService:
             "actor_id": actor_id,
             "actor_sha256": actor_sha,
             "semantic_intent": semantic,
-            "accepted_at": (
-                registration_existing.get("accepted_at")
-                if isinstance(registration_existing, dict)
-                else effective_text
-                if marker_started
-                else now.isoformat().replace("+00:00", "Z")
-            ),
+            "accepted_at": acceptance_text,
             "revoked": False,
         }
         _utc_text(registration_value["accepted_at"], "accepted_at")
@@ -723,6 +699,8 @@ class AuthorityActorRegistrationService:
                     marker,
                     label="actor registration recovery marker",
                 )
+                if phase_hook:
+                    phase_hook("marker")
             locked_actor_revision, locked_actor = self._read_actor_object(actor_id)
             locked_registration_revision, locked_registration = self._read_registration_object(registration_id)
             if (locked_actor_revision, locked_actor) != (actor_revision, actor_existing) or (
@@ -762,7 +740,7 @@ class AuthorityActorRegistrationService:
                         "causation_id": None,
                         "actor_id": owner_actor_id,
                         "authority_grant_id": context.root_grant_id,
-                        "occurred_at": now.isoformat().replace("+00:00", "Z"),
+                        "occurred_at": acceptance_text,
                         "command_schema_id": command_schema.schema_id,
                         "command_schema_version": command_schema.schema_version,
                         "command_schema_sha256": command_schema.sha256,

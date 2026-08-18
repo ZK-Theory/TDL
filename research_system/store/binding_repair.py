@@ -9,7 +9,6 @@ candidate repository facts.
 from __future__ import annotations
 
 import json
-import os
 import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,8 +22,13 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError
 from research_system.git_execution import run_git
+from research_system.git_provenance import read_exact_committed_physical_file as _committed_candidate_file
 from research_system.ids import validate_id
 from research_system.schema_registry import runtime_schema_registry
+from research_system.store.contained_files import (
+    publish_contained_exact_no_replace,
+    replace_contained_exact_predecessor,
+)
 from research_system.store.durability import fsync_directory
 from research_system.store.identity import (
     _require_physical_directory,
@@ -85,33 +89,6 @@ def _run_git(root: Path, *arguments: str) -> str:
     if result.returncode != 0:
         raise ConfigurationError(f"candidate Git inspection failed: {result.stderr.strip()}")
     return result.stdout.strip()
-
-
-def _run_git_bytes(root: Path, *arguments: str) -> bytes:
-    result = run_git(
-        root,
-        *arguments,
-        text=False,
-        unavailable_message="candidate Git inspection timed out or is unavailable",
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace").strip()
-        raise ConfigurationError(f"candidate Git inspection failed: {stderr}")
-    return result.stdout
-
-
-def _committed_candidate_file(candidate: Path, relative: Path, *, label: str) -> bytes:
-    if relative.is_absolute() or relative.as_posix() != str(relative).replace("\\", "/"):
-        raise IntegrityError(f"{label} path is not canonical")
-    expected = candidate / relative
-    physical = _require_physical_regular_file(expected, label=label)
-    if physical != expected:
-        raise IntegrityError(f"{label} path is redirected")
-    raw = physical.read_bytes()
-    committed = _run_git_bytes(candidate, "show", f"HEAD:{relative.as_posix()}")
-    if raw != committed:
-        raise IntegrityError(f"{label} differs from the exact Git subject")
-    return raw
 
 
 def _governed_schema_catalogue(candidate: Path, schema_root: Path, *, label: str) -> str:
@@ -196,41 +173,53 @@ def _physical_artifact_path(control_root: Path, path: Path, *, create_parent: bo
 
 
 def _publish(control_root: Path, path: Path, data: bytes) -> None:
-    path = _physical_artifact_path(control_root, path, create_parent=True)
-    if path.exists():
-        if path.read_bytes() != data:
-            raise ConflictError(f"published binding-repair artifact conflicts: {path.name}")
+    control = control_root.resolve(strict=True)
+    path = _physical_artifact_path(control, path, create_parent=True)
+    publish_contained_exact_no_replace(
+        control,
+        path.relative_to(control).as_posix(),
+        data,
+        conflict_message=f"published binding-repair artifact conflicts: {path.name}",
+    )
+    path = _physical_artifact_path(control, path, create_parent=False)
+    if path.read_bytes() != data:
+        raise IntegrityError("binding-repair artifact publication is not exact")
+
+
+def _replace(control_root: Path, path: Path, data: bytes, *, expected: bytes | None = None) -> None:
+    """Durably replace a binding leaf and reconcile an exact interrupted replacement."""
+    control = control_root.resolve(strict=True)
+    path = _physical_artifact_path(control, path, create_parent=False)
+    current: bytes | None
+    try:
+        current = path.read_bytes()
+    except FileNotFoundError as exc:
+        if expected is None:
+            raise IntegrityError("binding-repair artifact is unavailable for replacement") from exc
+        # A hard stop after predecessor removal has no final leaf.  The shared
+        # exact-predecessor protocol recognizes and reconciles only its own
+        # deterministic stage/backup state; a wholly absent leaf still fails
+        # closed there.
+        current = None
+        predecessor = expected
+    except OSError as exc:
+        raise IntegrityError("binding-repair artifact is unavailable for replacement") from exc
+    else:
+        predecessor = current if expected is None else expected
+    if current is not None and current not in {predecessor, data}:
+        raise ConflictError(f"binding-repair artifact replacement conflicts: {path.name}")
+    if current == data and expected is None:
         return
-    temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.tmp")
-    try:
-        with os.fdopen(
-            os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)),
-            "wb",
-        ) as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        fsync_directory(path.parent)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def _replace(control_root: Path, path: Path, data: bytes) -> None:
-    path = _physical_artifact_path(control_root, path, create_parent=False)
-    temporary = path.with_name(f".{path.name}.{sha256_hex(data)[:16]}.replace")
-    try:
-        with os.fdopen(
-            os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)),
-            "wb",
-        ) as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        fsync_directory(path.parent)
-    finally:
-        temporary.unlink(missing_ok=True)
+    replace_contained_exact_predecessor(
+        control,
+        path.relative_to(control).as_posix(),
+        data,
+        expected=predecessor,
+        conflict_message=f"binding-repair artifact replacement conflicts: {path.name}",
+    )
+    path = _physical_artifact_path(control, path, create_parent=False)
+    if path.read_bytes() != data:
+        raise IntegrityError("binding-repair artifact replacement is not exact")
 
 
 @dataclass(frozen=True)
@@ -659,7 +648,18 @@ def advance_store_binding(
     )
     control = intent.control_root.resolve(strict=True)
     _validate_owner_authority(control, intent)  # type: ignore[arg-type]
-    load_store_manifest(control, approved_witness=witness, approved_witness_path=witness_path)
+    # The predecessor recovery binding necessarily records the prior Git HEAD.
+    # Admission of that binding would reject the clean descendant before this
+    # governed command can verify and advance it, so use only the manifest
+    # identity preflight here.  The explicit predecessor/candidate/route checks
+    # below are the advance-specific authority boundary.
+    source_manifest = load_store_manifest_unbound(control)
+    if (
+        source_manifest.get("control_root") != str(control)
+        or source_manifest.get("project_id") != intent.expected_project_id
+        or source_manifest.get("store_identity") != intent.expected_store_identity
+    ):
+        raise IntegrityError("binding advance source-bound manifest identity is invalid")
     recovery_path = _require_physical_regular_file(
         control / "manifests" / RECOVERY_BINDING_NAME,
         label="current repaired binding",
@@ -676,6 +676,13 @@ def advance_store_binding(
         or predecessor.get("schema_root") != candidate["schema_root"]
     ):
         raise IntegrityError("current repaired binding identity is invalid")
+    if (
+        source_manifest.get("code_roots") != [candidate["repository_root"]]
+        or source_manifest.get("schema_root") != candidate["schema_root"]
+        or source_manifest.get("code_roots") != predecessor.get("code_roots")
+        or source_manifest.get("schema_root") != predecessor.get("schema_root")
+    ):
+        raise IntegrityError("binding advance source-bound manifest identity is invalid")
     old_head = str(predecessor.get("git_head", ""))
     old_tree = str(predecessor.get("git_tree", ""))
     if not (len(old_head) == 40 and len(old_tree) == 40):
@@ -831,7 +838,7 @@ def advance_store_binding(
             if phase_hook:
                 phase_hook("receipt")
             _guard_advance_file(recovery_path, "binding advance recovery", predecessor_raw)
-            _replace(control, recovery_path, successor_raw)
+            _replace(control, recovery_path, successor_raw, expected=predecessor_raw)
             if phase_hook:
                 phase_hook("recovery")
             marker_path.unlink(missing_ok=True)
@@ -974,6 +981,7 @@ def repair_store_binding(
         repaired_manifest["manifest_hash"] = _restored_manifest_hash(
             repaired_manifest, str(restore_record["approval_sha256"])
         )
+        repaired_manifest_raw = canonical_bytes(repaired_manifest)
         recovery = {
             "schema_id": RECOVERY_BINDING_SCHEMA_ID,
             "schema_version": "1.0.0",
@@ -1034,9 +1042,9 @@ def repair_store_binding(
         ledger.schemas.validate(OBJECT_SCHEMA_ID, recovery)
         try:
             current_raw = (control / _STORE_MANIFEST).read_bytes()
-            if current_raw not in {original_manifest, canonical_bytes(repaired_manifest)}:
+            if current_raw not in {original_manifest, repaired_manifest_raw}:
                 raise IntegrityError("store manifest changed during binding repair")
-            _replace(control, control / _STORE_MANIFEST, canonical_bytes(repaired_manifest))
+            _replace(control, control / _STORE_MANIFEST, repaired_manifest_raw, expected=original_manifest)
             if phase_hook:
                 phase_hook("manifest")
             _publish(control, object_path, recovery_bytes)
@@ -1126,7 +1134,7 @@ def repair_store_binding(
             if _event_for_command(ledger, payload_hash, intent.idempotency_key) is None:
                 if object_path.exists() and object_path.read_bytes() == recovery_bytes:
                     object_path.unlink()
-                _replace(control, control / _STORE_MANIFEST, original_manifest)
+                _replace(control, control / _STORE_MANIFEST, original_manifest, expected=repaired_manifest_raw)
             raise
 
 
