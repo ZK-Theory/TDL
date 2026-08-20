@@ -1438,7 +1438,11 @@ def test_assay_bar_review_and_decision_require_their_exact_authority_streams(tmp
         )
         expected = "invalid Assay-bar review verdict" if row_id == "OR-106" else "invalid Assay-bar owner resolution"
         with pytest.raises(IntegrityError, match=expected):
-            current._prepare_assay_bar_authority(Command(wrong_stream), replay_discovery(current.ledger.iter_events()))
+            current._prepare_assay_bar_authority(
+                Command(wrong_stream),
+                replay_discovery(current.ledger.iter_events()),
+                transition_time=current._trusted_transition_time(),
+            )
         checked_rows.add(row_id)
 
     _accept_assay_bar(runtime, before_submit=reject_foreign_target)
@@ -5157,7 +5161,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             invalid_projection = replay_discovery(runtime.ledger.iter_events())
             invalid_projection["decisions"][execution_id]["options"] = ["reject"]
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
-                runtime._prepare_spike(Command(command), invalid_projection)
+                runtime._prepare_spike(
+                    Command(command),
+                    invalid_projection,
+                    transition_time=runtime._trusted_transition_time(),
+                )
             foreign_relation = deepcopy(command)
             foreign_relation["payload"]["execution_authority_relation"]["route_ref"]["content_hash"] = "f" * 64
             before = tuple(runtime.ledger.iter_events())
@@ -5220,7 +5228,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 "lease_id": command["payload"]["lease_id"],
             }
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
-                runtime._prepare_spike(Command(command), reused_projection)
+                runtime._prepare_spike(
+                    Command(command),
+                    reused_projection,
+                    transition_time=runtime._trusted_transition_time(),
+                )
             invented_hash = deepcopy(command)
             invented_hash["payload"]["attempt_sha256"] = "f" * 64
             before = tuple(runtime.ledger.iter_events())
@@ -5778,7 +5790,12 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         predicate_position = parked_projection["source_observations"][predicate_observation_id]["global_position"]
         parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position - 1
         assert [
-            event_type for event_type, _, _ in runtime._prepare_spike(Command(revisit_command), parked_projection)
+            event_type
+            for event_type, _, _ in runtime._prepare_spike(
+                Command(revisit_command),
+                parked_projection,
+                transition_time=runtime._trusted_transition_time(),
+            )
         ] == [
             "DecisionProposed",
             "SpikeRevisitRequested",
@@ -5786,7 +5803,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         ]
         parked_projection["candidates"][candidate_id]["parked_at_global_position"] = predicate_position
         with pytest.raises(IntegrityError, match="invalid Spike revisit proposal"):
-            runtime._prepare_spike(Command(revisit_command), parked_projection)
+            runtime._prepare_spike(
+                Command(revisit_command),
+                parked_projection,
+                transition_time=runtime._trusted_transition_time(),
+            )
         runtime.submit(revisit_command)
         revisit_resolution = resolved(revisit_id)
         revisit_resolution["selected_option"] = "RETRY"

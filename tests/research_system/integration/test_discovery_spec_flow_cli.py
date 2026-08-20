@@ -1813,7 +1813,13 @@ def _start_spec_02(
     return {"spike_id": spike_id, "attempt_sha256": attempt_sha256, "plan_sha256": plan_sha256}
 
 
-def _register_spike_return_evidence(inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _register_spike_return_evidence(
+    inputs: dict[str, Any],
+    *,
+    candidate_id: str,
+    spike_id: str,
+    attempt_sha256: str,
+) -> dict[str, dict[str, Any]]:
     operator = load_discovery_operator(inputs["config_path"])
     service = CommandService(
         operator.control_root,
@@ -1843,6 +1849,10 @@ def _register_spike_return_evidence(inputs: dict[str, Any]) -> dict[str, dict[st
             "route_id": "SPEC-GATE6-RUN-V1",
             "stage": "SPEC-02",
             "evidence_kind": name,
+            "candidate_id": candidate_id,
+            "spike_id": spike_id,
+            "attempt_id": C1_ATTEMPT_ID,
+            "attempt_sha256": attempt_sha256,
             "content": f"exact deterministic {name}",
         }
         grant_id = activate_lifecycle_grant(
@@ -1898,7 +1908,12 @@ def _return_spec_02_complete(
     deterministic_rerun: dict[str, Any] | None = None,
     execute: bool = True,
 ) -> dict[str, str]:
-    evidence = _register_spike_return_evidence(inputs)
+    evidence = _register_spike_return_evidence(
+        inputs,
+        candidate_id=candidate_id,
+        spike_id=started["spike_id"],
+        attempt_sha256=started["attempt_sha256"],
+    )
     operator = load_discovery_operator(inputs["config_path"])
     projection = SpecFlow(operator)._snapshot()[1]
     candidate = projection["candidates"][candidate_id]
@@ -2396,11 +2411,10 @@ def test_spec_status_ignores_registered_brief_without_action_proof(
 
 
 @pytest.mark.integration
-def test_spec_status_revalidates_action_produced_brief_content(
+def test_spec_status_rejects_forged_file_only_action_proof(
     spec_inputs: dict[str, Any],
 ) -> None:
     document = _registered_brief_document(spec_inputs)
-    document["brief_manifest_sha256"] = "f" * 64
     _register_generic_spec_brief(spec_inputs, document)
     CandidateDocumentStore(
         spec_inputs["binding"].control_root,
@@ -2420,10 +2434,47 @@ def test_spec_status_revalidates_action_produced_brief_content(
     )
     before = _tree_snapshot(spec_inputs["binding"].control_root)
 
-    with pytest.raises(IntegrityError, match="does not bind its exact manifest"):
-        SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()
+    documents = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
 
+    assert documents == {}
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_spec_action_completion_event_rejects_generic_ledger_append(
+    spec_inputs: dict[str, Any],
+) -> None:
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    before = operator.ledger.snapshot()
+    command_identity = operator.schemas.resolve_identity("ars://core/command", "1.0.0")
+
+    with pytest.raises(ArsError, match="validated SpecFlow continuation"):
+        operator.ledger.append(
+            [
+                {
+                    "event_type": "SpecFlowActionCompleted",
+                    "schema_id": "ars://core/event",
+                    "schema_version": "1.0.0",
+                    "stream_id": new_id("dispatch"),
+                    "command_id": new_id("command"),
+                    "command_type": "CompleteSpecFlowAction",
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "idempotency_key": "forged-spec-completion",
+                    "command_payload_hash": "f" * 64,
+                    "correlation_id": "forged-spec-completion",
+                    "causation_id": None,
+                    "actor_id": new_id("actor"),
+                    "authority_grant_id": new_id("authority_grant"),
+                    "occurred_at": None,
+                    "payload": {},
+                }
+            ],
+            snapshot=before,
+        )
+
+    assert operator.ledger.snapshot().events == before.events
 
 
 def test_route_actor_resolution_rejects_multiple_durable_actors_for_one_row() -> None:
@@ -3245,6 +3296,12 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
     assert output["status"]["completed_stage"] == "prepare_spec_01"
     assert output["status"]["next_action"] == "return_spec_01"
     operator = load_discovery_operator(spec_inputs["config_path"])
+    completion_events = [
+        event for event in operator.ledger.iter_events() if event["event_type"] == "SpecFlowActionCompleted"
+    ]
+    assert len(completion_events) == 1
+    assert completion_events[0]["payload"]["action"] == "prepare_spec_01"
+    assert completion_events[0]["payload"]["artefact_id"] == identities["package_id"]
     context_events = [
         event for event in operator.ledger.iter_events() if event["stream_id"] == identities["context_id"]
     ]
@@ -4849,6 +4906,15 @@ def test_spec_02_pass_requires_bound_deterministic_rerun_before_publication(
     for rerun in invalid_reruns:
         packet = deepcopy(valid_packet)
         packet["document"]["deterministic_rerun"] = rerun
+        _refresh_retry_id(packet)
+        spec_inputs["packet_path"].write_bytes(canonical_bytes(packet))
+        with pytest.raises(IntegrityError, match="invalid Spike transition"):
+            cli.main(_advance_argv(spec_inputs, "return_spec_02_complete"))
+        assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+    for evidence_name in ("raw_output", "source"):
+        packet = deepcopy(valid_packet)
+        evidence_hash = next(item for item in packet["document"]["artifact_hashes"] if item["name"] == evidence_name)
+        evidence_hash["sha256"] = "f" * 64
         _refresh_retry_id(packet)
         spec_inputs["packet_path"].write_bytes(canonical_bytes(packet))
         with pytest.raises(IntegrityError, match="invalid Spike transition"):

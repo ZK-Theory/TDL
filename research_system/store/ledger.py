@@ -317,6 +317,29 @@ class EventLedger:
         finally:
             _discard_release_session(session)
 
+    def _append_spec_flow_action_from_validated_service(
+        self,
+        envelope: Mapping[str, Any],
+        *,
+        snapshot: LedgerSnapshot,
+        session: object | None = None,
+    ) -> dict[str, Any]:
+        """Append one authenticated SPEC action-completion fact."""
+
+        candidate = dict(envelope)
+        payload = candidate.pop("payload", None)
+        if not isinstance(payload, Mapping):
+            raise ArsError("SPEC action completion requires an event payload")
+        draft = object.__new__(EventDraft)
+        object.__setattr__(draft, "envelope", candidate)
+        object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
+        object.__setattr__(draft, "admission", "spec_flow_action")
+        _register_release_draft(session, self, draft)
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _discard_release_session(session)
+
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
         fingerprint = self._fingerprint()
@@ -477,6 +500,10 @@ class EventLedger:
                 ("StoreBindingAdvanced", "AdvanceStoreBinding"),
             }
             authority_actor_event = (event_type, producer) == ("AuthorityActorRegistered", "RegisterAuthorityActor")
+            spec_flow_action_event = (event_type, producer) == (
+                "SpecFlowActionCompleted",
+                "CompleteSpecFlowAction",
+            )
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(
                     "scoped authority administration requires the validated "
@@ -486,12 +513,16 @@ class EventLedger:
                 raise ArsError("binding repair requires the validated repair-service continuation")
             if authority_actor_event and (draft is None or draft.admission != "authority_actor"):
                 raise ArsError("authority actor registration requires the validated registration continuation")
+            if spec_flow_action_event and (draft is None or draft.admission != "spec_flow_action"):
+                raise ArsError("SPEC action completion requires the validated SpecFlow continuation")
             if draft is not None and (
                 (draft.admission == "release" and event_type != "ReleaseGateDecisionPublished")
                 or (draft.admission == "scoped_authority" and not scoped_authority_event)
                 or (draft.admission == "binding_repair" and not binding_repair_event)
                 or (draft.admission == "authority_actor" and not authority_actor_event)
-                or draft.admission not in {"release", "scoped_authority", "binding_repair", "authority_actor"}
+                or (draft.admission == "spec_flow_action" and not spec_flow_action_event)
+                or draft.admission
+                not in {"release", "scoped_authority", "binding_repair", "authority_actor", "spec_flow_action"}
             ):
                 raise ArsError("event draft admission does not match its event family")
             stream_version = stream_versions.get(stream_id, 0) + 1

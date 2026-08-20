@@ -750,16 +750,17 @@ def _accept_authority(
     decision_id = f"dec_019fed25-b33e-7740-b280-{offset:012d}"
     first_row = 110 if kind == "dossier_expected_set" else 116
     authority_file_path = DOSSIER_AUTHORITY if kind == "dossier_expected_set" else PATH_AUTHORITY
-    authority_raw = (REPO / authority_file_path).read_bytes()
+    authority_repository = runtime.repository_root
+    authority_raw = (authority_repository / authority_file_path).read_bytes()
     subject.update(
         authority_file_path=authority_file_path,
         authority_file_size=len(authority_raw),
         authority_file_sha256=hashlib.sha256(authority_raw).hexdigest(),
         authority_file_git_commit=subprocess.check_output(
-            ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(authority_repository), "rev-parse", "HEAD"], text=True
         ).strip(),
         authority_file_git_blob=subprocess.check_output(
-            ["git", "-C", str(REPO), "rev-parse", f"HEAD:{authority_file_path}"], text=True
+            ["git", "-C", str(authority_repository), "rev-parse", f"HEAD:{authority_file_path}"], text=True
         ).strip(),
     )
     subject["subject_sha256"] = subject_sha256(subject)
@@ -856,7 +857,11 @@ def test_w11_authority_review_requires_its_exact_review_stream(tmp_path: Path) -
         wrong_stream = deepcopy(command.envelope)
         wrong_stream["target_stream_id"] = "rev_019fed25-b33e-7740-b280-000000001999"
         with pytest.raises(IntegrityError, match="W11 authority review stream mismatch"):
-            current._prepare_authority(Command(wrong_stream), replay_discovery(current.ledger.iter_events()))
+            current._prepare_authority(
+                Command(wrong_stream),
+                replay_discovery(current.ledger.iter_events()),
+                transition_time=current._trusted_transition_time(),
+            )
         checked = True
 
     _accept_authority(

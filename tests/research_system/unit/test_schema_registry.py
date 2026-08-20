@@ -641,11 +641,12 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 
 
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
-    bindings = runtime_schema_registry(SCHEMAS).active_bindings()
+    registry = runtime_schema_registry(SCHEMAS)
+    bindings = registry.active_bindings()
 
     # The latest Gate 6 addition binds AttemptCompleted to the exact
     # RecordSpikeVerdict producer rather than admitting it as a generic event.
-    assert len(bindings) == 276
+    assert len(bindings) == 278
     assert bindings == tuple(
         sorted(
             bindings,
@@ -660,6 +661,16 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
         )
     )
     assert len(set(bindings)) == len(bindings)
+    assert SchemaBinding("ars://core/command", "1.0.0", command_type="CompleteSpecFlowAction") in bindings
+    assert (
+        SchemaBinding(
+            "ars://core/event",
+            "1.0.0",
+            event_type="SpecFlowActionCompleted",
+            producer_command_type="CompleteSpecFlowAction",
+        )
+        in bindings
+    )
     assert (
         SchemaBinding(
             "ars://core/event/AttemptCompleted",
@@ -668,6 +679,16 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
             producer_command_type="RecordSpikeVerdict",
         )
         in bindings
+    )
+    # Position 146 in the live Gate 6 ledger persists this exact v1 identity.
+    # Tightening admission belongs in semantic parsing or a schema successor;
+    # changing these bytes would make the append-only history unreplayable.
+    assert (
+        registry.resolve_identity(
+            "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding",
+            "1.0.0",
+        ).sha256
+        == "832acf94cc978b3023903d5fedeab2c7b894ea8a0d73e7f9e3429cecd12f84be"
     )
     assert runtime_schema_registry(SCHEMAS).contains("ars://wp6-6/gate6/authority/intent/RegisterAuthorityActor")
     new_schema_ids = {

@@ -409,6 +409,39 @@ def apply_event(
         # transaction checks are performed by _replay. Discovery semantics are
         # validated once by replay_discovery at that same generic boundary.
         return updated
+    if event_type == "SpecFlowActionCompleted":
+        payload = event.get("payload")
+        expected_fields = {
+            "route_id",
+            "action",
+            "retry_id",
+            "packet_sha256",
+            "document_type",
+            "artefact_id",
+            "content_sha256",
+            "registration_event_id",
+            "registration_event_sha256",
+        }
+        sha_fields = (
+            "packet_sha256",
+            "content_sha256",
+            "registration_event_sha256",
+        )
+        if (
+            event.get("command_type") != "CompleteSpecFlowAction"
+            or event.get("schema_id") != "ars://core/event"
+            or not isinstance(payload, dict)
+            or set(payload) != expected_fields
+            or payload.get("route_id") != "SPEC-GATE6-RUN-V1"
+            or any(not isinstance(payload.get(field), str) or not payload[field] for field in expected_fields)
+            or any(
+                len(payload[field]) != 64 or any(character not in "0123456789abcdef" for character in payload[field])
+                for field in sha_fields
+            )
+            or event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
+        ):
+            raise IntegrityError("SPEC action completion event relation is invalid")
+        return updated
     if event_type == "AuthorityRootInitialized":
         payload = event["payload"]
         if set(payload) != {

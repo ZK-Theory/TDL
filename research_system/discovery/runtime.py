@@ -237,6 +237,96 @@ def _spec_02_pass_rerun_matches(document: object, payload: Mapping[str, Any]) ->
     )
 
 
+_SPEC_02_EVIDENCE_TYPES = {
+    "raw_output": "evaluation_run",
+    "source": "evaluation_run",
+    "checks": "validation_report",
+    "result": "evaluation_run",
+}
+
+
+def _spec_02_return_evidence_matches(
+    document: object,
+    *,
+    projection: Mapping[str, Any],
+    control_root: Path,
+    candidate_id: object,
+    spike: object,
+) -> bool:
+    """Resolve every claimed SPEC-02 evidence hash to one exact bound artefact."""
+
+    if not isinstance(document, Mapping) or not isinstance(candidate_id, str) or not isinstance(spike, Mapping):
+        return False
+    artifact_hashes = document.get("artifact_hashes")
+    producer = document.get("producer")
+    if not isinstance(artifact_hashes, list) or not isinstance(producer, Mapping):
+        return False
+    named_hashes: dict[str, list[object]] = {name: [] for name in _SPEC_02_EVIDENCE_TYPES}
+    for item in artifact_hashes:
+        if isinstance(item, Mapping) and item.get("name") in named_hashes:
+            named_hashes[str(item["name"])].append(item.get("sha256"))
+    if any(len(values) != 1 or not isinstance(values[0], str) for values in named_hashes.values()):
+        return False
+    streams = projection.get("artefact_streams")
+    if not isinstance(streams, Mapping):
+        return False
+    for name, artefact_type in _SPEC_02_EVIDENCE_TYPES.items():
+        digest = named_hashes[name][0]
+        matches = [
+            value for value in streams.values() if isinstance(value, Mapping) and value.get("content_sha256") == digest
+        ]
+        if len(matches) != 1:
+            return False
+        state = matches[0]
+        manifest = state.get("manifest")
+        authority = manifest.get("authority") if isinstance(manifest, Mapping) else None
+        relative = manifest.get("relative_path") if isinstance(manifest, Mapping) else None
+        if (
+            not isinstance(manifest, Mapping)
+            or not isinstance(authority, Mapping)
+            or not isinstance(relative, str)
+            or manifest.get("root_id") != "control"
+            or manifest.get("artefact_type") != artefact_type
+            or manifest.get("producer_actor_id") != producer.get("actor_id")
+            or authority.get("accepted_scope") != "spec-gate6-run"
+        ):
+            return False
+        try:
+            raw = read_contained_regular_file(control_root, relative, label=f"SPEC-02 {name} evidence")
+            evidence = json.loads(raw)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        if (
+            not isinstance(evidence, Mapping)
+            or raw != canonical_bytes(evidence)
+            or sha256_hex(raw) != digest
+            or set(evidence)
+            != {
+                "schema_id",
+                "schema_version",
+                "route_id",
+                "stage",
+                "evidence_kind",
+                "candidate_id",
+                "spike_id",
+                "attempt_id",
+                "attempt_sha256",
+                "content",
+            }
+            or evidence.get("schema_id") != "ars://portfolio/spec-route-evidence"
+            or evidence.get("schema_version") != "1.0.0"
+            or evidence.get("route_id") != "SPEC-GATE6-RUN-V1"
+            or evidence.get("stage") != "SPEC-02"
+            or evidence.get("evidence_kind") != name
+            or evidence.get("candidate_id") != candidate_id
+            or evidence.get("spike_id") != spike.get("spike_id")
+            or evidence.get("attempt_id") != spike.get("attempt_id")
+            or evidence.get("attempt_sha256") != spike.get("attempt_sha256")
+        ):
+            return False
+    return True
+
+
 class _SpecExecutionAuthorityResolver:
     """Resolve immutable SPEC execution authority without operator-only configuration."""
 
@@ -560,11 +650,7 @@ def build_spec_execution_authority_validator(
         if event.get("command_type") == "RegisterSpikePlan" and payload.get("row_id") == "OR-014":
             if not _spec_02_plan_contract_matches(payload.get("plan_artifact"), authority):
                 raise IntegrityError("SPEC-02 Spike plan differs from the exact governed contract")
-        if (
-            event.get("command_type") == "RecordSpikeVerdict"
-            and payload.get("row_id") == "OR-018"
-            and payload.get("verdict") == "PASS"
-        ):
+        if event.get("command_type") == "RecordSpikeVerdict" and payload.get("row_id") in {"OR-018", "OR-019"}:
             returns: list[Mapping[str, Any]] = []
             for registered_event in events:
                 if registered_event.get("event_type") != "ArtefactRegistered":
@@ -592,7 +678,18 @@ def build_spec_execution_authority_validator(
                 except SchemaError as exc:
                     raise IntegrityError("SPEC-02 PASS return evidence binding is invalid") from exc
                 returns.append(document)
-            if len(returns) != 1 or not _spec_02_pass_rerun_matches(returns[0], payload):
+            spike = projection.get("spikes", {}).get(payload.get("spike_id"))
+            if len(returns) != 1:
+                raise IntegrityError("SPEC-02 return evidence binding is invalid")
+            if not _spec_02_return_evidence_matches(
+                returns[0],
+                projection=projection,
+                control_root=control_root,
+                candidate_id=payload.get("candidate_id"),
+                spike=spike,
+            ):
+                raise IntegrityError("SPEC-02 return evidence does not resolve to exact attempt artefacts")
+            if not _spec_02_pass_rerun_matches(returns[0], payload):
                 raise IntegrityError("SPEC-02 PASS lacks bound deterministic rerun evidence")
 
     return validate_spec_authority
@@ -886,14 +983,12 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
         *,
         events: tuple[dict[str, Any], ...],
-        transition_time: datetime | None = None,
+        transition_time: datetime,
         prospective_document: Mapping[str, Any] | None = None,
         assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         """Prepare and validate one Discovery transaction without publishing it."""
 
-        if transition_time is None:
-            transition_time = self._trusted_transition_time()
         self._require_admissible_target(command, projection)
         self._require_candidate_target(command, projection)
         row_id, route = _discovery_route(command)
@@ -928,10 +1023,11 @@ class DiscoveryRuntime:
             prepared = self._prepare_assay_bar_authority(
                 command,
                 projection,
+                transition_time=transition_time,
                 assay_successor_remote_proof=assay_successor_remote_proof,
             )
         elif route.family == "authority":
-            prepared = self._prepare_authority(command, projection)
+            prepared = self._prepare_authority(command, projection, transition_time=transition_time)
         else:
             raise IntegrityError(f"unsupported Discovery route family: {route.family}")
         validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
@@ -1005,7 +1101,7 @@ class DiscoveryRuntime:
             self.ledger.project_id,
             subject_kind,
             subject_id,
-            evaluation_time,
+            now=evaluation_time,
         )
 
     @staticmethod
@@ -1368,6 +1464,8 @@ class DiscoveryRuntime:
         self,
         command: Command,
         projection: dict[str, Any],
+        *,
+        transition_time: datetime,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one ordered W11 authority transition."""
         if projection.get("catalogue") is None:
@@ -1502,10 +1600,7 @@ class DiscoveryRuntime:
         except ValueError as exc:
             raise IntegrityError(str(exc)) from exc
         current = projection["authorities"].get(kind, {})
-        now = self.clock()
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise IntegrityError("Discovery authority clock must return an aware datetime")
-        normalized_now = now.astimezone(UTC)
+        normalized_now = transition_time
 
         def stable_id(prefix: str, suffix: int) -> str:
             return (
@@ -1710,6 +1805,7 @@ class DiscoveryRuntime:
         command: Command,
         projection: dict[str, Any],
         *,
+        transition_time: datetime,
         assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare the exact OR-101--OR-109 Assay-bar authority transition."""
@@ -1854,11 +1950,8 @@ class DiscoveryRuntime:
                 raise IntegrityError(str(exc)) from exc
             return [wrapped("W11AuthorityFileObserved", shadow)]
 
-        now = self.clock()
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise IntegrityError("Discovery authority clock must return an aware datetime")
-        current_time = now.astimezone(UTC).isoformat().replace("+00:00", "Z")
-        deadline = (now.astimezone(UTC) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+        current_time = transition_time.isoformat().replace("+00:00", "Z")
+        deadline = (transition_time + timedelta(days=1)).isoformat().replace("+00:00", "Z")
 
         if row == "OR-105":
             producer_ref = payload.get("prospective_producer_ref")
@@ -2513,6 +2606,7 @@ class DiscoveryRuntime:
         command: Command,
         authority: _Spec02ExecutionAuthority,
         spike: Mapping[str, Any],
+        projection: Mapping[str, Any],
         events: tuple[dict[str, Any], ...],
         prospective_document: Mapping[str, Any] | None = None,
     ) -> bool:
@@ -2580,6 +2674,13 @@ class DiscoveryRuntime:
             and isinstance(resource_ref, Mapping)
             and self._spec_02_resource_allowed(authority.approval, resource_ref.get("id"))
             and self._spec_02_resource_use_allowed(authority.approval, document.get("resource_use"))
+            and _spec_02_return_evidence_matches(
+                document,
+                projection=projection,
+                control_root=self.control_root,
+                candidate_id=payload.get("candidate_id"),
+                spike=spike,
+            )
             and _spec_02_pass_rerun_matches(document, payload)
         )
 
@@ -2589,12 +2690,10 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
         *,
         events: tuple[dict[str, Any], ...] = (),
-        transition_time: datetime | None = None,
+        transition_time: datetime,
         prospective_document: Mapping[str, Any] | None = None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
-        if transition_time is None:
-            transition_time = self._trusted_transition_time()
         p = command.envelope["payload"]
         row = p.get("row_id")
         candidate_id, spike_id, decision_id, review_id = (
@@ -2895,6 +2994,7 @@ class DiscoveryRuntime:
                         command=command,
                         authority=spec_02_approval,
                         spike=spike,
+                        projection=projection,
                         events=events,
                         prospective_document=prospective_document,
                     )

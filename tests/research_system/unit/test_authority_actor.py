@@ -1090,6 +1090,27 @@ def test_marker_bound_registered_actor_suppresses_historical_grant_after_expiry(
     grant["expires_at"] = "2099-01-01T00:00:00Z"
     objects.write("authority_grant", grant["authority_grant_id"], 1, grant)
 
+    in_window = datetime(2026, 8, 14, 12, tzinfo=UTC)
+    assert actor_id not in _known_authority_actor_classes(
+        tmp_path,
+        objects,
+        now=in_window,
+        project_id=PROJECT,
+        store_identity=STORE,
+        owner_actor_id=OWNER,
+        authority_projection=_authority_projection(tmp_path, grant),
+    )
+    marker = next((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+    marker.unlink()
+    assert _known_authority_actor_classes(
+        tmp_path,
+        objects,
+        now=in_window,
+        project_id=PROJECT,
+        store_identity=STORE,
+        owner_actor_id=OWNER,
+        authority_projection=_authority_projection(tmp_path, grant),
+    )[actor_id] == {"agent"}
     assert actor_id not in _known_authority_actor_classes(
         tmp_path,
         objects,

@@ -41,7 +41,7 @@ from research_system.discovery.authority import (
 )
 from research_system.discovery.rules import _is_spec_route_candidate
 from research_system.discovery.routes import discovery_route
-from research_system.discovery.runtime import DiscoveryRuntime
+from research_system.discovery.runtime import DiscoveryRuntime, _spec_02_return_evidence_matches
 from research_system.discovery.source_correction import (
     resolve_remote_tag as _resolve_remote_tag,
     verify_remote_commit_paths as _verify_remote_commit_paths,
@@ -50,6 +50,7 @@ from research_system.discovery.source_correction import (
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
 from research_system.git_provenance import read_exact_committed_physical_file
+from research_system.ids import new_id
 from research_system.methods.registration import (
     CandidateDocumentStore,
     CandidateRegistration,
@@ -66,7 +67,7 @@ from research_system.methods.brief import export_brief
 from research_system.methods.pack import load_methods_pack
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, _issue_validated_service_session
 from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
@@ -589,8 +590,40 @@ def _completed_action_identity(operator: DiscoveryOperator, action: str) -> dict
     return value
 
 
+_LEGACY_DOCUMENT_CONSUMER_ROWS = {
+    "prepare_spec_01": frozenset({"OR-004", "OR-005"}),
+    "return_spec_01_complete": frozenset({"OR-034", "OR-006"}),
+    "return_spec_01_partial": frozenset({"OR-035", "OR-007"}),
+    "correct_spec_01_source": frozenset({"OR-014"}),
+    "approve_spec_02": frozenset({"OR-014"}),
+    "prepare_spec_02": frozenset({"OR-014"}),
+    "return_spec_02_complete": frozenset({"OR-018"}),
+    "return_spec_02_partial": frozenset({"OR-019"}),
+}
+
+
+def _legacy_document_was_consumed(
+    events: Sequence[Mapping[str, Any]],
+    *,
+    action: str,
+    registration_position: int,
+) -> bool:
+    """Recognize only historical file proofs already consumed by a later route row."""
+
+    expected_rows = _LEGACY_DOCUMENT_CONSUMER_ROWS[action]
+    return any(
+        isinstance(event.get("global_position"), int)
+        and event["global_position"] > registration_position
+        and isinstance(event.get("payload"), Mapping)
+        and (event["payload"].get("row_id") or event["payload"].get("owner_row_id")) in expected_rows
+        for event in events
+    )
+
+
 def _registered_documents(
-    operator: DiscoveryOperator, projection: Mapping[str, Any]
+    operator: DiscoveryOperator,
+    events: Sequence[Mapping[str, Any]],
+    projection: Mapping[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
     found: dict[str, list[dict[str, Any]]] = {}
     for stream in projection.get("artefact_streams", {}).values():
@@ -602,19 +635,64 @@ def _registered_documents(
         document_type = manifest.get("artefact_type")
         if document_type not in _DOCUMENT_ACTIONS_BY_TYPE:
             continue
-        action_proofs = [
-            action
-            for action in _DOCUMENT_ACTIONS_BY_TYPE[str(document_type)]
-            if _completed_action_identity(operator, action) is not None
-        ]
-        if not action_proofs:
-            continue
-        if len(action_proofs) != 1:
-            raise IntegrityError(f"multiple completed SPEC actions claim document type: {document_type}")
         relative = manifest.get("relative_path")
         digest = manifest.get("content_sha256")
         if not isinstance(relative, str) or not isinstance(digest, str):
             continue
+        document_type = str(document_type)
+        artefact_id = manifest.get("artefact_id")
+        registration_events = [
+            event
+            for event in events
+            if event.get("event_type") == "ArtefactRegistered"
+            and event.get("stream_id") == artefact_id
+            and event.get("payload", {}).get("manifest") == manifest
+        ]
+        if len(registration_events) != 1:
+            raise IntegrityError("registered SPEC document has no exact registration event")
+        registration_event = registration_events[0]
+        completion_events = [
+            event
+            for event in events
+            if event.get("event_type") == "SpecFlowActionCompleted"
+            and isinstance(event.get("payload"), Mapping)
+            and (
+                event["payload"].get("action") in _DOCUMENT_ACTIONS_BY_TYPE[document_type]
+                or event["payload"].get("artefact_id") == artefact_id
+            )
+        ]
+        if completion_events:
+            completion_payload = completion_events[0].get("payload")
+            if (
+                len(completion_events) != 1
+                or not isinstance(completion_payload, Mapping)
+                or completion_payload.get("action") not in _DOCUMENT_ACTIONS_BY_TYPE[document_type]
+                or completion_payload.get("document_type") != document_type
+                or completion_payload.get("artefact_id") != artefact_id
+                or completion_payload.get("content_sha256") != digest
+                or completion_payload.get("registration_event_id") != registration_event.get("event_id")
+                or completion_payload.get("registration_event_sha256") != registration_event.get("event_hash")
+            ):
+                raise IntegrityError("registered SPEC document completion proof conflicts")
+            proven_action = str(completion_payload["action"])
+        else:
+            registration_position = registration_event.get("global_position")
+            legacy_actions = [
+                action
+                for action in _DOCUMENT_ACTIONS_BY_TYPE[document_type]
+                if _completed_action_identity(operator, action) is not None
+                and isinstance(registration_position, int)
+                and _legacy_document_was_consumed(
+                    events,
+                    action=action,
+                    registration_position=registration_position,
+                )
+            ]
+            if not legacy_actions:
+                continue
+            if len(legacy_actions) != 1:
+                raise IntegrityError(f"multiple completed SPEC actions claim document type: {document_type}")
+            proven_action = legacy_actions[0]
         try:
             raw = read_contained_regular_file(
                 operator.control_root,
@@ -628,7 +706,6 @@ def _registered_documents(
             raise IntegrityError("registered SPEC document binding differs")
         if not isinstance(value, dict):
             raise IntegrityError("registered SPEC document is not an object")
-        document_type = str(document_type)
         _validate_spec_document_content(operator, document_type=document_type, document=value)
         expected_action = _DOCUMENT_ACTIONS_BY_TYPE[document_type][0]
         if len(_DOCUMENT_ACTIONS_BY_TYPE[document_type]) > 1:
@@ -641,7 +718,7 @@ def _registered_documents(
                     action for action in _DOCUMENT_ACTIONS_BY_TYPE[document_type] if action.endswith("_partial")
                 ),
             }.get(str(outcome), "")
-        if action_proofs[0] != expected_action:
+        if proven_action != expected_action:
             raise IntegrityError("registered SPEC document differs from its completed action")
         found.setdefault(document_type, []).append(value)
     for kind, values in found.items():
@@ -735,7 +812,7 @@ class SpecFlow:
         recover_registered_content(self.operator.control_root, events)
         events = self.operator.ledger.snapshot().events
         projection = self._runtime().replay(events)
-        documents = _registered_documents(self.operator, projection)
+        documents = _registered_documents(self.operator, events, projection)
         return events, projection, documents
 
     def _prevalidate_lifecycle_grant(
@@ -856,7 +933,78 @@ class SpecFlow:
         return False
 
     def _complete_action(self, action: str, packet: Mapping[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        if action in _DOCUMENT_TYPES:
+            registration = result.get("registration")
+            if not isinstance(registration, Mapping):
+                raise IntegrityError("completed SPEC document lacks its registration identity")
+            artefact_id = registration.get("artefact_id")
+            content_sha256 = registration.get("content_sha256")
+            snapshot = self.operator.ledger.snapshot()
+            registration_events = [
+                event
+                for event in snapshot.events
+                if event.get("event_type") == "ArtefactRegistered"
+                and event.get("stream_id") == artefact_id
+                and event.get("payload", {}).get("manifest", {}).get("content_sha256") == content_sha256
+            ]
+            if len(registration_events) != 1:
+                raise IntegrityError("completed SPEC document lacks one exact registration event")
+            registered = registration_events[0]
+            completion_payload = {
+                "route_id": ROUTE_ID,
+                "action": action,
+                "retry_id": packet.get("retry_id"),
+                "packet_sha256": sha256_hex(canonical_bytes(packet)),
+                "document_type": _DOCUMENT_TYPES[action],
+                "artefact_id": artefact_id,
+                "content_sha256": content_sha256,
+                "registration_event_id": registered["event_id"],
+                "registration_event_sha256": registered["event_hash"],
+            }
+            claimed = [
+                event
+                for event in snapshot.events
+                if event.get("event_type") == "SpecFlowActionCompleted"
+                and isinstance(event.get("payload"), Mapping)
+                and (event["payload"].get("action") == action or event["payload"].get("artefact_id") == artefact_id)
+            ]
+            if claimed:
+                if len(claimed) != 1 or claimed[0].get("payload") != completion_payload:
+                    raise ConflictError("completed SPEC action conflicts with its sealed ledger proof")
+            else:
+                command_binding = self.operator.schemas.command_binding("CompleteSpecFlowAction")
+                event_binding = self.operator.schemas.event_binding("SpecFlowActionCompleted", "CompleteSpecFlowAction")
+                if command_binding is None or event_binding is None:
+                    raise IntegrityError("SPEC action completion schema binding is unavailable")
+                command_identity = self.operator.schemas.resolve_identity(
+                    command_binding.schema_id, command_binding.schema_version
+                )
+                occurred_at = self._trusted_now().isoformat().replace("+00:00", "Z")
+                self.operator.ledger._append_spec_flow_action_from_validated_service(
+                    {
+                        "event_type": "SpecFlowActionCompleted",
+                        "schema_id": event_binding.schema_id,
+                        "schema_version": event_binding.schema_version,
+                        "stream_id": new_id("dispatch"),
+                        "command_id": new_id("command"),
+                        "command_type": "CompleteSpecFlowAction",
+                        "command_schema_id": command_identity.schema_id,
+                        "command_schema_version": command_identity.schema_version,
+                        "command_schema_sha256": command_identity.sha256,
+                        "idempotency_key": f"spec-flow-complete:{action}:{packet.get('retry_id')}",
+                        "command_payload_hash": sha256_hex(canonical_bytes(completion_payload)),
+                        "correlation_id": str(packet.get("retry_id")),
+                        "causation_id": registered["event_id"],
+                        "actor_id": registered["actor_id"],
+                        "authority_grant_id": registered["authority_grant_id"],
+                        "occurred_at": occurred_at,
+                        "payload": completion_payload,
+                    },
+                    snapshot=snapshot,
+                    session=_issue_validated_service_session(self.operator.ledger),
+                )
         self._action_identity(action, packet, publish=True)
+        result["status"] = asdict(self.status())
         return result
 
     @staticmethod
@@ -1452,6 +1600,16 @@ class SpecFlow:
                 "embedded_artefact",
             }.issubset(hashes):
                 raise IntegrityError("SPEC-02 return omits a required raw output/source/check/result hash")
+            if action.startswith("return_spec_02"):
+                spike = projection.get("spikes", {}).get(command_payload.get("spike_id"))
+                if not _spec_02_return_evidence_matches(
+                    document,
+                    projection=projection,
+                    control_root=self.operator.control_root,
+                    candidate_id=command_payload.get("candidate_id"),
+                    spike=spike,
+                ):
+                    raise IntegrityError("SPEC-02 return evidence does not resolve to exact attempt artefacts")
         if action == "approve_spec_02":
             events, projection, _documents = self._snapshot()
             census = self._route_census(events, projection)

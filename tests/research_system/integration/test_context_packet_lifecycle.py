@@ -102,6 +102,16 @@ class RecordingContextWriter:
         return {"status": "accepted"}
 
 
+class InterruptBeforeOwnerDelivery(RecordingContextWriter):
+    interrupted = False
+
+    def submit_context(self, **kwargs):
+        if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
+            self.interrupted = True
+            raise ConnectionError("delivery event response unavailable")
+        return super().submit_context(**kwargs)
+
+
 class StaticSourceResolver:
     def __init__(self, *fragments: SourceFragment, before_resolve=None) -> None:
         self.fragments = fragments
@@ -534,19 +544,10 @@ def test_owner_operated_exact_committed_retries_remain_available_after_expiry(tm
     assert writer.events == before
 
 
-def test_owner_operated_exact_orphan_receipt_recovers_after_expiry(tmp_path) -> None:
-    class InterruptBeforeDelivery(RecordingContextWriter):
-        interrupted = False
-
-        def submit_context(self, **kwargs):
-            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
-                self.interrupted = True
-                raise ConnectionError("delivery event response unavailable")
-            return super().submit_context(**kwargs)
-
+def _interrupted_owner_delivery(tmp_path, *, accepted_count: int = 1):
     current = [datetime(2026, 8, 14, 11, tzinfo=UTC)]
     objects = ObjectStore(tmp_path)
-    writer = InterruptBeforeDelivery()
+    writer = InterruptBeforeOwnerDelivery()
     lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: current[0])
     compiled = compile_valid(lifecycle, new_id("context"))
     validated = lifecycle.prevalidate_owner_operated(
@@ -557,59 +558,10 @@ def test_owner_operated_exact_orphan_receipt_recovers_after_expiry(tmp_path) -> 
         recipient_id="spec-brief-consumer",
         purpose="methods_brief",
         scope="rm-03-export",
-        accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
-        application_version="1.0",
-        valid_from="2026-08-14T10:00:00Z",
-        expires_at="2026-08-14T12:00:00Z",
-    )
-    lifecycle.issue_owner_operated(validated)
-    with pytest.raises(ConnectionError, match="response unavailable"):
-        lifecycle.record_owner_operated_delivery(
-            compiled,
-            validated,
-            recipient_id="spec-brief-consumer",
-            recipient_session_id="codex-desktop-session-1",
-        )
-    receipt_paths = tuple((tmp_path / "objects" / "context").rglob("*.json"))
-    receipt_bytes = {path: path.read_bytes() for path in receipt_paths}
-    current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
-
-    recovered = lifecycle.record_owner_operated_delivery(
-        compiled,
-        validated,
-        recipient_id="spec-brief-consumer",
-        recipient_session_id="codex-desktop-session-1",
-    )
-
-    assert recovered["status"] == "accepted"
-    assert len([event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered"]) == 1
-    assert {path: path.read_bytes() for path in receipt_paths} == receipt_bytes
-
-
-def test_owner_operated_orphan_receipt_outside_original_window_remains_rejected(tmp_path) -> None:
-    class InterruptBeforeDelivery(RecordingContextWriter):
-        interrupted = False
-
-        def submit_context(self, **kwargs):
-            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
-                self.interrupted = True
-                raise ConnectionError("delivery event response unavailable")
-            return super().submit_context(**kwargs)
-
-    current = [datetime(2026, 8, 14, 11, tzinfo=UTC)]
-    objects = ObjectStore(tmp_path)
-    writer = InterruptBeforeDelivery()
-    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: current[0])
-    compiled = compile_valid(lifecycle, new_id("context"))
-    validated = lifecycle.prevalidate_owner_operated(
-        compiled,
-        capability=compiled.capability,
-        operator_id="stephen",
-        operator_session_id="codex-desktop-session-1",
-        recipient_id="spec-brief-consumer",
-        purpose="methods_brief",
-        scope="rm-03-export",
-        accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+        accepted_artefacts=tuple(
+            {"artefact_id": new_id("artefact"), "content_sha256": f"{index:x}" * 64}
+            for index in range(1, accepted_count + 1)
+        ),
         application_version="1.0",
         valid_from="2026-08-14T10:00:00Z",
         expires_at="2026-08-14T12:00:00Z",
@@ -627,16 +579,69 @@ def test_owner_operated_orphan_receipt_outside_original_window_remains_rejected(
         for path in (tmp_path / "objects" / "context").rglob("*.json")
         if json.loads(path.read_bytes()).get("schema_id") == "ars://wp6-6/owner-operated-context-delivery-receipt"
     )
+    return current, objects, writer, lifecycle, compiled, validated, receipt_path
+
+
+def _replace_context_object(path, value) -> None:
+    changed_bytes = canonical_bytes(value)
+    changed_path = path.with_name(f"00000001-{sha256_hex(changed_bytes)}.json")
+    changed_path.write_bytes(changed_bytes)
+    path.unlink()
+
+
+def test_owner_operated_exact_orphan_receipt_recovers_after_expiry(tmp_path) -> None:
+    current, _objects, writer, lifecycle, compiled, validated, _receipt_path = _interrupted_owner_delivery(tmp_path)
+    receipt_paths = tuple((tmp_path / "objects" / "context").rglob("*.json"))
+    receipt_bytes = {path: path.read_bytes() for path in receipt_paths}
+    current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
+
+    recovered = lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+
+    assert recovered["status"] == "accepted"
+    assert len([event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered"]) == 1
+    assert {path: path.read_bytes() for path in receipt_paths} == receipt_bytes
+
+
+def test_owner_operated_orphan_receipt_outside_original_window_remains_rejected(tmp_path) -> None:
+    current, _objects, writer, lifecycle, compiled, validated, receipt_path = _interrupted_owner_delivery(tmp_path)
     receipt = json.loads(receipt_path.read_bytes())
     receipt["delivered_at"] = "2026-08-14T12:00:00Z"
-    changed_bytes = canonical_bytes(receipt)
-    changed_path = receipt_path.with_name(f"00000001-{sha256_hex(changed_bytes)}.json")
-    changed_path.write_bytes(changed_bytes)
-    receipt_path.unlink()
+    _replace_context_object(receipt_path, receipt)
     current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
     before_events = deepcopy(writer.events)
 
     with pytest.raises(ArsError, match="outside its finite window"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+
+    assert writer.events == before_events
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        (lambda receipt: receipt.update(unexpected=True), "conflicts with the durable handoff"),
+        (lambda receipt: receipt.update(delivered_at="2026-08-14T09:59:59Z"), "outside its finite window"),
+        (lambda receipt: receipt.update(delivered_at="2026-08-14T11:00:00+00:00"), "time is invalid"),
+    ),
+)
+def test_owner_operated_orphan_receipt_requires_exact_shape_and_original_window(tmp_path, mutation, message) -> None:
+    _current, _objects, writer, lifecycle, compiled, validated, receipt_path = _interrupted_owner_delivery(tmp_path)
+    receipt = json.loads(receipt_path.read_bytes())
+    mutation(receipt)
+    _replace_context_object(receipt_path, receipt)
+    before_events = deepcopy(writer.events)
+
+    with pytest.raises(ArsError, match=message):
         lifecycle.record_owner_operated_delivery(
             compiled,
             validated,
@@ -836,52 +841,8 @@ def test_owner_operated_lifecycle_uses_real_command_service_and_consumer_resolve
 
 @pytest.mark.integration
 def test_owner_operated_delivery_recovers_receipt_written_before_event(tmp_path) -> None:
-    objects = ObjectStore(tmp_path)
-
-    class InterruptBeforeDelivery(RecordingContextWriter):
-        interrupted = False
-
-        def submit_context(self, **kwargs):
-            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
-                self.interrupted = True
-                raise ConnectionError("delivery event response unavailable")
-            return super().submit_context(**kwargs)
-
-    writer = InterruptBeforeDelivery()
-    first_time = datetime(2026, 8, 14, 11, tzinfo=UTC)
-    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: first_time)
-    context_id = new_id("context")
-    compiled = compile_valid(lifecycle, context_id)
-    validated = lifecycle.prevalidate_owner_operated(
-        compiled,
-        capability=compiled.capability,
-        operator_id="stephen",
-        operator_session_id="codex-desktop-session-1",
-        recipient_id="spec-brief-consumer",
-        purpose="methods_brief",
-        scope="rm-03-export",
-        accepted_artefacts=(
-            {"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},
-            {"artefact_id": new_id("artefact"), "content_sha256": "2" * 64},
-        ),
-        application_version="1.0",
-        valid_from="2026-08-14T10:00:00Z",
-        expires_at="2026-08-14T12:00:00Z",
-    )
-    lifecycle.issue_owner_operated(validated)
-    with pytest.raises(ConnectionError, match="response unavailable"):
-        lifecycle.record_owner_operated_delivery(
-            compiled,
-            validated,
-            recipient_id="spec-brief-consumer",
-            recipient_session_id="codex-desktop-session-1",
-        )
-    receipt_paths = tuple((tmp_path / "objects" / "context").rglob("*.json"))
-    receipt_path = next(
-        path
-        for path in receipt_paths
-        if json.loads(path.read_text(encoding="utf-8")).get("schema_id")
-        == "ars://wp6-6/owner-operated-context-delivery-receipt"
+    _current, objects, writer, lifecycle, compiled, validated, receipt_path = _interrupted_owner_delivery(
+        tmp_path, accepted_count=2
     )
     receipt_bytes_before_retry = receipt_path.read_bytes()
 

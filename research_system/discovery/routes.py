@@ -56,6 +56,7 @@ CONTROL_EVENT_TYPES = {
     "AuthorityActorRegistered",
     "StoreBindingRepaired",
     "StoreBindingAdvanced",
+    "SpecFlowActionCompleted",
 }
 
 

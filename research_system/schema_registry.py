@@ -123,6 +123,13 @@ class SchemaBinding:
 
 
 _RUNTIME_BINDINGS = (
+    SchemaBinding("ars://core/command", "1.0.0", command_type="CompleteSpecFlowAction"),
+    SchemaBinding(
+        "ars://core/event",
+        "1.0.0",
+        event_type="SpecFlowActionCompleted",
+        producer_command_type="CompleteSpecFlowAction",
+    ),
     SchemaBinding("ars://core/command", "1.0.0", command_type="ImportAcceptedW11CatalogueGenesis"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="IngestScoutObservationBatch"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RegisterCandidate"),

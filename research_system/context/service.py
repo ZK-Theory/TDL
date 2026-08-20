@@ -1386,8 +1386,10 @@ class ContextLifecycleService:
             }
             if self.objects.revision_exists("context", receipt_id, 1):
                 receipt = self.objects.read("context", receipt_id, 1)
-                if not isinstance(receipt, Mapping) or any(
-                    receipt.get(field) != expected for field, expected in receipt_identity.items()
+                if (
+                    not isinstance(receipt, Mapping)
+                    or set(receipt) != {*receipt_identity, "delivered_at"}
+                    or any(receipt.get(field) != expected for field, expected in receipt_identity.items())
                 ):
                     raise ArsError("owner-operated delivery receipt conflicts with the durable handoff")
                 self._owner_receipt_time(receipt, profile)
