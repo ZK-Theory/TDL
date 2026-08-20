@@ -72,14 +72,14 @@ def is_discovery_projection_event(
 ) -> bool:
     """Return whether the event belongs to the Discovery semantic reducer.
 
-    OR-019 deliberately emits ``PartialOutcomeRecorded`` and ``LeaseReleased``
-    under a Discovery command in the same transaction. Those two events remain
-    owned by the operational reducer.
+    OR-018/019 deliberately emit Attempt/Lease lifecycle events under a
+    Discovery command in the same transaction. Those events remain owned by
+    the operational reducer.
     """
 
     command_type = event.get("command_type")
     event_type = event.get("event_type")
-    if event_type in {"PartialOutcomeRecorded", "LeaseReleased"}:
+    if event_type in {"AttemptCompleted", "PartialOutcomeRecorded", "LeaseReleased"}:
         return False
     if command_type not in DISCOVERY_COMMAND_TYPES:
         return False

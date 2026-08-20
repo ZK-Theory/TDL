@@ -3628,7 +3628,7 @@ def _register_assay_successor_artefact(
 
     remote_verifications: list[dict[str, object]] = []
 
-    def verify_remote_correction(value: dict[str, object]) -> None:
+    def verify_remote_correction(value: dict[str, object]) -> assay_successor_module.SourceCorrectionRemoteProof:
         git_ref = value["corrected_git_reference"]
         assert isinstance(git_ref, dict)
         assert git_ref["commit_oid"] == "145efcde673f1a1897eff250b77221d26c34c479"
@@ -3643,6 +3643,13 @@ def _register_assay_successor_artefact(
             },
         ]
         remote_verifications.append(dict(git_ref))
+        return assay_successor_module.SourceCorrectionRemoteProof(
+            document_sha256=sha256_hex(canonical_bytes(value)),
+            repository_url=str(git_ref["repository_url"]),
+            resolved_ref=str(git_ref["resolved_ref"]),
+            commit_oid=str(git_ref["commit_oid"]),
+            required_paths_sha256=sha256_hex(canonical_bytes(git_ref["required_paths"])),
+        )
 
     monkeypatch.setattr(assay_successor_module, "_verify_source_correction_remote", verify_remote_correction)
     if reject_first:
@@ -3841,7 +3848,7 @@ def test_assay_successor_remote_proof_reuses_the_spec_correction_verifier(
 
     monkeypatch.setattr(source_correction_module, "resolve_remote_tag", resolve)
     monkeypatch.setattr(source_correction_module, "verify_remote_commit_paths", verify)
-    assay_successor_module._verify_source_correction_remote({"corrected_git_reference": git_ref})
+    proof = assay_successor_module._verify_source_correction_remote({"corrected_git_reference": git_ref})
     assert calls == [
         ("resolve", git_ref["repository_url"], git_ref["resolved_ref"]),
         (
@@ -3852,6 +3859,7 @@ def test_assay_successor_remote_proof_reuses_the_spec_correction_verifier(
             git_ref["required_paths"],
         ),
     ]
+    assert proof.commit_oid == git_ref["commit_oid"]
 
     monkeypatch.setattr(source_correction_module, "resolve_remote_tag", lambda *_args: "f" * 40)
     with pytest.raises(IntegrityError, match="commit differs"):
@@ -4095,7 +4103,56 @@ def test_source_correction_stales_assay_bar_with_durable_assay_decision_and_seal
             runtime.submit(invalid)
         assert tuple(runtime.ledger.iter_events()) == before
 
-    assert runtime.submit(stale).status == "accepted"
+    lock_state = {"fence": 0, "writer": 0}
+    remote_prevalidations: list[str] = []
+    original_prevalidate = discovery_runtime_module.prevalidate_assay_authority_successor_remote
+    original_fence_enter = discovery_runtime_module.SpecPreparationFence.__enter__
+    original_fence_exit = discovery_runtime_module.SpecPreparationFence.__exit__
+    original_writer_enter = discovery_runtime_module.CompositeWriterLock.__enter__
+    original_writer_exit = discovery_runtime_module.CompositeWriterLock.__exit__
+
+    def prevalidate_before_locks(value, *, schemas):
+        assert lock_state == {"fence": 0, "writer": 0}
+        remote_prevalidations.append(sha256_hex(canonical_bytes(value)))
+        return original_prevalidate(value, schemas=schemas)
+
+    def enter_fence(self):
+        result = original_fence_enter(self)
+        lock_state["fence"] += 1
+        return result
+
+    def exit_fence(self, exc_type, exc, traceback):
+        lock_state["fence"] -= 1
+        return original_fence_exit(self, exc_type, exc, traceback)
+
+    def enter_writer(self):
+        result = original_writer_enter(self)
+        lock_state["writer"] += 1
+        return result
+
+    def exit_writer(self, exc_type, exc, traceback):
+        lock_state["writer"] -= 1
+        return original_writer_exit(self, exc_type, exc, traceback)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            discovery_runtime_module,
+            "prevalidate_assay_authority_successor_remote",
+            prevalidate_before_locks,
+        )
+        scoped.setattr(discovery_runtime_module.SpecPreparationFence, "__enter__", enter_fence)
+        scoped.setattr(discovery_runtime_module.SpecPreparationFence, "__exit__", exit_fence)
+        scoped.setattr(discovery_runtime_module.CompositeWriterLock, "__enter__", enter_writer)
+        scoped.setattr(discovery_runtime_module.CompositeWriterLock, "__exit__", exit_writer)
+        assert runtime.submit(stale).status == "accepted"
+    assert remote_prevalidations == [sha256_hex(canonical_bytes(trigger["document"]))]
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            discovery_runtime_module,
+            "prevalidate_assay_authority_successor_remote",
+            lambda *_args, **_kwargs: pytest.fail("exact retry reached remote verification"),
+        )
+        assert runtime.submit(stale).status == "accepted"
     projection = replay_discovery(runtime.ledger.iter_events())
     assert projection["assay_bar_authority"]["status"] == "stale"
     assert projection["assay_bar_authority"]["staleness"]["source_correction_trigger"] == trigger
@@ -5147,7 +5204,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             with pytest.raises(IntegrityError, match="invalid Spike transition"):
                 runtime.submit(mismatched_row)
             assert tuple(runtime.ledger.iter_events()) == before
-        if row_id == "OR-019":
+        if row_id in {"OR-018", "OR-019"}:
             current_clock = runtime.clock
             runtime.clock = lambda: datetime(2026, 8, 1, 13, 1, tzinfo=UTC)
             before = tuple(runtime.ledger.iter_events())
@@ -5358,6 +5415,22 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "CandidateSpikePartialLinked",
         }
         assert len({event["transaction_id"] for event in partial_batch}) == 1
+    else:
+        operational = replay_control_plane(runtime._operational_events())
+        assert operational.stream_states[attempt_id]["status"] == "completed"
+        assert operational.stream_states[lease_id]["status"] == "released"
+        complete_batch = tuple(
+            event for event in runtime.ledger.iter_events() if event["command_id"] == commands[-1]["command_id"]
+        )
+        assert tuple(event["event_type"] for event in complete_batch) == (
+            "SpikeVerdictRecorded",
+            "AttemptCompleted",
+            "LeaseReleased",
+            "SpikeAttemptClosed",
+            "SpikeLeaseReleased",
+            "CandidateSpikeVerdictLinked",
+        )
+        assert len({event["transaction_id"] for event in complete_batch}) == 1
     review_contract = {
         "review_type": "provenance",
         "new_review_id": review_id,
@@ -6032,6 +6105,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             for event in partitions["operational"]
             if event.get("command_type") == "RecordSpikeVerdict"
         } >= {"PartialOutcomeRecorded", "LeaseReleased"}
+    else:
+        assert control_projection["streams"][attempt_id]["status"] == "completed"
+        assert control_projection["streams"][lease_id]["status"] == "released"
+        assert {
+            event["event_type"]
+            for event in partitions["operational"]
+            if event.get("command_type") == "RecordSpikeVerdict"
+        } >= {"AttemptCompleted", "LeaseReleased"}
 
 
 def test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_transaction_join(
@@ -6085,6 +6166,28 @@ def test_replay_rejects_fully_rehashed_candidate_spike_links_without_exact_trans
         split_transaction = tuple(deepcopy(event) for event in baseline)
         split_transaction[-1]["transaction_id"] = f"txb_019fed25-b33e-7740-b280-{980 + case_index:012d}"
         attacks["split_transaction"] = split_transaction
+
+        operational_type = "AttemptCompleted" if verdict == "PASS" else "PartialOutcomeRecorded"
+        altered_operational = tuple(deepcopy(event) for event in baseline)
+        operational_event = next(
+            event
+            for event in altered_operational
+            if event.get("transaction_id") == link.get("transaction_id") and event.get("event_type") == operational_type
+        )
+        if operational_type == "AttemptCompleted":
+            operational_event["payload"]["output_disposition"] = "discarded"
+        else:
+            operational_event["payload"]["stop_cause"] = "operator_override"
+        attacks["changed_operational_outcome"] = altered_operational
+
+        moved_operational = tuple(deepcopy(event) for event in baseline)
+        for event in moved_operational:
+            if event.get("transaction_id") == link.get("transaction_id") and event.get("event_type") in {
+                operational_type,
+                "LeaseReleased",
+            }:
+                event["transaction_id"] = f"txb_019fed25-b33e-7740-b280-{990 + case_index:012d}"
+        attacks["moved_operational_closure"] = moved_operational
 
         if link_type == "CandidateSpikeVerdictLinked":
             foreign_candidate = tuple(deepcopy(event) for event in baseline)

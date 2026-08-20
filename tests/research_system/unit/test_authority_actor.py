@@ -207,7 +207,7 @@ def test_abandoned_legacy_staging_names_do_not_wedge_actor_registration(tmp_path
     runtime.mkdir(parents=True)
     receipts.mkdir(parents=True)
     intent = _intent()
-    marker_name = f".authority-actor-registration-{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
+    marker_name = f"{authority_actor_module._MARKER_PREFIX}{sha256_hex(intent.retry_key.encode('utf-8'))}.json"
     registration_id = authority_actor_module._deterministic_id(
         "authority-actor-registration",
         "arec",

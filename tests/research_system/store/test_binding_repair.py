@@ -123,8 +123,8 @@ def _publication_snapshot(target: Path) -> tuple[bytes, tuple[tuple[str, bytes],
     return (target / "manifests" / "store-identity.json").read_bytes(), events, receipts
 
 
-def test_binding_artifact_publication_retries_after_abandoned_staging_file(tmp_path: Path) -> None:
-    """A hard stop after staging must not wedge the next governed publication."""
+def test_binding_artifact_publication_ignores_foreign_hidden_debris(tmp_path: Path) -> None:
+    """Unrecognized hidden debris is inert and cannot wedge a publication."""
     control = tmp_path / "control"
     target = control / "manifests" / "published.json"
     data = canonical_bytes({"kind": "published", "revision": 1})
@@ -139,8 +139,8 @@ def test_binding_artifact_publication_retries_after_abandoned_staging_file(tmp_p
     assert abandoned.read_bytes() == b"tampered abandoned staging"
 
 
-def test_binding_repair_retries_after_abandoned_manifest_staging_file(tmp_path: Path, monkeypatch) -> None:
-    """A repair restarts cleanly from the durable post-stage crash boundary."""
+def test_binding_repair_ignores_foreign_manifest_debris(tmp_path: Path, monkeypatch) -> None:
+    """A repair preserves unrelated hidden debris while publishing its manifest."""
     _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     target_manifest = target / "manifests" / "store-identity.json"
     repaired_manifest = json.loads(target_manifest.read_bytes())

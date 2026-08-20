@@ -13,6 +13,7 @@ from research_system.errors import ConfigurationError, IntegrityError
 from research_system.git_execution import run_git
 from research_system.schema_registry import SchemaRegistry
 from research_system.discovery.source_correction import (
+    SourceCorrectionRemoteProof,
     verify_source_correction_remote as _verify_source_correction_remote,
 )
 
@@ -232,12 +233,34 @@ def validate_successor_authority_semantics(
             raise ValueError(f"successor {kind} changes protected semantics")
 
 
+def prevalidate_assay_authority_successor_remote(
+    value: Mapping[str, Any],
+    *,
+    schemas: SchemaRegistry,
+) -> SourceCorrectionRemoteProof:
+    """Resolve the exact remote proof before any Discovery writer lock is held."""
+
+    document = dict(value)
+    try:
+        schemas.validate(SCHEMA_ID, document, schema_version="1.0.0")
+        schemas.validate(CORRECTION_SCHEMA_ID, document["source_correction_document"], schema_version="1.0.0")
+        if (
+            sha256_hex(canonical_bytes(document["source_correction_document"]))
+            != document["source_correction_ref"]["content_hash"]
+        ):
+            raise ConfigurationError("Assay authority successor correction binding differs")
+        return _verify_source_correction_remote(document["source_correction_document"])
+    except IntegrityError as exc:
+        raise ConfigurationError("Assay authority successor correction remote proof differs") from exc
+
+
 def validate_assay_authority_successor_document(
     value: Mapping[str, Any],
     *,
     registration: CandidateRegistration,
     repository_root: Path,
     schemas: SchemaRegistry,
+    _remote_proof: SourceCorrectionRemoteProof | None = None,
 ) -> dict[str, Any]:
     """Validate one successor document against exact committed authority bytes."""
 
@@ -249,10 +272,15 @@ def validate_assay_authority_successor_document(
         != document["source_correction_ref"]["content_hash"]
     ):
         raise ConfigurationError("Assay authority successor correction binding differs")
-    try:
-        _verify_source_correction_remote(document["source_correction_document"])
-    except IntegrityError as exc:
-        raise ConfigurationError("Assay authority successor correction remote proof differs") from exc
+    remote_proof = (
+        prevalidate_assay_authority_successor_remote(document, schemas=schemas)
+        if _remote_proof is None
+        else _remote_proof
+    )
+    if type(remote_proof) is not SourceCorrectionRemoteProof or remote_proof.document_sha256 != sha256_hex(
+        canonical_bytes(document["source_correction_document"])
+    ):
+        raise ConfigurationError("Assay authority successor correction remote proof differs")
     manifest = registration.manifest
     if (
         document.get("producer_actor_id") != registration.actor_id
@@ -505,6 +533,7 @@ __all__ = [
     "SCHEMA_ID",
     "SCOPE_V2_PATH",
     "SPEC_01_PATH",
+    "prevalidate_assay_authority_successor_remote",
     "register_assay_authority_successor_document",
     "successor_document_hashes",
     "validate_successor_authority_semantics",

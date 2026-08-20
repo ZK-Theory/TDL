@@ -155,6 +155,12 @@ _RUNTIME_BINDINGS = (
         producer_command_type="RecordSpikeVerdict",
     ),
     SchemaBinding(
+        "ars://core/event/AttemptCompleted",
+        "1.0.0",
+        event_type="AttemptCompleted",
+        producer_command_type="RecordSpikeVerdict",
+    ),
+    SchemaBinding(
         "ars://core/event/LeaseReleased",
         "1.0.0",
         event_type="LeaseReleased",

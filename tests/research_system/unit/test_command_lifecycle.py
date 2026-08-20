@@ -8,6 +8,7 @@ from research_system.command.lifecycle import validate_exact_lifecycle_envelope
 @pytest.mark.parametrize(
     ("event_type", "schema_id", "command_type"),
     [
+        ("AttemptCompleted", "ars://core/event/AttemptCompleted", "RecordSpikeVerdict"),
         ("PartialOutcomeRecorded", "ars://core/event/PartialOutcomeRecorded", "RecordSpikeVerdict"),
         ("LeaseReleased", "ars://core/event/LeaseReleased", "RecordSpikeVerdict"),
         ("PartialOutcomeRecorded", "ars://core/event/PartialOutcomeRecorded", "CancelDiscoveryEvaluation"),

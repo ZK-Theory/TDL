@@ -311,15 +311,25 @@ def replay_discovery(
         """Join a Spike shadow closure to its exact canonical Attempt and Lease events."""
 
         spike = state["spikes"].get(payload.get("spike_id"))
-        if not isinstance(spike, Mapping) or spike.get("status") not in {"partial_recorded", "cancelled"}:
+        if not isinstance(spike, Mapping) or spike.get("status") not in {
+            "verdict_recorded",
+            "partial_recorded",
+            "cancelled",
+        }:
             return False
         transaction_id = event.get("transaction_id")
         preceding = [
             transaction_event
             for transaction_event in transaction_events.get(transaction_id, ())
             if transaction_event.get("transaction_index", 0) < event.get("transaction_index", 0)
-            and transaction_event.get("event_type") in {"PartialOutcomeRecorded", "LeaseReleased"}
+            and transaction_event.get("event_type")
+            in {
+                "AttemptCompleted",
+                "PartialOutcomeRecorded",
+                "LeaseReleased",
+            }
         ]
+        completions = [item for item in preceding if item.get("event_type") == "AttemptCompleted"]
         partials = [item for item in preceding if item.get("event_type") == "PartialOutcomeRecorded"]
         releases = [item for item in preceding if item.get("event_type") == "LeaseReleased"]
         try:
@@ -328,11 +338,32 @@ def replay_discovery(
             )
             attempt = prior_operational.stream_states.get(spike.get("attempt_id"))
             lease = prior_operational.stream_states.get(spike.get("lease_id"))
-            artifact_key = "verdict_artifact" if spike.get("status") == "partial_recorded" else "cancellation_artifact"
+            artifact_key = "cancellation_artifact" if spike.get("status") == "cancelled" else "verdict_artifact"
             artifact = payload.get(artifact_key)
             if not isinstance(artifact, Mapping):
                 return False
-            if spike.get("status") == "partial_recorded":
+            if spike.get("status") == "verdict_recorded":
+                candidate_artefact_ids = list(
+                    dict.fromkeys(
+                        item["id"]
+                        for item in artifact["artefact_refs"]
+                        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+                    )
+                )
+                if not candidate_artefact_ids:
+                    return False
+                expected_completion = {
+                    "attempt_id": attempt["attempt_id"],
+                    "end_evidence_refs": [f"spike-verdict-sha256:{payload['verdict_sha256']}"],
+                    "candidate_artefact_ids": candidate_artefact_ids,
+                    "output_disposition": (
+                        "retained_as_candidate" if payload.get("verdict") == "PASS" else "quarantined"
+                    ),
+                }
+                expected_partial = None
+                release_reason = "spike_complete"
+            elif spike.get("status") == "partial_recorded":
+                expected_completion = None
                 expected_partial = {
                     "attempt_id": attempt["attempt_id"],
                     "completed_obligations": [artifact["completed_scope"]],
@@ -344,6 +375,7 @@ def replay_discovery(
                 }
                 release_reason = "spike_partial"
             else:
+                expected_completion = None
                 expected_partial = {
                     "attempt_id": attempt["attempt_id"],
                     "completed_obligations": list(artifact.get("completed_scope", [])),
@@ -374,9 +406,19 @@ def replay_discovery(
             and lease.get("status") == "active"
             and sha256_hex(canonical_bytes(lease)) == spike.get("lease_sha256")
             and lease.get("attempt_id") == spike.get("attempt_id")
-            and len(partials) == len(releases) == 1
-            and partials[0].get("stream_id") == spike.get("attempt_id")
-            and partials[0].get("payload") == expected_partial
+            and len(completions) == (1 if expected_completion is not None else 0)
+            and len(partials) == (1 if expected_partial is not None else 0)
+            and len(releases) == 1
+            and (
+                expected_completion is None
+                or completions[0].get("stream_id") == spike.get("attempt_id")
+                and completions[0].get("payload") == expected_completion
+            )
+            and (
+                expected_partial is None
+                or partials[0].get("stream_id") == spike.get("attempt_id")
+                and partials[0].get("payload") == expected_partial
+            )
             and releases[0].get("stream_id") == spike.get("lease_id")
             and releases[0].get("payload") == expected_release
             and releases[0].get("occurred_at") == event.get("occurred_at")

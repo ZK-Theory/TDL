@@ -125,8 +125,22 @@ def test_assay_fixture_rebinding_rejects_repository_root_and_allows_isolated_cop
         shutil.copyfile(source_path, target_path)
     bind_assay_fixture_to_current_spec_sources(fixture_root)
 
-    assert (fixture_root / RUBRIC_PATH.relative_to(REPO_ROOT)).read_bytes() != source_bytes[RUBRIC_PATH]
-    assert (fixture_root / SCOPE_PATH.relative_to(REPO_ROOT)).read_bytes() != source_bytes[SCOPE_PATH]
+    rebound_rubric = json.loads((fixture_root / RUBRIC_PATH.relative_to(REPO_ROOT)).read_bytes())
+    rebound_scope = json.loads((fixture_root / SCOPE_PATH.relative_to(REPO_ROOT)).read_bytes())
+    route_sha256 = sha256_hex(source_bytes[ROUTE_PATH])
+    spec_sha256 = sha256_hex(source_bytes[SPEC_PATH])
+    assert {
+        item["id"]: item["content_hash"]
+        for item in rebound_rubric["source_refs"]
+        if item.get("id") in {"SPEC-GATE6-RUN-V1", "SPEC-01"}
+    } == {"SPEC-GATE6-RUN-V1": route_sha256, "SPEC-01": spec_sha256}
+    assert rebound_rubric["content_hash"] == _content_hash(rebound_rubric)
+    assert rebound_scope["rubric_ref"]["content_hash"] == rebound_rubric["content_hash"]
+    assert rebound_scope["scope_closure_algorithm_hash"] == _projection_hash(
+        rebound_scope,
+        SCOPE_HASH_FIELDS,
+    )
+    assert rebound_scope["content_hash"] == _content_hash(rebound_scope)
 
 
 def _validate_semantics(rubric: dict[str, object], scope: dict[str, object]) -> None:

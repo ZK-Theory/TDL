@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.decision_identity import decision_semantic_sha256
 
@@ -32,9 +34,26 @@ def test_decision_semantic_hash_is_stable_when_terminal_replay_provenance_is_att
     assert decision_semantic_sha256(before_terminal_projection) == decision_semantic_sha256(after_terminal_projection)
 
 
-def test_decision_semantic_hash_rejects_changed_decision_meaning() -> None:
+@pytest.mark.parametrize(
+    ("field", "changed_value"),
+    (
+        ("status", "proposed"),
+        ("kind", "spike"),
+        ("decision_kind", "design_lock"),
+        ("recommendation", "KILL"),
+        ("options", ["PARK", "KILL"]),
+        ("selected_option", "KILL"),
+        ("proposal_event_hash", "c" * 64),
+        ("proposal_version", 2),
+        ("version", 3),
+    ),
+)
+def test_decision_semantic_hash_rejects_changed_decision_meaning(
+    field: str,
+    changed_value: object,
+) -> None:
     decision = _resolved_decision()
     changed = deepcopy(decision)
-    changed["selected_option"] = "KILL"
+    changed[field] = changed_value
 
     assert decision_semantic_sha256(decision) != decision_semantic_sha256(changed)

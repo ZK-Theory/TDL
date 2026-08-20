@@ -431,6 +431,11 @@ _EXACT_LIFECYCLE_PRODUCER_BINDINGS = {
         "RecordSpikeVerdict",
         "ars://core/command",
     ),
+    ("ars://core/event/AttemptCompleted", "RecordSpikeVerdict"): (
+        "AttemptCompleted",
+        "RecordSpikeVerdict",
+        "ars://core/command",
+    ),
     ("ars://core/event/LeaseReleased", "RecordSpikeVerdict"): (
         "LeaseReleased",
         "RecordSpikeVerdict",
@@ -461,6 +466,7 @@ _DERIVED_COMMAND_PAYLOAD_EVENT_TYPES = frozenset(
 )
 _DERIVED_PRODUCER_PAYLOAD_EVENTS = frozenset(
     {
+        ("AttemptCompleted", "RecordSpikeVerdict"),
         ("LeaseReleased", "RecordSpikeVerdict"),
         ("LeaseReleased", "CancelDiscoveryEvaluation"),
     }

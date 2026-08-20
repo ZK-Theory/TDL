@@ -22,9 +22,11 @@ from research_system.discovery.assay_authority import (
     replay_assay_bar_authority,
 )
 from research_system.discovery.assay_successor import (
+    prevalidate_assay_authority_successor_remote,
     successor_document_hashes,
     validate_assay_authority_successor_document,
 )
+from research_system.discovery.source_correction import SourceCorrectionRemoteProof
 from research_system.discovery.accepted_w11 import (
     ACCEPTED as _ACCEPTED,
     CATALOGUE_STREAM_ID as _CATALOGUE_STREAM_ID,
@@ -712,6 +714,7 @@ class DiscoveryRuntime:
             IntegrityError: If authority, payload, replay state, or the requested transition is invalid.
         """
         command = self._validated_command(envelope)
+        remote_proof = self._assay_successor_remote_proof(command)
         with SpecPreparationFence(self.control_root):
             with CompositeWriterLock(
                 (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
@@ -719,7 +722,7 @@ class DiscoveryRuntime:
                 lock_factory=WriterLock,
             ):
                 authority_evidence = self._resolve_authority(command)
-                return self._submit_authorized(command, authority_evidence)
+                return self._submit_authorized(command, authority_evidence, assay_successor_remote_proof=remote_proof)
 
     def prevalidate(
         self,
@@ -730,6 +733,7 @@ class DiscoveryRuntime:
         """Prove one command is currently admissible without publishing it."""
 
         command = self._validated_command(envelope)
+        remote_proof = self._assay_successor_remote_proof(command)
         with CompositeWriterLock(
             (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
             {"command_id": command.command_id, "operation": "prevalidate"},
@@ -774,6 +778,7 @@ class DiscoveryRuntime:
                 projection,
                 events=snapshot.events,
                 prospective_document=prospective_document,
+                assay_successor_remote_proof=remote_proof,
             )
 
     def replay(self, events: tuple[dict[str, Any], ...] | None = None) -> dict[str, Any]:
@@ -818,6 +823,47 @@ class DiscoveryRuntime:
             raise IntegrityError("catalogue identity mismatch")
         return command
 
+    def _assay_successor_remote_proof(self, command: Command) -> SourceCorrectionRemoteProof | None:
+        """Resolve a new OR-109 remote proof before either Discovery writer lock."""
+
+        payload = command.envelope["payload"]
+        trigger = payload.get("source_correction_trigger")
+        if (
+            command.envelope["command_type"] != "RecordAssayBarStaleness"
+            or payload.get("row_id") != "OR-109"
+            or trigger is None
+        ):
+            return None
+        snapshot = self.ledger.snapshot()
+        scope = (
+            command.actor_id,
+            command.envelope["authority_grant_id"],
+            command.envelope["command_type"],
+            command.idempotency_key,
+        )
+        if any(
+            event.get("command_id") == command.command_id
+            or (
+                event.get("actor_id"),
+                event.get("authority_grant_id"),
+                event.get("command_type"),
+                event.get("idempotency_key"),
+            )
+            == scope
+            for event in snapshot.events
+        ):
+            # Exact retries and conflicts are resolved from immutable ledger
+            # identity under the writer lock; they must not depend on a later
+            # remote tag lookup.
+            return None
+        document = trigger.get("document") if isinstance(trigger, Mapping) else None
+        if not isinstance(document, Mapping):
+            raise IntegrityError("invalid Assay-bar staleness transition")
+        try:
+            return prevalidate_assay_authority_successor_remote(document, schemas=self.schemas)
+        except (ConfigurationError, OSError, SchemaError, TypeError, ValueError) as exc:
+            raise IntegrityError("invalid Assay-bar staleness transition") from exc
+
     def _prepare_transaction(
         self,
         command: Command,
@@ -825,6 +871,7 @@ class DiscoveryRuntime:
         *,
         events: tuple[dict[str, Any], ...],
         prospective_document: Mapping[str, Any] | None = None,
+        assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         """Prepare and validate one Discovery transaction without publishing it."""
 
@@ -858,7 +905,11 @@ class DiscoveryRuntime:
             except (TypeError, ValueError) as exc:
                 raise DossierAdmissionRejected("invalid_canonical_value") from exc
         elif route.family == "assay_authority":
-            prepared = self._prepare_assay_bar_authority(command, projection)
+            prepared = self._prepare_assay_bar_authority(
+                command,
+                projection,
+                assay_successor_remote_proof=assay_successor_remote_proof,
+            )
         elif route.family == "authority":
             prepared = self._prepare_authority(command, projection)
         else:
@@ -1027,7 +1078,13 @@ class DiscoveryRuntime:
         if target not in projection.get(collection, {}):
             raise IntegrityError("Discovery command target is owned by another aggregate")
 
-    def _submit_authorized(self, command: Command, authority_evidence: Any) -> Receipt:
+    def _submit_authorized(
+        self,
+        command: Command,
+        authority_evidence: Any,
+        *,
+        assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
+    ) -> Receipt:
         """Prepare, append, and receipt one already-authorized command."""
         envelope = command.envelope
         authority_sha256 = authority_evidence.command_resolution.authority_grant_sha256
@@ -1208,7 +1265,12 @@ class DiscoveryRuntime:
             )
             return persist(receipt)
 
-        row_id, prepared = self._prepare_transaction(command, projection, events=snapshot.events)
+        row_id, prepared = self._prepare_transaction(
+            command,
+            projection,
+            events=snapshot.events,
+            assay_successor_remote_proof=assay_successor_remote_proof,
+        )
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
@@ -1631,6 +1693,8 @@ class DiscoveryRuntime:
         self,
         command: Command,
         projection: dict[str, Any],
+        *,
+        assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare the exact OR-101--OR-109 Assay-bar authority transition."""
 
@@ -2053,6 +2117,7 @@ class DiscoveryRuntime:
                         ),
                         repository_root=self.repository_root,
                         schemas=self.schemas,
+                        _remote_proof=assay_successor_remote_proof,
                     )
                     successor_hashes = successor_document_hashes(document)
                 except (ConfigurationError, OSError, SchemaError, TypeError, ValueError) as exc:
@@ -2863,7 +2928,48 @@ class DiscoveryRuntime:
                     ("SpikeLeaseReleased", spike_id, deepcopy(closure_payload)),
                     ("CandidateSpikePartialLinked", candidate_id, deepcopy(p)),
                 ]
-            return out(("SpikeVerdictRecorded", spike_id), ("CandidateSpikeVerdictLinked", candidate_id))
+            attempt, lease = self._live_spike_operational_pair(spike, require_unexpired=True)
+            now = self.clock()
+            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+                raise IntegrityError("Discovery operational clock must return an aware datetime")
+            artifact = p["verdict_artifact"]
+            candidate_artefact_ids = list(
+                dict.fromkeys(
+                    item["id"]
+                    for item in artifact["artefact_refs"]
+                    if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+                )
+            )
+            if not candidate_artefact_ids:
+                raise IntegrityError("invalid Spike operational closure")
+            completion_payload = {
+                "attempt_id": attempt["attempt_id"],
+                "end_evidence_refs": [f"spike-verdict-sha256:{p['verdict_sha256']}"],
+                "candidate_artefact_ids": candidate_artefact_ids,
+                "output_disposition": "retained_as_candidate" if p.get("verdict") == "PASS" else "quarantined",
+            }
+            closure_payload = {
+                **deepcopy(p),
+                "attempt_id": spike.get("attempt_id"),
+                "lease_id": spike.get("lease_id"),
+            }
+            return [
+                ("SpikeVerdictRecorded", spike_id, deepcopy(p)),
+                ("AttemptCompleted", str(attempt["attempt_id"]), completion_payload),
+                (
+                    "LeaseReleased",
+                    str(lease["lease_id"]),
+                    {
+                        "lease_id": lease["lease_id"],
+                        "release_reason": "spike_complete",
+                        "holder_actor_id": lease["holder_actor_id"],
+                        "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                    },
+                ),
+                ("SpikeAttemptClosed", spike_id, closure_payload),
+                ("SpikeLeaseReleased", spike_id, deepcopy(closure_payload)),
+                ("CandidateSpikeVerdictLinked", candidate_id, deepcopy(p)),
+            ]
         if ct == "CancelDiscoveryEvaluation" and row == "OR-022":
             artifact = p.get("cancellation_artifact")
             if (
@@ -2885,10 +2991,10 @@ class DiscoveryRuntime:
                 )
             ):
                 raise IntegrityError("invalid Spike cancellation transition")
-            events: list[tuple[str, str, dict[str, Any]]] = []
+            prepared: list[tuple[str, str, dict[str, Any]]] = []
             execution_decision = projection["decisions"].get(spike.get("decision_id"))
             if isinstance(execution_decision, dict) and execution_decision.get("status") == "proposed":
-                events.append(
+                prepared.append(
                     (
                         "SpikeExecutionProposalSupersededByCancellation",
                         str(spike["decision_id"]),
@@ -2900,13 +3006,13 @@ class DiscoveryRuntime:
                         },
                     )
                 )
-            events.append(("SpikeCancelled", spike_id, deepcopy(p)))
+            prepared.append(("SpikeCancelled", spike_id, deepcopy(p)))
             if spike.get("status") == "running":
                 attempt, lease = self._live_spike_operational_pair(spike)
                 now = self.clock()
                 if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
                     raise IntegrityError("Discovery operational clock must return an aware datetime")
-                events.extend(
+                prepared.extend(
                     [
                         (
                             "PartialOutcomeRecorded",
@@ -2943,8 +3049,8 @@ class DiscoveryRuntime:
                         ),
                     ]
                 )
-            events.append(("CandidateEvaluationCancelled", candidate_id, deepcopy(p)))
-            return events
+            prepared.append(("CandidateEvaluationCancelled", candidate_id, deepcopy(p)))
+            return prepared
         spike_review_subject = (
             spike.get("outcome_sha256")
             if row in {"OR-040", "OR-041"} and isinstance(spike, dict)
@@ -3020,19 +3126,19 @@ class DiscoveryRuntime:
             and p.get("review_verdict", {}).get("unchanged_subject_sha256")
             == projection["reviews"][review_id].get("subject_sha256")
         ):
-            events = [("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"]))]
+            prepared = [("ReviewVerdictRecorded", review_id, deepcopy(p["review_verdict"]))]
             if _review_policy_status(p["review_verdict"]) == "satisfied":
                 if row == "OR-020" and spike.get("status") == "verdict_recorded":
-                    events.append(("SpikeReviewed", spike_id, deepcopy(p)))
+                    prepared.append(("SpikeReviewed", spike_id, deepcopy(p)))
                 elif row == "OR-021" and spike.get("status") == "partial_recorded":
-                    events.extend(
+                    prepared.extend(
                         [
                             ("SpikePartialReviewed", spike_id, deepcopy(p)),
                             ("CandidateSpikePartialReviewed", candidate_id, deepcopy(p)),
                         ]
                     )
                 elif row == "OR-041" and spike.get("status") == "cancelled":
-                    events.extend(
+                    prepared.extend(
                         [
                             ("SpikeCancellationReviewed", spike_id, deepcopy(p)),
                             ("CandidateSpikeCancellationReviewed", candidate_id, deepcopy(p)),
@@ -3040,7 +3146,7 @@ class DiscoveryRuntime:
                     )
                 else:
                     raise IntegrityError("invalid Spike review row binding")
-            return events
+            return prepared
         if (
             ct == "ProposePromotionDecision"
             and row == "OR-026"

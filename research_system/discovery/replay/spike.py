@@ -10,6 +10,7 @@ from __future__ import annotations
 from copy import deepcopy
 from research_system.command.reducers import replay_control_plane
 from research_system.discovery.replay.scope import EventScope
+from research_system.discovery.replay.transactions import is_exact_legacy_unclosed_spike_verdict
 from research_system.discovery.rules import _aggregate_content_hash
 from research_system.discovery.rules import _review_subject_matches
 from research_system.discovery.rules import _spike_cancellation_matches
@@ -392,13 +393,43 @@ def _spike_result_write_set_matches(scope: EventScope, *, partial: bool) -> bool
         key=lambda item: item.get("transaction_index", 0),
     )
     if not partial:
+        legacy = tuple(member.get("event_type") for member in members) == (
+            "SpikeVerdictRecorded",
+            "CandidateSpikeVerdictLinked",
+        )
+        if legacy:
+            return bool(
+                is_exact_legacy_unclosed_spike_verdict(members)
+                and members[0].get("stream_id") == payload.get("spike_id")
+                and members[0].get("payload") == payload
+                and members[1].get("stream_id") == payload.get("candidate_id")
+                and members[1].get("payload") == payload
+            )
+        closure_payload = {
+            **deepcopy(payload),
+            "attempt_id": spike.get("attempt_id"),
+            "lease_id": spike.get("lease_id"),
+        }
         return bool(
             tuple(member.get("event_type") for member in members)
-            == ("SpikeVerdictRecorded", "CandidateSpikeVerdictLinked")
+            == (
+                "SpikeVerdictRecorded",
+                "AttemptCompleted",
+                "LeaseReleased",
+                "SpikeAttemptClosed",
+                "SpikeLeaseReleased",
+                "CandidateSpikeVerdictLinked",
+            )
             and members[0].get("stream_id") == payload.get("spike_id")
             and members[0].get("payload") == payload
-            and members[1].get("stream_id") == payload.get("candidate_id")
-            and members[1].get("payload") == payload
+            and members[1].get("stream_id") == spike.get("attempt_id")
+            and members[2].get("stream_id") == spike.get("lease_id")
+            and members[3].get("stream_id") == payload.get("spike_id")
+            and members[3].get("payload") == closure_payload
+            and members[4].get("stream_id") == payload.get("spike_id")
+            and members[4].get("payload") == closure_payload
+            and members[5].get("stream_id") == payload.get("candidate_id")
+            and members[5].get("payload") == payload
         )
 
     expected_types = (
@@ -440,12 +471,17 @@ def reduce_spike_attempt_closed(scope: EventScope) -> None:
     spike = state["spikes"].get(payload.get("spike_id"))
     if (
         not isinstance(spike, dict)
-        or spike.get("status") not in {"partial_recorded", "cancelled"}
+        or spike.get("status") not in {"verdict_recorded", "partial_recorded", "cancelled"}
         or spike.get("attempt_id") != payload.get("attempt_id")
         or not spike_operational_closure_matches(event, payload)
     ):
         raise IntegrityError("invalid Spike attempt closure")
-    spike.update(attempt_status="cancelled" if spike.get("status") == "cancelled" else "partial")
+    attempt_status = {
+        "verdict_recorded": "completed",
+        "partial_recorded": "partial",
+        "cancelled": "cancelled",
+    }[spike["status"]]
+    spike.update(attempt_status=attempt_status)
 
 
 def reduce_spike_lease_released(scope: EventScope) -> None:
@@ -459,7 +495,7 @@ def reduce_spike_lease_released(scope: EventScope) -> None:
     spike = state["spikes"].get(payload.get("spike_id"))
     if (
         not isinstance(spike, dict)
-        or spike.get("attempt_status") not in {"partial", "cancelled"}
+        or spike.get("attempt_status") not in {"completed", "partial", "cancelled"}
         or payload.get("lease_id") != spike.get("lease_id")
         or not spike_operational_closure_matches(event, payload)
     ):

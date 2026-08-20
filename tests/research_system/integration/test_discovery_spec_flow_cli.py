@@ -2301,6 +2301,92 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
+@pytest.mark.integration
+def test_spec_status_rejects_registered_brief_with_unbound_internal_manifest(
+    spec_inputs: dict[str, Any],
+) -> None:
+    document = _brief_document(spec_inputs)
+    brief_manifest = {
+        "brief_artefact_id": "art_019ffe2b-fd4b-7000-8000-000000000121",
+        "brief_purpose": "independent_review",
+        "context_packet": {
+            "context_id": "ctx_019ffe2b-fd4b-7000-8000-000000000121",
+            "revision": 1,
+            "packet_sha256": "1" * 64,
+            "delivery_receipt_id": "delivery-1",
+            "delivery_receipt_sha256": "2" * 64,
+        },
+        "created_at": "2026-08-01T12:00:00Z",
+        "subjects": [
+            {
+                "subject_id": "subject:spec-01",
+                "subject_kind": "artefact",
+                "path_or_name": "spec-01.md",
+                "sha256": "3" * 64,
+                "role": "review_subject",
+                "use_predicate_id": "review-evidence",
+                "use_predicate_version": "1.0.0",
+                "use_predicate_sha256": "4" * 64,
+            }
+        ],
+        "assets": [
+            {
+                "asset_id": "adversarial-review",
+                "version": "1.0.0",
+                "identity": "5" * 64,
+                "identity_scheme": "lf_canonical_sha256",
+                "accepted_use_event_id": "evt_accepted_asset",
+                "accepted_use_event_sha256": "6" * 64,
+            }
+        ],
+        "expected_import_types": ["ReviewFindingSet"],
+        "deidentification": None,
+        "prohibitions": ["no execution"],
+        "required_session_fields": ["operator_actor_id"],
+        "verification_context": None,
+    }
+    brief_manifest["brief_sha256"] = sha256_hex(canonical_bytes(brief_manifest))
+    document["brief_manifest"] = brief_manifest
+    document["brief_manifest_sha256"] = "f" * 64
+    artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000120"
+    grant_id = activate_lifecycle_grant(
+        spec_inputs["harness"],
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        command_types=("RegisterArtefact",),
+    )
+    manifest = artefact_manifest()
+    manifest.update(
+        artefact_id=artefact_id,
+        artefact_type="spec_01_operator_brief",
+        producer_actor_id=spec_inputs["command"]["actor_id"],
+    )
+    register_candidate_document(
+        value=document,
+        registration=CandidateRegistration(
+            artefact_id=artefact_id,
+            project_id=PROJECT_ID,
+            actor_id=spec_inputs["command"]["actor_id"],
+            authority_grant_id=grant_id,
+            submitted_at="2026-08-01T12:00:00Z",
+            correlation_id="spec-flow:forged-brief",
+            reason="Exercise registered brief admission.",
+            manifest=manifest,
+        ),
+        document_store=CandidateDocumentStore(
+            spec_inputs["binding"].control_root,
+            relative_directory=Path("methods/documents/spec-flow"),
+        ),
+        command_service=spec_inputs["harness"].service,
+    )
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="does not bind its exact manifest"):
+        cli.main(_status_argv(spec_inputs))
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
 def test_route_actor_resolution_rejects_multiple_durable_actors_for_one_row() -> None:
     candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000451"
     events = (

@@ -312,7 +312,7 @@ def shared_event_partition(
     """Assign every shared-ledger event to exactly one replay reducer."""
 
     event_type = event.get("event_type")
-    if event_type in {"PartialOutcomeRecorded", "LeaseReleased"}:
+    if event_type in {"AttemptCompleted", "PartialOutcomeRecorded", "LeaseReleased"}:
         return "operational"
     if is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids):
         return "discovery"

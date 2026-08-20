@@ -84,6 +84,17 @@ _WRITE_SET_OVERRIDES: dict[str, tuple[tuple[str, ...], ...]] = {
             "CandidateSpikePartialLinked",
         ),
     ),
+    "OR-018": (
+        (
+            "SpikeVerdictRecorded",
+            "AttemptCompleted",
+            "LeaseReleased",
+            "SpikeAttemptClosed",
+            "SpikeLeaseReleased",
+            "CandidateSpikeVerdictLinked",
+        ),
+        ("SpikeVerdictRecorded", "CandidateSpikeVerdictLinked"),
+    ),
     "OR-022": tuple(
         prefix + ("SpikeCancelled",) + operational + ("CandidateEvaluationCancelled",)
         for prefix in ((), ("SpikeExecutionProposalSupersededByCancellation",))
@@ -101,6 +112,18 @@ _WRITE_SET_OVERRIDES: dict[str, tuple[tuple[str, ...], ...]] = {
         ),
     ),
 }
+
+_LEGACY_UNCLOSED_SPIKE_VERDICT_EVENT_HASHES = (
+    "a5b04ff1a955a7bfdc764e3e3ede56a0b24aae65c7825f4fd08f5313c22503ca",
+    "eeb8b10c55994a88f28c53d32c7b0a64caf6c096de3a5a813fe7cc065da11e2d",
+)
+
+
+def is_exact_legacy_unclosed_spike_verdict(events: Sequence[Mapping[str, Any]]) -> bool:
+    """Recognize only the immutable live OR-018 transaction predating operational closure."""
+
+    return tuple(event.get("event_hash") for event in events) == _LEGACY_UNCLOSED_SPIKE_VERDICT_EVENT_HASHES
+
 
 for _conditional_review_row in ("OR-006", "OR-007", "OR-020", "OR-021", "OR-039", "OR-041"):
     _WRITE_SET_OVERRIDES[_conditional_review_row] = (
@@ -236,7 +259,7 @@ def _event_stream_subject(event_type: str, payload: Mapping[str, Any]) -> object
         return payload.get("new_decision_id")
     if event_type == "DecisionResolved":
         return payload.get("decision_id")
-    if event_type == "PartialOutcomeRecorded":
+    if event_type in {"AttemptCompleted", "PartialOutcomeRecorded"}:
         return payload.get("attempt_id")
     if event_type == "LeaseReleased":
         return payload.get("lease_id")
@@ -558,6 +581,12 @@ def validate_transaction_contract(events: Sequence[Mapping[str, Any]]) -> None:
     )
     if variant is None:
         raise IntegrityError(f"Discovery transaction write set mismatch for {row_id}")
+    if (
+        row_id == "OR-018"
+        and actual_event_types == ("SpikeVerdictRecorded", "CandidateSpikeVerdictLinked")
+        and not is_exact_legacy_unclosed_spike_verdict(events)
+    ):
+        raise IntegrityError("Discovery transaction write set mismatch for OR-018")
     if row_id not in {"OR-028", "OR-029"}:
         _assert_exact_event_types(events, tuple(item.event_types for item in contract.variants), row_id)
     _assert_stream_contract(events, row_id)

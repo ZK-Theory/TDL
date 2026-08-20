@@ -3,17 +3,37 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from research_system.canonical import sha256_hex
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConfigurationError, IntegrityError
 from research_system.git_execution import run_git
 
 
+@dataclass(frozen=True)
+class SourceCorrectionRemoteProof:
+    """Ephemeral proof that one exact correction document matches its remote ref."""
+
+    document_sha256: str
+    repository_url: str
+    resolved_ref: str
+    commit_oid: str
+    required_paths_sha256: str
+
+
 def resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
     """Resolve one exact remote tag without treating heads as exhaustive."""
+
+    if (
+        not isinstance(repository_url, str)
+        or not repository_url
+        or not isinstance(resolved_ref, str)
+        or not resolved_ref
+    ):
+        raise IntegrityError("SPEC-01 correction remote identity is invalid")
 
     try:
         with tempfile.TemporaryDirectory(prefix="ars-spec-ls-remote-") as directory:
@@ -29,9 +49,20 @@ def resolve_remote_tag(repository_url: str, resolved_ref: str) -> str:
     except ConfigurationError as exc:
         raise IntegrityError("SPEC-01 correction remote reference could not be resolved") from exc
     lines = [line.split() for line in result.stdout.splitlines() if line.strip()]
-    if result.returncode != 0 or len(lines) != 1 or len(lines[0]) != 2 or lines[0][1] != resolved_ref:
+    direct: list[str] = []
+    peeled: list[str] = []
+    for line in lines:
+        if len(line) != 2 or len(line[0]) != 40 or any(character not in "0123456789abcdef" for character in line[0]):
+            raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
+        if line[1] == resolved_ref:
+            direct.append(line[0])
+        elif line[1] == f"{resolved_ref}^{{}}":
+            peeled.append(line[0])
+        else:
+            raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
+    if result.returncode != 0 or len(direct) != 1 or len(peeled) > 1 or len(lines) != len(direct) + len(peeled):
         raise IntegrityError("SPEC-01 correction remote tag resolution is not exact")
-    return lines[0][0]
+    return peeled[0] if peeled else direct[0]
 
 
 def verify_remote_commit_paths(
@@ -119,23 +150,50 @@ def verify_source_correction_remote(
     *,
     resolve_tag: Callable[[str, str], str] | None = None,
     verify_paths: Callable[[str, str, str, Sequence[Mapping[str, Any]]], None] | None = None,
-) -> None:
+) -> SourceCorrectionRemoteProof:
     """Verify a correction's exact remote tag, fetched commit, and required path bytes."""
 
     git_ref = document.get("corrected_git_reference")
     if not isinstance(git_ref, Mapping):
         raise IntegrityError("SPEC-01 correction remote identity is invalid")
+    repository_url = git_ref.get("repository_url")
+    resolved_ref = git_ref.get("resolved_ref")
+    commit_oid = git_ref.get("commit_oid")
+    required_paths = git_ref.get("required_paths")
+    if (
+        not isinstance(repository_url, str)
+        or not repository_url
+        or not isinstance(resolved_ref, str)
+        or not resolved_ref
+        or not isinstance(commit_oid, str)
+        or len(commit_oid) != 40
+        or not isinstance(required_paths, Sequence)
+        or isinstance(required_paths, (str, bytes, bytearray))
+    ):
+        raise IntegrityError("SPEC-01 correction remote identity is invalid")
     resolver = resolve_remote_tag if resolve_tag is None else resolve_tag
     path_verifier = verify_remote_commit_paths if verify_paths is None else verify_paths
-    resolved_commit = resolver(git_ref.get("repository_url"), git_ref.get("resolved_ref"))
-    if resolved_commit != git_ref.get("commit_oid"):
+    resolved_commit = resolver(repository_url, resolved_ref)
+    if resolved_commit != commit_oid:
         raise IntegrityError("SPEC-01 correction commit differs from the live remote tag")
     path_verifier(
-        git_ref.get("repository_url"),
-        git_ref.get("resolved_ref"),
-        git_ref.get("commit_oid"),
-        git_ref.get("required_paths"),
+        repository_url,
+        resolved_ref,
+        commit_oid,
+        required_paths,
+    )
+    return SourceCorrectionRemoteProof(
+        document_sha256=sha256_hex(canonical_bytes(document)),
+        repository_url=repository_url,
+        resolved_ref=resolved_ref,
+        commit_oid=commit_oid,
+        required_paths_sha256=sha256_hex(canonical_bytes(required_paths)),
     )
 
 
-__all__ = ["resolve_remote_tag", "verify_remote_commit_paths", "verify_source_correction_remote"]
+__all__ = [
+    "SourceCorrectionRemoteProof",
+    "resolve_remote_tag",
+    "verify_remote_commit_paths",
+    "verify_source_correction_remote",
+]

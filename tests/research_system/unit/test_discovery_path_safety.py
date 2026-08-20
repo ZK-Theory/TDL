@@ -157,8 +157,8 @@ def test_candidate_document_store_retains_parent_identity_during_leaf_creation(
 
     def racing_open(path, flags, *args, **kwargs):
         nonlocal attempted
-        final_open = path == "art_race.json"
-        if final_open and not attempted:
+        staging_open = isinstance(path, str) and path.startswith(".art_race.json.") and path.endswith(".tmp")
+        if staging_open and not attempted:
             attempted = True
             parent.rename(held)
             parent.symlink_to(outside, target_is_directory=True)

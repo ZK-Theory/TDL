@@ -141,6 +141,12 @@ _DOCUMENT_TYPES = {
     "return_spec_02_complete": "spec_02_return",
     "return_spec_02_partial": "spec_02_return",
 }
+_DOCUMENT_SCHEMA_BY_TYPE: dict[str, str] = {}
+for _document_action, _document_type in _DOCUMENT_TYPES.items():
+    _document_schema = _DOCUMENT_ACTION_SCHEMA[_document_action]
+    _prior_schema = _DOCUMENT_SCHEMA_BY_TYPE.setdefault(_document_type, _document_schema)
+    if _prior_schema != _document_schema:  # pragma: no cover - import-time architecture fence
+        raise RuntimeError(f"SPEC document type {_document_type} has conflicting schemas")
 _BRIEF_INPUT_TYPES = {"spec_operator_source", "methods_asset"}
 _BRIEF_INPUT_SOURCE_TYPES = {
     _SPEC_01_PATH.as_posix(): "spec_operator_source",
@@ -559,12 +565,42 @@ def _registered_documents(
             raise IntegrityError("registered SPEC document is unavailable")
         if raw != canonical_bytes(value) or sha256_hex(raw) != digest:
             raise IntegrityError("registered SPEC document binding differs")
-        if isinstance(value, dict) and value.get("route_id") == ROUTE_ID:
-            found.setdefault(str(value.get("document_type")), []).append(value)
+        if not isinstance(value, dict):
+            raise IntegrityError("registered SPEC document is not an object")
+        document_type = str(manifest["artefact_type"])
+        _validate_spec_document_content(operator, document_type=document_type, document=value)
+        found.setdefault(document_type, []).append(value)
     for kind, values in found.items():
         if len(values) != 1:
             raise IntegrityError(f"duplicate registered SPEC document: {kind}")
     return found
+
+
+def _validate_spec_document_content(
+    operator: DiscoveryOperator,
+    *,
+    document_type: str,
+    document: Mapping[str, Any],
+) -> None:
+    """Validate one registered document from its manifest-selected contract."""
+
+    schema_id = _DOCUMENT_SCHEMA_BY_TYPE.get(document_type)
+    if schema_id is None or document.get("document_type") != document_type or document.get("route_id") != ROUTE_ID:
+        raise IntegrityError("registered SPEC document type or route binding differs")
+    try:
+        operator.schemas.validate(schema_id, document, schema_version="1.0.0")
+    except SchemaError as exc:
+        raise IntegrityError("registered SPEC document schema is invalid") from exc
+    if document_type in {"spec_01_operator_brief", "spec_02_operator_brief"}:
+        manifest = document.get("brief_manifest")
+        if not isinstance(manifest, Mapping):
+            raise IntegrityError("registered SPEC brief has no accepted brief manifest")
+        try:
+            operator.schemas.validate("ars://methods/brief-manifest", manifest)
+        except SchemaError as exc:
+            raise IntegrityError("registered SPEC brief manifest is invalid") from exc
+        if document.get("brief_manifest_sha256") != sha256_hex(canonical_bytes(manifest)):
+            raise IntegrityError("registered SPEC brief does not bind its exact manifest")
 
 
 def _actor_for_row(
@@ -1254,11 +1290,11 @@ class SpecFlow:
             or document.get("route_id") != ROUTE_ID
         ):
             raise IntegrityError("SPEC document type or route binding differs")
-        schema_id = _DOCUMENT_ACTION_SCHEMA[action]
-        try:
-            self.operator.schemas.validate(schema_id, document, schema_version="1.0.0")
-        except SchemaError as exc:
-            raise IntegrityError("SPEC document schema rejected the action packet") from exc
+        _validate_spec_document_content(
+            self.operator,
+            document_type=_DOCUMENT_TYPES[action],
+            document=document,
+        )
         if (
             isinstance(registration, dict)
             and set(registration) == _REGISTRATION_FIELDS
@@ -1268,14 +1304,8 @@ class SpecFlow:
             raise IntegrityError("SPEC document registration type differs from its validated document")
         if action.startswith("prepare_spec_"):
             manifest = document.get("brief_manifest")
-            if not isinstance(manifest, dict):
+            if not isinstance(manifest, dict):  # already guaranteed by the shared content validator
                 raise IntegrityError("SPEC brief package has no accepted brief manifest")
-            try:
-                self.operator.schemas.validate("ars://methods/brief-manifest", manifest)
-            except SchemaError as exc:
-                raise IntegrityError("SPEC brief package is not an accepted brief export") from exc
-            if document.get("brief_manifest_sha256") != sha256_hex(canonical_bytes(manifest)):
-                raise IntegrityError("SPEC brief package does not bind its exact manifest bytes")
             alias = "SPEC-01" if action == "prepare_spec_01" else "SPEC-02"
             source = next(item for item in self.route["sources"] if item["alias"] == alias)
             route_source = document.get("route_source", {})
