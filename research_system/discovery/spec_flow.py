@@ -147,6 +147,10 @@ for _document_action, _document_type in _DOCUMENT_TYPES.items():
     _prior_schema = _DOCUMENT_SCHEMA_BY_TYPE.setdefault(_document_type, _document_schema)
     if _prior_schema != _document_schema:  # pragma: no cover - import-time architecture fence
         raise RuntimeError(f"SPEC document type {_document_type} has conflicting schemas")
+_DOCUMENT_ACTIONS_BY_TYPE = {
+    document_type: tuple(action for action, kind in _DOCUMENT_TYPES.items() if kind == document_type)
+    for document_type in _DOCUMENT_SCHEMA_BY_TYPE
+}
 _BRIEF_INPUT_TYPES = {"spec_operator_source", "methods_asset"}
 _BRIEF_INPUT_SOURCE_TYPES = {
     _SPEC_01_PATH.as_posix(): "spec_operator_source",
@@ -538,6 +542,53 @@ def _rows(
     return _SpecRouteCensus.from_snapshot(events, projection, dossier_id=dossier_id).rows
 
 
+def _completed_action_identity(operator: DiscoveryOperator, action: str) -> dict[str, Any] | None:
+    """Read one exact internal completion proof for a SPEC-flow action."""
+
+    store = CandidateDocumentStore(
+        operator.control_root,
+        relative_directory=Path("runtime/spec-flow-actions"),
+    )
+    relative = store.relative_path(action)
+    target = operator.control_root / relative
+    if not target.exists() and not target.is_symlink():
+        return None
+    try:
+        raw = read_contained_regular_file(
+            operator.control_root,
+            relative,
+            label="SPEC action completion identity",
+        )
+        value = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("SPEC action completion identity is unavailable") from exc
+    exact_fields = {
+        "schema_id",
+        "schema_version",
+        "route_id",
+        "action",
+        "retry_id",
+        "packet_sha256",
+    }
+    packet_sha256 = value.get("packet_sha256") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(value, dict)
+        or raw != canonical_bytes(value)
+        or set(value) != exact_fields
+        or value.get("schema_id") != "ars://internal/spec-flow-action-identity"
+        or value.get("schema_version") != "1.0.0"
+        or value.get("route_id") != ROUTE_ID
+        or value.get("action") != action
+        or not isinstance(value.get("retry_id"), str)
+        or not value["retry_id"]
+        or not isinstance(packet_sha256, str)
+        or len(packet_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in packet_sha256)
+    ):
+        raise IntegrityError("SPEC action completion identity is invalid")
+    return value
+
+
 def _registered_documents(
     operator: DiscoveryOperator, projection: Mapping[str, Any]
 ) -> dict[str, list[dict[str, Any]]]:
@@ -548,8 +599,18 @@ def _registered_documents(
         manifest = stream.get("manifest")
         if not isinstance(manifest, Mapping) or manifest.get("root_id") != "control":
             continue
-        if manifest.get("artefact_type") not in set(_DOCUMENT_TYPES.values()):
+        document_type = manifest.get("artefact_type")
+        if document_type not in _DOCUMENT_ACTIONS_BY_TYPE:
             continue
+        action_proofs = [
+            action
+            for action in _DOCUMENT_ACTIONS_BY_TYPE[str(document_type)]
+            if _completed_action_identity(operator, action) is not None
+        ]
+        if not action_proofs:
+            continue
+        if len(action_proofs) != 1:
+            raise IntegrityError(f"multiple completed SPEC actions claim document type: {document_type}")
         relative = manifest.get("relative_path")
         digest = manifest.get("content_sha256")
         if not isinstance(relative, str) or not isinstance(digest, str):
@@ -567,8 +628,21 @@ def _registered_documents(
             raise IntegrityError("registered SPEC document binding differs")
         if not isinstance(value, dict):
             raise IntegrityError("registered SPEC document is not an object")
-        document_type = str(manifest["artefact_type"])
+        document_type = str(document_type)
         _validate_spec_document_content(operator, document_type=document_type, document=value)
+        expected_action = _DOCUMENT_ACTIONS_BY_TYPE[document_type][0]
+        if len(_DOCUMENT_ACTIONS_BY_TYPE[document_type]) > 1:
+            outcome = value.get("outcome")
+            expected_action = {
+                "COMPLETE": next(
+                    action for action in _DOCUMENT_ACTIONS_BY_TYPE[document_type] if action.endswith("_complete")
+                ),
+                "PARTIAL": next(
+                    action for action in _DOCUMENT_ACTIONS_BY_TYPE[document_type] if action.endswith("_partial")
+                ),
+            }.get(str(outcome), "")
+        if action_proofs[0] != expected_action:
+            raise IntegrityError("registered SPEC document differs from its completed action")
         found.setdefault(document_type, []).append(value)
     for kind, values in found.items():
         if len(values) != 1:
@@ -768,22 +842,16 @@ class SpecFlow:
             "retry_id": packet.get("retry_id"),
             "packet_sha256": sha256_hex(canonical_bytes(packet)),
         }
-        store = CandidateDocumentStore(
-            self.operator.control_root,
-            relative_directory=Path("runtime/spec-flow-actions"),
-        )
-        relative = store.relative_path(action)
-        target = self.operator.control_root / relative
-        if target.exists() or target.is_symlink():
-            raw = read_contained_regular_file(
-                self.operator.control_root,
-                relative,
-                label="SPEC action retry identity",
-            )
-            if raw != canonical_bytes(value):
+        prior = _completed_action_identity(self.operator, action)
+        if prior is not None:
+            if prior != value:
                 raise ConflictError("completed SPEC action retry differs from its durable packet")
             return True
         if publish:
+            store = CandidateDocumentStore(
+                self.operator.control_root,
+                relative_directory=Path("runtime/spec-flow-actions"),
+            )
             store.publish_bytes(action, canonical_bytes(value))
         return False
 

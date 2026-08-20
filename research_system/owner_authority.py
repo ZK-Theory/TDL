@@ -766,8 +766,6 @@ def _known_authority_actor_classes(
             if not stat.S_ISREG(marker_metadata.st_mode):
                 raise ConfigurationError("actor registration recovery marker is not a regular file")
             marker_exists = True
-        if marker_exists:
-            continue
         if projected_actors is None:
             continue
         projected_actor = projected_actors.get(str(actor_id))
@@ -790,6 +788,8 @@ def _known_authority_actor_classes(
         if actor_class not in {"agent", "service"}:
             raise IntegrityError("configured actor registration class is invalid")
         governed_actor_ids.add(str(actor_id))
+        if marker_exists:
+            continue
         if effective.tzinfo != UTC or expires.tzinfo != UTC or not effective <= effective_now < expires:
             continue
         current_registered_actors.setdefault(str(actor_id), set()).add(str(actor_class))

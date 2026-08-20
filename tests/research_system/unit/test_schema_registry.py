@@ -9,6 +9,7 @@ import pytest
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+import research_system.schema_registry as schema_registry_module
 from research_system.errors import SchemaError
 from research_system.operations.resources import (
     RESOURCE_GRANT_V1_1_SCHEMA_ID,
@@ -161,6 +162,17 @@ def test_fallback_still_rejects_malformed_timestamp_strings(instance):
 
 def test_registry_validates_command_envelope():
     SchemaRegistry(SCHEMAS).validate("ars://core/command", _command_payload())
+
+
+def test_registry_reuses_the_exact_parsed_schema_resource(monkeypatch):
+    registry = SchemaRegistry(SCHEMAS)
+
+    def unexpected_reparse(*_args, **_kwargs):
+        raise AssertionError("schema bytes were reparsed after registry construction")
+
+    monkeypatch.setattr(schema_registry_module.json, "loads", unexpected_reparse)
+    registry.validate("ars://core/command", _command_payload())
+    registry.validate("ars://core/command", _command_payload())
 
 
 def test_duplicate_schema_ids_require_exact_root_version_and_never_resolve_cross_refs_by_path_order(tmp_path):
@@ -631,9 +643,9 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    # The bootstrap repair and governed actor registration each add one typed
-    # command and one producer-bound event.
-    assert len(bindings) == 275
+    # The latest Gate 6 addition binds AttemptCompleted to the exact
+    # RecordSpikeVerdict producer rather than admitting it as a generic event.
+    assert len(bindings) == 276
     assert bindings == tuple(
         sorted(
             bindings,
@@ -648,6 +660,15 @@ def test_runtime_binding_inventory_is_public_and_stably_ordered():
         )
     )
     assert len(set(bindings)) == len(bindings)
+    assert (
+        SchemaBinding(
+            "ars://core/event/AttemptCompleted",
+            "1.0.0",
+            event_type="AttemptCompleted",
+            producer_command_type="RecordSpikeVerdict",
+        )
+        in bindings
+    )
     assert runtime_schema_registry(SCHEMAS).contains("ars://wp6-6/gate6/authority/intent/RegisterAuthorityActor")
     new_schema_ids = {
         "ars://core/command/PublishOwnerAuthorityAdministrationDecision",

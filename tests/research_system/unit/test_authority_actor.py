@@ -1067,6 +1067,40 @@ def test_expired_registered_actor_is_not_revived_by_historical_grant(tmp_path: P
     )
 
 
+def test_marker_bound_registered_actor_suppresses_historical_grant_after_expiry(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+
+    def stop_after_event(stage: str) -> None:
+        if stage == "event":
+            raise RuntimeError("stop after durable actor registration event")
+
+    with pytest.raises(RuntimeError, match="durable actor registration event"):
+        service.register(
+            _intent(expires_at="2026-08-15T00:00:00Z"),
+            phase_hook=stop_after_event,
+        )
+    event = next(EventLedger(tmp_path, PROJECT, service.schemas).iter_events())
+    actor_id = event["payload"]["actor_id"]
+    assert list((tmp_path / "runtime").glob(".authority-actor-registration-*.json"))
+    objects = ObjectStore(tmp_path)
+    grant = _scoped_grant(
+        "agr_01978abc-1000-7000-8000-000000001015",
+        actor_id,
+    )
+    grant["expires_at"] = "2099-01-01T00:00:00Z"
+    objects.write("authority_grant", grant["authority_grant_id"], 1, grant)
+
+    assert actor_id not in _known_authority_actor_classes(
+        tmp_path,
+        objects,
+        now=datetime(2026, 8, 16, tzinfo=UTC),
+        project_id=PROJECT,
+        store_identity=STORE,
+        owner_actor_id=OWNER,
+        authority_projection=_authority_projection(tmp_path, grant),
+    )
+
+
 def test_later_foreign_registration_revision_is_rejected_as_class_drift(tmp_path: Path) -> None:
     service = _service(tmp_path)
     result = service.register(_intent())

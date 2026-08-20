@@ -721,8 +721,14 @@ class DiscoveryRuntime:
                 {"command_id": command.command_id},
                 lock_factory=WriterLock,
             ):
-                authority_evidence = self._resolve_authority(command)
-                return self._submit_authorized(command, authority_evidence, assay_successor_remote_proof=remote_proof)
+                transition_time = self._trusted_transition_time()
+                authority_evidence = self._resolve_authority(command, evaluation_time=transition_time)
+                return self._submit_authorized(
+                    command,
+                    authority_evidence,
+                    transition_time=transition_time,
+                    assay_successor_remote_proof=remote_proof,
+                )
 
     def prevalidate(
         self,
@@ -739,7 +745,8 @@ class DiscoveryRuntime:
             {"command_id": command.command_id, "operation": "prevalidate"},
             lock_factory=WriterLock,
         ):
-            self._resolve_authority(command)
+            transition_time = self._trusted_transition_time()
+            self._resolve_authority(command, evaluation_time=transition_time)
             snapshot = self.ledger.snapshot()
             projection = self.replay(snapshot.events)
             scope = (
@@ -777,6 +784,7 @@ class DiscoveryRuntime:
                 command,
                 projection,
                 events=snapshot.events,
+                transition_time=transition_time,
                 prospective_document=prospective_document,
                 assay_successor_remote_proof=remote_proof,
             )
@@ -822,6 +830,14 @@ class DiscoveryRuntime:
         if command_type == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
         return command
+
+    def _trusted_transition_time(self) -> datetime:
+        """Sample one UTC instant for authority, preparation, and persistence."""
+
+        observed_at = self.clock()
+        if not isinstance(observed_at, datetime) or observed_at.tzinfo is None or observed_at.utcoffset() is None:
+            raise IntegrityError("Discovery runtime clock must return an aware datetime")
+        return observed_at.astimezone(UTC)
 
     def _assay_successor_remote_proof(self, command: Command) -> SourceCorrectionRemoteProof | None:
         """Resolve a new OR-109 remote proof before either Discovery writer lock."""
@@ -870,11 +886,14 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
         *,
         events: tuple[dict[str, Any], ...],
+        transition_time: datetime | None = None,
         prospective_document: Mapping[str, Any] | None = None,
         assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         """Prepare and validate one Discovery transaction without publishing it."""
 
+        if transition_time is None:
+            transition_time = self._trusted_transition_time()
         self._require_admissible_target(command, projection)
         self._require_candidate_target(command, projection)
         row_id, route = _discovery_route(command)
@@ -895,6 +914,7 @@ class DiscoveryRuntime:
                 command,
                 projection,
                 events=events,
+                transition_time=transition_time,
                 prospective_document=prospective_document,
             )
         elif route.family == "dossier":
@@ -917,7 +937,7 @@ class DiscoveryRuntime:
         validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
         return row_id, prepared
 
-    def _resolve_authority(self, command: Command) -> Any:
+    def _resolve_authority(self, command: Command, *, evaluation_time: datetime) -> Any:
         """Resolve current canonical scoped authority for one command."""
         command_type = command.envelope["command_type"]
         binding = self.schemas.command_binding(command_type)
@@ -972,9 +992,6 @@ class DiscoveryRuntime:
             subject_id = command.envelope["payload"].get("candidate_id")
             if not isinstance(subject_id, str):
                 raise IntegrityError("Discovery lifecycle authority requires candidate_id")
-        now = self.clock()
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise IntegrityError("Discovery authority clock must return an aware datetime")
         return self.authority_resolver.resolve_lifecycle_command(
             command.envelope["authority_grant_id"],
             command.actor_id,
@@ -988,7 +1005,7 @@ class DiscoveryRuntime:
             self.ledger.project_id,
             subject_kind,
             subject_id,
-            now.astimezone(UTC),
+            evaluation_time,
         )
 
     @staticmethod
@@ -1083,6 +1100,7 @@ class DiscoveryRuntime:
         command: Command,
         authority_evidence: Any,
         *,
+        transition_time: datetime,
         assay_successor_remote_proof: SourceCorrectionRemoteProof | None = None,
     ) -> Receipt:
         """Prepare, append, and receipt one already-authorized command."""
@@ -1269,16 +1287,14 @@ class DiscoveryRuntime:
             command,
             projection,
             events=snapshot.events,
+            transition_time=transition_time,
             assay_successor_remote_proof=assay_successor_remote_proof,
         )
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
         binding = self.schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
-        occurred_at = self.clock()
-        if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
-            raise IntegrityError("Discovery runtime clock must return an aware datetime")
-        occurred_at_value = occurred_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        occurred_at_value = transition_time.isoformat().replace("+00:00", "Z")
 
         def event_schema(event_type: str, payload: Mapping[str, Any]) -> tuple[str, str]:
             """Resolve an exact producer binding, falling back only for Discovery shadow events."""
@@ -2573,9 +2589,12 @@ class DiscoveryRuntime:
         projection: dict[str, Any],
         *,
         events: tuple[dict[str, Any], ...] = (),
+        transition_time: datetime | None = None,
         prospective_document: Mapping[str, Any] | None = None,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Prepare one Spike lifecycle transition batch."""
+        if transition_time is None:
+            transition_time = self._trusted_transition_time()
         p = command.envelope["payload"]
         row = p.get("row_id")
         candidate_id, spike_id, decision_id, review_id = (
@@ -2836,7 +2855,7 @@ class DiscoveryRuntime:
                 p.get("attempt_id"),
                 p.get("lease_id"),
             )
-            and self._valid_live_spike_lease(p, command)
+            and self._valid_live_spike_lease(p, command, evaluation_time=transition_time)
             and (
                 not _is_spec_route_candidate(projection, candidate)
                 or isinstance(spec_02_approval, _Spec02ExecutionAuthority)
@@ -2887,10 +2906,10 @@ class DiscoveryRuntime:
             if (p.get("verdict") == "PARTIAL") != (row == "OR-019"):
                 raise IntegrityError("invalid Spike transition")
             if row == "OR-019":
-                attempt, lease = self._live_spike_operational_pair(spike, require_unexpired=True)
-                now = self.clock()
-                if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-                    raise IntegrityError("Discovery operational clock must return an aware datetime")
+                attempt, lease = self._live_spike_operational_pair(
+                    spike,
+                    require_unexpired_at=transition_time,
+                )
                 artifact = p["verdict_artifact"]
                 closure_payload = {
                     **deepcopy(p),
@@ -2921,17 +2940,17 @@ class DiscoveryRuntime:
                             "lease_id": lease["lease_id"],
                             "release_reason": "spike_partial",
                             "holder_actor_id": lease["holder_actor_id"],
-                            "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                            "observed_at": transition_time.isoformat().replace("+00:00", "Z"),
                         },
                     ),
                     ("SpikeAttemptClosed", spike_id, closure_payload),
                     ("SpikeLeaseReleased", spike_id, deepcopy(closure_payload)),
                     ("CandidateSpikePartialLinked", candidate_id, deepcopy(p)),
                 ]
-            attempt, lease = self._live_spike_operational_pair(spike, require_unexpired=True)
-            now = self.clock()
-            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-                raise IntegrityError("Discovery operational clock must return an aware datetime")
+            attempt, lease = self._live_spike_operational_pair(
+                spike,
+                require_unexpired_at=transition_time,
+            )
             artifact = p["verdict_artifact"]
             candidate_artefact_ids = list(
                 dict.fromkeys(
@@ -2963,7 +2982,7 @@ class DiscoveryRuntime:
                         "lease_id": lease["lease_id"],
                         "release_reason": "spike_complete",
                         "holder_actor_id": lease["holder_actor_id"],
-                        "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                        "observed_at": transition_time.isoformat().replace("+00:00", "Z"),
                     },
                 ),
                 ("SpikeAttemptClosed", spike_id, closure_payload),
@@ -3009,9 +3028,6 @@ class DiscoveryRuntime:
             prepared.append(("SpikeCancelled", spike_id, deepcopy(p)))
             if spike.get("status") == "running":
                 attempt, lease = self._live_spike_operational_pair(spike)
-                now = self.clock()
-                if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-                    raise IntegrityError("Discovery operational clock must return an aware datetime")
                 prepared.extend(
                     [
                         (
@@ -3034,7 +3050,7 @@ class DiscoveryRuntime:
                                 "lease_id": lease["lease_id"],
                                 "release_reason": "discovery_evaluation_cancelled",
                                 "holder_actor_id": lease["holder_actor_id"],
-                                "observed_at": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                                "observed_at": transition_time.isoformat().replace("+00:00", "Z"),
                             },
                         ),
                         (
@@ -3284,16 +3300,19 @@ class DiscoveryRuntime:
             ]
         raise IntegrityError(f"invalid Spike transition: {ct}/{row}")
 
-    def _valid_live_spike_lease(self, payload: dict[str, Any], command: Command) -> bool:
+    def _valid_live_spike_lease(
+        self,
+        payload: dict[str, Any],
+        command: Command,
+        *,
+        evaluation_time: datetime,
+    ) -> bool:
         """Resolve the current operational Attempt/Lease relation under the shared writer lock."""
         state = replay_control_plane(self._operational_events())
         attempt = state.stream_states.get(payload.get("attempt_id"))
         lease = state.stream_states.get(payload.get("lease_id"))
         if not isinstance(lease, dict):
             return False
-        now = self.clock()
-        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-            raise IntegrityError("Discovery operational clock must return an aware datetime")
         try:
             expires_at = datetime.fromisoformat(str(lease.get("expires_at")).replace("Z", "+00:00"))
         except (AttributeError, TypeError, ValueError) as exc:
@@ -3307,7 +3326,7 @@ class DiscoveryRuntime:
             and lease.get("status") == "active"
             and lease.get("attempt_id") == payload.get("attempt_id")
             and lease.get("holder_actor_id") == command.actor_id
-            and expires_at > now.astimezone(UTC)
+            and expires_at > evaluation_time
             and payload.get("resource_grant_id") == lease.get("resource_grant_id")
         )
 
@@ -3315,7 +3334,7 @@ class DiscoveryRuntime:
         self,
         spike: Mapping[str, Any],
         *,
-        require_unexpired: bool = False,
+        require_unexpired_at: datetime | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Return the exact current running Attempt and active Lease for a Spike."""
 
@@ -3335,15 +3354,12 @@ class DiscoveryRuntime:
             or lease.get("attempt_id") != spike.get("attempt_id")
         ):
             raise IntegrityError("invalid Spike operational closure")
-        if require_unexpired:
-            now = self.clock()
-            if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
-                raise IntegrityError("Discovery operational clock must return an aware datetime")
+        if require_unexpired_at is not None:
             try:
                 expires_at = datetime.fromisoformat(str(lease.get("expires_at")).replace("Z", "+00:00"))
             except (AttributeError, TypeError, ValueError) as exc:
                 raise IntegrityError("invalid operational lease expiry") from exc
-            if expires_at <= now.astimezone(UTC):
+            if expires_at <= require_unexpired_at:
                 raise IntegrityError("invalid Spike operational closure")
         return attempt, lease
 

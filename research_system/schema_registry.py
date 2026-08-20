@@ -1328,6 +1328,7 @@ class SchemaRegistry:
         """
         self._schemas: dict[tuple[str, str | None], RegisteredSchema] = {}
         self._schemas_by_id: dict[str, dict[str | None, RegisteredSchema]] = {}
+        self._schema_resources: dict[tuple[str, str | None], Resource] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
                 source_path = path.resolve(strict=True)
@@ -1360,6 +1361,10 @@ class SchemaRegistry:
             )
             self._schemas[key] = registered
             self._schemas_by_id.setdefault(schema_id, {})[schema_version] = registered
+            self._schema_resources[key] = Resource.from_contents(
+                schema,
+                default_specification=DRAFT202012,
+            )
         # A referencing.Registry is keyed only by URI.  Registering every
         # version under the same $id silently made filesystem sort order choose
         # which version cross-schema refs resolved.  Keep only unambiguous IDs
@@ -1368,10 +1373,7 @@ class SchemaRegistry:
         self._reference_registry = ReferenceRegistry().with_resources(
             (
                 schema_id,
-                Resource.from_contents(
-                    json.loads(next(iter(versions.values())).raw_bytes),
-                    default_specification=DRAFT202012,
-                ),
+                self._schema_resources[(schema_id, next(iter(versions)))],
             )
             for schema_id, versions in self._schemas_by_id.items()
             if len(versions) == 1
@@ -1447,10 +1449,7 @@ class SchemaRegistry:
             raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.schema_version}")
         validation_registry = self._reference_registry.with_resource(
             entry.schema_id,
-            Resource.from_contents(
-                json.loads(entry.raw_bytes),
-                default_specification=DRAFT202012,
-            ),
+            self._schema_resources[(entry.schema_id, entry.schema_version)],
         )
         try:
             errors = sorted(

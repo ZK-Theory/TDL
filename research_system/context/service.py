@@ -1016,6 +1016,20 @@ class ContextLifecycleService:
             raise ArsError("owner-operated delivery is outside its finite window")
         return observed_at
 
+    @classmethod
+    def _owner_receipt_time(cls, receipt: Mapping[str, Any], profile: Mapping[str, Any]) -> datetime:
+        delivered_at = receipt.get("delivered_at")
+        if not isinstance(delivered_at, str) or not delivered_at.endswith("Z"):
+            raise ArsError("owner-operated delivery receipt time is invalid")
+        try:
+            observed_at = datetime.fromisoformat(delivered_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ArsError("owner-operated delivery receipt time is invalid") from exc
+        starts, expires = cls._owner_window(profile)
+        if observed_at.tzinfo != UTC or not starts <= observed_at < expires:
+            raise ArsError("owner-operated delivery receipt is outside its finite window")
+        return observed_at
+
     def prevalidate_owner_operated(
         self,
         compiled: CompiledContextPacket,
@@ -1339,6 +1353,7 @@ class ContextLifecycleService:
                     or receipt.get("recipient_session_id") != recipient_session_id
                 ):
                     raise ArsError("owner-operated delivery receipt changed after commitment")
+                self._owner_receipt_time(receipt, validated.profile.content)
                 return self._submit(
                     "RecordOwnerOperatedContextDelivery", compiled.context_id, compiled.request_id, prior
                 )
@@ -1354,7 +1369,6 @@ class ContextLifecycleService:
                 or profile.get("operator_session_id") != recipient_session_id
             ):
                 raise ArsError("owner-operated delivery semantic identity differs")
-            delivered_at = self._require_current_owner_window(profile)
             receipt_id = _stable_context_id(
                 f"{compiled.request_id}:{compiled.packet_sha256}:{recipient_id}:{recipient_session_id}:owner-operated"
             )
@@ -1376,7 +1390,9 @@ class ContextLifecycleService:
                     receipt.get(field) != expected for field, expected in receipt_identity.items()
                 ):
                     raise ArsError("owner-operated delivery receipt conflicts with the durable handoff")
+                self._owner_receipt_time(receipt, profile)
             else:
+                delivered_at = self._require_current_owner_window(profile)
                 receipt = {
                     **receipt_identity,
                     "delivered_at": delivered_at.isoformat().replace("+00:00", "Z"),

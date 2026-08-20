@@ -534,7 +534,7 @@ def test_owner_operated_exact_committed_retries_remain_available_after_expiry(tm
     assert writer.events == before
 
 
-def test_owner_operated_orphan_receipt_cannot_be_promoted_after_expiry(tmp_path) -> None:
+def test_owner_operated_exact_orphan_receipt_recovers_after_expiry(tmp_path) -> None:
     class InterruptBeforeDelivery(RecordingContextWriter):
         interrupted = False
 
@@ -574,6 +574,68 @@ def test_owner_operated_orphan_receipt_cannot_be_promoted_after_expiry(tmp_path)
     receipt_bytes = {path: path.read_bytes() for path in receipt_paths}
     current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
 
+    recovered = lifecycle.record_owner_operated_delivery(
+        compiled,
+        validated,
+        recipient_id="spec-brief-consumer",
+        recipient_session_id="codex-desktop-session-1",
+    )
+
+    assert recovered["status"] == "accepted"
+    assert len([event for event in writer.events if event["event_type"] == "OwnerOperatedContextDelivered"]) == 1
+    assert {path: path.read_bytes() for path in receipt_paths} == receipt_bytes
+
+
+def test_owner_operated_orphan_receipt_outside_original_window_remains_rejected(tmp_path) -> None:
+    class InterruptBeforeDelivery(RecordingContextWriter):
+        interrupted = False
+
+        def submit_context(self, **kwargs):
+            if kwargs["command_type"] == "RecordOwnerOperatedContextDelivery" and not self.interrupted:
+                self.interrupted = True
+                raise ConnectionError("delivery event response unavailable")
+            return super().submit_context(**kwargs)
+
+    current = [datetime(2026, 8, 14, 11, tzinfo=UTC)]
+    objects = ObjectStore(tmp_path)
+    writer = InterruptBeforeDelivery()
+    lifecycle = ContextLifecycleService(objects, writer, writer_id="spec-owner", clock=lambda: current[0])
+    compiled = compile_valid(lifecycle, new_id("context"))
+    validated = lifecycle.prevalidate_owner_operated(
+        compiled,
+        capability=compiled.capability,
+        operator_id="stephen",
+        operator_session_id="codex-desktop-session-1",
+        recipient_id="spec-brief-consumer",
+        purpose="methods_brief",
+        scope="rm-03-export",
+        accepted_artefacts=({"artefact_id": new_id("artefact"), "content_sha256": "1" * 64},),
+        application_version="1.0",
+        valid_from="2026-08-14T10:00:00Z",
+        expires_at="2026-08-14T12:00:00Z",
+    )
+    lifecycle.issue_owner_operated(validated)
+    with pytest.raises(ConnectionError, match="response unavailable"):
+        lifecycle.record_owner_operated_delivery(
+            compiled,
+            validated,
+            recipient_id="spec-brief-consumer",
+            recipient_session_id="codex-desktop-session-1",
+        )
+    receipt_path = next(
+        path
+        for path in (tmp_path / "objects" / "context").rglob("*.json")
+        if json.loads(path.read_bytes()).get("schema_id") == "ars://wp6-6/owner-operated-context-delivery-receipt"
+    )
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt["delivered_at"] = "2026-08-14T12:00:00Z"
+    changed_bytes = canonical_bytes(receipt)
+    changed_path = receipt_path.with_name(f"00000001-{sha256_hex(changed_bytes)}.json")
+    changed_path.write_bytes(changed_bytes)
+    receipt_path.unlink()
+    current[0] = datetime(2026, 8, 14, 12, tzinfo=UTC)
+    before_events = deepcopy(writer.events)
+
     with pytest.raises(ArsError, match="outside its finite window"):
         lifecycle.record_owner_operated_delivery(
             compiled,
@@ -582,8 +644,7 @@ def test_owner_operated_orphan_receipt_cannot_be_promoted_after_expiry(tmp_path)
             recipient_session_id="codex-desktop-session-1",
         )
 
-    assert not any(event["event_type"] == "OwnerOperatedContextDelivered" for event in writer.events)
-    assert {path: path.read_bytes() for path in receipt_paths} == receipt_bytes
+    assert writer.events == before_events
 
 
 def test_owner_operated_prevalidation_resumes_after_prepare_before_validate(tmp_path) -> None:

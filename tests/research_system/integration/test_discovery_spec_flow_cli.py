@@ -2301,10 +2301,7 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
-@pytest.mark.integration
-def test_spec_status_rejects_registered_brief_with_unbound_internal_manifest(
-    spec_inputs: dict[str, Any],
-) -> None:
+def _registered_brief_document(spec_inputs: dict[str, Any]) -> dict[str, Any]:
     document = _brief_document(spec_inputs)
     brief_manifest = {
         "brief_artefact_id": "art_019ffe2b-fd4b-7000-8000-000000000121",
@@ -2347,7 +2344,11 @@ def test_spec_status_rejects_registered_brief_with_unbound_internal_manifest(
     }
     brief_manifest["brief_sha256"] = sha256_hex(canonical_bytes(brief_manifest))
     document["brief_manifest"] = brief_manifest
-    document["brief_manifest_sha256"] = "f" * 64
+    document["brief_manifest_sha256"] = sha256_hex(canonical_bytes(brief_manifest))
+    return document
+
+
+def _register_generic_spec_brief(spec_inputs: dict[str, Any], document: Mapping[str, Any]) -> None:
     artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000120"
     grant_id = activate_lifecycle_grant(
         spec_inputs["harness"],
@@ -2379,10 +2380,48 @@ def test_spec_status_rejects_registered_brief_with_unbound_internal_manifest(
         ),
         command_service=spec_inputs["harness"].service,
     )
+
+
+@pytest.mark.integration
+def test_spec_status_ignores_registered_brief_without_action_proof(
+    spec_inputs: dict[str, Any],
+) -> None:
+    _register_generic_spec_brief(spec_inputs, _registered_brief_document(spec_inputs))
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    documents = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
+
+    assert documents == {}
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+def test_spec_status_revalidates_action_produced_brief_content(
+    spec_inputs: dict[str, Any],
+) -> None:
+    document = _registered_brief_document(spec_inputs)
+    document["brief_manifest_sha256"] = "f" * 64
+    _register_generic_spec_brief(spec_inputs, document)
+    CandidateDocumentStore(
+        spec_inputs["binding"].control_root,
+        relative_directory=Path("runtime/spec-flow-actions"),
+    ).publish_bytes(
+        "prepare_spec_01",
+        canonical_bytes(
+            {
+                "schema_id": "ars://internal/spec-flow-action-identity",
+                "schema_version": "1.0.0",
+                "route_id": "SPEC-GATE6-RUN-V1",
+                "action": "prepare_spec_01",
+                "retry_id": "spec-flow:test-action-proof",
+                "packet_sha256": "a" * 64,
+            }
+        ),
+    )
     before = _tree_snapshot(spec_inputs["binding"].control_root)
 
     with pytest.raises(IntegrityError, match="does not bind its exact manifest"):
-        cli.main(_status_argv(spec_inputs))
+        SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 

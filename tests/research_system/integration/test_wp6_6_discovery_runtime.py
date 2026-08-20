@@ -5241,7 +5241,36 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 runtime.submit(command)
             assert tuple(runtime.ledger.iter_events()) == before
             runtime.operational_ledger = canonical_ledger
-        assert runtime.submit(command).status == "accepted"
+        if row_id in {"OR-018", "OR-019"}:
+            original_pair = runtime._live_spike_operational_pair
+            original_clock = runtime.clock
+            lease_expires = datetime.fromisoformat(
+                str(operational_state[lease_id]["expires_at"]).replace("Z", "+00:00")
+            )
+
+            def expire_clock_after_lease_check(*args, **kwargs):
+                result = original_pair(*args, **kwargs)
+                runtime.clock = lambda: lease_expires
+                return result
+
+            runtime._live_spike_operational_pair = expire_clock_after_lease_check
+            try:
+                assert runtime.submit(command).status == "accepted"
+            finally:
+                runtime._live_spike_operational_pair = original_pair
+                runtime.clock = original_clock
+            verdict_events = [
+                event for event in runtime.ledger.iter_events() if event.get("command_id") == command["command_id"]
+            ]
+            assert verdict_events
+            assert all(
+                datetime.fromisoformat(event["occurred_at"].replace("Z", "+00:00")) < lease_expires
+                for event in verdict_events
+            )
+            lease_release = next(event for event in verdict_events if event["event_type"] == "LeaseReleased")
+            assert lease_release["payload"]["observed_at"] == lease_release["occurred_at"]
+        else:
+            assert runtime.submit(command).status == "accepted"
         if row_id == "OR-013":
             for selected_option, next_state in (("PARK", "parked"), ("KILL", "killed")):
                 terminal = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
