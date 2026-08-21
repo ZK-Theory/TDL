@@ -26,6 +26,7 @@ from research_system.store.binding_repair import (
     RepairStoreBinding,
     advance_store_binding,
     load_recovery_binding,
+    read_advance_intent,
     repair_store_binding,
 )
 from research_system.store.identity import load_store_manifest
@@ -124,6 +125,12 @@ def _publication_snapshot(target: Path) -> tuple[bytes, tuple[tuple[str, bytes],
         for path in sorted((target / "receipts").rglob("*.json"))
     )
     return (target / "manifests" / "store-identity.json").read_bytes(), events, receipts
+
+
+def _store_snapshot(target: Path) -> tuple[tuple[str, bytes], ...]:
+    return tuple(
+        (path.relative_to(target).as_posix(), path.read_bytes()) for path in sorted(target.rglob("*")) if path.is_file()
+    )
 
 
 def test_binding_artifact_publication_ignores_foreign_hidden_debris(tmp_path: Path) -> None:
@@ -594,6 +601,228 @@ def test_binding_advance_rejects_rehashed_misbound_manifest_without_mutation(tmp
         advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
 
     assert _publication_snapshot(target) == before
+
+
+def test_owner_bound_route_successor_advance_accepts_only_its_exact_reviewed_transition(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Remediation-red: the public intent must bind the old route, new route, predecessor, and head."""
+    _initialized, witness, target, candidate, _foundation, repair_intent = _fixture(tmp_path, monkeypatch)
+    repaired = repair_store_binding(repair_intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    predecessor_raw = (target / "manifests" / "binding-repair-current.json").read_bytes()
+    route_path = candidate / ".research-system" / "contracts" / "wp6-6" / "spec-gate6-run-v1" / "route-package.json"
+    route = json.loads(route_path.read_bytes())
+    route["governing_sources"].append("owner-decision:reviewed-route-successor-test")
+    route_path.write_bytes(canonical_bytes(route))
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "reviewed route successor")
+    candidate_head = subprocess.run(
+        ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    semantic = _advance_intent(repair_intent).semantic_payload()
+    semantic.update(
+        {
+            "owner_action": "advance-reviewed-route-successor-store-binding",
+            "idempotency_key": "binding-advance:route-successor:test:1",
+            "reason": "Adopt the exact independently reviewed route successor for replay verification.",
+            "expected_predecessor_binding_sha256": sha256_hex(predecessor_raw),
+            "expected_candidate_git_head": candidate_head,
+            "expected_predecessor_route_sha256": repaired["recovery_binding"]["route"]["sha256"],
+            "expected_successor_route_sha256": sha256_hex(route_path.read_bytes()),
+        }
+    )
+    source = tmp_path / "advance-reviewed-route-successor.json"
+    source.write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+                "schema_version": "1.0.0",
+                "command_type": "AdvanceStoreBinding",
+                **semantic,
+            }
+        )
+    )
+
+    result = advance_store_binding(
+        read_advance_intent(source),
+        now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+    )
+
+    assert result["status"] == "advanced"
+    assert result["recovery_binding"]["git_head"] == candidate_head
+    assert result["recovery_binding"]["route"]["sha256"] == semantic["expected_successor_route_sha256"]
+    binding_path = _binding_file(tmp_path, target, candidate, witness)
+    assert ControlBinding.load_repaired(binding_path).schema_root == candidate / ".research-system" / "schemas"
+    recovery_path = target / "manifests" / "binding-repair-current.json"
+    recovery_raw = recovery_path.read_bytes()
+    tampered = deepcopy(result["recovery_binding"])
+    tampered["route_successor_authority"]["successor_route_sha256"] = "0" * 64
+    recovery_path.write_bytes(canonical_bytes(tampered))
+    with pytest.raises(IntegrityError, match="route successor relation is invalid"):
+        load_recovery_binding(
+            target.resolve(),
+            expected_project_id=witness.project_id,
+            expected_store_identity=witness.store_identity,
+            expected_origin_witness_sha256=witness.raw_sha256,
+        )
+    recovery_path.write_bytes(recovery_raw)
+
+    (candidate / "post-route-successor.txt").write_text("ordinary reviewed descendant\n", encoding="utf-8")
+    _git(candidate, "add", "post-route-successor.txt")
+    _git(candidate, "commit", "-q", "-m", "ordinary descendant after route successor")
+    ordinary = advance_store_binding(
+        _advance_intent(repair_intent),
+        now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+    )
+    assert ordinary["recovery_binding"]["owner_action"] == "advance-clean-descendant-store-binding"
+    assert "route_successor_authority" not in ordinary["recovery_binding"]
+    assert ControlBinding.load_repaired(binding_path).schema_root == candidate / ".research-system" / "schemas"
+
+
+def test_route_successor_rejects_every_inexact_binding_and_changed_spec_without_store_mutation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Every owner-bound transition coordinate is exact, and route review cannot admit new SPEC bytes."""
+    _initialized, _witness, target, candidate, _foundation, repair_intent = _fixture(tmp_path, monkeypatch)
+    repaired = repair_store_binding(repair_intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    predecessor_raw = (target / "manifests" / "binding-repair-current.json").read_bytes()
+    route_path = candidate / ".research-system" / "contracts" / "wp6-6" / "spec-gate6-run-v1" / "route-package.json"
+    route = json.loads(route_path.read_bytes())
+    route["governing_sources"].append("owner-decision:reviewed-route-successor-negative-test")
+    route_path.write_bytes(canonical_bytes(route))
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "reviewed route successor")
+    candidate_head = subprocess.run(
+        ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    exact = _advance_intent(repair_intent).semantic_payload()
+    exact.update(
+        {
+            "owner_action": "advance-reviewed-route-successor-store-binding",
+            "idempotency_key": "binding-advance:route-successor:negative:test:1",
+            "reason": "Adopt only the exact independently reviewed route successor transition.",
+            "expected_predecessor_binding_sha256": sha256_hex(predecessor_raw),
+            "expected_candidate_git_head": candidate_head,
+            "expected_predecessor_route_sha256": repaired["recovery_binding"]["route"]["sha256"],
+            "expected_successor_route_sha256": sha256_hex(route_path.read_bytes()),
+        }
+    )
+    source = tmp_path / "advance-reviewed-route-successor-negative.json"
+
+    for field, replacement in (
+        ("expected_predecessor_binding_sha256", "0" * 64),
+        ("expected_candidate_git_head", "0" * 40),
+        ("expected_predecessor_route_sha256", "0" * 64),
+        ("expected_successor_route_sha256", "0" * 64),
+    ):
+        inexact = {**exact, field: replacement}
+        source.write_bytes(
+            canonical_bytes(
+                {
+                    "schema_id": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+                    "schema_version": "1.0.0",
+                    "command_type": "AdvanceStoreBinding",
+                    **inexact,
+                }
+            )
+        )
+        before = _store_snapshot(target)
+        with pytest.raises(IntegrityError, match="route successor authority is not exact"):
+            advance_store_binding(
+                read_advance_intent(source),
+                now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            )
+        assert _store_snapshot(target) == before
+
+    spec_path = (
+        candidate / ".research-system" / "contracts" / "wp6-6" / "spec-gate6-run-v1" / "spec-01-assay-brief-v1.1.0.md"
+    )
+    spec_path.write_bytes(spec_path.read_bytes() + b"\nchanged after route review\n")
+    _git(candidate, "add", ".")
+    _git(candidate, "commit", "-q", "-m", "change protected SPEC source")
+    exact["expected_candidate_git_head"] = subprocess.run(
+        ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    source.write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+                "schema_version": "1.0.0",
+                "command_type": "AdvanceStoreBinding",
+                **exact,
+            }
+        )
+    )
+    before = _store_snapshot(target)
+    with pytest.raises(IntegrityError, match="SPEC route/source SHA mismatch"):
+        advance_store_binding(
+            read_advance_intent(source),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+        )
+    assert _store_snapshot(target) == before
+
+
+def test_legacy_advance_intent_identity_is_retry_only_for_new_publication(tmp_path: Path, monkeypatch) -> None:
+    """Remediation-red: a flat input may not claim the durable envelope schema for a new event."""
+    _initialized, _witness, target, candidate, _foundation, repair_intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(repair_intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    semantic = _advance_intent(repair_intent).semantic_payload()
+    legacy_source = tmp_path / "legacy-advance-intent.json"
+    legacy_source.write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding",
+                "schema_version": "1.0.0",
+                "command_type": "AdvanceStoreBinding",
+                **semantic,
+            }
+        )
+    )
+    before = _publication_snapshot(target)
+
+    with pytest.raises(ConflictError, match="legacy AdvanceStoreBinding intent identity"):
+        advance_store_binding(
+            read_advance_intent(legacy_source),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+        )
+    assert _publication_snapshot(target) == before
+
+    public_source = tmp_path / "advance-intent.json"
+    public_source.write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+                "schema_version": "1.0.0",
+                "command_type": "AdvanceStoreBinding",
+                **semantic,
+            }
+        )
+    )
+    accepted = advance_store_binding(
+        read_advance_intent(public_source),
+        now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+    )
+    assert (
+        advance_store_binding(
+            read_advance_intent(legacy_source),
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+        )
+        == accepted
+    )
 
 
 @pytest.mark.parametrize("phase", ["marker", "object", "event", "receipt", "recovery"])

@@ -20,7 +20,7 @@ import yaml
 from research_system.authority import _validate_bootstrap, authority_bootstrap_sha256
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
-from research_system.errors import ConfigurationError, ConflictError, IntegrityError
+from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
 from research_system.git_provenance import read_exact_committed_physical_file as _committed_candidate_file
 from research_system.ids import validate_id
@@ -50,6 +50,7 @@ OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
 RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
 ADVANCE_RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingAdvance"
 ADVANCE_COMMAND_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
+ADVANCE_INTENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding"
 ADVANCE_EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
 ADVANCE_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
 RECOVERY_BINDING_SCHEMA_ID = "ars://internal/store-binding-recovery"
@@ -361,6 +362,12 @@ class AdvanceStoreBinding:
     owner_action: str
     idempotency_key: str
     reason: str
+    expected_predecessor_binding_sha256: str | None = None
+    expected_candidate_git_head: str | None = None
+    expected_predecessor_route_sha256: str | None = None
+    expected_successor_route_sha256: str | None = None
+    input_schema_id: str = ADVANCE_INTENT_SCHEMA_ID
+    input_schema_version: str = "1.0.0"
 
     @property
     def spec_route_ref(self) -> str:
@@ -374,20 +381,98 @@ class AdvanceStoreBinding:
         )
 
     def semantic_payload(self) -> dict[str, Any]:
-        return {name: str(value) if isinstance(value, Path) else value for name, value in self.__dict__.items()}
+        names = (
+            "control_root",
+            "candidate_repository_root",
+            "expected_project_id",
+            "expected_store_identity",
+            "expected_origin_authority_root",
+            "expected_origin_witness_sha256",
+            "intended_schema_root",
+            "valid_from",
+            "expires_at",
+            "owner_actor_id",
+            "owner_action",
+            "idempotency_key",
+            "reason",
+        )
+        payload = {name: str(value) if isinstance(value := getattr(self, name), Path) else value for name in names}
+        route_successor = {
+            "expected_predecessor_binding_sha256": self.expected_predecessor_binding_sha256,
+            "expected_candidate_git_head": self.expected_candidate_git_head,
+            "expected_predecessor_route_sha256": self.expected_predecessor_route_sha256,
+            "expected_successor_route_sha256": self.expected_successor_route_sha256,
+        }
+        if any(value is not None for value in route_successor.values()):
+            payload.update(route_successor)
+        return payload
+
+    def input_mapping(self) -> dict[str, Any]:
+        """Return the canonical flat public intent document."""
+
+        return {
+            "schema_id": self.input_schema_id,
+            "schema_version": self.input_schema_version,
+            "command_type": "AdvanceStoreBinding",
+            **self.semantic_payload(),
+        }
+
+    def route_successor_binding(self) -> dict[str, str] | None:
+        fields = {
+            "predecessor_binding_sha256": self.expected_predecessor_binding_sha256,
+            "candidate_git_head": self.expected_candidate_git_head,
+            "predecessor_route_sha256": self.expected_predecessor_route_sha256,
+            "successor_route_sha256": self.expected_successor_route_sha256,
+        }
+        if all(value is None for value in fields.values()):
+            return None
+        if not all(isinstance(value, str) and value for value in fields.values()):
+            raise ConfigurationError("AdvanceStoreBinding route successor bindings must be complete")
+        return {name: str(value) for name, value in fields.items()}
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "AdvanceStoreBinding":
         payload = dict(value)
+        input_schema_id = payload.pop("schema_id", None)
+        input_schema_version = payload.pop("schema_version", None)
         if (
-            payload.pop("schema_id", None) != ADVANCE_COMMAND_SCHEMA_ID
-            or payload.pop("schema_version", None) != "1.0.0"
+            input_schema_id not in {ADVANCE_INTENT_SCHEMA_ID, ADVANCE_COMMAND_SCHEMA_ID}
+            or input_schema_version != "1.0.0"
         ):
             raise ConfigurationError("AdvanceStoreBinding intent schema is unsupported")
         if payload.pop("command_type", None) != "AdvanceStoreBinding":
             raise ConfigurationError("raw generic command forgery is not admitted")
-        if set(payload) != set(cls.__dataclass_fields__):
+        base_fields = {
+            "control_root",
+            "candidate_repository_root",
+            "expected_project_id",
+            "expected_store_identity",
+            "expected_origin_authority_root",
+            "expected_origin_witness_sha256",
+            "intended_schema_root",
+            "valid_from",
+            "expires_at",
+            "owner_actor_id",
+            "owner_action",
+            "idempotency_key",
+            "reason",
+        }
+        route_fields = {
+            "expected_predecessor_binding_sha256",
+            "expected_candidate_git_head",
+            "expected_predecessor_route_sha256",
+            "expected_successor_route_sha256",
+        }
+        payload_fields = frozenset(payload)
+        if payload_fields not in {frozenset(base_fields), frozenset(base_fields | route_fields)}:
             raise ConfigurationError("AdvanceStoreBinding intent fields are not exact")
+        route_successor = route_fields <= payload_fields
+        if (route_successor and payload.get("owner_action") != "advance-reviewed-route-successor-store-binding") or (
+            not route_successor and payload.get("owner_action") != "advance-clean-descendant-store-binding"
+        ):
+            raise ConfigurationError("AdvanceStoreBinding owner action does not match its exact intent shape")
+        if input_schema_id == ADVANCE_COMMAND_SCHEMA_ID and route_successor:
+            raise ConfigurationError("legacy AdvanceStoreBinding identity cannot authorize a route successor")
         for field in (
             "control_root",
             "candidate_repository_root",
@@ -397,12 +482,25 @@ class AdvanceStoreBinding:
             payload[field] = Path(str(payload[field]))
         payload["expected_project_id"] = validate_id(str(payload["expected_project_id"]), "project")
         payload["owner_actor_id"] = validate_id(str(payload["owner_actor_id"]), "actor")
-        return cls(**payload)
+        return cls(
+            **payload,
+            input_schema_id=str(input_schema_id),
+            input_schema_version=str(input_schema_version),
+        )
 
 
 def read_advance_intent(path: Path) -> AdvanceStoreBinding:
     value, _raw = _read_canonical_json(path, "AdvanceStoreBinding intent")
-    return AdvanceStoreBinding.from_mapping(value)
+    intent = AdvanceStoreBinding.from_mapping(value)
+    if intent.input_schema_id == ADVANCE_INTENT_SCHEMA_ID:
+        from research_system.schema_registry import bundled_schema_registry
+
+        bundled_schema_registry().validate(
+            ADVANCE_INTENT_SCHEMA_ID,
+            value,
+            schema_version=intent.input_schema_version,
+        )
+    return intent
 
 
 def _foundation_pins(
@@ -639,10 +737,24 @@ def advance_store_binding(
     expires = _parse_time(intent.expires_at, "expires_at")
     if starts >= expires:
         raise ConfigurationError("AdvanceStoreBinding owner intent is expired or nonfinite")
-    if intent.owner_action != "advance-clean-descendant-store-binding" or len(intent.reason.strip()) < 12:
+    route_successor = intent.route_successor_binding()
+    expected_action = (
+        "advance-reviewed-route-successor-store-binding"
+        if route_successor is not None
+        else "advance-clean-descendant-store-binding"
+    )
+    if intent.owner_action != expected_action or len(intent.reason.strip()) < 12:
         raise ConfigurationError("AdvanceStoreBinding requires the exact semantic owner action and reason")
     if not _is_sha256(intent.expected_store_identity) or not _is_sha256(intent.expected_origin_witness_sha256):
         raise ConfigurationError("AdvanceStoreBinding expected identities are invalid")
+    if route_successor is not None and (
+        not _is_sha256(route_successor["predecessor_binding_sha256"])
+        or not _is_sha256(route_successor["predecessor_route_sha256"])
+        or not _is_sha256(route_successor["successor_route_sha256"])
+        or len(route_successor["candidate_git_head"]) != 40
+        or any(character not in "0123456789abcdef" for character in route_successor["candidate_git_head"])
+    ):
+        raise ConfigurationError("AdvanceStoreBinding route successor identities are invalid")
     control = intent.control_root.resolve(strict=True)
     runtime = _require_physical_directory(control / "runtime", label="binding advance runtime")
     marker_path = runtime / ".binding-advance-transaction.json"
@@ -733,6 +845,12 @@ def _advance_store_binding_locked(
     scope = (intent.owner_actor_id, "store-binding-recovery", "AdvanceStoreBinding", intent.idempotency_key)
     authority_hash = sha256_hex(canonical_bytes({"actor_id": intent.owner_actor_id, "action": intent.owner_action}))
     schemas = runtime_schema_registry(Path(candidate["schema_root"]))
+    ledger = EventLedger(
+        control,
+        intent.expected_project_id,
+        schemas,
+        store_identity=intent.expected_store_identity,
+    )
     receipt_store = ReceiptStore(control)
     existing_receipt = receipt_store.load_scoped(
         scope,
@@ -745,6 +863,8 @@ def _advance_store_binding_locked(
     if predecessor.get("schema_version") == "1.1.0" and predecessor.get("command_payload_hash") == payload_hash:
         if existing_receipt is None:
             raise IntegrityError("binding advance recovery exists without its durable receipt")
+        if _advance_event_for_command(ledger, payload_hash, intent.idempotency_key) is None:
+            raise IntegrityError("binding advance recovery exists without its durable event")
         schemas.validate(ADVANCE_RECEIPT_SCHEMA_ID, _binding_receipt_record(existing_receipt))
         expected_marker = canonical_bytes(
             {
@@ -760,18 +880,29 @@ def _advance_store_binding_locked(
         fsync_directory(marker_path.parent)
         return {"status": "advanced", "recovery_binding": predecessor, "receipt": existing_receipt.__dict__}
 
+    existing_event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
+    if intent.input_schema_id == ADVANCE_COMMAND_SCHEMA_ID and existing_event is None:
+        raise ConflictError("legacy AdvanceStoreBinding intent identity is permitted only for an exact committed retry")
+
     _run_git(Path(candidate["repository_root"]), "merge-base", "--is-ancestor", old_head, candidate["git_head"])
     if old_head == candidate["git_head"]:
         raise ConflictError("binding advance requires a strict Git descendant")
-    if predecessor.get("route") != candidate["route"] or predecessor.get("sources") != candidate["sources"]:
+    route_successor = intent.route_successor_binding()
+    if route_successor is None and (
+        predecessor.get("route") != candidate["route"] or predecessor.get("sources") != candidate["sources"]
+    ):
         raise IntegrityError("binding advance changed protected route or SPEC bytes")
+    if route_successor is not None and (
+        sha256_hex(predecessor_raw) != route_successor["predecessor_binding_sha256"]
+        or candidate["git_head"] != route_successor["candidate_git_head"]
+        or not isinstance(predecessor.get("route"), dict)
+        or predecessor["route"].get("sha256") != route_successor["predecessor_route_sha256"]
+        or candidate["route"].get("sha256") != route_successor["successor_route_sha256"]
+        or predecessor.get("route") == candidate["route"]
+        or predecessor.get("sources") != candidate["sources"]
+    ):
+        raise IntegrityError("binding advance route successor authority is not exact")
 
-    ledger = EventLedger(
-        control,
-        intent.expected_project_id,
-        schemas,
-        store_identity=intent.expected_store_identity,
-    )
     successor = {
         **predecessor,
         "schema_version": "1.1.0",
@@ -784,6 +915,10 @@ def _advance_store_binding_locked(
         "owner_action": intent.owner_action,
         "idempotency_key": intent.idempotency_key,
     }
+    successor.pop("route_successor_authority", None)
+    if route_successor is not None:
+        successor["route"] = candidate["route"]
+        successor["route_successor_authority"] = route_successor
     successor_raw = canonical_bytes(successor)
     successor_sha = sha256_hex(successor_raw)
     object_path = control / "objects" / "binding-repair" / f"sha256-{successor_sha}.json"
@@ -817,7 +952,7 @@ def _advance_store_binding_locked(
         _publish(control, object_path, successor_raw)
         if phase_hook:
             phase_hook("object")
-        event = _advance_event_for_command(ledger, payload_hash, intent.idempotency_key)
+        event = existing_event
         if event is None:
             result = ledger._append_binding_repair_from_validated_service(
                 {
@@ -1264,4 +1399,32 @@ def load_recovery_binding(
         )
         if len(source_raw) != source["size_bytes"] or sha256_hex(source_raw) != source["sha256"]:
             raise IntegrityError("binding recovery SPEC source changed")
+    if value.get("schema_version") == "1.1.0":
+        try:
+            runtime_schema_registry(schema).validate(ADVANCE_OBJECT_SCHEMA_ID, value)
+        except SchemaError as exc:
+            raise IntegrityError("binding recovery advance authority is invalid") from exc
+        if value.get("owner_action") == "advance-reviewed-route-successor-store-binding":
+            authority = value["route_successor_authority"]
+            predecessor_sha256 = value["predecessor_binding_sha256"]
+            predecessor_path = _require_physical_regular_file(
+                control / "objects" / "binding-repair" / f"sha256-{predecessor_sha256}.json",
+                label="binding recovery route predecessor object",
+            )
+            predecessor, predecessor_raw = _read_canonical_json(
+                predecessor_path,
+                "binding recovery route predecessor object",
+            )
+            predecessor_route = predecessor.get("route")
+            if (
+                sha256_hex(predecessor_raw) != predecessor_sha256
+                or authority["predecessor_binding_sha256"] != predecessor_sha256
+                or authority["candidate_git_head"] != value.get("git_head")
+                or not isinstance(predecessor_route, dict)
+                or authority["predecessor_route_sha256"] != predecessor_route.get("sha256")
+                or authority["successor_route_sha256"] != route["sha256"]
+                or predecessor.get("route") == route
+                or predecessor.get("sources") != sources
+            ):
+                raise IntegrityError("binding recovery route successor relation is invalid")
     return value

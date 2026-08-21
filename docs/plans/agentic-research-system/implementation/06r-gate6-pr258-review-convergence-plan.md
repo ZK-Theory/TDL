@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 
-**Status:** `IN_PROGRESS / local_invariants_complete_owner_intent_pending`
+**Status:** `IN_PROGRESS / reviewed_route_successor_ready_for_live_advance`
 
 **Authority:** bounded subordinate plan to
 [06q](06q-gate6-spec-real-run-integration-and-follow-up.md). This document does
@@ -347,6 +347,49 @@ in-progress marker exists for this candidate. The implementation therefore
 rejects their reuse. A new owner-issued intent is a genuine remaining authority
 input; it will not be synthesized from an old intent or treated as implied by
 green local tests.
+
+### 7.2 Reviewed route-successor correction — 2026-08-21
+
+Stephen subsequently gave the explicit instruction to issue the current owner
+intent and run the governed advance. The execution preflight then found that a
+plain clean-descendant advance would still be correctly rejected: the live
+binding records route-package SHA-256 `4115f135c3459465ad492295366d1877a6ccc03549c7b53b893e00655567c14f`,
+whereas the reviewed candidate records
+`fad7c5a9c9fd3cdec85125b20f006b7989c050d3050ec7fe7e7eb531744692d4`.
+The two protected SPEC source files remain byte-identical. The route change is
+the governed PARK-test and owner-decision registration added during review, not
+an unexplained source mutation.
+
+The advance seam now has a separate reviewed-route-successor variant. Its
+public owner intent binds the predecessor binding hash, predecessor route hash,
+successor route hash, and exact candidate commit. All four coordinates are
+conjunctive; the route must actually change; both SPEC source records must
+remain identical; and any mismatch rejects before publication with a complete
+store-byte snapshot unchanged. The accepted successor retains those four
+coordinates as transition authority, and recovery independently re-derives
+their relation to the immutable predecessor object, current route, exact Git
+head, and protected sources.
+
+The flat public intent now has its own registered schema rather than claiming
+the durable command-envelope identity. The legacy flat identity is accepted
+only for an exact command already committed to the ledger, preserving old
+idempotent retries without allowing new publication. Transition-local route
+authority is removed from a later ordinary descendant successor; its immutable
+predecessor object retains the historical route transition.
+
+The watched positive, four-coordinate negative, changed-SPEC, legacy retry,
+authority-tamper, and route-successor-to-ordinary-descendant controls pass. The
+complete 17-case binding-advance regression passes, including five crash
+phases, expiry recovery, concurrent predecessor selection, and redirection
+defences. All 54 schema-registry tests pass. Ruff, formatting, syntax
+compilation, and `git diff --check` pass.
+
+The remaining operational action is now concrete: freeze this implementation
+as a clean commit, materialize the newly authorized intent against that exact
+commit and the current live predecessor, run the governed route-successor
+advance, and then run general replay and public SPEC status with before/after
+byte inventories. No push, external-review operation, or merge is authorized
+by this step.
 
 ## 8. Validation and exact-head review
 
