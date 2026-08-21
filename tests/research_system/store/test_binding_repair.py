@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -593,7 +596,7 @@ def test_binding_advance_rejects_rehashed_misbound_manifest_without_mutation(tmp
     assert _publication_snapshot(target) == before
 
 
-@pytest.mark.parametrize("phase", ["object", "event", "receipt", "recovery"])
+@pytest.mark.parametrize("phase", ["marker", "object", "event", "receipt", "recovery"])
 def test_binding_advance_recovers_after_each_publication_phase(tmp_path: Path, monkeypatch, phase: str) -> None:
     _initialized, _witness, _target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
@@ -641,6 +644,90 @@ def test_started_binding_advance_recovers_after_owner_window_expires(tmp_path: P
     assert result["status"] == "advanced"
 
 
+def test_binding_advance_serializes_predecessor_selection_and_leaves_no_losing_residue(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Only the lock holder may select the predecessor and publish its successor."""
+    _initialized, witness, target, candidate, _foundation, repair_intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(repair_intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+
+    winner_intent = _advance_intent(repair_intent)
+    loser_intent = replace(winner_intent, idempotency_key="binding-advance:test:loser")
+    winner_locked = threading.Event()
+    loser_waiting = threading.Event()
+    winner_done = threading.Event()
+    original_lock = binding_repair_module.WriterLock
+    winner_writer_id = f"binding-advance:{sha256_hex(canonical_bytes(winner_intent.semantic_payload()))}"
+
+    class OrderedWriterLock:
+        def __init__(self, path: Path, identity: dict[str, str]):
+            self._delegate = original_lock(path, identity)
+            self._is_winner = identity["writer_id"] == winner_writer_id
+
+        def __enter__(self):
+            if not self._is_winner:
+                loser_waiting.set()
+                assert winner_done.wait(timeout=60)
+            held = self._delegate.__enter__()
+            if self._is_winner:
+                winner_locked.set()
+            return held
+
+        def __exit__(self, exc_type, exc, traceback):
+            try:
+                return self._delegate.__exit__(exc_type, exc, traceback)
+            finally:
+                if self._is_winner:
+                    winner_done.set()
+
+    monkeypatch.setattr(binding_repair_module, "WriterLock", OrderedWriterLock)
+
+    def hold_winner_until_loser_reaches_the_transaction_boundary(phase: str) -> None:
+        if phase == "object":
+            assert loser_waiting.wait(timeout=60)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        winner = pool.submit(
+            advance_store_binding,
+            winner_intent,
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+            phase_hook=hold_winner_until_loser_reaches_the_transaction_boundary,
+        )
+        assert winner_locked.wait(timeout=60)
+        loser = pool.submit(
+            advance_store_binding,
+            loser_intent,
+            now=lambda: datetime(2026, 8, 14, tzinfo=UTC),
+        )
+        assert winner.result(timeout=60)["status"] == "advanced"
+        with pytest.raises(ConflictError, match="strict Git descendant"):
+            loser.result(timeout=60)
+
+    ledger = EventLedger(
+        target,
+        witness.project_id,
+        runtime_schema_registry(candidate / ".research-system" / "schemas"),
+        store_identity=witness.store_identity,
+    )
+    advances = tuple(event for event in ledger.iter_events() if event["event_type"] == "StoreBindingAdvanced")
+    assert [event["idempotency_key"] for event in advances] == [winner_intent.idempotency_key]
+    loser_payload_hash = sha256_hex(canonical_bytes(loser_intent.semantic_payload())).encode("ascii")
+    owned_residue = tuple(
+        path.relative_to(target).as_posix()
+        for root in (target / "objects", target / "events", target / "receipts")
+        for path in root.rglob("*")
+        if path.is_file() and loser_payload_hash in path.read_bytes()
+    )
+    assert owned_residue == ()
+    assert not (target / "runtime" / ".binding-advance-transaction.json").exists()
+    assert len(tuple((target / "objects" / "binding-repair").glob("*.json"))) == 2
+    assert len(tuple((target / "receipts").glob("binding-advance-*.json"))) == 1
+
+
 def test_binding_advance_rejects_dirty_or_non_descendant_candidate(tmp_path: Path, monkeypatch) -> None:
     _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
     repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
@@ -678,6 +765,30 @@ def test_binding_advance_rejects_redirected_marker_and_recovery(tmp_path: Path, 
     with pytest.raises(IntegrityError, match="binding repair successor"):
         advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
     assert external.read_bytes() == canonical_bytes({"external": True})
+
+
+def test_binding_advance_rejects_redirected_runtime_before_external_lock_publication(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    (candidate / "descendant.txt").write_text("tested descendant\n", encoding="utf-8")
+    _git(candidate, "add", "descendant.txt")
+    _git(candidate, "commit", "-q", "-m", "descendant")
+    runtime = target / "runtime"
+    runtime.rename(target / "runtime-physical")
+    external = tmp_path / "external-runtime"
+    external.mkdir()
+    try:
+        runtime.symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink creation is unavailable")
+
+    with pytest.raises(IntegrityError, match="binding advance runtime"):
+        advance_store_binding(_advance_intent(intent), now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert tuple(external.iterdir()) == ()
 
 
 def test_binding_advance_rejects_redirected_object_without_touching_external_target(

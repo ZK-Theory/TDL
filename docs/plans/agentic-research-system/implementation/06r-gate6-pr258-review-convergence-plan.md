@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 
-**Status:** `IN_PROGRESS / spec_flow_local_complete_binding_advance_active`
+**Status:** `IN_PROGRESS / local_invariants_complete_owner_intent_pending`
 
 **Authority:** bounded subordinate plan to
 [06q](06q-gate6-spec-real-run-integration-and-follow-up.md). This document does
@@ -217,7 +217,8 @@ matrix together.
 
 ### 6.1 Implementation record — 2026-08-21
 
-The first local SpecFlow slice is implemented and committed on parent
+The local SpecFlow slice is implemented in commit
+`abb435a4ec0b23f1265626ea763ed4966556d582`, based on
 `bb9ab7a0f679ba71d2a364410f69ec53673c2ae2`; it has not been pushed.
 
 Completed in this slice:
@@ -271,7 +272,8 @@ any replay or write.
 
 Still open before publication:
 
-- implement and validate the binding-advance transaction workstream;
+- commit the locally validated binding-advance transaction workstream on one
+  frozen candidate subject;
 - advance the governed live binding to the frozen candidate subject;
 - rerun read-only live general replay and public SPEC status under SF-F, with a
   complete file-byte/hash inventory before and after; and
@@ -295,6 +297,56 @@ event, or receipt. Recovery must use the same exact operation identity.
 Required controls include two contenders with the same predecessor, an exact
 retry after interruption at every durable phase, and proof that the losing
 contender leaves no owned residue.
+
+### 7.1 Implementation record — 2026-08-21
+
+The local transaction repair is implemented, reviewed, and committed as the
+second local convergence commit after the SpecFlow commit; neither commit is
+pushed.
+`advance_store_binding` now acquires the control-store writer lock before it
+selects candidate evidence or reads the authoritative recovery predecessor,
+ledger, or scoped receipts. One locked helper revalidates the source-bound
+manifest and owner authority, then derives and publishes exactly one successor
+from that predecessor.
+The public entry validates the physical runtime anchor and immutable owner
+authority before it may publish the transient lock record, then repeats the
+authority check inside the transaction.
+
+A deterministic two-contender control reproduced the starting defect: the
+delayed loser had selected the old predecessor before locking, then published
+its own object, event, and receipt before the final recovery replacement
+detected the winner. With the repaired boundary, the loser acquires the lock
+after the winner, re-reads the successor, rejects the same candidate as not a
+strict descendant, and leaves no marker, object, event, or receipt.
+
+Recovery coverage now starts at marker publication and covers marker, object,
+event, receipt, and recovery replacement. The original 13-case binding-advance
+slice produced 12 passes and one correct redirected-file rejection whose
+diagnostic label had drifted; restoring the established label made that exact
+case pass. A whole-boundary reread then identified the transient lock as a
+redirectable effect: physical runtime validation was added, and the redirected
+runtime plus strengthened two-contender controls both pass. All 14 selected
+behaviours are therefore green across the combined evidence without rerunning
+the unaffected 109-case SpecFlow module.
+
+Ruff, formatting, syntax compilation, `git diff --check`, and both contract
+binding modes pass; each contract mode validates all 103 registered contracts.
+The local whole-boundary review has no open code finding.
+
+Still open for this workstream:
+
+- obtain an authentic current owner intent and use the existing governed public
+  binding-advance seam for the resulting exact candidate; and
+- prove the subsequent public SPEC replay is byte-for-byte read-only and
+  terminally identical to the recorded Gate 6 result.
+
+The operational census found 24 earlier owner intent files in
+`C:\Users\steph\AppData\Local\Temp\gate6-spec-live-20260815`. Every one expired
+on 16 August 2026. None authorizes a new 21 August transaction, and no exact
+in-progress marker exists for this candidate. The implementation therefore
+rejects their reuse. A new owner-issued intent is a genuine remaining authority
+input; it will not be synthesized from an old intent or treated as implied by
+green local tests.
 
 ## 8. Validation and exact-head review
 
