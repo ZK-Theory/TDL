@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 
-**Status:** `IN_PROGRESS / reviewed_route_successor_ready_for_live_advance`
+**Status:** `IN_PROGRESS / live_route_advanced_replay_binding_fix_ready`
 
 **Authority:** bounded subordinate plan to
 [06q](06q-gate6-spec-real-run-integration-and-follow-up.md). This document does
@@ -390,6 +390,53 @@ commit and the current live predecessor, run the governed route-successor
 advance, and then run general replay and public SPEC status with before/after
 byte inventories. No push, external-review operation, or merge is authorized
 by this step.
+
+### 7.3 First live transition and replay correction — 2026-08-21
+
+The reviewed-route implementation and this plan were frozen at local commit
+`81076eb6ed1b442e7cbb61a752afdb91e5c33597`. The new canonical public intent is
+`advance-binding-reviewed-route-successor-20260821-v1.json`, SHA-256
+`84bbd539328a49e5ddeedcf23c7f97ab0adc90e493bf469580e7885f7b3b8abc`.
+Its first invocation failed before publication because four pre-existing
+owner-context schema files had CRLF worktree bytes while their exact Git blobs
+used LF. The complete 1,749-file control-store inventory was unchanged. Those
+four physical files were normalized to their already-committed blobs; no index,
+tree, or commit content changed, and all 436 schema files then matched the exact
+candidate subject.
+
+The retry succeeded through the public `ars store advance-binding` seam:
+
+- command payload SHA-256:
+  `c9f01f547a6126d903941c1f11f349df186a0fc7a90f52c8c3d0ec2998f5790a`;
+- transaction:
+  `txb_01a0265b-b454-73e0-9081-fe86af2d94af`;
+- live event count: 444 to 445;
+- predecessor binding SHA-256:
+  `05ddae128785b0890a347aca4b2e31ae4d4bee6b1c929c7378c0566a55974622`;
+- successor binding SHA-256:
+  `423614c3ec00815f05823f474bc5b9a0dbd299cc0853bb2f77897d8c27c32bc8`;
+  and
+- exact changed set: one new `StoreBindingAdvanced` event, the current binding,
+  one immutable binding object, one accepted receipt, and one idempotency
+  index. No recovery marker or writer lock remained.
+
+The subsequent generic `ars replay verify` call failed read-only because its
+ledger preflight admitted only an ordinary `ApprovedProjectBinding`; unlike the
+Discovery operator, it did not try the explicitly selected and fully governed
+`ControlBinding.load_repaired` path. All 1,753 control-store files remained
+unchanged. The replay ledger now uses the same fail-closed admission order as
+the operator: ordinary approved binding first, then the exact store-owned
+`binding-repair-control-binding.json` only if its store-recovery foundation,
+recovery object, Git subject, schema catalogue, route, sources, manifest, and
+origin witness all validate. It also requires that binding to name the exact
+requested control root.
+
+The new repaired-binding replay regression and the existing CLI authority and
+completed-SPEC replay tests pass. The next action is to commit this read-only
+replay correction and record update, issue an ordinary clean-descendant intent
+for that exact commit, advance the live binding once more without route or SPEC
+change, and run full replay plus public SPEC status under complete before/after
+inventories.
 
 ## 8. Validation and exact-head review
 

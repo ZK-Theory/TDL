@@ -1264,7 +1264,7 @@ def _replay_authorities(
     control_root: Path,
     manifest: Mapping[str, Any],
     schemas: SchemaRegistry,
-    approved: ApprovedProjectBinding,
+    approved: ApprovedProjectBinding | ControlBinding,
     authority_config: Path | None,
 ) -> _ReplayAuthorities:
     local = LedgerAuthorityGrantResolver(
@@ -1296,14 +1296,26 @@ def _verified_ledger(
     SchemaRegistry,
     _ReplayAuthorities,
 ]:
-    approved = ApprovedProjectBinding.load(canonical_foundation_path())
+    resolved_root = control_root.resolve(strict=True)
+    try:
+        approved: ApprovedProjectBinding | ControlBinding = ApprovedProjectBinding.load(canonical_foundation_path())
+    except ConfigurationError as ordinary_error:
+        try:
+            approved = ControlBinding.load_repaired(resolved_root / "manifests" / "binding-repair-control-binding.json")
+        except (ConfigurationError, IntegrityError) as repair_error:
+            raise ordinary_error from repair_error
+    if (
+        approved.control_root != resolved_root
+        or approved.origin_witness is None
+        or approved.origin_witness_path is None
+    ):
+        raise ConfigurationError("replay binding differs from the requested control root")
     manifest = load_store_manifest(
-        control_root,
+        resolved_root,
         approved_witness=approved.origin_witness,
         approved_witness_path=approved.origin_witness_path,
     )
     schemas = _schemas_for_store_manifest(manifest)
-    resolved_root = control_root.resolve(strict=True)
     authorities = _replay_authorities(
         control_root=resolved_root,
         manifest=manifest,

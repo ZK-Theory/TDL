@@ -603,6 +603,26 @@ def test_binding_advance_rejects_rehashed_misbound_manifest_without_mutation(tmp
     assert _publication_snapshot(target) == before
 
 
+def test_generic_replay_ledger_admits_the_governed_repaired_binding(tmp_path: Path, monkeypatch) -> None:
+    """Remediation-red: generic replay must honor the same explicit store-recovery foundation as Discovery."""
+    import research_system.cli as cli_module
+
+    _initialized, witness, target, candidate, foundation_path, repair_intent = _fixture(tmp_path, monkeypatch)
+    repair_store_binding(repair_intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+    monkeypatch.setattr(cli_module, "canonical_foundation_path", lambda: foundation_path)
+
+    ledger, schemas, authorities = cli_module._verified_ledger(target.resolve())
+
+    assert ledger.control_root == target.resolve()
+    assert ledger.project_id == witness.project_id
+    replay_schema = schemas.resolve_identity(
+        "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+        "1.0.0",
+    )
+    assert replay_schema.source_path.is_relative_to(candidate / ".research-system" / "schemas")
+    assert authorities.local_administration.control_root == target.resolve()
+
+
 def test_owner_bound_route_successor_advance_accepts_only_its_exact_reviewed_transition(
     tmp_path: Path,
     monkeypatch,
