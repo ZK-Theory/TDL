@@ -2331,6 +2331,81 @@ def test_spec_status_is_read_only_and_names_exact_first_action(
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
+def test_brief_input_state_readback_accepts_one_exact_historical_stream_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical_id = "art_019ffe2b-fd4b-7000-8000-000000000901"
+    historical_id = "art_01a0064d-6306-775d-a8cc-f16c9c528ff8"
+    content_sha256 = "a" * 64
+    expected = {
+        canonical_id: {
+            "artefact_id": canonical_id,
+            "artefact_type": "methods_asset",
+            "source_relative_path": ".research-system/methods/assets/adversarial-review-protocol.md",
+            "relative_path": f"methods/content/spec-flow/{canonical_id}.md",
+            "content_sha256": content_sha256,
+            "size_bytes": 4258,
+            "media_type": "text/markdown; charset=utf-8",
+        }
+    }
+    historical_state = {
+        "content_sha256": content_sha256,
+        "manifest": {
+            "artefact_id": historical_id,
+            "artefact_type": "methods_asset",
+            "root_id": "control",
+            "relative_path": f"methods/content/spec-flow/{historical_id}.md",
+            "content_sha256": content_sha256,
+            "size_bytes": 4258,
+            "media_type": "text/markdown; charset=utf-8",
+        },
+    }
+    flow = object.__new__(SpecFlow)
+    monkeypatch.setattr(flow, "_expected_brief_input_census", lambda: expected)
+
+    states = flow._brief_input_states({"artefact_streams": {historical_id: historical_state}})
+
+    assert states == {historical_id: historical_state}
+
+
+def test_brief_input_state_readback_rejects_ambiguous_historical_stream_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical_id = "art_019ffe2b-fd4b-7000-8000-000000000902"
+    content_sha256 = "b" * 64
+    expected = {
+        canonical_id: {
+            "artefact_id": canonical_id,
+            "artefact_type": "spec_operator_source",
+            "source_relative_path": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
+            "relative_path": f"methods/content/spec-flow/{canonical_id}.md",
+            "content_sha256": content_sha256,
+            "size_bytes": 4745,
+            "media_type": "text/markdown; charset=utf-8",
+        }
+    }
+    streams = {}
+    for suffix in (903, 904):
+        stream_id = f"art_019ffe2b-fd4b-7000-8000-{suffix:012d}"
+        streams[stream_id] = {
+            "content_sha256": content_sha256,
+            "manifest": {
+                "artefact_id": stream_id,
+                "artefact_type": "spec_operator_source",
+                "root_id": "control",
+                "relative_path": f"methods/content/spec-flow/{stream_id}.md",
+                "content_sha256": content_sha256,
+                "size_bytes": 4745,
+                "media_type": "text/markdown; charset=utf-8",
+            },
+        }
+    flow = object.__new__(SpecFlow)
+    monkeypatch.setattr(flow, "_expected_brief_input_census", lambda: expected)
+
+    with pytest.raises(IntegrityError, match="multiple registered streams bind one exact SPEC brief input"):
+        flow._brief_input_states({"artefact_streams": streams})
+
+
 def _registered_brief_document(spec_inputs: dict[str, Any]) -> dict[str, Any]:
     document = _brief_document(spec_inputs)
     brief_manifest = {

@@ -295,6 +295,7 @@ _BRIEF_INPUT_SOURCE_TYPES = {
     _SPEC_02_PATH.as_posix(): "spec_operator_source",
     ".research-system/methods/assets/adversarial-review-protocol.md": "methods_asset",
 }
+_BRIEF_INPUT_DESTINATION_PREFIX = "methods/content/spec-flow/"
 _SPEC_02_APPROVAL_AUTHORITY_REASON = "Authorize exact governed publication of the owner-approved SPEC-02 run decision."
 _SPEC_02_APPROVAL_EVIDENCE_PREFIX = "spec-02-approval-sha256:"
 
@@ -1591,7 +1592,7 @@ class SpecFlow:
                 "artefact_id": artefact_id,
                 "artefact_type": artefact_type,
                 "source_relative_path": source_path,
-                "relative_path": f"methods/content/spec-flow/{artefact_id}.md",
+                "relative_path": f"{_BRIEF_INPUT_DESTINATION_PREFIX}{artefact_id}.md",
                 "content_sha256": content_sha256,
                 "size_bytes": len(raw),
                 "media_type": "text/markdown; charset=utf-8",
@@ -1600,18 +1601,41 @@ class SpecFlow:
 
     def _brief_input_states(self, projection: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
         census = self._expected_brief_input_census()
-        return {
-            str(stream_id): state
-            for stream_id, state in projection.get("artefact_streams", {}).items()
-            if isinstance(state, Mapping)
-            and isinstance(state.get("manifest"), Mapping)
-            and str(stream_id) in census
-            and all(
-                (state.get("content_sha256") if key == "content_sha256" else state["manifest"].get(key)) == value
-                for key, value in census[str(stream_id)].items()
-                if key != "source_relative_path"
+        expected_by_signature: dict[tuple[object, ...], Mapping[str, Any]] = {}
+        for expected in census.values():
+            signature = tuple(expected[key] for key in ("artefact_type", "content_sha256", "size_bytes", "media_type"))
+            if signature in expected_by_signature:
+                raise IntegrityError("multiple route sources bind one exact SPEC brief input")
+            expected_by_signature[signature] = expected
+
+        matches: dict[tuple[object, ...], list[tuple[str, Mapping[str, Any]]]] = {}
+        streams = projection.get("artefact_streams", {})
+        if not isinstance(streams, Mapping):
+            return {}
+        for stream_id, state in streams.items():
+            manifest = state.get("manifest") if isinstance(state, Mapping) else None
+            identity = str(stream_id)
+            if not isinstance(manifest, Mapping):
+                continue
+            signature = (
+                manifest.get("artefact_type"),
+                state.get("content_sha256"),
+                manifest.get("size_bytes"),
+                manifest.get("media_type"),
             )
-        }
+            expected = expected_by_signature.get(signature)
+            if (
+                expected is None
+                or manifest.get("artefact_id") != identity
+                or manifest.get("root_id") != "control"
+                or manifest.get("relative_path") != f"{_BRIEF_INPUT_DESTINATION_PREFIX}{identity}.md"
+                or manifest.get("content_sha256") != expected["content_sha256"]
+            ):
+                continue
+            matches.setdefault(signature, []).append((identity, state))
+        if any(len(rows) > 1 for rows in matches.values()):
+            raise IntegrityError("multiple registered streams bind one exact SPEC brief input")
+        return {identity: state for rows in matches.values() for identity, state in rows}
 
     def _pending_brief_input_authority_states(
         self, projection: Mapping[str, Any], command_type: str
@@ -1658,8 +1682,8 @@ class SpecFlow:
                 return False
         if definition.brief_input_state is not None:
             brief_inputs = self._brief_input_states(projection)
-            expected_ids = set(self._expected_brief_input_census())
-            if not expected_ids or set(brief_inputs) != expected_ids:
+            expected_count = len(self._expected_brief_input_census())
+            if not expected_count or len(brief_inputs) != expected_count:
                 return False
             if definition.brief_input_state in {"reviewed", "accepted"} and any(
                 not state.get("scientific_reviews") for state in brief_inputs.values()
