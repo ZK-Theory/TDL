@@ -42,6 +42,14 @@ from research_system.discovery.authority import (
 from research_system.discovery.rules import _is_spec_route_candidate
 from research_system.discovery.routes import discovery_route
 from research_system.discovery.runtime import DiscoveryRuntime, _spec_02_return_evidence_matches
+from research_system.discovery.spec_action_journal import (
+    JOURNAL_DIRECTORY as _SPEC_ACTION_JOURNAL_DIRECTORY,
+    PACKET_FIELDS as _PACKET_FIELDS,
+    ROUTE_ID,
+    pending_preparation as _pending_action_preparation,
+    preparation_value as _action_preparation_value,
+    read_preparation as _prepared_action_journal,
+)
 from research_system.discovery.source_correction import (
     resolve_remote_tag as _resolve_remote_tag,
     verify_remote_commit_paths as _verify_remote_commit_paths,
@@ -71,7 +79,6 @@ from research_system.store.ledger import EventLedger, _issue_validated_service_s
 from research_system.store.spec_preparation_fence import SpecPreparationFence
 
 
-ROUTE_ID = "SPEC-GATE6-RUN-V1"
 _ROUTE_PATH = Path(".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json")
 _SPEC_01_PATH = _ROUTE_PATH.parent / "spec-01-assay-brief-v1.1.0.md"
 _SPEC_02_PATH = _ROUTE_PATH.parent / "spec-02-micro-spike-contract-v1.1.0.md"
@@ -81,9 +88,6 @@ _DOSSIER_MANIFEST_PATH = _ROUTE_PATH.parent / "spec-research-dossier-manifest.js
 _REGISTERED_PATH_POLICY_PATH = _ROUTE_PATH.parent / "registered-path-read-policy.json"
 _P042_DECISION_PATH = Path("docs/plans/agentic-research-system/03-decisions-and-open-questions.md")
 _P042_HEADING = b"### P-042 - Owner-operated external model sessions"
-_PACKET_FIELDS = frozenset(
-    {"schema_id", "schema_version", "route_id", "action", "retry_id", "commands", "document", "registration"}
-)
 _REGISTRATION_FIELDS = frozenset(
     {
         "artefact_id",
@@ -590,34 +594,197 @@ def _completed_action_identity(operator: DiscoveryOperator, action: str) -> dict
     return value
 
 
-_LEGACY_DOCUMENT_CONSUMER_ROWS = {
-    "prepare_spec_01": frozenset({"OR-004", "OR-005"}),
-    "return_spec_01_complete": frozenset({"OR-034", "OR-006"}),
-    "return_spec_01_partial": frozenset({"OR-035", "OR-007"}),
-    "correct_spec_01_source": frozenset({"OR-014"}),
-    "approve_spec_02": frozenset({"OR-014"}),
-    "prepare_spec_02": frozenset({"OR-014"}),
-    "return_spec_02_complete": frozenset({"OR-018"}),
-    "return_spec_02_partial": frozenset({"OR-019"}),
-}
+@dataclass(frozen=True)
+class _RegisteredSpecDocument:
+    document_type: str
+    artefact_id: str
+    content_sha256: str
+    registration_event: Mapping[str, Any]
+    value: Mapping[str, Any]
+
+
+def _event_position(event: Mapping[str, Any]) -> int:
+    value = event.get("global_position")
+    return value if isinstance(value, int) else -1
+
+
+def _legacy_return_was_consumed(
+    route_events: Sequence[Mapping[str, Any]],
+    record: _RegisteredSpecDocument,
+    *,
+    action: str,
+) -> bool:
+    """Bind one historical return to the exact route payload that consumed it."""
+
+    embedded = record.value.get("embedded_artefact")
+    if not isinstance(embedded, Mapping):
+        return False
+    embedded_sha256 = sha256_hex(canonical_bytes(embedded))
+    if action.startswith("return_spec_01"):
+        row = "OR-004" if action.endswith("_complete") else "OR-005"
+        artifact_key = "scorecard_artifact" if row == "OR-004" else "partial_artifact"
+        hash_key = "scorecard_sha256" if row == "OR-004" else "partial_sha256"
+    else:
+        row = "OR-018" if action.endswith("_complete") else "OR-019"
+        artifact_key = "verdict_artifact"
+        hash_key = "verdict_sha256"
+    return any(
+        _event_position(event) > _event_position(record.registration_event)
+        and isinstance(event.get("payload"), Mapping)
+        and event["payload"].get("row_id") == row
+        and event["payload"].get(artifact_key) == embedded
+        and event["payload"].get(hash_key) == embedded_sha256
+        and (
+            not action.startswith("return_spec_02")
+            or event["payload"].get("evidence_refs") == [f"artefact:{record.artefact_id}"]
+        )
+        for event in route_events
+    )
+
+
+def _legacy_brief_was_consumed(
+    events: Sequence[Mapping[str, Any]],
+    route_events: Sequence[Mapping[str, Any]],
+    records: Sequence[_RegisteredSpecDocument],
+    record: _RegisteredSpecDocument,
+    *,
+    action: str,
+) -> bool:
+    """Bind one historical brief package through its manifest and exact return/plan."""
+
+    brief_manifest = record.value.get("brief_manifest")
+    operator_session = record.value.get("operator_session")
+    if not isinstance(brief_manifest, Mapping) or not isinstance(operator_session, Mapping):
+        return False
+    brief_id = brief_manifest.get("brief_artefact_id")
+    brief_sha256 = record.value.get("brief_manifest_sha256")
+    manifest_events = [
+        event
+        for event in events
+        if event.get("event_type") == "ArtefactRegistered"
+        and event.get("stream_id") == brief_id
+        and event.get("payload", {}).get("manifest", {}).get("content_sha256") == brief_sha256
+        and _event_position(event) < _event_position(record.registration_event)
+    ]
+    if len(manifest_events) != 1:
+        return False
+    if action == "prepare_spec_02":
+        source_sha256 = record.value.get("route_source", {}).get("raw_sha256")
+        source_path = record.value.get("route_source", {}).get("relative_path")
+        approvals = [
+            candidate
+            for candidate in records
+            if candidate.document_type == "spec_02_live_run_approval"
+            and _event_position(candidate.registration_event) < _event_position(record.registration_event)
+            and candidate.value.get("brief_identity") == {"id": source_path, "sha256": source_sha256}
+            and candidate.value.get("spec_02_subject") == {"id": "SPEC-02", "sha256": source_sha256}
+        ]
+        if len(approvals) != 1:
+            return False
+        return any(
+            _event_position(event) > _event_position(record.registration_event)
+            and event.get("event_type") == "SpikePlanned"
+            and event.get("payload", {}).get("row_id") == "OR-014"
+            and any(
+                contract in event.get("payload", {}).get("plan_artifact", {}).get("planned_contracts", ())
+                for contract in (f"SPEC-02:{source_sha256}", "SPEC-02:v1.1.0")
+            )
+            for event in route_events
+        )
+    expected_response = {
+        "brief_artefact_id": brief_id,
+        "brief_manifest_sha256": brief_sha256,
+        "operator_session_id": operator_session.get("session_id"),
+    }
+    return any(
+        candidate.document_type == "spec_01_return"
+        and _event_position(candidate.registration_event) > _event_position(record.registration_event)
+        and candidate.value.get("responds_to") == expected_response
+        and any(
+            _legacy_return_was_consumed(route_events, candidate, action=return_action)
+            for return_action in _DOCUMENT_ACTIONS_BY_TYPE["spec_01_return"]
+        )
+        for candidate in records
+    )
+
+
+def _legacy_spec_02_authority_was_consumed(
+    route_events: Sequence[Mapping[str, Any]],
+    records: Sequence[_RegisteredSpecDocument],
+    record: _RegisteredSpecDocument,
+    *,
+    action: str,
+) -> bool:
+    """Bind historical approval/correction bytes to the exact validated OR-014 plan."""
+
+    later_plans = [
+        event
+        for event in route_events
+        if _event_position(event) > _event_position(record.registration_event)
+        and event.get("event_type") == "SpikePlanned"
+        and event.get("payload", {}).get("row_id") == "OR-014"
+    ]
+    if len(later_plans) != 1:
+        return False
+    plan = later_plans[0].get("payload", {}).get("plan_artifact", {})
+    if not isinstance(plan, Mapping):
+        return False
+    if action == "correct_spec_01_source":
+        promotion = [
+            event
+            for event in route_events
+            if event.get("payload", {}).get("row_id") == "OR-013"
+            and _event_position(event) < _event_position(record.registration_event)
+        ]
+        return bool(
+            len(promotion) == 1
+            and record.value.get("decision_ref")
+            == {"id": promotion[0].get("event_id"), "sha256": promotion[0].get("event_hash")}
+            and record.value.get("scorecard_ref")
+            == {
+                "id": plan.get("originating_assay_ref", {}).get("id"),
+                "sha256": plan.get("originating_assay_ref", {}).get("content_hash"),
+            }
+        )
+    corrections = [candidate for candidate in records if candidate.document_type == "spec_01_source_correction"]
+    if len(corrections) > 1:
+        return False
+    correction = corrections[0] if corrections else None
+    promotion = [
+        event
+        for event in route_events
+        if event.get("payload", {}).get("row_id") == "OR-013"
+        and _event_position(event) < _event_position(record.registration_event)
+    ]
+    if len(promotion) != 1 or record.value.get("spec_01_promotion") != {
+        "id": promotion[0].get("event_id"),
+        "sha256": promotion[0].get("event_hash"),
+    }:
+        return False
+    if correction is None:
+        return record.value.get("entry_mode") == "standard_promotion" and record.value.get("source_correction") is None
+    return record.value.get("source_correction") == {
+        "id": correction.value.get("correction_id"),
+        "sha256": correction.content_sha256,
+    }
 
 
 def _legacy_document_was_consumed(
     events: Sequence[Mapping[str, Any]],
+    projection: Mapping[str, Any],
+    records: Sequence[_RegisteredSpecDocument],
+    record: _RegisteredSpecDocument,
     *,
     action: str,
-    registration_position: int,
 ) -> bool:
-    """Recognize only historical file proofs already consumed by a later route row."""
+    """Recognize historical documents only through their exact SPEC consumer relation."""
 
-    expected_rows = _LEGACY_DOCUMENT_CONSUMER_ROWS[action]
-    return any(
-        isinstance(event.get("global_position"), int)
-        and event["global_position"] > registration_position
-        and isinstance(event.get("payload"), Mapping)
-        and (event["payload"].get("row_id") or event["payload"].get("owner_row_id")) in expected_rows
-        for event in events
-    )
+    route_events = _SpecRouteCensus.from_snapshot(events, projection, dossier_id=None).events
+    if action.startswith("return_spec_"):
+        return _legacy_return_was_consumed(route_events, record, action=action)
+    if action.startswith("prepare_spec_"):
+        return _legacy_brief_was_consumed(events, route_events, records, record, action=action)
+    return _legacy_spec_02_authority_was_consumed(route_events, records, record, action=action)
 
 
 def _registered_documents(
@@ -625,8 +792,11 @@ def _registered_documents(
     events: Sequence[Mapping[str, Any]],
     projection: Mapping[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
-    found: dict[str, list[dict[str, Any]]] = {}
-    for stream in projection.get("artefact_streams", {}).values():
+    records: list[_RegisteredSpecDocument] = []
+    artefact_streams = projection.get("artefact_streams", {})
+    if not isinstance(artefact_streams, Mapping):
+        raise IntegrityError("registered SPEC document projection is invalid")
+    for stream in artefact_streams.values():
         if not isinstance(stream, Mapping):
             continue
         manifest = stream.get("manifest")
@@ -637,10 +807,9 @@ def _registered_documents(
             continue
         relative = manifest.get("relative_path")
         digest = manifest.get("content_sha256")
-        if not isinstance(relative, str) or not isinstance(digest, str):
-            continue
-        document_type = str(document_type)
         artefact_id = manifest.get("artefact_id")
+        if not all(isinstance(value, str) and value for value in (relative, digest, artefact_id)):
+            raise IntegrityError("registered SPEC document manifest is invalid")
         registration_events = [
             event
             for event in events
@@ -650,7 +819,25 @@ def _registered_documents(
         ]
         if len(registration_events) != 1:
             raise IntegrityError("registered SPEC document has no exact registration event")
-        registration_event = registration_events[0]
+        try:
+            raw = read_contained_regular_file(operator.control_root, relative, label="registered SPEC document")
+            value = json.loads(raw)
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            raise IntegrityError("registered SPEC document is unavailable")
+        if raw != canonical_bytes(value) or sha256_hex(raw) != digest:
+            raise IntegrityError("registered SPEC document binding differs")
+        if not isinstance(value, dict):
+            raise IntegrityError("registered SPEC document is not an object")
+        document_type = str(document_type)
+        _validate_spec_document_content(operator, document_type=document_type, document=value)
+        records.append(_RegisteredSpecDocument(document_type, artefact_id, digest, registration_events[0], value))
+
+    found: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        document_type = record.document_type
+        artefact_id = record.artefact_id
+        digest = record.content_sha256
+        registration_event = record.registration_event
         completion_events = [
             event
             for event in events
@@ -676,16 +863,15 @@ def _registered_documents(
                 raise IntegrityError("registered SPEC document completion proof conflicts")
             proven_action = str(completion_payload["action"])
         else:
-            registration_position = registration_event.get("global_position")
             legacy_actions = [
                 action
                 for action in _DOCUMENT_ACTIONS_BY_TYPE[document_type]
-                if _completed_action_identity(operator, action) is not None
-                and isinstance(registration_position, int)
-                and _legacy_document_was_consumed(
+                if _legacy_document_was_consumed(
                     events,
+                    projection,
+                    records,
+                    record,
                     action=action,
-                    registration_position=registration_position,
                 )
             ]
             if not legacy_actions:
@@ -693,20 +879,7 @@ def _registered_documents(
             if len(legacy_actions) != 1:
                 raise IntegrityError(f"multiple completed SPEC actions claim document type: {document_type}")
             proven_action = legacy_actions[0]
-        try:
-            raw = read_contained_regular_file(
-                operator.control_root,
-                relative,
-                label="registered SPEC document",
-            )
-            value = json.loads(raw)
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            raise IntegrityError("registered SPEC document is unavailable")
-        if raw != canonical_bytes(value) or sha256_hex(raw) != digest:
-            raise IntegrityError("registered SPEC document binding differs")
-        if not isinstance(value, dict):
-            raise IntegrityError("registered SPEC document is not an object")
-        _validate_spec_document_content(operator, document_type=document_type, document=value)
+        value = record.value
         expected_action = _DOCUMENT_ACTIONS_BY_TYPE[document_type][0]
         if len(_DOCUMENT_ACTIONS_BY_TYPE[document_type]) > 1:
             outcome = value.get("outcome")
@@ -930,6 +1103,24 @@ class SpecFlow:
                 relative_directory=Path("runtime/spec-flow-actions"),
             )
             store.publish_bytes(action, canonical_bytes(value))
+        return False
+
+    def _prepare_action_journal(self, action: str, packet: Mapping[str, Any], *, publish: bool) -> bool:
+        """Bind an exact retry before effects without treating the action as completed."""
+
+        if action not in _DOCUMENT_TYPES:
+            return False
+        value = _action_preparation_value(action, packet)
+        prior = _prepared_action_journal(self.operator.control_root, action)
+        if prior is not None:
+            if prior != value:
+                raise ConflictError("prepared SPEC action retry differs from its durable packet")
+            return True
+        if publish:
+            CandidateDocumentStore(
+                self.operator.control_root,
+                relative_directory=_SPEC_ACTION_JOURNAL_DIRECTORY,
+            ).publish_bytes(action, canonical_bytes(value))
         return False
 
     def _complete_action(self, action: str, packet: Mapping[str, Any], result: dict[str, Any]) -> dict[str, Any]:
@@ -1234,6 +1425,15 @@ class SpecFlow:
         events, projection, documents = self._snapshot()
         census = self._route_census(events, projection)
         rows = set(census.rows)
+        pending = _pending_action_preparation(self.operator.control_root, events)
+        if pending is not None:
+            action = str(pending["action"])
+            return SpecFlowStatus(
+                "NOT_RUNNABLE",
+                f"{action}_prepared",
+                action,
+                "the exact prepared SPEC action must be retried before any later route action",
+            )
         completed = "none"
         for action, required in _ACTIONS:
             if not set(required).issubset(rows):
@@ -1496,6 +1696,7 @@ class SpecFlow:
     def _register_document(
         self,
         action: str,
+        packet: Mapping[str, Any],
         document: Any,
         registration: Any,
         commands: Sequence[Mapping[str, Any]] = (),
@@ -1731,6 +1932,7 @@ class SpecFlow:
             spec_execution_authority_validator_factory=self._runtime().spec_execution_authority_validator,
             clock=self.operator.clock,
         )
+        self._prepare_action_journal(action, packet, publish=True)
         registered = register_candidate_document(
             value=document,
             registration=CandidateRegistration(**deepcopy(registration)),
@@ -1883,6 +2085,7 @@ class SpecFlow:
         current = self.operator.ledger.snapshot()
         if current.events != _events:
             raise ConflictError("Discovery ledger changed during SPEC preparation preflight")
+        self._prepare_action_journal(action, packet, publish=True)
         compiled, source_resolver = deliver_spec_owner_context(
             operator=self.operator,
             command_service=service,
@@ -1995,7 +2198,7 @@ class SpecFlow:
                 "import is candidate evidence only",
             ],
         }
-        result = self._register_document(action, package, registrations["package_registration"])
+        result = self._register_document(action, packet, package, registrations["package_registration"])
         return {"registration": result, "context_id": compiled.context_id, "brief": package}
 
     def advance(self, action: str, packet_path: Path) -> dict[str, Any]:
@@ -2014,6 +2217,7 @@ class SpecFlow:
         if packet.get("action") != action:
             raise IntegrityError("SPEC action argument and packet differ")
         action_identity_exists = self._action_identity(action, packet, publish=False)
+        prepared_action_exists = self._prepare_action_journal(action, packet, publish=False)
         status = self.status()
         accepted_actions = {status.next_action}
         if status.next_action == "return_spec_01":
@@ -2033,7 +2237,7 @@ class SpecFlow:
             (not expected_rows or expected_rows.issubset(completed_rows))
             and (expected_document is None or expected_document in documents)
         )
-        if action not in accepted_actions and not already_completed:
+        if action not in accepted_actions and not already_completed and not prepared_action_exists:
             raise IntegrityError(f"SPEC action is not next; exact next action is {status.next_action}")
         if already_completed and expected_document is not None:
             if not action_identity_exists:
@@ -2285,6 +2489,7 @@ class SpecFlow:
         if document_required:
             registration_result = self._register_document(
                 action,
+                packet,
                 packet["document"],
                 packet["registration"],
                 commands,

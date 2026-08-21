@@ -18,6 +18,7 @@ import research_system.discovery.authority as discovery_authority_module
 import research_system.discovery.operator as discovery_operator_module
 import research_system.discovery.source_correction as source_correction_module
 import research_system.discovery.spec_flow as spec_flow_module
+import research_system.discovery.runtime as discovery_runtime_module
 import research_system.git_provenance as git_provenance_module
 import research_system.methods.registration as registration_module
 import research_system.owner_authority as owner_authority_module
@@ -2440,6 +2441,166 @@ def test_spec_status_rejects_forged_file_only_action_proof(
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
+def test_legacy_document_consumption_ignores_an_unrelated_route_row() -> None:
+    spec_candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000451"
+    unrelated_candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000452"
+    projection = {
+        "source_observations": {
+            "obs-spec": {"batch": {"source_query": "exact:SPEC-GATE6-RUN-V1"}},
+            "obs-other": {"batch": {"source_query": "doi:unrelated"}},
+        },
+        "candidates": {
+            spec_candidate_id: {"candidate_id": spec_candidate_id, "source_observation_refs": ["obs-spec"]},
+            unrelated_candidate_id: {
+                "candidate_id": unrelated_candidate_id,
+                "source_observation_refs": ["obs-other"],
+            },
+        },
+    }
+    unrelated = {
+        "global_position": 12,
+        "stream_id": unrelated_candidate_id,
+        "payload": {"row_id": "OR-014", "candidate_id": unrelated_candidate_id},
+    }
+    registration = {"global_position": 10, "event_id": "evt-registration", "event_hash": "a" * 64}
+    record = spec_flow_module._RegisteredSpecDocument(
+        "spec_02_live_run_approval",
+        "art_019ffe2b-fd4b-7000-8000-000000000453",
+        "b" * 64,
+        registration,
+        {"entry_mode": "standard_promotion"},
+    )
+
+    assert not spec_flow_module._legacy_document_was_consumed(
+        (unrelated,),
+        projection,
+        (record,),
+        record,
+        action="approve_spec_02",
+    )
+
+
+def test_legacy_return_consumption_requires_the_exact_registered_artefact() -> None:
+    candidate_id = "obj_019ffe2b-fd4b-7000-8000-000000000454"
+    artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000455"
+    embedded = {"verdict": "PASS"}
+    projection = {
+        "source_observations": {"obs-spec": {"batch": {"source_query": "exact:SPEC-GATE6-RUN-V1"}}},
+        "candidates": {
+            candidate_id: {"candidate_id": candidate_id, "source_observation_refs": ["obs-spec"]},
+        },
+    }
+    record = spec_flow_module._RegisteredSpecDocument(
+        "spec_02_return",
+        artefact_id,
+        "b" * 64,
+        {"global_position": 10},
+        {"embedded_artefact": embedded},
+    )
+    route_event = {
+        "global_position": 11,
+        "stream_id": candidate_id,
+        "payload": {
+            "row_id": "OR-018",
+            "candidate_id": candidate_id,
+            "evidence_refs": ["artefact:art_019ffe2b-fd4b-7000-8000-000000000456"],
+            "verdict_sha256": sha256_hex(canonical_bytes(embedded)),
+            "verdict_artifact": embedded,
+        },
+    }
+
+    assert not spec_flow_module._legacy_document_was_consumed(
+        (route_event,), projection, (record,), record, action="return_spec_02_complete"
+    )
+    route_event["payload"]["evidence_refs"] = [f"artefact:{artefact_id}"]
+    assert spec_flow_module._legacy_document_was_consumed(
+        (route_event,), projection, (record,), record, action="return_spec_02_complete"
+    )
+
+
+def test_spec_02_return_replay_uses_the_current_event_reference_and_causal_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    return_id = "art_019ffe2b-fd4b-7000-8000-000000000925"
+    future_id = "art_019ffe2b-fd4b-7000-8000-000000000926"
+    documents = {
+        "returns/exact.json": {"document_type": "spec_02_return", "route_id": "SPEC-GATE6-RUN-V1"},
+        "returns/future.json": {"document_type": "spec_02_return", "route_id": "SPEC-GATE6-RUN-V1"},
+    }
+    raw_documents = {path: canonical_bytes(value) for path, value in documents.items()}
+    reads: list[str] = []
+
+    def read_return(_root: Path, relative: str, *, label: str) -> bytes:
+        assert label == "SPEC-02 return artefact"
+        reads.append(relative)
+        return raw_documents[relative]
+
+    monkeypatch.setattr(discovery_runtime_module, "read_contained_regular_file", read_return)
+    monkeypatch.setattr(
+        discovery_runtime_module._SpecExecutionAuthorityResolver,
+        "resolve",
+        lambda *_args, **_kwargs: _Spec02ExecutionAuthority(approval={}, brief={}, correction=None),
+    )
+    monkeypatch.setattr(discovery_runtime_module, "_spec_02_return_evidence_matches", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(discovery_runtime_module, "_spec_02_pass_rerun_matches", lambda *_args, **_kwargs: True)
+    events = (
+        {
+            "global_position": 10,
+            "event_type": "ArtefactRegistered",
+            "stream_id": return_id,
+            "payload": {
+                "manifest": {
+                    "artefact_type": "spec_02_return",
+                    "relative_path": "returns/exact.json",
+                    "content_sha256": sha256_hex(raw_documents["returns/exact.json"]),
+                }
+            },
+        },
+        {
+            "global_position": 11,
+            "command_type": "RecordSpikeVerdict",
+            "occurred_at": "2026-08-01T12:50:00Z",
+            "payload": {
+                "row_id": "OR-018",
+                "candidate_id": "obj_019ffe2b-fd4b-7000-8000-000000000101",
+                "spike_id": "spk_019ffe2b-fd4b-7000-8000-000000000102",
+                "evidence_refs": [f"artefact:{return_id}"],
+            },
+        },
+        {
+            "global_position": 12,
+            "event_type": "ArtefactRegistered",
+            "stream_id": future_id,
+            "payload": {
+                "manifest": {
+                    "artefact_type": "spec_02_return",
+                    "relative_path": "returns/future.json",
+                    "content_sha256": sha256_hex(raw_documents["returns/future.json"]),
+                }
+            },
+        },
+    )
+    validator = build_spec_execution_authority_validator(
+        control_root=tmp_path,
+        schemas=SimpleNamespace(validate=lambda *_args, **_kwargs: None),
+        authority_resolver=SimpleNamespace(
+            control_root=tmp_path / "external-authority",
+            owner_published_grant_ids=lambda: frozenset(),
+        ),
+        events=events,
+    )
+
+    validator(
+        {"spikes": {"spk_019ffe2b-fd4b-7000-8000-000000000102": {}}},
+        {"decision_id": "dec_019ffe2b-fd4b-7000-8000-000000000103"},
+        events[1],
+        False,
+    )
+
+    assert reads == ["returns/exact.json"]
+
+
 @pytest.mark.integration
 def test_spec_action_completion_event_rejects_generic_ledger_append(
     spec_inputs: dict[str, Any],
@@ -3328,6 +3489,110 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
     with pytest.raises(ConflictError, match="completed SPEC action retry differs"):
         cli.main(_advance_argv(spec_inputs, "prepare_spec_01"))
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+
+@pytest.mark.integration
+def test_document_action_retry_seals_completion_after_route_command_commits(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256, execute=False)
+    original_complete = SpecFlow._complete_action
+
+    def interrupt_after_route_commit(
+        self: SpecFlow,
+        action: str,
+        packet: Mapping[str, Any],
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        if action == "return_spec_01_complete":
+            raise RuntimeError("injected interruption before completion proof")
+        return original_complete(self, action, packet, result)
+
+    monkeypatch.setattr(SpecFlow, "_complete_action", interrupt_after_route_commit)
+    with pytest.raises(RuntimeError, match="before completion proof"):
+        cli.main(_advance_argv(spec_inputs, "return_spec_01_complete"))
+    capsys.readouterr()
+
+    operator = load_discovery_operator(spec_inputs["config_path"])
+    events = operator.ledger.snapshot().events
+    assert any(event.get("payload", {}).get("row_id") == "OR-004" for event in events)
+    assert not any(
+        event.get("event_type") == "SpecFlowActionCompleted"
+        and event.get("payload", {}).get("action") == "return_spec_01_complete"
+        for event in events
+    )
+    status = SpecFlow(operator).status()
+    assert status.next_action == "return_spec_01_complete"
+    assert status.completed_stage == "return_spec_01_complete_prepared"
+    review_id = "rev_019ffe2b-fd4b-7000-8000-000000000901"
+    review_grant = activate_lifecycle_grant(
+        spec_inputs["harness"],
+        subject_kind="scope_definition",
+        subject_id=candidate_id,
+        actor_id=ACTORS["actor-a"],
+        command_types=("RequestDiscoveryOutcomeReview",),
+        grant_id=new_id("authority_grant"),
+    )
+    later_review = _route_command(
+        "RequestDiscoveryOutcomeReview",
+        review_id,
+        0,
+        "OR-034",
+        {
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "subject_sha256": returned["scorecard_sha256"],
+            "review_contract": {
+                "review_type": "provenance",
+                "new_review_id": review_id,
+                "subject_ids": [assay_id],
+                "subject_hashes": [returned["scorecard_sha256"]],
+                "governing_refs": ["W11:OR-034"],
+                "review_questions": ["Does exact SPEC-01 assay evidence satisfy the accepted bar?"],
+                "required_evidence_refs": ["scorecard:exact"],
+                "required_lanes": ["provenance"],
+                "reviewer_capability": ["assay-independent-review"],
+                "required_independence_grade": "independent",
+                "visibility_policy": "owner-visible",
+                "allowed_verdicts": [
+                    "approve",
+                    "approve_with_conditions",
+                    "changes_requested",
+                    "reject",
+                    "unable_to_verify",
+                    "withdrawn",
+                ],
+                "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+                "deadline": "2026-08-02T12:00:00Z",
+                "escalation_rule": "owner-ruling",
+            },
+        },
+        ACTORS["actor-a"],
+    )
+    later_review["authority_grant_id"] = review_grant
+    with pytest.raises(IntegrityError, match="prepared SPEC action requires exact recovery"):
+        SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._runtime().prevalidate(later_review)
+
+    monkeypatch.setattr(SpecFlow, "_complete_action", original_complete)
+    assert cli.main(_advance_argv(spec_inputs, "return_spec_01_complete")) == 0
+    capsys.readouterr()
+    completed = [
+        event
+        for event in load_discovery_operator(spec_inputs["config_path"]).ledger.iter_events()
+        if event.get("event_type") == "SpecFlowActionCompleted"
+        and event.get("payload", {}).get("action") == "return_spec_01_complete"
+    ]
+    assert len(completed) == 1
+    assert SpecFlow(load_discovery_operator(spec_inputs["config_path"])).status().next_action == "review_spec_01"
 
 
 @pytest.mark.integration
@@ -5118,14 +5383,9 @@ def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
         correction=None,
     )
     monkeypatch.setattr(_SpecExecutionAuthorityResolver, "resolve", lambda *_args, **_kwargs: authority)
-    validator = build_spec_execution_authority_validator(
-        control_root=tmp_path,
-        schemas=SimpleNamespace(),
-        authority_resolver=SimpleNamespace(control_root=tmp_path),
-        events=(),
-    )
     projection = {"owner_authority_decision_publications": {}}
     event = {
+        "global_position": 1,
         "occurred_at": "2026-08-01T12:40:00Z",
         "command_type": "RegisterSpikePlan",
         "payload": {
@@ -5133,6 +5393,12 @@ def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
             "plan_artifact": {"planned_contracts": ["W11:OR-018", f"SPEC-02:{'f' * 64}"]},
         },
     }
+    validator = build_spec_execution_authority_validator(
+        control_root=tmp_path,
+        schemas=SimpleNamespace(),
+        authority_resolver=SimpleNamespace(control_root=tmp_path),
+        events=(event,),
+    )
 
     with pytest.raises(IntegrityError, match="Spike plan differs from the exact governed contract"):
         validator(projection, {}, event, False)

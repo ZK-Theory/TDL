@@ -27,6 +27,7 @@ from research_system.discovery.assay_successor import (
     validate_assay_authority_successor_document,
 )
 from research_system.discovery.source_correction import SourceCorrectionRemoteProof
+from research_system.discovery.spec_action_journal import pending_preparation
 from research_system.discovery.accepted_w11 import (
     ACCEPTED as _ACCEPTED,
     CATALOGUE_STREAM_ID as _CATALOGUE_STREAM_ID,
@@ -196,7 +197,12 @@ def _assay_content_matches_current_spec_sources(
     )
 
 
-def _spec_02_plan_contract_matches(plan: object, authority: _Spec02ExecutionAuthority) -> bool:
+def _spec_02_plan_contract_matches(
+    plan: object,
+    authority: _Spec02ExecutionAuthority,
+    *,
+    allow_legacy_version: bool = False,
+) -> bool:
     """Bind the OR-014 plan to the exact owner-governed SPEC-02 source."""
 
     subject = authority.approval.get("spec_02_subject")
@@ -210,7 +216,11 @@ def _spec_02_plan_contract_matches(plan: object, authority: _Spec02ExecutionAuth
         and isinstance(source_sha256, str)
         and len(source_sha256) == 64
         and isinstance(planned_contracts, list)
-        and f"SPEC-02:{source_sha256}" in planned_contracts
+        and (
+            f"SPEC-02:{source_sha256}" in planned_contracts
+            or allow_legacy_version
+            and "SPEC-02:v1.1.0" in planned_contracts
+        )
     )
 
 
@@ -635,10 +645,18 @@ def build_spec_execution_authority_validator(
                     raise IntegrityError("owner authority decision publication projection is invalid")
             else:
                 owner_published_grant_ids = authority_resolver.owner_published_grant_ids()
+        event_position = event.get("global_position")
+        if not isinstance(event_position, int):
+            raise IntegrityError("SPEC-02 transition lacks a valid ledger position")
+        causal_events = tuple(
+            item
+            for item in events
+            if isinstance(item.get("global_position"), int) and item["global_position"] <= event_position
+        )
         authority = resolver.resolve(
             candidate,
             projection,
-            events=events,
+            events=causal_events,
             evaluation_time=evaluation_time,
             owner_published_grant_ids=owner_published_grant_ids,
         )
@@ -648,12 +666,28 @@ def build_spec_execution_authority_validator(
         if not isinstance(payload, Mapping):
             raise IntegrityError("SPEC-02 transition payload is invalid")
         if event.get("command_type") == "RegisterSpikePlan" and payload.get("row_id") == "OR-014":
-            if not _spec_02_plan_contract_matches(payload.get("plan_artifact"), authority):
+            if not _spec_02_plan_contract_matches(
+                payload.get("plan_artifact"),
+                authority,
+                allow_legacy_version=True,
+            ):
                 raise IntegrityError("SPEC-02 Spike plan differs from the exact governed contract")
         if event.get("command_type") == "RecordSpikeVerdict" and payload.get("row_id") in {"OR-018", "OR-019"}:
+            evidence_refs = payload.get("evidence_refs")
+            if (
+                not isinstance(evidence_refs, list)
+                or len(evidence_refs) != 1
+                or not isinstance(evidence_refs[0], str)
+                or not evidence_refs[0].startswith("artefact:")
+            ):
+                raise IntegrityError("SPEC-02 return evidence binding is invalid")
+            return_artefact_id = evidence_refs[0].removeprefix("artefact:")
             returns: list[Mapping[str, Any]] = []
-            for registered_event in events:
-                if registered_event.get("event_type") != "ArtefactRegistered":
+            for registered_event in causal_events:
+                if (
+                    registered_event.get("event_type") != "ArtefactRegistered"
+                    or registered_event.get("stream_id") != return_artefact_id
+                ):
                     continue
                 manifest = registered_event.get("payload", {}).get("manifest")
                 if not isinstance(manifest, Mapping) or manifest.get("artefact_type") != "spec_02_return":
@@ -845,6 +879,7 @@ class DiscoveryRuntime:
             transition_time = self._trusted_transition_time()
             self._resolve_authority(command, evaluation_time=transition_time)
             snapshot = self.ledger.snapshot()
+            self._require_prepared_spec_action_command(command, snapshot.events)
             projection = self.replay(snapshot.events)
             scope = (
                 command.actor_id,
@@ -1032,6 +1067,21 @@ class DiscoveryRuntime:
             raise IntegrityError(f"unsupported Discovery route family: {route.family}")
         validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
         return row_id, prepared
+
+    def _require_prepared_spec_action_command(
+        self,
+        command: Command,
+        events: tuple[dict[str, Any], ...],
+    ) -> None:
+        """Block route advancement until the exact prepared document command is recovered."""
+
+        pending = pending_preparation(self.control_root, events)
+        if pending is None:
+            return
+        packet = pending["packet"]
+        expected = packet.get("commands")
+        if not isinstance(expected, list) or len(expected) != 1 or expected[0] != command.envelope:
+            raise IntegrityError("prepared SPEC action requires exact recovery before any later Discovery command")
 
     def _resolve_authority(self, command: Command, *, evaluation_time: datetime) -> Any:
         """Resolve current canonical scoped authority for one command."""
@@ -1310,6 +1360,7 @@ class DiscoveryRuntime:
             )
 
         snapshot = self.ledger.snapshot()
+        self._require_prepared_spec_action_command(command, snapshot.events)
         try:
             projection = self.replay(snapshot.events)
         except (IntegrityError, TypeError, ValueError) as exc:

@@ -405,15 +405,16 @@ def _store_backup(args: argparse.Namespace) -> int:
     stage_root = destination_root.parent / f".{destination_root.name}.{request['command_id']}.stage"
     schemas = runtime_schema_registry(binding.schema_root)
     authority_config = getattr(args, "authority_config", None)
-    authority = (
-        LedgerAuthorityGrantResolver(
-            source_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        )
+    local_authority = LedgerAuthorityGrantResolver(
+        source_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    spec_authority = (
+        local_authority
         if authority_config is None
         else _authority_resolver_from_config(
             authority_config,
@@ -437,7 +438,7 @@ def _store_backup(args: argparse.Namespace) -> int:
         verification_authority_grant_id=request["verification_authority_grant_id"],
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
-        authority_resolver=authority,
+        authority_resolver=spec_authority,
     )
     ledger = EventLedger(source_root, binding.project_id, schemas)
     snapshot = ledger.snapshot()
@@ -485,11 +486,11 @@ def _store_backup(args: argparse.Namespace) -> int:
         ObjectStore(source_root),
         ReceiptStore(source_root),
         schemas,
-        authority_resolver=authority,
+        authority_resolver=local_authority,
         clock=_authority_clock,
         backup_materializer=materializer,
         spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
-            source_root, schemas, authority, events
+            source_root, schemas, spec_authority, events
         ),
     ).submit(command)
     if receipt.status != "accepted":

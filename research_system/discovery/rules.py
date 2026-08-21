@@ -58,16 +58,34 @@ _ASSAY_PARTIAL_FIELDS = frozenset(
 
 
 def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, Any] | None) -> bool:
-    """Return whether the candidate descends from the exact Gate 6 SPEC source query."""
+    """Return whether the candidate is bound to the Gate 6 SPEC route.
+
+    New candidates carry the exact route source query.  The persisted 2026-08
+    Gate 6 run predates that query token, but its Assay was admitted against the
+    unique accepted Gate 6 Assay bar.  That durable relation is an equally exact
+    route discriminator once the Assay exists.
+    """
 
     if not isinstance(candidate, Mapping):
         return False
     observations = state.get("source_observations", {})
-    return any(
+    if any(
         isinstance(observation, Mapping)
         and observation.get("batch", {}).get("source_query") == "exact:SPEC-GATE6-RUN-V1"
         for observation_id in candidate.get("source_observation_refs", ())
         for observation in (observations.get(observation_id),)
+    ):
+        return True
+    assays = state.get("assays", {})
+    bar = state.get("assay_bar_authority")
+    assay = assays.get(candidate.get("assay_id")) if isinstance(assays, Mapping) else None
+    return bool(
+        isinstance(bar, Mapping)
+        and bar.get("status") == "accepted"
+        and isinstance(assay, Mapping)
+        and assay.get("candidate_id") == candidate.get("candidate_id")
+        and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
+        and assay.get("producer_relation_sha256") == bar.get("producer_relation_sha256")
     )
 
 

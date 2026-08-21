@@ -115,6 +115,101 @@ def test_store_backup_cli_rejects_strings_for_json_array_fields(
         cli._store_backup(_backup_cli_validation_args(tmp_path))
 
 
+def test_store_backup_separates_local_command_authority_from_external_spec_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_root = tmp_path / "control"
+    schema_root = tmp_path / "schemas"
+    source_root.mkdir()
+    schema_root.mkdir()
+    request = _backup_request_for_cli_validation()
+    request.update(
+        {
+            "command_id": BACKUP_COMMAND_ID,
+            "receipt_id": BACKUP_RECEIPT_ID,
+            "receipt_revision": 1,
+            "submitted_at": "2026-08-05T08:00:00Z",
+            "actor_id": ACTOR_ID,
+            "on_behalf_of_actor_id": None,
+            "authority_grant_id": GRANT_ID,
+            "idempotency_key": "backup-authority-role-split",
+            "correlation_id": "backup-authority-role-split",
+            "causation_id": None,
+            "reason": "prove the backup authority roles remain separate",
+            "snapshot_id": "snapshot-role-split",
+            "encryption_class": "test",
+            "redaction_class": "test",
+            "destination_class": "test",
+            "verified_at": "2026-08-05T08:00:00Z",
+            "verified_by_actor_id": ACTOR_ID,
+            "verification_authority_grant_id": GRANT_ID,
+        }
+    )
+    binding = SimpleNamespace(
+        control_root=source_root,
+        schema_root=schema_root,
+        project_id=PROJECT_ID,
+        store_identity="store-local",
+        origin_witness={"witness": "local"},
+        origin_witness_path=tmp_path / "local-witness.json",
+    )
+    schemas = object()
+    local_authority = object()
+    external_spec_authority = object()
+    captured: dict[str, object] = {}
+
+    class Materializer:
+        def __init__(self, **kwargs: object) -> None:
+            captured["materializer_authority"] = kwargs["authority_resolver"]
+
+        def derive_event_payload(self, **_kwargs: object) -> dict[str, object]:
+            return {"canonical_tail_position": 0}
+
+    class Service:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            captured["command_authority"] = kwargs["authority_resolver"]
+            captured["validator_factory"] = kwargs["spec_execution_authority_validator_factory"]
+
+        def submit(self, _command: dict[str, object]) -> SimpleNamespace:
+            return SimpleNamespace(status="rejected", reason_code="test-stop")
+
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    monkeypatch.setattr(cli, "_read_json", lambda _path: request)
+    monkeypatch.setattr(cli, "runtime_schema_registry", lambda _path: schemas)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *_args, **_kwargs: local_authority)
+    monkeypatch.setattr(cli, "_authority_resolver_from_config", lambda *_args, **_kwargs: external_spec_authority)
+    monkeypatch.setattr(cli, "load_evidence_store_registry", lambda *_args: object())
+    monkeypatch.setattr(cli, "BackupMaterializer", Materializer)
+    monkeypatch.setattr(
+        cli,
+        "EventLedger",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            snapshot=lambda: SimpleNamespace(events=(), stream_versions={PROJECT_ID: 0})
+        ),
+    )
+    monkeypatch.setattr(cli, "CommandService", Service)
+    monkeypatch.setattr(cli, "ObjectStore", lambda _root: object())
+    monkeypatch.setattr(cli, "ReceiptStore", lambda _root: object())
+    monkeypatch.setattr(cli, "asdict", lambda value: vars(value))
+    monkeypatch.setattr(cli, "_print_json", lambda _value: None)
+    monkeypatch.setattr(
+        cli,
+        "_spec_replay_validator",
+        lambda _root, _schemas, resolver, _events: resolver,
+    )
+    args = _backup_cli_validation_args(tmp_path)
+    args.authority_config = tmp_path / "external-authority.json"
+
+    assert cli._store_backup(args) == 0
+
+    assert captured["materializer_authority"] is external_spec_authority
+    assert captured["command_authority"] is local_authority
+    validator_factory = captured["validator_factory"]
+    assert callable(validator_factory)
+    assert validator_factory(()) is external_spec_authority
+
+
 def _activate_backup_grant(tmp_path: Path) -> tuple[ControlBinding, EventLedger]:
     control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
     command_binding = schemas.command_binding("CreateBackup")

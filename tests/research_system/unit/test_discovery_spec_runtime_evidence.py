@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+import research_system.discovery.runtime as discovery_runtime_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery.runtime import (
     DiscoveryRuntime,
@@ -14,7 +15,9 @@ from research_system.discovery.runtime import (
     _SPEC_02_APPROVAL_AUTHORITY_REASON,
     _SPEC_02_APPROVAL_EVIDENCE_PREFIX,
     _runtime_git,
+    _spec_02_plan_contract_matches,
 )
+from research_system.discovery.rules import _is_spec_route_candidate
 
 
 class _AcceptingSchemas:
@@ -34,6 +37,41 @@ class _ReturnValidationHarness:
         self.schemas = _AcceptingSchemas()
 
 
+def test_spec_route_candidate_accepts_the_exact_assay_bar_relation_for_historical_replay() -> None:
+    candidate = {"candidate_id": "candidate", "assay_id": "assay", "source_observation_refs": ["source"]}
+    state = {
+        "source_observations": {"source": {"batch": {"source_query": "historical DOI query"}}},
+        "assay_bar_authority": {
+            "status": "accepted",
+            "acceptance_sha256": "a" * 64,
+            "producer_relation_sha256": "b" * 64,
+        },
+        "assays": {
+            "assay": {
+                "candidate_id": "candidate",
+                "assay_bar_acceptance_sha256": "a" * 64,
+                "producer_relation_sha256": "b" * 64,
+            }
+        },
+    }
+
+    assert _is_spec_route_candidate(state, candidate)
+    state["assays"]["assay"]["producer_relation_sha256"] = "c" * 64
+    assert not _is_spec_route_candidate(state, candidate)
+
+
+def test_legacy_spec_02_plan_version_is_replay_only() -> None:
+    authority = _Spec02ExecutionAuthority(
+        approval={"spec_02_subject": {"id": "SPEC-02", "sha256": "a" * 64}},
+        brief={"route_source": {"raw_sha256": "a" * 64}},
+        correction=None,
+    )
+    plan = {"planned_contracts": ["W11:OR-018", "SPEC-02:v1.1.0"]}
+
+    assert not _spec_02_plan_contract_matches(plan, authority)
+    assert _spec_02_plan_contract_matches(plan, authority, allow_legacy_version=True)
+
+
 class _ApprovalResolverHarness(_SpecExecutionAuthorityResolver):
     """Supply a frozen authority event snapshot while exercising production matching."""
 
@@ -41,7 +79,11 @@ class _ApprovalResolverHarness(_SpecExecutionAuthorityResolver):
         super().__init__(**kwargs)
         self.authority_events = authority_events
 
-    def _authority_decision_context(self) -> tuple[object, tuple[dict[str, Any], ...]]:
+    def _authority_decision_context(
+        self,
+        _projection: dict[str, Any],
+        _events: tuple[dict[str, Any], ...],
+    ) -> tuple[object, tuple[dict[str, Any], ...]]:
         return SimpleNamespace(owner_actor_id="owner", root_grant_id="root-grant"), tuple(self.authority_events)
 
 
@@ -253,7 +295,9 @@ def test_spec_runtime_rejects_rehashed_owner_decision_without_exact_approval_com
     assert resolver.resolve(candidate, projection, events=events) is None
 
 
-def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None:
+def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(discovery_runtime_module, "_spec_02_return_evidence_matches", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(discovery_runtime_module, "_spec_02_pass_rerun_matches", lambda *_args, **_kwargs: True)
     runtime = _ReturnValidationHarness(tmp_path)
     verdict = {"verdict": "PASS"}
     verdict_sha256 = sha256_hex(canonical_bytes(verdict))
@@ -303,6 +347,7 @@ def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None
         command=command,
         authority=authority,
         spike=spike,
+        projection={},
         events=(),
         prospective_document=document,
     )
@@ -311,6 +356,7 @@ def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None
         command=command,
         authority=authority,
         spike=spike,
+        projection={},
         events=(),
         prospective_document=document,
     )
@@ -320,6 +366,7 @@ def test_spec_return_binds_embedded_verdict_and_prepared_brief(tmp_path) -> None
         command=command,
         authority=authority,
         spike=spike,
+        projection={},
         events=(),
         prospective_document=document,
     )
