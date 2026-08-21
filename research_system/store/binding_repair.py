@@ -931,15 +931,22 @@ def _advance_store_binding_locked(
             "successor_binding_sha256": successor_sha,
         }
     )
-    command_schema = ledger.schemas.resolve_identity(ADVANCE_COMMAND_SCHEMA_ID, "1.0.0")
+    command_binding = ledger.schemas.command_binding("AdvanceStoreBinding")
+    if command_binding is None or command_binding.schema_id != ADVANCE_COMMAND_SCHEMA_ID:
+        raise IntegrityError("AdvanceStoreBinding has no exact active command schema")
+    command_schema = ledger.schemas.resolve_identity(
+        command_binding.schema_id,
+        command_binding.schema_version,
+    )
     ledger.schemas.validate(
         ADVANCE_COMMAND_SCHEMA_ID,
         {
             "schema_id": ADVANCE_COMMAND_SCHEMA_ID,
-            "schema_version": "1.0.0",
+            "schema_version": command_schema.schema_version,
             "command_type": "AdvanceStoreBinding",
             "payload": payload,
         },
+        schema_version=command_schema.schema_version,
     )
     ledger.schemas.validate(ADVANCE_OBJECT_SCHEMA_ID, successor)
     _physical_artifact_path(control, object_path, create_parent=True)

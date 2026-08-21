@@ -675,6 +675,18 @@ def test_owner_bound_route_successor_advance_accepts_only_its_exact_reviewed_tra
     assert result["status"] == "advanced"
     assert result["recovery_binding"]["git_head"] == candidate_head
     assert result["recovery_binding"]["route"]["sha256"] == semantic["expected_successor_route_sha256"]
+    advance_event = tuple(
+        EventLedger(
+            target,
+            witness.project_id,
+            runtime_schema_registry(candidate / ".research-system" / "schemas"),
+            store_identity=witness.store_identity,
+        ).iter_events()
+    )[-1]
+    assert advance_event["command_schema_version"] == "1.1.0"
+    assert advance_event["command_schema_sha256"] == (
+        "6a48ef967208ccf6af8df86bcb454ddc2544f19106c6074f1c91c45d9651c967"
+    )
     binding_path = _binding_file(tmp_path, target, candidate, witness)
     assert ControlBinding.load_repaired(binding_path).schema_root == candidate / ".research-system" / "schemas"
     recovery_path = target / "manifests" / "binding-repair-current.json"

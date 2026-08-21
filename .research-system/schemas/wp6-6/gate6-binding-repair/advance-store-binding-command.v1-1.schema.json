@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "command_type", "payload"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"},
+    "schema_version": {"const": "1.1.0"},
+    "command_type": {"const": "AdvanceStoreBinding"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_root", "candidate_repository_root", "expected_project_id", "expected_store_identity", "expected_origin_authority_root", "expected_origin_witness_sha256", "intended_schema_root", "valid_from", "expires_at", "owner_actor_id", "owner_action", "idempotency_key", "reason"],
+      "properties": {
+        "control_root": {"type": "string", "minLength": 1},
+        "candidate_repository_root": {"type": "string", "minLength": 1},
+        "expected_project_id": {"type": "string", "pattern": "^prj_"},
+        "expected_store_identity": {"$ref": "#/$defs/sha256"},
+        "expected_origin_authority_root": {"type": "string", "minLength": 1},
+        "expected_origin_witness_sha256": {"$ref": "#/$defs/sha256"},
+        "intended_schema_root": {"type": "string", "minLength": 1},
+        "valid_from": {"$ref": "#/$defs/utc"},
+        "expires_at": {"$ref": "#/$defs/utc"},
+        "owner_actor_id": {"type": "string", "pattern": "^act_"},
+        "owner_action": {"enum": ["advance-clean-descendant-store-binding", "advance-reviewed-route-successor-store-binding"]},
+        "idempotency_key": {"type": "string", "minLength": 8},
+        "reason": {"type": "string", "minLength": 12},
+        "expected_predecessor_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_candidate_git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "expected_predecessor_route_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_successor_route_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "allOf": [{
+        "oneOf": [
+          {
+            "properties": {"owner_action": {"const": "advance-clean-descendant-store-binding"}},
+            "not": {"anyOf": [
+              {"required": ["expected_predecessor_binding_sha256"]},
+              {"required": ["expected_candidate_git_head"]},
+              {"required": ["expected_predecessor_route_sha256"]},
+              {"required": ["expected_successor_route_sha256"]}
+            ]}
+          },
+          {
+            "properties": {"owner_action": {"const": "advance-reviewed-route-successor-store-binding"}},
+            "required": ["expected_predecessor_binding_sha256", "expected_candidate_git_head", "expected_predecessor_route_sha256", "expected_successor_route_sha256"]
+          }
+        ]
+      }]
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "utc": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"}
+  }
+}

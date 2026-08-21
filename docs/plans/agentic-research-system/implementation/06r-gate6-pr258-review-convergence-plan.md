@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 
-**Status:** `IN_PROGRESS / live_route_advanced_replay_binding_fix_ready`
+**Status:** `IN_PROGRESS / schema_lineage_fix_ready_for_final_binding`
 
 **Authority:** bounded subordinate plan to
 [06q](06q-gate6-spec-real-run-integration-and-follow-up.md). This document does
@@ -437,6 +437,54 @@ replay correction and record update, issue an ordinary clean-descendant intent
 for that exact commit, advance the live binding once more without route or SPEC
 change, and run full replay plus public SPEC status under complete before/after
 inventories.
+
+### 7.4 Append-only schema-lineage repair — 2026-08-21
+
+The replay correction and record were frozen at local commit
+`6acce2ba1b0912fd45b418c466cf7930cbe678ec`. Canonical ordinary intent
+`advance-binding-replay-fix-20260821-v1.json`, SHA-256
+`8fbd16b1aaee1ef9fccd3671eaee7bb0e9403a007de0b6a134f7590912aa8a50`,
+advanced the live binding from event 445 to 446. Its transaction was
+`txb_01a02668-fa30-7a1a-82a8-fa9d15ae0c7b`; binding SHA-256 moved from
+`423614c3ec00815f05823f474bc5b9a0dbd299cc0853bb2f77897d8c27c32bc8`
+to `572a8b66dd270619ecb993789459bf9e1775f8bcb76bede853b946085fccb7b5`.
+The same exact five-path publication pattern held, route and SPEC bytes were
+unchanged, transition-local route authority was not inherited, and no marker
+or writer lock remained.
+
+Full replay then failed read-only at event 149. The reviewed-route correction
+had expanded the durable `AdvanceStoreBinding` command schema in place while
+leaving its version at `1.0.0`. Events 149 through 441 bind the original v1.0
+hash `cbbe5b6b3a9cd6d97c8c648cfe7c49e16b3b813b800e28ffa94c1d7ebe4f8157`;
+the two new live events 445 and 446 bind expanded bytes under the same version,
+hash `5f15223aeec3cbe0825a49b5395467a62cda255378496a04fc83941557dbc3cb`.
+The registry correctly rejected that collision. All 1,757 control-store files
+were unchanged by the failed replay.
+
+The correction is append-only:
+
+- restore the original v1.0 schema bytes and hash as the unique active
+  catalogue entry for that version's history;
+- add the expanded schema as proper version `1.1.0` and make v1.1 the active
+  command binding for all new writes;
+- retain the exact already-recorded expanded-v1.0 bytes in a content-addressed
+  schema-history archive; and
+- admit that archive only through a canonical exact manifest keyed by schema
+  ID, version, raw-byte hash, and fixed archive path. It is never selected as
+  the active or default v1.0 schema.
+
+Unknown hashes, changed archive bytes, mismatched IDs/versions, redirected
+paths, duplicate aliases, and aliases without a distinct active successor fail
+closed. Registry controls prove the original v1.0 hash, the exact collision
+hash, and active v1.1 hash
+`6a48ef967208ccf6af8df86bcb454ddc2544f19106c6074f1c91c45d9651c967`.
+New route-successor and ordinary advances emit v1.1; legacy flat public input
+remains retry-only.
+
+The next operation is to commit this lineage repair, issue one ordinary
+clean-descendant intent for that exact commit, append its v1.1 binding event,
+and rerun full replay and public SPEC status with unchanged-file proofs. No
+historical event or object is rewritten.
 
 ## 8. Validation and exact-head review
 

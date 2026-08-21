@@ -977,6 +977,82 @@ def test_resource_grant_versions_coexist_and_require_explicit_version():
         registry.validate(schema_id, {})
 
 
+def test_schema_identity_history_resolves_an_exact_superseded_hash_without_changing_the_active_version(
+    tmp_path: Path,
+):
+    schema_id = "ars://test/collided-version"
+    current = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": schema_id,
+        "type": "object",
+        "properties": {"schema_version": {"const": "1.0.0"}},
+        "required": ["schema_version"],
+        "additionalProperties": False,
+    }
+    superseded = deepcopy(current)
+    superseded["properties"]["temporary_field"] = {"type": "string"}
+    current_raw = json.dumps(current, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_raw = json.dumps(superseded, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_sha256 = sha256(superseded_raw).hexdigest()
+    (tmp_path / "current.schema.json").write_bytes(current_raw)
+    history = tmp_path / "history"
+    history.mkdir()
+    archive_ref = f"history/sha256-{superseded_sha256}.json"
+    (tmp_path / archive_ref).write_bytes(superseded_raw)
+    manifest = {
+        "schema_id": "ars://core/schema-identity-history",
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "schema_id": schema_id,
+                "schema_version": "1.0.0",
+                "raw_bytes_sha256": superseded_sha256,
+                "archive_ref": archive_ref,
+            }
+        ],
+    }
+    (tmp_path / "schema-identity-history.json").write_bytes(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+    registry = SchemaRegistry(tmp_path)
+
+    assert registry.resolve_identity(schema_id, "1.0.0").raw_bytes == current_raw
+    historical = registry.resolve_identity(schema_id, "1.0.0", expected_sha256=superseded_sha256)
+    assert historical.raw_bytes == superseded_raw
+    assert historical.source_path == (tmp_path / archive_ref).resolve()
+    with pytest.raises(SchemaError, match="schema hash mismatch"):
+        registry.resolve_identity(schema_id, "1.0.0", expected_sha256="0" * 64)
+    archive_path = tmp_path / archive_ref
+    archive_path.write_bytes(archive_path.read_bytes() + b" ")
+    with pytest.raises(SchemaError, match="invalid schema identity archive"):
+        SchemaRegistry(tmp_path)
+
+
+def test_advance_store_binding_preserves_both_historical_v1_hashes_and_activates_v1_1():
+    registry = runtime_schema_registry(SCHEMAS)
+    schema_id = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
+
+    assert registry.resolve_identity(schema_id, "1.0.0").sha256 == (
+        "cbbe5b6b3a9cd6d97c8c648cfe7c49e16b3b813b800e28ffa94c1d7ebe4f8157"
+    )
+    assert (
+        registry.resolve_identity(
+            schema_id,
+            "1.0.0",
+            expected_sha256="5f15223aeec3cbe0825a49b5395467a62cda255378496a04fc83941557dbc3cb",
+        ).sha256
+        == "5f15223aeec3cbe0825a49b5395467a62cda255378496a04fc83941557dbc3cb"
+    )
+    current = registry.resolve_identity(schema_id, "1.1.0")
+    assert current.sha256 == "6a48ef967208ccf6af8df86bcb454ddc2544f19106c6074f1c91c45d9651c967"
+    assert registry.command_binding("AdvanceStoreBinding") == SchemaBinding(
+        schema_id,
+        "1.1.0",
+        command_type="AdvanceStoreBinding",
+    )
+
+
 def test_t2_v1_1_siblings_have_independent_exact_new_write_contracts():
     expected = {
         "cost-grant-issued.v1-1.schema.json": (
