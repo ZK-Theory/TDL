@@ -1523,18 +1523,135 @@ def test_cli_replay_uses_bound_owner_decision_validator(
     )
     assert service.submit(_activation_command(resolver, schemas, grant, decision)).status == "accepted"
 
+    external_spec_resolver = SimpleNamespace(name="external-spec-authority")
+    seen: dict[str, object] = {}
+
     def verified_ledger(root, authority_config=None):
         assert root == control_root
         assert authority_config is None
-        return ledger, schemas, resolver
+        return ledger, schemas, cli._ReplayAuthorities(resolver, external_spec_resolver)
+
+    def spec_validator(root, supplied_schemas, supplied_resolver, events):
+        assert root == control_root
+        assert supplied_schemas is schemas
+        seen["resolver"] = supplied_resolver
+        seen["events"] = events
+        return None
 
     monkeypatch.setattr(cli, "_verified_ledger", verified_ledger)
+    monkeypatch.setattr(cli, "_spec_replay_validator", spec_validator)
 
     assert _replay_verify(SimpleNamespace(control_root=control_root)) == 0
+    assert seen == {"resolver": external_spec_resolver, "events": ledger.snapshot().events}
     assert GRANT_ID in capsys.readouterr().out
     decision_path.unlink()
     with pytest.raises(IntegrityError, match="administration decision"):
         _replay_verify(SimpleNamespace(control_root=control_root))
+
+
+def test_replay_authority_roles_keep_local_administration_when_spec_authority_is_external(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    local = SimpleNamespace(name="local-administration")
+    external = SimpleNamespace(name="external-spec")
+    authority_config = tmp_path / "authority-binding.json"
+    approved = SimpleNamespace(origin_witness="witness", origin_witness_path=tmp_path / "witness.json")
+    manifest = {
+        "project_id": PROJECT_ID,
+        "store_identity": "store-local",
+        "schema_root": str(tmp_path / "schemas"),
+    }
+
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *_args, **_kwargs: local)
+    monkeypatch.setattr(cli, "_schema_root_for_store_manifest", lambda _manifest: tmp_path / "schemas")
+
+    def external_resolver(path, *, project_id, schemas, expected_schema_root):
+        assert path == authority_config
+        assert project_id == PROJECT_ID
+        assert schemas == "schemas"
+        assert expected_schema_root == tmp_path / "schemas"
+        return external
+
+    monkeypatch.setattr(cli, "_authority_resolver_from_config", external_resolver)
+
+    authorities = cli._replay_authorities(
+        control_root=tmp_path,
+        manifest=manifest,
+        schemas="schemas",
+        approved=approved,
+        authority_config=authority_config,
+    )
+
+    assert authorities.local_administration is local
+    assert authorities.spec_execution is external
+
+
+def test_projection_rebuild_preserves_local_administration_with_external_spec_authority(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    repository_root = tmp_path / "repository"
+    output = repository_root / ".research-system" / "projections" / "state.json"
+    authority_config = tmp_path / "authority.json"
+    manifest = {
+        "project_id": PROJECT_ID,
+        "store_identity": "store-local",
+        "schema_root": str(tmp_path / "schemas"),
+        "code_roots": [str(repository_root)],
+    }
+    approved = SimpleNamespace(origin_witness="witness", origin_witness_path=tmp_path / "witness.json")
+    local_validator = object()
+    spec_validator = object()
+    local = SimpleNamespace(validate_replayed_administration_state=local_validator)
+    external = SimpleNamespace(name="external-spec")
+    snapshot = SimpleNamespace(events=({"event_id": "event"},))
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(cli, "ApprovedProjectBinding", SimpleNamespace(load=lambda _path: approved))
+    monkeypatch.setattr(cli, "load_store_manifest", lambda *_args, **_kwargs: manifest)
+    monkeypatch.setattr(cli, "_schemas_for_store_manifest", lambda _manifest: "schemas")
+    monkeypatch.setattr(cli, "EventLedger", lambda *_args, **_kwargs: SimpleNamespace(snapshot=lambda: snapshot))
+
+    def replay_authorities(**kwargs):
+        assert kwargs["authority_config"] == authority_config
+        return cli._ReplayAuthorities(local, external)
+
+    def spec_replay_validator(root, schemas, resolver, events):
+        assert (root, schemas, resolver, events) == (control_root, "schemas", external, snapshot.events)
+        return spec_validator
+
+    def rebuild(events, path, schemas, administration_validator, supplied_spec_validator):
+        seen.update(
+            events=events,
+            path=path,
+            schemas=schemas,
+            administration_validator=administration_validator,
+            spec_validator=supplied_spec_validator,
+        )
+        return {"status": "rebuilt"}
+
+    monkeypatch.setattr(cli, "_replay_authorities", replay_authorities)
+    monkeypatch.setattr(cli, "_spec_replay_validator", spec_replay_validator)
+    monkeypatch.setattr(cli, "rebuild_projection", rebuild)
+    monkeypatch.setattr(cli, "_print_json", lambda value: seen.update(output=value))
+
+    assert (
+        cli._projection_rebuild(
+            SimpleNamespace(control_root=control_root, output=output, authority_config=authority_config)
+        )
+        == 0
+    )
+    assert seen == {
+        "events": snapshot.events,
+        "path": output,
+        "schemas": "schemas",
+        "administration_validator": local_validator,
+        "spec_validator": spec_validator,
+        "output": {"status": "rebuilt"},
+    }
 
 
 @pytest.mark.parametrize(

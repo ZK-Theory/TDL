@@ -56,14 +56,17 @@ _ASSAY_PARTIAL_FIELDS = frozenset(
     }
 )
 
+_LEGACY_SPEC_CANDIDATE_ID = "obj_01a00620-0f74-7613-a7b0-dffbb50d9663"
+_LEGACY_SPEC_ASSAY_ID = "asy_01a00620-0f74-74e6-b440-f760f4eb6731"
+
 
 def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, Any] | None) -> bool:
     """Return whether the candidate is bound to the Gate 6 SPEC route.
 
     New candidates carry the exact route source query.  The persisted 2026-08
-    Gate 6 run predates that query token, but its Assay was admitted against the
-    unique accepted Gate 6 Assay bar.  That durable relation is an equally exact
-    route discriminator once the Assay exists.
+    Gate 6 run predates that query token.  Its exact immutable candidate and
+    Assay identities may therefore use the accepted-bar relation as a replay
+    compatibility proof; that relation is not a reusable route classifier.
     """
 
     if not isinstance(candidate, Mapping):
@@ -80,10 +83,12 @@ def _is_spec_route_candidate(state: Mapping[str, Any], candidate: Mapping[str, A
     bar = state.get("assay_bar_authority")
     assay = assays.get(candidate.get("assay_id")) if isinstance(assays, Mapping) else None
     return bool(
-        isinstance(bar, Mapping)
+        candidate.get("candidate_id") == _LEGACY_SPEC_CANDIDATE_ID
+        and candidate.get("assay_id") == _LEGACY_SPEC_ASSAY_ID
+        and isinstance(bar, Mapping)
         and bar.get("status") == "accepted"
         and isinstance(assay, Mapping)
-        and assay.get("candidate_id") == candidate.get("candidate_id")
+        and assay.get("candidate_id") == _LEGACY_SPEC_CANDIDATE_ID
         and assay.get("assay_bar_acceptance_sha256") == bar.get("acceptance_sha256")
         and assay.get("producer_relation_sha256") == bar.get("producer_relation_sha256")
     )

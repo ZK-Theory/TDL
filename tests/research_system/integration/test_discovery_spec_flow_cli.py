@@ -22,6 +22,8 @@ import research_system.discovery.runtime as discovery_runtime_module
 import research_system.git_provenance as git_provenance_module
 import research_system.methods.registration as registration_module
 import research_system.owner_authority as owner_authority_module
+import research_system.projection.replay as projection_replay_module
+from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
@@ -807,6 +809,7 @@ def _prepare_spec_01(inputs: dict[str, Any], *, execute: bool = True) -> dict[st
         manifest.update(
             artefact_id=artefact_id,
             artefact_type=artefact_type,
+            attempt_id=C1_ATTEMPT_ID,
             producer_actor_id=actor_id,
             task_id="tsk_019ffe2b-fd4b-7000-8000-000000000703",
         )
@@ -1820,6 +1823,7 @@ def _register_spike_return_evidence(
     candidate_id: str,
     spike_id: str,
     attempt_sha256: str,
+    resource_use: Mapping[str, int | float],
 ) -> dict[str, dict[str, Any]]:
     operator = load_discovery_operator(inputs["config_path"])
     service = CommandService(
@@ -1833,16 +1837,14 @@ def _register_spike_return_evidence(
         clock=operator.clock,
     )
     registered: dict[str, dict[str, Any]] = {}
-    for index, (name, artefact_type) in enumerate(
-        (
-            ("raw_output", "evaluation_run"),
-            ("source", "evaluation_run"),
-            ("checks", "validation_report"),
-            ("result", "evaluation_run"),
-        ),
-        start=1,
+    for name, artefact_type, identity_suffix in (
+        ("raw_output", "evaluation_run", 921),
+        ("source", "evaluation_run", 922),
+        ("checks", "validation_report", 923),
+        ("result", "evaluation_run", 924),
+        ("resource_measurement", "resource_measurement", 929),
     ):
-        artefact_id = f"art_019ffe2b-fd4b-7000-8000-{920 + index:012d}"
+        artefact_id = f"art_019ffe2b-fd4b-7000-8000-{identity_suffix:012d}"
         actor_id = ACTORS["actor-a"]
         value = {
             "schema_id": "ars://portfolio/spec-route-evidence",
@@ -1854,7 +1856,7 @@ def _register_spike_return_evidence(
             "spike_id": spike_id,
             "attempt_id": C1_ATTEMPT_ID,
             "attempt_sha256": attempt_sha256,
-            "content": f"exact deterministic {name}",
+            "content": dict(resource_use) if name == "resource_measurement" else f"exact deterministic {name}",
         }
         grant_id = activate_lifecycle_grant(
             inputs["harness"],
@@ -1868,8 +1870,9 @@ def _register_spike_return_evidence(
         manifest.update(
             artefact_id=artefact_id,
             artefact_type=artefact_type,
+            attempt_id=C1_ATTEMPT_ID,
             producer_actor_id=actor_id,
-            task_id=f"tsk_019ffe2b-fd4b-7000-8000-{920 + index:012d}",
+            task_id=f"tsk_019ffe2b-fd4b-7000-8000-{identity_suffix:012d}",
         )
         manifest["authority"]["accepted_scope"] = "spec-gate6-run"
         result = register_candidate_document(
@@ -1909,11 +1912,18 @@ def _return_spec_02_complete(
     deterministic_rerun: dict[str, Any] | None = None,
     execute: bool = True,
 ) -> dict[str, str]:
+    effective_resource_use = resource_use or {
+        "elapsed_seconds": 1,
+        "cpu_seconds": 1,
+        "peak_memory_bytes": 1,
+        "external_cost_gbp": 0,
+    }
     evidence = _register_spike_return_evidence(
         inputs,
         candidate_id=candidate_id,
         spike_id=started["spike_id"],
         attempt_sha256=started["attempt_sha256"],
+        resource_use=effective_resource_use,
     )
     operator = load_discovery_operator(inputs["config_path"])
     projection = SpecFlow(operator)._snapshot()[1]
@@ -1999,12 +2009,11 @@ def _return_spec_02_complete(
         "artifact_hashes": [
             *(
                 {"name": name, "sha256": evidence[name]["content_sha256"]}
-                for name in ("raw_output", "source", "checks", "result")
+                for name in ("raw_output", "source", "checks", "result", "resource_measurement")
             ),
             {"name": "embedded_artefact", "sha256": verdict_sha256},
         ],
-        "resource_use": resource_use
-        or {"elapsed_seconds": 1, "cpu_seconds": 1, "peak_memory_bytes": 1, "external_cost_gbp": 0},
+        "resource_use": effective_resource_use,
         "deterministic_rerun": deterministic_rerun
         or {
             "performed": True,
@@ -4700,11 +4709,19 @@ def test_replay_verify_revalidates_completed_spec_history_and_external_documents
     )
     assert bound_authority.control_root == operator.authority_resolver.control_root
     assert bound_authority.expected_store_identity == operator.authority_resolver.expected_store_identity
+    local_authority = LedgerAuthorityGrantResolver(
+        operator.control_root,
+        spec_inputs["binding"].project_id,
+        spec_inputs["binding"].store_identity,
+        operator.schemas,
+        approved_witness=spec_inputs["binding"].origin_witness,
+        approved_witness_path=spec_inputs["binding"].origin_witness_path,
+    )
 
     def verified_ledger(control_root: Path, supplied_authority_config: Path | None = None):
         assert control_root == operator.control_root
         assert supplied_authority_config == authority_config
-        return operator.ledger, operator.schemas, operator.authority_resolver
+        return operator.ledger, operator.schemas, cli._ReplayAuthorities(local_authority, bound_authority)
 
     monkeypatch.setattr(
         cli,
@@ -5349,14 +5366,25 @@ def test_spec_changed_command_same_retry_identity_conflicts_without_new_publicat
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
 
-def test_same_root_spec_authority_uses_the_inflight_replay_context(tmp_path: Path) -> None:
+def test_same_root_spec_authority_uses_the_verified_shared_replay_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     observed: list[Mapping[str, Any]] = []
     context = object()
+    authority_projection = {
+        "project_id": PROJECT_ID,
+        "owner_authority_decision_publications": {
+            "decision": {"target_grant_id": "agr_019ffe2b-fd4b-7000-8000-000000000001"}
+        },
+    }
     authority_resolver = SimpleNamespace(
         control_root=tmp_path,
+        validate_replayed_administration_state=lambda _projection: None,
         _administration_context_from_projection=lambda projection: observed.append(projection) or context,
         administration_context=lambda: pytest.fail("same-root SPEC validation recursively replayed authority"),
     )
+    monkeypatch.setattr(projection_replay_module, "replay", lambda *_args, **_kwargs: authority_projection)
     resolver = _SpecExecutionAuthorityResolver(
         control_root=tmp_path,
         schemas=SimpleNamespace(),
@@ -5370,7 +5398,8 @@ def test_same_root_spec_authority_uses_the_inflight_replay_context(tmp_path: Pat
 
     assert resolved_context is context
     assert resolved_events is events
-    assert observed == [projection]
+    assert observed == [authority_projection]
+    assert resolver._same_root_authority_evidence(events)[1] == frozenset({"agr_019ffe2b-fd4b-7000-8000-000000000001"})
 
 
 def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
@@ -5396,7 +5425,10 @@ def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
     validator = build_spec_execution_authority_validator(
         control_root=tmp_path,
         schemas=SimpleNamespace(),
-        authority_resolver=SimpleNamespace(control_root=tmp_path),
+        authority_resolver=SimpleNamespace(
+            control_root=tmp_path / "external-authority",
+            owner_published_grant_ids=lambda: frozenset(),
+        ),
         events=(event,),
     )
 

@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -1250,13 +1250,50 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
     return 0
 
 
+@dataclass(frozen=True)
+class _ReplayAuthorities:
+    """Keep local administration and optional external SPEC authority distinct."""
+
+    local_administration: LedgerAuthorityGrantResolver
+    spec_execution: LedgerAuthorityGrantResolver
+
+
+def _replay_authorities(
+    *,
+    control_root: Path,
+    manifest: Mapping[str, Any],
+    schemas: SchemaRegistry,
+    approved: ApprovedProjectBinding,
+    authority_config: Path | None,
+) -> _ReplayAuthorities:
+    local = LedgerAuthorityGrantResolver(
+        control_root,
+        manifest["project_id"],
+        manifest["store_identity"],
+        schemas,
+        approved_witness=approved.origin_witness,
+        approved_witness_path=approved.origin_witness_path,
+    )
+    external = (
+        local
+        if authority_config is None
+        else _authority_resolver_from_config(
+            authority_config,
+            project_id=manifest["project_id"],
+            schemas=schemas,
+            expected_schema_root=_schema_root_for_store_manifest(manifest),
+        )
+    )
+    return _ReplayAuthorities(local_administration=local, spec_execution=external)
+
+
 def _verified_ledger(
     control_root: Path,
     authority_config: Path | None = None,
 ) -> tuple[
     EventLedger,
     SchemaRegistry,
-    LedgerAuthorityGrantResolver,
+    _ReplayAuthorities,
 ]:
     approved = ApprovedProjectBinding.load(canonical_foundation_path())
     manifest = load_store_manifest(
@@ -1266,36 +1303,26 @@ def _verified_ledger(
     )
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
-    resolver = (
-        LedgerAuthorityGrantResolver(
-            resolved_root,
-            manifest["project_id"],
-            manifest["store_identity"],
-            schemas,
-            approved_witness=approved.origin_witness,
-            approved_witness_path=approved.origin_witness_path,
-        )
-        if authority_config is None
-        else _authority_resolver_from_config(
-            authority_config,
-            project_id=manifest["project_id"],
-            schemas=schemas,
-            expected_schema_root=_schema_root_for_store_manifest(manifest),
-        )
+    authorities = _replay_authorities(
+        control_root=resolved_root,
+        manifest=manifest,
+        schemas=schemas,
+        approved=approved,
+        authority_config=authority_config,
     )
-    return EventLedger(resolved_root, manifest["project_id"], schemas), schemas, resolver
+    return EventLedger(resolved_root, manifest["project_id"], schemas), schemas, authorities
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
-    ledger, schemas, resolver = _verified_ledger(args.control_root, getattr(args, "authority_config", None))
+    ledger, schemas, authorities = _verified_ledger(args.control_root, getattr(args, "authority_config", None))
     snapshot = ledger.snapshot()
     _print_json(
         replay(
             snapshot.events,
             schema_registry=schemas,
-            authority_state_validator=resolver.validate_replayed_administration_state,
+            authority_state_validator=authorities.local_administration.validate_replayed_administration_state,
             spec_execution_authority_validator=_spec_replay_validator(
-                ledger.control_root, schemas, resolver, snapshot.events
+                ledger.control_root, schemas, authorities.spec_execution, snapshot.events
             ),
         )
     )
@@ -1318,30 +1345,20 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
         raise ArsError("projection output must use an ARS namespaced projection root")
     schemas = _schemas_for_store_manifest(manifest)
     ledger = EventLedger(control_root, manifest["project_id"], schemas)
-    resolver = (
-        LedgerAuthorityGrantResolver(
-            control_root,
-            manifest["project_id"],
-            manifest["store_identity"],
-            schemas,
-            approved_witness=approved.origin_witness,
-            approved_witness_path=approved.origin_witness_path,
-        )
-        if getattr(args, "authority_config", None) is None
-        else _authority_resolver_from_config(
-            args.authority_config,
-            project_id=manifest["project_id"],
-            schemas=schemas,
-            expected_schema_root=_schema_root_for_store_manifest(manifest),
-        )
+    authorities = _replay_authorities(
+        control_root=control_root,
+        manifest=manifest,
+        schemas=schemas,
+        approved=approved,
+        authority_config=getattr(args, "authority_config", None),
     )
     snapshot = ledger.snapshot()
     state = rebuild_projection(
         snapshot.events,
         output,
         schemas,
-        resolver.validate_replayed_administration_state,
-        _spec_replay_validator(control_root, schemas, resolver, snapshot.events),
+        authorities.local_administration.validate_replayed_administration_state,
+        _spec_replay_validator(control_root, schemas, authorities.spec_execution, snapshot.events),
     )
     _print_json(state)
     return 0

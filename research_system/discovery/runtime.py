@@ -72,7 +72,10 @@ from research_system.discovery.rules import (
 )
 from research_system.discovery.path_safety import read_contained_regular_file
 from research_system.discovery.replay.driver import replay_discovery
-from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
+from research_system.discovery.replay.transactions import (
+    is_exact_legacy_unclosed_spike_verdict,
+    validate_prepared_transaction_contract,
+)
 from research_system.discovery.commands import (
     DISCOVERY_COMMAND_TYPES,
     discovery_resolve_transaction_ids,
@@ -108,6 +111,15 @@ _COMMAND_FIELDS = {
 _GIT_TIMEOUT_SECONDS = 10
 _SPEC_02_APPROVAL_AUTHORITY_REASON = "Authorize exact governed publication of the owner-approved SPEC-02 run decision."
 _SPEC_02_APPROVAL_EVIDENCE_PREFIX = "spec-02-approval-sha256:"
+_LEGACY_SPEC_02_APPROVAL_PUBLICATION = {
+    "approval_artefact_id": "art_0b3578b7-c96f-7e0e-a6d0-a1a38ba9c1de",
+    "approval_sha256": "99407a4c96a5c5a00135fb02e7a04dac6034fe8750b2cc89d9aa8e804c62a024",
+    "approval_grant_id": "agr_2f88a314-393c-7757-91e3-526abd93114d",
+    "event_id": "evt_01a00715-c98a-73d1-85e9-de23dfd68eec",
+    "event_hash": "cf80a781b7d2512324596b808cc270146564190e9bd06826b3e366c14d42fa6e",
+    "command_id": "cmd_e13d641f-11be-7826-bc40-127f7d3e6f94",
+    "command_payload_hash": "877f1c6d92bc0568ef03617ffbfdf4cf2071c827a51f628514949ccb298af5e9",
+}
 _SPEC_02_GATED_TRANSITIONS = frozenset(
     {
         ("RegisterSpikePlan", "OR-014"),
@@ -252,7 +264,151 @@ _SPEC_02_EVIDENCE_TYPES = {
     "source": "evaluation_run",
     "checks": "validation_report",
     "result": "evaluation_run",
+    "resource_measurement": "resource_measurement",
 }
+
+_SPEC_02_RESOURCE_USE_FIELDS = {
+    "elapsed_seconds",
+    "cpu_seconds",
+    "peak_memory_bytes",
+    "external_cost_gbp",
+}
+
+_LEGACY_SPEC_02_RETURN_BINDING = {
+    "return_sha256": "a334a81c61e803c5dad90078cc8be808230ec12b1c05c9272c39ccafaa7df14c",
+    "candidate_id": "obj_01a00620-0f74-7613-a7b0-dffbb50d9663",
+    "spike_id": "spk_9fc9324c-8f28-7066-89bb-d4f708ef7d44",
+    "attempt_id": "att_c7cf1966-93a1-7114-9b00-61df0d7b94ca",
+    "producer_actor_id": "act_e2651127-9ee1-7a64-a2ed-4e44008f1d4e",
+    "accepted_scope": "spec-gate6-run:spec-02",
+    "evidence": {
+        "raw_output": {
+            "artefact_id": "art_449b7235-3114-7043-8b3e-6ca76dc14768",
+            "artefact_type": "evaluation_run",
+            "content_sha256": "dc3811bd50423ebf7748e14d998e5cbe237e59b83661ee5feca0e78807139103",
+        },
+        "source": {
+            "artefact_id": "art_2e7531f9-020b-7775-83c4-cac52a2f6fed",
+            "artefact_type": "evaluation_run",
+            "content_sha256": "ac0d2c49c0563926a1a52aba91fe0dbd95d8d4e7c2d3143a6c3e4c23bcbc8464",
+        },
+        "checks": {
+            "artefact_id": "art_f0cbbf39-1356-772a-86c2-fca6391bfa45",
+            "artefact_type": "validation_report",
+            "content_sha256": "5705c5be0e9217c84dc8cefe9a7699913ca593dcc92fe1937c6bc650d3ef36be",
+        },
+        "result": {
+            "artefact_id": "art_ddf81b12-ffb4-7944-872f-aff3177b46c4",
+            "artefact_type": "evaluation_run",
+            "content_sha256": "792eeccfba777963fd67bc7178ebdd0c3c751035b224473b9e05288ccb7358a8",
+        },
+    },
+}
+
+
+def _is_exact_legacy_spec_02_approval_publication(
+    event: Mapping[str, Any],
+    *,
+    approval_sha256: str,
+    approval_grant_id: str,
+    approval_artefact_id: str,
+) -> bool:
+    """Recognize the immutable pre-hash-bound owner publication and nothing else."""
+
+    binding = _LEGACY_SPEC_02_APPROVAL_PUBLICATION
+    return bool(
+        approval_sha256 == binding["approval_sha256"]
+        and approval_grant_id == binding["approval_grant_id"]
+        and approval_artefact_id == binding["approval_artefact_id"]
+        and event.get("event_id") == binding["event_id"]
+        and event.get("event_hash") == binding["event_hash"]
+        and event.get("command_id") == binding["command_id"]
+        and event.get("command_payload_hash") == binding["command_payload_hash"]
+    )
+
+
+def _is_exact_legacy_spec_02_return(
+    event: Mapping[str, Any],
+    events: tuple[dict[str, Any], ...],
+) -> bool:
+    """Recognize only the frozen live OR-018 write set predating measurement evidence."""
+
+    payload = event.get("payload")
+    transaction_id = event.get("transaction_id")
+    transaction_events = tuple(
+        item for item in events if isinstance(transaction_id, str) and item.get("transaction_id") == transaction_id
+    )
+    return bool(
+        event.get("command_type") == "RecordSpikeVerdict"
+        and isinstance(payload, Mapping)
+        and payload.get("row_id") == "OR-018"
+        and is_exact_legacy_unclosed_spike_verdict(transaction_events)
+    )
+
+
+def _legacy_spec_02_return_evidence_matches(
+    document: Mapping[str, Any],
+    *,
+    projection: Mapping[str, Any],
+    control_root: Path,
+    candidate_id: str,
+    spike: Mapping[str, Any],
+) -> bool:
+    """Validate the one immutable live return without weakening current evidence."""
+
+    binding = _LEGACY_SPEC_02_RETURN_BINDING
+    evidence_bindings = binding["evidence"]
+    producer = document.get("producer")
+    artifact_hashes = document.get("artifact_hashes")
+    if (
+        sha256_hex(canonical_bytes(document)) != binding["return_sha256"]
+        or candidate_id != binding["candidate_id"]
+        or spike.get("spike_id") != binding["spike_id"]
+        or spike.get("attempt_id") != binding["attempt_id"]
+        or not isinstance(producer, Mapping)
+        or producer.get("actor_id") != binding["producer_actor_id"]
+        or not isinstance(artifact_hashes, list)
+    ):
+        return False
+    named_hashes = {
+        name: [item.get("sha256") for item in artifact_hashes if isinstance(item, Mapping) and item.get("name") == name]
+        for name in evidence_bindings
+    }
+    if any(values != [evidence_bindings[name]["content_sha256"]] for name, values in named_hashes.items()):
+        return False
+    streams = projection.get("artefact_streams")
+    if not isinstance(streams, Mapping):
+        return False
+    for evidence_binding in evidence_bindings.values():
+        stream = streams.get(evidence_binding["artefact_id"])
+        manifest = stream.get("manifest") if isinstance(stream, Mapping) else None
+        authority = manifest.get("authority") if isinstance(manifest, Mapping) else None
+        relative_path = manifest.get("relative_path") if isinstance(manifest, Mapping) else None
+        if (
+            not isinstance(manifest, Mapping)
+            or not isinstance(authority, Mapping)
+            or not isinstance(relative_path, str)
+            or stream.get("content_sha256") != evidence_binding["content_sha256"]
+            or manifest.get("artefact_id") != evidence_binding["artefact_id"]
+            or manifest.get("root_id") != "control"
+            or manifest.get("artefact_type") != evidence_binding["artefact_type"]
+            or manifest.get("producer_actor_id") != binding["producer_actor_id"]
+            or manifest.get("attempt_id") != binding["attempt_id"]
+            or authority.get("accepted_scope") != binding["accepted_scope"]
+        ):
+            return False
+        try:
+            raw = read_contained_regular_file(control_root, relative_path, label="legacy SPEC-02 evidence artefact")
+            value = json.loads(raw)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        if (
+            not isinstance(value, Mapping)
+            or raw != canonical_bytes(value)
+            or sha256_hex(raw) != stream["content_sha256"]
+        ):
+            return False
+    return True
 
 
 def _spec_02_return_evidence_matches(
@@ -262,16 +418,26 @@ def _spec_02_return_evidence_matches(
     control_root: Path,
     candidate_id: object,
     spike: object,
+    legacy_frozen: bool = False,
 ) -> bool:
     """Resolve every claimed SPEC-02 evidence hash to one exact bound artefact."""
 
     if not isinstance(document, Mapping) or not isinstance(candidate_id, str) or not isinstance(spike, Mapping):
         return False
+    if legacy_frozen:
+        return _legacy_spec_02_return_evidence_matches(
+            document,
+            projection=projection,
+            control_root=control_root,
+            candidate_id=candidate_id,
+            spike=spike,
+        )
     artifact_hashes = document.get("artifact_hashes")
     producer = document.get("producer")
     if not isinstance(artifact_hashes, list) or not isinstance(producer, Mapping):
         return False
-    named_hashes: dict[str, list[object]] = {name: [] for name in _SPEC_02_EVIDENCE_TYPES}
+    required_types = _SPEC_02_EVIDENCE_TYPES
+    named_hashes: dict[str, list[object]] = {name: [] for name in required_types}
     for item in artifact_hashes:
         if isinstance(item, Mapping) and item.get("name") in named_hashes:
             named_hashes[str(item["name"])].append(item.get("sha256"))
@@ -280,7 +446,8 @@ def _spec_02_return_evidence_matches(
     streams = projection.get("artefact_streams")
     if not isinstance(streams, Mapping):
         return False
-    for name, artefact_type in _SPEC_02_EVIDENCE_TYPES.items():
+    resolved_evidence: dict[str, Mapping[str, Any]] = {}
+    for name, artefact_type in required_types.items():
         digest = named_hashes[name][0]
         matches = [
             value for value in streams.values() if isinstance(value, Mapping) and value.get("content_sha256") == digest
@@ -298,6 +465,7 @@ def _spec_02_return_evidence_matches(
             or manifest.get("root_id") != "control"
             or manifest.get("artefact_type") != artefact_type
             or manifest.get("producer_actor_id") != producer.get("actor_id")
+            or manifest.get("attempt_id") != spike.get("attempt_id")
             or authority.get("accepted_scope") != "spec-gate6-run"
         ):
             return False
@@ -334,7 +502,20 @@ def _spec_02_return_evidence_matches(
             or evidence.get("attempt_sha256") != spike.get("attempt_sha256")
         ):
             return False
-    return True
+        resolved_evidence[name] = evidence
+    measured = resolved_evidence["resource_measurement"].get("content")
+    claimed = document.get("resource_use")
+    return bool(
+        isinstance(measured, Mapping)
+        and isinstance(claimed, Mapping)
+        and set(measured) == _SPEC_02_RESOURCE_USE_FIELDS
+        and set(claimed) == _SPEC_02_RESOURCE_USE_FIELDS
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+            for value in measured.values()
+        )
+        and dict(measured) == dict(claimed)
+    )
 
 
 class _SpecExecutionAuthorityResolver:
@@ -352,6 +533,37 @@ class _SpecExecutionAuthorityResolver:
         self.schemas = schemas
         self.authority_resolver = authority_resolver
         self.clock = clock
+        self._same_root_authority_cache: tuple[object, frozenset[str]] | None = None
+
+    def _same_root_authority_evidence(
+        self,
+        events: tuple[dict[str, Any], ...],
+    ) -> tuple[object, frozenset[str]]:
+        """Replay the shared store once and retain its exact owner trust evidence."""
+
+        if self._same_root_authority_cache is not None:
+            return self._same_root_authority_cache
+        from research_system.projection.replay import replay as replay_shared_projection
+
+        authority_projection = replay_shared_projection(
+            events,
+            schema_registry=self.schemas,
+            authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+            validate_discovery_semantics=False,
+        )
+        administration = self.authority_resolver._administration_context_from_projection(authority_projection)
+        publications = authority_projection.get("owner_authority_decision_publications")
+        if not isinstance(publications, Mapping):
+            raise IntegrityError("owner authority decision publication projection is invalid")
+        grant_ids = frozenset(
+            validate_id(str(publication.get("target_grant_id")), "authority_grant")
+            for publication in publications.values()
+            if isinstance(publication, Mapping)
+        )
+        if len(grant_ids) != len(publications):
+            raise IntegrityError("owner authority decision publication projection is invalid")
+        self._same_root_authority_cache = administration, grant_ids
+        return self._same_root_authority_cache
 
     def _authority_decision_context(
         self,
@@ -361,9 +573,8 @@ class _SpecExecutionAuthorityResolver:
         """Load the verified owner anchor and its independently bound authority ledger."""
 
         if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False):
-            if not isinstance(projection, dict):
-                raise IntegrityError("same-root SPEC authority projection is invalid")
-            return self.authority_resolver._administration_context_from_projection(projection), events
+            administration, _grant_ids = self._same_root_authority_evidence(events)
+            return administration, events
         administration = self.authority_resolver.administration_context()
         events = (
             EventLedger(
@@ -426,7 +637,15 @@ class _SpecExecutionAuthorityResolver:
                 and event.get("command_type") == "PublishOwnerAuthorityAdministrationDecision"
                 and event.get("actor_id") == getattr(administration, "owner_actor_id", None)
                 and event.get("authority_grant_id") == getattr(administration, "root_grant_id", None)
-                and event.get("command_payload_hash") == expected_payload_hash
+                and (
+                    event.get("command_payload_hash") == expected_payload_hash
+                    or _is_exact_legacy_spec_02_approval_publication(
+                        event,
+                        approval_sha256=approval_sha256,
+                        approval_grant_id=approval_grant_id,
+                        approval_artefact_id=artefact_id,
+                    )
+                )
                 and isinstance(decision, Mapping)
                 and decision.get("owner_actor_id") == getattr(administration, "owner_actor_id", None)
                 and decision.get("target_grant_id") == approval_grant_id
@@ -454,6 +673,12 @@ class _SpecExecutionAuthorityResolver:
 
         if not _is_spec_route_candidate(projection, candidate):
             return None
+        if owner_published_grant_ids is None:
+            owner_published_grant_ids = (
+                self._same_root_authority_evidence(events)[1]
+                if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False)
+                else self.authority_resolver.owner_published_grant_ids()
+            )
         if not isinstance(candidate.get("decision_id"), str):
             return None
         promotions = [
@@ -534,12 +759,7 @@ class _SpecExecutionAuthorityResolver:
             and registrar.get("actor_id") != owner.get("actor_id")
             and registrar.get("actor_id") == approval_actor_id
             and registrar.get("actor_id") == approval_manifest.get("producer_actor_id")
-            and approval_grant_id
-            in (
-                self.authority_resolver.owner_published_grant_ids()
-                if owner_published_grant_ids is None
-                else owner_published_grant_ids
-            )
+            and approval_grant_id in owner_published_grant_ids
             and self._has_authenticated_owner_approval_decision(
                 approval=approval,
                 approval_sha256=approval_sha256,
@@ -633,16 +853,7 @@ def build_spec_execution_authority_validator(
             raise IntegrityError("SPEC-02 transition lacks a valid occurrence time")
         if owner_published_grant_ids is None:
             if authority_resolver.control_root.resolve(strict=False) == control_root.resolve(strict=False):
-                publications = projection.get("owner_authority_decision_publications")
-                if not isinstance(publications, Mapping):
-                    raise IntegrityError("owner authority decision publication projection is invalid")
-                owner_published_grant_ids = frozenset(
-                    validate_id(str(publication.get("target_grant_id")), "authority_grant")
-                    for publication in publications.values()
-                    if isinstance(publication, Mapping)
-                )
-                if len(owner_published_grant_ids) != len(publications):
-                    raise IntegrityError("owner authority decision publication projection is invalid")
+                owner_published_grant_ids = resolver._same_root_authority_evidence(events)[1]
             else:
                 owner_published_grant_ids = authority_resolver.owner_published_grant_ids()
         event_position = event.get("global_position")
@@ -715,12 +926,14 @@ def build_spec_execution_authority_validator(
             spike = projection.get("spikes", {}).get(payload.get("spike_id"))
             if len(returns) != 1:
                 raise IntegrityError("SPEC-02 return evidence binding is invalid")
+            legacy_frozen = _is_exact_legacy_spec_02_return(event, events)
             if not _spec_02_return_evidence_matches(
                 returns[0],
                 projection=projection,
                 control_root=control_root,
                 candidate_id=payload.get("candidate_id"),
                 spike=spike,
+                legacy_frozen=legacy_frozen,
             ):
                 raise IntegrityError("SPEC-02 return evidence does not resolve to exact attempt artefacts")
             if not _spec_02_pass_rerun_matches(returns[0], payload):

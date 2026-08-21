@@ -14,8 +14,12 @@ from research_system.discovery.runtime import (
     _SpecExecutionAuthorityResolver,
     _SPEC_02_APPROVAL_AUTHORITY_REASON,
     _SPEC_02_APPROVAL_EVIDENCE_PREFIX,
+    _LEGACY_SPEC_02_APPROVAL_PUBLICATION,
+    _is_exact_legacy_spec_02_approval_publication,
+    _is_exact_legacy_spec_02_return,
     _runtime_git,
     _spec_02_plan_contract_matches,
+    _spec_02_return_evidence_matches,
 )
 from research_system.discovery.rules import _is_spec_route_candidate
 
@@ -38,7 +42,9 @@ class _ReturnValidationHarness:
 
 
 def test_spec_route_candidate_accepts_the_exact_assay_bar_relation_for_historical_replay() -> None:
-    candidate = {"candidate_id": "candidate", "assay_id": "assay", "source_observation_refs": ["source"]}
+    candidate_id = "obj_01a00620-0f74-7613-a7b0-dffbb50d9663"
+    assay_id = "asy_01a00620-0f74-74e6-b440-f760f4eb6731"
+    candidate = {"candidate_id": candidate_id, "assay_id": assay_id, "source_observation_refs": ["source"]}
     state = {
         "source_observations": {"source": {"batch": {"source_query": "historical DOI query"}}},
         "assay_bar_authority": {
@@ -47,8 +53,8 @@ def test_spec_route_candidate_accepts_the_exact_assay_bar_relation_for_historica
             "producer_relation_sha256": "b" * 64,
         },
         "assays": {
-            "assay": {
-                "candidate_id": "candidate",
+            assay_id: {
+                "candidate_id": candidate_id,
                 "assay_bar_acceptance_sha256": "a" * 64,
                 "producer_relation_sha256": "b" * 64,
             }
@@ -56,8 +62,224 @@ def test_spec_route_candidate_accepts_the_exact_assay_bar_relation_for_historica
     }
 
     assert _is_spec_route_candidate(state, candidate)
-    state["assays"]["assay"]["producer_relation_sha256"] = "c" * 64
+    state["assays"][assay_id]["producer_relation_sha256"] = "c" * 64
     assert not _is_spec_route_candidate(state, candidate)
+
+
+def test_spec_route_candidate_rejects_reused_historical_bar_relation() -> None:
+    candidate = {"candidate_id": "foreign", "assay_id": "foreign-assay", "source_observation_refs": []}
+    state = {
+        "source_observations": {},
+        "assay_bar_authority": {
+            "status": "accepted",
+            "acceptance_sha256": "a" * 64,
+            "producer_relation_sha256": "b" * 64,
+        },
+        "assays": {
+            "foreign-assay": {
+                "candidate_id": "foreign",
+                "assay_bar_acceptance_sha256": "a" * 64,
+                "producer_relation_sha256": "b" * 64,
+            }
+        },
+    }
+
+    assert not _is_spec_route_candidate(state, candidate)
+
+
+def test_spec_02_resource_use_must_match_registered_exact_attempt_measurement(tmp_path) -> None:
+    resource_use = {
+        "elapsed_seconds": 5,
+        "cpu_seconds": 3,
+        "peak_memory_bytes": 1024,
+        "external_cost_gbp": 0,
+    }
+    candidate_id = "candidate"
+    spike = {"spike_id": "spike", "attempt_id": "attempt", "attempt_sha256": "a" * 64}
+    producer = {"actor_id": "operator"}
+    evidence_types = {
+        "raw_output": "evaluation_run",
+        "source": "evaluation_run",
+        "checks": "validation_report",
+        "result": "evaluation_run",
+        "resource_measurement": "resource_measurement",
+    }
+    streams: dict[str, Any] = {}
+    artifact_hashes: list[dict[str, str]] = []
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    for name, artefact_type in evidence_types.items():
+        content: object = resource_use if name == "resource_measurement" else f"exact deterministic {name}"
+        value = {
+            "schema_id": "ars://portfolio/spec-route-evidence",
+            "schema_version": "1.0.0",
+            "route_id": "SPEC-GATE6-RUN-V1",
+            "stage": "SPEC-02",
+            "evidence_kind": name,
+            "candidate_id": candidate_id,
+            "spike_id": spike["spike_id"],
+            "attempt_id": spike["attempt_id"],
+            "attempt_sha256": spike["attempt_sha256"],
+            "content": content,
+        }
+        raw = canonical_bytes(value)
+        digest = sha256_hex(raw)
+        relative = f"evidence/{name}.json"
+        (tmp_path / relative).write_bytes(raw)
+        streams[name] = {
+            "content_sha256": digest,
+            "manifest": {
+                "root_id": "control",
+                "relative_path": relative,
+                "artefact_type": artefact_type,
+                "producer_actor_id": producer["actor_id"],
+                "attempt_id": spike["attempt_id"],
+                "authority": {"accepted_scope": "spec-gate6-run"},
+            },
+        }
+        artifact_hashes.append({"name": name, "sha256": digest})
+    document = {"artifact_hashes": artifact_hashes, "producer": producer, "resource_use": resource_use}
+
+    assert _spec_02_return_evidence_matches(
+        document,
+        projection={"artefact_streams": streams},
+        control_root=tmp_path,
+        candidate_id=candidate_id,
+        spike=spike,
+    )
+    document["resource_use"] = {**resource_use, "elapsed_seconds": 1}
+    assert not _spec_02_return_evidence_matches(
+        document,
+        projection={"artefact_streams": streams},
+        control_root=tmp_path,
+        candidate_id=candidate_id,
+        spike=spike,
+    )
+    document["resource_use"] = resource_use
+    streams["resource_measurement"]["manifest"]["attempt_id"] = "other-attempt"
+    assert not _spec_02_return_evidence_matches(
+        document,
+        projection={"artefact_streams": streams},
+        control_root=tmp_path,
+        candidate_id=candidate_id,
+        spike=spike,
+    )
+
+
+def test_spec_02_legacy_return_adapter_is_one_exact_frozen_transaction() -> None:
+    transaction_id = "legacy-transaction"
+    hashes = (
+        "a5b04ff1a955a7bfdc764e3e3ede56a0b24aae65c7825f4fd08f5313c22503ca",
+        "eeb8b10c55994a88f28c53d32c7b0a64caf6c096de3a5a813fe7cc065da11e2d",
+    )
+    events = tuple({"transaction_id": transaction_id, "event_hash": value} for value in hashes)
+    event = {
+        "command_type": "RecordSpikeVerdict",
+        "transaction_id": transaction_id,
+        "payload": {"row_id": "OR-018"},
+    }
+
+    assert _is_exact_legacy_spec_02_return(event, events)
+    changed = (*events[:-1], {**events[-1], "event_hash": "f" * 64})
+    assert not _is_exact_legacy_spec_02_return(event, changed)
+    assert not _is_exact_legacy_spec_02_return({**event, "payload": {"row_id": "OR-019"}}, events)
+
+
+def test_spec_02_legacy_approval_adapter_is_one_exact_frozen_publication() -> None:
+    binding = _LEGACY_SPEC_02_APPROVAL_PUBLICATION
+    event = {
+        "event_id": binding["event_id"],
+        "event_hash": binding["event_hash"],
+        "command_id": binding["command_id"],
+        "command_payload_hash": binding["command_payload_hash"],
+    }
+    arguments = {
+        "approval_sha256": binding["approval_sha256"],
+        "approval_grant_id": binding["approval_grant_id"],
+        "approval_artefact_id": binding["approval_artefact_id"],
+    }
+
+    assert _is_exact_legacy_spec_02_approval_publication(event, **arguments)
+    assert not _is_exact_legacy_spec_02_approval_publication(
+        {**event, "event_hash": "f" * 64},
+        **arguments,
+    )
+    assert not _is_exact_legacy_spec_02_approval_publication(
+        event,
+        **{**arguments, "approval_sha256": "f" * 64},
+    )
+
+
+def test_spec_02_legacy_return_adapter_replays_only_its_bound_raw_artefacts(tmp_path, monkeypatch) -> None:
+    candidate_id = "candidate"
+    spike = {"spike_id": "spike", "attempt_id": "attempt"}
+    producer_actor_id = "producer"
+    evidence_bindings: dict[str, dict[str, str]] = {}
+    streams: dict[str, dict[str, Any]] = {}
+    artifact_hashes: list[dict[str, str]] = []
+    for name, artefact_type in {
+        "raw_output": "evaluation_run",
+        "source": "evaluation_run",
+        "checks": "validation_report",
+        "result": "evaluation_run",
+    }.items():
+        artefact_id = f"artefact-{name}"
+        raw = canonical_bytes({"evidence": name})
+        digest = sha256_hex(raw)
+        relative_path = f"evidence/{name}.json"
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        evidence_bindings[name] = {
+            "artefact_id": artefact_id,
+            "artefact_type": artefact_type,
+            "content_sha256": digest,
+        }
+        streams[artefact_id] = {
+            "content_sha256": digest,
+            "manifest": {
+                "artefact_id": artefact_id,
+                "root_id": "control",
+                "relative_path": relative_path,
+                "artefact_type": artefact_type,
+                "producer_actor_id": producer_actor_id,
+                "attempt_id": spike["attempt_id"],
+                "authority": {"accepted_scope": "legacy-scope"},
+            },
+        }
+        artifact_hashes.append({"name": name, "sha256": digest})
+    document = {"artifact_hashes": artifact_hashes, "producer": {"actor_id": producer_actor_id}}
+    monkeypatch.setattr(
+        discovery_runtime_module,
+        "_LEGACY_SPEC_02_RETURN_BINDING",
+        {
+            "return_sha256": sha256_hex(canonical_bytes(document)),
+            "candidate_id": candidate_id,
+            "spike_id": spike["spike_id"],
+            "attempt_id": spike["attempt_id"],
+            "producer_actor_id": producer_actor_id,
+            "accepted_scope": "legacy-scope",
+            "evidence": evidence_bindings,
+        },
+    )
+
+    assert _spec_02_return_evidence_matches(
+        document,
+        projection={"artefact_streams": streams},
+        control_root=tmp_path,
+        candidate_id=candidate_id,
+        spike=spike,
+        legacy_frozen=True,
+    )
+    streams["artefact-checks"]["manifest"]["authority"]["accepted_scope"] = "other"
+    assert not _spec_02_return_evidence_matches(
+        document,
+        projection={"artefact_streams": streams},
+        control_root=tmp_path,
+        candidate_id=candidate_id,
+        spike=spike,
+        legacy_frozen=True,
+    )
 
 
 def test_legacy_spec_02_plan_version_is_replay_only() -> None:
@@ -240,6 +462,7 @@ def _approval_fixture(
         schemas=_AcceptingSchemas(),
         clock=lambda: datetime(2026, 8, 1, 12, 30, tzinfo=UTC),
         authority_resolver=SimpleNamespace(
+            control_root=tmp_path / "authority",
             project_id="project",
             owner_published_grant_ids=lambda: frozenset({"owner-grant"}),
         ),
