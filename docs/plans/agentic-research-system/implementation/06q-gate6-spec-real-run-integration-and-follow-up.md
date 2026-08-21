@@ -11,6 +11,12 @@
 
 **Jira:** KAN-103 under KAN-12.
 
+**Current integration note (2026-08-21):** PR #258 reached exact head
+`bb9ab7a0f679ba71d2a364410f69ec53673c2ae2` after repeated review remediation,
+but review has not converged. The bounded subordinate execution plan is
+[06r — Gate 6 PR #258 review convergence](06r-gate6-pr258-review-convergence-plan.md).
+06q remains the master integration and follow-up authority.
+
 ## 1. Purpose
 
 This plan replaces stale construction-era “missing dossier”, “SPEC-02 unrun”,
@@ -91,6 +97,9 @@ run.
 - Do not amend live evidence to make a PR easier to merge.
 - Do not add the residual jobs below to PR #258 unless review finds a direct
   regression in the changed capability.
+- Do not continue specimen-by-specimen remediation after a repeated finding
+  identifies an unclosed action or transaction family. Apply the 06r
+  convergence contract and stop-loss rule before another external review.
 
 ## 5. Bounded follow-on jobs
 

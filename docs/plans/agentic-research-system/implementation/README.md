@@ -43,6 +43,7 @@ entries below preserve the construction and accepted-plan lineage.
 10. [WP6.1 W3 context-packet lifecycle and resolution](06j-w3-context-packet-lifecycle-and-resolution-plan.md) — **integrated on `main` after exact-subject remediation and G-RM-12 acceptance**. The nine-command lifecycle, immutable packet/delivery objects, consumer resolver and real CommandService adapter execute through the public brief round trip.
 11. [WP6.7 legacy consolidation sequencing](06l-wp6-7-legacy-consolidation-sequencing.md) — sequencing only; this is a distinct legacy-integration scope and path from 06i's artefact-authority and production-consumer firewall plan, not a collision or supersession.
 12. [Gate 6 SPEC real-run integration and follow-up](06q-gate6-spec-real-run-integration-and-follow-up.md) — current PR #258 integration boundary, terminal research disposition, and owned residual jobs.
+13. [Gate 6 PR #258 review-convergence plan](06r-gate6-pr258-review-convergence-plan.md) — bounded subordinate repair for the repeated SPEC action-state and binding-transaction failure families; 06q remains authoritative.
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) retain

@@ -5,7 +5,7 @@ import hashlib
 import shutil
 import threading
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from types import SimpleNamespace
@@ -964,6 +964,7 @@ def _return_spec_01_partial(
     assay = projection["assays"][assay_id]
     bar = projection["assay_bar_authority"]
     relation_sha256 = assay["producer_relation_sha256"]
+    required_axes = bar["contents"]["rubric"]["content"]["required_axis_ids"]
     partial = {
         "schema_id": "ars://portfolio/assay-partial",
         "schema_version": "1.0.0",
@@ -979,7 +980,7 @@ def _return_spec_01_partial(
         "assay_relation_hash": relation_sha256,
         "completed_axes": [],
         "completed_evidence": [],
-        "unmet_axes": ["identity"],
+        "unmet_axes": deepcopy(required_axes),
         "unmet_evidence": [],
         "reason_codes": ["incomplete_axis_closure"],
         "limitations": ["incomplete axis closure"],
@@ -1608,8 +1609,9 @@ def _start_spec_02(
     assay = projection["assays"][assay_id]
     promotion_id = candidate["decision_id"]
     promotion = projection["decisions"][promotion_id]
-    package = SpecFlow(operator)._snapshot()[2]["spec_02_operator_brief"][0]
-    exact_spec_contract = f"SPEC-02:{package['route_source']['raw_sha256']}"
+    flow = SpecFlow(operator)
+    route_source = next(source for source in flow.route["sources"] if source["alias"] == "SPEC-02")
+    exact_spec_contract = f"SPEC-02:{route_source['sha256']}"
     spike_id = "spk_019ffe2b-fd4b-7000-8000-000000000909"
     execution_id = "dec_019ffe2b-fd4b-7000-8000-000000000910"
     owner_id = ACTORS["actor-a"]
@@ -2202,7 +2204,8 @@ def _decide_spec_02(
         "consequences": ["record terminal SPEC-02 disposition without claim publication"],
     }
     operator = load_discovery_operator(inputs["config_path"])
-    spike = SpecFlow(operator)._snapshot()[1]["spikes"][spike_id]
+    validated_projection = SpecFlow(operator)._snapshot()[1]
+    spike = validated_projection["spikes"][spike_id]
     proposal = _route_command(
         "ProposePromotionDecision",
         decision_id,
@@ -2223,6 +2226,7 @@ def _decide_spec_02(
                 review_id=review_id,
                 gate="spike_to_preregistration",
                 recommendation=recommendation,
+                projection=validated_projection,
             ),
         },
         owner_id,
@@ -2571,6 +2575,7 @@ def test_spec_02_return_replay_uses_the_current_event_reference_and_causal_prefi
             "global_position": 11,
             "command_type": "RecordSpikeVerdict",
             "occurred_at": "2026-08-01T12:50:00Z",
+            "recorded_at": "2026-08-01T12:50:00Z",
             "payload": {
                 "row_id": "OR-018",
                 "candidate_id": "obj_019ffe2b-fd4b-7000-8000-000000000101",
@@ -2907,7 +2912,7 @@ def test_spec_portable_authority_producer_rejects_non_exact_member_set(
             authority_path.write_bytes(canonical_bytes(candidate))
             with pytest.raises(
                 ConfigurationError,
-                match="portable repository-only|exact route bytes",
+                match="portable repository-only|exact route bytes|exact committed physical file",
             ):
                 build_spec_authority_subject(repository_root, "path_registration")
     finally:
@@ -3398,6 +3403,71 @@ def test_public_spec_flow_advances_assay_review_rows_from_projected_state(
 
 
 @pytest.mark.parametrize(
+    ("authority", "expected"),
+    (
+        ({"contents": {}, "observations": {}, "status": "empty"}, ()),
+        ({"contents": {"rubric": {}}, "observations": {}, "status": "content_registered"}, ("OR-101",)),
+        (
+            {"contents": {"rubric": {}, "scope": {}}, "observations": {}, "status": "content_registered"},
+            ("OR-101", "OR-102"),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}},
+                "status": "content_registered",
+            },
+            ("OR-101", "OR-102", "OR-103"),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}, "scope": {}},
+                "status": "observed",
+            },
+            tuple(f"OR-{row:03d}" for row in range(101, 105)),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}, "scope": {}},
+                "status": "review_requested",
+            },
+            tuple(f"OR-{row:03d}" for row in range(101, 106)),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}, "scope": {}},
+                "status": "reviewed",
+            },
+            tuple(f"OR-{row:03d}" for row in range(101, 107)),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}, "scope": {}},
+                "status": "decision_proposed",
+            },
+            tuple(f"OR-{row:03d}" for row in range(101, 108)),
+        ),
+        (
+            {
+                "contents": {"rubric": {}, "scope": {}},
+                "observations": {"rubric": {}, "scope": {}},
+                "status": "accepted",
+            },
+            tuple(f"OR-{row:03d}" for row in range(101, 109)),
+        ),
+    ),
+)
+def test_rows_infers_every_assay_authority_phase_from_projection(
+    authority: dict[str, Any], expected: tuple[str, ...]
+) -> None:
+    assert _rows((), {"assay_bar_authority": authority}) == expected
+
+
+@pytest.mark.parametrize(
     ("kind", "status", "expected"),
     [
         ("dossier_expected_set", "registered", ("OR-110",)),
@@ -3428,6 +3498,63 @@ def test_public_spec_flow_reaches_brief_input_registration_from_exact_admitted_r
     assert status["capability_state"] == "NOT_RUNNABLE"
     assert cli.main(_status_argv(spec_inputs)) == 0
     assert json.loads(capsys.readouterr().out)["next_action"] == "register_spec_01_brief_inputs"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("action", "registration"),
+    [
+        ("review_spec_01_brief_inputs", {"governing_reviews": []}),
+        ("accept_spec_01_brief_inputs", None),
+    ],
+)
+def test_public_spec_flow_rejects_premature_empty_brief_authority_action_without_claiming_completion(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    action: str,
+    registration: dict[str, Any] | None,
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _write_action(spec_inputs, action, registration=registration)
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    with pytest.raises(IntegrityError, match="SPEC action is not next"):
+        cli.main(_advance_argv(spec_inputs, action))
+
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+    identity_store = CandidateDocumentStore(
+        spec_inputs["binding"].control_root,
+        relative_directory=Path("runtime/spec-flow-actions"),
+    )
+    assert not (identity_store.control_root / identity_store.relative_path(action)).exists()
+
+
+@pytest.mark.integration
+def test_registered_spec_action_family_has_no_empty_effect_completion(
+    spec_inputs: dict[str, Any],
+) -> None:
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    definitions = spec_flow_module._ACTION_DEFINITIONS
+
+    assert len(definitions) == 25
+    assert {definition.action for definition in definitions.values() if definition.next_action == "return_spec_01"} == {
+        "return_spec_01_complete",
+        "return_spec_01_partial",
+    }
+    assert {definition.action for definition in definitions.values() if definition.next_action == "review_spec_02"} == {
+        "review_spec_02_complete",
+        "review_spec_02_partial",
+    }
+    assert all(
+        not flow._action_effects_are_complete(
+            action,
+            completed_rows=set(),
+            documents={},
+            projection={"artefact_streams": {}},
+        )
+        for action in definitions
+    )
 
 
 @pytest.mark.integration
@@ -3498,6 +3625,28 @@ def test_public_spec_flow_prepares_actual_owner_operated_spec_01_brief(
     spec_inputs["packet_path"].write_bytes(canonical_bytes(changed))
     with pytest.raises(ConflictError, match="completed SPEC action retry differs"):
         cli.main(_advance_argv(spec_inputs, "prepare_spec_01"))
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
+
+
+@pytest.mark.integration
+def test_later_same_type_registration_does_not_capture_an_existing_spec_completion(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    expected = asdict(SpecFlow(load_discovery_operator(spec_inputs["config_path"])).status())
+
+    _register_generic_spec_brief(spec_inputs, _registered_brief_document(spec_inputs))
+
+    assert cli.main(_status_argv(spec_inputs)) == 0
+    assert json.loads(capsys.readouterr().out) == expected
+    before_retry = _tree_snapshot(spec_inputs["binding"].control_root)
+    assert cli.main(_advance_argv(spec_inputs, "prepare_spec_01")) == 0
+    capsys.readouterr()
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before_retry
 
 
@@ -3603,6 +3752,137 @@ def test_document_action_retry_seals_completion_after_route_command_commits(
     ]
     assert len(completed) == 1
     assert SpecFlow(load_discovery_operator(spec_inputs["config_path"])).status().next_action == "review_spec_01"
+
+
+@pytest.mark.integration
+def test_completed_return_exact_retry_uses_durable_result_after_grant_expiry(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate_id, assay_id, candidate_sha256 = _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs)
+    capsys.readouterr()
+    returned = _return_spec_01_complete(spec_inputs, candidate_id, assay_id, candidate_sha256)
+    capsys.readouterr()
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    class AfterGrantExpiry(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            return datetime(2031, 1, 1, tzinfo=UTC)
+
+    monkeypatch.setattr(discovery_operator_module, "datetime", AfterGrantExpiry)
+
+    assert cli.main(_advance_argv(spec_inputs, "return_spec_01_complete")) == 0
+    retry = json.loads(capsys.readouterr().out)
+    assert retry["registration"]["artefact_id"] == returned["return_id"]
+    assert retry["status"]["next_action"] == "review_spec_01"
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("stage", "action"),
+    [
+        ("registration", "register_spec_01_brief_inputs"),
+        ("review", "review_spec_01_brief_inputs"),
+        ("acceptance", "accept_spec_01_brief_inputs"),
+    ],
+)
+def test_completed_brief_input_exact_retry_uses_durable_result_after_grant_expiry(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+    action: str,
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    if stage == "registration":
+        artefact_ids = _accept_spec_01_brief_inputs(spec_inputs, execute=False)
+        assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    elif stage == "review":
+        artefact_ids = _accept_spec_01_brief_inputs(spec_inputs, stop_after="registration")
+        assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    else:
+        artefact_ids = _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    class AfterGrantExpiry(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            return datetime(2031, 1, 1, tzinfo=UTC)
+
+    monkeypatch.setattr(discovery_operator_module, "datetime", AfterGrantExpiry)
+
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    retry = json.loads(capsys.readouterr().out)
+    assert retry["action"] == action
+    if stage == "registration":
+        assert {item["artefact_id"] for item in retry["registration"]} == set(artefact_ids)
+        assert retry["receipts"] == []
+    else:
+        assert retry["registration"] is None
+        assert len(retry["receipts"]) == len(artefact_ids)
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("stage", "action"),
+    [
+        ("registration", "register_spec_01_brief_inputs"),
+        ("review", "review_spec_01_brief_inputs"),
+        ("acceptance", "accept_spec_01_brief_inputs"),
+    ],
+)
+def test_completed_brief_input_effects_remain_prepared_until_exact_completion_is_sealed(
+    spec_inputs: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+    action: str,
+) -> None:
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    if stage == "registration":
+        _accept_spec_01_brief_inputs(spec_inputs, execute=False)
+    elif stage == "review":
+        _accept_spec_01_brief_inputs(spec_inputs, stop_after="registration")
+    else:
+        _accept_spec_01_brief_inputs(spec_inputs, stop_after="review")
+    capsys.readouterr()
+    packet = deepcopy(spec_inputs["packet"])
+    original_complete = SpecFlow._complete_action
+
+    def interrupt_before_completion_identity(
+        self: SpecFlow,
+        candidate_action: str,
+        candidate_packet: Mapping[str, Any],
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        if candidate_action == action:
+            raise RuntimeError("injected before brief-input completion identity")
+        return original_complete(self, candidate_action, candidate_packet, result)
+
+    monkeypatch.setattr(SpecFlow, "_complete_action", interrupt_before_completion_identity)
+    with pytest.raises(RuntimeError, match="before brief-input completion identity"):
+        cli.main(_advance_argv(spec_inputs, action))
+    flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
+    assert flow._action_identity(action, packet, publish=False) is False
+    prepared = flow.status()
+    assert prepared.completed_stage == f"{action}_prepared"
+    assert prepared.next_action == action
+
+    monkeypatch.setattr(SpecFlow, "_complete_action", original_complete)
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    capsys.readouterr()
+    assert SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._action_identity(action, packet, publish=False)
 
 
 @pytest.mark.integration
@@ -4481,11 +4761,15 @@ def test_status_recovers_approval_bytes_after_registration_event_restart(
     approval_id = _approve_spec_02(spec_inputs, execute=False)
     packet = deepcopy(spec_inputs["packet"])
 
+    def interrupt_after_registration(control_root: Path, relative_path: str, _raw: bytes) -> None:
+        (control_root / relative_path).unlink()
+        raise OSError("injected after ArtefactRegistered")
+
     with monkeypatch.context() as patch:
         patch.setattr(
-            registration_module.CandidateDocumentStore,
-            "write",
-            lambda *_args: (_ for _ in ()).throw(OSError("injected after ArtefactRegistered")),
+            registration_module,
+            "_require_exact_registered_bytes",
+            interrupt_after_registration,
         )
         with pytest.raises(OSError, match="after ArtefactRegistered"):
             cli.main(_advance_argv(spec_inputs, "approve_spec_02"))
@@ -4505,13 +4789,16 @@ def test_status_recovers_approval_bytes_after_registration_event_restart(
 
     restarted = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
     status = restarted.status()
-    assert status.completed_stage == "approve_spec_02"
-    assert status.next_action == "prepare_spec_02"
+    assert status.completed_stage == "approve_spec_02_prepared"
+    assert status.next_action == "approve_spec_02"
     assert target.read_bytes() == canonical_bytes(packet["document"])
     assert not tuple((operator.control_root / "runtime/registered-content-recovery").glob("*.json"))
 
     assert cli.main(_advance_argv(spec_inputs, "approve_spec_02")) == 0
     capsys.readouterr()
+    completed = SpecFlow(load_discovery_operator(spec_inputs["config_path"])).status()
+    assert completed.completed_stage == "approve_spec_02"
+    assert completed.next_action == "prepare_spec_02"
     assert (
         sum(
             event.get("event_type") == "ArtefactRegistered" and event.get("stream_id") == approval_id
@@ -5380,7 +5667,7 @@ def test_spec_brief_malformed_or_tampered_is_rejected_before_registration(
     before = _tree_snapshot(spec_inputs["binding"].control_root)
 
     with pytest.raises(IntegrityError):
-        flow._register_document("prepare_spec_01", document, None)
+        flow._register_document("prepare_spec_01", spec_inputs["packet"], document, None)
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 
@@ -5390,7 +5677,7 @@ def test_spec_brief_registration_type_must_match_the_validated_document(
     spec_inputs: dict[str, Any],
 ) -> None:
     flow = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))
-    document = _brief_document(spec_inputs)
+    document = _registered_brief_document(spec_inputs)
     registration = {
         "artefact_id": "art_019ffe2b-fd4b-7000-8000-000000000099",
         "project_id": PROJECT_ID,
@@ -5404,7 +5691,7 @@ def test_spec_brief_registration_type_must_match_the_validated_document(
     before = _tree_snapshot(spec_inputs["binding"].control_root)
 
     with pytest.raises(IntegrityError, match="registration type differs"):
-        flow._register_document("prepare_spec_01", document, registration)
+        flow._register_document("prepare_spec_01", spec_inputs["packet"], document, registration)
 
     assert _tree_snapshot(spec_inputs["binding"].control_root) == before
 

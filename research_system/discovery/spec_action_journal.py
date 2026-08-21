@@ -1,4 +1,4 @@
-"""Immutable recovery intent for multi-effect SPEC document actions."""
+"""Immutable recovery intent for multi-effect single-shot SPEC actions."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from research_system.errors import IntegrityError
 
 
 ROUTE_ID = "SPEC-GATE6-RUN-V1"
-DOCUMENT_ACTIONS = (
+RECOVERABLE_ACTIONS = (
     "prepare_spec_01",
     "return_spec_01_complete",
     "return_spec_01_partial",
@@ -22,11 +22,15 @@ DOCUMENT_ACTIONS = (
     "prepare_spec_02",
     "return_spec_02_complete",
     "return_spec_02_partial",
+    "register_spec_01_brief_inputs",
+    "review_spec_01_brief_inputs",
+    "accept_spec_01_brief_inputs",
 )
 PACKET_FIELDS = frozenset(
     {"schema_id", "schema_version", "route_id", "action", "retry_id", "commands", "document", "registration"}
 )
 JOURNAL_DIRECTORY = Path("runtime/spec-flow-preparations")
+ACTION_IDENTITY_DIRECTORY = Path("runtime/spec-flow-actions")
 
 
 def preparation_value(action: str, packet: Mapping[str, Any]) -> dict[str, Any]:
@@ -74,33 +78,75 @@ def read_preparation(control_root: Path, action: str) -> dict[str, Any] | None:
     return value
 
 
+def read_action_identity(control_root: Path, action: str) -> dict[str, Any] | None:
+    """Read and fully validate one exact single-shot completion identity."""
+
+    relative = (ACTION_IDENTITY_DIRECTORY / f"{action}.json").as_posix()
+    target = control_root / relative
+    if not target.exists() and not target.is_symlink():
+        return None
+    try:
+        raw = read_contained_regular_file(control_root, relative, label="SPEC action completion identity")
+        value = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityError("SPEC action completion identity is unavailable") from exc
+    packet_sha256 = value.get("packet_sha256") if isinstance(value, Mapping) else None
+    if (
+        not isinstance(value, dict)
+        or raw != canonical_bytes(value)
+        or set(value)
+        != {
+            "schema_id",
+            "schema_version",
+            "route_id",
+            "action",
+            "retry_id",
+            "packet_sha256",
+        }
+        or value.get("schema_id") != "ars://internal/spec-flow-action-identity"
+        or value.get("schema_version") != "1.0.0"
+        or value.get("route_id") != ROUTE_ID
+        or value.get("action") != action
+        or not isinstance(value.get("retry_id"), str)
+        or not value["retry_id"]
+        or not isinstance(packet_sha256, str)
+        or len(packet_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in packet_sha256)
+    ):
+        raise IntegrityError("SPEC action completion identity is invalid")
+    return value
+
+
 def pending_preparation(
     control_root: Path,
     events: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any] | None:
-    """Resolve at most one prepared document action without a sealed completion event."""
+    """Resolve at most one prepared single-shot action without a completion proof."""
 
     completed = {
         event["payload"].get("action")
         for event in events
         if event.get("event_type") == "SpecFlowActionCompleted" and isinstance(event.get("payload"), Mapping)
     }
+    completed.update(action for action in RECOVERABLE_ACTIONS if read_action_identity(control_root, action) is not None)
     pending = [
         value
-        for action in DOCUMENT_ACTIONS
+        for action in RECOVERABLE_ACTIONS
         for value in (read_preparation(control_root, action),)
         if value is not None and action not in completed
     ]
     if len(pending) > 1:
-        raise IntegrityError("multiple SPEC document actions are awaiting exact recovery")
+        raise IntegrityError("multiple SPEC actions are awaiting exact recovery")
     return pending[0] if pending else None
 
 
 __all__ = [
-    "DOCUMENT_ACTIONS",
+    "ACTION_IDENTITY_DIRECTORY",
     "JOURNAL_DIRECTORY",
     "PACKET_FIELDS",
+    "RECOVERABLE_ACTIONS",
     "pending_preparation",
     "preparation_value",
+    "read_action_identity",
     "read_preparation",
 ]

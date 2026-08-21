@@ -1551,8 +1551,10 @@ def _promotion_relation(
     review_id: str,
     gate: str,
     recommendation: str = "PROMOTE",
+    projection: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    projection = replay_discovery(runtime.ledger.iter_events())
+    if projection is None:
+        projection = replay_discovery(runtime.ledger.iter_events())
     candidate = projection["candidates"][candidate_id]
     aggregate = projection["assays" if gate == "assay_to_spike" else "spikes"][aggregate_id]
     review = projection["reviews"][review_id]
