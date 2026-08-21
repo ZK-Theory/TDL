@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 
-**Status:** `IN_PROGRESS / schema_lineage_fix_ready_for_final_binding`
+**Status:** `IN_PROGRESS / live_result_compatibility_proven_review_pending`
 
 **Authority:** bounded subordinate plan to
 [06q](06q-gate6-spec-real-run-integration-and-follow-up.md). This document does
@@ -485,6 +485,66 @@ The next operation is to commit this lineage repair, issue one ordinary
 clean-descendant intent for that exact commit, append its v1.1 binding event,
 and rerun full replay and public SPEC status with unchanged-file proofs. No
 historical event or object is rewritten.
+
+### 7.5 Live-result compatibility closure — 2026-08-22
+
+The append-only schema-lineage repair was frozen at commit
+`4c41ccac512b8a9dfa627df9988ec51070085f9b`. Canonical intent
+`advance-binding-schema-lineage-20260821-v1.json`, SHA-256
+`5e2057c6b16ece30787f9e9737a8b2ccc59d8c5367fa2c1e7e4dec3a00566b3f`,
+advanced the live ledger from event 446 to 447 using command schema v1.1. Full
+replay then passed at position 447 with all 1,761 control-store files unchanged.
+
+The public SPEC status check exposed one further live-compatibility defect. It
+returned `NOT_RUNNABLE / register_spec_01_brief_inputs` even though the three
+exact registered inputs and their accepted authority were present. Commit
+`77c1bb10b178180f3f2b179610178dc3d5689ad8` had introduced deterministic
+brief-input identities for new writes after the real run, then incorrectly used
+those new identities as a historical read requirement. The live records use
+their original immutable identities but bind the same SPEC-01, SPEC-02, and
+Methods Pack bytes.
+
+The read path now matches one registered input by its exact artefact type,
+content SHA-256, size, media type, control-root identity, and identity-derived
+`methods/content/spec-flow/` path. It returns the actual persisted stream
+identity, so completed retries continue to bind their original packets. New
+registrations still require the deterministic identity. Multiple persisted
+streams matching one logical input, or multiple route inputs with an
+indistinguishable signature, reject rather than selecting an alias.
+
+The watched historical-identity control failed before the repair and passes
+after it; an ambiguous-alias control also passes. The existing canonical
+registration, independent review, owner acceptance, and expired-grant exact
+retry paths pass unchanged (four parametrized cases). Ruff, formatting, syntax
+compilation, and `git diff --check` pass. Commit
+`c92efa2fd2c616a144098da1cf643e6c55b0d1bf` freezes this correction.
+
+Fresh canonical intent
+`advance-binding-live-status-compatibility-20260821-v1.json`, SHA-256
+`6b7053cee41b234c350c17d45cc13256cad639cb1597b5dc6625d2fa0b14f7a5`,
+then advanced the live ledger from event 447 to 448. Transaction
+`txb_01a0268e-81e6-7391-a85c-21d109d834ae` replaced binding SHA-256
+`1d7aac3b4db21e9b4c7835a38a40ee6abeb91c002102882f0ccf34e6e31c8b33`
+with `933bbd16d52965b5c21dcc9b71c6ca0fea41c7793be31a2f24af0fc74a870f18`.
+The route and both protected SPEC source hashes remained unchanged. The exact
+publication set was one new event, immutable binding object, receipt,
+idempotency record, and current-binding replacement; no binding transaction
+marker or writer lock remained.
+
+Full replay passes at position 448 and terminal event hash
+`5efcf8c14e310db1fbe7d755e2fd1a60aad6a09db18fcd8d6edaab12d2ac583a`.
+The public SPEC status now returns `PROVEN`, completed stage
+`spec_02_owner_decided`, no next action, and the block reason “candidate evidence
+is recorded; no scientific claim was published.” Both reads left all 1,765
+control-store files byte-for-byte unchanged. This restores the recorded `PARK`
+suitability result through the public seam; it does not adopt the method or
+publish a scientific claim.
+
+This section is the final tracked change in the local convergence worktree. Its
+documentation-only descendant is bound through the same ordinary governed
+advance and rechecked through full replay and public SPEC status. The exact
+post-record transaction belongs to the authoritative append-only ledger; no
+further tracked edit is made merely to copy that tail back into this document.
 
 ## 8. Validation and exact-head review
 
