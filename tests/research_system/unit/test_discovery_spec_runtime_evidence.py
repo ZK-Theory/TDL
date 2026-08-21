@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import research_system.discovery.runtime as discovery_runtime_module
+import research_system.projection.replay as projection_replay_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery.runtime import (
     DiscoveryRuntime,
@@ -210,6 +211,63 @@ def test_spec_02_legacy_approval_adapter_is_one_exact_frozen_publication() -> No
     )
 
 
+def test_external_spec_authority_evidence_is_bounded_by_transition_recorded_at(tmp_path, monkeypatch) -> None:
+    before_grant = "agr_019ffe2b-fd4b-7000-8000-000000000001"
+    after_grant = "agr_019ffe2b-fd4b-7000-8000-000000000002"
+    authority_events = (
+        {
+            "event_id": "before",
+            "recorded_at": "2026-08-01T12:29:00Z",
+            "payload": {"target_grant_id": before_grant},
+        },
+        {
+            "event_id": "after",
+            "recorded_at": "2026-08-01T12:31:00Z",
+            "payload": {"target_grant_id": after_grant},
+        },
+    )
+    observed: list[tuple[dict[str, Any], ...]] = []
+    administration = object()
+
+    def replay(events, **_kwargs):
+        exact_events = tuple(events)
+        observed.append(exact_events)
+        return {
+            "owner_authority_decision_publications": {
+                event["event_id"]: {"target_grant_id": event["payload"]["target_grant_id"]} for event in exact_events
+            }
+        }
+
+    monkeypatch.setattr(
+        discovery_runtime_module,
+        "EventLedger",
+        lambda *_args, **_kwargs: SimpleNamespace(snapshot=lambda: SimpleNamespace(events=authority_events)),
+    )
+    monkeypatch.setattr(projection_replay_module, "replay", replay)
+    authority_resolver = SimpleNamespace(
+        control_root=tmp_path / "external-authority",
+        project_id="project",
+        expected_store_identity="authority-store",
+        validate_replayed_administration_state=lambda _projection: None,
+        _administration_context_from_projection=lambda _projection: administration,
+    )
+    resolver = _SpecExecutionAuthorityResolver(
+        control_root=tmp_path,
+        schemas=SimpleNamespace(),
+        authority_resolver=authority_resolver,
+        clock=lambda: datetime.now(UTC),
+    )
+
+    resolved_administration, resolved_events, grant_ids = resolver._external_authority_evidence_as_of(
+        datetime(2026, 8, 1, 12, 30, tzinfo=UTC)
+    )
+
+    assert resolved_administration is administration
+    assert resolved_events == authority_events[:1]
+    assert grant_ids == frozenset({before_grant})
+    assert observed == [authority_events[:1]]
+
+
 def test_spec_02_legacy_return_adapter_replays_only_its_bound_raw_artefacts(tmp_path, monkeypatch) -> None:
     candidate_id = "candidate"
     spike = {"spike_id": "spike", "attempt_id": "attempt"}
@@ -305,7 +363,10 @@ class _ApprovalResolverHarness(_SpecExecutionAuthorityResolver):
         self,
         _projection: dict[str, Any],
         _events: tuple[dict[str, Any], ...],
+        *,
+        authority_evidence_time: datetime | None = None,
     ) -> tuple[object, tuple[dict[str, Any], ...]]:
+        del authority_evidence_time
         return SimpleNamespace(owner_actor_id="owner", root_grant_id="root-grant"), tuple(self.authority_events)
 
 

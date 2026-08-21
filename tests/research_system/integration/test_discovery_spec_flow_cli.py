@@ -5411,11 +5411,18 @@ def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
         brief={"route_source": {"raw_sha256": source_sha256}},
         correction=None,
     )
-    monkeypatch.setattr(_SpecExecutionAuthorityResolver, "resolve", lambda *_args, **_kwargs: authority)
+    observed: dict[str, Any] = {}
+
+    def resolve(_self: object, *_args: object, **kwargs: Any) -> _Spec02ExecutionAuthority:
+        observed.update(kwargs)
+        return authority
+
+    monkeypatch.setattr(_SpecExecutionAuthorityResolver, "resolve", resolve)
     projection = {"owner_authority_decision_publications": {}}
     event = {
         "global_position": 1,
         "occurred_at": "2026-08-01T12:40:00Z",
+        "recorded_at": "2026-08-01T12:41:00Z",
         "command_type": "RegisterSpikePlan",
         "payload": {
             "row_id": "OR-014",
@@ -5437,3 +5444,5 @@ def test_spec_replay_validator_rejects_a_plan_for_a_different_governed_contract(
 
     event["payload"]["plan_artifact"]["planned_contracts"][-1] = f"SPEC-02:{source_sha256}"
     validator(projection, {}, event, False)
+    assert observed["evaluation_time"] == datetime(2026, 8, 1, 12, 40, tzinfo=UTC)
+    assert observed["authority_evidence_time"] == datetime(2026, 8, 1, 12, 41, tzinfo=UTC)

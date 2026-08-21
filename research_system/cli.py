@@ -646,15 +646,16 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
     receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     schemas = runtime_schema_registry(binding.schema_root)
     authority_config = getattr(args, "authority_config", None)
-    authority = (
-        LedgerAuthorityGrantResolver(
-            binding.control_root,
-            binding.project_id,
-            binding.store_identity,
-            schemas,
-            approved_witness=binding.origin_witness,
-            approved_witness_path=binding.origin_witness_path,
-        )
+    local_authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    spec_authority = (
+        local_authority
         if authority_config is None
         else _authority_resolver_from_config(
             authority_config,
@@ -678,7 +679,7 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
             authority_grant_id=command["authority_grant_id"],
             approved_witness=binding.origin_witness,
             approved_witness_path=binding.origin_witness_path,
-            authority_resolver=authority,
+            authority_resolver=spec_authority,
         )
 
     def verification_provider(_command: Any, _source_snapshot: Any) -> tuple[dict[str, Any], Callable[[], None]]:
@@ -738,11 +739,11 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
         schemas,
-        authority_resolver=authority,
+        authority_resolver=local_authority,
         clock=_authority_clock,
         restore_verification_provider=verification_provider,
         spec_execution_authority_validator_factory=lambda events: _spec_replay_validator(
-            binding.control_root, schemas, authority, events
+            binding.control_root, schemas, spec_authority, events
         ),
     ).submit(command)
     _print_json(

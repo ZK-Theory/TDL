@@ -210,6 +210,70 @@ def test_store_backup_separates_local_command_authority_from_external_spec_repla
     assert validator_factory(()) is external_spec_authority
 
 
+def test_store_verify_restore_separates_local_command_authority_from_external_spec_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_root = tmp_path / "control"
+    schema_root = tmp_path / "schemas"
+    target_root = tmp_path / "restore"
+    for root in (source_root, schema_root, target_root):
+        root.mkdir()
+    binding = SimpleNamespace(
+        control_root=source_root,
+        schema_root=schema_root,
+        project_id=PROJECT_ID,
+        store_identity="store-local",
+        origin_witness={"witness": "local"},
+        origin_witness_path=tmp_path / "local-witness.json",
+    )
+    local_authority = object()
+    external_spec_authority = object()
+    captured: dict[str, object] = {}
+
+    class Service:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            captured["command_authority"] = kwargs["authority_resolver"]
+            captured["validator_factory"] = kwargs["spec_execution_authority_validator_factory"]
+
+        def submit(self, _command: dict[str, object]) -> SimpleNamespace:
+            return SimpleNamespace(status="rejected", reason_code="test-stop")
+
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    monkeypatch.setattr(cli, "_read_json", lambda _path: {"command_type": "VerifyRestore"})
+    monkeypatch.setattr(cli, "_read_canonical_json", lambda _path: {})
+    monkeypatch.setattr(cli, "_backup_receipt_from_json", lambda _value: object())
+    monkeypatch.setattr(cli, "runtime_schema_registry", lambda _path: object())
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *_args, **_kwargs: local_authority)
+    monkeypatch.setattr(cli, "_authority_resolver_from_config", lambda *_args, **_kwargs: external_spec_authority)
+    monkeypatch.setattr(cli, "load_evidence_store_registry", lambda *_args: object())
+    monkeypatch.setattr(cli, "EventLedger", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(cli, "CommandService", Service)
+    monkeypatch.setattr(cli, "ObjectStore", lambda _root: object())
+    monkeypatch.setattr(cli, "ReceiptStore", lambda _root: object())
+    monkeypatch.setattr(cli, "asdict", lambda value: vars(value))
+    monkeypatch.setattr(cli, "_print_json", lambda _value: None)
+    monkeypatch.setattr(cli, "_spec_replay_validator", lambda _root, _schemas, resolver, _events: resolver)
+    args = argparse.Namespace(
+        config=tmp_path / "binding.json",
+        command=tmp_path / "command.json",
+        receipt=tmp_path / "receipt.json",
+        registry=tmp_path / "registry.yaml",
+        target_root=target_root,
+        snapshot=tmp_path / "snapshot.json",
+        endpoint_ownership=tmp_path / "endpoint.json",
+        artefact_manifest=tmp_path / "artefacts.json",
+        authority_config=tmp_path / "external-authority.json",
+    )
+
+    assert cli._store_verify_restore(args) == 0
+
+    assert captured["command_authority"] is local_authority
+    validator_factory = captured["validator_factory"]
+    assert callable(validator_factory)
+    assert validator_factory(()) is external_spec_authority
+
+
 def _activate_backup_grant(tmp_path: Path) -> tuple[ControlBinding, EventLedger]:
     control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
     command_binding = schemas.command_binding("CreateBackup")

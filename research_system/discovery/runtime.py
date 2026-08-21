@@ -534,6 +534,35 @@ class _SpecExecutionAuthorityResolver:
         self.authority_resolver = authority_resolver
         self.clock = clock
         self._same_root_authority_cache: tuple[object, frozenset[str]] | None = None
+        self._external_authority_events: tuple[dict[str, Any], ...] | None = None
+        self._external_authority_cache: dict[
+            str,
+            tuple[object, tuple[dict[str, Any], ...], frozenset[str]],
+        ] = {}
+
+    @staticmethod
+    def _owner_published_grant_ids(projection: Mapping[str, Any]) -> frozenset[str]:
+        publications = projection.get("owner_authority_decision_publications")
+        if not isinstance(publications, Mapping):
+            raise IntegrityError("owner authority decision publication projection is invalid")
+        grant_ids = frozenset(
+            validate_id(str(publication.get("target_grant_id")), "authority_grant")
+            for publication in publications.values()
+            if isinstance(publication, Mapping)
+        )
+        if len(grant_ids) != len(publications):
+            raise IntegrityError("owner authority decision publication projection is invalid")
+        return grant_ids
+
+    @staticmethod
+    def _recorded_at(value: object) -> datetime:
+        try:
+            recorded_at = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise IntegrityError("authority event lacks a valid recorded time") from exc
+        if recorded_at.tzinfo is None or recorded_at.utcoffset() is None:
+            raise IntegrityError("authority event lacks a valid recorded time")
+        return recorded_at.astimezone(UTC)
 
     def _same_root_authority_evidence(
         self,
@@ -552,29 +581,74 @@ class _SpecExecutionAuthorityResolver:
             validate_discovery_semantics=False,
         )
         administration = self.authority_resolver._administration_context_from_projection(authority_projection)
-        publications = authority_projection.get("owner_authority_decision_publications")
-        if not isinstance(publications, Mapping):
-            raise IntegrityError("owner authority decision publication projection is invalid")
-        grant_ids = frozenset(
-            validate_id(str(publication.get("target_grant_id")), "authority_grant")
-            for publication in publications.values()
-            if isinstance(publication, Mapping)
-        )
-        if len(grant_ids) != len(publications):
-            raise IntegrityError("owner authority decision publication projection is invalid")
+        grant_ids = self._owner_published_grant_ids(authority_projection)
         self._same_root_authority_cache = administration, grant_ids
         return self._same_root_authority_cache
+
+    def _external_authority_evidence_as_of(
+        self,
+        evidence_time: datetime,
+    ) -> tuple[object, tuple[dict[str, Any], ...], frozenset[str]]:
+        """Replay only external authority evidence durable by one local event."""
+
+        if evidence_time.tzinfo is None or evidence_time.utcoffset() is None:
+            raise IntegrityError("SPEC-02 transition lacks a valid recorded time")
+        cutoff = evidence_time.astimezone(UTC)
+        cache_key = cutoff.isoformat()
+        cached = self._external_authority_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        if self._external_authority_events is None:
+            self._external_authority_events = (
+                EventLedger(
+                    self.authority_resolver.control_root,
+                    self.authority_resolver.project_id,
+                    self.schemas,
+                    store_identity=self.authority_resolver.expected_store_identity,
+                )
+                .snapshot()
+                .events
+            )
+        previous_time: datetime | None = None
+        authority_events: list[dict[str, Any]] = []
+        for event in self._external_authority_events:
+            recorded_at = self._recorded_at(event.get("recorded_at"))
+            if previous_time is not None and recorded_at < previous_time:
+                raise IntegrityError("authority ledger recorded times are not monotonic")
+            previous_time = recorded_at
+            if recorded_at <= cutoff:
+                authority_events.append(event)
+        from research_system.projection.replay import replay as replay_shared_projection
+
+        exact_events = tuple(authority_events)
+        authority_projection = replay_shared_projection(
+            exact_events,
+            schema_registry=self.schemas,
+            authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+            validate_discovery_semantics=False,
+        )
+        administration = self.authority_resolver._administration_context_from_projection(authority_projection)
+        result = administration, exact_events, self._owner_published_grant_ids(authority_projection)
+        self._external_authority_cache[cache_key] = result
+        return result
 
     def _authority_decision_context(
         self,
         projection: Mapping[str, Any],
         events: tuple[dict[str, Any], ...],
+        *,
+        authority_evidence_time: datetime | None = None,
     ) -> tuple[object, tuple[dict[str, Any], ...]]:
         """Load the verified owner anchor and its independently bound authority ledger."""
 
         if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False):
             administration, _grant_ids = self._same_root_authority_evidence(events)
             return administration, events
+        if authority_evidence_time is not None:
+            administration, authority_events, _grant_ids = self._external_authority_evidence_as_of(
+                authority_evidence_time
+            )
+            return administration, authority_events
         administration = self.authority_resolver.administration_context()
         events = (
             EventLedger(
@@ -597,6 +671,7 @@ class _SpecExecutionAuthorityResolver:
         approval_manifest: Mapping[str, Any],
         projection: Mapping[str, Any],
         events: tuple[dict[str, Any], ...],
+        authority_evidence_time: datetime | None = None,
     ) -> bool:
         """Bind approval bytes to the exact root-owner publication command."""
 
@@ -610,7 +685,11 @@ class _SpecExecutionAuthorityResolver:
             or not isinstance(approval_grant_id, str)
         ):
             return False
-        administration, authority_events = self._authority_decision_context(projection, events)
+        administration, authority_events = self._authority_decision_context(
+            projection,
+            events,
+            authority_evidence_time=authority_evidence_time,
+        )
         intent = {
             "target_actor_id": registrar.get("actor_id"),
             "target_actor_class": "agent",
@@ -667,6 +746,7 @@ class _SpecExecutionAuthorityResolver:
         *,
         events: tuple[dict[str, Any], ...],
         evaluation_time: datetime | None = None,
+        authority_evidence_time: datetime | None = None,
         owner_published_grant_ids: frozenset[str] | None = None,
     ) -> _Spec02ExecutionAuthority | None:
         """Resolve the durable approval and prepared brief for either SPEC-02 entry mode."""
@@ -674,11 +754,12 @@ class _SpecExecutionAuthorityResolver:
         if not _is_spec_route_candidate(projection, candidate):
             return None
         if owner_published_grant_ids is None:
-            owner_published_grant_ids = (
-                self._same_root_authority_evidence(events)[1]
-                if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False)
-                else self.authority_resolver.owner_published_grant_ids()
-            )
+            if self.authority_resolver.control_root.resolve(strict=False) == self.control_root.resolve(strict=False):
+                owner_published_grant_ids = self._same_root_authority_evidence(events)[1]
+            elif authority_evidence_time is not None:
+                owner_published_grant_ids = self._external_authority_evidence_as_of(authority_evidence_time)[2]
+            else:
+                owner_published_grant_ids = self.authority_resolver.owner_published_grant_ids()
         if not isinstance(candidate.get("decision_id"), str):
             return None
         promotions = [
@@ -767,6 +848,7 @@ class _SpecExecutionAuthorityResolver:
                 approval_manifest=approval_manifest,
                 projection=projection,
                 events=events,
+                authority_evidence_time=authority_evidence_time,
             )
             and brief.get("operator_session", {}).get("operator_actor_id") == brief_actor_id
             and brief_actor_id == brief_manifest.get("producer_actor_id")
@@ -835,7 +917,6 @@ def build_spec_execution_authority_validator(
         authority_resolver=authority_resolver,
         clock=clock or (lambda: datetime.now(UTC)),
     )
-    owner_published_grant_ids: frozenset[str] | None = None
 
     def validate_spec_authority(
         projection: Mapping[str, Any],
@@ -843,7 +924,6 @@ def build_spec_execution_authority_validator(
         event: Mapping[str, Any],
         park_test: bool,
     ) -> None:
-        nonlocal owner_published_grant_ids
         occurred_at = event.get("occurred_at")
         try:
             evaluation_time = datetime.fromisoformat(str(occurred_at).replace("Z", "+00:00"))
@@ -851,11 +931,10 @@ def build_spec_execution_authority_validator(
             raise IntegrityError("SPEC-02 transition lacks a valid occurrence time") from exc
         if evaluation_time.tzinfo is None or evaluation_time.utcoffset() is None:
             raise IntegrityError("SPEC-02 transition lacks a valid occurrence time")
-        if owner_published_grant_ids is None:
-            if authority_resolver.control_root.resolve(strict=False) == control_root.resolve(strict=False):
-                owner_published_grant_ids = resolver._same_root_authority_evidence(events)[1]
-            else:
-                owner_published_grant_ids = authority_resolver.owner_published_grant_ids()
+        try:
+            authority_evidence_time = resolver._recorded_at(event.get("recorded_at"))
+        except IntegrityError as exc:
+            raise IntegrityError("SPEC-02 transition lacks a valid recorded time") from exc
         event_position = event.get("global_position")
         if not isinstance(event_position, int):
             raise IntegrityError("SPEC-02 transition lacks a valid ledger position")
@@ -869,7 +948,7 @@ def build_spec_execution_authority_validator(
             projection,
             events=causal_events,
             evaluation_time=evaluation_time,
-            owner_published_grant_ids=owner_published_grant_ids,
+            authority_evidence_time=authority_evidence_time,
         )
         if authority is None or (authority.correction is not None) != park_test:
             raise IntegrityError("SPEC-02 execution lacks valid durable approval evidence")
