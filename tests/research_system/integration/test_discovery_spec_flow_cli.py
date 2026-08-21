@@ -1369,6 +1369,7 @@ def _approve_spec_02(
     execute: bool = True,
     park_override: bool = False,
     resource_ids: list[str] | None = None,
+    budget_gbp: int | str = 0,
 ) -> str:
     operator = load_discovery_operator(inputs["config_path"])
     promotion = next(
@@ -1431,7 +1432,7 @@ def _approve_spec_02(
         "scientific_promotion": not park_override,
         "brief_identity": {"id": source["locator"], "sha256": source["sha256"]},
         "limits": {
-            "budget_gbp": 0,
+            "budget_gbp": budget_gbp,
             "wall_time_seconds": 60,
             "cpu_seconds": 60,
             "peak_memory_bytes": 1048576,
@@ -1823,7 +1824,7 @@ def _register_spike_return_evidence(
     candidate_id: str,
     spike_id: str,
     attempt_sha256: str,
-    resource_use: Mapping[str, int | float],
+    resource_use: Mapping[str, int | str],
 ) -> dict[str, dict[str, Any]]:
     operator = load_discovery_operator(inputs["config_path"])
     service = CommandService(
@@ -1908,7 +1909,7 @@ def _return_spec_02_complete(
     started: dict[str, str],
     *,
     partial: bool = False,
-    resource_use: dict[str, int] | None = None,
+    resource_use: dict[str, int | str] | None = None,
     deterministic_rerun: dict[str, Any] | None = None,
     execute: bool = True,
 ) -> dict[str, str]:
@@ -3784,6 +3785,62 @@ def test_spec_preparation_recovers_exactly_after_each_precompletion_phase(
 
 
 @pytest.mark.integration
+def test_spec_context_recovery_ignores_an_unrelated_discovery_append(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unrelated dossier row cannot permanently wedge an exact context retry."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs, execute=False)
+    action = "prepare_spec_01"
+    original = spec_flow_module.deliver_spec_owner_context
+    failed = False
+
+    def crash_after_context(*args: Any, **kwargs: Any) -> Any:
+        nonlocal failed
+        if failed:
+            operator = kwargs["operator"]
+            events = tuple(operator.ledger.iter_events())
+            unrelated = {
+                "global_position": len(events) + 1,
+                "event_hash": "7" * 64,
+                "stream_id": "obj_019ffe2b-fd4b-7000-8000-000000000451",
+                "payload": {
+                    "row_id": "OR-029",
+                    "candidate_id": "obj_019ffe2b-fd4b-7000-8000-000000000452",
+                },
+            }
+            kwargs["operator"] = SimpleNamespace(
+                control_root=operator.control_root,
+                clock=operator.clock,
+                ledger=SimpleNamespace(
+                    iter_events=lambda: iter((*events, unrelated)),
+                    project_id=operator.ledger.project_id,
+                    store_identity=operator.ledger.store_identity,
+                ),
+            )
+        result = original(*args, **kwargs)
+        if not failed:
+            failed = True
+            raise RuntimeError("injected crash after durable SPEC context")
+        return result
+
+    monkeypatch.setattr(spec_flow_module, "deliver_spec_owner_context", crash_after_context)
+    with pytest.raises(RuntimeError, match="injected crash"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert failed
+
+    assert cli.main(_advance_argv(spec_inputs, action)) == 0
+    capsys.readouterr()
+    assert SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._action_identity(
+        action, spec_inputs["packet"], publish=False
+    )
+
+
+@pytest.mark.integration
 def test_brief_input_registration_recovers_after_partial_publication_without_claiming_completion(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5021,13 +5078,24 @@ def test_public_spec_flow_registers_complete_spec_02_return_without_claim(
     capsys.readouterr()
     _decide_spec_01(spec_inputs, candidate_id, assay_id, review_id)
     capsys.readouterr()
-    _approve_spec_02(spec_inputs)
+    _approve_spec_02(spec_inputs, budget_gbp="0.75")
     capsys.readouterr()
     _prepare_spec_02(spec_inputs)
     capsys.readouterr()
     started = _start_spec_02(spec_inputs, candidate_id, assay_id)
     capsys.readouterr()
-    returned_spike = _return_spec_02_complete(spec_inputs, candidate_id, assay_id, started)
+    returned_spike = _return_spec_02_complete(
+        spec_inputs,
+        candidate_id,
+        assay_id,
+        started,
+        resource_use={
+            "elapsed_seconds": "1.5",
+            "cpu_seconds": "0.25",
+            "peak_memory_bytes": 1,
+            "external_cost_gbp": "0.5",
+        },
+    )
     capsys.readouterr()
     assert cli.main(_status_argv(spec_inputs)) == 0
     status = json.loads(capsys.readouterr().out)

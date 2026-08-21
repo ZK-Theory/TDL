@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import stat
 import sys
 import threading
 import time
@@ -44,6 +43,7 @@ from research_system.command.models import Command, Receipt
 from research_system.command.t2 import T2_COMMAND_TYPES, T2Receipt, submit_t2
 from research_system.errors import (
     ArsError,
+    ConfigurationError,
     ConflictError,
     IdempotencyConflictError,
     IntegrityError,
@@ -95,6 +95,12 @@ from research_system.store.lock import (
     remove_stale_lock,
 )
 from research_system.store.durability import fsync_directory
+from research_system.store.contained_files import (
+    publish_contained_exact_no_replace,
+    read_contained_directory_files,
+    read_contained_file,
+    remove_contained_exact,
+)
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from research_system.store.spec_preparation_fence import SpecPreparationFence
@@ -777,32 +783,14 @@ class CommandService:
     def _owner_publication_marker_path(self, command_id: str) -> Path:
         return self.control_root / "runtime" / "owner-authority-publication-recovery" / f"{command_id}.json"
 
-    def _require_physical_owner_publication_marker_path(self, path: Path) -> None:
+    def _owner_publication_marker_relative(self, path: Path) -> str:
         expected_parent = self.control_root / "runtime" / "owner-authority-publication-recovery"
         if path.parent != expected_parent:
             raise IntegrityError("owner publication recovery marker path is invalid")
-        reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-        for current in (self.control_root / "runtime", expected_parent):
-            try:
-                metadata = current.lstat()
-            except FileNotFoundError:
-                continue
-            except OSError as exc:
-                raise IntegrityError("owner publication recovery marker path is unavailable") from exc
-            if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
-                raise IntegrityError("owner publication recovery marker path has a reparse component")
-            if not stat.S_ISDIR(metadata.st_mode):
-                raise IntegrityError("owner publication recovery marker parent is not a directory")
         try:
-            metadata = path.lstat()
-        except FileNotFoundError:
-            return
-        except OSError as exc:
-            raise IntegrityError("owner publication recovery marker path is unavailable") from exc
-        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
-            raise IntegrityError("owner publication recovery marker path has a reparse component")
-        if not stat.S_ISREG(metadata.st_mode):
-            raise IntegrityError("owner publication recovery marker is not a regular file")
+            return path.relative_to(self.control_root).as_posix()
+        except ValueError as exc:
+            raise IntegrityError("owner publication recovery marker path is invalid") from exc
 
     def _write_owner_publication_marker(
         self,
@@ -822,38 +810,60 @@ class CommandService:
             "decision": decision,
         }
         path = self._owner_publication_marker_path(command.command_id)
-        self._require_physical_owner_publication_marker_path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._require_physical_owner_publication_marker_path(path)
         data = canonical_bytes(marker)
-        if path.exists():
-            if path.read_bytes() != data:
-                raise ConflictError("owner publication recovery marker conflicts")
-            return
-        temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
-        try:
-            with temporary.open("xb") as handle:
-                handle.write(data)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, path)
-            fsync_directory(path.parent)
-        finally:
-            temporary.unlink(missing_ok=True)
+        publish_contained_exact_no_replace(
+            self.control_root,
+            self._owner_publication_marker_relative(path),
+            data,
+            conflict_message="owner publication recovery marker conflicts",
+            allow_outer_delete_protection=True,
+        )
 
-    def _remove_owner_publication_marker(self, command_id: str) -> None:
+    def _remove_owner_publication_marker(
+        self,
+        command_id: str,
+        *,
+        expected_marker: Mapping[str, Any] | None = None,
+    ) -> None:
         path = self._owner_publication_marker_path(command_id)
-        self._require_physical_owner_publication_marker_path(path)
-        if path.exists():
-            path.unlink()
-            fsync_directory(path.parent)
+        relative = self._owner_publication_marker_relative(path)
+        try:
+            data = read_contained_file(
+                self.control_root,
+                relative,
+                allow_outer_delete_protection=True,
+            )
+        except FileNotFoundError:
+            return
+        marker = self._parse_owner_publication_marker(path, data)
+        if expected_marker is not None and canonical_bytes(expected_marker) != data:
+            raise ConflictError("owner publication recovery marker conflicts")
+        remove_contained_exact(
+            self.control_root,
+            relative,
+            expected=canonical_bytes(marker),
+            conflict_message="owner publication recovery marker conflicts",
+            allow_outer_delete_protection=True,
+        )
 
     def _load_owner_publication_marker(self, path: Path) -> dict[str, Any]:
-        self._require_physical_owner_publication_marker_path(path)
+        relative = self._owner_publication_marker_relative(path)
         try:
-            data = path.read_bytes()
-            marker = json.loads(data)
+            data = read_contained_file(
+                self.control_root,
+                relative,
+                allow_outer_delete_protection=True,
+            )
+        except FileNotFoundError:
+            raise
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise IntegrityError("owner publication recovery marker is invalid") from exc
+        return self._parse_owner_publication_marker(path, data)
+
+    def _parse_owner_publication_marker(self, path: Path, data: bytes) -> dict[str, Any]:
+        try:
+            marker = json.loads(data)
+        except (UnicodeError, json.JSONDecodeError) as exc:
             raise IntegrityError("owner publication recovery marker is invalid") from exc
         fields = {
             "schema_id",
@@ -901,6 +911,26 @@ class CommandService:
             raise IntegrityError("owner publication recovery marker command identity is invalid")
         return marker
 
+    def _owner_publication_markers(self) -> tuple[dict[str, Any], ...]:
+        try:
+            rows = read_contained_directory_files(
+                self.control_root,
+                "runtime/owner-authority-publication-recovery",
+                suffix=".json",
+                allow_outer_delete_protection=True,
+            )
+        except ConfigurationError as exc:
+            raise IntegrityError(
+                "owner publication recovery marker path has a reparse component or non-regular leaf"
+            ) from exc
+        return tuple(
+            self._parse_owner_publication_marker(
+                self._owner_publication_marker_path(name.removesuffix(".json")),
+                data,
+            )
+            for name, data in rows
+        )
+
     @staticmethod
     def _validate_owner_publication_marker_command(
         marker: dict[str, Any],
@@ -934,10 +964,12 @@ class CommandService:
         """Return whether durable state proves this exact publication retry."""
 
         marker_path = self._owner_publication_marker_path(command_id)
-        self._require_physical_owner_publication_marker_path(marker_path)
         marker_matches = False
-        if marker_path.exists():
+        try:
             marker = self._load_owner_publication_marker(marker_path)
+        except FileNotFoundError:
+            marker = None
+        if marker is not None:
             identity = marker["command_identity"]
             marker_matches = (
                 marker["command_id"] == command_id
@@ -1008,7 +1040,7 @@ class CommandService:
         """Apply one action only after the complete marker set validates."""
 
         if action == "remove_marker":
-            self._remove_owner_publication_marker(marker["command_id"])
+            self._remove_owner_publication_marker(marker["command_id"], expected_marker=marker)
             return
         if action == "retain_marker":
             return
@@ -1028,7 +1060,6 @@ class CommandService:
     def _recover_owner_publication_markers(self) -> None:
         """Fence and reconcile durable owner-publication preparation markers."""
 
-        root = self.control_root / "runtime" / "owner-authority-publication-recovery"
         roots: tuple[Path, ...] = (self.control_root,)
         resolver = self._canonical_authority_resolver()
         if resolver is not None:
@@ -1038,10 +1069,7 @@ class CommandService:
             {"command_id": "owner-publication-recovery"},
             lock_factory=WriterLock,
         ):
-            self._require_physical_owner_publication_marker_path(root / "recovery-sentinel.json")
-            if not root.exists():
-                return
-            markers = tuple(self._load_owner_publication_marker(path) for path in sorted(root.glob("*.json")))
+            markers = self._owner_publication_markers()
             targets = [marker["target_stream_id"] for marker in markers]
             if len(set(targets)) != len(targets):
                 raise IntegrityError("owner publication recovery target is ambiguous")
@@ -1054,13 +1082,8 @@ class CommandService:
         command: Command,
         decision: dict[str, Any],
     ) -> None:
-        marker_root = self.control_root / "runtime" / "owner-authority-publication-recovery"
-        self._require_physical_owner_publication_marker_path(marker_root / f"{command.command_id}.json")
-        if not marker_root.exists():
-            return
         selected: dict[str, Any] | None = None
-        for path in sorted(marker_root.glob("*.json")):
-            marker = self._load_owner_publication_marker(path)
+        for marker in self._owner_publication_markers():
             if marker["target_stream_id"] != command.target_stream_id:
                 continue
             if marker["command_id"] != command.command_id:
@@ -1090,7 +1113,7 @@ class CommandService:
                 selected["decision"],
                 existed_before=False,
             )
-        self._remove_owner_publication_marker(command.command_id)
+        self._remove_owner_publication_marker(command.command_id, expected_marker=selected)
 
     def _owner_publication_committed(self, command: Command) -> bool:
         return any(

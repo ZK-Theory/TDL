@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 import subprocess
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+
+import pytest
+from jsonschema import Draft202012Validator, ValidationError
 
 import research_system.discovery.runtime as discovery_runtime_module
 import research_system.projection.replay as projection_replay_module
@@ -40,6 +44,43 @@ class _ReturnValidationHarness:
     def __init__(self, control_root) -> None:
         self.control_root = control_root
         self.schemas = _AcceptingSchemas()
+
+
+def test_spec_resource_fractions_have_one_p0_canonical_representation() -> None:
+    schema_root = Path(__file__).resolve().parents[3] / ".research-system/schemas/wp6-6"
+    return_schema = json.loads((schema_root / "spec-operator-return.schema.json").read_bytes())
+    approval_schema = json.loads((schema_root / "spec-02-live-run-approval.schema.json").read_bytes())
+    resource_use = {
+        "elapsed_seconds": "1.5",
+        "cpu_seconds": "0.25",
+        "peak_memory_bytes": 1024,
+        "external_cost_gbp": "0.5",
+    }
+    limits = {
+        "budget_gbp": "0.75",
+        "wall_time_seconds": 2,
+        "cpu_seconds": 1,
+        "peak_memory_bytes": 2048,
+        "resource_ids": ["resource"],
+    }
+
+    resource_use_schema = {
+        **return_schema["properties"]["resource_use"],
+        "$defs": return_schema["$defs"],
+    }
+    limits_schema = {
+        **approval_schema["properties"]["limits"],
+        "$defs": approval_schema["$defs"],
+    }
+    Draft202012Validator(resource_use_schema).validate(resource_use)
+    Draft202012Validator(limits_schema).validate(limits)
+    assert canonical_bytes({"resource_use": resource_use, "limits": limits})
+    assert DiscoveryRuntime._spec_02_resource_use_allowed({"limits": limits}, resource_use)
+
+    for noncanonical in (1.5, "1.50", "01.5", "1.0"):
+        changed = {**resource_use, "elapsed_seconds": noncanonical}
+        with pytest.raises(ValidationError):
+            Draft202012Validator(resource_use_schema).validate(changed)
 
 
 def test_spec_route_candidate_accepts_the_exact_assay_bar_relation_for_historical_replay() -> None:

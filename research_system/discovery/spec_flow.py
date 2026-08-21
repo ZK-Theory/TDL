@@ -2101,6 +2101,10 @@ class SpecFlow:
             expires_at=str(semantic["handoff_expires_at"]),
             required_spec_source_sha256=str(route_source["sha256"]),
             projection_for_events=self._runtime().replay,
+            dossier_id=self._dossier_id,
+            candidate_scope_for_snapshot=lambda snapshot_events, snapshot_projection: self._route_census(
+                snapshot_events, snapshot_projection
+            ).candidate_ids,
         )
         consumers = ArtefactEvidenceConsumers(
             ArtefactUseResolver(

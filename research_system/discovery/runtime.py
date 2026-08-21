@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
+from decimal import Decimal
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -273,6 +275,20 @@ _SPEC_02_RESOURCE_USE_FIELDS = {
     "peak_memory_bytes",
     "external_cost_gbp",
 }
+_CANONICAL_NONNEGATIVE_FRACTION = re.compile(r"^(0|[1-9][0-9]*)\.[0-9]*[1-9]$")
+
+
+def _canonical_nonnegative_number(value: object) -> Decimal | None:
+    """Parse the one P0-safe representation of a nonnegative quantity."""
+
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return Decimal(value) if value >= 0 else None
+    if isinstance(value, str) and len(value) <= 64 and _CANONICAL_NONNEGATIVE_FRACTION.fullmatch(value):
+        return Decimal(value)
+    return None
+
 
 _LEGACY_SPEC_02_RETURN_BINDING = {
     "return_sha256": "a334a81c61e803c5dad90078cc8be808230ec12b1c05c9272c39ccafaa7df14c",
@@ -510,10 +526,7 @@ def _spec_02_return_evidence_matches(
         and isinstance(claimed, Mapping)
         and set(measured) == _SPEC_02_RESOURCE_USE_FIELDS
         and set(claimed) == _SPEC_02_RESOURCE_USE_FIELDS
-        and all(
-            isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
-            for value in measured.values()
-        )
+        and all(_canonical_nonnegative_number(value) is not None for value in measured.values())
         and dict(measured) == dict(claimed)
     )
 
@@ -2934,14 +2947,12 @@ class DiscoveryRuntime:
             ("cpu_seconds", "cpu_seconds"),
             ("peak_memory_bytes", "peak_memory_bytes"),
         )
-        return all(
-            isinstance(resource_use.get(actual), (int, float))
-            and not isinstance(resource_use.get(actual), bool)
-            and isinstance(limits.get(limit), (int, float))
-            and not isinstance(limits.get(limit), bool)
-            and resource_use[actual] <= limits[limit]
-            for actual, limit in pairs
-        )
+        for actual, limit in pairs:
+            actual_value = _canonical_nonnegative_number(resource_use.get(actual))
+            limit_value = _canonical_nonnegative_number(limits.get(limit))
+            if actual_value is None or limit_value is None or actual_value > limit_value:
+                return False
+        return True
 
     def _spec_02_return_allowed(
         self,

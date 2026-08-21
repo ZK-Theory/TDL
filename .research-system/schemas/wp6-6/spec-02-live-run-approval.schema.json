@@ -23,7 +23,7 @@
     "limits": {
       "type": "object", "additionalProperties": false,
       "required": ["budget_gbp", "wall_time_seconds", "cpu_seconds", "peak_memory_bytes", "resource_ids"],
-      "properties": {"budget_gbp": {"type": "number", "minimum": 0}, "wall_time_seconds": {"type": "integer", "minimum": 1}, "cpu_seconds": {"type": "integer", "minimum": 1}, "peak_memory_bytes": {"type": "integer", "minimum": 1}, "resource_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}
+      "properties": {"budget_gbp": {"$ref": "#/$defs/canonicalNonnegativeNumber"}, "wall_time_seconds": {"type": "integer", "minimum": 1}, "cpu_seconds": {"type": "integer", "minimum": 1}, "peak_memory_bytes": {"type": "integer", "minimum": 1}, "resource_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}
     },
     "automatic_execution": {"const": false}
   },
@@ -31,5 +31,5 @@
     {"if": {"properties": {"entry_mode": {"const": "standard_promotion"}}}, "then": {"properties": {"source_correction": {"type": "null"}, "scientific_promotion": {"const": true}}}},
     {"if": {"properties": {"entry_mode": {"const": "owner_approved_park_test"}}}, "then": {"properties": {"source_correction": {"$ref": "#/$defs/hashRef"}, "scientific_promotion": {"const": false}}}}
   ],
-  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "hashRef": {"type": "object", "additionalProperties": false, "required": ["id", "sha256"], "properties": {"id": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}}
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "canonicalNonnegativeNumber": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string", "maxLength": 64, "pattern": "^(0|[1-9][0-9]*)\\.[0-9]*[1-9]$"}]}, "hashRef": {"type": "object", "additionalProperties": false, "required": ["id", "sha256"], "properties": {"id": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}}
 }

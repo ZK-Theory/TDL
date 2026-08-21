@@ -33,8 +33,8 @@
       "type": "object", "additionalProperties": false,
       "required": ["elapsed_seconds", "cpu_seconds", "peak_memory_bytes", "external_cost_gbp"],
       "properties": {
-        "elapsed_seconds": {"type": "number", "minimum": 0}, "cpu_seconds": {"type": "number", "minimum": 0},
-        "peak_memory_bytes": {"type": "integer", "minimum": 0}, "external_cost_gbp": {"type": "number", "minimum": 0}
+        "elapsed_seconds": {"$ref": "#/$defs/canonicalNonnegativeNumber"}, "cpu_seconds": {"$ref": "#/$defs/canonicalNonnegativeNumber"},
+        "peak_memory_bytes": {"type": "integer", "minimum": 0}, "external_cost_gbp": {"$ref": "#/$defs/canonicalNonnegativeNumber"}
       }
     },
     "deterministic_rerun": {
@@ -52,6 +52,7 @@
   ],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "canonicalNonnegativeNumber": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string", "maxLength": 64, "pattern": "^(0|[1-9][0-9]*)\\.[0-9]*[1-9]$"}]},
     "hashRef": {"type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": {"name": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}
   }
 }

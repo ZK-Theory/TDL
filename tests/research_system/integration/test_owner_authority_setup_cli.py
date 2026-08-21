@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 import research_system.cli as cli
+from research_system.store import contained_files
 from research_system import owner_authority as owner_module
 from research_system.authority import GrantedCommandIdentity, SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES
 from research_system.canonical import canonical_bytes
@@ -691,6 +692,50 @@ def test_publication_failure_before_event_rolls_back_and_retries(inputs, monkeyp
     assert not any((inputs.harness.authority_root / "runtime/owner-authority-publication-recovery").glob("*.json"))
     monkeypatch.setattr(setup.objects, "write", original_write)
     assert setup.publish(inputs.intent_value)["status"] == "accepted"
+
+
+@pytest.mark.integration
+def test_owner_publication_marker_retains_its_physical_parent_through_final_link(inputs, monkeypatch):
+    """A pathname replacement cannot redirect the durable recovery marker."""
+
+    setup = owner_module.load_owner_authority_setup(inputs.config, clock=lambda: NOW)
+    parent = inputs.harness.authority_root / "runtime/owner-authority-publication-recovery"
+    parent.mkdir(parents=True, exist_ok=True)
+    displaced = inputs.harness.authority_root / "runtime/owner-authority-publication-recovery-held"
+    original_link = contained_files.os.link
+    replacement_attempted = False
+    replacement_succeeded = False
+
+    def replace_parent_before_link(source: object, destination: object, **kwargs: object) -> None:
+        nonlocal replacement_attempted, replacement_succeeded
+        if replacement_attempted or (kwargs.get("dst_dir_fd") is None and Path(destination).parent != parent):
+            original_link(source, destination, **kwargs)
+            return
+        replacement_attempted = True
+        try:
+            parent.rename(displaced)
+            parent.mkdir()
+            replacement_succeeded = True
+        except PermissionError:
+            pass
+        original_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(contained_files.os, "link", replace_parent_before_link)
+    try:
+        if os.name == "nt":
+            assert setup.publish(inputs.intent_value)["status"] == "accepted"
+            assert replacement_attempted and not replacement_succeeded
+        else:
+            with pytest.raises(IntegrityError, match="parent changed while held"):
+                setup.publish(inputs.intent_value)
+            assert replacement_attempted and replacement_succeeded
+            assert not tuple(parent.glob("*.json"))
+    finally:
+        if replacement_succeeded:
+            for child in parent.iterdir():
+                child.unlink()
+            parent.rmdir()
+            displaced.rename(parent)
 
 
 @pytest.mark.integration

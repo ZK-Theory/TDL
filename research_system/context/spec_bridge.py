@@ -6,7 +6,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Collection, Mapping, Sequence
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
@@ -81,6 +81,9 @@ def build_spec_context_snapshot(
     projection_for_events: Callable[[tuple[Mapping[str, Any], ...]], Mapping[str, Any]],
     route_id: str,
     required_spec_source_sha256: str | None = None,
+    candidate_scope_for_snapshot: (
+        Callable[[tuple[Mapping[str, Any], ...], Mapping[str, Any]], Collection[str]] | None
+    ) = None,
 ) -> SpecContextSnapshot:
     """Freeze identities from the production-validated Discovery projection."""
     if not events:
@@ -127,10 +130,15 @@ def build_spec_context_snapshot(
         "spec_operator_source",
     ]:
         raise ArsError("SPEC context requires accepted brief source and Methods artefacts")
+    candidate_scope = (
+        set(candidate_scope_for_snapshot(tuple(events), projection))
+        if candidate_scope_for_snapshot is not None
+        else None
+    )
     candidates = [
         {"candidate_id": key, "state": value.get("status")}
         for key, value in sorted(projection.get("candidates", {}).items())
-        if isinstance(value, Mapping)
+        if isinstance(value, Mapping) and (candidate_scope is None or key in candidate_scope)
     ]
     tail = events[-1]
     position = tail.get("global_position")
@@ -164,6 +172,32 @@ def build_spec_context_snapshot(
     )
 
 
+def _event_changes_spec_source_closure(
+    event: Mapping[str, Any],
+    *,
+    accepted_artefact_ids: Collection[str],
+    candidate_ids: Collection[str],
+    dossier_id: str,
+) -> bool:
+    """Return whether a later event can change the frozen SPEC source content."""
+
+    stream_id = event.get("stream_id")
+    if stream_id in accepted_artefact_ids or stream_id in candidate_ids or stream_id == dossier_id:
+        return True
+    payload = event.get("payload")
+    if not isinstance(payload, Mapping):
+        return False
+    if payload.get("artefact_id") in accepted_artefact_ids or payload.get("dossier_id") == dossier_id:
+        return True
+    if any(
+        payload.get(field) in candidate_ids
+        for field in ("candidate_id", "superseded_candidate_id", "replacement_candidate_id")
+    ):
+        return True
+    batch = payload.get("batch")
+    return isinstance(batch, Mapping) and batch.get("source_query") == "exact:SPEC-GATE6-RUN-V1"
+
+
 def deliver_spec_owner_context(
     *,
     operator: DiscoveryOperator,
@@ -180,6 +214,8 @@ def deliver_spec_owner_context(
     expires_at: str,
     required_spec_source_sha256: str,
     projection_for_events: Callable[[tuple[Mapping[str, Any], ...]], Mapping[str, Any]],
+    dossier_id: str,
+    candidate_scope_for_snapshot: Callable[[tuple[Mapping[str, Any], ...], Mapping[str, Any]], Collection[str]],
 ) -> tuple[CompiledContextPacket, DiscoveryReplaySourceResolver]:
     """Compile, validate, issue, and record an honest manual brief handoff."""
     if not authority_grant_id or not retry_identity:
@@ -251,6 +287,9 @@ def deliver_spec_owner_context(
         try:
             source_value = json.loads(rendered)
             accepted_ids = {item["artefact_id"] for item in source_value["accepted_inputs"]}
+            candidate_ids = {item["candidate_id"] for item in source_value["candidates"]}
+            if not all(isinstance(value, str) for value in (*accepted_ids, *candidate_ids)):
+                raise TypeError
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise IntegrityError("durable SPEC context source record is malformed") from exc
         source_position = durable_snapshot.source_position
@@ -261,15 +300,18 @@ def deliver_spec_owner_context(
             projection_for_events=projection_for_events,
             route_id="SPEC-GATE6-RUN-V1",
             required_spec_source_sha256=required_spec_source_sha256,
+            candidate_scope_for_snapshot=candidate_scope_for_snapshot,
         )
         if durable_snapshot != expected_snapshot:
             raise IntegrityError("durable SPEC context source binding differs")
         snapshot = expected_snapshot
         for event in events[source_position:]:
-            payload = event.get("payload")
-            if (isinstance(payload, Mapping) and (payload.get("row_id") or payload.get("owner_row_id"))) or event.get(
-                "stream_id"
-            ) in accepted_ids:
+            if _event_changes_spec_source_closure(
+                event,
+                accepted_artefact_ids=accepted_ids,
+                candidate_ids=candidate_ids,
+                dossier_id=dossier_id,
+            ):
                 raise ArsError("Discovery replay or accepted source changed after SPEC context delivery")
     else:
         snapshot = build_spec_context_snapshot(
@@ -277,6 +319,7 @@ def deliver_spec_owner_context(
             projection_for_events=projection_for_events,
             route_id="SPEC-GATE6-RUN-V1",
             required_spec_source_sha256=required_spec_source_sha256,
+            candidate_scope_for_snapshot=candidate_scope_for_snapshot,
         )
         compiled = None
     source_resolver = DiscoveryReplaySourceResolver(snapshot)

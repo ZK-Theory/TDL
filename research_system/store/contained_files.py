@@ -72,7 +72,7 @@ def validate_contained_destination(control_root: Path, relative_path: str) -> Pa
     return _require_physical_destination(control_root, relative_path)
 
 
-def _hold_windows_directories(paths: list[Path]) -> list[int]:
+def _hold_windows_directories(paths: list[Path], *, allow_outer_delete_protection: bool) -> list[int]:
     """Hold physical directory handles without delete sharing during leaf operations."""
 
     import ctypes
@@ -93,12 +93,26 @@ def _hold_windows_directories(paths: list[Path]) -> list[int]:
     close_handle.argtypes = (ctypes.c_void_p,)
     close_handle.restype = ctypes.c_int
     invalid = ctypes.c_void_p(-1).value
+    file_share_delete = 0x4
     handles: list[int] = []
     flags = 0x02000000 | 0x00200000  # FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT
     try:
         for path in paths:
             desired_access = 0x0001 | 0x0080 | 0x00100000  # LIST_DIRECTORY | READ_ATTRIBUTES | SYNCHRONIZE
             handle = create_file(str(path), desired_access, 0x1 | 0x2, None, 3, flags, None)
+            if handle == invalid and allow_outer_delete_protection and ctypes.get_last_error() == 32:
+                # A surrounding WriterLock anchor already holds DELETE access
+                # without sharing delete.  Accommodate that stronger live
+                # fence rather than weakening or bypassing it.
+                handle = create_file(
+                    str(path),
+                    desired_access,
+                    0x1 | 0x2 | file_share_delete,
+                    None,
+                    3,
+                    flags,
+                    None,
+                )
             if handle == invalid:
                 raise OSError(ctypes.get_last_error(), "physical destination directory is unavailable")
             handles.append(int(handle))
@@ -219,6 +233,7 @@ def _hold_contained_parent(
     relative_path: str,
     *,
     create: bool,
+    allow_outer_delete_protection: bool = False,
 ) -> Iterator[tuple[int, Path]]:
     """Hold the verified parent used for a relative atomic directory operation."""
 
@@ -238,7 +253,10 @@ def _hold_contained_parent(
             parents = [root]
             for part in relative.parts[:-1]:
                 parents.append(parents[-1] / part)
-            windows_handles = _hold_windows_directories(parents)
+            windows_handles = _hold_windows_directories(
+                parents,
+                allow_outer_delete_protection=allow_outer_delete_protection,
+            )
             yield windows_handles[-1], target
         else:
             raise ConfigurationError("atomic contained-file operation is unsupported on this platform")
@@ -458,7 +476,12 @@ def _remove_created_file(target: Path, identity: os.stat_result) -> None:
 
 
 @contextmanager
-def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
+def _open_new_contained_file(
+    control_root: Path,
+    relative_path: str,
+    *,
+    allow_outer_delete_protection: bool = False,
+) -> Iterator[tuple[int, Path]]:
     """Create one fresh leaf while its trusted parent chain remains bound."""
 
     target = _require_physical_destination(control_root, relative_path, create=True)
@@ -479,7 +502,10 @@ def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator
             parents = [root]
             for part in relative.parts[:-1]:
                 parents.append(parents[-1] / part)
-            windows_handles = _hold_windows_directories(parents)
+            windows_handles = _hold_windows_directories(
+                parents,
+                allow_outer_delete_protection=allow_outer_delete_protection,
+            )
             descriptor = _open_windows_relative_new_file(windows_handles[-1], relative.name)
         else:
             raise ConfigurationError("atomic contained-file creation is unsupported on this platform")
@@ -500,7 +526,12 @@ def _open_new_contained_file(control_root: Path, relative_path: str) -> Iterator
 
 
 @contextmanager
-def _open_existing_contained_file(control_root: Path, relative_path: str) -> Iterator[tuple[int, Path]]:
+def _open_existing_contained_file(
+    control_root: Path,
+    relative_path: str,
+    *,
+    allow_outer_delete_protection: bool = False,
+) -> Iterator[tuple[int, Path]]:
     """Open one existing leaf while retaining its verified physical parent chain."""
 
     target = _require_physical_destination(control_root, relative_path)
@@ -522,7 +553,10 @@ def _open_existing_contained_file(control_root: Path, relative_path: str) -> Ite
             parents = [root]
             for part in relative.parts[:-1]:
                 parents.append(parents[-1] / part)
-            windows_handles = _hold_windows_directories(parents)
+            windows_handles = _hold_windows_directories(
+                parents,
+                allow_outer_delete_protection=allow_outer_delete_protection,
+            )
             descriptor = _open_windows_relative_existing_file(windows_handles[-1], relative.name)
         else:
             raise ConfigurationError("atomic contained-file reading is unsupported on this platform")
@@ -544,12 +578,68 @@ def _open_existing_contained_file(control_root: Path, relative_path: str) -> Ite
                 close_handle(ctypes.c_void_p(handle))
 
 
-def read_contained_file(control_root: Path, relative_path: str) -> bytes:
+def read_contained_file(
+    control_root: Path,
+    relative_path: str,
+    *,
+    allow_outer_delete_protection: bool = False,
+) -> bytes:
     """Read one existing physical leaf through a descriptor-held parent chain."""
 
-    with _open_existing_contained_file(control_root, relative_path) as (descriptor, _target):
+    with _open_existing_contained_file(
+        control_root,
+        relative_path,
+        allow_outer_delete_protection=allow_outer_delete_protection,
+    ) as (descriptor, _target):
         with os.fdopen(descriptor, "rb") as handle:
             return handle.read()
+
+
+def read_contained_directory_files(
+    control_root: Path,
+    relative_directory: str,
+    *,
+    suffix: str,
+    allow_outer_delete_protection: bool = False,
+) -> tuple[tuple[str, bytes], ...]:
+    """Read matching physical leaves while retaining one verified parent."""
+
+    relative = Path(relative_directory)
+    if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != relative_directory:
+        raise ConfigurationError("contained-file directory is not canonical and control-relative")
+    if not suffix or Path(suffix).name != suffix:
+        raise ConfigurationError("contained-file directory suffix is invalid")
+    directory = control_root.resolve(strict=True) / relative
+    try:
+        directory.lstat()
+    except FileNotFoundError:
+        return ()
+    sentinel = (relative / ".directory-snapshot").as_posix()
+    try:
+        with _hold_contained_parent(
+            control_root,
+            sentinel,
+            create=False,
+            allow_outer_delete_protection=allow_outer_delete_protection,
+        ) as (parent_descriptor, held_target):
+            names = os.listdir(held_target.parent if os.name == "nt" else parent_descriptor)
+            rows: list[tuple[str, bytes]] = []
+            for name in sorted(names):
+                if not name.endswith(suffix):
+                    continue
+                if not name or Path(name).name != name:
+                    raise IntegrityError("contained-file directory returned an invalid leaf name")
+                try:
+                    data, _identity = _read_held_contained_file(parent_descriptor, held_target, name)
+                except FileNotFoundError as exc:
+                    raise IntegrityError("contained-file directory changed while held") from exc
+                except OSError as exc:
+                    raise ConfigurationError("contained-file directory has a non-physical leaf") from exc
+                rows.append((name, data))
+            _held_parent_matches_destination(parent_descriptor, held_target)
+            return tuple(rows)
+    except FileNotFoundError:
+        return ()
 
 
 def publish_contained_exact_no_replace(
@@ -558,6 +648,7 @@ def publish_contained_exact_no_replace(
     data: bytes,
     *,
     conflict_message: str,
+    allow_outer_delete_protection: bool = False,
 ) -> Path:
     """Durably publish exact bytes without replacing a competing final leaf."""
 
@@ -568,7 +659,11 @@ def publish_contained_exact_no_replace(
     cleanup_staging = True
     final_target: Path | None = None
     try:
-        with _open_new_contained_file(control_root, temporary_relative.as_posix()) as (descriptor, opened_target):
+        with _open_new_contained_file(
+            control_root,
+            temporary_relative.as_posix(),
+            allow_outer_delete_protection=allow_outer_delete_protection,
+        ) as (descriptor, opened_target):
             temporary_target = opened_target
             with os.fdopen(descriptor, "wb") as handle:
                 temporary_identity = os.fstat(handle.fileno())
@@ -578,7 +673,12 @@ def publish_contained_exact_no_replace(
                 handle.flush()
                 os.fsync(handle.fileno())
                 _after_contained_file_fsync(temporary_target, control_root / relative)
-                with _hold_contained_parent(control_root, relative_path, create=True) as (
+                with _hold_contained_parent(
+                    control_root,
+                    relative_path,
+                    create=True,
+                    allow_outer_delete_protection=allow_outer_delete_protection,
+                ) as (
                     parent_descriptor,
                     held_target,
                 ):
@@ -810,11 +910,17 @@ def remove_contained_exact(
     *,
     expected: bytes,
     conflict_message: str,
+    allow_outer_delete_protection: bool = False,
 ) -> bool:
     """Remove an exact leaf only while its physical parent and identity remain held."""
 
     try:
-        with _hold_contained_parent(control_root, relative_path, create=False) as (parent_descriptor, held_target):
+        with _hold_contained_parent(
+            control_root,
+            relative_path,
+            create=False,
+            allow_outer_delete_protection=allow_outer_delete_protection,
+        ) as (parent_descriptor, held_target):
             try:
                 actual, identity = _read_held_contained_file(parent_descriptor, held_target, Path(relative_path).name)
             except FileNotFoundError:
