@@ -19,12 +19,23 @@ from typing import Self
 
 from research_system.canonical import canonical_bytes
 from research_system.errors import ConflictError
-from research_system.store.lock import WriterLock, inspect_lock, remove_stale_lock
+from research_system.store.lock import (
+    DirectoryAnchor,
+    WriterLock,
+    inspect_lock,
+    open_registered_member_directory_anchor,
+    open_registered_root_anchor,
+    register_delete_protected_directory_anchors,
+    remove_stale_lock,
+    unregister_delete_protected_directory_anchors,
+)
 
 
 @dataclass
 class _HeldFence:
     lock: WriterLock
+    anchors: tuple[DirectoryAnchor, DirectoryAnchor]
+    registered_anchors: tuple[DirectoryAnchor, ...]
     instances: list["SpecPreparationFence"]
 
 
@@ -81,14 +92,25 @@ class SpecPreparationFence:
         held = self._held()
         entry = held.get(key)
         if entry is None:
-            lock = WriterLock(
-                lock_path,
-                {
-                    "operation": "spec-preparation",
-                    "fence_acquisition_id": secrets.token_hex(16),
-                },
-            )
+            root_anchor: DirectoryAnchor | None = None
+            runtime_anchor: DirectoryAnchor | None = None
+            registered_anchors: tuple[DirectoryAnchor, ...] = ()
+            lock: WriterLock | None = None
             try:
+                root_anchor = open_registered_root_anchor(root, delete_protect=True)
+                runtime_anchor = open_registered_member_directory_anchor(root_anchor.final_path / "runtime")
+                root_identity, root_final_path = root_anchor.refresh()
+                if root_identity != root_anchor.identity or root_final_path != root_anchor.final_path:
+                    raise ConflictError("SPEC preparation root changed during fence acquisition")
+                registered_anchors = register_delete_protected_directory_anchors((root_anchor, runtime_anchor))
+                lock_path = runtime_anchor.final_path / "spec-preparation.lock"
+                lock = WriterLock(
+                    lock_path,
+                    {
+                        "operation": "spec-preparation",
+                        "fence_acquisition_id": secrets.token_hex(16),
+                    },
+                )
                 while True:
                     try:
                         lock.__enter__()
@@ -98,12 +120,28 @@ class SpecPreparationFence:
                         raise
                     break
             except BaseException as acquire_error:
+                reported_error = acquire_error
+                if isinstance(acquire_error, ConflictError) and inspect_lock(lock_path)[0] == "live":
+                    reported_error = ConflictError(f"writer lock exists: {lock_path}")
+                    reported_error.__cause__ = acquire_error
                 try:
-                    self._rollback_failed_acquire(lock)
+                    if lock is not None:
+                        self._rollback_failed_acquire(lock)
                 except BaseException as rollback_error:
-                    raise acquire_error from rollback_error
-                raise
-            held[key] = _HeldFence(lock=lock, instances=[self])
+                    raise reported_error from rollback_error
+                finally:
+                    unregister_delete_protected_directory_anchors(registered_anchors)
+                    for anchor in (runtime_anchor, root_anchor):
+                        if anchor is not None:
+                            anchor.close()
+                raise reported_error
+            assert root_anchor is not None and runtime_anchor is not None and lock is not None
+            held[key] = _HeldFence(
+                lock=lock,
+                anchors=(root_anchor, runtime_anchor),
+                registered_anchors=registered_anchors,
+                instances=[self],
+            )
         else:
             entry.instances.append(self)
         self._key = key
@@ -129,6 +167,9 @@ class SpecPreparationFence:
             self._owner_thread_id = None
             return False
         entry.lock.__exit__(exc_type, exc, traceback)
+        unregister_delete_protected_directory_anchors(entry.registered_anchors)
+        for anchor in reversed(entry.anchors):
+            anchor.close()
         del held[self._key]
         self._entered = False
         self._owner_thread_id = None

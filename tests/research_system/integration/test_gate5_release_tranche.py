@@ -398,6 +398,8 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False, rebindable: 
         verifier_authority_bindings=((actor_id, authority_grant_id),),
         unregistered_replicas_prohibited=True,
     )
+    from research_system.operations.backups import _registry_state_sha256
+
     receipt = BackupReceipt(
         receipt_id="backup-receipt-synthetic-r1",
         receipt_revision=1,
@@ -429,6 +431,7 @@ def _build_restore_case(tmp_path, *, with_exact_task: bool = False, rebindable: 
         destination_class="synthetic-machine-move",
         source_endpoint_scheme="local-cli",
         evidence_registry_hash=registry.registry_hash,
+        evidence_registry_state_sha256=_registry_state_sha256(registry),
     )
     return {
         "source": source,
@@ -977,6 +980,16 @@ def test_restore_preflight_replays_exact_lifecycle_history(tmp_path):
     assert result.status == "verified"
     assert result.failed_predicates == ()
     assert result.tail_position == 1
+
+
+def test_restore_preflight_rejects_registry_state_drift_with_unchanged_self_hash(tmp_path):
+    case = _build_restore_case(tmp_path)
+    changed_registry = replace(case["registry"], permitted_consumers=("different-consumer",))
+
+    result = _verify_restore(case, registry=changed_registry)
+
+    assert result.status == "diagnostic_only"
+    assert "registry_state_hash_mismatch" in result.failed_predicates
 
 
 @pytest.mark.parametrize(

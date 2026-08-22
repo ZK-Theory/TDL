@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import secrets
+import threading
 from types import TracebackType
 from typing import Any, Literal, NoReturn, Protocol, Self
 
@@ -354,6 +355,63 @@ class _DirectoryAnchor:
         self._closed = True
 
 
+_delete_protected_anchor_state = threading.local()
+
+
+def _active_delete_protected_anchors() -> list[_DirectoryAnchor]:
+    anchors = getattr(_delete_protected_anchor_state, "anchors", None)
+    if anchors is None:
+        anchors = []
+        _delete_protected_anchor_state.anchors = anchors
+    return anchors
+
+
+def register_delete_protected_directory_anchors(
+    anchors: Iterable[DirectoryAnchor],
+) -> tuple[_DirectoryAnchor, ...]:
+    """Publish exact live anchors as a same-thread trust capability."""
+
+    registered: list[_DirectoryAnchor] = []
+    for anchor in anchors:
+        if type(anchor) is not _DirectoryAnchor:
+            raise ConflictError("delete-protected directory anchor is invalid")
+        identity, final_path = anchor.refresh()
+        if identity != anchor.identity or final_path != anchor.final_path:
+            raise ConflictError("delete-protected directory anchor changed before registration")
+        registered.append(anchor)
+    _active_delete_protected_anchors().extend(registered)
+    return tuple(registered)
+
+
+def unregister_delete_protected_directory_anchors(anchors: Iterable[DirectoryAnchor]) -> None:
+    """Remove only the exact same-thread anchors registered by the caller."""
+
+    active = _active_delete_protected_anchors()
+    for anchor in reversed(tuple(anchors)):
+        for index in range(len(active) - 1, -1, -1):
+            if active[index] is anchor:
+                del active[index]
+                break
+
+
+def has_live_delete_protected_directory_anchor(path: Path) -> bool:
+    """Return whether this thread holds the exact physical directory anchor."""
+
+    try:
+        requested = _root_sort_key(Path(path))[0]
+        for anchor in reversed(_active_delete_protected_anchors()):
+            identity, final_path = anchor.refresh()
+            if (
+                identity == anchor.identity
+                and final_path == anchor.final_path
+                and _root_sort_key(final_path)[0] == requested
+            ):
+                return True
+        return False
+    except ConflictError:
+        return False
+
+
 def _raise_primary_with_cleanup(
     primary_error: BaseException,
     cleanup_error: BaseException | None,
@@ -418,6 +476,7 @@ if os.name == "nt":
     _SYNCHRONIZE = 0x00100000
     _FILE_SHARE_READ = 0x00000001
     _FILE_SHARE_WRITE = 0x00000002
+    _FILE_SHARE_DELETE = 0x00000004
     _OPEN_EXISTING = 3
     _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
     _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
@@ -435,6 +494,7 @@ def _windows_open_handle(
     *,
     open_reparse_point: bool,
     delete_protect: bool = False,
+    share_delete: bool = False,
 ) -> object:
     flags = _FILE_FLAG_BACKUP_SEMANTICS
     if open_reparse_point:
@@ -442,10 +502,13 @@ def _windows_open_handle(
     access = _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
     if delete_protect:
         access |= _DELETE
+    share_mode = _FILE_SHARE_READ | _FILE_SHARE_WRITE
+    if share_delete:
+        share_mode |= _FILE_SHARE_DELETE
     handle = _KERNEL32.CreateFileW(
         str(path),
         access,
-        _FILE_SHARE_READ | _FILE_SHARE_WRITE,
+        share_mode,
         None,
         _OPEN_EXISTING,
         flags,
@@ -533,19 +596,26 @@ def _open_windows_anchor(
     primary_error: BaseException | None = None
     anchor: _DirectoryAnchor | None = None
     try:
+        inherited_delete_protection = delete_protect and has_live_delete_protected_directory_anchor(path)
         if reject_reparse:
-            probe = _windows_open_handle(path, open_reparse_point=True)
+            if inherited_delete_protection:
+                probe = _windows_open_handle(path, open_reparse_point=True, share_delete=True)
+            else:
+                probe = _windows_open_handle(path, open_reparse_point=True)
             attributes, _ = _windows_file_attribute_tag(probe)
             if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
                 raise ConflictError(f"{path} is not an existing directory")
             if attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
                 raise ConflictError(f"{path} must not be a reparse directory")
 
-        handle = _windows_open_handle(
-            path,
-            open_reparse_point=False,
-            delete_protect=delete_protect and not reject_reparse,
-        )
+        if inherited_delete_protection:
+            handle = _windows_open_handle(path, open_reparse_point=False, share_delete=True)
+        else:
+            handle = _windows_open_handle(
+                path,
+                open_reparse_point=False,
+                delete_protect=delete_protect and not reject_reparse,
+            )
         attributes, _ = _windows_file_attribute_tag(handle)
         if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
             raise ConflictError(f"{path} is not an existing directory")
@@ -561,7 +631,7 @@ def _open_windows_anchor(
                 first_close_error = close_error
             else:
                 probe = None
-            if first_close_error is None and delete_protect:
+            if first_close_error is None and delete_protect and not inherited_delete_protection:
                 # The live no-follow probe deliberately does not share delete,
                 # so the followed comparison handle cannot request DELETE
                 # until the probe has closed. Reopen the same final path with
@@ -950,6 +1020,7 @@ class CompositeWriterLock:
         self._acquired: list[Any] = []
         self._lease_token: _LeaseState | None = None
         self._locked_roots: tuple[LockedRoot, ...] = ()
+        self._registered_delete_protected_anchors: tuple[_DirectoryAnchor, ...] = ()
         self.paths: tuple[Path, ...] = ()
 
     def _prepare_member(self, acquired: _AcquiredMember) -> None:
@@ -1070,6 +1141,12 @@ class CompositeWriterLock:
                 acquired_members.append(acquired)
                 self._prepare_member(acquired)
             self._final_fence(acquired_members)
+            self._registered_delete_protected_anchors = register_delete_protected_directory_anchors(
+                anchor
+                for acquired in acquired_members
+                for anchor in (acquired.root_anchor, acquired.runtime_anchor)
+                if anchor is not None
+            )
 
             locked_roots = tuple(
                 LockedRoot._create(
@@ -1089,6 +1166,8 @@ class CompositeWriterLock:
             self.paths = tuple(Path(acquired.lock.path) for acquired in acquired_members)
             return self
         except BaseException as acquisition_error:
+            unregister_delete_protected_directory_anchors(self._registered_delete_protected_anchors)
+            self._registered_delete_protected_anchors = ()
             lease_token.invalidate()
             cleanup_error = self._cleanup_members(
                 acquired_members,
@@ -1138,6 +1217,8 @@ class CompositeWriterLock:
         traceback: TracebackType | None,
     ) -> bool:
         active_members, self._active_members = self._active_members, []
+        unregister_delete_protected_directory_anchors(self._registered_delete_protected_anchors)
+        self._registered_delete_protected_anchors = ()
         lease_token, self._lease_token = self._lease_token, None
         if lease_token is not None:
             lease_token.invalidate()

@@ -390,6 +390,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     from research_system.operations.backups import (
         ArtefactBinding,
         BackupReceipt,
+        _registry_state_sha256,
         seal_backup_receipt,
         verify_restore_before_writer_lease,
     )
@@ -530,6 +531,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 destination_class="synthetic-machine-move",
                 source_endpoint_scheme="local-cli",
                 evidence_registry_hash=complete_registry.registry_hash,
+                evidence_registry_state_sha256=_registry_state_sha256(complete_registry),
             )
         )
 

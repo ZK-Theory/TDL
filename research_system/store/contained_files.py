@@ -100,19 +100,22 @@ def _hold_windows_directories(paths: list[Path], *, allow_outer_delete_protectio
         for path in paths:
             desired_access = 0x0001 | 0x0080 | 0x00100000  # LIST_DIRECTORY | READ_ATTRIBUTES | SYNCHRONIZE
             handle = create_file(str(path), desired_access, 0x1 | 0x2, None, 3, flags, None)
-            if handle == invalid and allow_outer_delete_protection and ctypes.get_last_error() == 32:
-                # A surrounding WriterLock anchor already holds DELETE access
-                # without sharing delete.  Accommodate that stronger live
-                # fence rather than weakening or bypassing it.
-                handle = create_file(
-                    str(path),
-                    desired_access,
-                    0x1 | 0x2 | file_share_delete,
-                    None,
-                    3,
-                    flags,
-                    None,
-                )
+            if handle == invalid and ctypes.get_last_error() == 32:
+                from research_system.store.lock import has_live_delete_protected_directory_anchor
+
+                # Only an exact live anchor held by this thread can justify
+                # delete sharing. A foreign sharing violation is not proof of
+                # the surrounding writer-lock invariant.
+                if has_live_delete_protected_directory_anchor(path):
+                    handle = create_file(
+                        str(path),
+                        desired_access,
+                        0x1 | 0x2 | file_share_delete,
+                        None,
+                        3,
+                        flags,
+                        None,
+                    )
             if handle == invalid:
                 raise OSError(ctypes.get_last_error(), "physical destination directory is unavailable")
             handles.append(int(handle))
@@ -638,8 +641,8 @@ def read_contained_directory_files(
                 rows.append((name, data))
             _held_parent_matches_destination(parent_descriptor, held_target)
             return tuple(rows)
-    except FileNotFoundError:
-        return ()
+    except FileNotFoundError as exc:
+        raise IntegrityError("contained-file directory changed while held") from exc
 
 
 def publish_contained_exact_no_replace(

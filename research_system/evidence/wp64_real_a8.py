@@ -709,9 +709,11 @@ def _load_runtime_inputs(path: Path) -> _RuntimeInputs:
 
 def _backup_receipt_from_json(value: Mapping[str, Any]) -> BackupReceipt:
     expected = {field.name for field in fields(BackupReceipt)}
-    if set(value) != expected:
+    legacy_expected = expected - {"evidence_registry_state_sha256"}
+    if set(value) != expected and set(value) != legacy_expected:
         raise EvidenceHarnessError("runtime backup receipt fields are incomplete")
     payload = dict(value)
+    payload.setdefault("evidence_registry_state_sha256", "")
     try:
         payload["schema_versions"] = tuple(payload["schema_versions"])
         payload["tool_versions"] = tuple(payload["tool_versions"])

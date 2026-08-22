@@ -64,6 +64,26 @@ def test_spec_preparation_fence_is_reentrant_but_rejects_a_competing_writer(tmp_
         assert (runtime / "spec-preparation.lock").is_file()
 
 
+def test_windows_spec_preparation_fence_physically_anchors_runtime(tmp_path: Path) -> None:
+    """The lock namespace cannot be replaced while the saga fence is live."""
+
+    if os.name != "nt":
+        pytest.skip("Windows delete-protected directory anchor")
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    displaced = tmp_path / "runtime-displaced"
+    moved = False
+
+    with SpecPreparationFence(tmp_path):
+        try:
+            runtime.rename(displaced)
+            moved = True
+            displaced.rename(runtime)
+        except PermissionError:
+            pass
+        assert not moved
+
+
 def test_spec_preparation_fence_rejects_same_instance_reentry_and_out_of_order_exit(tmp_path: Path) -> None:
     """Only independently entered instances can nest, and they exit LIFO."""
 

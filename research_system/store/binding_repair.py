@@ -22,7 +22,12 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
-from research_system.git_provenance import read_exact_committed_physical_file as _committed_candidate_file
+from research_system.git_provenance import (
+    read_exact_committed_physical_file as _committed_candidate_file,
+)
+from research_system.git_provenance import (
+    read_exact_committed_physical_tree as _committed_candidate_tree,
+)
 from research_system.ids import validate_id
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.contained_files import (
@@ -92,7 +97,7 @@ def _run_git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def _governed_schema_catalogue(candidate: Path, schema_root: Path, *, label: str) -> str:
+def _governed_schema_catalogue(candidate: Path, schema_root: Path, *, label: str, commit: str) -> str:
     """Return a catalogue digest only for physical schema files at exact ``HEAD``.
 
     The runtime registry consumes every ``*.schema.json`` leaf below this root.
@@ -105,16 +110,16 @@ def _governed_schema_catalogue(candidate: Path, schema_root: Path, *, label: str
     physical_root = _require_physical_directory(schema_root, label=f"{label} root")
     if schema_root != expected_root or physical_root != expected_root:
         raise IntegrityError(f"{label} root is not candidate-owned")
-    records: list[dict[str, str]] = []
-    for path in sorted(schema_root.rglob("*.schema.json"), key=lambda item: item.as_posix()):
-        relative = path.relative_to(candidate)
-        raw = _committed_candidate_file(candidate, relative, label=f"{label} file")
-        records.append(
-            {
-                "path": path.relative_to(schema_root).as_posix(),
-                "sha256": sha256_hex(raw),
-            }
+    records = [
+        {"path": relative, "sha256": sha256_hex(raw)}
+        for relative, raw in _committed_candidate_tree(
+            candidate,
+            schema_root.relative_to(candidate),
+            suffix=".schema.json",
+            label=label,
+            commit=commit,
         )
+    ]
     return sha256_hex(canonical_bytes(records))
 
 
@@ -280,11 +285,7 @@ class RepairStoreBinding:
         if (
             not isinstance(sources, list)
             or len(sources) != 2
-            or set(sources)
-            != {
-                ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md",
-                ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md",
-            }
+            or tuple(sources) != tuple(path.as_posix() for path in _SPEC_SOURCE_RELATIVES)
         ):
             raise ConfigurationError("exact SPEC-01/SPEC-02 source refs are required")
         text_fields = (
@@ -547,8 +548,10 @@ def _candidate_evidence(intent: RepairStoreBinding | AdvanceStoreBinding) -> dic
     route_ref = Path(intent.spec_route_ref)
     if route_ref != _ROUTE_RELATIVE:
         raise ConfigurationError("SPEC route ref is not the governed route package")
+    if intent.spec_source_refs != tuple(path.as_posix() for path in _SPEC_SOURCE_RELATIVES):
+        raise ConfigurationError("exact ordered SPEC-01/SPEC-02 source refs are required")
     try:
-        route_raw = _committed_candidate_file(candidate, route_ref, label="SPEC route package")
+        route_raw = _committed_candidate_file(candidate, route_ref, label="SPEC route package", commit=head)
         route = json.loads(route_raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise IntegrityError("invalid SPEC route package") from exc
@@ -560,11 +563,16 @@ def _candidate_evidence(intent: RepairStoreBinding | AdvanceStoreBinding) -> dic
     sources: list[dict[str, Any]] = []
     for reference in intent.spec_source_refs:
         record = source_by_locator.get(reference)
-        raw = _committed_candidate_file(candidate, Path(reference), label="SPEC route source")
+        raw = _committed_candidate_file(candidate, Path(reference), label="SPEC route source", commit=head)
         if not record or len(raw) != record.get("size_bytes") or sha256_hex(raw) != record.get("sha256"):
             raise IntegrityError("SPEC route/source SHA mismatch")
         sources.append({"ref": reference, "sha256": sha256_hex(raw), "size_bytes": len(raw)})
-    catalogue_sha256 = _governed_schema_catalogue(candidate, schema_root, label="candidate schema catalogue")
+    catalogue_sha256 = _governed_schema_catalogue(
+        candidate,
+        schema_root,
+        label="candidate schema catalogue",
+        commit=head,
+    )
     schemas = runtime_schema_registry(schema_root)
     for schema_id in (
         COMMAND_SCHEMA_ID,
@@ -584,6 +592,18 @@ def _candidate_evidence(intent: RepairStoreBinding | AdvanceStoreBinding) -> dic
         "route": {"ref": route_ref.as_posix(), "sha256": sha256_hex(route_raw)},
         "sources": sources,
     }
+
+
+def _revalidate_candidate_subject(candidate: Mapping[str, Any]) -> None:
+    """Fail before publication if the selected Git checkout no longer names the subject."""
+
+    root = Path(str(candidate["repository_root"]))
+    if (
+        _run_git(root, "rev-parse", "HEAD") != candidate.get("git_head")
+        or _run_git(root, "rev-parse", "HEAD^{tree}") != candidate.get("git_tree")
+        or _run_git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    ):
+        raise ConflictError("candidate Git subject changed before publication")
 
 
 def _validate_owner_authority(control: Path, intent: RepairStoreBinding | AdvanceStoreBinding) -> None:
@@ -950,6 +970,7 @@ def _advance_store_binding_locked(
     )
     ledger.schemas.validate(ADVANCE_OBJECT_SCHEMA_ID, successor)
     _physical_artifact_path(control, object_path, create_parent=True)
+    _revalidate_candidate_subject(candidate)
     _guard_advance_file(marker_path, "binding advance recovery marker", marker_raw)
     _publish(control, marker_path, marker_raw)
     try:
@@ -1204,6 +1225,7 @@ def repair_store_binding(
         _physical_artifact_path(control, object_path, create_parent=True)
         _physical_artifact_path(control, binding_path, create_parent=False)
         _physical_artifact_path(control, recovery_path, create_parent=False)
+        _revalidate_candidate_subject(candidate)
         if marker_new:
             _publish(control, marker_path, canonical_bytes(marker))
         ledger = EventLedger(
@@ -1367,7 +1389,15 @@ def load_recovery_binding(
     catalogue_sha256 = value.get("schema_catalogue_sha256")
     if not _is_sha256(catalogue_sha256):
         raise IntegrityError("binding recovery schema catalogue identity is invalid")
-    if _governed_schema_catalogue(root, schema, label="binding recovery schema catalogue") != catalogue_sha256:
+    if (
+        _governed_schema_catalogue(
+            root,
+            schema,
+            label="binding recovery schema catalogue",
+            commit=str(value.get("git_head")),
+        )
+        != catalogue_sha256
+    ):
         raise IntegrityError("binding recovery schema catalogue changed")
     route = value.get("route")
     sources = value.get("sources")
@@ -1386,7 +1416,12 @@ def load_recovery_binding(
         != _SPEC_SOURCE_RELATIVES
     ):
         raise IntegrityError("binding recovery route evidence is invalid")
-    route_raw = _committed_candidate_file(root, _ROUTE_RELATIVE, label="binding recovery route package")
+    route_raw = _committed_candidate_file(
+        root,
+        _ROUTE_RELATIVE,
+        label="binding recovery route package",
+        commit=str(value.get("git_head")),
+    )
     if sha256_hex(route_raw) != route["sha256"]:
         raise IntegrityError("binding recovery route package changed")
     for source in sources:
@@ -1403,6 +1438,7 @@ def load_recovery_binding(
             root,
             Path(source["ref"]),
             label="binding recovery SPEC source",
+            commit=str(value.get("git_head")),
         )
         if len(source_raw) != source["size_bytes"] or sha256_hex(source_raw) != source["sha256"]:
             raise IntegrityError("binding recovery SPEC source changed")

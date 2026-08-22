@@ -708,7 +708,13 @@ def test_owner_publication_marker_retains_its_physical_parent_through_final_link
 
     def replace_parent_before_link(source: object, destination: object, **kwargs: object) -> None:
         nonlocal replacement_attempted, replacement_succeeded
-        if replacement_attempted or (kwargs.get("dst_dir_fd") is None and Path(destination).parent != parent):
+        destination_path = Path(destination)
+        is_marker_leaf = (
+            destination_path.suffix == ".json"
+            and not destination_path.name.startswith(".")
+            and (kwargs.get("dst_dir_fd") is not None or destination_path.parent == parent)
+        )
+        if replacement_attempted or not is_marker_leaf:
             original_link(source, destination, **kwargs)
             return
         replacement_attempted = True

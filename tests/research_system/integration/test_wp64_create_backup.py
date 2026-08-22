@@ -627,22 +627,8 @@ def test_store_verify_restore_appends_evidence_without_cutover_and_replays(
     )
     backup_output = json.loads(capsys.readouterr().out)
     backup_receipt = backup_output["backup_receipt"]
-    restore_registry = EvidenceStoreRegistry(
-        store_id="evidence-store:restore-test",
-        registry_hash=backup_receipt["evidence_registry_hash"],
-        policy_revision="test-v1",
-        primary_root=destination / "evidence-primary",
-        runtime_root=destination / "evidence-runtime",
-        staging_root=destination / "evidence-staging",
-        temp_root=destination / "evidence-temp",
-        replicas=(),
-        permitted_consumers=("restore-verifier",),
-        retention_policy_ids=("test-retention",),
-        verifier_authority_bindings=((ACTOR_ID, GRANT_ID),),
-        unregistered_replicas_prohibited=True,
-        backup_roots=(binding.control_root,),
-        restore_roots=(destination,),
-    )
+    assert backup_receipt["evidence_registry_state_sha256"] == (backups_module._registry_state_sha256(registry))
+    restore_registry = registry
     monkeypatch.setattr(cli, "load_evidence_store_registry", lambda _path, _schemas: restore_registry)
     endpoint_path = destination / "manifests" / "endpoint-ownership.json"
     endpoint_path.write_bytes(
@@ -941,6 +927,9 @@ def test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic
     assert destination.is_dir()
     assert not (destination.parent / f".{destination.name}.{BACKUP_COMMAND_ID}.stage").exists()
     assert first["backup_receipt"]["receipt_id"] == BACKUP_RECEIPT_ID
+    assert first["backup_receipt"]["evidence_registry_state_sha256"] == (
+        backups_module._registry_state_sha256(registry)
+    )
     assert (
         EventLedger(destination, PROJECT_ID, runtime_schema_registry(binding.schema_root)).snapshot().global_position
         == before.global_position

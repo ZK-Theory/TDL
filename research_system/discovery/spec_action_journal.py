@@ -60,20 +60,24 @@ def read_preparation(control_root: Path, action: str) -> dict[str, Any] | None:
     packet = value.get("packet") if isinstance(value, Mapping) else None
     if not isinstance(packet, dict):
         raise IntegrityError("SPEC action preparation journal is invalid")
-    retry_preimage = {key: deepcopy(item) for key, item in packet.items() if key != "retry_id"}
-    expected_retry_id = f"spec-flow:{action}:{sha256_hex(canonical_bytes(retry_preimage))}"
-    if (
-        not isinstance(value, dict)
-        or raw != canonical_bytes(value)
-        or value != preparation_value(action, packet)
-        or set(packet) != PACKET_FIELDS
-        or packet.get("schema_id") != "ars://portfolio/spec-flow-action"
-        or packet.get("schema_version") != "1.0.0"
-        or packet.get("route_id") != ROUTE_ID
-        or packet.get("action") != action
-        or packet.get("retry_id") != expected_retry_id
-        or not isinstance(packet.get("commands"), list)
-    ):
+    try:
+        retry_preimage = {key: deepcopy(item) for key, item in packet.items() if key != "retry_id"}
+        expected_retry_id = f"spec-flow:{action}:{sha256_hex(canonical_bytes(retry_preimage))}"
+        valid = (
+            isinstance(value, dict)
+            and raw == canonical_bytes(value)
+            and value == preparation_value(action, packet)
+            and set(packet) == PACKET_FIELDS
+            and packet.get("schema_id") == "ars://portfolio/spec-flow-action"
+            and packet.get("schema_version") == "1.0.0"
+            and packet.get("route_id") == ROUTE_ID
+            and packet.get("action") == action
+            and packet.get("retry_id") == expected_retry_id
+            and isinstance(packet.get("commands"), list)
+        )
+    except (TypeError, ValueError) as exc:
+        raise IntegrityError("SPEC action preparation journal is invalid") from exc
+    if not valid:
         raise IntegrityError("SPEC action preparation journal is invalid")
     return value
 

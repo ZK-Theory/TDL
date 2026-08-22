@@ -55,7 +55,8 @@
     "verification_authority_grant_id": {"type": "string", "minLength": 1},
     "destination_class": {"type": "string", "minLength": 1},
     "source_endpoint_scheme": {"type": "string", "minLength": 1},
-    "evidence_registry_hash": {"$ref": "#/$defs/sha256"}
+    "evidence_registry_hash": {"$ref": "#/$defs/sha256"},
+    "evidence_registry_state_sha256": {"$ref": "#/$defs/sha256"}
   },
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

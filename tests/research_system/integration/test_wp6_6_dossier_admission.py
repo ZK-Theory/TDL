@@ -757,10 +757,12 @@ def _accept_authority(
         authority_file_size=len(authority_raw),
         authority_file_sha256=hashlib.sha256(authority_raw).hexdigest(),
         authority_file_git_commit=subprocess.check_output(
-            ["git", "-C", str(authority_repository), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(authority_repository), "rev-parse", "HEAD"], text=True, timeout=10
         ).strip(),
         authority_file_git_blob=subprocess.check_output(
-            ["git", "-C", str(authority_repository), "rev-parse", f"HEAD:{authority_file_path}"], text=True
+            ["git", "-C", str(authority_repository), "rev-parse", f"HEAD:{authority_file_path}"],
+            text=True,
+            timeout=10,
         ).strip(),
     )
     subject["subject_sha256"] = subject_sha256(subject)
@@ -1286,10 +1288,10 @@ def test_public_observation_rejects_authority_content_not_serialized_by_git_byte
         authority_file_size=len(raw),
         authority_file_sha256=hashlib.sha256(raw).hexdigest(),
         authority_file_git_commit=subprocess.check_output(
-            ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True, timeout=10
         ).strip(),
         authority_file_git_blob=subprocess.check_output(
-            ["git", "-C", str(REPO), "rev-parse", f"HEAD:{authority_path}"], text=True
+            ["git", "-C", str(REPO), "rev-parse", f"HEAD:{authority_path}"], text=True, timeout=10
         ).strip(),
     )
     subject["subject_sha256"] = subject_sha256(subject)

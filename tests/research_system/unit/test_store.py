@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import stat
 import threading
@@ -15,11 +16,13 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store import lock as lock_module
+from research_system.store import contained_files as contained_files_module
 from research_system.store import durability as durability_module
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
     inspect_lock,
+    open_registered_member_directory_anchor,
     process_instance_id,
     remove_stale_lock,
 )
@@ -175,6 +178,43 @@ def test_composite_writer_lock_preserves_nonsharing_anchor_conflict_with_lock_re
 
     with pytest.raises(ConflictError, match=message):
         candidate._prepare_member(acquired)
+
+
+def test_contained_directory_disappearance_after_presence_check_is_integrity_failure(tmp_path, monkeypatch):
+    directory = tmp_path / "runtime" / "records"
+    directory.mkdir(parents=True)
+
+    @contextmanager
+    def disappear(*_args, **_kwargs):
+        raise FileNotFoundError("injected directory replacement")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(contained_files_module, "_hold_contained_parent", disappear)
+
+    with pytest.raises(IntegrityError, match="directory changed"):
+        contained_files_module.read_contained_directory_files(
+            tmp_path,
+            "runtime/records",
+            suffix=".json",
+        )
+
+
+def test_windows_contained_read_does_not_trust_an_unregistered_sharing_holder(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows delete-sharing trust boundary")
+    nested = tmp_path / "runtime" / "records"
+    nested.mkdir(parents=True)
+    anchor = open_registered_member_directory_anchor(nested)
+    try:
+        with pytest.raises(OSError):
+            contained_files_module.read_contained_directory_files(
+                tmp_path,
+                "runtime/records",
+                suffix=".json",
+                allow_outer_delete_protection=True,
+            )
+    finally:
+        anchor.close()
 
 
 def test_fsync_directory_reraises_unexpected_open_error(tmp_path, monkeypatch):

@@ -684,6 +684,25 @@ class _RegisteredSpecDocument:
     value: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class _RegisteredSpecDocumentIdentity:
+    document_type: str
+    artefact_id: str
+    content_sha256: str
+    relative_path: str
+    registration_event: Mapping[str, Any]
+
+    @property
+    def completion_key(self) -> tuple[str, str, str, str, str]:
+        return (
+            self.document_type,
+            self.artefact_id,
+            self.content_sha256,
+            str(self.registration_event.get("event_id")),
+            str(self.registration_event.get("event_hash")),
+        )
+
+
 def _event_position(event: Mapping[str, Any]) -> int:
     value = event.get("global_position")
     return value if isinstance(value, int) else -1
@@ -873,7 +892,7 @@ def _registered_documents(
     events: Sequence[Mapping[str, Any]],
     projection: Mapping[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
-    records: list[_RegisteredSpecDocument] = []
+    identities: list[_RegisteredSpecDocumentIdentity] = []
     artefact_streams = projection.get("artefact_streams", {})
     if not isinstance(artefact_streams, Mapping):
         raise IntegrityError("registered SPEC document projection is invalid")
@@ -900,18 +919,15 @@ def _registered_documents(
         ]
         if len(registration_events) != 1:
             raise IntegrityError("registered SPEC document has no exact registration event")
-        try:
-            raw = read_contained_regular_file(operator.control_root, relative, label="registered SPEC document")
-            value = json.loads(raw)
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            raise IntegrityError("registered SPEC document is unavailable")
-        if raw != canonical_bytes(value) or sha256_hex(raw) != digest:
-            raise IntegrityError("registered SPEC document binding differs")
-        if not isinstance(value, dict):
-            raise IntegrityError("registered SPEC document is not an object")
-        document_type = str(document_type)
-        _validate_spec_document_content(operator, document_type=document_type, document=value)
-        records.append(_RegisteredSpecDocument(document_type, artefact_id, digest, registration_events[0], value))
+        identities.append(
+            _RegisteredSpecDocumentIdentity(
+                str(document_type),
+                artefact_id,
+                digest,
+                relative,
+                registration_events[0],
+            )
+        )
 
     completion_actions: dict[tuple[str, str, str, str, str], list[str]] = {}
     for event in events:
@@ -934,26 +950,50 @@ def _registered_documents(
             or event.get("command_payload_hash") != sha256_hex(canonical_bytes(payload))
         ):
             raise IntegrityError("registered SPEC document completion proof conflicts")
-        matching_records = [
-            record
-            for record in records
-            if payload.get("document_type") == record.document_type == definition.document_type
-            and payload.get("artefact_id") == record.artefact_id
-            and payload.get("content_sha256") == record.content_sha256
-            and payload.get("registration_event_id") == record.registration_event.get("event_id")
-            and payload.get("registration_event_sha256") == record.registration_event.get("event_hash")
+        matching_identities = [
+            identity
+            for identity in identities
+            if payload.get("document_type") == identity.document_type == definition.document_type
+            and payload.get("artefact_id") == identity.artefact_id
+            and payload.get("content_sha256") == identity.content_sha256
+            and payload.get("registration_event_id") == identity.registration_event.get("event_id")
+            and payload.get("registration_event_sha256") == identity.registration_event.get("event_hash")
         ]
-        if len(matching_records) != 1:
+        if len(matching_identities) != 1:
             raise IntegrityError("registered SPEC document completion proof conflicts")
-        matched = matching_records[0]
-        key = (
-            matched.document_type,
-            matched.artefact_id,
-            matched.content_sha256,
-            str(matched.registration_event.get("event_id")),
-            str(matched.registration_event.get("event_hash")),
+        completion_actions.setdefault(matching_identities[0].completion_key, []).append(str(action))
+
+    records: list[_RegisteredSpecDocument] = []
+    for identity in identities:
+        try:
+            raw = read_contained_regular_file(
+                operator.control_root,
+                identity.relative_path,
+                label="registered SPEC document",
+            )
+            value = json.loads(raw)
+            if raw != canonical_bytes(value) or sha256_hex(raw) != identity.content_sha256:
+                raise IntegrityError("registered SPEC document binding differs")
+            if not isinstance(value, dict):
+                raise IntegrityError("registered SPEC document is not an object")
+            _validate_spec_document_content(operator, document_type=identity.document_type, document=value)
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError, IntegrityError) as exc:
+            if identity.completion_key in completion_actions:
+                if isinstance(exc, IntegrityError):
+                    raise
+                raise IntegrityError("registered SPEC document is unavailable") from exc
+            # A generic RegisterArtefact event is not SPEC completion proof.
+            # Malformed unproven content is therefore outside this census.
+            continue
+        records.append(
+            _RegisteredSpecDocument(
+                identity.document_type,
+                identity.artefact_id,
+                identity.content_sha256,
+                identity.registration_event,
+                value,
+            )
         )
-        completion_actions.setdefault(key, []).append(str(action))
 
     found: dict[str, list[dict[str, Any]]] = {}
     for record in records:

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import stat
+import tarfile
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 
@@ -205,15 +207,7 @@ def _validate_posix_chain(
         raise IntegrityError(f"{label} changed during read")
 
 
-def read_exact_committed_physical_file(
-    repository_root: Path,
-    relative_path: Path,
-    *,
-    label: str,
-    commit: str = "HEAD",
-) -> bytes:
-    """Read one held physical file only when its bytes match Git."""
-
+def _validate_relative_path(relative_path: Path, *, label: str) -> None:
     if (
         relative_path.is_absolute()
         or not relative_path.parts
@@ -221,24 +215,70 @@ def read_exact_committed_physical_file(
         or relative_path.as_posix() != str(relative_path).replace("\\", "/")
     ):
         raise IntegrityError(f"{label} path is not canonical")
+
+
+def _resolved_repository_root(repository_root: Path, *, label: str) -> Path:
     try:
         root = repository_root.resolve(strict=True)
     except OSError as exc:
         raise IntegrityError(f"{label} repository root is unavailable") from exc
     if root != repository_root:
         raise IntegrityError(f"{label} repository root is redirected")
+    return root
+
+
+def _committed_blob_bytes(root: Path, relative_path: Path, *, label: str, commit: str) -> bytes:
+    listing = run_git(
+        root,
+        "ls-tree",
+        "-z",
+        commit,
+        "--",
+        relative_path.as_posix(),
+        text=False,
+        unavailable_message=f"{label} Git inspection timed out or is unavailable",
+    )
+    if listing.returncode != 0:
+        stderr = listing.stderr.decode("utf-8", errors="replace").strip()
+        raise ConfigurationError(f"{label} Git inspection failed: {stderr}")
+    entries = bytes(listing.stdout).split(b"\0")
+    if entries and entries[-1] == b"":
+        entries.pop()
+    expected_path = relative_path.as_posix().encode("utf-8")
+    if len(entries) != 1 or b"\t" not in entries[0]:
+        raise ConfigurationError(f"{label} is absent from the exact Git subject")
+    header, listed_path = entries[0].split(b"\t", 1)
+    header_fields = header.split(b" ")
+    if len(header_fields) != 3 or header_fields[1] != b"blob" or listed_path != expected_path:
+        raise ConfigurationError(f"{label} is not one exact committed blob")
+    try:
+        object_id = header_fields[2].decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise ConfigurationError(f"{label} Git object identity is invalid") from exc
+    committed = run_git(
+        root,
+        "cat-file",
+        "blob",
+        object_id,
+        text=False,
+        unavailable_message=f"{label} Git inspection timed out or is unavailable",
+    )
+    if committed.returncode != 0:
+        stderr = committed.stderr.decode("utf-8", errors="replace").strip()
+        raise ConfigurationError(f"{label} Git inspection failed: {stderr}")
+    return bytes(committed.stdout)
+
+
+def _read_physical_file_against_bytes(
+    root: Path,
+    relative_path: Path,
+    committed_raw: bytes,
+    *,
+    label: str,
+) -> bytes:
+    """Read one held physical file against bytes already derived by this module."""
 
     with _held_parent(root, relative_path, label=label) as (parent, directory_descriptors):
-        committed = run_git(
-            root,
-            "show",
-            f"{commit}:{relative_path.as_posix()}",
-            text=False,
-            unavailable_message=f"{label} Git inspection timed out or is unavailable",
-        )
-        if committed.returncode != 0:
-            stderr = committed.stderr.decode("utf-8", errors="replace").strip()
-            raise ConfigurationError(f"{label} Git inspection failed: {stderr}")
         try:
             _after_committed_parent_held(root, relative_path)
             if os.name == "nt" and not directory_descriptors:
@@ -276,9 +316,100 @@ def read_exact_committed_physical_file(
         finally:
             if descriptor >= 0:
                 os.close(descriptor)
-        if raw != bytes(committed.stdout):
+        if raw != committed_raw:
             raise IntegrityError(f"{label} differs from the exact Git subject")
         return raw
 
 
-__all__ = ["read_exact_committed_physical_file"]
+def read_exact_committed_physical_file(
+    repository_root: Path,
+    relative_path: Path,
+    *,
+    label: str,
+    commit: str = "HEAD",
+) -> bytes:
+    """Read one held physical file only when its bytes match Git."""
+
+    _validate_relative_path(relative_path, label=label)
+    root = _resolved_repository_root(repository_root, label=label)
+    committed_raw = _committed_blob_bytes(root, relative_path, label=label, commit=commit)
+    return _read_physical_file_against_bytes(root, relative_path, committed_raw, label=label)
+
+
+def read_exact_committed_physical_tree(
+    repository_root: Path,
+    relative_root: Path,
+    *,
+    suffix: str,
+    label: str,
+    commit: str = "HEAD",
+) -> tuple[tuple[str, bytes], ...]:
+    """Read an exact committed subtree with one Git snapshot operation."""
+
+    _validate_relative_path(relative_root, label=label)
+    if not suffix or Path(suffix).name != suffix:
+        raise IntegrityError(f"{label} suffix is invalid")
+    root = _resolved_repository_root(repository_root, label=label)
+    archive = run_git(
+        root,
+        "archive",
+        "--format=tar",
+        commit,
+        "--",
+        relative_root.as_posix(),
+        text=False,
+        unavailable_message=f"{label} Git inspection timed out or is unavailable",
+    )
+    if archive.returncode != 0:
+        stderr = archive.stderr.decode("utf-8", errors="replace").strip()
+        raise ConfigurationError(f"{label} Git inspection failed: {stderr}")
+    committed: dict[str, bytes] = {}
+    try:
+        with tarfile.open(fileobj=BytesIO(bytes(archive.stdout)), mode="r:") as bundle:
+            for member in bundle.getmembers():
+                member_path = Path(member.name)
+                if not member_path.name.endswith(suffix):
+                    continue
+                if member_path.is_absolute() or ".." in member_path.parts or not member.isfile():
+                    raise IntegrityError(f"{label} contains a non-regular physical path")
+                relative = member_path.relative_to(relative_root).as_posix()
+                if relative in committed:
+                    raise IntegrityError(f"{label} contains a duplicate file")
+                handle = bundle.extractfile(member)
+                if handle is None:
+                    raise IntegrityError(f"{label} contains an unreadable file")
+                committed[relative] = handle.read()
+    except (tarfile.TarError, OSError, ValueError) as exc:
+        raise IntegrityError(f"{label} Git archive is invalid") from exc
+
+    physical_root = root / relative_root
+    try:
+        metadata = physical_root.lstat()
+    except OSError as exc:
+        raise IntegrityError(f"{label} physical root is unavailable") from exc
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or getattr(metadata, "st_file_attributes", 0) & reparse
+    ):
+        raise IntegrityError(f"{label} physical root is redirected")
+    physical_paths = sorted(physical_root.rglob(f"*{suffix}"), key=lambda item: item.as_posix())
+    physical_relatives = {path.relative_to(physical_root).as_posix() for path in physical_paths}
+    if not committed or physical_relatives != set(committed):
+        raise IntegrityError(f"{label} differs from the exact Git subject")
+    return tuple(
+        (
+            path.relative_to(physical_root).as_posix(),
+            _read_physical_file_against_bytes(
+                root,
+                path.relative_to(root),
+                committed[path.relative_to(physical_root).as_posix()],
+                label=f"{label} file",
+            ),
+        )
+        for path in physical_paths
+    )
+
+
+__all__ = ["read_exact_committed_physical_file", "read_exact_committed_physical_tree"]

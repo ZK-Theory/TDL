@@ -18,7 +18,7 @@ import research_system.store.binding_repair as binding_repair_module
 import research_system.store.contained_files as contained_files_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
-from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.binding_repair import (
     AdvanceStoreBinding,
@@ -1213,6 +1213,41 @@ def test_current_binding_dirty_candidate_and_generic_append_fail_without_repair_
             ]
         )
     assert not (target / "manifests" / "binding-repair-current.json").exists()
+
+
+def test_repair_requires_ordered_spec_source_refs_without_publication(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, _candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    before = _publication_snapshot(target)
+    reversed_sources = deepcopy(intent)
+    object.__setattr__(reversed_sources, "spec_source_refs", tuple(reversed(intent.spec_source_refs)))
+
+    with pytest.raises(ConfigurationError, match="exact ordered SPEC-01/SPEC-02 source refs"):
+        repair_store_binding(reversed_sources, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert _publication_snapshot(target) == before
+
+
+def test_repair_rejects_candidate_head_change_before_publication(tmp_path: Path, monkeypatch) -> None:
+    _initialized, _witness, target, candidate, _foundation, intent = _fixture(tmp_path, monkeypatch)
+    before = _publication_snapshot(target)
+    original = binding_repair_module._committed_candidate_file
+    changed = False
+
+    def change_head_after_first_read(*args, **kwargs):
+        nonlocal changed
+        raw = original(*args, **kwargs)
+        if not changed:
+            changed = True
+            _git(candidate, "commit", "--allow-empty", "-q", "-m", "concurrent candidate drift")
+        return raw
+
+    monkeypatch.setattr(binding_repair_module, "_committed_candidate_file", change_head_after_first_read)
+
+    with pytest.raises(ConflictError, match="candidate Git subject changed"):
+        repair_store_binding(intent, now=lambda: datetime(2026, 8, 14, tzinfo=UTC))
+
+    assert changed
+    assert _publication_snapshot(target) == before
 
 
 def test_source_mismatch_and_successor_tamper_or_clean_git_drift_fail_closed(tmp_path: Path, monkeypatch):

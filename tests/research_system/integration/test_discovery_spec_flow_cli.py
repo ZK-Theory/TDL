@@ -2501,6 +2501,27 @@ def test_spec_status_ignores_registered_brief_without_action_proof(
 
 
 @pytest.mark.integration
+def test_spec_status_ignores_malformed_generic_spec_document_without_action_proof(
+    spec_inputs: dict[str, Any],
+) -> None:
+    """An unproven generic registration cannot poison the governed SPEC census."""
+
+    _register_generic_spec_brief(
+        spec_inputs,
+        {
+            "document_type": "spec_01_operator_brief",
+            "route_id": "SPEC-GATE6-RUN-V1",
+        },
+    )
+    before = _tree_snapshot(spec_inputs["binding"].control_root)
+
+    documents = SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._snapshot()[2]
+
+    assert documents == {}
+    assert _tree_snapshot(spec_inputs["binding"].control_root) == before
+
+
+@pytest.mark.integration
 def test_spec_status_rejects_forged_file_only_action_proof(
     spec_inputs: dict[str, Any],
 ) -> None:

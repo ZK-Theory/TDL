@@ -81,6 +81,7 @@ class BackupReceipt:
     destination_class: str
     source_endpoint_scheme: str
     evidence_registry_hash: str
+    evidence_registry_state_sha256: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,6 +282,10 @@ def _read_bound_bytes(root: Path, relative_path: str) -> tuple[bytes, str, tuple
 
 def _hash_without(value: object, field: str) -> str:
     payload = asdict(value)
+    if isinstance(value, BackupReceipt) and not value.evidence_registry_state_sha256:
+        # Preserve the content identity of legacy receipts while making them
+        # fail restore admission for lack of a bound derived registry state.
+        payload.pop("evidence_registry_state_sha256", None)
     payload[field] = ""
     return sha256_hex(canonical_bytes(_jsonable(payload)))
 
@@ -1652,6 +1657,7 @@ class BackupMaterializer:
             destination_class=str(payload["destination_class"]),
             source_endpoint_scheme=str(record["source_endpoint_scheme"]),
             evidence_registry_hash=str(record["evidence_registry_hash"]),
+            evidence_registry_state_sha256=str(record["evidence_registry_state_sha256"]),
         )
         sealed = seal_backup_receipt(receipt)
         bundled_runtime_schema_registry().validate(
@@ -1983,6 +1989,11 @@ def verify_restore_before_writer_lease(
         failed.append("registered_topology_incomplete")
     if registry_hash != receipt.evidence_registry_hash:
         failed.append("registry_hash_mismatch")
+    if (
+        not _is_sha256(receipt.evidence_registry_state_sha256)
+        or registry_state_sha256 != receipt.evidence_registry_state_sha256
+    ):
+        failed.append("registry_state_hash_mismatch")
     try:
         checked = set(registry.checked_locations())
     except (AttributeError, ValueError):
