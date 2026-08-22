@@ -5,6 +5,13 @@
 **Authority:** P-026/P-034, the accepted WP6 plan, P-042, and the exact current Git/Jira evidence recorded below
 **Jira homes:** KAN-60 (aggregate WP6.7 closure), KAN-22–26 (Gate-6-to-7 consistency), KAN-21 (later-gate planning sweep), KAN-61 (hard-stop control), KAN-12 (completion campaign)
 
+> **Current Gate 6 reset (2026-08-22):** The older dispatchable-preflight
+> framing in this historical sequencing document is superseded for active Gate
+> 6 work by [06q — Gate 6 Recovery and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md).
+> The historical real SPEC run is PROVEN, but no Gate 6 implementation is
+> integrated on `main`; SCALE-01 is not a Gate 6 closure prerequisite. This
+> document still governs only the separate WP6.7/Gate 7 sequencing boundary.
+
 ## 1. Decision boundary
 
 WP6.7 is a gated sequencing lane, not a migration ticket. It defines the

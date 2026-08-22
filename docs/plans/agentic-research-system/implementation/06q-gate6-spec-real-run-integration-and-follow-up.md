@@ -1,0 +1,327 @@
+# 06q — Gate 6 Recovery and Closure Plan
+
+**Date:** 2026-08-22
+**Status:** `INCOMPLETE — historical real SPEC run PROVEN; no Gate 6 implementation integrated on main`
+**Authority:** sole active Gate 6 recovery and closure plan. Do not create a
+06s or another master plan.
+**Current base:** `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`
+**Jira capability:** KAN-103 under KAN-12; Gate 7 remains blocked on
+integrated Gate 6 and final closure evidence.
+
+## 1. Purpose and capability contract
+
+Gate 6 is not complete. A historical real run has proved the research route
+can produce a durable, reviewable result, but the implementation that produced
+that evidence has not been integrated on `main`.
+
+The target outcome is one connected public path: an authorised Discovery start
+and submission, durable SPEC evidence, replay and recovery, task closure, a
+fresh bounded real run, a plain-English result, and independently checked
+backup/restore evidence. Mocks, temporary stores, fabricated permissions,
+synthetic receipts, and agent-written declarations are not Gate 6 proof.
+
+The historical result is retained exactly as evidence: 126 configurations, 42
+deterministic reruns, terminal `PROVEN/spec_02_owner_decided`, and ledger tail
+`444 ResourcesReleased`. The run is a research-use assessment, not a scientific
+claim. Its `PARK` decision retains the method as an experimental or benchmark
+candidate and does not make it the default empirical method.
+
+## 2. Exact current state and active pointers
+
+- The current base is `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`.
+- PR #257 remains an open draft at candidate `dea803490...`; it is an obsolete
+  candidate to close unmerged only after a replacement decision is durable.
+  Its branch and the dirty `C:\Users\steph\TDL` checkout are preserved.
+- PR #258 is closed unmerged at
+  `94f8bc1fc92bdc5259acab02e73a3958202ab2e`. Its branch is retained as
+  historical evidence. The candidate had 145 changed files, 35,796 additions,
+  114 review threads, and seven unresolved P1 families.
+- [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
+  convergence evidence only. It is retired/superseded for active execution by
+  this plan.
+- The result handoff is
+  [01M0454KCTYV0E8PB016CP3F6J](../handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md).
+- P-049 retains the distinction among merge admission, capability integration,
+  and Gate 6 closure. Its historical SCALE-01 eligibility-envelope
+  application is superseded. P-050 records the real-run outcome and `PARK`
+  disposition.
+
+Step 0 is an administrative reset, not an implementation or closure result.
+The documentation writer made no external mutation. The approved plan permits
+the main agent, after its own exact-state checks, to create or clean the named
+branch/worktree, commit and push the documentation reset, create/update the
+replacement PR, update KAN-12 and KAN-103, create six bounded KAN-12 child jobs
+with link readbacks, and close PR257 unmerged only after the replacement
+decision is durable. It still permits no merge, CodeRabbit trigger or polling,
+provider or paid call, live-store write during construction, or final Gate 6
+decision.
+
+## 3. Architecture and public boundary
+
+The implementation keeps these existing owners and public seams:
+
+- `DiscoveryRuntime.submit` in `research_system/discovery/runtime.py` for
+  Discovery submission;
+- `CommandService.submit` in `research_system/command/service.py` for governed
+  command publication;
+- `replay_discovery` in `research_system/discovery/replay/driver.py` for replay
+  and reconstruction;
+- `verify_restore_before_writer_lease` in
+  `research_system/operations/backups.py` for restore admission before a
+  writer lease; and
+- the existing task closure contracts, including the ordered
+  `SubmitForReview` then `AcceptTask` path.
+
+The six slices rebuild the active behavior as separate components: one action
+registry, one pure state evaluator, semantic-intent preparation, transaction
+execution and recovery, and result rendering. They must not port the retired
+2,900-line `spec_flow.py` or its 5,977-line test wholesale.
+
+The approved public contracts are exact. `GitReferenceResolution` returns the
+canonical repository URL, requested locator, status exactly `resolved`,
+`absent`, `ambiguous`, or `unavailable`, canonical ref, resolved kind, commit
+OID, optional subpath, and resolution trace. `SpecActionIntent` is a semantic
+input schema distinct from durable command envelopes: users provide meaningful
+inputs, while the system derives IDs, hashes, command envelopes, retry keys,
+and receipts. `SpecActionState` is exactly `not_started`, `prepared`, or
+`completed`. `ProjectUseDecision` binds the candidate, assay, spike, terminal
+owner decision, source correction, evidence artefacts, and exact governed-code
+subject. The approved CLI is exactly:
+
+```text
+ars discovery spec status --operator-config …
+ars discovery spec advance --operator-config … --action … --input …
+ars discovery spec result --operator-config … --format json|markdown
+```
+
+Existing `ars store repair-binding`, `ars store advance-binding`,
+`ars store backup`, and `ars store verify-restore` commands share one repaired-
+binding loader. This plan does not introduce `ars discovery submit` or `ars
+discovery status` as new SPEC interfaces, nor a parallel public seam or second
+persisted state machine.
+
+The durable store remains append-only. Historical identities are readable;
+new writes use canonical identities. Status and advance consume the same
+registry and evaluator. A persisted legacy fixture may bypass a new writer
+only through an explicitly tested compatibility read path.
+
+## 4. Sequential implementation slices
+
+The following six PRs are sequential latest-`main` slices. Each owns one
+invariant family, one observable public path, and one explicit negative matrix.
+No live store is written during construction.
+
+### Step 0 — Documentation-only control reset
+
+**Owner:** documentation lane; this iteration.
+**Output:** this plan as the sole active Gate 6 recovery/closure authority;
+updated pointers in the assigned plan, decision, roadmap, and handoff
+documents; historical 06r retirement note.
+**Acceptance:** exact assigned documentation paths only, resolved links, no
+active SCALE-01 closure prerequisite, P-049/P-050 recorded, PR states accurate,
+and `git diff --check` clean.
+**Step 0 control boundary:** the approved Step 0 Jira text updates KAN-12 and
+KAN-103, creates one KAN-12 child job for each of the six PRs with its
+observable outcome, current gap, next action, authoritative files, closure
+evidence, owner, and dependency links, and reads back those links. It also
+permits the named branch/commit/push/PR work and closing PR257 unmerged only
+after the replacement decision is durable. It does not permit merge, CodeRabbit
+trigger or polling, provider/paid work, live-store mutation during
+construction, or final Gate 6 closure.
+
+### Step 1 — `G6-SPEC-SOURCE-1`
+
+**Invariant:** source evidence binds exact bytes to a causal prefix. A resolver
+must handle heads, lightweight and annotated tags, peeled commits, slash refs,
+direct OIDs, and subpaths. It may declare a source absent only after an
+exhaustive successful check; ambiguity or unavailability is not absence.
+
+**Main interfaces:** the existing source evidence producer/resolver and its
+public SPEC registration path; anchored in-root recovery markers and
+append-only correction records bind prior evidence and its causal prefix.
+
+**Acceptance boundary:** accept the `neurips2024` lightweight tag at
+`145efcde673f1a1897eff250b77221d26c34c479`; preserve the corrected source as
+append-only; and reject redirected/junctioned paths, malformed locators,
+ambiguity, transport failure, crash-before-publication, and zero-publication
+cases without durable side effects.
+
+### Step 2 — `G6-SPEC-STORE-1`
+
+**Invariant:** one verified snapshot and predecessor governs the whole
+operation. Selection and read happen under the lock, then revalidate before
+publication. Outputs are prevalidated. Marker, object, event, receipt, and
+current binding form one recovery identity.
+
+**Main interfaces:** the existing binding advance and restore seams,
+`verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
+the repaired binding. A reviewed successor may move from the retired binding
+to integrated `main`; an arbitrary non-descendant is forbidden.
+
+**Acceptance boundary:** the governed-code manifest versions code, config,
+schemas, contracts, locks, and the allowed documentation-only descendant. One
+repaired-binding admission is shared by all consumers; local administration is
+distinct from SPEC semantic authority; schemas remain append-only. Negatives
+cover concurrency, crash, wrong root, stale binding, drift, documentation
+descendant, separate roots, and historical replay.
+
+### Step 3 — `G6-SPEC-AUTHORITY-1`
+
+**Invariant:** every effect is bound to a session and grant. Semantic
+registration intent is a distinct durable schema, and governed producer,
+reviewer, and operator roles remain separate. The grant is contained in the
+session. An exact completed retry may be read after grant expiry but may create
+no new effect.
+
+**Main interfaces:** the common owner/scoped/SPEC authority validator and the
+existing command service submission seam.
+
+**Acceptance boundary:** owner, scope, session, grant, effect, and role
+separation are checked at the public seam. A retry that is exact and complete
+is read-only; a new or incomplete effect after expiry is rejected. No
+authority is inferred from a plan, a local file, a test-created permission, or
+an agent declaration.
+
+### Step 4 — `G6-SPEC-TASK-1`
+
+**Invariant:** a terminal attempt plus a satisfied review follows the existing
+`SubmitForReview` then `AcceptTask` contract. Completion is never inferred
+from an attempt, lease, result, or status alone. Failed, partial, incomplete,
+or unsatisfied-review work remains open. Restart is idempotent.
+
+**Main interfaces:** the existing task closure commands, projections, replay,
+and result handoff seam.
+
+**Acceptance boundary:** append
+`tsk_60c5549e-d11f-7d17-8145-d80e144aa537` only after the implementation slice
+is merged and its task closure is genuinely satisfied. Tests cover restart,
+duplicate closure, failed/partial/incomplete outcomes, and missing review;
+none may silently close the task.
+
+### Step 5 — `G6-SPEC-MODEL-1`
+
+**Invariant:** one registry defines every public action, alias, effect set,
+document ID, authority requirement, and completion proof. State matrices are
+derived from that registry. Completion is conjunctive across route, action,
+retry, packet, artefact, content, and registration event.
+
+**Main interfaces:** the shared action registry/evaluator consumed by status,
+advance, registration, result rendering, `ProjectUseDecision`, and the result
+CLI.
+
+**Acceptance boundary:** historical IDs remain readable while canonical new
+writes use new IDs. Unrelated evidence is isolated. Missing evidence is
+`pending`; hash-only or wrong-binding evidence rejects. The matrix covers
+empty, prepared, completed, conflicting, unrelated, retry, and recovery states
+for every registered action. A persisted legacy fixture cannot use the new
+writer as a bypass.
+
+### Step 6 — `G6-SPEC-EXEC-1`, integration, and closure candidate
+
+**Invariant:** semantic intent becomes a snapshot, is evaluated, prepared as a
+complete transaction, revalidated under the route lock, published, and sealed.
+Status and advance use the same registry and evaluator. Context uses one
+accepted snapshot with sealed hash-bound approvals. SPEC-01 runs all required
+stages; SPEC-02 requires a separate approval even after `PARK`.
+
+**Main interfaces:** the semantic-intent preparation and transaction/recovery
+seams above, `DiscoveryRuntime.submit`, `CommandService.submit`,
+`replay_discovery`, restore-before-writer-lease, and task closure.
+
+**Acceptance boundary:** the route records operator-mediated provider work but
+never launches providers, reads credentials, invokes paid services during
+construction, or fabricates receipts. A terminal result invokes the existing
+task seam. After all six PRs merge and final assembled selection plus an
+independent exact-`main` review, admit exactly one owner-reviewed successor
+binding, then perform one fresh bounded real SPEC run, replay, task closure,
+human result, and governed backup/restore check. A run against a temporary
+store or fabricated authority is not closure evidence.
+
+## 5. Review, merge, and exact-subject protocol
+
+Each slice is a latest-`main` PR with the named invariant, observable path,
+and negative matrix frozen before implementation. Target size is 25 files;
+the hard limit is 35 files and 5,000 non-generated added lines (not generic
+changed lines). Terra XHigh owns the
+implementation, an independent tester owns the red/green controls, and Sol
+Medium performs the whole-boundary logic review for STORE, MODEL, and EXEC.
+
+The affected Gate 6 selection is frozen at each candidate head. Required
+checks are exactly `contract-and-session-currency` and
+`require-active-currency-workflow`, read back at the exact head. The disabled
+repository-wide suite is not represented as green. Generic green tests cannot
+substitute for the public-path and no-mutation evidence.
+The PR record must capture PR head, candidate head, merge SHA, composed
+governed-tree equality, test selection, and review conclusion. Squash/queue
+operations must preserve those identities. A second material remediation, or
+reopening a P1 in the same invariant family, retires or rescopes the candidate
+instead of continuing specimen-by-specimen repair.
+
+Stephen alone triggers or monitors CodeRabbit and authorizes merge. No agent
+may trigger CodeRabbit, poll it, merge a PR, or infer owner acceptance. No live
+store write occurs in construction slices.
+
+## 6. Fresh live proof and closure sequence
+
+After all six PRs have merged and the composed governed tree has been read back:
+
+1. After all six merges, perform final assembled selection and one independent
+   exact-`main` review, then admit one owner-reviewed successor binding. Append
+   the historical `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` acceptance and the
+   historical P-050 `ProjectUseDecision` without rewriting their provenance.
+2. Obtain explicit paid-run approval, then repeat Damrich, Berens, and Kobak
+   on real `neurips2024` with new IDs and the frozen 126-configuration/42-
+   rerun design. Keep producer, reviewer, and operator separate, and obtain a
+   separate SPEC-02 approval even after `PARK`.
+3. Persist the fresh route's exact receipt, ledger tail, identity, artefact,
+   task, and result bytes. Close the terminal Task only through
+   `SubmitForReview` followed by `AcceptTask`, then persist the fresh
+   `ProjectUseDecision`.
+4. Use the historical and fresh read-only result commands, including the exact
+   JSON/Markdown result CLI, after replay from a fresh process. Verify the
+   terminal `ResourcesReleased` tail, human result, `PARK` limitation, and no
+   scientific-promotion language.
+5. Create and restore governed backups using
+   `C:\Users\steph\TDL-ARS-WP64-Backups` and
+   `C:\Users\steph\TDL-ARS-WP64-Restore-Verification`. Same-disk verification
+   proves logical recovery only; independently verified off-disk copying is a
+   separate requirement.
+6. Obtain independent final evidence review, Stephen's closure decision, a
+   docs-only final PR, and merged-`main` replay. Reconcile `agent_docs`, Jira,
+   and these docs, including KAN-103/KAN-12 transitions. Do not automatically
+   rerun a paid workflow after a production defect.
+
+Until every item is complete, report:
+
+> **Capability status: INCOMPLETE — the historical real SPEC run is PROVEN,
+> but no Gate 6 implementation is integrated on `main`.**
+
+## 7. Assumptions, deferrals, and hard boundaries
+
+- Historical real-run evidence remains valid but does not establish integrated
+  code. PR existence, review activity, a green test, or a plan never changes
+  that status.
+- SCALE-01 v1.0.3 and its eligibility envelope are historical and not a Gate 6
+  closure prerequisite. P-049's distinction remains; its SCALE application is
+  superseded.
+- `PARK` keeps the spectral method out of default empirical use and scientific
+  claims. Existing `vis_utils` equivalence and estimand/representation freeze
+  are separate empirical-adoption work, not Gate 6 blockers.
+- Same-disk verified backup proves logical recovery only. An off-disk copy must
+  be verified separately.
+- Gate 7 cannot open or dispatch on this evidence alone; it remains blocked on
+  integrated Gate 6 and final closure evidence. No scientific promotion is
+  implied.
+- Step 0 permits the named branch/commit/push/PR and KAN-12/KAN-103 operations,
+  six child-job/link readbacks, and eventual unmerged PR257 closure after a
+  durable replacement decision. Construction still forbids merge, CodeRabbit
+  trigger or polling, provider/paid calls, and live-store mutation; final Gate
+  6 closure remains Stephen's owner decision.
+
+## 8. Verification sources
+
+- Historical result: [Gate 6 SPEC real-run result](../handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md).
+- Historical convergence evidence: [06r](06r-gate6-pr258-review-convergence-plan.md).
+- Decision register: [P-049 and P-050](../03-decisions-and-open-questions.md).
+- Historical control distinction: [06p](06p-gate6-control-model-proposal.md).
+- Gate-7 boundary: [06l](06l-wp6-7-legacy-consolidation-sequencing.md).

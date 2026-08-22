@@ -332,3 +332,21 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 5. the written review-pending P0 materialization and narrow-foundation plan suite, followed by adversarial review and Stephen's exact-scope approval.
 
 Gate 3 W6–W8/06c is accepted under P-030. The P0 materialization and foundation implementation plan suite is written and review pending; runtime remains unauthorized until review closes and Stephen approves its exact scope. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+
+## Gate 6 recovery control (2026-08-22)
+
+The active Gate 6 deliverable is the [06q Recovery and Closure
+Plan](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md),
+not a new master plan. It records the capability as **INCOMPLETE**: the
+historical real SPEC run is proven, while no Gate 6 implementation is
+integrated on `main`. The plan preserves the existing public seams, divides
+construction into six sequential PRs after the documentation-only reset, and
+requires one post-merge binding followed by a fresh real bounded SPEC run,
+replay, recovery, independent review, and Stephen's closure decision.
+
+The [06r review-convergence plan](implementation/06r-gate6-pr258-review-convergence-plan.md)
+is retained as retired PR #258 evidence only. SCALE-01 eligibility is a
+historical, superseded application and is not a Gate 6 closure prerequisite.
+The empirical method decision is `PARK`, so the separate representation,
+estimand, and upstream-wrapper work is not a Gate 6 blocker. Gate 7 remains
+blocked on integrated Gate 6 and final closure evidence.

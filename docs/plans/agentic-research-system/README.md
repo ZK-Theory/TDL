@@ -33,6 +33,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/large-workflow-completed-cycle-assessment-2026-07-23.md](reviews/large-workflow-completed-cycle-assessment-2026-07-23.md) | Completed-cycle `approve_advisory_v1_1_with_revisions` assessment: research-value intake, second-cycle rescope, integration lanes, validation hygiene, prospective metrics, and CodeRabbit's 100-file PR limit |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Historical owner-approved WP6 launch-basis snapshot at exact reviewed revision `fe5f1d40`; P-042/06g now supplies the governing planning amendment |
+| [implementation/06q-gate6-spec-real-run-integration-and-follow-up.md](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md) | Sole current Gate 6 Recovery and Closure Plan: six sequential implementation slices, one post-merge binding, fresh real-run proof, review, and owner closure |
+| [implementation/06r-gate6-pr258-review-convergence-plan.md](implementation/06r-gate6-pr258-review-convergence-plan.md) | Retired historical PR #258 convergence evidence; diagnostic only and superseded for active execution by 06q |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
 | [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Owner-approved WP6.2 dispatch-plan content at exact reviewed revision `fe5f1d40`: live adapters, parity, threshold policy, and evaluated model profiles; future evidence gates remain |
 | [implementation/06g-wp6-owner-operated-session-amendment.md](implementation/06g-wp6-owner-operated-session-amendment.md) | Reviewed P-042 owner-operated-session candidate; effective status is `accepted_for_governing_planning` through the external acceptance record, while the embedded pending field remains snapshot-qualified |
@@ -117,6 +119,19 @@ The objective is not to automate research judgment away. It is to make agent act
 10. Retain human-readable, version-controlled artefacts even if indexed views or a database are later added.
 
 ## Current working conclusion
+
+### Gate 6 reset (2026-08-22)
+
+**Capability status: INCOMPLETE — the historical real SPEC run is PROVEN, but
+no Gate 6 implementation is integrated on `main`.** The current base is
+`d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`. The 126-configuration run and 42
+deterministic reruns are durable historical evidence; they do not turn the
+closed, unmerged PR #258 into integrated code. The sole active recovery and
+closure plan is [06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+PR #257 remains an open draft candidate pending a durable replacement decision;
+PR #258 is closed unmerged and retained as historical evidence. SCALE-01 is a
+historical preflight record, not a Gate 6 closure prerequisite. Gate 7 remains
+blocked on integrated Gate 6 and final closure evidence.
 
 The recommended path is **evolutionary APM replacement**:
 

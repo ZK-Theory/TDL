@@ -1,8 +1,10 @@
-# Proposed P-049 - Gate 6 control model
+# P-049 — Gate 6 control model (historical baseline)
 
-**Status:** Proposed - Path A has been selected, but this decision still
-requires reviewed PR integration before a GitHub ruleset or branch-protection
-policy is applied.
+**Decision chronology:** Accepted 2026-08-16; current application amended
+2026-08-22.<br>
+**Status:** Accepted distinction retained; the historical SCALE-01 closure
+application below is superseded for active execution by [06q — Gate 6 Recovery
+and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md).
 **Repository subject:** `main` `9fb53f53cf9984a1ac4809962cd033d9ac1b597d`
 (PR #248).
 **Live-state observation:** GitHub and Jira settings/statuses were read on
@@ -18,6 +20,13 @@ final Gate 6 closure control.
 **Does not authorize:** provider invocation, credential handling, pilot or
 research execution, result/claim promotion, live restore cutover, KAN-69
 transition work, WP6.7, or Gate 7-9 work.
+
+**Current status (2026-08-22):** Capability **INCOMPLETE**. The historical
+real SPEC run is PROVEN, but no Gate 6 implementation is integrated on `main`.
+PR #257 remains an open draft candidate; PR #258 is closed unmerged and retained
+as historical evidence. This document retains the accepted distinction among
+merge admission, capability integration, and Gate 6 closure; it is not the
+active recovery/closure plan.
 
 ## Decision requested
 
@@ -130,7 +139,14 @@ Only then can the canonical Jira capability issue become `Done` with
 plans, and reviews remain typed milestones or evidence, never an unqualified
 completion state.
 
-### G6 - Gate 6 closure
+### G6 - Gate 6 closure (historical SCALE-01 application; superseded)
+
+> The following SCALE-01 eligibility-envelope application is historical P-049
+> text. It is retained for provenance and is not a current Gate 6 closure
+> prerequisite. The current closure route is 06q, whose real-run target is the
+> already recorded SPEC evidence followed by integrated implementation, a fresh
+> bounded run, replay/recovery proof, independent review, and Stephen's owner
+> decision.
 
 **Question:** may KAN-12 be marked complete as the first-release Gate 6
 capability?
@@ -213,7 +229,7 @@ comment claiming post-merge currency authority must be corrected when this
 proposal is adopted; it cannot be made required until a real, bounded green
 baseline exists.
 
-## Current Gate 6 register
+## Historical Gate 6 register (2026-08-13; superseded by 06q)
 
 The statuses and GitHub configuration in this table are live observations as at
 2026-08-13, not claims that Jira/GitHub state is content-addressed by
@@ -228,7 +244,7 @@ The statuses and GitHub configuration in this table are live observations as at
 | KAN-12 / Gate 6 | `INCOMPLETE — NOT RUNNABLE` | the final capability has no current eligibility-envelope entry point, assembled proof, fresh independent review, or owner closure decision; construction may begin, but Gate 6 itself is not runnable |
 | GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
 
-The real remaining functional gap is therefore singular:
+The real remaining functional gap recorded at that historical subject was:
 
 > **Construct and prove a new immutable eligibility envelope that binds the
 > integrated WP6.6 admission and read-only root grants, then prove the assembled
@@ -236,11 +252,19 @@ The real remaining functional gap is therefore singular:
 > a pilot eligible; the pilot is not executed. Until that envelope has a real
 > public seam, Gate 6 is NOT RUNNABLE.**
 
-This is one capability campaign under KAN-12. Its eligibility-envelope construction,
-direct testing, review, and owner decision are implementation/evidence within
-that campaign, not independently completable successor lanes.
+This historical eligibility-envelope statement is superseded. The current
+single campaign and its remaining functional gap are defined in 06q; SCALE-01
+is not a Gate 6 closure prerequisite.
 
-## Jira operation
+## Current control pointer
+
+Use [06q — Gate 6 Recovery and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md)
+for all active Gate 6 status, architecture, six-slice sequencing, fresh-run
+proof, review, and closure decisions. [06r](06r-gate6-pr258-review-convergence-plan.md)
+is historical PR #258 diagnostic evidence only. Gate 7 remains blocked on
+integrated Gate 6 and final closure evidence.
+
+## Historical Jira operation (2026-08-13; superseded by 06q)
 
 KAN-12 is the only canonical open Gate 6 capability. Its description must be
 updated now to remove the false statement that WP6.6 is still under
