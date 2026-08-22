@@ -61,8 +61,9 @@ Step 0 is an administrative reset, not an implementation or closure result.
 The documentation writer made no external mutation. The approved plan permits
 the main agent, after its own exact-state checks, to create or clean the named
 branch/worktree, commit and push the documentation reset, create/update the
-replacement PR, update KAN-12 and KAN-103, create six bounded KAN-12 child jobs
-with link readbacks, and close PR257 unmerged only after the replacement
+replacement PR, update KAN-12 and KAN-103, create six bounded level-0 Tasks,
+parent them to the KAN-12 Epic, make each one block KAN-103, read back both
+ends of every link, and close PR257 unmerged only after the replacement
 decision is durable. It still permits no merge, CodeRabbit trigger or polling,
 provider or paid call, live-store write during construction, or final Gate 6
 decision.
@@ -88,10 +89,19 @@ registry, one pure state evaluator, semantic-intent preparation, transaction
 execution and recovery, and result rendering. They must not port the retired
 2,900-line `spec_flow.py` or its 5,977-line test wholesale.
 
-The approved public contracts are exact. `GitReferenceResolution` returns the
-canonical repository URL, requested locator, status exactly `resolved`,
-`absent`, `ambiguous`, or `unavailable`, canonical ref, resolved kind, commit
-OID, optional subpath, and resolution trace. `SpecActionIntent` is a semantic
+The approved public contracts are exact. Every `GitReferenceResolution`
+contains `repository_url`, `requested_locator`, `status`, and a non-empty
+`resolution_trace`; it contains `subpath` only when the locator has one. A
+`resolved` result additionally contains exactly one `canonical_ref`,
+`resolved_kind`, and `commit_oid`. An `ambiguous` result instead contains at
+least two `candidates`, each with those three fields. An `unavailable` result
+contains `failure_kind` exactly `auth`, `timeout`, or `transport`. An `absent`
+result is permitted only after the trace proves exhaustive successful
+resolution. The three non-resolved states must not emit null or placeholder
+singular provenance: `absent` has neither candidates nor a failure kind,
+`ambiguous` has no failure kind, and `unavailable` has no candidates. A
+malformed locator is an input-validation error, not a resolution result.
+`SpecActionIntent` is a semantic
 input schema distinct from durable command envelopes: users provide meaningful
 inputs, while the system derives IDs, hashes, command envelopes, retry keys,
 and receipts. `SpecActionState` is exactly `not_started`, `prepared`, or
@@ -104,6 +114,17 @@ ars discovery spec status --operator-config …
 ars discovery spec advance --operator-config … --action … --input …
 ars discovery spec result --operator-config … --task-id … --format json|markdown
 ```
+
+`--operator-config` accepts exactly one JSON `SpecOperatorConfig` document with
+schema identity `ars://operations/spec-operator-config` at version `1.0.0`.
+Additional fields are forbidden. The required fields are `schema_id`,
+`schema_version`, `control_root`, `project_id`, `store_identity`, `route_id`,
+`operator_actor_id`, `actor_session_id`, and `authority_grant_id`; `route_id`
+must equal `SPEC-GATE6-RUN-V1`. The configuration selects evidence but grants
+no authority. The shared loader canonicalises `control_root`, rejects path
+redirection and a wrong root, and verifies the project, store, and route under
+the common binding admission. The authority slice separately validates the
+named actor, session, and grant for the requested effect.
 
 Step 2 introduces and tests `ars store repair-binding` and `ars store
 advance-binding`, which are absent from the Step-0 base. They and the existing
@@ -133,7 +154,12 @@ documents; historical 06r retirement note.
 active SCALE-01 closure prerequisite, P-049/P-050 recorded, PR states accurate,
 and `git diff --check` clean.
 **Step 0 control boundary:** the approved Step 0 Jira text updates KAN-12 and
-KAN-103, creates one KAN-12 child job for each of the six PRs with its
+KAN-103, creates one level-0 Task job for each of the six PRs, parents every
+job to the KAN-12 Epic, and gives every job an outward `Blocks` link to
+KAN-103. Jira does not permit a Task to be the parent of another Task, so the
+six jobs are KAN-103's blocking siblings rather than its children. KAN-103
+must read back six inward blockers and cannot transition terminal while any
+one remains open. Each job records its
 observable outcome, current gap, next action, authoritative files, closure
 evidence, owner, and dependency links, and reads back those links. It also
 permits the named branch/commit/push/PR work and closing PR257 unmerged only
@@ -166,7 +192,9 @@ publication. Outputs are prevalidated. Marker, object, event, receipt, and
 current binding form one recovery identity.
 
 **Main interfaces:** new `repair-binding` and `advance-binding` parsers and
-handlers, the existing backup and restore seams,
+handlers; the `SpecOperatorConfig@1.0.0` schema and shared loader that establish
+the canonical root plus exact project/store/route binding for every public
+SPEC command; the existing backup and restore seams,
 `verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
 one shared verified-binding admission. A reviewed successor may move from the
 retired binding to integrated `main`; an arbitrary non-descendant is forbidden.
@@ -188,7 +216,10 @@ session. An exact completed retry may be read after grant expiry but may create
 no new effect.
 
 **Main interfaces:** the common owner/scoped/SPEC authority validator and the
-existing command service submission seam.
+existing command service submission seam. After the Step-2 loader has admitted
+the exact store and route, this validator proves that the config-selected
+`operator_actor_id`, `actor_session_id`, and `authority_grant_id` authorize the
+requested semantic effect; possession of the config is never sufficient.
 
 **Acceptance boundary:** owner, scope, session, grant, effect, and role
 separation are checked at the public seam. A retry that is exact and complete
@@ -223,6 +254,50 @@ retry, packet, artefact, content, and registration event.
 advance, registration, result rendering, `ProjectUseDecision`, and the result
 CLI.
 
+The registry must contain exactly the following catalogue. Every completed
+action has one sealed completion bound to its exact route, action, retry, and
+packet. A row action additionally requires all listed durable rows. A document
+action additionally requires the exact artefact, content bytes, registration
+event, and document schema shown. A brief-input action requires exact raw
+registrations and the stated reviewed/accepted authority state. Variant aliases
+are outcome-bound and mutually exclusive for one packet.
+
+| Canonical action | Public alias | Additional completion proof |
+|---|---|---|
+| `bootstrap_genesis` | `bootstrap_genesis` | `OR-140` |
+| `bootstrap_assay_authority` | same | `OR-101`–`OR-108` |
+| `bootstrap_dossier_authority` | same | `OR-110`–`OR-115` |
+| `bootstrap_path_authority` | same | `OR-116`–`OR-121` |
+| `admit_dossier` | same | `OR-028` |
+| `observe_source` | same | `OR-029` |
+| `request_spec_01` | same | `OR-003` |
+| `register_spec_01_brief_inputs` | same | exact brief inputs registered; single-shot |
+| `review_spec_01_brief_inputs` | same | exact brief inputs reviewed |
+| `accept_spec_01_brief_inputs` | same | exact brief inputs accepted |
+| `prepare_spec_01` | same | `spec_01_operator_brief` / `ars://portfolio/spec-operator-brief-package` |
+| `return_spec_01_complete` | `return_spec_01` | `OR-004`; `spec_01_return` / `ars://portfolio/spec-operator-return` |
+| `return_spec_01_partial` | `return_spec_01` | `OR-005`; `spec_01_return` / `ars://portfolio/spec-operator-return` |
+| `review_spec_01_complete` | `review_spec_01` | `OR-034` and `OR-006` |
+| `review_spec_01_partial` | `review_spec_01` | `OR-035` and `OR-007` |
+| `decide_spec_01` | same | `OR-012` and `OR-013` |
+| `correct_spec_01_source` | same | `spec_01_source_correction` / `ars://portfolio/spec-01-source-correction` |
+| `approve_spec_02` | same | `spec_02_live_run_approval` / `ars://portfolio/spec-02-live-run-approval` |
+| `prepare_spec_02` | same | `spec_02_operator_brief` / `ars://portfolio/spec-operator-brief-package` |
+| `start_spec_02` | same | `OR-014`–`OR-017` |
+| `return_spec_02_complete` | `return_spec_02` | `OR-018`; `spec_02_return` / `ars://portfolio/spec-operator-return` |
+| `return_spec_02_partial` | `return_spec_02` | `OR-019`; `spec_02_return` / `ars://portfolio/spec-operator-return` |
+| `review_spec_02_complete` | `review_spec_02` | `OR-036` and `OR-020` |
+| `review_spec_02_partial` | `review_spec_02` | `OR-037` and `OR-021` |
+| `decide_spec_02` | same | `OR-026` and `OR-027` |
+
+`correct_spec_01_source` remains in the complete registry but is required in a
+run only when the accepted evidence establishes that a source correction is
+needed. `approve_spec_02` is always a distinct prerequisite for SPEC-02,
+including after a SPEC-01 `PARK` decision. Catalogue-completeness tests fail on
+any missing or extra canonical action, alias, effect, document identity,
+authority requirement, or completion proof; status, retry, and execution must
+derive their matrices from this catalogue rather than maintain subsets.
+
 **Acceptance boundary:** historical IDs remain readable while canonical new
 writes use new IDs. Unrelated evidence is isolated. Missing action evidence
 evaluates only to `not_started` or `prepared`; there is no fourth
@@ -232,7 +307,8 @@ wrong-binding evidence rejects. The required `--task-id` selector isolates the
 historical and fresh results even when both exist. The matrix covers empty,
 prepared, completed, conflicting, unrelated, retry, and recovery states for
 every registered action. A persisted legacy fixture cannot use the new writer
-as a bypass.
+as a bypass. The frozen-catalogue test also rejects missing, additional, or
+divergent actions, aliases, effects, and proofs.
 
 ### Step 6 — `G6-SPEC-EXEC-1`, integration, and closure candidate
 
@@ -315,10 +391,15 @@ After all six PRs have merged and the composed governed tree has been read back:
    and these docs, including KAN-103/KAN-12 transitions. Do not automatically
    rerun a paid workflow after a production defect.
 
-Until every item is complete, report:
+Capability reporting is phase-aware and uses exactly one applicable row:
 
-> **Capability status: INCOMPLETE — the historical real SPEC run is PROVEN,
-> but no Gate 6 implementation is integrated on `main`.**
+| Phase | Required status text |
+|---|---|
+| Construction, before the complete public implementation is on `main` | **Capability status: INCOMPLETE — the historical real SPEC run is PROVEN, but no complete Gate 6 implementation is integrated on `main`.** |
+| Assembled code merged and the public path passes, before successor binding | **Capability status: INCOMPLETE — the Gate 6 implementation is integrated on `main`; successor binding and fresh live proof are pending.** |
+| Exact integrated implementation bound to the live store | **Capability status: INCOMPLETE — the integrated implementation is bound to the live store; fresh run, task, result, replay, and backup evidence are incomplete.** |
+| All safe closure work and independent final evidence review complete; only Stephen's decision remains | **Capability status: OWNER-BLOCKED — integrated fresh proof is complete; Stephen's Gate 6 closure decision is required.** |
+| Stephen's closure decision recorded and final documentation/Jira reconciliation verified | **Capability status: INTEGRATED — Gate 6 is closed on the verified P-050 real SPEC capability.** |
 
 ## 7. Assumptions, deferrals, and hard boundaries
 
@@ -337,8 +418,8 @@ Until every item is complete, report:
   integrated Gate 6 and final closure evidence. No scientific promotion is
   implied.
 - Step 0 permits the named branch/commit/push/PR and KAN-12/KAN-103 operations,
-  six child-job/link readbacks, and eventual unmerged PR257 closure after a
-  durable replacement decision. Construction still forbids merge, CodeRabbit
+  six sibling-job/blocking-link readbacks, and eventual unmerged PR257 closure
+  after a durable replacement decision. Construction still forbids merge, CodeRabbit
   trigger or polling, provider/paid calls, and live-store mutation; final Gate
   6 closure remains Stephen's owner decision.
 

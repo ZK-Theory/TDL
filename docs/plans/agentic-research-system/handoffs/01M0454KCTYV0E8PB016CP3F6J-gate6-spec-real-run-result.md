@@ -34,8 +34,16 @@ corrected append-only. The correction does not promote the method or open Gate
 
 ## Durable evidence anchors
 
-The operational source of truth is the immutable control store, independently
-read without writing it:
+The operational source of truth is the immutable control store at
+`C:\Users\steph\TDL-ARS-WP64-Control`. The repository-tracked
+[machine-readable retrieval manifest](01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-evidence-manifest.json)
+binds that root to its identity manifest, historical Task object, exact ledger
+files, registered artefact-object records, content paths, sizes, and independently
+recomputed file hashes. An independent reviewer with authorised local access,
+or access to a byte-exact verified restore, can retrieve and hash every named
+byte directly. The internal artefact bytes are not published in this public
+repository; the final independent backup remains an explicit closure step in
+06q. The store was read without writing it:
 
 - project identity: `prj_01978abc-1000-7000-8000-000000001000`;
 - store identity:

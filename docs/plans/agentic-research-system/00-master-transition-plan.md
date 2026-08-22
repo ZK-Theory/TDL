@@ -566,9 +566,10 @@ No executable P0 evidence, `.research-system/` runtime definition tree, control 
 The current Gate 6 capability status is **INCOMPLETE**: a historical real
 SPEC run is **PROVEN**, but no Gate 6 implementation is integrated on `main`.
 The run recorded 126 configurations, 42 deterministic reruns, terminal
-`PROVEN/spec_02_owner_decided`, and ledger tail `444 ResourcesReleased`; those
-facts are evidence of the run, not evidence that its implementation was
-merged. The current base is
+`PROVEN/spec_02_owner_decided`, and historical run-closure anchor
+`444 ResourcesReleased`. Later events exist in the same store, so 444 is not
+the current ledger tail. Those facts are evidence of the run, not evidence
+that its implementation was merged. The current base is
 `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`.
 
 The only active recovery and closure authority is

@@ -270,36 +270,6 @@ integrated Gate 6 and final closure evidence.
 > mutation, child issue, dependency change, status transition, or Gate 6
 > action. Current Jira control and work decomposition are governed only by 06q.
 
-KAN-12 is the only canonical open Gate 6 capability. Its description must be
-updated now to remove the false statement that WP6.6 is still under
-construction and to name the singular functional gap above.
-
-KAN-61 is already a completed milestone, not a missing Gate 6 capability. Its
-residual `Blocks` relation to KAN-12 is an acknowledged stale Jira projection;
-before KAN-12 is transitioned, remove that edge in the Jira UI and read both
-endpoints back. This is a small Jira-coherence action, not a reopened WP6.7
-delivery lane.
-
-After this proposal is adopted, create one visible child job under KAN-12:
-
-> **[CAPABILITY DELIVERY] Complete final Gate 6 eligibility envelope and assembled
-> readiness proof**
-
-That job owns the whole remaining positive path. Do not create separate Jira
-tickets for eligibility-envelope mechanics, test harnesses, review administration, or
-handoffs. Review and final owner acceptance are closure evidence on the same
-campaign. The job stays `In Progress` only while its production path is
-actively being executed; otherwise it is `To Do` or `Owner-blocked` with the
-exact next action.
-
-The final KAN-12 description must retain this strict order:
-
-1. capability state;
-2. completed end-to-end path;
-3. exact remaining functional gap;
-4. next production action;
-5. owner-only action, if one exists.
-
 ## Remote enforcement feasibility and choice
 
 This section is deliberately not yet applied. GitHub currently reports both
