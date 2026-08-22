@@ -14,9 +14,13 @@ from research_system.discovery.source_observation import (
     CausalLedgerPrefix,
     SourceReferenceNotResolved,
     prepare_spec_source_observation,
+    read_registered_spec_source_observation,
+    source_observation_manifest_references,
+    validate_registered_source_reference,
 )
 from research_system.errors import ConfigurationError, IntegrityError
 from research_system.schema_registry import cached_schema_registry
+from research_system.store.registered_content import CandidateDocumentStore
 
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[3] / ".research-system" / "schemas"
@@ -172,6 +176,166 @@ def test_source_observation_rejects_a_missing_required_commit_path() -> None:
         )
 
 
+def test_registered_source_reader_rejects_document_provenance_not_bound_by_manifest(tmp_path: Path) -> None:
+    document = prepare_spec_source_observation(
+        locator="https://github.com/berenslab/eff-ph/tree/neurips2024",
+        required_paths=("environment.yml",),
+        source_observation_id="obj_019fed25-b33e-7740-b280-6f661aaef301",
+        route_id="SPEC-01",
+        producer_actor_id="act_01978abc-1001-7000-8000-000000001001",
+        observed_at="2026-08-22T12:00:00Z",
+        causal_prefix=_prefix(),
+        transport=SourceTransport({"environment.yml": b"name: eff-ph\n"}),
+        schemas=cached_schema_registry(SCHEMA_ROOT),
+    )
+    store = CandidateDocumentStore(tmp_path)
+    raw = canonical_bytes(document)
+    relative_path = store.write("art_019fed25-b33e-7740-b280-6f661aaef307", raw)
+    manifest = {
+        "artefact_type": "spec_source_observation",
+        "artefact_schema_id": "ars://portfolio/spec-source-observation",
+        "artefact_schema_version": "1.0.0",
+        "relative_path": relative_path,
+        "content_sha256": sha256_hex(raw),
+        "size_bytes": len(raw),
+        "producer_actor_id": "act_01978abc-1001-7000-8000-000000001002",
+        "observed_at": document["observed_at"],
+        "validation": {
+            "validation_record_refs": list(source_observation_manifest_references(document)),
+        },
+    }
+
+    with pytest.raises(IntegrityError, match="provenance does not match the manifest"):
+        read_registered_spec_source_observation(
+            control_root=tmp_path,
+            manifest=manifest,
+            schemas=cached_schema_registry(SCHEMA_ROOT),
+        )
+
+
+def _registered_source_reference_fixture() -> tuple[dict[str, object], dict[str, object]]:
+    reference: dict[str, object] = {
+        "ref_kind": "artefact",
+        "artefact_id": "art_019fed25-b33e-7740-b280-6f661aaef307",
+        "content_hash": "1" * 64,
+        "registration_event_id": "evt_019fed25-b33e-7740-b280-6f661aaef308",
+        "registration_event_hash": "2" * 64,
+        "registration_global_position": 4,
+    }
+    source_document = {
+        "source_observation_id": "obj_019fed25-b33e-7740-b280-6f661aaef305",
+        "route_id": "SPEC-01",
+        "producer_actor_id": "act_01978abc-1001-7000-8000-000000001001",
+        "observed_at": "2026-08-22T12:00:00Z",
+        "resolution": {
+            "requested_locator": "https://github.com/berenslab/eff-ph/tree/neurips2024",
+            "commit_oid": COMMIT_OID,
+        },
+        "source_bundle_sha256": "3" * 64,
+        "causal_ledger_prefix": {
+            "global_position": 3,
+            "event_hash": "4" * 64,
+            "raw_prefix_sha256": "5" * 64,
+        },
+    }
+    artefact: dict[str, object] = {
+        "content_sha256": reference["content_hash"],
+        "registration_actor_id": "act_01978abc-1001-7000-8000-000000001001",
+        "registration_event_id": reference["registration_event_id"],
+        "registration_event_hash": reference["registration_event_hash"],
+        "registration_global_position": reference["registration_global_position"],
+        "manifest": {
+            "artefact_id": reference["artefact_id"],
+            "artefact_type": "spec_source_observation",
+            "artefact_schema_id": "ars://portfolio/spec-source-observation",
+            "artefact_schema_version": "1.0.0",
+            "producer_actor_id": "act_01978abc-1001-7000-8000-000000001001",
+            "observed_at": "2026-08-22T12:00:00Z",
+            "validation": {
+                "validation_record_refs": [
+                    "validation:independent-source-review",
+                    *source_observation_manifest_references(source_document),
+                ],
+            },
+        },
+    }
+    return reference, artefact
+
+
+def test_registered_source_reference_binds_closed_types_order_and_producer() -> None:
+    reference, artefact = _registered_source_reference_fixture()
+
+    manifest = validate_registered_source_reference(
+        reference,
+        artefact,
+        observation_position=5,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaef305",
+        source_query="https://github.com/berenslab/eff-ph/tree/neurips2024",
+        source_version=COMMIT_OID,
+        observed_at="2026-08-22T12:00:00Z",
+    )
+
+    assert manifest["producer_actor_id"] == artefact["registration_actor_id"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "boolean_position",
+        "late_position",
+        "extra_field",
+        "wrong_producer",
+        "scalar_content_hash",
+        "scalar_event_hash",
+        "unknown_source_ref",
+        "duplicate_source_ref",
+        "noncanonical_causal_position",
+        "wrong_replay_binding",
+    ],
+)
+def test_registered_source_reference_rejects_non_replayable_bindings(mutation: str) -> None:
+    reference, artefact = _registered_source_reference_fixture()
+    if mutation == "boolean_position":
+        reference["registration_global_position"] = True
+        artefact["registration_global_position"] = True
+    elif mutation == "late_position":
+        reference["registration_global_position"] = 5
+        artefact["registration_global_position"] = 5
+    elif mutation == "extra_field":
+        reference["unexpected"] = "not closed"
+    elif mutation == "wrong_producer":
+        artefact["manifest"]["producer_actor_id"] = "act_01978abc-1001-7000-8000-000000001002"
+    elif mutation == "scalar_content_hash":
+        reference["content_hash"] = 1
+    elif mutation == "scalar_event_hash":
+        reference["registration_event_hash"] = False
+    else:
+        refs = artefact["manifest"]["validation"]["validation_record_refs"]
+        if mutation == "unknown_source_ref":
+            refs.append("spec-source-unrecognized:claim")
+        elif mutation == "duplicate_source_ref":
+            refs.append(next(ref for ref in refs if ref.startswith("spec-source-route-id:")))
+        elif mutation == "noncanonical_causal_position":
+            index = next(index for index, ref in enumerate(refs) if ref.startswith("spec-source-causal-position:"))
+            refs[index] = "spec-source-causal-position:03"
+        else:
+            index = next(
+                index for index, ref in enumerate(refs) if ref.startswith("spec-source-replay-binding-sha256:")
+            )
+            refs[index] = f"spec-source-replay-binding-sha256:{'6' * 64}"
+
+    with pytest.raises(IntegrityError, match="source artefact"):
+        validate_registered_source_reference(
+            reference,
+            artefact,
+            observation_position=5,
+            observation_id="obj_019fed25-b33e-7740-b280-6f661aaef305",
+            source_query="https://github.com/berenslab/eff-ph/tree/neurips2024",
+            source_version=COMMIT_OID,
+            observed_at="2026-08-22T12:00:00Z",
+        )
+
+
 def test_replay_rejects_or029_v2_bound_to_a_non_source_artefact() -> None:
     """A rehashed history cannot substitute another registered artefact type."""
 
@@ -270,6 +434,8 @@ def test_replay_rejects_or029_v2_bound_to_a_non_source_artefact() -> None:
         transaction_events={"txn:source-observation": [scout_event, candidate_event]},
         operational_events=[],
         canonical_artefact_streams={},
+        raw_prefix_sha256=lambda _position: "5" * 64,
+        registered_source_resolver=None,
         required_string=lambda key: scout_payload[key],
         required_int=lambda key: scout_payload[key],
         required_string_list=lambda key: scout_payload[key],

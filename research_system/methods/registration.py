@@ -11,7 +11,11 @@ from typing import Any, Protocol
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.errors import ArsError, IntegrityError
-from research_system.store.registered_content import CandidateDocumentStore, recover_registered_content
+from research_system.store.registered_content import (
+    CandidateDocumentStore,
+    committed_registration_event,
+    recover_registered_content,
+)
 
 
 class CommandSubmitter(Protocol):
@@ -100,18 +104,20 @@ def register_candidate_document(
         "payload": {"new_artefact_id": registration.artefact_id, "manifest": manifest},
         "project_id": registration.project_id,
     }
-    marker_bytes = document_store.stage_recovery_marker(command, relative_path, raw)
+    marker = document_store.stage_recovery_marker(command, relative_path, raw)
     receipt = command_service.submit(command)
     if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
-        document_store.remove_recovery_marker(command, marker_bytes)
+        document_store.remove_recovery_marker(marker)
         reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
         explanation = getattr(receipt, "explanation", None)
         detail = f": {explanation}" if explanation else ""
         raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
+    event_batch_id = getattr(receipt, "event_batch_id", None)
     if (
         getattr(receipt, "command_id", None) != command["command_id"]
         or getattr(receipt, "payload_hash", None) != Command(command).payload_hash
-        or not isinstance(getattr(receipt, "event_batch_id", None), str)
+        or not isinstance(event_batch_id, str)
+        or not event_batch_id
     ):
         raise IntegrityError("candidate artefact registration receipt does not bind the exact command")
     ledger = getattr(command_service, "ledger", None)
@@ -122,8 +128,9 @@ def register_candidate_document(
     events = getattr(snapshot, "events", None)
     if not isinstance(events, tuple):
         raise IntegrityError("candidate artefact registration ledger snapshot is invalid")
+    committed_registration_event(events, command, event_batch_id=event_batch_id)
     recover_registered_content(document_store, events)
-    if document_store.read_relative(relative_path) != raw or document_store.marker_exists(command):
+    if document_store.read_relative(relative_path) != raw or document_store.marker_exists(marker):
         raise IntegrityError("candidate artefact registration did not seal exact content")
     return RegisteredCandidate(registration.artefact_id, digest, raw, relative_path, receipt)
 

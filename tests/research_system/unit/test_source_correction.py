@@ -75,14 +75,24 @@ def _ref(artefact_id, content_hash, event_id, event_hash, position):
     }
 
 
-def _prepare(ledger, *, recorded_at: object = "2026-08-22T12:00:00Z"):
+def _prepare(
+    ledger,
+    *,
+    recorded_at: object = "2026-08-22T12:00:00Z",
+    amended_evidence_refs=None,
+    scientific_disposition: str = "PARK",
+):
     return prepare_spec_source_correction(
         route_id="SPEC-GATE6-RUN-V2",
         correction_id="correction:neurips2024-tag",
         recorded_at=recorded_at,  # type: ignore[arg-type]
         producer_actor_id="act_01978abc-1001-7000-8000-000000001001",
         producer_session_id="session:source-correction",
-        amended_evidence_refs=(_ref(EVIDENCE_ID, EVIDENCE_HASH, EVIDENCE_EVENT_ID, EVIDENCE_EVENT_HASH, 1),),
+        amended_evidence_refs=(
+            (_ref(EVIDENCE_ID, EVIDENCE_HASH, EVIDENCE_EVENT_ID, EVIDENCE_EVENT_HASH, 1),)
+            if amended_evidence_refs is None
+            else amended_evidence_refs
+        ),
         corrected_source_observation_ref=_ref(
             SOURCE_ID,
             SOURCE_HASH,
@@ -93,7 +103,7 @@ def _prepare(ledger, *, recorded_at: object = "2026-08-22T12:00:00Z"):
         incorrect_assertions=("paper-cited neurips2024 branch is absent",),
         withdrawn_conditions=("primary_paper_code_discrepancy",),
         preserved_findings=("future_estimand_unidentified",),
-        scientific_disposition="PARK",
+        scientific_disposition=scientific_disposition,
         ledger=ledger,
         schemas=cached_schema_registry(SCHEMA_ROOT),
     )
@@ -139,6 +149,35 @@ def test_source_correction_rejects_a_stale_or_fabricated_raw_prefix() -> None:
             ledger=ledger,
             schemas=cached_schema_registry(SCHEMA_ROOT),
         )
+
+
+def test_source_correction_rejects_amended_evidence_beyond_its_causal_prefix() -> None:
+    ledger = Ledger()
+    correction = _prepare(ledger)
+    correction["amended_evidence_refs"][0]["registration_global_position"] = 3
+
+    with pytest.raises(IntegrityError, match="outside the causal prefix"):
+        validate_spec_source_correction(
+            correction,
+            ledger=ledger,
+            schemas=cached_schema_registry(SCHEMA_ROOT),
+        )
+
+
+def test_source_correction_rejects_duplicate_amended_evidence() -> None:
+    ledger = Ledger()
+    reference = _ref(EVIDENCE_ID, EVIDENCE_HASH, EVIDENCE_EVENT_ID, EVIDENCE_EVENT_HASH, 1)
+
+    with pytest.raises(IntegrityError, match="schema|repeats amended evidence"):
+        _prepare(ledger, amended_evidence_refs=(reference, deepcopy(reference)))
+
+
+def test_v2_source_correction_uses_the_canonical_uppercase_partial_token() -> None:
+    ledger = Ledger()
+    assert _prepare(ledger, scientific_disposition="PARTIAL")["scientific_disposition"] == "PARTIAL"
+
+    with pytest.raises(IntegrityError, match="schema"):
+        _prepare(ledger, scientific_disposition="Partial")
 
 
 @pytest.mark.parametrize("recorded_at", [None, 1, []])

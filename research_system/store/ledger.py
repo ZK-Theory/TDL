@@ -587,8 +587,22 @@ class EventLedger:
 
     def iter_batches(self) -> Iterator[tuple[dict[str, Any], ...]]:
         for path in self._batch_paths():
-            with path.open(encoding="utf-8") as handle:
-                batch = tuple(json.loads(line) for line in handle if line.strip())
+            raw = path.read_bytes()
+            raw_lines = raw.splitlines(keepends=True)
+            if not raw_lines or any(not line.endswith(b"\n") or not line.strip() for line in raw_lines):
+                raise ArsError(f"invalid event batch: noncanonical physical lines in {path}")
+            try:
+                batch = tuple(json.loads(line) for line in raw_lines)
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ArsError(f"invalid event batch: malformed JSON in {path}") from exc
+            try:
+                noncanonical = any(
+                    raw_line != canonical_bytes(event) + b"\n" for raw_line, event in zip(raw_lines, batch, strict=True)
+                )
+            except ValueError as exc:
+                raise ArsError(f"invalid event batch: noncanonical physical bytes in {path}") from exc
+            if noncanonical:
+                raise ArsError(f"invalid event batch: noncanonical physical bytes in {path}")
 
             if not batch:
                 raise ArsError(f"invalid event batch: empty file {path}")

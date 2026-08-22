@@ -16,7 +16,11 @@ from research_system.discovery.rules import _candidate_ref
 from research_system.discovery.rules import _candidate_replacement_is_used
 from research_system.discovery.rules import _candidate_supersession_lineage
 from research_system.discovery.rules import _source_observation_multiset_hash
-from research_system.errors import IntegrityError
+from research_system.discovery.source_observation import (
+    registered_source_manifest_evidence,
+    validate_registered_source_reference,
+)
+from research_system.errors import ArsError, IntegrityError
 from typing import Mapping
 
 
@@ -42,19 +46,53 @@ def reduce_scout_observation_ingested(scope: EventScope) -> None:
         if isinstance(source_refs, list) and len(source_refs) == 1 and isinstance(source_refs[0], Mapping):
             source_ref = source_refs[0]
             artefact = state["artefact_streams"].get(source_ref.get("artefact_id"))
-            if isinstance(artefact, Mapping):
-                manifest = artefact.get("manifest")
-                registered_source_valid = bool(
-                    isinstance(manifest, Mapping)
-                    and manifest.get("artefact_type") == "spec_source_observation"
-                    and manifest.get("artefact_schema_id") == "ars://portfolio/spec-source-observation"
-                    and manifest.get("artefact_schema_version") == "1.0.0"
-                    and source_ref.get("content_hash") == artefact.get("content_sha256")
-                    and source_ref.get("registration_event_id") == artefact.get("registration_event_id")
-                    and source_ref.get("registration_event_hash") == artefact.get("registration_event_hash")
-                    and source_ref.get("registration_global_position") == artefact.get("registration_global_position")
-                    and artefact.get("registration_global_position", 0) < event.get("global_position", 0)
+            try:
+                manifest = validate_registered_source_reference(
+                    source_ref,
+                    artefact,
+                    observation_position=event.get("global_position"),
+                    observation_id=observation_id,
+                    source_query=batch.get("source_query"),
+                    source_version=batch.get("source_version"),
+                    observed_at=batch.get("observed_at"),
                 )
+                evidence = registered_source_manifest_evidence(manifest)
+                prefix = evidence["causal_ledger_prefix"]
+                assert isinstance(prefix, dict)
+                prefix_position = prefix["global_position"]
+                prefix_matches = prefix_position == 0 and prefix["event_hash"] == "0" * 64
+                if prefix_position > 0:
+                    prefix_events = [
+                        persisted
+                        for members in transaction_events.values()
+                        for persisted in members
+                        if persisted.get("global_position") == prefix_position
+                    ]
+                    prefix_matches = (
+                        len(prefix_events) == 1 and prefix_events[0].get("event_hash") == prefix["event_hash"]
+                    )
+                if not prefix_matches or scope.raw_prefix_sha256(prefix_position) != prefix["raw_prefix_sha256"]:
+                    raise IntegrityError("Scout source artefact causal binding is invalid")
+                if scope.registered_source_resolver is None:
+                    raise IntegrityError("Scout source artefact content resolver is unavailable")
+                document = scope.registered_source_resolver(manifest)
+                resolution = document.get("resolution") if isinstance(document, Mapping) else None
+                if (
+                    not isinstance(resolution, Mapping)
+                    or document.get("source_observation_id") != observation_id
+                    or document.get("route_id") != evidence["route_id"]
+                    or document.get("producer_actor_id") != manifest.get("producer_actor_id")
+                    or document.get("observed_at") != batch.get("observed_at")
+                    or document.get("source_bundle_sha256") != evidence["source_bundle_sha256"]
+                    or document.get("causal_ledger_prefix") != prefix
+                    or resolution.get("requested_locator") != batch.get("source_query")
+                    or resolution.get("commit_oid") != batch.get("source_version")
+                ):
+                    raise IntegrityError("Scout source artefact content binding is invalid")
+            except ArsError:
+                pass
+            else:
+                registered_source_valid = True
     if (
         not isinstance(batch, dict)
         or not isinstance(dedup_keys, list)
@@ -62,6 +100,7 @@ def reduce_scout_observation_ingested(scope: EventScope) -> None:
         or not all(isinstance(value, str) and value for value in dedup_keys)
         or len(dedup_keys) != len(set(dedup_keys))
         or required_string("content_sha256") != sha256_hex(canonical_bytes(batch))
+        or batch.get("returned_identifiers") != [observation_id]
         or any(
             set(dedup_keys) & set(existing.get("normalized_dedup_keys", []))
             for existing in state["source_observations"].values()

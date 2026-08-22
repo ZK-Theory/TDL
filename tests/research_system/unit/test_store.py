@@ -39,6 +39,10 @@ def _catalogue_only_ledger(tmp_path):
     )
 
 
+def _write_canonical_batch(path: Path, events: list[dict]) -> None:
+    path.write_bytes(b"".join(canonical_bytes(event) + b"\n" for event in events))
+
+
 def test_control_root_requires_registered_code_roots(tmp_path):
     with pytest.raises(ArsError, match="registered code roots required"):
         require_external_control_root([], tmp_path / "control")
@@ -1190,6 +1194,25 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert receipt["event_batch_id"] == events[0]["transaction_id"]
 
 
+def test_event_iteration_rejects_noncanonical_physical_ledger_bytes(tmp_path):
+    ledger = _catalogue_only_ledger(tmp_path)
+    ledger.append(
+        [
+            {
+                "event_type": "TaskCreated",
+                "stream_id": TASK_ID,
+                "schema_id": "ars://core/event",
+            }
+        ]
+    )
+    path = ledger._batch_paths()[0]
+    raw = path.read_bytes()
+    path.write_bytes(raw.replace(b"{", b"{ ", 1))
+
+    with pytest.raises(ArsError, match="noncanonical physical bytes"):
+        tuple(ledger.iter_events())
+
+
 def test_raw_prefix_sha256_stops_after_first_batch_beyond_cut(tmp_path, monkeypatch):
     ledger = _catalogue_only_ledger(tmp_path)
     for index in range(3):
@@ -1422,14 +1445,14 @@ def test_replay_rejects_split_multi_event_batch_across_files(tmp_path):
     )
 
     batch = next(ledger.events_root.rglob("*.jsonl"))
-    lines = [line for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [line for line in batch.read_bytes().splitlines(keepends=True) if line.strip()]
     assert len(lines) == 2
 
     batch.unlink()
     left = batch.with_name(batch.name.replace(".jsonl", "-left.jsonl"))
     right = batch.with_name(batch.name.replace(".jsonl", "-right.jsonl"))
-    left.write_text(lines[0] + "\n", encoding="utf-8")
-    right.write_text(lines[1] + "\n", encoding="utf-8")
+    left.write_bytes(lines[0])
+    right.write_bytes(lines[1])
 
     with pytest.raises(ArsError, match="transaction_count does not match physical line count"):
         list(ledger.iter_events())
@@ -1444,8 +1467,8 @@ def test_iter_batches_rejects_reordered_physical_transaction_indexes(tmp_path):
         ]
     )
     batch = next(ledger.events_root.rglob("*.jsonl"))
-    lines = [line for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
-    batch.write_text("\n".join(reversed(lines)) + "\n", encoding="utf-8")
+    lines = [line for line in batch.read_bytes().splitlines(keepends=True) if line.strip()]
+    batch.write_bytes(b"".join(reversed(lines)))
 
     with pytest.raises(ArsError, match="invalid transaction_index sequence"):
         next(ledger.iter_batches())
@@ -1455,8 +1478,8 @@ def test_iter_batches_rejects_reordered_physical_transaction_indexes(tmp_path):
     ("field", "value", "expected_error"),
     (
         ("transaction_index", True, "invalid transaction_index sequence"),
-        ("transaction_index", 1.0, "invalid transaction_index sequence"),
-        ("transaction_count", 2.0, "transaction_count does not match physical line count"),
+        ("transaction_index", 1.0, "noncanonical physical bytes"),
+        ("transaction_count", 2.0, "noncanonical physical bytes"),
     ),
     ids=["boolean-index", "float-index", "float-count"],
 )
@@ -1471,7 +1494,15 @@ def test_iter_batches_rejects_non_integer_transaction_envelope_values(tmp_path, 
     batch = next(ledger.events_root.rglob("*.jsonl"))
     events = [json.loads(line) for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
     events[0][field] = value
-    batch.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+    if type(value) is float:
+        batch.write_bytes(
+            b"".join(
+                json.dumps(event, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii") + b"\n"
+                for event in events
+            )
+        )
+    else:
+        _write_canonical_batch(batch, events)
 
     with pytest.raises(ArsError, match=expected_error):
         next(ledger.iter_batches())
@@ -1488,7 +1519,7 @@ def test_iter_batches_rejects_mixed_t2_and_core_transaction_conventions(tmp_path
     batch = next(ledger.events_root.rglob("*.jsonl"))
     events = [json.loads(line) for line in batch.read_text(encoding="utf-8").splitlines() if line.strip()]
     events[0]["schema_id"] = "ars://wp6-2/t2/event/CostGrantIssued"
-    batch.write_text("\n".join(json.dumps(event) for event in events) + "\n", encoding="utf-8")
+    _write_canonical_batch(batch, events)
 
     with pytest.raises(ArsError, match="mixed transaction_index conventions"):
         next(ledger.iter_batches())

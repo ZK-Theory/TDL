@@ -627,6 +627,7 @@ def replay_grandfathered(
     *,
     schema_registry: SchemaRegistry,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     """Replay a ledger only after exact G-RM-8 prefix admission."""
     if not isinstance(schema_registry, SchemaRegistry):
@@ -643,6 +644,7 @@ def replay_grandfathered(
         schema_registry=schema_registry,
         grandfathered_missing_positions=frozenset(decision.evidence.missing_triple_positions),
         authority_state_validator=authority_state_validator,
+        registered_source_resolver=registered_source_resolver,
     )
     _verify_decision(ledger, decision)
     _require_expected_snapshot(ledger.snapshot(), snapshot)

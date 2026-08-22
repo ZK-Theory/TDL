@@ -9,7 +9,7 @@ captured implicitly from a two-thousand-line enclosing function.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from research_system.schema_registry import SchemaRegistry
 
@@ -26,6 +26,8 @@ class EventScope:
     transaction_events: dict[Any, list[dict[str, Any]]]
     operational_events: list[dict[str, Any]]
     canonical_artefact_streams: dict[str, dict[str, Any]]
+    raw_prefix_sha256: Callable[[int], str]
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None
     required_string: Callable[[str], str]
     required_int: Callable[[str], int]
     required_string_list: Callable[[str], list[str]]

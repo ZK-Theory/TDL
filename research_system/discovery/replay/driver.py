@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import reduce_artefact, replay_control_plane
@@ -35,6 +35,7 @@ def replay_discovery(
     events: Iterable[dict[str, Any]],
     *,
     schemas: SchemaRegistry | None = None,
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     """Rebuild Discovery state while rejecting malformed transitions.
 
@@ -57,6 +58,29 @@ def replay_discovery(
         transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
     for transaction in transaction_events.values():
         validate_transaction_contract(transaction)
+
+    def raw_prefix_sha256(global_position: int) -> str:
+        """Reconstruct exact canonical batch bytes through a transaction boundary."""
+
+        if type(global_position) is not int or global_position < 0:
+            raise IntegrityError("raw ledger prefix position is invalid")
+        prefix = bytearray()
+        for transaction in transaction_events.values():
+            positions = [event.get("global_position") for event in transaction]
+            if not positions or not all(type(position) is int for position in positions):
+                raise IntegrityError("raw ledger prefix transaction position is invalid")
+            first_position = min(positions)
+            last_position = max(positions)
+            if last_position <= global_position:
+                for persisted_event in transaction:
+                    prefix.extend(canonical_bytes(persisted_event))
+                    prefix.extend(b"\n")
+            elif first_position <= global_position:
+                raise IntegrityError("raw ledger prefix splits one atomic event batch")
+            else:
+                break
+        return sha256_hex(bytes(prefix))
+
     state: dict[str, Any] = {
         "catalogue": None,
         "source_observations": {},
@@ -651,6 +675,8 @@ def replay_discovery(
                 transaction_events=transaction_events,
                 operational_events=operational_events,
                 canonical_artefact_streams=canonical_artefact_streams,
+                raw_prefix_sha256=raw_prefix_sha256,
+                registered_source_resolver=registered_source_resolver,
                 required_string=required_string,
                 required_int=required_int,
                 required_string_list=required_string_list,

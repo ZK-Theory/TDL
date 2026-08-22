@@ -69,7 +69,7 @@
       },
       "additionalProperties": false
     },
-    "scientific_disposition": {"enum": ["PROMOTE", "PARK", "KILL", "Partial"]}
+    "scientific_disposition": {"enum": ["PROMOTE", "PARK", "KILL", "PARTIAL"]}
   },
   "additionalProperties": false,
   "$defs": {

@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.errors import ConflictError, SchemaError
 from research_system.evidence.consumers import ArtefactConsumerContext
 from research_system.methods.registration import CandidateDocumentStore, CandidateRegistration
@@ -58,8 +59,35 @@ _EVIDENCE_CORE_FIELDS = (
 
 def _prepare_fixture(control_root: Path, **overrides):
     class AcceptedCommandService:
-        def submit(self, _command):
-            return SimpleNamespace(status="accepted")
+        def __init__(self):
+            self.events = []
+            self.ledger = SimpleNamespace(snapshot=lambda: SimpleNamespace(events=tuple(self.events)))
+
+        def submit(self, command):
+            event = {
+                "transaction_id": "tx-session-brief-registration",
+                "command_id": command["command_id"],
+                "command_type": "RegisterArtefact",
+                "event_type": "ArtefactRegistered",
+                "stream_id": command["target_stream_id"],
+                "project_id": command["project_id"],
+                "command_schema_id": command["schema_id"],
+                "command_schema_version": command["schema_version"],
+                "idempotency_key": command["idempotency_key"],
+                "correlation_id": command["correlation_id"],
+                "causation_id": command["causation_id"],
+                "actor_id": command["actor_id"],
+                "authority_grant_id": command["authority_grant_id"],
+                "command_payload_hash": Command(command).payload_hash,
+                "payload": command["payload"],
+            }
+            self.events.append(event)
+            return SimpleNamespace(
+                status="accepted",
+                command_id=command["command_id"],
+                payload_hash=Command(command).payload_hash,
+                event_batch_id=event["transaction_id"],
+            )
 
     values = {
         "registration": CandidateRegistration(

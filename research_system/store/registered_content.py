@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+import re
+import secrets
+import sys
+import time
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,7 +17,14 @@ from typing import Any, Iterator, Mapping
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.errors import ConfigurationError, IntegrityError
-from research_system.store.lock import DirectoryAnchor, LockedRoot, open_registered_root_anchor
+from research_system.errors import ConflictError
+from research_system.store.lock import (
+    CompositeWriterLock,
+    DirectoryAnchor,
+    ExactFileConflictError,
+    LockedRoot,
+    open_registered_root_anchor,
+)
 
 
 class CandidateDocumentStore:
@@ -72,7 +83,12 @@ class CandidateDocumentStore:
             if current is None:
                 current = open_registered_root_anchor(self.control_root, delete_protect=True)
                 anchors.append(current)
-            for part in relative.parts:
+            parts = relative.parts
+            if isinstance(current, LockedRoot) and len(parts) >= 2 and parts[0] == "runtime":
+                current = current.open_runtime_member_directory(parts[1], create=create)
+                anchors.append(current)
+                parts = parts[2:]
+            for part in parts:
                 current = current.open_member_directory(part, create=create)
                 anchors.append(current)
             yield current
@@ -111,7 +127,10 @@ class CandidateDocumentStore:
     ) -> None:
         relative = self._relative_file(relative_path)
         with self._open_directory(relative.parent, create=True, root_anchor=root_anchor) as directory:
-            directory.write_exact_file(relative.name, raw_bytes)
+            try:
+                directory.write_exact_file(relative.name, raw_bytes)
+            except ExactFileConflictError as exc:
+                raise ConflictError("methods document identity already binds different bytes") from exc
 
     def read_relative(
         self,
@@ -134,18 +153,29 @@ class CandidateDocumentStore:
 
         self.write_relative(relative_path, raw_bytes, root_anchor=root_anchor)
 
-    def stage_recovery_marker(self, command: dict[str, Any], relative_path: str, raw_bytes: bytes) -> bytes:
+    def stage_recovery_marker(
+        self,
+        command: dict[str, Any],
+        relative_path: str,
+        raw_bytes: bytes,
+    ) -> RecoveryMarker:
         marker = _recovery_marker(command, relative_path, raw_bytes)
         marker_bytes = canonical_bytes(marker)
+        staged = RecoveryMarker(_marker_name(command, secrets.token_hex(16)), marker_bytes)
         with self._open_directory(self.recovery_directory, create=True) as directory:
-            directory.write_exact_file(_marker_name(command), marker_bytes)
-        return marker_bytes
+            directory.write_exact_file(staged.name, marker_bytes)
+        return staged
 
     @contextmanager
-    def recovery_session(self) -> Iterator[tuple[DirectoryAnchor, DirectoryAnchor]]:
+    def recovery_session(
+        self,
+        *,
+        root_anchor: DirectoryAnchor | LockedRoot | None = None,
+    ) -> Iterator[tuple[DirectoryAnchor | LockedRoot, DirectoryAnchor]]:
         """Hold the exact physical recovery directory for one complete pass."""
 
-        root = open_registered_root_anchor(self.control_root, delete_protect=True)
+        root = root_anchor or open_registered_root_anchor(self.control_root, delete_protect=True)
+        owns_root = root_anchor is None
         primary_error: BaseException | None = None
         try:
             with self._open_directory(
@@ -158,12 +188,13 @@ class CandidateDocumentStore:
             primary_error = exc
             raise
         finally:
-            try:
-                root.close()
-            except BaseException as cleanup_error:
-                if primary_error is not None:
-                    raise primary_error.with_traceback(primary_error.__traceback__) from cleanup_error
-                raise
+            if owns_root:
+                try:
+                    root.close()
+                except BaseException as cleanup_error:
+                    if primary_error is not None:
+                        raise primary_error.with_traceback(primary_error.__traceback__) from cleanup_error
+                    raise
 
     @staticmethod
     def recovery_markers(directory: DirectoryAnchor) -> tuple[tuple[str, bytes], ...]:
@@ -172,20 +203,19 @@ class CandidateDocumentStore:
 
     def remove_recovery_marker(
         self,
-        command: dict[str, Any],
-        marker_bytes: bytes,
+        marker: RecoveryMarker,
         *,
         directory: DirectoryAnchor | None = None,
     ) -> None:
         if directory is not None:
-            directory.remove_exact_file(_marker_name(command), marker_bytes)
+            directory.remove_exact_file(marker.name, marker.raw_bytes)
             return
         with self.recovery_session() as (_root, opened):
-            opened.remove_exact_file(_marker_name(command), marker_bytes)
+            opened.remove_exact_file(marker.name, marker.raw_bytes)
 
-    def marker_exists(self, command: dict[str, Any]) -> bool:
+    def marker_exists(self, marker: RecoveryMarker) -> bool:
         with self.recovery_session() as (_root, directory):
-            return _marker_name(command) in directory.list_names()
+            return marker.name in directory.list_names()
 
 
 _COMMAND_FIELDS = {
@@ -214,14 +244,37 @@ class _PreparedRecovery:
     command: dict[str, Any]
     relative_path: str
     raw_bytes: bytes
+    marker_name: str
     marker_bytes: bytes
 
 
-def _marker_name(command: Mapping[str, Any]) -> str:
+@dataclass(frozen=True)
+class RecoveryMarker:
+    """Invocation-owned recovery marker identity and exact bytes."""
+
+    name: str
+    raw_bytes: bytes
+
+
+def _command_marker_prefix(command: Mapping[str, Any]) -> str:
     command_id = command.get("command_id")
     if not isinstance(command_id, str) or not command_id.startswith("cmd_"):
         raise IntegrityError("registered content marker command identity is invalid")
-    return f"{command_id}.json"
+    return command_id
+
+
+def _marker_name(command: Mapping[str, Any], generation: str) -> str:
+    if not isinstance(generation, str) or re.fullmatch(r"[0-9a-f]{32}", generation) is None:
+        raise IntegrityError("registered content marker generation is invalid")
+    return f"{_command_marker_prefix(command)}.{generation}.json"
+
+
+def _marker_name_matches(name: str, command: Mapping[str, Any]) -> bool:
+    command_id = _command_marker_prefix(command)
+    return (
+        name == f"{command_id}.json"
+        or re.fullmatch(rf"{re.escape(command_id)}[.][0-9a-f]{{32}}[.]json", name) is not None
+    )
 
 
 def _recovery_marker(command: dict[str, Any], relative_path: str, raw_bytes: bytes) -> dict[str, Any]:
@@ -259,7 +312,7 @@ def _decode_recovery_marker(name: str, raw: bytes) -> _PreparedRecovery:
     relative_path = value.get("relative_path")
     if not isinstance(command, dict) or set(command) != _COMMAND_FIELDS or not isinstance(relative_path, str):
         raise IntegrityError("registered content recovery command is invalid")
-    if name != _marker_name(command):
+    if not _marker_name_matches(name, command):
         raise IntegrityError("registered content recovery marker name mismatch")
     try:
         raw_bytes = base64.b64decode(value.get("content_base64"), validate=True)
@@ -284,7 +337,7 @@ def _decode_recovery_marker(name: str, raw: bytes) -> _PreparedRecovery:
     ):
         raise IntegrityError("registered content recovery marker binding is invalid")
     CandidateDocumentStore._relative_file(relative_path)
-    return _PreparedRecovery(deepcopy(command), relative_path, raw_bytes, raw)
+    return _PreparedRecovery(deepcopy(command), relative_path, raw_bytes, name, raw)
 
 
 def _registration_event_matches(event: object, command: dict[str, Any]) -> bool:
@@ -308,8 +361,47 @@ def _registration_event_matches(event: object, command: dict[str, Any]) -> bool:
     )
 
 
+def committed_registration_event(
+    events: tuple[dict[str, Any], ...],
+    command: dict[str, Any],
+    *,
+    event_batch_id: str,
+) -> dict[str, Any]:
+    """Return the one exact registration event named by an accepted receipt."""
+
+    matches = tuple(event for event in events if _registration_event_matches(event, command))
+    batch = tuple(event for event in events if event.get("transaction_id") == event_batch_id)
+    if len(matches) != 1 or batch != matches:
+        raise IntegrityError("candidate artefact registration receipt does not bind the committed event batch")
+    return matches[0]
+
+
 def _after_recovery_directory_anchored(_directory: DirectoryAnchor) -> None:
     """Test seam after the physical recovery directory is held."""
+
+
+@contextmanager
+def _serialized_recovery(document_store: CandidateDocumentStore) -> Iterator[CompositeWriterLock]:
+    """Wait for the canonical store writer lease before a complete recovery pass."""
+
+    deadline = time.monotonic() + 30.0
+    while True:
+        lease = CompositeWriterLock(
+            (document_store.control_root,),
+            {"operation": "recover_registered_content"},
+        )
+        try:
+            lease.__enter__()
+        except ConflictError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
+            continue
+        break
+    try:
+        yield lease
+    finally:
+        lease.__exit__(*sys.exc_info())
 
 
 def recover_registered_content(
@@ -318,30 +410,38 @@ def recover_registered_content(
 ) -> tuple[str, ...]:
     """Publish staged content only from one exact committed registration event."""
 
-    with document_store.recovery_session() as (root, directory):
-        _after_recovery_directory_anchored(directory)
-        prepared = tuple(_decode_recovery_marker(name, raw) for name, raw in document_store.recovery_markers(directory))
-        authorized: list[_PreparedRecovery] = []
-        for item in prepared:
-            matches = [event for event in events if _registration_event_matches(event, item.command)]
-            if len(matches) > 1:
-                raise IntegrityError("registered content recovery found duplicate registration events")
-            if len(matches) == 1:
-                authorized.append(item)
-        for item in authorized:
-            document_store.publish_registered(
-                item.relative_path,
-                item.raw_bytes,
-                root_anchor=root,
+    with _serialized_recovery(document_store) as lease:
+        locked_root = lease.locked_root(document_store.control_root)
+        with document_store.recovery_session(root_anchor=locked_root) as (root, directory):
+            _after_recovery_directory_anchored(directory)
+            prepared = tuple(
+                _decode_recovery_marker(name, raw) for name, raw in document_store.recovery_markers(directory)
             )
-            if document_store.read_relative(item.relative_path, root_anchor=root) != item.raw_bytes:
-                raise IntegrityError("registered content publication does not match the authorized bytes")
-            document_store.remove_recovery_marker(
-                item.command,
-                item.marker_bytes,
-                directory=directory,
-            )
+            authorized: list[_PreparedRecovery] = []
+            for item in prepared:
+                matches = [event for event in events if _registration_event_matches(event, item.command)]
+                if len(matches) > 1:
+                    raise IntegrityError("registered content recovery found duplicate registration events")
+                if len(matches) == 1:
+                    authorized.append(item)
+            for item in authorized:
+                document_store.publish_registered(
+                    item.relative_path,
+                    item.raw_bytes,
+                    root_anchor=root,
+                )
+                if document_store.read_relative(item.relative_path, root_anchor=root) != item.raw_bytes:
+                    raise IntegrityError("registered content publication does not match the authorized bytes")
+                document_store.remove_recovery_marker(
+                    RecoveryMarker(item.marker_name, item.marker_bytes),
+                    directory=directory,
+                )
     return tuple(item.relative_path for item in authorized)
 
 
-__all__ = ["CandidateDocumentStore", "recover_registered_content"]
+__all__ = [
+    "CandidateDocumentStore",
+    "RecoveryMarker",
+    "committed_registration_event",
+    "recover_registered_content",
+]

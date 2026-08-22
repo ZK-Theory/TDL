@@ -408,6 +408,88 @@ def test_cli_source_fetch_does_not_misclassify_auth_failure_as_absent(
     assert error.value.failure_kind == "auth"
 
 
+def test_cli_source_fetch_cannot_turn_a_missing_exact_commit_into_empty_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = GitCliReferenceTransport()
+
+    def fake_run(arguments: tuple[str, ...], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        if arguments[0] == "init":
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        return subprocess.CompletedProcess(arguments, 128, "", "fatal: not our ref")
+
+    monkeypatch.setattr(transport, "_run", fake_run)
+
+    with pytest.raises(GitTransportFailure, match="Git source fetch failed") as error:
+        transport.read_paths("https://github.com/acme/project.git", DIRECT_OID, ("source.py",))
+
+    assert error.value.failure_kind == "transport"
+
+
+@pytest.mark.parametrize(
+    ("repository_url", "revision"),
+    [
+        ("-upload-pack=attacker", "refs/heads/main"),
+        ("https://github.com/acme/project.git", "--help"),
+        ("https://github.com/acme/project.git", ""),
+    ],
+)
+def test_cli_transport_rejects_option_like_or_empty_operands(repository_url: str, revision: str) -> None:
+    with pytest.raises(ValueError, match="non-option Git operand"):
+        GitCliReferenceTransport().resolve_commit(repository_url, revision)
+
+
+def test_cli_blob_failure_is_unavailable_not_a_missing_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    transport = GitCliReferenceTransport()
+
+    def fake_run(arguments: tuple[str, ...], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        if arguments[0] in {"init", "fetch"}:
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        assert arguments[0] == "rev-parse"
+        return subprocess.CompletedProcess(arguments, 0, f"{DIRECT_OID}\n", "")
+
+    def fake_run_bytes(arguments: tuple[str, ...], *, cwd: Path) -> subprocess.CompletedProcess[bytes]:
+        del cwd
+        if arguments[0] == "ls-tree":
+            entry = f"100644 blob {BRANCH_OID}\tsource.py\0".encode()
+            return subprocess.CompletedProcess(arguments, 0, entry, b"")
+        assert arguments[0] == "cat-file"
+        return subprocess.CompletedProcess(arguments, 128, b"", b"fatal: object corrupt")
+
+    monkeypatch.setattr(transport, "_run", fake_run)
+    monkeypatch.setattr(transport, "_run_bytes", fake_run_bytes)
+
+    with pytest.raises(GitTransportFailure, match="Git blob read failed") as error:
+        transport.read_paths("https://github.com/acme/project.git", DIRECT_OID, ("source.py",))
+
+    assert error.value.failure_kind == "transport"
+
+
+def test_cli_tree_absence_is_the_only_missing_path_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    transport = GitCliReferenceTransport()
+
+    def fake_run(arguments: tuple[str, ...], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        if arguments[0] in {"init", "fetch"}:
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        return subprocess.CompletedProcess(arguments, 0, f"{DIRECT_OID}\n", "")
+
+    monkeypatch.setattr(transport, "_run", fake_run)
+    monkeypatch.setattr(
+        transport,
+        "_run_bytes",
+        lambda arguments, *, cwd: subprocess.CompletedProcess(arguments, 0, b"", b""),
+    )
+
+    assert (
+        transport.read_paths(
+            "https://github.com/acme/project.git",
+            DIRECT_OID,
+            ("missing.py",),
+        )
+        == {}
+    )
+
+
 def test_registered_schema_accepts_each_closed_result_variant() -> None:
     registry = cached_schema_registry(SCHEMA_ROOT)
     values = [
@@ -485,3 +567,6 @@ def test_git_cli_transport_handles_real_heads_and_both_tag_forms(tmp_path: Path)
     assert transport.resolve_commit(str(remote), "refs/tags/lightweight") == commit_oid
     assert transport.resolve_commit(str(remote), "refs/tags/annotated") == commit_oid
     assert transport.resolve_commit(str(remote), commit_oid) == commit_oid
+    assert transport.read_paths(str(remote), commit_oid, ("source.txt", "missing.txt")) == {
+        "source.txt": b"exact source\n"
+    }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -1071,6 +1071,7 @@ def replay(
     schema_registry: SchemaRegistry | None = None,
     legacy_command_provenance_through_position: int = 0,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     """Rebuild projection state from canonical ledger events.
 
@@ -1082,6 +1083,8 @@ def replay(
             nonzero value raises ``IntegrityError``. Use
             ``replay_grandfathered`` for exact G-RM-8 prefix admission.
         authority_state_validator: Optional validator for authority projections.
+        registered_source_resolver: Exact registered-content reader required by
+            Discovery source-observation v2 replay.
 
     Returns:
         The rebuilt projection state.
@@ -1104,6 +1107,7 @@ def replay(
         schema_registry=schema_registry,
         grandfathered_missing_positions=frozenset(),
         authority_state_validator=authority_state_validator,
+        registered_source_resolver=registered_source_resolver,
     )
 
 
@@ -1114,6 +1118,7 @@ def _replay(
     schema_registry: SchemaRegistry | None,
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     ordered_events = tuple(events)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
@@ -1276,7 +1281,11 @@ def _replay(
         # public shared-ledger replay reject Discovery semantic tampering.
         from research_system.discovery.runtime import replay_discovery
 
-        replay_discovery(ordered_events, schemas=schema_registry)
+        replay_discovery(
+            ordered_events,
+            schemas=schema_registry,
+            registered_source_resolver=registered_source_resolver,
+        )
     return state
 
 
@@ -1285,11 +1294,13 @@ def rebuild_projection(
     output: Path,
     schema_registry: SchemaRegistry | None = None,
     authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+    registered_source_resolver: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, Any]:
     state = replay(
         events,
         schema_registry=schema_registry,
         authority_state_validator=authority_state_validator,
+        registered_source_resolver=registered_source_resolver,
     )
     data = canonical_bytes(state) + b"\n"
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -22,7 +22,12 @@ from research_system.discovery.assay_authority import (
 )
 from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
 from research_system.discovery.git_reference import AdvertisedGitReference
-from research_system.discovery.source_observation import CausalLedgerPrefix, prepare_spec_source_observation
+from research_system.discovery.source_observation import (
+    CausalLedgerPrefix,
+    prepare_spec_source_observation,
+    read_registered_spec_source_observation,
+    source_observation_manifest_references,
+)
 from research_system.discovery.routes import (
     DISCOVERY_EXISTING_TARGETS as _DISCOVERY_EXISTING_TARGETS,
     DISCOVERY_IDENTITY_COLLECTIONS as _DISCOVERY_IDENTITY_COLLECTIONS,
@@ -431,17 +436,21 @@ def _ingest_candidate(
     return candidate_sha256
 
 
-def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp_path: Path) -> None:
-    runtime = _runtime(tmp_path)
-    runtime.submit(_genesis())
+def _registered_source_ingest(
+    runtime: DiscoveryRuntime,
+    *,
+    observation_id: str,
+    candidate_id: str,
+    artefact_id: str,
+    raw_prefix_sha256: str | None = None,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
     harness = next(value for value in _HARNESSES.values() if value.ledger is runtime.ledger)
     snapshot = runtime.ledger.snapshot()
-    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef341"
-    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef342"
-    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaef343"
     commit_oid = "145efcde673f1a1897eff250b77221d26c34c479"
 
     class SourceTransport:
+        """Deterministic remote-boundary fake; the governed store/runtime path remains real."""
+
         def advertise(self, repository_url):
             del repository_url
             return (AdvertisedGitReference("refs/tags/neurips2024", commit_oid),)
@@ -465,7 +474,11 @@ def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp
         causal_prefix=CausalLedgerPrefix(
             global_position=snapshot.global_position,
             event_hash=snapshot.event_hash,
-            raw_prefix_sha256=runtime.ledger.raw_prefix_sha256(snapshot.global_position),
+            raw_prefix_sha256=(
+                runtime.ledger.raw_prefix_sha256(snapshot.global_position)
+                if raw_prefix_sha256 is None
+                else raw_prefix_sha256
+            ),
         ),
         transport=SourceTransport(),
         schemas=runtime.schemas,
@@ -481,6 +494,7 @@ def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp
         }
     )
     manifest["validation"]["expected_schema_ids"] = ["ars://portfolio/spec-source-observation"]
+    manifest["validation"]["validation_record_refs"].extend(source_observation_manifest_references(document))
     grant_id = activate_lifecycle_grant(
         harness,
         subject_kind="artefact",
@@ -546,11 +560,255 @@ def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp
             ],
         },
     )
+    return document, source_ref, command
+
+
+def _rewrite_registered_source_batch(
+    events: tuple[dict[str, object], ...],
+    *,
+    candidate_id: str,
+    mutate_batch: Callable[[dict[str, object]], None],
+) -> tuple[dict[str, object], ...]:
+    """Rebuild every dependent OR-029 identity after one semantic batch mutation."""
+
+    attacked = tuple(deepcopy(events))
+    scout = next(event for event in attacked if event["event_type"] == "ScoutObservationIngested")
+    candidate = next(
+        event
+        for event in attacked
+        if event["event_type"] == "CandidateRegistered" and event["stream_id"] == candidate_id
+    )
+    batch = scout["payload"]["batch"]
+    mutate_batch(batch)
+    batch_sha256 = sha256_hex(canonical_bytes(batch))
+    observation_id = scout["payload"]["observation_id"]
+    candidate_blueprint = {
+        key: deepcopy(candidate["payload"][key])
+        for key in ("candidate_id", "revision", "content_sha256", "source_observation_refs", "title")
+    }
+    candidate_blueprint["content_sha256"] = sha256_hex(
+        canonical_bytes([{"observation_id": observation_id, "content_sha256": batch_sha256}])
+    )
+    candidate["payload"]["content_sha256"] = candidate_blueprint["content_sha256"]
+    candidate["payload"]["source_observation_multiset_hash"] = candidate_blueprint["content_sha256"]
+    scout["payload"]["content_sha256"] = batch_sha256
+    scout["payload"]["candidate_blueprints_sha256"] = sha256_hex(canonical_bytes([candidate_blueprint]))
+    rewritten_command = {
+        "row_id": "OR-029",
+        "observation_id": observation_id,
+        "batch": batch,
+        "batch_sha256": batch_sha256,
+        "candidate_blueprints": [candidate_blueprint],
+    }
+    rewritten_command_hash = sha256_hex(canonical_bytes(rewritten_command))
+    scout["command_payload_hash"] = rewritten_command_hash
+    candidate["command_payload_hash"] = rewritten_command_hash
+    return _rehash_events(attacked)
+
+
+def _registered_source_resolver(runtime: DiscoveryRuntime) -> Callable[[dict[str, object]], dict[str, object]]:
+    def resolve(manifest: dict[str, object]) -> dict[str, object]:
+        return read_registered_spec_source_observation(
+            control_root=runtime.ledger.control_root,
+            manifest=manifest,
+            schemas=runtime.schemas,
+        )
+
+    return resolve
+
+
+@pytest.mark.integration
+def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef341"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef342"
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaef343"
+    document, source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id=observation_id,
+        candidate_id=candidate_id,
+        artefact_id=artefact_id,
+    )
 
     assert runtime.submit(command).status == "accepted"
-    projection = replay_discovery(runtime.ledger.iter_events())
+    with pytest.raises(IntegrityError, match="invalid Scout observation"):
+        replay_discovery(runtime.ledger.iter_events())
+    projection = replay_discovery(
+        runtime.ledger.iter_events(),
+        registered_source_resolver=_registered_source_resolver(runtime),
+    )
     assert projection["source_observations"][observation_id]["batch"]["raw_source_refs"] == [source_ref]
-    assert projection["candidates"][candidate_id]["content_sha256"] == candidate_sha256
+    assert (
+        projection["candidates"][candidate_id]["content_sha256"]
+        == command["payload"]["candidate_blueprints"][0]["content_sha256"]
+    )
+    assert document["producer_actor_id"] == projection["artefact_streams"][artefact_id]["registration_actor_id"]
+
+
+@pytest.mark.integration
+def test_or029_v2_replay_rejects_a_fully_rehashed_source_locator_substitution(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef347"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef348"
+    _document, _source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id=observation_id,
+        candidate_id=candidate_id,
+        artefact_id="art_019fed25-b33e-7740-b280-6f661aaef349",
+    )
+    assert runtime.submit(command).status == "accepted"
+    attacked = _rewrite_registered_source_batch(
+        tuple(runtime.ledger.iter_events()),
+        candidate_id=candidate_id,
+        mutate_batch=lambda batch: batch.__setitem__("source_query", "https://attacker.invalid/other-source"),
+    )
+
+    with pytest.raises(IntegrityError, match="invalid Scout observation"):
+        replay_discovery(attacked, registered_source_resolver=_registered_source_resolver(runtime))
+
+
+@pytest.mark.integration
+def test_or029_v2_replay_rejects_a_fully_rehashed_manifest_and_locator_substitution(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef381"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef382"
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaef383"
+    document, _source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id=observation_id,
+        candidate_id=candidate_id,
+        artefact_id=artefact_id,
+    )
+    assert runtime.submit(command).status == "accepted"
+    attacker_locator = "https://attacker.invalid/other-source"
+    attacked = tuple(deepcopy(tuple(runtime.ledger.iter_events())))
+    registration = next(
+        event for event in attacked if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+    )
+    refs = registration["payload"]["manifest"]["validation"]["validation_record_refs"]
+    replay_binding_index = next(
+        index for index, ref in enumerate(refs) if ref.startswith("spec-source-replay-binding-sha256:")
+    )
+    replay_binding = sha256_hex(
+        canonical_bytes(
+            {
+                "source_observation_id": observation_id,
+                "producer_actor_id": document["producer_actor_id"],
+                "observed_at": document["observed_at"],
+                "requested_locator": attacker_locator,
+                "commit_oid": document["resolution"]["commit_oid"],
+            }
+        )
+    )
+    refs[replay_binding_index] = f"spec-source-replay-binding-sha256:{replay_binding}"
+    registration["command_payload_hash"] = sha256_hex(canonical_bytes(registration["payload"]))
+    attacked = _rehash_events(attacked)
+    rewritten_registration = next(
+        event for event in attacked if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+    )
+
+    def rewrite_batch(batch: dict[str, object]) -> None:
+        batch["source_query"] = attacker_locator
+        batch["raw_source_refs"][0]["registration_event_hash"] = rewritten_registration["event_hash"]
+
+    attacked = _rewrite_registered_source_batch(
+        attacked,
+        candidate_id=candidate_id,
+        mutate_batch=rewrite_batch,
+    )
+
+    with pytest.raises(IntegrityError, match="invalid Scout observation"):
+        replay_discovery(attacked, registered_source_resolver=_registered_source_resolver(runtime))
+
+
+@pytest.mark.integration
+def test_or029_v2_replay_rejects_fully_rehashed_returned_identifier_substitution(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef374"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef375"
+    _document, _source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id=observation_id,
+        candidate_id=candidate_id,
+        artefact_id="art_019fed25-b33e-7740-b280-6f661aaef376",
+    )
+    assert runtime.submit(command).status == "accepted"
+    attacked = _rewrite_registered_source_batch(
+        tuple(runtime.ledger.iter_events()),
+        candidate_id=candidate_id,
+        mutate_batch=lambda batch: batch.__setitem__(
+            "returned_identifiers",
+            ["obj_019fed25-b33e-7740-b280-6f661aaef377"],
+        ),
+    )
+
+    with pytest.raises(IntegrityError, match="invalid Scout observation"):
+        replay_discovery(attacked, registered_source_resolver=_registered_source_resolver(runtime))
+
+
+@pytest.mark.integration
+def test_or029_v2_replay_rejects_fully_rehashed_raw_prefix_substitution(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef378"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef379"
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaef380"
+    _document, _source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id=observation_id,
+        candidate_id=candidate_id,
+        artefact_id=artefact_id,
+    )
+    assert runtime.submit(command).status == "accepted"
+    attacked = tuple(deepcopy(tuple(runtime.ledger.iter_events())))
+    registration = next(
+        event for event in attacked if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+    )
+    refs = registration["payload"]["manifest"]["validation"]["validation_record_refs"]
+    raw_prefix_index = next(
+        index for index, ref in enumerate(refs) if ref.startswith("spec-source-causal-raw-prefix-sha256:")
+    )
+    refs[raw_prefix_index] = f"spec-source-causal-raw-prefix-sha256:{'f' * 64}"
+    registration["command_payload_hash"] = sha256_hex(canonical_bytes(registration["payload"]))
+    attacked = _rehash_events(attacked)
+    rewritten_registration = next(
+        event for event in attacked if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+    )
+
+    def bind_rewritten_registration(batch: dict[str, object]) -> None:
+        batch["raw_source_refs"][0]["registration_event_hash"] = rewritten_registration["event_hash"]
+
+    attacked = _rewrite_registered_source_batch(
+        attacked,
+        candidate_id=candidate_id,
+        mutate_batch=bind_rewritten_registration,
+    )
+
+    with pytest.raises(IntegrityError, match="invalid Scout observation"):
+        replay_discovery(attacked, registered_source_resolver=_registered_source_resolver(runtime))
+
+
+@pytest.mark.integration
+def test_or029_v2_rejects_a_stale_registered_source_prefix_without_mutation(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    _document, _source_ref, command = _registered_source_ingest(
+        runtime,
+        observation_id="obj_019fed25-b33e-7740-b280-6f661aaef344",
+        candidate_id="obj_019fed25-b33e-7740-b280-6f661aaef345",
+        artefact_id="art_019fed25-b33e-7740-b280-6f661aaef346",
+        raw_prefix_sha256="f" * 64,
+    )
+    before = tuple(runtime.ledger.iter_events())
+
+    with pytest.raises(IntegrityError, match="causal prefix"):
+        runtime.submit(command)
+
+    assert tuple(runtime.ledger.iter_events()) == before
 
 
 def test_or029_v2_rejects_a_wrong_source_registration_event_without_mutation(tmp_path: Path) -> None:

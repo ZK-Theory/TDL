@@ -261,10 +261,23 @@ class GitCliReferenceTransport:
     """Inspect a remote with fixed-argument Git commands and no credential prompts."""
 
     def __init__(self, *, git_executable: str = "git", timeout_seconds: float = 30.0) -> None:
-        if not git_executable or timeout_seconds <= 0:
+        if (
+            not isinstance(git_executable, str)
+            or not git_executable
+            or "\x00" in git_executable
+            or timeout_seconds <= 0
+        ):
             raise ValueError("Git transport requires an executable and positive timeout")
         self.git_executable = git_executable
         self.timeout_seconds = timeout_seconds
+
+    @staticmethod
+    def _require_operand(value: str, label: str) -> str:
+        """Reject values Git could reinterpret as options at a transport seam."""
+
+        if not isinstance(value, str) or not value or "\x00" in value or value.startswith("-"):
+            raise ValueError(f"{label} must be a non-option Git operand")
+        return value
 
     @staticmethod
     def _classify_failure(stderr: str) -> FailureKind:
@@ -280,46 +293,46 @@ class GitCliReferenceTransport:
             return "auth"
         return "transport"
 
-    def _run(self, arguments: Sequence[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    def _invoke(
+        self,
+        arguments: Sequence[str],
+        *,
+        cwd: Path | None,
+        text: bool,
+    ) -> subprocess.CompletedProcess[Any]:
+        """Run Git once with the transport's shared non-interactive policy."""
+
         environment = os.environ.copy()
         environment["GIT_TERMINAL_PROMPT"] = "0"
         environment["GCM_INTERACTIVE"] = "Never"
+        options: dict[str, Any] = {
+            "cwd": cwd,
+            "env": environment,
+            "capture_output": True,
+            "text": text,
+            "timeout": self.timeout_seconds,
+            "check": False,
+        }
+        if text:
+            options.update({"encoding": "utf-8", "errors": "replace"})
         try:
             return subprocess.run(
                 [self.git_executable, *arguments],
-                cwd=cwd,
-                env=environment,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout_seconds,
-                check=False,
+                **options,
             )
         except subprocess.TimeoutExpired as exc:
             raise GitTransportFailure("timeout", "Git command timed out") from exc
         except OSError as exc:
             raise GitTransportFailure("transport", "Git executable is unavailable") from exc
+
+    def _run(self, arguments: Sequence[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        return cast(subprocess.CompletedProcess[str], self._invoke(arguments, cwd=cwd, text=True))
 
     def _run_bytes(self, arguments: Sequence[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes]:
-        environment = os.environ.copy()
-        environment["GIT_TERMINAL_PROMPT"] = "0"
-        environment["GCM_INTERACTIVE"] = "Never"
-        try:
-            return subprocess.run(
-                [self.git_executable, *arguments],
-                cwd=cwd,
-                env=environment,
-                capture_output=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise GitTransportFailure("timeout", "Git command timed out") from exc
-        except OSError as exc:
-            raise GitTransportFailure("transport", "Git executable is unavailable") from exc
+        return cast(subprocess.CompletedProcess[bytes], self._invoke(arguments, cwd=cwd, text=False))
 
     def advertise(self, repository_url: str) -> tuple[AdvertisedGitReference, ...]:
+        self._require_operand(repository_url, "repository URL")
         completed = self._run(("ls-remote", "--heads", "--tags", repository_url))
         if completed.returncode != 0:
             raise GitTransportFailure(self._classify_failure(completed.stderr), "Git advertisement failed")
@@ -358,6 +371,8 @@ class GitCliReferenceTransport:
         )
 
     def resolve_commit(self, repository_url: str, revision: str) -> str | None:
+        self._require_operand(repository_url, "repository URL")
+        self._require_operand(revision, "revision")
         with tempfile.TemporaryDirectory(prefix="ars-git-reference-") as temporary:
             root = Path(temporary)
             initialized = self._run(("init", "--bare", "."), cwd=root)
@@ -388,12 +403,17 @@ class GitCliReferenceTransport:
     ) -> dict[str, bytes]:
         """Fetch one exact commit and read requested repository-relative blobs."""
 
+        self._require_operand(repository_url, "repository URL")
+        self._require_operand(commit_oid, "commit OID")
         if _OID.fullmatch(commit_oid) is None:
             raise ValueError("source read requires an exact commit OID")
         for path in paths:
+            if not isinstance(path, str):
+                raise ValueError("source read path must be canonical and repository-relative")
             parts = Path(path).parts
             if (
                 not path
+                or "\x00" in path
                 or Path(path).is_absolute()
                 or Path(path).as_posix() != path
                 or any(part in {"", ".", ".."} for part in parts)
@@ -411,17 +431,37 @@ class GitCliReferenceTransport:
             )
             if fetched.returncode != 0:
                 failure_kind = self._classify_failure(fetched.stderr)
-                if failure_kind != "auth" and self._is_absent_fetch(fetched.stderr):
-                    return {}
                 raise GitTransportFailure(failure_kind, "Git source fetch failed")
             resolved = self._run(("rev-parse", "--verify", "FETCH_HEAD^{commit}"), cwd=root)
             if resolved.returncode != 0 or resolved.stdout.strip() != commit_oid:
                 raise GitTransportFailure("transport", "Git source fetch returned a different commit")
             content: dict[str, bytes] = {}
             for path in paths:
-                read = self._run_bytes(("cat-file", "blob", f"{commit_oid}:{path}"), cwd=root)
-                if read.returncode == 0:
-                    content[path] = read.stdout
+                listing = self._run_bytes(("ls-tree", "-z", "--full-tree", commit_oid, "--", path), cwd=root)
+                if listing.returncode != 0:
+                    raise GitTransportFailure("transport", "Git tree inspection failed")
+                entries = tuple(entry for entry in listing.stdout.split(b"\x00") if entry)
+                if not entries:
+                    continue
+                if len(entries) != 1:
+                    raise GitTransportFailure("transport", "Git returned an ambiguous tree entry")
+                metadata, separator, returned_path = entries[0].partition(b"\t")
+                fields = metadata.split(b" ")
+                try:
+                    expected_path = path.encode("utf-8")
+                except UnicodeEncodeError as exc:
+                    raise ValueError("source read path must be UTF-8") from exc
+                if separator != b"\t" or len(fields) != 3 or returned_path != expected_path:
+                    raise GitTransportFailure("transport", "Git returned a malformed tree entry")
+                _mode, object_type, object_oid = fields
+                if object_type != b"blob":
+                    continue
+                if _OID.fullmatch(object_oid.decode("ascii", errors="ignore")) is None:
+                    raise GitTransportFailure("transport", "Git returned a malformed blob OID")
+                read = self._run_bytes(("cat-file", "blob", object_oid.decode("ascii")), cwd=root)
+                if read.returncode != 0:
+                    raise GitTransportFailure("transport", "Git blob read failed")
+                content[path] = read.stdout
             return content
 
 

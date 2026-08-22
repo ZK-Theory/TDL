@@ -58,7 +58,10 @@ from research_system.discovery.rules import (
 )
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
-from research_system.discovery.source_observation import read_registered_spec_source_observation
+from research_system.discovery.source_observation import (
+    read_registered_spec_source_observation,
+    validate_registered_source_reference,
+)
 from research_system.discovery.commands import (
     DISCOVERY_COMMAND_TYPES,
     discovery_resolve_transaction_ids,
@@ -484,7 +487,16 @@ class DiscoveryRuntime:
 
         snapshot = self.ledger.snapshot()
         try:
-            projection = replay_discovery(snapshot.events, schemas=self.schemas)
+            projection = replay_discovery(
+                snapshot.events,
+                schemas=self.schemas,
+                registered_source_resolver=lambda manifest: read_registered_spec_source_observation(
+                    control_root=self.ledger.control_root,
+                    manifest=manifest,
+                    schemas=self.schemas,
+                    locked_root=locked_store_root,
+                ),
+            )
         except (IntegrityError, TypeError, ValueError) as exc:
             raise DiscoveryLedgerReplayError(
                 "persisted Discovery ledger failed replay before command preparation"
@@ -2871,15 +2883,16 @@ class DiscoveryRuntime:
             raise IntegrityError("Scout source observation requires one registered artefact")
         source_ref = refs[0]
         artefact = projection["artefact_streams"].get(source_ref.get("artefact_id"))
-        manifest = artefact.get("manifest") if isinstance(artefact, Mapping) else None
-        if (
-            not isinstance(manifest, Mapping)
-            or source_ref.get("content_hash") != artefact.get("content_sha256")
-            or source_ref.get("registration_event_id") != artefact.get("registration_event_id")
-            or source_ref.get("registration_event_hash") != artefact.get("registration_event_hash")
-            or source_ref.get("registration_global_position") != artefact.get("registration_global_position")
-        ):
-            raise IntegrityError("Scout source artefact registration binding is invalid")
+        snapshot = self.ledger.snapshot()
+        manifest = validate_registered_source_reference(
+            source_ref,
+            artefact,
+            observation_position=snapshot.global_position + 1,
+            observation_id=observation_id,
+            source_query=batch.get("source_query"),
+            source_version=batch.get("source_version"),
+            observed_at=batch.get("observed_at"),
+        )
         document = read_registered_spec_source_observation(
             control_root=self.ledger.control_root,
             manifest=manifest,
@@ -2888,7 +2901,6 @@ class DiscoveryRuntime:
         )
         resolution = document["resolution"]
         causal_prefix = document["causal_ledger_prefix"]
-        snapshot = self.ledger.snapshot()
         position = causal_prefix["global_position"]
         if type(position) is not int or position > snapshot.global_position:
             raise IntegrityError("Scout source observation causal prefix position is invalid")
