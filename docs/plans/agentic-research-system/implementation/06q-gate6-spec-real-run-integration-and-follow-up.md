@@ -34,9 +34,9 @@ not make it the default empirical method.
 
 - The current base is `d65d74912e2edf385702f67c85c4df340c900651`,
   the merge of the documentation-only control reset in PR #259.
-- PR #257 remains an open draft at candidate `dea803490...`; it is an obsolete
-  candidate to close unmerged only after a replacement decision is durable.
-  Its branch and the dirty `C:\Users\steph\TDL` checkout are preserved.
+- PR #257 is closed unmerged at candidate `dea803490...`. The replacement
+  decision became durable through PR #259 before closure. Its branch and the
+  dirty `C:\Users\steph\TDL` checkout are preserved.
 - PR #258 is closed unmerged at
   `94f8bc1fc92bdc5259acab02e73a3958202ab2e`. Its branch is retained as
   historical evidence. The candidate had 145 changed files, 35,796 additions,
@@ -67,13 +67,10 @@ not make it the default empirical method.
   `26df87157013fa078849acb14921bbcfcdfe53f1`.
 
 Step 0 is an administrative reset, not an implementation or closure result.
-The documentation writer made no external mutation. The approved plan permits
-the main agent, after its own exact-state checks, to create or clean the named
-branch/worktree, commit and push the documentation reset, create/update the
-replacement PR, update KAN-12 and KAN-103, create six bounded level-0 Tasks,
-parent them to the KAN-12 Epic, make each one block KAN-103, read back both
-ends of every link, and close PR257 unmerged only after the replacement
-decision is durable. It still permits no merge, CodeRabbit trigger or polling,
+Its replacement decision is merged through PR #259 and the obsolete PR #257
+is now closed unmerged. The approved plan permits the remaining Jira control
+updates and readback for KAN-12, KAN-103, and the six bounded level-0 Tasks.
+It still permits no implementation merge, CodeRabbit trigger or polling,
 provider or paid call, live-store write during construction, or final Gate 6
 decision.
 
