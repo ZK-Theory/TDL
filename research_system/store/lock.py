@@ -231,6 +231,16 @@ class DirectoryAnchor(Protocol):
 
     def refresh(self) -> tuple[DirectoryIdentity, Path]: ...
 
+    def open_member_directory(self, name: str, *, create: bool = False) -> DirectoryAnchor: ...
+
+    def list_names(self) -> tuple[str, ...]: ...
+
+    def read_regular_file(self, name: str) -> bytes: ...
+
+    def write_exact_file(self, name: str, data: bytes) -> None: ...
+
+    def remove_exact_file(self, name: str, expected: bytes) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -256,6 +266,7 @@ class LockedRoot:
     runtime_final_path: Path
     aliases: tuple[Path, ...]
     _lease_token: _LeaseState
+    _anchor: DirectoryAnchor
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         raise TypeError("LockedRoot is a lock-created capability")
@@ -270,6 +281,7 @@ class LockedRoot:
         runtime_final_path: Path,
         aliases: tuple[Path, ...],
         lease_token: _LeaseState,
+        anchor: DirectoryAnchor,
     ) -> Self:
         instance = object.__new__(cls)
         object.__setattr__(instance, "identity", identity)
@@ -278,7 +290,18 @@ class LockedRoot:
         object.__setattr__(instance, "runtime_final_path", runtime_final_path)
         object.__setattr__(instance, "aliases", aliases)
         object.__setattr__(instance, "_lease_token", lease_token)
+        object.__setattr__(instance, "_anchor", anchor)
         return instance
+
+    def open_member_directory(self, name: str, *, create: bool = False) -> DirectoryAnchor:
+        """Traverse from the exact root held by the live composite lock."""
+
+        if not self._lease_token.live:
+            raise ConflictError("locked root lease is no longer live")
+        identity, final_path = self._anchor.refresh()
+        if identity != self.identity or final_path != self.final_path:
+            raise ConflictError("locked root physical identity changed")
+        return self._anchor.open_member_directory(name, create=create)
 
 
 class _DirectoryAnchor:
@@ -315,6 +338,203 @@ class _DirectoryAnchor:
             raise
         except (OSError, ValueError) as exc:
             raise ConflictError("directory anchor identity is unavailable") from exc
+
+    @staticmethod
+    def _require_member_name(name: str) -> None:
+        if not isinstance(name, str) or not name or Path(name).name != name or name in {".", ".."}:
+            raise ConflictError("directory member name is invalid")
+
+    def open_member_directory(self, name: str, *, create: bool = False) -> DirectoryAnchor:
+        """Open one physical child relative to this held directory."""
+
+        self._require_member_name(name)
+        parent_identity, parent_path = self.refresh()
+        if os.name == "nt":
+            child_path = parent_path / name
+            if create:
+                try:
+                    child_path.mkdir()
+                except FileExistsError:
+                    pass
+                fsync_directory(parent_path)
+            child = _open_windows_anchor(child_path, reject_reparse=True, delete_protect=True)
+        else:
+            nofollow = getattr(os, "O_NOFOLLOW", 0)
+            directory_flag = getattr(os, "O_DIRECTORY", 0)
+            if not nofollow or not directory_flag or os.open not in os.supports_dir_fd:
+                raise ConflictError("platform cannot open an anchored member directory")
+            descriptor = int(self._handle)
+            if create:
+                try:
+                    os.mkdir(name, 0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                os.fsync(descriptor)
+            try:
+                child_descriptor = os.open(
+                    name,
+                    os.O_RDONLY | directory_flag | nofollow,
+                    dir_fd=descriptor,
+                )
+            except OSError as exc:
+                raise ConflictError(f"{name} is not a physical member directory") from exc
+            try:
+                refresh = _posix_anchor_refresh_factory(parent_path / name, delete_protect=True)
+                child_identity, child_path = refresh(child_descriptor)
+                child = _DirectoryAnchor(
+                    child_identity,
+                    child_path,
+                    child_descriptor,
+                    refresh,
+                    lambda value: os.close(int(value)),
+                )
+            except BaseException as primary_error:
+                try:
+                    os.close(child_descriptor)
+                except BaseException as cleanup_error:
+                    raise primary_error from cleanup_error
+                raise
+        refreshed_identity, _ = self.refresh()
+        if refreshed_identity != parent_identity:
+            child.close()
+            raise ConflictError("parent directory identity changed while opening member")
+        return child
+
+    def list_names(self) -> tuple[str, ...]:
+        """Enumerate this exact held directory, never a replacement pathname."""
+
+        identity, final_path = self.refresh()
+        try:
+            names = os.listdir(final_path if os.name == "nt" else int(self._handle))
+        except OSError as exc:
+            raise ConflictError("anchored directory cannot be enumerated") from exc
+        if any(not isinstance(name, str) or not name or Path(name).name != name for name in names):
+            raise ConflictError("anchored directory returned an invalid member name")
+        refreshed_identity, _ = self.refresh()
+        if refreshed_identity != identity:
+            raise ConflictError("anchored directory identity changed during enumeration")
+        return tuple(sorted(names))
+
+    def read_regular_file(self, name: str) -> bytes:
+        """Read one no-follow regular file relative to this held directory."""
+
+        self._require_member_name(name)
+        identity, final_path = self.refresh()
+        descriptor: int | None = None
+        try:
+            if os.name == "nt":
+                path = final_path / name
+                before = path.lstat()
+                attributes = getattr(before, "st_file_attributes", 0)
+                if stat.S_ISLNK(before.st_mode) or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+                    raise ConflictError("anchored directory member must not be a reparse file")
+                descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+            else:
+                nofollow = getattr(os, "O_NOFOLLOW", 0)
+                if not nofollow or os.open not in os.supports_dir_fd:
+                    raise ConflictError("platform cannot read an anchored regular file")
+                descriptor = os.open(name, os.O_RDONLY | nofollow, dir_fd=int(self._handle))
+                before = os.stat(name, dir_fd=int(self._handle), follow_symlinks=False)
+            with os.fdopen(descriptor, "rb") as handle:
+                descriptor = None
+                opened = os.fstat(handle.fileno())
+                if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
+                    raise ConflictError("anchored directory member is not the observed regular file")
+                data = handle.read()
+            if os.name == "nt":
+                after = (final_path / name).lstat()
+            else:
+                after = os.stat(name, dir_fd=int(self._handle), follow_symlinks=False)
+            if not os.path.samestat(opened, after):
+                raise ConflictError("anchored directory member changed during read")
+        except ConflictError:
+            raise
+        except OSError as exc:
+            raise ConflictError("anchored regular file cannot be read") from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+        refreshed_identity, _ = self.refresh()
+        if refreshed_identity != identity:
+            raise ConflictError("anchored directory identity changed during file read")
+        return data
+
+    def write_exact_file(self, name: str, data: bytes) -> None:
+        """Durably create one exact regular file or accept identical bytes."""
+
+        self._require_member_name(name)
+        if not isinstance(data, bytes):
+            raise TypeError("anchored file content must be bytes")
+        identity, final_path = self.refresh()
+        descriptor: int | None = None
+        try:
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0)
+            if os.name == "nt":
+                descriptor = os.open(final_path / name, flags, 0o600)
+            else:
+                nofollow = getattr(os, "O_NOFOLLOW", 0)
+                if not nofollow or os.open not in os.supports_dir_fd:
+                    raise ConflictError("platform cannot write an anchored regular file")
+                descriptor = os.open(name, flags | nofollow, 0o600, dir_fd=int(self._handle))
+        except FileExistsError:
+            if self.read_regular_file(name) != data:
+                raise ConflictError("anchored file identity already binds different bytes")
+            return
+        except ConflictError:
+            raise
+        except OSError as exc:
+            raise ConflictError("anchored regular file cannot be created") from exc
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                descriptor = None
+                opened = os.fstat(handle.fileno())
+                if not stat.S_ISREG(opened.st_mode):
+                    raise ConflictError("anchored file destination is not regular")
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if os.name == "nt":
+                fsync_directory(final_path)
+            else:
+                os.fsync(int(self._handle))
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+        refreshed_identity, _ = self.refresh()
+        if refreshed_identity != identity or self.read_regular_file(name) != data:
+            raise ConflictError("anchored regular file publication did not remain exact")
+
+    def remove_exact_file(self, name: str, expected: bytes) -> None:
+        """Remove only the exact observed generation of one regular file."""
+
+        self._require_member_name(name)
+        if self.read_regular_file(name) != expected:
+            raise ConflictError("anchored file removal expected bytes differ")
+        identity, final_path = self.refresh()
+        claim = f".{name}.{secrets.token_hex(16)}.remove"
+        try:
+            if os.name == "nt":
+                os.replace(final_path / name, final_path / claim)
+            else:
+                os.replace(
+                    name,
+                    claim,
+                    src_dir_fd=int(self._handle),
+                    dst_dir_fd=int(self._handle),
+                )
+            if self.read_regular_file(claim) != expected:
+                raise ConflictError("anchored file changed before removal claim")
+            if os.name == "nt":
+                os.unlink(final_path / claim)
+                fsync_directory(final_path)
+            else:
+                os.unlink(claim, dir_fd=int(self._handle))
+                os.fsync(int(self._handle))
+        except FileNotFoundError as exc:
+            raise ConflictError("anchored file changed before removal") from exc
+        refreshed_identity, _ = self.refresh()
+        if refreshed_identity != identity:
+            raise ConflictError("anchored directory identity changed during file removal")
 
     def close(self) -> None:
         if self._closed:
@@ -1048,6 +1268,7 @@ class CompositeWriterLock:
                     runtime_final_path=acquired.runtime_anchor.final_path,  # type: ignore[union-attr]
                     aliases=acquired.member.aliases,
                     lease_token=lease_token,
+                    anchor=acquired.root_anchor,  # type: ignore[arg-type]
                 )
                 for acquired in acquired_members
             )

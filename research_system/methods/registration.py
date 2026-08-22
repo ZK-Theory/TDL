@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Protocol
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, ConflictError
-from research_system.store.durability import fsync_directory
+from research_system.command.models import Command
+from research_system.errors import ArsError, IntegrityError
+from research_system.store.registered_content import CandidateDocumentStore, recover_registered_content
 
 
 class CommandSubmitter(Protocol):
+    ledger: Any
+
     def submit(self, envelope: dict[str, Any]) -> Any: ...
 
 
@@ -42,46 +43,9 @@ class RegisteredCandidate:
     receipt: Any
 
 
-class CandidateDocumentStore:
-    """Write exact canonical bytes once beneath the configured control root."""
-
-    def __init__(
-        self,
-        control_root: Path,
-        *,
-        root_id: str = "control",
-        relative_directory: Path = Path("methods/documents"),
-    ) -> None:
-        self.control_root = control_root.resolve(strict=True)
-        self.root_id = root_id
-        if relative_directory.is_absolute() or ".." in relative_directory.parts:
-            raise ValueError("candidate document directory must be control-relative")
-        self.relative_directory = relative_directory
-
-    def relative_path(self, artefact_id: str) -> str:
-        """Return the final control-relative path without publishing bytes."""
-        return (self.relative_directory / f"{artefact_id}.json").as_posix()
-
-    def write(self, artefact_id: str, raw_bytes: bytes) -> str:
-        relative = Path(self.relative_path(artefact_id))
-        target = self.control_root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            if target.read_bytes() != raw_bytes:
-                raise ConflictError("methods document identity already binds different bytes")
-            return relative.as_posix()
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(raw_bytes)
-            handle.flush()
-            os.fsync(handle.fileno())
-        fsync_directory(target.parent)
-        return relative.as_posix()
-
-
 def _stable_command_id(idempotency_key: str) -> str:
     """Derive one canonical UUIDv7 command identity for an exact registration."""
+
     value = int.from_bytes(hashlib.sha256(idempotency_key.encode("utf-8")).digest()[:16], "big")
     value = (value & ~(0xF << 76)) | (0x7 << 76)
     value = (value & ~(0b11 << 62)) | (0b10 << 62)
@@ -96,6 +60,7 @@ def register_candidate_document(
     command_service: CommandSubmitter,
 ) -> RegisteredCandidate:
     """Persist and register exact bytes, always forcing initial candidate authority."""
+
     raw = canonical_bytes(value)
     digest = sha256_hex(raw)
     relative_path = document_store.relative_path(registration.artefact_id)
@@ -135,13 +100,31 @@ def register_candidate_document(
         "payload": {"new_artefact_id": registration.artefact_id, "manifest": manifest},
         "project_id": registration.project_id,
     }
+    marker_bytes = document_store.stage_recovery_marker(command, relative_path, raw)
     receipt = command_service.submit(command)
     if getattr(receipt, "status", None) not in {"accepted", "replayed"}:
+        document_store.remove_recovery_marker(command, marker_bytes)
         reason = getattr(receipt, "reason_code", None) or getattr(receipt, "status", "unknown")
         explanation = getattr(receipt, "explanation", None)
         detail = f": {explanation}" if explanation else ""
         raise ArsError(f"candidate artefact registration was not accepted ({reason}){detail}")
-    document_store.write(registration.artefact_id, raw)
+    if (
+        getattr(receipt, "command_id", None) != command["command_id"]
+        or getattr(receipt, "payload_hash", None) != Command(command).payload_hash
+        or not isinstance(getattr(receipt, "event_batch_id", None), str)
+    ):
+        raise IntegrityError("candidate artefact registration receipt does not bind the exact command")
+    ledger = getattr(command_service, "ledger", None)
+    snapshot_method = getattr(ledger, "snapshot", None)
+    if not callable(snapshot_method):
+        raise IntegrityError("candidate artefact registration requires a readable committed ledger")
+    snapshot = snapshot_method()
+    events = getattr(snapshot, "events", None)
+    if not isinstance(events, tuple):
+        raise IntegrityError("candidate artefact registration ledger snapshot is invalid")
+    recover_registered_content(document_store, events)
+    if document_store.read_relative(relative_path) != raw or document_store.marker_exists(command):
+        raise IntegrityError("candidate artefact registration did not seal exact content")
     return RegisteredCandidate(registration.artefact_id, digest, raw, relative_path, receipt)
 
 
@@ -150,5 +133,6 @@ __all__ = [
     "CandidateRegistration",
     "CommandSubmitter",
     "RegisteredCandidate",
+    "recover_registered_content",
     "register_candidate_document",
 ]

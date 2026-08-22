@@ -35,6 +35,26 @@ def reduce_scout_observation_ingested(scope: EventScope) -> None:
         raise IntegrityError("source observation identity collision")
     batch = payload.get("batch")
     dedup_keys = payload.get("normalized_dedup_keys")
+    source_refs = batch.get("raw_source_refs") if isinstance(batch, dict) else None
+    registered_source_valid = True
+    if isinstance(batch, dict) and batch.get("schema_version") == "2.0.0":
+        registered_source_valid = False
+        if isinstance(source_refs, list) and len(source_refs) == 1 and isinstance(source_refs[0], Mapping):
+            source_ref = source_refs[0]
+            artefact = state["artefact_streams"].get(source_ref.get("artefact_id"))
+            if isinstance(artefact, Mapping):
+                manifest = artefact.get("manifest")
+                registered_source_valid = bool(
+                    isinstance(manifest, Mapping)
+                    and manifest.get("artefact_type") == "spec_source_observation"
+                    and manifest.get("artefact_schema_id") == "ars://portfolio/spec-source-observation"
+                    and manifest.get("artefact_schema_version") == "1.0.0"
+                    and source_ref.get("content_hash") == artefact.get("content_sha256")
+                    and source_ref.get("registration_event_id") == artefact.get("registration_event_id")
+                    and source_ref.get("registration_event_hash") == artefact.get("registration_event_hash")
+                    and source_ref.get("registration_global_position") == artefact.get("registration_global_position")
+                    and artefact.get("registration_global_position", 0) < event.get("global_position", 0)
+                )
     if (
         not isinstance(batch, dict)
         or not isinstance(dedup_keys, list)
@@ -46,6 +66,7 @@ def reduce_scout_observation_ingested(scope: EventScope) -> None:
             set(dedup_keys) & set(existing.get("normalized_dedup_keys", []))
             for existing in state["source_observations"].values()
         )
+        or not registered_source_valid
     ):
         raise IntegrityError("invalid Scout observation event")
     members = transaction_events.get(event.get("transaction_id"), ())

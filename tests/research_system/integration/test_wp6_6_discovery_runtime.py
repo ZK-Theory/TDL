@@ -21,6 +21,8 @@ from research_system.discovery.assay_authority import (
     assay_reconstruction_sha256,
 )
 from research_system.discovery.runtime import DiscoveryLedgerReplayError, DiscoveryRuntime, replay_discovery
+from research_system.discovery.git_reference import AdvertisedGitReference
+from research_system.discovery.source_observation import CausalLedgerPrefix, prepare_spec_source_observation
 from research_system.discovery.routes import (
     DISCOVERY_EXISTING_TARGETS as _DISCOVERY_EXISTING_TARGETS,
     DISCOVERY_IDENTITY_COLLECTIONS as _DISCOVERY_IDENTITY_COLLECTIONS,
@@ -37,6 +39,11 @@ from research_system.command.models import Command
 from research_system.command.reducers import reduce_artefact, replay_control_plane
 from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, IntegrityError
 from research_system.ids import new_id
+from research_system.methods.registration import (
+    CandidateDocumentStore,
+    CandidateRegistration,
+    register_candidate_document,
+)
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
@@ -422,6 +429,187 @@ def _ingest_candidate(
         )
     )
     return candidate_sha256
+
+
+def test_or029_v2_binds_exact_registered_source_bytes_and_registration_event(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    harness = next(value for value in _HARNESSES.values() if value.ledger is runtime.ledger)
+    snapshot = runtime.ledger.snapshot()
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef341"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef342"
+    artefact_id = "art_019fed25-b33e-7740-b280-6f661aaef343"
+    commit_oid = "145efcde673f1a1897eff250b77221d26c34c479"
+
+    class SourceTransport:
+        def advertise(self, repository_url):
+            del repository_url
+            return (AdvertisedGitReference("refs/tags/neurips2024", commit_oid),)
+
+        def resolve_commit(self, repository_url, revision):
+            del repository_url
+            return commit_oid if revision == "refs/tags/neurips2024" else None
+
+        def read_paths(self, repository_url, resolved_oid, paths):
+            del repository_url
+            assert resolved_oid == commit_oid
+            return {path: f"exact:{path}\n".encode() for path in paths}
+
+    document = prepare_spec_source_observation(
+        locator="https://github.com/berenslab/eff-ph/tree/neurips2024",
+        required_paths=("environment.yml", "scripts/compute_ph.py"),
+        source_observation_id=observation_id,
+        route_id="SPEC-01",
+        producer_actor_id=ACTOR_ID,
+        observed_at="2026-08-01T00:00:00Z",
+        causal_prefix=CausalLedgerPrefix(
+            global_position=snapshot.global_position,
+            event_hash=snapshot.event_hash,
+            raw_prefix_sha256=runtime.ledger.raw_prefix_sha256(snapshot.global_position),
+        ),
+        transport=SourceTransport(),
+        schemas=runtime.schemas,
+    )
+    manifest = _artefact_manifest(artefact_id)
+    manifest.update(
+        {
+            "artefact_type": "spec_source_observation",
+            "artefact_schema_id": "ars://portfolio/spec-source-observation",
+            "artefact_schema_version": "1.0.0",
+            "producer_actor_id": ACTOR_ID,
+            "observed_at": "2026-08-01T00:00:00Z",
+        }
+    )
+    manifest["validation"]["expected_schema_ids"] = ["ars://portfolio/spec-source-observation"]
+    grant_id = activate_lifecycle_grant(
+        harness,
+        subject_kind="artefact",
+        subject_id=artefact_id,
+        command_types=("RegisterArtefact",),
+    )
+    registered = register_candidate_document(
+        value=document,
+        registration=CandidateRegistration(
+            artefact_id=artefact_id,
+            project_id=PROJECT_ID,
+            actor_id=ACTOR_ID,
+            authority_grant_id=grant_id,
+            submitted_at="2026-08-01T00:00:00Z",
+            correlation_id="spec-source-observation",
+            reason="register exact SPEC source bytes",
+            manifest=manifest,
+        ),
+        document_store=CandidateDocumentStore(harness.objects.control_root),
+        command_service=harness.service,
+    )
+    artefact = replay_discovery(runtime.ledger.iter_events())["artefact_streams"][artefact_id]
+    source_ref = {
+        "ref_kind": "artefact",
+        "artefact_id": artefact_id,
+        "content_hash": registered.content_sha256,
+        "registration_event_id": artefact["registration_event_id"],
+        "registration_event_hash": artefact["registration_event_hash"],
+        "registration_global_position": artefact["registration_global_position"],
+    }
+    batch = {
+        "schema_id": "ars://portfolio/scout-observation-batch",
+        "schema_version": "2.0.0",
+        "source_query": document["resolution"]["requested_locator"],
+        "source_version": commit_oid,
+        "observed_at": document["observed_at"],
+        "returned_identifiers": [observation_id],
+        "normalized_dedup_keys": ["berenslab/eff-ph@neurips2024"],
+        "raw_source_refs": [source_ref],
+        "matching_facts": ["The cited locator resolves and the required source bytes are preserved."],
+        "omissions_or_errors": [],
+        "viability_judgment_absent": True,
+    }
+    batch_sha256 = sha256_hex(canonical_bytes(batch))
+    candidate_sha256 = sha256_hex(canonical_bytes([{"observation_id": observation_id, "content_sha256": batch_sha256}]))
+    command = _command(
+        "IngestScoutObservationBatch",
+        observation_id,
+        0,
+        {
+            "row_id": "OR-029",
+            "observation_id": observation_id,
+            "batch": batch,
+            "batch_sha256": batch_sha256,
+            "candidate_blueprints": [
+                {
+                    "candidate_id": candidate_id,
+                    "revision": 1,
+                    "content_sha256": candidate_sha256,
+                    "source_observation_refs": [observation_id],
+                    "title": "Damrich-Berens-Kobak suitability candidate",
+                }
+            ],
+        },
+    )
+
+    assert runtime.submit(command).status == "accepted"
+    projection = replay_discovery(runtime.ledger.iter_events())
+    assert projection["source_observations"][observation_id]["batch"]["raw_source_refs"] == [source_ref]
+    assert projection["candidates"][candidate_id]["content_sha256"] == candidate_sha256
+
+
+def test_or029_v2_rejects_a_wrong_source_registration_event_without_mutation(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    observation_id = "obj_019fed25-b33e-7740-b280-6f661aaef351"
+    candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaef352"
+    batch = {
+        "schema_id": "ars://portfolio/scout-observation-batch",
+        "schema_version": "2.0.0",
+        "source_query": "https://github.com/berenslab/eff-ph/tree/neurips2024",
+        "source_version": "145efcde673f1a1897eff250b77221d26c34c479",
+        "observed_at": "2026-08-01T00:00:00Z",
+        "returned_identifiers": [observation_id],
+        "normalized_dedup_keys": ["berenslab/eff-ph@neurips2024-invalid"],
+        "raw_source_refs": [
+            {
+                "ref_kind": "artefact",
+                "artefact_id": "art_019fed25-b33e-7740-b280-6f661aaef353",
+                "content_hash": "1" * 64,
+                "registration_event_id": "evt_019fed25-b33e-7740-b280-6f661aaef354",
+                "registration_event_hash": "2" * 64,
+                "registration_global_position": 1,
+            }
+        ],
+        "matching_facts": [],
+        "omissions_or_errors": [],
+        "viability_judgment_absent": True,
+    }
+    batch_sha256 = sha256_hex(canonical_bytes(batch))
+    before = tuple(runtime.ledger.iter_events())
+
+    with pytest.raises(IntegrityError, match="source artefact registration binding"):
+        runtime.submit(
+            _command(
+                "IngestScoutObservationBatch",
+                observation_id,
+                0,
+                {
+                    "row_id": "OR-029",
+                    "observation_id": observation_id,
+                    "batch": batch,
+                    "batch_sha256": batch_sha256,
+                    "candidate_blueprints": [
+                        {
+                            "candidate_id": candidate_id,
+                            "revision": 1,
+                            "content_sha256": sha256_hex(
+                                canonical_bytes([{"observation_id": observation_id, "content_sha256": batch_sha256}])
+                            ),
+                            "source_observation_refs": [observation_id],
+                            "title": "Unbound source candidate",
+                        }
+                    ],
+                },
+            )
+        )
+
+    assert tuple(runtime.ledger.iter_events()) == before
 
 
 def test_scout_observation_rejects_candidate_identity_from_any_existing_aggregate(tmp_path: Path) -> None:
@@ -4673,7 +4861,17 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         )
     replayed_artefacts = replay_discovery(shared_events)["artefact_streams"]
     assert {
-        stream_id: {key: value for key, value in state.items() if key != "registration_actor_id"}
+        stream_id: {
+            key: value
+            for key, value in state.items()
+            if key
+            not in {
+                "registration_actor_id",
+                "registration_event_id",
+                "registration_event_hash",
+                "registration_global_position",
+            }
+        }
         for stream_id, state in replayed_artefacts.items()
     } == artefact_projection
     final_discovery = replay_discovery(shared_events)

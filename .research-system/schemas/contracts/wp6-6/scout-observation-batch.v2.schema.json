@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/scout-observation-batch",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "source_query",
+    "source_version",
+    "observed_at",
+    "returned_identifiers",
+    "normalized_dedup_keys",
+    "raw_source_refs",
+    "matching_facts",
+    "omissions_or_errors",
+    "viability_judgment_absent"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/scout-observation-batch"},
+    "schema_version": {"const": "2.0.0"},
+    "source_query": {"type": "string", "minLength": 1},
+    "source_version": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "observed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "returned_identifiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "normalized_dedup_keys": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "raw_source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {"$ref": "#/$defs/sourceArtefactRef"}
+    },
+    "matching_facts": {"type": "array", "items": {"type": "string"}},
+    "omissions_or_errors": {"type": "array", "items": {"type": "string"}},
+    "viability_judgment_absent": {"const": true}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sourceArtefactRef": {
+      "type": "object",
+      "required": [
+        "ref_kind",
+        "artefact_id",
+        "content_hash",
+        "registration_event_id",
+        "registration_event_hash",
+        "registration_global_position"
+      ],
+      "properties": {
+        "ref_kind": {"const": "artefact"},
+        "artefact_id": {
+          "type": "string",
+          "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "content_hash": {"$ref": "#/$defs/sha256"},
+        "registration_event_id": {
+          "type": "string",
+          "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "registration_event_hash": {"$ref": "#/$defs/sha256"},
+        "registration_global_position": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

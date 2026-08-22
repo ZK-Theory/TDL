@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-source-observation",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "source_observation_id",
+    "route_id",
+    "producer_actor_id",
+    "observed_at",
+    "causal_ledger_prefix",
+    "resolution",
+    "source_files",
+    "source_bundle_sha256"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-source-observation"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_source_observation"},
+    "source_observation_id": {
+      "type": "string",
+      "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "route_id": {"type": "string", "minLength": 1},
+    "producer_actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "observed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "causal_ledger_prefix": {
+      "type": "object",
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 0},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "resolution": {
+      "type": "object",
+      "required": [
+        "repository_url",
+        "requested_locator",
+        "status",
+        "resolution_trace",
+        "canonical_ref",
+        "resolved_kind",
+        "commit_oid"
+      ],
+      "properties": {
+        "repository_url": {
+          "type": "string",
+          "pattern": "^https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+[.]git$"
+        },
+        "requested_locator": {"type": "string", "pattern": "^https://github[.]com/"},
+        "status": {"const": "resolved"},
+        "resolution_trace": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "subpath": {"type": "string", "minLength": 1, "pattern": "^[^/].*"},
+        "canonical_ref": {"type": "string", "minLength": 1},
+        "resolved_kind": {"enum": ["head", "lightweight_tag", "annotated_tag", "commit"]},
+        "commit_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      },
+      "additionalProperties": false
+    },
+    "source_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "size_bytes", "content_sha256", "content_base64"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1, "pattern": "^[^/\\\\].*"},
+          "size_bytes": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "content_sha256": {"$ref": "#/$defs/sha256"},
+          "content_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]*={0,2}$"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_bundle_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

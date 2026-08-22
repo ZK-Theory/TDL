@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-01-source-correction",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "route_id",
+    "correction_id",
+    "recorded_at",
+    "producer",
+    "amended_evidence_refs",
+    "corrected_source_observation_ref",
+    "causal_ledger_prefix",
+    "incorrect_assertions",
+    "correction_effect",
+    "scientific_disposition"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-01-source-correction"},
+    "schema_version": {"const": "2.0.0"},
+    "document_type": {"const": "spec_01_source_correction"},
+    "route_id": {"type": "string", "minLength": 1},
+    "correction_id": {"type": "string", "pattern": "^correction:[a-z0-9._:-]+$"},
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer": {
+      "type": "object",
+      "required": ["actor_id", "session_id", "role"],
+      "properties": {
+        "actor_id": {
+          "type": "string",
+          "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "session_id": {"type": "string", "minLength": 1},
+        "role": {"const": "source-correction producer"}
+      },
+      "additionalProperties": false
+    },
+    "amended_evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/registeredArtefactRef"},
+      "uniqueItems": true
+    },
+    "corrected_source_observation_ref": {"$ref": "#/$defs/registeredArtefactRef"},
+    "causal_ledger_prefix": {"$ref": "#/$defs/causalLedgerPrefix"},
+    "incorrect_assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "correction_effect": {
+      "type": "object",
+      "required": ["withdrawn_conditions", "preserved_findings"],
+      "properties": {
+        "withdrawn_conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "preserved_findings": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "scientific_disposition": {"enum": ["PROMOTE", "PARK", "KILL", "Partial"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registeredArtefactRef": {
+      "type": "object",
+      "required": [
+        "artefact_id",
+        "content_sha256",
+        "registration_event_id",
+        "registration_event_hash",
+        "registration_global_position"
+      ],
+      "properties": {
+        "artefact_id": {
+          "type": "string",
+          "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "content_sha256": {"$ref": "#/$defs/sha256"},
+        "registration_event_id": {
+          "type": "string",
+          "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "registration_event_hash": {"$ref": "#/$defs/sha256"},
+        "registration_global_position": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "causalLedgerPrefix": {
+      "type": "object",
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 1},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

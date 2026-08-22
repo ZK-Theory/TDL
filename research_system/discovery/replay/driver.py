@@ -362,7 +362,14 @@ def replay_discovery(
                     canonical_artefact_streams.get(stream_id, {}), event
                 )
                 if event_type == "ArtefactRegistered":
-                    canonical_artefact_streams[stream_id]["registration_actor_id"] = event.get("actor_id")
+                    canonical_artefact_streams[stream_id].update(
+                        {
+                            "registration_actor_id": event.get("actor_id"),
+                            "registration_event_id": event.get("event_id"),
+                            "registration_event_hash": event.get("event_hash"),
+                            "registration_global_position": event.get("global_position"),
+                        }
+                    )
                 state["artefact_streams"][stream_id] = deepcopy(canonical_artefact_streams[stream_id])
             except (KeyError, TypeError, ValueError) as exc:
                 raise IntegrityError("invalid canonical artefact evidence") from exc

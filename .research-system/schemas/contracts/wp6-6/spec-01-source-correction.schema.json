@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-01-source-correction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "document_type", "route_id", "correction_id", "recorded_at", "producer", "scorecard_ref", "decision_ref", "incorrect_assertions", "corrected_git_reference", "correction_effect", "scientific_disposition"],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-01-source-correction"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_01_source_correction"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "correction_id": {"type": "string", "pattern": "^correction:[a-z0-9._:-]+$"},
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actor_id", "session_id", "role"],
+      "properties": {
+        "actor_id": {"type": "string", "pattern": "^act_"},
+        "session_id": {"type": "string", "minLength": 1},
+        "role": {"const": "source-correction verifier"}
+      }
+    },
+    "scorecard_ref": {"$ref": "#/$defs/hashRef"},
+    "decision_ref": {"$ref": "#/$defs/hashRef"},
+    "incorrect_assertions": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["paper-cited neurips2024 branch is absent from the live Git remote", "primary_paper_code_discrepancy", "paper-code provenance requires a replacement immutable commit"]}
+    },
+    "corrected_git_reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cited_locator", "repository_url", "requested_ref", "resolved_ref", "ref_kind", "commit_oid", "retrieval_methods", "required_paths"],
+      "properties": {
+        "cited_locator": {"const": "https://github.com/berenslab/eff-ph/tree/neurips2024"},
+        "repository_url": {"const": "https://github.com/berenslab/eff-ph.git"},
+        "requested_ref": {"const": "neurips2024"},
+        "resolved_ref": {"const": "refs/tags/neurips2024"},
+        "ref_kind": {"const": "tag"},
+        "commit_oid": {"const": "145efcde673f1a1897eff250b77221d26c34c479"},
+        "retrieval_methods": {"const": ["direct_locator", "git_ls_remote_tags", "detached_clone"]},
+        "required_paths": {
+          "type": "array", "minItems": 2, "uniqueItems": true,
+          "items": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}
+        }
+      }
+    },
+    "correction_effect": {
+      "type": "object", "additionalProperties": false,
+      "required": ["withdrawn_condition_codes", "withdrawn_limitations", "withdrawn_revisit_triggers", "preserved_findings"],
+      "properties": {
+        "withdrawn_condition_codes": {"const": ["primary_paper_code_discrepancy"]},
+        "withdrawn_limitations": {"const": ["The paper-cited neurips2024 code branch is absent from the live Git remote; only main and scRNA heads were advertised."]},
+        "withdrawn_revisit_triggers": {"const": ["paper-code provenance restored", "an immutable replacement for the absent paper-cited branch is supplied"]},
+        "preserved_findings": {"const": ["future_estimand_unidentified", "representation_freeze_missing", "primary_claim_missing"]}
+      }
+    },
+    "scientific_disposition": {"const": "PARK"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hashRef": {"type": "object", "additionalProperties": false, "required": ["id", "sha256"], "properties": {"id": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}}
+  }
+}

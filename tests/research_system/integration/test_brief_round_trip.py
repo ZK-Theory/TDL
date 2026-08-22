@@ -575,11 +575,11 @@ def test_candidate_registration_exact_retry_replays_real_command(tmp_path) -> No
     class InterruptOnceStore(CandidateDocumentStore):
         attempts = 0
 
-        def write(self, artefact_id, raw_bytes):
+        def publish_registered(self, relative_path, raw_bytes, *, root_anchor=None):
             self.attempts += 1
             if self.attempts == 1:
                 raise OSError("simulated post-authority publication interruption")
-            return super().write(artefact_id, raw_bytes)
+            return super().publish_registered(relative_path, raw_bytes, root_anchor=root_anchor)
 
     harness = control_plane(tmp_path)
     activate_lifecycle_grant(

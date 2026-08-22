@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/git-reference-resolution",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["repository_url", "requested_locator", "status", "resolution_trace", "canonical_ref", "resolved_kind", "commit_oid"],
+      "properties": {
+        "repository_url": {"$ref": "#/$defs/repositoryUrl"},
+        "requested_locator": {"$ref": "#/$defs/requestedLocator"},
+        "status": {"const": "resolved"},
+        "resolution_trace": {"$ref": "#/$defs/resolutionTrace"},
+        "subpath": {"$ref": "#/$defs/subpath"},
+        "canonical_ref": {"type": "string", "minLength": 1},
+        "resolved_kind": {"$ref": "#/$defs/resolvedKind"},
+        "commit_oid": {"$ref": "#/$defs/commitOid"}
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["repository_url", "requested_locator", "status", "resolution_trace"],
+      "properties": {
+        "repository_url": {"$ref": "#/$defs/repositoryUrl"},
+        "requested_locator": {"$ref": "#/$defs/requestedLocator"},
+        "status": {"const": "absent"},
+        "resolution_trace": {"$ref": "#/$defs/resolutionTrace"},
+        "subpath": {"$ref": "#/$defs/subpath"}
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["repository_url", "requested_locator", "status", "resolution_trace", "candidates"],
+      "properties": {
+        "repository_url": {"$ref": "#/$defs/repositoryUrl"},
+        "requested_locator": {"$ref": "#/$defs/requestedLocator"},
+        "status": {"const": "ambiguous"},
+        "resolution_trace": {"$ref": "#/$defs/resolutionTrace"},
+        "subpath": {"$ref": "#/$defs/subpath"},
+        "candidates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/candidate"}
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["repository_url", "requested_locator", "status", "resolution_trace", "failure_kind"],
+      "properties": {
+        "repository_url": {"$ref": "#/$defs/repositoryUrl"},
+        "requested_locator": {"$ref": "#/$defs/requestedLocator"},
+        "status": {"const": "unavailable"},
+        "resolution_trace": {"$ref": "#/$defs/resolutionTrace"},
+        "subpath": {"$ref": "#/$defs/subpath"},
+        "failure_kind": {"enum": ["auth", "timeout", "transport"]}
+      },
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "repositoryUrl": {
+      "type": "string",
+      "pattern": "^https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+[.]git$"
+    },
+    "requestedLocator": {
+      "type": "string",
+      "pattern": "^https://github[.]com/"
+    },
+    "resolutionTrace": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "subpath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/].*"
+    },
+    "commitOid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "resolvedKind": {
+      "enum": ["head", "lightweight_tag", "annotated_tag", "commit"]
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["canonical_ref", "resolved_kind", "commit_oid"],
+      "properties": {
+        "canonical_ref": {"type": "string", "minLength": 1},
+        "resolved_kind": {"$ref": "#/$defs/resolvedKind"},
+        "commit_oid": {"$ref": "#/$defs/commitOid"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

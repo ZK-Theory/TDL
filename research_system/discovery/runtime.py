@@ -58,6 +58,7 @@ from research_system.discovery.rules import (
 )
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
+from research_system.discovery.source_observation import read_registered_spec_source_observation
 from research_system.discovery.commands import (
     DISCOVERY_COMMAND_TYPES,
     discovery_resolve_transaction_ids,
@@ -72,7 +73,7 @@ from research_system.discovery.dossier import (
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
-from research_system.store.lock import CompositeWriterLock, WriterLock
+from research_system.store.lock import CompositeWriterLock, LockedRoot, WriterLock
 from research_system.store.receipts import ReceiptStore
 
 
@@ -191,12 +192,18 @@ class DiscoveryRuntime:
         if envelope["command_type"] == "ImportAcceptedW11CatalogueGenesis" and command.envelope["payload"] != _ACCEPTED:
             raise IntegrityError("catalogue identity mismatch")
         with CompositeWriterLock(
-            (self.control_root, self.authority_resolver.control_root, self.operational_ledger.control_root),
+            (
+                self.control_root,
+                self.authority_resolver.control_root,
+                self.ledger.control_root,
+                self.operational_ledger.control_root,
+            ),
             {"command_id": command.command_id},
             lock_factory=WriterLock,
-        ):
+        ) as lease:
             authority_evidence = self._resolve_authority(command)
-            return self._submit_authorized(command, authority_evidence)
+            locked_store_root = lease.locked_root(self.ledger.control_root)
+            return self._submit_authorized(command, authority_evidence, locked_store_root)
 
     def _resolve_authority(self, command: Command) -> Any:
         """Resolve current canonical scoped authority for one command."""
@@ -359,7 +366,12 @@ class DiscoveryRuntime:
         if target not in projection.get(collection, {}):
             raise IntegrityError("Discovery command target is owned by another aggregate")
 
-    def _submit_authorized(self, command: Command, authority_evidence: Any) -> Receipt:
+    def _submit_authorized(
+        self,
+        command: Command,
+        authority_evidence: Any,
+        locked_store_root: LockedRoot,
+    ) -> Receipt:
         """Prepare, append, and receipt one already-authorized command."""
         envelope = command.envelope
         authority_sha256 = authority_evidence.command_resolution.authority_grant_sha256
@@ -547,7 +559,7 @@ class DiscoveryRuntime:
             event_type, event_payload = self._prepare_genesis(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
         elif route.family == "scout":
-            prepared = self._prepare_scout_observation(command, projection)
+            prepared = self._prepare_scout_observation(command, projection, locked_store_root)
         elif route.family == "candidate":
             event_type, event_payload = self._prepare_candidate(command, projection)
             prepared = [(event_type, command.target_stream_id, event_payload)]
@@ -2742,6 +2754,7 @@ class DiscoveryRuntime:
         self,
         command: Command,
         projection: dict[str, Any],
+        locked_store_root: LockedRoot,
     ) -> list[tuple[str, str, dict[str, Any]]]:
         """Ingest one exact Scout observation batch and its explicit Candidates."""
 
@@ -2763,10 +2776,24 @@ class DiscoveryRuntime:
             or _discovery_identity_exists(projection, observation_id)
         ):
             raise IntegrityError("invalid Scout observation ingestion")
+        batch_version = batch.get("schema_version") if isinstance(batch, dict) else None
+        if batch_version not in {"1.0.0", "2.0.0"}:
+            raise IntegrityError("invalid Scout observation batch version")
         try:
-            self.schemas.validate("ars://portfolio/scout-observation-batch", batch, schema_version="1.0.0")
+            self.schemas.validate(
+                "ars://portfolio/scout-observation-batch",
+                batch,
+                schema_version=batch_version,
+            )
         except SchemaError as exc:
             raise IntegrityError("invalid Scout observation batch") from exc
+        if batch_version == "2.0.0":
+            self._validate_registered_source_observation(
+                observation_id=observation_id,
+                batch=batch,
+                projection=projection,
+                locked_store_root=locked_store_root,
+            )
         batch_sha256 = sha256_hex(canonical_bytes(batch))
         dedup_keys = batch.get("normalized_dedup_keys")
         if (
@@ -2828,3 +2855,52 @@ class DiscoveryRuntime:
             "candidate_blueprints_sha256": sha256_hex(canonical_bytes(blueprints)),
         }
         return [("ScoutObservationIngested", observation_id, observation_payload), *candidate_events]
+
+    def _validate_registered_source_observation(
+        self,
+        *,
+        observation_id: str,
+        batch: dict[str, Any],
+        projection: dict[str, Any],
+        locked_store_root: LockedRoot,
+    ) -> None:
+        """Bind OR-029 v2 to exact registered source bytes and causal prefix."""
+
+        refs = batch.get("raw_source_refs")
+        if not isinstance(refs, list) or len(refs) != 1 or not isinstance(refs[0], dict):
+            raise IntegrityError("Scout source observation requires one registered artefact")
+        source_ref = refs[0]
+        artefact = projection["artefact_streams"].get(source_ref.get("artefact_id"))
+        manifest = artefact.get("manifest") if isinstance(artefact, Mapping) else None
+        if (
+            not isinstance(manifest, Mapping)
+            or source_ref.get("content_hash") != artefact.get("content_sha256")
+            or source_ref.get("registration_event_id") != artefact.get("registration_event_id")
+            or source_ref.get("registration_event_hash") != artefact.get("registration_event_hash")
+            or source_ref.get("registration_global_position") != artefact.get("registration_global_position")
+        ):
+            raise IntegrityError("Scout source artefact registration binding is invalid")
+        document = read_registered_spec_source_observation(
+            control_root=self.ledger.control_root,
+            manifest=manifest,
+            schemas=self.schemas,
+            locked_root=locked_store_root,
+        )
+        resolution = document["resolution"]
+        causal_prefix = document["causal_ledger_prefix"]
+        snapshot = self.ledger.snapshot()
+        position = causal_prefix["global_position"]
+        if type(position) is not int or position > snapshot.global_position:
+            raise IntegrityError("Scout source observation causal prefix position is invalid")
+        expected_event_hash = "0" * 64 if position == 0 else snapshot.events[position - 1].get("event_hash")
+        if (
+            document.get("source_observation_id") != observation_id
+            or document.get("observed_at") != batch.get("observed_at")
+            or batch.get("source_query") != resolution.get("requested_locator")
+            or batch.get("source_version") != resolution.get("commit_oid")
+            or batch.get("returned_identifiers") != [observation_id]
+            or position >= artefact.get("registration_global_position", 0)
+            or causal_prefix.get("event_hash") != expected_event_hash
+            or causal_prefix.get("raw_prefix_sha256") != self.ledger.raw_prefix_sha256(position)
+        ):
+            raise IntegrityError("Scout source observation content or causal prefix is invalid")
