@@ -93,14 +93,16 @@ The approved public contracts are exact. Every `GitReferenceResolution`
 contains `repository_url`, `requested_locator`, `status`, and a non-empty
 `resolution_trace`; it contains `subpath` only when the locator has one. A
 `resolved` result additionally contains exactly one `canonical_ref`,
-`resolved_kind`, and `commit_oid`. An `ambiguous` result instead contains at
+`resolved_kind`, and `commit_oid`, and prohibits both `candidates` and
+`failure_kind`. An `ambiguous` result instead contains at
 least two `candidates`, each with those three fields. An `unavailable` result
 contains `failure_kind` exactly `auth`, `timeout`, or `transport`. An `absent`
 result is permitted only after the trace proves exhaustive successful
 resolution. The three non-resolved states must not emit null or placeholder
 singular provenance: `absent` has neither candidates nor a failure kind,
 `ambiguous` has no failure kind, and `unavailable` has no candidates. A
-malformed locator is an input-validation error, not a resolution result.
+malformed locator is an input-validation error, not a resolution result. Every
+variant is a closed object: fields not declared for that status are rejected.
 `SpecActionIntent` is a semantic
 input schema distinct from durable command envelopes: users provide meaningful
 inputs, while the system derives IDs, hashes, command envelopes, retry keys,
@@ -121,10 +123,14 @@ Additional fields are forbidden. The required fields are `schema_id`,
 `schema_version`, `control_root`, `project_id`, `store_identity`, `route_id`,
 `operator_actor_id`, `actor_session_id`, and `authority_grant_id`; `route_id`
 must equal `SPEC-GATE6-RUN-V1`. The configuration selects evidence but grants
-no authority. The shared loader canonicalises `control_root`, rejects path
+no authority. The shared loader canonicalizes `control_root`, rejects path
 redirection and a wrong root, and verifies the project, store, and route under
 the common binding admission. The authority slice separately validates the
-named actor, session, and grant for the requested effect.
+named actor, session, and grant for the requested effect. Despite the field's
+historical name, `operator_actor_id` is the authenticated caller for that one
+invocation: producer, independent-reviewer, owner, and operator actions use
+separate configs, sessions, and grants, and the action registry rejects a
+caller whose registered role does not match the action.
 
 Step 2 introduces and tests `ars store repair-binding` and `ars store
 advance-binding`, which are absent from the Step-0 base. They and the existing
@@ -176,7 +182,11 @@ exhaustive successful check; ambiguity or unavailability is not absence.
 
 **Main interfaces:** the existing source evidence producer/resolver and its
 public SPEC registration path; anchored in-root recovery markers and
-append-only correction records bind prior evidence and its causal prefix.
+append-only correction records bind prior evidence and its causal prefix. The
+typed `spec_source_observation` document registers the exact resolved Git
+reference and source bytes/hash. Its completion proof separately binds the
+later causal registration event before `OR-029` may bind that observation to a
+Candidate; the document never self-references its own registration.
 
 **Acceptance boundary:** accept the `neurips2024` lightweight tag at
 `145efcde673f1a1897eff250b77221d26c34c479`; preserve the corrected source as
@@ -254,49 +264,110 @@ retry, packet, artefact, content, and registration event.
 advance, registration, result rendering, `ProjectUseDecision`, and the result
 CLI.
 
-The registry must contain exactly the following catalogue. Every completed
-action has one sealed completion bound to its exact route, action, retry, and
-packet. A row action additionally requires all listed durable rows. A document
-action additionally requires the exact artefact, content bytes, registration
-event, and document schema shown. A brief-input action requires exact raw
-registrations and the stated reviewed/accepted authority state. Variant aliases
-are outcome-bound and mutually exclusive for one packet.
+The registry must contain exactly the following 30 actions. Every completed
+action has one sealed completion bound to its exact route, action, retry,
+packet, subject aggregate, and effect receipts. Variant aliases are
+outcome-bound and mutually exclusive for one packet. Repeated Assay work uses
+a new `assay_id` and retry ordinal; evidence from an earlier aggregate cannot
+complete the later action instance.
 
-| Canonical action | Public alias | Additional completion proof |
-|---|---|---|
-| `bootstrap_genesis` | `bootstrap_genesis` | `OR-140` |
-| `bootstrap_assay_authority` | same | `OR-101`–`OR-108` |
-| `bootstrap_dossier_authority` | same | `OR-110`–`OR-115` |
-| `bootstrap_path_authority` | same | `OR-116`–`OR-121` |
-| `admit_dossier` | same | `OR-028` |
-| `observe_source` | same | `OR-029` |
-| `request_spec_01` | same | `OR-003` |
-| `register_spec_01_brief_inputs` | same | exact brief inputs registered; single-shot |
-| `review_spec_01_brief_inputs` | same | exact brief inputs reviewed |
-| `accept_spec_01_brief_inputs` | same | exact brief inputs accepted |
-| `prepare_spec_01` | same | `spec_01_operator_brief` / `ars://portfolio/spec-operator-brief-package` |
-| `return_spec_01_complete` | `return_spec_01` | `OR-004`; `spec_01_return` / `ars://portfolio/spec-operator-return` |
-| `return_spec_01_partial` | `return_spec_01` | `OR-005`; `spec_01_return` / `ars://portfolio/spec-operator-return` |
-| `review_spec_01_complete` | `review_spec_01` | `OR-034` and `OR-006` |
-| `review_spec_01_partial` | `review_spec_01` | `OR-035` and `OR-007` |
-| `decide_spec_01` | same | `OR-012` and `OR-013` |
-| `correct_spec_01_source` | same | `spec_01_source_correction` / `ars://portfolio/spec-01-source-correction` |
-| `approve_spec_02` | same | `spec_02_live_run_approval` / `ars://portfolio/spec-02-live-run-approval` |
-| `prepare_spec_02` | same | `spec_02_operator_brief` / `ars://portfolio/spec-operator-brief-package` |
-| `start_spec_02` | same | `OR-014`–`OR-017` |
-| `return_spec_02_complete` | `return_spec_02` | `OR-018`; `spec_02_return` / `ars://portfolio/spec-operator-return` |
-| `return_spec_02_partial` | `return_spec_02` | `OR-019`; `spec_02_return` / `ars://portfolio/spec-operator-return` |
-| `review_spec_02_complete` | `review_spec_02` | `OR-036` and `OR-020` |
-| `review_spec_02_partial` | `review_spec_02` | `OR-037` and `OR-021` |
-| `decide_spec_02` | same | `OR-026` and `OR-027` |
+For a composite action, each authorized caller may publish only its next exact
+effect prefix. The evaluator reports `prepared` between prefixes; a later
+producer, reviewer, use-authority actor, or owner continues the same action
+identity with a role-specific config and effect-specific retry key. The seal is
+written only after every ordered receipt is present. A caller may neither
+publish another role's effect nor seal a partial composite action.
+
+The effect and authority tokens below are immutable source bindings, not
+implementation-authored summaries:
+
+- `W11 OR-nnn` means the complete owner row in
+  `design/11-portfolio-and-discovery-lifecycle.md` at base
+  `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`, exact Git blob
+  `f90729d0c42a0de98d064fac0824d1969c871c82`.
+  Its command/schema, eligible profile, exact authority subject, preconditions,
+  ordered events/write set, reducers, projections, receipt, and tests are all
+  part of the binding. The corresponding runtime route must equal
+  `research_system/discovery/routes.py` Git blob
+  `39c28011e1566e2362d08c18eb260c0b6579a400`;
+  any disagreement rejects the catalogue.
+- `AR`, `SR`, and `AU` mean respectively the exact `artefact.register`,
+  `artefact.scientific_review`, and `artefact.use_authority` records in
+  `.research-system/contracts/wp6-1-owner-source-catalogue.yaml` Git blob
+  `1adc66921ee9c90d8786ff173748150922f1035e`.
+  Their complete-record hashes are respectively
+  `0b6eadd054aac60b8661747c74a2e92631d7b41b3199d65d8c0716a8c0cc9ff7`,
+  `e32c3fc7c7d1d456ba62bbc4011120a944b9c404f9d306d69543ea04f5c0752d`,
+  and `1617a904037563d280a73c9a504ef6e96c2b17338776b46a1e9adbc9efce4332`.
+  They bind `RegisterArtefact`/`ArtefactRegistered`,
+  `RecordScientificReview`/`ScientificReviewRecorded`, and
+  `SetArtefactUseAuthority`/`ArtefactUseAuthoritySet`, including their exact
+  schemas, subject grants, actor classes, receipts, and negatives.
+
+| Canonical action | Public alias | Ordered effect contract | Required actor/grant | Additional completion proof |
+|---|---|---|---|---|
+| `bootstrap_genesis` | same | `W11 OR-140` | exact `OR-140` profile and subject grant | exact genesis row |
+| `bootstrap_assay_authority` | same | `W11 OR-101`–`OR-108` | exact per-row producer, reviewer, and Stephen grants | all eight rows on one accepted Assay authority subject |
+| `bootstrap_dossier_authority` | same | `W11 OR-110`–`OR-115` | exact per-row producer, reviewer, and Stephen grants | all six rows on one accepted expected-set subject |
+| `bootstrap_path_authority` | same | `W11 OR-116`–`OR-121` | exact per-row producer, reviewer, and Stephen grants | all six rows on one accepted path-registration subject |
+| `admit_dossier` | same | `W11 OR-028` | Operator/auditor R2 exact dossier grant | exact dossier and independent closure tuple |
+| `observe_source` | same | `AR(spec_source_observation)` then `W11 OR-029` | source producer `AR` grant and Scout `OR-029` grant | `spec_source_observation` / `ars://portfolio/spec-source-observation` at `1.0.0` contains one `resolved` `GitReferenceResolution` and source bytes/hash; completion separately binds its exact `ArtefactRegistered` event, and `OR-029` binds that artefact in its source-observation multiset |
+| `request_spec_01` | same | `W11 OR-003` | Portfolio Steward exact Assay-request grant | exact Candidate, new `assay_id`, accepted bar, and producer relation |
+| `register_spec_01_brief_inputs` | same | `AR` for every member of the closed input set | registered input producer with exact per-artefact grants | `spec_01_brief_input_set` / `ars://portfolio/spec-01-brief-input-set` at `1.0.0`; exact registrations only |
+| `review_spec_01_brief_inputs` | same | `SR` for every exact registered input | independent verifier with exact per-artefact review grants | all required reviews bind the registered content hashes |
+| `accept_spec_01_brief_inputs` | same | `AU` for every exact reviewed input | use-authority actor with exact per-artefact grants | accepted consumer predicates bind the complete governing review set |
+| `prepare_spec_01` | same | `AR(spec_01_operator_brief)` | operator/Portfolio Steward exact artefact grant | `ars://portfolio/spec-operator-brief-package` at `1.0.0` |
+| `return_spec_01_complete` | `return_spec_01` | `AR(spec_01_return)` then `W11 OR-004` | Assay producer with exact artefact and `OR-004` grants | `ars://portfolio/spec-operator-return` at `1.0.0`; exact complete Assay aggregate |
+| `return_spec_01_partial` | `return_spec_01` | `AR(spec_01_return)` then `W11 OR-005` | Assay producer with exact artefact and `OR-005` grants | same schema/version; exact Partial Assay aggregate |
+| `review_spec_01_complete` | `review_spec_01` | `W11 OR-034` then `OR-006` | Portfolio Steward request grant and independent-verifier review grant | exact scorecard, request, reviewer relation, and satisfying verdict |
+| `review_spec_01_partial` | `review_spec_01` | `W11 OR-035` then `OR-007` | Portfolio Steward request grant and independent-verifier review grant | exact Partial artefact, request, reviewer relation, and satisfying verdict |
+| `decide_spec_01` | same | `W11 OR-012` then `OR-013` | Portfolio Steward proposal grant then Stephen exact Decision grant | exact current Assay/review and option-specific state |
+| `request_spec_01_revisit` | same | `W11 OR-009` | Portfolio Steward exact revisit-proposal grant | parked Candidate, exact old Assay/review, and satisfied objective revisit predicate |
+| `authorize_spec_01_retry` | same | `W11 OR-010` | Stephen exact revisit Decision grant | selected option `RETRY`; old Assay and Candidate become `retry_authorized` |
+| `request_spec_01_retry` | same | `W11 OR-011` | Portfolio Steward exact Assay-retry grant | new unused `assay_id`; old/new aggregates and current Assay bar published atomically |
+| `correct_spec_01_source` | same | `AR` then `SR` then `AU` | correction producer, independent verifier, and use-authority actor with separate exact grants | `spec_01_source_correction` / `ars://portfolio/spec-01-source-correction` at `1.0.0`; exact amended evidence and causal prefix |
+| `approve_spec_02` | same | `AR(spec_02_live_run_approval)` | Stephen exact owner/artefact grant | `ars://portfolio/spec-02-live-run-approval` at `1.0.0`; exact Candidate, promoted Assay Decision, route, scope, and cost ceiling |
+| `prepare_spec_02` | same | `AR(spec_02_operator_brief)` | operator/Portfolio Steward exact artefact grant | `ars://portfolio/spec-operator-brief-package` at `1.0.0` |
+| `start_spec_02` | same | `W11 OR-014`–`OR-017` | exact Portfolio Steward, Stephen, and Operator/auditor grants from those rows | Candidate is `spike_planning_authorized`; exact Assay `PROMOTE` Decision and separate SPEC-02 approval both bind the plan |
+| `return_spec_02_complete` | `return_spec_02` | `AR(spec_02_return)` then `W11 OR-018` | Spike producer with exact artefact and `OR-018` grants | `ars://portfolio/spec-operator-return` at `1.0.0`; exact complete Spike aggregate |
+| `return_spec_02_partial` | `return_spec_02` | `AR(spec_02_return)` then `W11 OR-019` | Spike producer with exact artefact and `OR-019` grants | same schema/version; exact Partial Spike/attempt/lease closure |
+| `review_spec_02_complete` | `review_spec_02` | `W11 OR-036` then `OR-020` | Portfolio Steward request grant and independent-verifier review grant | exact verdict, request, reviewer relation, and satisfying verdict |
+| `review_spec_02_partial` | `review_spec_02` | `W11 OR-037` then `OR-021` | Portfolio Steward request grant and independent-verifier review grant | exact Partial, request, reviewer relation, and satisfying verdict |
+| `decide_spec_02` | same | `W11 OR-026` then `OR-027` | Portfolio Steward proposal grant then Stephen exact Decision grant | exact current Spike/review and option-specific state |
+| `register_project_use_decision` | same | `AR(project_use_decision)` | registered operator/producer with exact artefact grant | accepted Task already exists; `project_use_decision` / `ars://portfolio/project-use-decision` at `1.0.0` binds the exact result tuple |
+| `accept_project_use_decision` | same | `SR(project_use_decision)` then `AU(project_use_decision)` | independent verifier and use-authority actor with exact, non-producer grants | exact registered bytes, complete governing review set, and accepted result-consumer predicate |
+
+`ProjectUseDecision` at `1.0.0` is a closed document. It requires exact references
+to the Candidate, current Assay and Spike (or an explicit `no_spike` terminal
+reason), terminal owner Decision, source observation and any correction,
+evidence artefacts, accepted operational Task, governed-code subject, the
+closed disposition `retain_experimental_benchmark | adopt_default | reject`,
+plain-language rationale, limitations, and next gates. Unknown fields reject.
+The registration action is `prepared` after `ArtefactRegistered` and the result
+renderer remains pending until `accept_project_use_decision` records both the
+independent scientific review and accepted use authority. An exact completed
+retry returns its old receipts; a changed Task, content, binding, or retry key
+conflicts and may publish no effect.
+
+A SPEC-01 `PARK` Decision leaves the Candidate `parked` and never satisfies
+`start_spec_02`. The separate SPEC-02 approval is necessary but not sufficient.
+To continue for the owner-approved Gate 6 operational test, the objective
+revisit predicate recorded by the PARK Decision must first become satisfied;
+the route then executes `request_spec_01_revisit`,
+`authorize_spec_01_retry` with Stephen selecting `RETRY`, and
+`request_spec_01_retry`. The complete/Partial return, review, and
+`decide_spec_01` actions repeat against the new Assay instance. Only a later
+exact `OR-013` `PROMOTE` Decision may create `spike_planning_authorized` and
+permit the separately approved SPEC-02 route. If that promotion does not
+occur, SPEC-02 remains non-runnable; neither an approval document nor the SPEC
+coordinator may bypass W11.
 
 `correct_spec_01_source` remains in the complete registry but is required in a
 run only when the accepted evidence establishes that a source correction is
-needed. `approve_spec_02` is always a distinct prerequisite for SPEC-02,
-including after a SPEC-01 `PARK` decision. Catalogue-completeness tests fail on
-any missing or extra canonical action, alias, effect, document identity,
-authority requirement, or completion proof; status, retry, and execution must
-derive their matrices from this catalogue rather than maintain subsets.
+needed. Catalogue-completeness tests fail on any missing or extra canonical
+action, alias, effect, document identity, authority requirement, source-token
+hash, or completion proof; status, retry, and execution must derive their
+matrices from this catalogue rather than maintain subsets.
 
 **Acceptance boundary:** historical IDs remain readable while canonical new
 writes use new IDs. Unrelated evidence is isolated. Missing action evidence
@@ -316,7 +387,9 @@ divergent actions, aliases, effects, and proofs.
 complete transaction, revalidated under the route lock, published, and sealed.
 Status and advance use the same registry and evaluator. Context uses one
 accepted snapshot with sealed hash-bound approvals. SPEC-01 runs all required
-stages; SPEC-02 requires a separate approval even after `PARK`.
+stages. SPEC-02 requires a separate approval, but a prior `PARK` must also
+traverse the exact W11 Assay revisit/retry sequence and end in a later
+`PROMOTE`; the approval alone never changes Candidate state.
 
 **Main interfaces:** the semantic-intent preparation and transaction/recovery
 seams above, `DiscoveryRuntime.submit`, `CommandService.submit`,
@@ -360,32 +433,48 @@ store write occurs in construction slices.
 After all six PRs have merged and the composed governed tree has been read back:
 
 1. After all six merges, perform final assembled selection and one independent
-   exact-`main` review. Immediately before admitting the owner-reviewed
-   successor binding, perform a fresh fetch and an independent live-remote read
-   of `refs/heads/main`; prove local `HEAD`, refreshed `origin/main`, and the
-   live-remote result all equal that reviewed SHA. If the remote has advanced,
-   repeat candidate selection and independent review; do not bind the stale
-   subject. Then append
+   exact-`main` review. The binding request carries that immutable reviewed SHA,
+   not the mutable branch name. Under the store writer lock and before the
+   first authoritative binding write, the binding service itself performs a
+   fresh fetch and independent live-remote read of `refs/heads/main` and
+   requires local `HEAD`, refreshed `origin/main`, the live-remote result, and
+   the request SHA to be equal. A mismatch rejects with zero authoritative
+   binding publication. The locally atomic transaction binds only the reviewed
+   commit; because a remote Git ref cannot share the store lock, every later
+   binding consumer revalidates live `main` against that commit before any
+   semantic effect. An immediate post-publication readback occurs before the
+   binding is used. If `main` advances in that interval or later, the exact
+   binding remains immutable historical evidence but is non-admissible for new
+   effects; repeat candidate selection and independent review before appending
+   a reviewed successor. Then append
    the historical `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` acceptance and the
-   historical P-050 `ProjectUseDecision` without rewriting their provenance.
+   historical P-050 `ProjectUseDecision` through the same registration and
+   independent acceptance actions without rewriting their provenance.
 2. Obtain explicit paid-run approval, then repeat Damrich, Berens, and Kobak
    on real `neurips2024` with new IDs and the frozen 126-configuration/42-
    rerun design. Keep producer, reviewer, and operator separate, and obtain a
-   separate SPEC-02 approval even after `PARK`.
+   separate SPEC-02 approval. When SPEC-01 selects `PARK`, satisfy its recorded
+   revisit predicate and complete `OR-009`–`OR-011`, then repeat the Assay and
+   obtain an exact later `PROMOTE` before starting SPEC-02; otherwise preserve
+   the non-runnable outcome without a state-machine bypass.
 3. Persist the fresh route's exact receipt, ledger tail, identity, artefact,
    task, and result bytes. Close the terminal Task only through
-   `SubmitForReview` followed by `AcceptTask`, then persist the fresh
-   `ProjectUseDecision`.
+   `SubmitForReview` followed by `AcceptTask`, then execute
+   `register_project_use_decision` and, through a separate independent reviewer
+   session, `accept_project_use_decision`. The public result remains pending
+   until both actions complete.
 4. Use the historical and fresh read-only result commands with their exact,
    distinct Task IDs, including JSON and Markdown rendering, after replay from
    a fresh process. Verify the historical position-444 `ResourcesReleased`
    run-closure anchor, the fresh terminal Task state, human results, `PARK`
    limitation, and no scientific-promotion language.
-5. Create and restore governed backups using
-   `C:\Users\steph\TDL-ARS-WP64-Backups` and
-   `C:\Users\steph\TDL-ARS-WP64-Restore-Verification`. Same-disk verification
-   proves logical recovery only; independently verified off-disk copying is a
-   separate requirement.
+5. Create and restore governed backups using the operator-supplied
+   `wp64-gate6-backup-root` and `wp64-gate6-restore-verification-root`
+   locators. They resolve to distinct fresh roots on the approved same disk.
+   This Gate 6 evidence proves logical export and recovery only; it does not
+   claim machine-loss resilience. Encrypted off-disk replication, byte/hash
+   readback, and its owner evidence remain a separately tracked operational
+   capability and are explicitly not a Gate 6 closure requirement.
 6. Obtain independent final evidence review, Stephen's closure decision, a
    docs-only final PR, and merged-`main` replay. Reconcile `agent_docs`, Jira,
    and these docs, including KAN-103/KAN-12 transitions. Do not automatically
@@ -398,6 +487,7 @@ Capability reporting is phase-aware and uses exactly one applicable row:
 | Construction, before the complete public implementation is on `main` | **Capability status: INCOMPLETE — the historical real SPEC run is PROVEN, but no complete Gate 6 implementation is integrated on `main`.** |
 | Assembled code merged and the public path passes, before successor binding | **Capability status: INCOMPLETE — the Gate 6 implementation is integrated on `main`; successor binding and fresh live proof are pending.** |
 | Exact integrated implementation bound to the live store | **Capability status: INCOMPLETE — the integrated implementation is bound to the live store; fresh run, task, result, replay, and backup evidence are incomplete.** |
+| Fresh run, task, accepted project-use result, replay, and governed same-disk backup/restore evidence complete; final evidence review not complete | **Capability status: INCOMPLETE — integrated fresh proof is complete; independent final evidence review is pending.** |
 | All safe closure work and independent final evidence review complete; only Stephen's decision remains | **Capability status: OWNER-BLOCKED — integrated fresh proof is complete; Stephen's Gate 6 closure decision is required.** |
 | Stephen's closure decision recorded and final documentation/Jira reconciliation verified | **Capability status: INTEGRATED — Gate 6 is closed on the verified P-050 real SPEC capability.** |
 
@@ -412,8 +502,10 @@ Capability reporting is phase-aware and uses exactly one applicable row:
 - `PARK` keeps the spectral method out of default empirical use and scientific
   claims. Existing `vis_utils` equivalence and estimand/representation freeze
   are separate empirical-adoption work, not Gate 6 blockers.
-- Same-disk verified backup proves logical recovery only. An off-disk copy must
-  be verified separately.
+- Same-disk verified backup proves Gate 6 logical recovery only. Encrypted
+  off-disk replication and byte/hash readback are a separate machine-loss-
+  resilience capability, not a Gate 6 closure requirement and not part of the
+  Gate 6 status matrix.
 - Gate 7 cannot open or dispatch on this evidence alone; it remains blocked on
   integrated Gate 6 and final closure evidence. No scientific promotion is
   implied.

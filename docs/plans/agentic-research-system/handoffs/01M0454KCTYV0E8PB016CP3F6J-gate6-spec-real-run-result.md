@@ -34,16 +34,19 @@ corrected append-only. The correction does not promote the method or open Gate
 
 ## Durable evidence anchors
 
-The operational source of truth is the immutable control store at
-`C:\Users\steph\TDL-ARS-WP64-Control`. The repository-tracked
+The operational source of truth is the immutable control store selected by
+locator `wp64-gate6-historical-control`. The repository-tracked
 [machine-readable retrieval manifest](01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-evidence-manifest.json)
-binds that root to its identity manifest, historical Task object, exact ledger
-files, registered artefact-object records, content paths, sizes, and independently
-recomputed file hashes. An independent reviewer with authorised local access,
-or access to a byte-exact verified restore, can retrieve and hash every named
-byte directly. The internal artefact bytes are not published in this public
-repository; the final independent backup remains an explicit closure step in
-06q. The store was read without writing it:
+binds the locator and approved-binding hash to the store identity manifest,
+historical Task object, exact ledger files, registered artefact-object records,
+content paths, sizes, and independently recomputed file hashes. An authorised
+reviewer resolves the locator through the approved project binding or a
+byte-exact verified restore, verifies the expected store/project identities,
+and can then retrieve and hash every named relative path. The internal
+artefact bytes and host path are not repeated in this public handoff. The final
+governed same-disk export and fresh-root restore remain an explicit Gate 6
+closure step in 06q; off-disk machine-loss resilience is a separate deferred
+job. The store was read without writing it:
 
 - project identity: `prj_01978abc-1000-7000-8000-000000001000`;
 - store identity:
@@ -116,13 +119,17 @@ Follow [06q](../implementation/06q-gate6-spec-real-run-integration-and-follow-up
    `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` acceptance and historical P-050
    `ProjectUseDecision`; obtain explicit paid-run approval; repeat
    Damrich/Berens/Kobak on real `neurips2024` with new IDs and frozen 126/42
-   design, separate producer/reviewer/operator, and separate SPEC-02 approval;
+   design, separate producer/reviewer/operator, and separate SPEC-02 approval.
+   A SPEC-01 `PARK` must use the governed `OR-009`–`OR-011` Assay
+   revisit/retry path and obtain a later exact `PROMOTE` before SPEC-02; the
+   approval alone cannot bypass W11;
 4. persist exact receipt/tail/identity/artefact/task/result bytes, close the
    terminal Task through `SubmitForReview` then `AcceptTask`, persist the fresh
-   `ProjectUseDecision`, run historical and fresh read-only result commands,
-   and verify governed backup/restore at
-   `C:\Users\steph\TDL-ARS-WP64-Backups` and
-   `C:\Users\steph\TDL-ARS-WP64-Restore-Verification`;
+   `ProjectUseDecision` through its public registration action and separate
+   independent review/use-authority action, run historical and fresh read-only result commands,
+   and verify governed backup/restore using the approved
+   `wp64-gate6-backup-root` and `wp64-gate6-restore-verification-root`
+   locators;
 5. obtain independent final evidence review, Stephen's closure, a docs-only
    final PR, merged-main replay, and `agent_docs`/Jira/docs reconciliation with
    KAN-103/KAN-12 transitions. No automatic paid rerun follows a production
@@ -137,7 +144,9 @@ those review/merge actions, and none has occurred.
 
 SCALE-01 v1.0.3 and its eligibility envelope are historical and not a Gate 6
 closure prerequisite. P-049 retains the merge/integration/closure distinction;
-P-050 records the `PARK` outcome. Same-disk backup verification proves logical
-recovery only; off-disk copying is separate. Gate 7 remains blocked on
+P-050 records the `PARK` outcome. Same-disk backup verification proves Gate 6
+logical recovery only; encrypted off-disk replication and hash readback remain
+a separate machine-loss-resilience capability rather than a Gate 6 closure
+requirement. Gate 7 remains blocked on
 integrated Gate 6 and final closure evidence. No scientific promotion is
 implied.

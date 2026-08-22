@@ -4,12 +4,18 @@
   "recorded_at": "2026-08-22",
   "access": {
     "classification": "internal",
-    "public_repository_content": "locator_manifest_only",
-    "retrieval_requirement": "authorised local access to the exact control_root or a byte-exact verified restore",
-    "final_independent_backup": "pending under 06q section 6 step 5"
+    "public_repository_content": "non_sensitive_locator_and_hash_manifest_only",
+    "retrieval_requirement": "an authorised operator resolves control_store_locator_id through the approved project binding or a byte-exact verified restore; all relative paths are relative to that verified root",
+    "gate6_same_disk_restore_evidence": "pending under 06q section 6 step 5",
+    "off_disk_replication": "deferred machine-loss-resilience job; not a Gate 6 closure requirement"
   },
   "store": {
-    "control_root": "C:\\Users\\steph\\TDL-ARS-WP64-Control",
+    "control_store_locator_id": "wp64-gate6-historical-control",
+    "approved_binding_record": {
+      "record_id": "wp64-approved-project-binding",
+      "file_sha256": "fbc9737c25206339e954d613e10bcdbc167a7283f7cd6386f0692411d2271348",
+      "retrieval": "operator-supplied approved binding; the host path is not repeated in this public handoff"
+    },
     "project_id": "prj_01978abc-1000-7000-8000-000000001000",
     "store_identity": "2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a",
     "identity_manifest": {
