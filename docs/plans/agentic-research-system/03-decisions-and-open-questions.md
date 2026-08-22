@@ -396,6 +396,10 @@ remaining work-package, future-evidence, migration, and preflight gates remain b
 **Boundary:** Pilot preflight criteria themselves are unchanged and SCALE-01 must pass them; this amends only what kind of workflow may occupy the pilot slot.<br>
 **Migration consequence:** W9/WP6.4 substitute SCALE-01 only for the pilot occupant; every existing Gate 6 preflight predicate remains, and the first ARS paper retains the inherited research-promotion criteria rather than being treated as already piloted.<br>
 **Affected specifications:** W9 (pilot mechanics), 04-plan, `00-master-transition-plan.md`, WP6 master, WP6.4.
+**Supersession note (2026-08-22):** This is historical pilot-occupant
+provenance. P-049's SCALE-01 eligibility-envelope closure application is
+superseded by P-050 and 06q; SCALE-01 is not a current Gate 6 closure
+prerequisite.
 
 ### P-032 — Full portfolio and Discovery integration (W11)
 
@@ -1036,9 +1040,14 @@ statement is superseded for 06i and 06j by their later accepted and integrated
 exact subjects; G-RM-13 remains separate for its later manuscript-specific
 run.<br>
 **Integration consequence:** RM-00 remains the obligation and gate crosswalk,
-not a live parallel campaign. Executable work is tracked beneath KAN-65,
-KAN-57 and KAN-22. WP6.3 and WP6.4 are integrated. Gate 6 still requires WP6.1
-R1, the final WP6.1 proof and final assembled Gate 6 acceptance; the Gate 9
+not a live parallel campaign. Executable work was tracked beneath KAN-65,
+KAN-57 and KAN-22. WP6.1, WP6.3, and WP6.4 are integrated. WP6.1 closed with
+KAN-65, KAN-71 through KAN-75, KAN-95 through KAN-97, and KAN-102 `Done`, the
+accepted production subject `b0058f396f538a63f94ce68d8f6a49b25f4c4c8f`, independent-review
+record commit `0fd4674ee4fc43515c12d498b7f786555f09bba3`, and merge
+`26df87157013fa078849acb14921bbcfcdfe53f1` on current `main`. WP6.1 is
+completed prerequisite evidence, not an open Gate 6 lane. Gate 6 still requires
+the recovery implementation and assembled closure evidence in 06q; the Gate 9
 manuscript pilot does not block Gate 6.<br>
 **Boundary:** This decision reorganises and makes already-required work
 visible. It does not accept an unbuilt runtime, satisfy a future exact-subject
@@ -1071,6 +1080,64 @@ provider/execution authority, or close WP6/Gate 6. Any later full-suite or
 branch-protection policy requires its own owner decision.<br>
 **Affected specifications:** 06i artefact-authority interface; WP6.4 session
 exchange; ARS post-merge currency control.
+
+### P-049 — Keep merge admission, capability integration, and Gate 6 closure distinct
+
+**Date:** 2026-08-16<br>
+**Status:** Accepted distinction; the SCALE-01 closure application in the
+historical 06p text is superseded.<br>
+**Decision:** A reviewed change entering `main` is **merge admission** only; a
+real public/production path proven on integrated `main` is **capability
+integration**; and Gate 6 closes only after its own assembled evidence,
+independent review, and Stephen's owner decision. A plan, schema, test suite,
+PR, review, Jira state, or historical run is evidence for one of those
+decisions, never the decision itself. The active Gate 6 recovery/closure route
+is [06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+SCALE-01 remains historical evidence and is not a Gate 6 closure prerequisite.
+<br>**Amendment/current application (2026-08-22):** 06q applies this distinction
+to the reset. Step 0 permits the named clean branch/commit/push/PR and
+KAN-12/KAN-103 operations, including six bounded Jira child jobs and readbacks,
+and permits closing PR257 unmerged only after the replacement decision is
+durable. It still permits no merge, CodeRabbit trigger or polling, provider or
+paid run, live-store write during construction, or final Gate 6 decision.<br>
+**Affected specifications:** 06p, 06q, 06r, WP6/Gate 6, and the Gate-7
+sequencing boundary.
+
+### P-050 — SPEC real-run outcome and research-use disposition
+
+**Date:** 2026-08-16<br>
+**Status:** Accepted record of the historical real run; implementation remains
+unintegrated.<br>
+**Decision:** The real SPEC run is the Gate 6 proof target. It assessed 126
+configurations with 42 deterministic reruns, reached terminal
+`PROVEN/spec_02_owner_decided`, and reached its historical run-closure anchor at
+position `444 ResourcesReleased`. Later events exist in the same store, so 444
+is not described as the current store tail. Its research-use decision is
+**PARK**: retain the method as
+an experimental or benchmark candidate, not as the default empirical method or
+the basis of a scientific claim. The `neurips2024` locator is a lightweight Git
+tag at commit `145efcde673f1a1897eff250b77221d26c34c479`; the source error was
+corrected append-only.<br>**Boundary:** PARK does not promote the method,
+resolve upstream `vis_utils` equivalence, freeze the project's estimand or
+representation, or open Gate 7. Those are separate empirical-adoption or
+later-gate decisions. Same-disk verified backup proves logical recovery only;
+an off-disk copy is separate. This decision authorizes no provider call, paid
+run, live-store mutation, merge, review trigger, or owner closure.<br>**Affected
+specifications:** 06q, the Gate 6 result handoff, and the empirical-adoption
+materials.
+<br>**Amendment/current application (2026-08-22):** The historical result and
+PARK disposition remain the proof target and research-use boundary in 06q; the
+amendment does not recast them as integrated capability or scientific
+promotion. Step 0's named branch/PR and Jira work is administrative control
+reset only; the later fresh proof still needs explicit paid-run approval and
+Stephen's closure decision.
+
+The immutable evidence for the 126/42 counts, terminal decision, source
+correction, position-444 run closure, seven registered artefacts, and their
+verified content hashes is recorded in the result handoff's
+[durable evidence anchors](handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md#durable-evidence-anchors).
+That evidence is the operational source for this decision; this register and
+06q are its governance and execution pointers, not circular proof.
 
 ## WP6.4 mechanics integration status (non-decision)
 
@@ -1110,6 +1177,13 @@ and WP6.7 legacy consolidation retain their separate gates. No provider
 invocation, credentials, returned-content execution, result promotion, claim
 promotion, research execution or pilot dispatch is authorized by this status
 record.
+
+**Gate 6 reset note (2026-08-22):** The preceding WP6.4 mechanics paragraph is
+historical status evidence. The historical real SPEC run is PROVEN, but no Gate
+6 implementation is integrated on `main`. Use [06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md)
+as the sole active recovery and closure plan; SCALE-01 is not a Gate 6 closure
+prerequisite and Gate 7 remains blocked on integrated Gate 6 plus final closure
+evidence.
 
 ## W11 specification status (non-decision)
 

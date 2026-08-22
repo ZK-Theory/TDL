@@ -560,3 +560,24 @@ The Gate 4 P0 plan suite is written at `05-p0-materialization-and-foundation-imp
 4. only then create an isolated worktree and execute Work Package 1 through its test/review checkpoint.
 
 No executable P0 evidence, `.research-system/` runtime definition tree, control root, adapter, process, migration, pilot, or current-paper change is authorized by the review-pending plan.
+
+## 13. Gate 6 recovery and closure reset (2026-08-22)
+
+The current Gate 6 capability status is **INCOMPLETE**: a historical real
+SPEC run is **PROVEN**, but no Gate 6 implementation is integrated on `main`.
+The run recorded 126 configurations, 42 deterministic reruns, terminal
+`PROVEN/spec_02_owner_decided`, and historical run-closure anchor
+`444 ResourcesReleased`. Later events exist in the same store, so 444 is not
+the current ledger tail. Those facts are evidence of the run, not evidence
+that its implementation was merged. The current base is
+`d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`.
+
+The only active recovery and closure authority is
+[06q — Gate 6 Recovery and Closure Plan](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+It defines Steps 0–6, six sequential PR slices, the retained public seams,
+fresh real-run proof, and owner-controlled closure. [06r](implementation/06r-gate6-pr258-review-convergence-plan.md)
+is historical PR #258 diagnostic evidence only. PR #257 remains an open draft
+candidate; PR #258 is closed unmerged at `94f8bc1fc92bdc5259acab02e73a3958202ab2e`
+and its branch is retained as evidence. SCALE-01 remains historical and is not
+a Gate 6 closure prerequisite. Gate 7 remains blocked until integrated Gate 6
+and final closure evidence exist.

@@ -22,6 +22,18 @@
 
 ## WP6 suite (P-042/06g governs; WP6.3 and WP6.4 integrated)
 
+### Current Gate 6 control pointer (2026-08-22)
+
+**Capability status: INCOMPLETE — historical real SPEC evidence is PROVEN;
+no Gate 6 implementation is integrated on `main`.** The sole active recovery
+and closure plan is [06q — Gate 6 Recovery and Closure
+Plan](06q-gate6-spec-real-run-integration-and-follow-up.md). It supersedes
+construction-era SCALE-01 eligibility as the active Gate 6 closure route and
+defines the six sequential PR slices, fresh real-run proof, review protocol,
+and owner closure. [06r](06r-gate6-pr258-review-convergence-plan.md) is
+retired historical PR #258 evidence only. Gate 7 remains blocked on integrated
+Gate 6 and final closure evidence.
+
 1. [WP6 master — historical Gate 6 launch-basis snapshot](06-wp6-gate6-readiness-and-integration-plan.md) (exact revision `fe5f1d40` preserved under P-036)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
 3. [WP6 owner-operated external-session amendment](06g-wp6-owner-operated-session-amendment.md) (effective status `accepted_for_governing_planning` via the [external acceptance record](../reviews/wp6-owner-operated-session-amendment-owner-acceptance-2026-07-26.md); embedded pending status is the reviewed candidate snapshot)
@@ -44,15 +56,14 @@ Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
 2026-07-17) in
 [../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
 P-042 and the 06g acceptance record supersede the direct-provider WP6.2
-sequence. The governing first-release dependency path is WP6.1 plus WP6.3 into
-WP6.4 and Gate 6. WP6.3 and WP6.4 are integrated; WP6.4's D-G6-5 decision is
-accepted and its SCALE-01 v1.0.3 package remains `pending_wp6_6`,
-`dispatchable: false` and `execution_authorized: false`. WP6.5 remains an
-independent specification lane under P-042/06g. WP6.6 dossier admission and
-WP6.7 legacy consolidation retain their separate gates. The remaining Gate 6
-path is WP6.6 dossier admission and final assembled Gate 6 acceptance; WP6.7
-remains a separately gated legacy-consolidation sequence. ARS does
-not invoke Claude or Codex or handle their OAuth credentials.
+sequence. WP6.3 and WP6.4 remain integrated historical prerequisites; WP6.4's
+D-G6-5 decision and SCALE-01 package remain immutable historical evidence.
+WP6.5 remains an independent specification lane under P-042/06g. WP6.6
+dossier admission and WP6.7 legacy consolidation retain their separate gates.
+The current Gate 6 path is the six-slice real-run recovery and closure sequence
+in [06q](06q-gate6-spec-real-run-integration-and-follow-up.md); no Gate 6
+implementation is integrated on `main`. ARS does not invoke Claude or Codex or
+handle their OAuth credentials.
 
 ## Research Methods obligations — integrated by P-047, **WP6.4 production path integrated**
 
