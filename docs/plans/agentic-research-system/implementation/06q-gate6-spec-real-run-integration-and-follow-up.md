@@ -439,14 +439,16 @@ After all six PRs have merged and the composed governed tree has been read back:
    fresh fetch and independent live-remote read of `refs/heads/main` and
    requires local `HEAD`, refreshed `origin/main`, the live-remote result, and
    the request SHA to be equal. A mismatch rejects with zero authoritative
-   binding publication. The locally atomic transaction binds only the reviewed
-   commit; because a remote Git ref cannot share the store lock, every later
-   binding consumer revalidates live `main` against that commit before any
-   semantic effect. An immediate post-publication readback occurs before the
-   binding is used. If `main` advances in that interval or later, the exact
-   binding remains immutable historical evidence but is non-admissible for new
-   effects; repeat candidate selection and independent review before appending
-   a reviewed successor. Then append
+   binding publication. This final equality check is the binding-admission
+   point; it does not make the mutable remote ref atomic with later store
+   effects. The locally atomic transaction and its immediate readback bind only
+   the immutable reviewed commit and its governed-code manifest. Later binding
+   consumers verify that exact bound subject and manifest, not the current
+   value of `main`. A later `main` advance therefore does not retroactively
+   invalidate the admitted binding or effects authorized against its exact
+   subject. It is evaluated when selecting a successor, which requires fresh
+   candidate selection and independent review before the successor is
+   appended. Then append
    the historical `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` acceptance and the
    historical P-050 `ProjectUseDecision` through the same registration and
    independent acceptance actions without rewriting their provenance.
@@ -489,6 +491,7 @@ Capability reporting is phase-aware and uses exactly one applicable row:
 | Exact integrated implementation bound to the live store | **Capability status: INCOMPLETE — the integrated implementation is bound to the live store; fresh run, task, result, replay, and backup evidence are incomplete.** |
 | Fresh run, task, accepted project-use result, replay, and governed same-disk backup/restore evidence complete; final evidence review not complete | **Capability status: INCOMPLETE — integrated fresh proof is complete; independent final evidence review is pending.** |
 | All safe closure work and independent final evidence review complete; only Stephen's decision remains | **Capability status: OWNER-BLOCKED — integrated fresh proof is complete; Stephen's Gate 6 closure decision is required.** |
+| Stephen's closure decision recorded; final documentation, Jira reconciliation, docs-only PR, and merged-`main` replay pending | **Capability status: INCOMPLETE — Stephen's Gate 6 closure decision is recorded; final documentation, replay, and reconciliation are pending.** |
 | Stephen's closure decision recorded and final documentation/Jira reconciliation verified | **Capability status: INTEGRATED — Gate 6 is closed on the verified P-050 real SPEC capability.** |
 
 ## 7. Assumptions, deferrals, and hard boundaries
