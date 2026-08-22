@@ -264,7 +264,11 @@ proof, review, and closure decisions. [06r](06r-gate6-pr258-review-convergence-p
 is historical PR #258 diagnostic evidence only. Gate 7 remains blocked on
 integrated Gate 6 and final closure evidence.
 
-## Historical Jira operation (2026-08-13; superseded by 06q)
+## Historical Jira operation (2026-08-13; non-operative and superseded by 06q)
+
+> Do not execute any instruction in this section. It authorizes no Jira
+> mutation, child issue, dependency change, status transition, or Gate 6
+> action. Current Jira control and work decomposition are governed only by 06q.
 
 KAN-12 is the only canonical open Gate 6 capability. Its description must be
 updated now to remove the false statement that WP6.6 is still under

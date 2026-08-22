@@ -1040,9 +1040,14 @@ statement is superseded for 06i and 06j by their later accepted and integrated
 exact subjects; G-RM-13 remains separate for its later manuscript-specific
 run.<br>
 **Integration consequence:** RM-00 remains the obligation and gate crosswalk,
-not a live parallel campaign. Executable work is tracked beneath KAN-65,
-KAN-57 and KAN-22. WP6.3 and WP6.4 are integrated. Gate 6 still requires WP6.1
-R1, the final WP6.1 proof and final assembled Gate 6 acceptance; the Gate 9
+not a live parallel campaign. Executable work was tracked beneath KAN-65,
+KAN-57 and KAN-22. WP6.1, WP6.3, and WP6.4 are integrated. WP6.1 closed with
+KAN-65, KAN-71 through KAN-75, KAN-95 through KAN-97, and KAN-102 `Done`, the
+accepted production subject `b0058f396f538a63f94ce68d8f6a49b25f4c4c8f`, independent-review
+record commit `0fd4674ee4fc43515c12d498b7f786555f09bba3`, and merge
+`26df87157013fa078849acb14921bbcfcdfe53f1` on current `main`. WP6.1 is
+completed prerequisite evidence, not an open Gate 6 lane. Gate 6 still requires
+the recovery implementation and assembled closure evidence in 06q; the Gate 9
 manuscript pilot does not block Gate 6.<br>
 **Boundary:** This decision reorganises and makes already-required work
 visible. It does not accept an unbuilt runtime, satisfy a future exact-subject
@@ -1105,8 +1110,10 @@ sequencing boundary.
 unintegrated.<br>
 **Decision:** The real SPEC run is the Gate 6 proof target. It assessed 126
 configurations with 42 deterministic reruns, reached terminal
-`PROVEN/spec_02_owner_decided`, and ended at ledger tail `444
-ResourcesReleased`. Its research-use decision is **PARK**: retain the method as
+`PROVEN/spec_02_owner_decided`, and reached its historical run-closure anchor at
+position `444 ResourcesReleased`. Later events exist in the same store, so 444
+is not described as the current store tail. Its research-use decision is
+**PARK**: retain the method as
 an experimental or benchmark candidate, not as the default empirical method or
 the basis of a scientific claim. The `neurips2024` locator is a lightweight Git
 tag at commit `145efcde673f1a1897eff250b77221d26c34c479`; the source error was
@@ -1124,6 +1131,13 @@ amendment does not recast them as integrated capability or scientific
 promotion. Step 0's named branch/PR and Jira work is administrative control
 reset only; the later fresh proof still needs explicit paid-run approval and
 Stephen's closure decision.
+
+The immutable evidence for the 126/42 counts, terminal decision, source
+correction, position-444 run closure, seven registered artefacts, and their
+verified content hashes is recorded in the result handoff's
+[durable evidence anchors](handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md#durable-evidence-anchors).
+That evidence is the operational source for this decision; this register and
+06q are its governance and execution pointers, not circular proof.
 
 ## WP6.4 mechanics integration status (non-decision)
 

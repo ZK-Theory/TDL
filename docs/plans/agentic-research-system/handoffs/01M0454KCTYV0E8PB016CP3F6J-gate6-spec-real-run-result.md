@@ -14,8 +14,9 @@ been integrated on `main`.
 The historical run assessed a real paper and repository through SPEC-01, then
 ran SPEC-02 as a bounded methods spike. It executed 126 frozen configurations
 and 42 deterministic reruns, reached `PROVEN/spec_02_owner_decided`, and closed
-the ledger at event 444, `ResourcesReleased`. This is real-run proof of the
-historical route, not proof of integrated code.
+the historical run at position 444, `ResourcesReleased`. Later store events
+exist. This is real-run proof of the historical route, not proof of integrated
+code.
 
 ## Research disposition
 
@@ -30,6 +31,47 @@ The `neurips2024` source is a valid lightweight Git tag at commit
 `145efcde673f1a1897eff250b77221d26c34c479`. The initial source error was
 corrected append-only. The correction does not promote the method or open Gate
 7.
+
+## Durable evidence anchors
+
+The operational source of truth is the immutable control store, independently
+read without writing it:
+
+- project identity: `prj_01978abc-1000-7000-8000-000000001000`;
+- store identity:
+  `2df87684ef33136d85adff91d58a8e91fc31a061a53ced6932988df4e687cd7a`;
+- manifest hash:
+  `80c2e7d3e11aeeb5ddc6723243895374531afadc5770b5fb73b566764f3dfcb2`;
+- position 432, `DecisionResolved`, event hash
+  `aab242f6cb0cf797d2a6b0b6e976f3495ed8962fba8539f09458ddd98e5870bb`,
+  selects `PARK` for decision
+  `dec_0f30520f-f622-7c2f-80ba-53b91ecd5b63`;
+- position 433, `CandidatePromotionApplied`, event hash
+  `02162f0a0608feb1893260e219e43a3036898ef0da19e27ee12630ea314ffeb2`,
+  records the candidate as parked; and
+- position 444, `ResourcesReleased`, event hash
+  `ff738e0e548eb556faf520e72cce56c8acb1599ffab6a584ecea5ea6deb349da`,
+  is the historical run-closure anchor. The store contains later events, so
+  position 444 is not the current store tail.
+
+The seven registered run artefacts were re-read from their anchored content
+paths and all seven file bytes matched their registered SHA-256 values:
+
+| Evidence | Artefact identity | Verified SHA-256 |
+|---|---|---|
+| Raw result | `art_449b7235-3114-7043-8b3e-6ca76dc14768` | `dc3811bd50423ebf7748e14d998e5cbe237e59b83661ee5feca0e78807139103` |
+| Source | `art_2e7531f9-020b-7775-83c4-cac52a2f6fed` | `ac0d2c49c0563926a1a52aba91fe0dbd95d8d4e7c2d3143a6c3e4c23bcbc8464` |
+| Checks | `art_f0cbbf39-1356-772a-86c2-fca6391bfa45` | `5705c5be0e9217c84dc8cefe9a7699913ca593dcc92fe1937c6bc650d3ef36be` |
+| Summary | `art_ddf81b12-ffb4-7944-872f-aff3177b46c4` | `792eeccfba777963fd67bc7178ebdd0c3c751035b224473b9e05288ccb7358a8` |
+| Return | `art_8e65db46-dd82-702b-84ff-c7282bc88c61` | `a334a81c61e803c5dad90078cc8be808230ec12b1c05c9272c39ccafaa7df14c` |
+| Source correction | `art_f14d8ecc-9204-7ee3-a7be-6d72c870f986` | `01de9ae097a589deec560c0b1eef8739f4828cc96e4ecddc6f4f94ab6360c3c4` |
+| Approval | `art_0b3578b7-c96f-7e0e-a6d0-a1a38ba9c1de` | `99407a4c96a5c5a00135fb02e7a04dac6034fe8750b2cc89d9aa8e804c62a024` |
+
+The raw result and canonical return contain the exact 126-configuration and
+42-rerun counts. The owner-decision events above establish the terminal `PARK`
+disposition; the correction artefact preserves the source correction
+append-only. The governance documents point to these anchors rather than
+serving as evidence for one another.
 
 ## Current Git and review state
 

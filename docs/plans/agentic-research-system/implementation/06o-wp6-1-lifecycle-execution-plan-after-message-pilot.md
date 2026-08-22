@@ -2,22 +2,24 @@
 
 | Field | Value |
 |---|---|
-| Status | **Current WP6.1 execution-control plan; C1 integrated 2026-08-05.** WP6.1 remains incomplete and this record does not start C2. |
-| Date | 2026-08-05 revision of the 2026-08-03 post-Message plan |
+| Status | **Historical execution plan; WP6.1 integrated 2026-08-10.** Retained for catalogue, allocation, and campaign provenance only. |
+| Date | 2026-08-05 revision of the 2026-08-03 post-Message plan; closure reconciled 2026-08-22 |
 | Original evidence base | `4f8b9b857bab1a7553af5e6ea3ef170608e7e18e` / tree `e765b75c458ebf194dd80cef6c66d11e5360e6a7` |
 | Integration revision base | `1a5d8c7514fafc5c28f8624bc60259ddd00e026f` (`main` when this revision began) |
 | Prior design authority | `0e842969c770811edf5c81dcd7e4f7a647e050ad:docs/plans/agentic-research-system/implementation/06m-wp6-lifecycle-family-pilot-design.md` |
-| Workflow | One capability campaign at a time; C1 is integrated, followed by owner-started C2, C3, and recovery-gated R1 |
+| Workflow | Historical sequence completed: C1, C2, C3, R1, and final WP6.1 proof are integrated; no WP6.1 production work remains. |
 
-This document is the authoritative execution-control plan for the remaining WP6.1
-capability and incorporates P-047 Research Methods obligations. It records C1's
-accepted integration and directs Jira work decomposition and closure evidence, but
-does not by itself start C2 or authorize later runtime code, schemas, providers,
-merges, Gate 6, dispatch, or research execution. The
-accepted 06a plan itself authorizes no implementation
-(`docs/plans/agentic-research-system/implementation/06a-wp6-1-runtime-task-lifecycle-plan.md:4-15`).
-Stephen's 2026-08-05 completion and merge instruction applied to C1. A later campaign
-still requires an explicit owner instruction naming that campaign.
+This document is the historical execution-control plan that allocated WP6.1 and
+incorporated P-047 Research Methods obligations. Its prospective instructions
+below describe the campaign state at the time; they are no longer operative.
+WP6.1 closed with all 104 catalogue rows active and zero remaining. KAN-65,
+KAN-71 through KAN-75, KAN-95 through KAN-97, and KAN-102 are `Done`. The exact
+accepted production subject was `b0058f396f538a63f94ce68d8f6a49b25f4c4c8f`, the independent
+review-record commit was `0fd4674ee4fc43515c12d498b7f786555f09bba3`, and the integrated
+merge is `26df87157013fa078849acb14921bbcfcdfe53f1`. That merge is an ancestor
+of current `main`. These are completed prerequisite facts for Gate 6, not a
+Gate 6 blocker or permission to perform provider, paid-run, live-store,
+restore, merge, or owner-gated work.
 
 ## 1. Recommendation and exact pilot outcome
 
@@ -714,16 +716,20 @@ Record exact integration/merge SHA and tree only after authorized success. Do no
 Jira, owner acceptance, Gate 6, dispatch, or research-result completion.
 ```
 
-## 10. Forward obligation register and gates
+## 10. Historical forward obligation register and gates
+
+This table records the controls that governed the campaign while it was open.
+Its prospective owner/next-gate entries are historical and non-operative; the
+terminal WP6.1 disposition is in section 11.
 
 | Obligation | Current disposition | Owner / next gate |
 |---|---|---|
 | Preserve all 173 accepted schema bytes and the exact 87-command/86-event trees | Hard invariant. No regeneration, normalization, or equivalent reserialization. | Every candidate and integration reviewer; Stephen decides any protected defect. |
 | No bulk activation | Runtime activation remains an explicit exact-binding decision per delivered vertical; materialized file presence is inert. | Slice owner plus fresh exact review; no plan-level activation authority. |
-| KAN-65 is broader than C1 | Message and C1 are integrated, but C2, C3, R1 and the horizontal obligations remain open. | KAN-65 remains incomplete; a later campaign needs its own explicit owner start. |
+| WP6.1 closure | Message, C1, C2, C3, R1, and the horizontal obligations are integrated; KAN-65 is Done with `104 active + 0 remaining`. | Treat as completed prerequisite evidence. Do not reopen absent new evidence that invalidates the exact integrated subject. |
 | C1 integrated | KAN-72/PR #212 delivered one coherent 23-row admission-to-running campaign through the complete public path. | Keep KAN-72 Done and do not reopen its rows in later campaigns. |
-| Dual arithmetic | Fixed pre-C1 allocation `P2..P8 = 85` and `C1+C2+C3+R1 = 85` remains authoritative; current outstanding totals are 62 after C1. | KAN-71 mechanically verifies the fixed allocation, current census, and intersections above. |
-| Integrated RM obligations | KAN-95 is horizontal and row-neutral; KAN-96 governs the nine already-counted P6 rows; KAN-97's nine W3 commands are outside the 104-row catalogue. | All three remain required for WP6.1 completion under P-047 without inflating the catalogue denominator. |
+| Dual arithmetic | Fixed pre-C1 allocation `P2..P8 = 85` and `C1+C2+C3+R1 = 85` remains authoritative historical allocation evidence; the terminal census is `104 active + 0 remaining`. | KAN-71 records the fixed allocation, final census, and intersections. |
+| Integrated RM obligations | KAN-95 is horizontal and row-neutral; KAN-96 governs the nine already-counted P6 rows; KAN-97's nine W3 commands are outside the 104-row catalogue. | All three are Done and form part of completed WP6.1 evidence under P-047. |
 | Preserve SupersedeTask compatibility | P2 carries the three control groups and the separately named stale-classification manifestation without recounting `task.supersede`. | P2 candidate/reviewer. |
 | Provider automation | Deferred under P-042; no provider invocation, credential handling, or live adapter/profile automation inside P2-P8. | Separate owner decision outside this sequence (`docs/plans/agentic-research-system/implementation/06g-wp6-owner-operated-session-amendment.md:13-55`, `:82-106`). |
 | W11 | Separate 81-row programme. No P2-P8 row, runtime activation, transition, genesis, migration, or cutover is authorized here. | Separate W11 review/owner gates (`docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md:4-15`, `:68-83`, `:490-587`). |
@@ -735,12 +741,12 @@ Jira, owner acceptance, Gate 6, dispatch, or research-result completion.
 | Review authority | Fresh independent exact-subject review is mandatory; no self-review. Review acceptance never substitutes for owner acceptance. | Sol Ultra reviewer, then Stephen. |
 | Gate and result claims | This plan claims no Gate 6 closure, dispatch authorization, provider action, research execution, or research result. | Separate accepted evidence and owner decisions. |
 
-## 11. Immediate next action
+## 11. Current disposition
 
-**Do not reopen C1. Keep KAN-65 and WP6.1 incomplete. C2/KAN-73 is the next capability
-campaign, but this record does not authorize its start. On an explicit owner start,
-re-resolve C2 against exact live `main`, preserve the fixed catalogue and protected
-identities, and validate C2 as one end-to-end capability.**
+**No WP6.1 action remains. Do not reopen KAN-65 or its completed child jobs
+absent new evidence that invalidates the exact accepted and integrated subject.**
 
-C2, C3, R1, 06h/RM-01, 06i and 06j remain open Jira work rather than completed
-capabilities.
+C2, C3, R1, 06h/RM-01, 06i, and 06j are completed historical campaigns. Their
+closure is prerequisite evidence for Gate 6; it does not itself integrate or
+close Gate 6 and authorizes no provider call, paid execution, live-store write,
+restore operation, merge, or owner decision.

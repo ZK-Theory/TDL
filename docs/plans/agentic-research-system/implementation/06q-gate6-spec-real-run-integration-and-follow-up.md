@@ -21,10 +21,14 @@ backup/restore evidence. Mocks, temporary stores, fabricated permissions,
 synthetic receipts, and agent-written declarations are not Gate 6 proof.
 
 The historical result is retained exactly as evidence: 126 configurations, 42
-deterministic reruns, terminal `PROVEN/spec_02_owner_decided`, and ledger tail
-`444 ResourcesReleased`. The run is a research-use assessment, not a scientific
-claim. Its `PARK` decision retains the method as an experimental or benchmark
-candidate and does not make it the default empirical method.
+deterministic reruns, terminal `PROVEN/spec_02_owner_decided`, and ledger
+position `444 ResourcesReleased` as the historical run-closure anchor. Later
+events exist in the same store, so 444 is not the current store tail. The
+immutable event and artefact evidence is listed in the result handoff's
+[durable evidence anchors](../handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md#durable-evidence-anchors).
+The run is a research-use assessment, not a scientific claim. Its `PARK`
+decision retains the method as an experimental or benchmark candidate and does
+not make it the default empirical method.
 
 ## 2. Exact current state and active pointers
 
@@ -45,6 +49,13 @@ candidate and does not make it the default empirical method.
   and Gate 6 closure. Its historical SCALE-01 eligibility-envelope
   application is superseded. P-050 records the real-run outcome and `PARK`
   disposition.
+- WP6.1 is integrated prerequisite evidence, not an open Gate 6 lane. KAN-65
+  and its C1/C2/C3/R1, Research Methods, and final-proof jobs are `Done`; the
+  accepted production subject, independent-review record commit, and merge are
+  respectively
+  `b0058f396f538a63f94ce68d8f6a49b25f4c4c8f`,
+  `0fd4674ee4fc43515c12d498b7f786555f09bba3`, and
+  `26df87157013fa078849acb14921bbcfcdfe53f1`.
 
 Step 0 is an administrative reset, not an implementation or closure result.
 The documentation writer made no external mutation. The approved plan permits
@@ -85,20 +96,21 @@ input schema distinct from durable command envelopes: users provide meaningful
 inputs, while the system derives IDs, hashes, command envelopes, retry keys,
 and receipts. `SpecActionState` is exactly `not_started`, `prepared`, or
 `completed`. `ProjectUseDecision` binds the candidate, assay, spike, terminal
-owner decision, source correction, evidence artefacts, and exact governed-code
-subject. The approved CLI is exactly:
+owner decision, source correction, evidence artefacts, exact operational Task
+identity, and exact governed-code subject. The approved CLI is exactly:
 
 ```text
 ars discovery spec status --operator-config …
 ars discovery spec advance --operator-config … --action … --input …
-ars discovery spec result --operator-config … --format json|markdown
+ars discovery spec result --operator-config … --task-id … --format json|markdown
 ```
 
-Existing `ars store repair-binding`, `ars store advance-binding`,
-`ars store backup`, and `ars store verify-restore` commands share one repaired-
-binding loader. This plan does not introduce `ars discovery submit` or `ars
-discovery status` as new SPEC interfaces, nor a parallel public seam or second
-persisted state machine.
+Step 2 introduces and tests `ars store repair-binding` and `ars store
+advance-binding`, which are absent from the Step-0 base. They and the existing
+`ars store backup` and `ars store verify-restore` commands must share one
+verified binding loader. This plan does not introduce `ars discovery submit`
+or `ars discovery status` as new SPEC interfaces, nor a parallel public seam or
+second persisted state machine.
 
 The durable store remains append-only. Historical identities are readable;
 new writes use canonical identities. Status and advance consume the same
@@ -153,17 +165,19 @@ operation. Selection and read happen under the lock, then revalidate before
 publication. Outputs are prevalidated. Marker, object, event, receipt, and
 current binding form one recovery identity.
 
-**Main interfaces:** the existing binding advance and restore seams,
+**Main interfaces:** new `repair-binding` and `advance-binding` parsers and
+handlers, the existing backup and restore seams,
 `verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
-the repaired binding. A reviewed successor may move from the retired binding
-to integrated `main`; an arbitrary non-descendant is forbidden.
+one shared verified-binding admission. A reviewed successor may move from the
+retired binding to integrated `main`; an arbitrary non-descendant is forbidden.
 
 **Acceptance boundary:** the governed-code manifest versions code, config,
-schemas, contracts, locks, and the allowed documentation-only descendant. One
-repaired-binding admission is shared by all consumers; local administration is
-distinct from SPEC semantic authority; schemas remain append-only. Negatives
-cover concurrency, crash, wrong root, stale binding, drift, documentation
-descendant, separate roots, and historical replay.
+schemas, contracts, locks, and the allowed documentation-only descendant. The
+new command parsers and handlers are exercised through their public CLI seam.
+One verified-binding admission is shared by all consumers; local
+administration is distinct from SPEC semantic authority; schemas remain
+append-only. Negatives cover concurrency, crash, wrong root, stale binding,
+drift, documentation descendant, separate roots, and historical replay.
 
 ### Step 3 — `G6-SPEC-AUTHORITY-1`
 
@@ -210,11 +224,15 @@ advance, registration, result rendering, `ProjectUseDecision`, and the result
 CLI.
 
 **Acceptance boundary:** historical IDs remain readable while canonical new
-writes use new IDs. Unrelated evidence is isolated. Missing evidence is
-`pending`; hash-only or wrong-binding evidence rejects. The matrix covers
-empty, prepared, completed, conflicting, unrelated, retry, and recovery states
-for every registered action. A persisted legacy fixture cannot use the new
-writer as a bypass.
+writes use new IDs. Unrelated evidence is isolated. Missing action evidence
+evaluates only to `not_started` or `prepared`; there is no fourth
+`SpecActionState`. When no correctly bound `ProjectUseDecision` exists, the
+human result renderer says `project-use decision pending`. Hash-only or
+wrong-binding evidence rejects. The required `--task-id` selector isolates the
+historical and fresh results even when both exist. The matrix covers empty,
+prepared, completed, conflicting, unrelated, retry, and recovery states for
+every registered action. A persisted legacy fixture cannot use the new writer
+as a bypass.
 
 ### Step 6 — `G6-SPEC-EXEC-1`, integration, and closure candidate
 
@@ -266,7 +284,12 @@ store write occurs in construction slices.
 After all six PRs have merged and the composed governed tree has been read back:
 
 1. After all six merges, perform final assembled selection and one independent
-   exact-`main` review, then admit one owner-reviewed successor binding. Append
+   exact-`main` review. Immediately before admitting the owner-reviewed
+   successor binding, perform a fresh fetch and an independent live-remote read
+   of `refs/heads/main`; prove local `HEAD`, refreshed `origin/main`, and the
+   live-remote result all equal that reviewed SHA. If the remote has advanced,
+   repeat candidate selection and independent review; do not bind the stale
+   subject. Then append
    the historical `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` acceptance and the
    historical P-050 `ProjectUseDecision` without rewriting their provenance.
 2. Obtain explicit paid-run approval, then repeat Damrich, Berens, and Kobak
@@ -277,10 +300,11 @@ After all six PRs have merged and the composed governed tree has been read back:
    task, and result bytes. Close the terminal Task only through
    `SubmitForReview` followed by `AcceptTask`, then persist the fresh
    `ProjectUseDecision`.
-4. Use the historical and fresh read-only result commands, including the exact
-   JSON/Markdown result CLI, after replay from a fresh process. Verify the
-   terminal `ResourcesReleased` tail, human result, `PARK` limitation, and no
-   scientific-promotion language.
+4. Use the historical and fresh read-only result commands with their exact,
+   distinct Task IDs, including JSON and Markdown rendering, after replay from
+   a fresh process. Verify the historical position-444 `ResourcesReleased`
+   run-closure anchor, the fresh terminal Task state, human results, `PARK`
+   limitation, and no scientific-promotion language.
 5. Create and restore governed backups using
    `C:\Users\steph\TDL-ARS-WP64-Backups` and
    `C:\Users\steph\TDL-ARS-WP64-Restore-Verification`. Same-disk verification
@@ -321,6 +345,7 @@ Until every item is complete, report:
 ## 8. Verification sources
 
 - Historical result: [Gate 6 SPEC real-run result](../handoffs/01M0454KCTYV0E8PB016CP3F6J-gate6-spec-real-run-result.md).
+- WP6.1 closure: [historical execution plan and exact integration evidence](06o-wp6-1-lifecycle-execution-plan-after-message-pilot.md).
 - Historical convergence evidence: [06r](06r-gate6-pr258-review-convergence-plan.md).
 - Decision register: [P-049 and P-050](../03-decisions-and-open-questions.md).
 - Historical control distinction: [06p](06p-gate6-control-model-proposal.md).

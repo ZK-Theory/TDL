@@ -5,12 +5,13 @@
 **Authority:** P-026/P-034, the accepted WP6 plan, P-042, and the exact current Git/Jira evidence recorded below
 **Jira homes:** KAN-60 (aggregate WP6.7 closure), KAN-22–26 (Gate-6-to-7 consistency), KAN-21 (later-gate planning sweep), KAN-61 (hard-stop control), KAN-12 (completion campaign)
 
-> **Current Gate 6 reset (2026-08-22):** The older dispatchable-preflight
-> framing in this historical sequencing document is superseded for active Gate
-> 6 work by [06q — Gate 6 Recovery and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md).
+> **Current Gate 6 reset (2026-08-22):** Every Gate 6 definition, preflight,
+> dispatch, Jira, and closure instruction in this document is historical and
+> non-operative. Active Gate 6 work is governed only by
+> [06q — Gate 6 Recovery and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md).
 > The historical real SPEC run is PROVEN, but no Gate 6 implementation is
 > integrated on `main`; SCALE-01 is not a Gate 6 closure prerequisite. This
-> document still governs only the separate WP6.7/Gate 7 sequencing boundary.
+> document governs only the separate WP6.7/Gate 7 sequencing boundary.
 
 ## 1. Decision boundary
 
@@ -19,14 +20,16 @@ evidence and owner decisions required before a later actor may perform a
 per-item transition, path cutover, deprecation, or retirement. It does not
 perform any of those actions.
 
-Gate 6 completion means a **dispatchable, governed preflight**: the current
-Gate-6 package has passed its exact review and owner gates and a controlled
-pilot is eligible to be dispatched. It does not mean that a pilot or research
-run has silently occurred, that a paper has been migrated, or that an APM
-surface has been retired. Under P-042, provider automation remains outside the
-first-release critical path: an authorised operator starts an external Claude
-or Codex session, ARS never reads credentials or invokes the provider, and the
-operator-mediated evidence path is separately verified.
+**Historical, non-operative Gate 6 definition:** this document used
+**dispatchable, governed preflight** to mean that the then-current Gate-6
+package had passed its exact review and owner gates and a controlled pilot was
+eligible to be dispatched. That definition is retained only as WP6.7/Gate 7
+provenance; it must not be used for current Gate 6 dispatch or closure. The
+active definition and closure sequence are in 06q. Under P-042, provider
+automation remains outside the first-release critical path: an authorised
+operator starts an external Claude or Codex session, ARS never reads
+credentials or invokes the provider, and the operator-mediated evidence path
+is separately verified.
 
 The active paper/APM surfaces remain under their current legacy authority until
 their independent prerequisites close. They are not retired, migrated, or cut
