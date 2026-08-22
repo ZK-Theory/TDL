@@ -2,7 +2,10 @@
 
 **Recorded:** 2026-08-22
 **Status:** `PROVEN historical result / implementation not integrated`
-**Current base:** `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`
+**Integrated control-reset base:** `d65d74912e2edf385702f67c85c4df340c900651`
+**Implementation-base rule:** select the exact refreshed `origin/main` after
+prerequisite merges and record it in the slice's Jira job before the first
+write.
 **Active plan:** [06q — Gate 6 Recovery and Closure Plan](../implementation/06q-gate6-spec-real-run-integration-and-follow-up.md)
 
 ## Plain-English result
@@ -86,12 +89,16 @@ serving as evidence for one another.
 
 ## Current Git and review state
 
-- PR #257 remains an open draft candidate at `dea803490...`; it is obsolete and
-  must be closed unmerged only after a replacement decision is durable.
+- PR #257 is closed unmerged at `dea803490...`; the replacement decision became
+  durable through PR #259 before closure.
 - PR #258 is closed unmerged at
   `94f8bc1fc92bdc5259acab02e73a3958202ab2e`; its branch remains historical.
   It had 145 changed files, 35,796 additions, 114 review threads, and seven
   unresolved P1 families.
+- PR #260 is closed unmerged at
+  `53beb174cc90455e31f8091fbe1b4a7424a4db0d`; its second material review cycle
+  established that the shared STORE boundary must precede SOURCE, so the
+  candidate was retired rather than remediated a third time.
 - The seven unresolved PR #258 P1 families are: legacy corrections not bound
   to their causal prefix; binding advance unanchored to `WriterLock`;
   brief-input actions completing without sealed identity; public commands
@@ -110,9 +117,11 @@ serving as evidence for one another.
 
 Follow [06q](../implementation/06q-gate6-spec-real-run-integration-and-follow-up.md):
 
-1. complete the documentation-only reset (Step 0);
+1. reconcile the remaining Step 0 Jira jobs and dependency links, with
+   `G6-SPEC-STORE-1` next and `G6-SPEC-SOURCE-1` dependent on it, then read back
+   every changed status, description, parent, and link;
 2. implement and independently test the six sequential latest-`main` PRs:
-   `G6-SPEC-SOURCE-1`, `G6-SPEC-STORE-1`, `G6-SPEC-AUTHORITY-1`,
+   `G6-SPEC-STORE-1`, `G6-SPEC-SOURCE-1`, `G6-SPEC-AUTHORITY-1`,
    `G6-SPEC-TASK-1`, `G6-SPEC-MODEL-1`, and `G6-SPEC-EXEC-1`;
 3. after all six merge, perform final assembled selection and independent
    exact-`main` review, then admit one owner-reviewed successor binding; append

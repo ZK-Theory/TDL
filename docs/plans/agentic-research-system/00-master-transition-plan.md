@@ -569,15 +569,20 @@ The run recorded 126 configurations, 42 deterministic reruns, terminal
 `PROVEN/spec_02_owner_decided`, and historical run-closure anchor
 `444 ResourcesReleased`. Later events exist in the same store, so 444 is not
 the current ledger tail. Those facts are evidence of the run, not evidence
-that its implementation was merged. The current base is
-`d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`.
+that its implementation was merged. The integrated control-reset base is
+`d65d74912e2edf385702f67c85c4df340c900651`; it is a historical anchor, not a
+pin for implementation. Each slice selects the exact refreshed `origin/main`
+after its prerequisites merge and records that SHA in its Jira job before the
+first write.
 
 The only active recovery and closure authority is
 [06q — Gate 6 Recovery and Closure Plan](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
 It defines Steps 0–6, six sequential PR slices, the retained public seams,
 fresh real-run proof, and owner-controlled closure. [06r](implementation/06r-gate6-pr258-review-convergence-plan.md)
-is historical PR #258 diagnostic evidence only. PR #257 remains an open draft
-candidate; PR #258 is closed unmerged at `94f8bc1fc92bdc5259acab02e73a3958202ab2e`
-and its branch is retained as evidence. SCALE-01 remains historical and is not
-a Gate 6 closure prerequisite. Gate 7 remains blocked until integrated Gate 6
-and final closure evidence exist.
+is historical PR #258 diagnostic evidence only. PRs #257, #258, and #260 are
+closed unmerged and retained as evidence; PR #260 was retired at its second
+material review cycle because the shared STORE boundary must precede SOURCE.
+The next production slice is `G6-SPEC-STORE-1`, followed by
+`G6-SPEC-SOURCE-1`. SCALE-01 remains historical and is not a Gate 6 closure
+prerequisite. Gate 7 remains blocked until integrated Gate 6 and final closure
+evidence exist.
