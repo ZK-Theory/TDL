@@ -123,15 +123,21 @@ The objective is not to automate research judgment away. It is to make agent act
 ### Gate 6 reset (2026-08-22)
 
 **Capability status: INCOMPLETE — the historical real SPEC run is PROVEN, but
-no Gate 6 implementation is integrated on `main`.** The current base is
-`d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`. The 126-configuration run and 42
-deterministic reruns are durable historical evidence; they do not turn the
-closed, unmerged PR #258 into integrated code. The sole active recovery and
-closure plan is [06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
-PR #257 remains an open draft candidate pending a durable replacement decision;
-PR #258 is closed unmerged and retained as historical evidence. SCALE-01 is a
-historical preflight record, not a Gate 6 closure prerequisite. Gate 7 remains
-blocked on integrated Gate 6 and final closure evidence.
+no Gate 6 implementation is integrated on `main`.** The integrated
+control-reset base is `d65d74912e2edf385702f67c85c4df340c900651`; it is a
+historical anchor, not a pin for later implementation branches. Each slice
+selects the exact refreshed `origin/main` after its prerequisites merge and
+records that SHA in its Jira job before the first write. The 126-configuration
+run and 42 deterministic reruns are durable historical evidence; they do not
+turn the closed, unmerged PR #258 into integrated code. The sole active recovery
+and closure plan is
+[06q](implementation/06q-gate6-spec-real-run-integration-and-follow-up.md).
+PRs #257, #258, and #260 are closed unmerged and retained as historical
+evidence; #260 was retired after its second material review cycle exposed the
+STORE-before-SOURCE dependency. The next production slice is
+`G6-SPEC-STORE-1`, followed by `G6-SPEC-SOURCE-1`. SCALE-01 is a historical
+preflight record, not a Gate 6 closure prerequisite. Gate 7 remains blocked on
+integrated Gate 6 and final closure evidence.
 
 The recommended path is **evolutionary APM replacement**:
 

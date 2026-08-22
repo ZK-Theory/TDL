@@ -4,7 +4,10 @@
 **Status:** `INCOMPLETE — historical real SPEC run PROVEN; no Gate 6 implementation integrated on main`
 **Authority:** sole active Gate 6 recovery and closure plan. Do not create a
 06s or another master plan.
-**Current base:** `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`
+**Integrated control-reset base:** `d65d74912e2edf385702f67c85c4df340c900651`
+**Implementation-base rule:** each slice selects the exact refreshed
+`origin/main` after its prerequisites merge and records that SHA in its Jira
+job before the first write.
 **Jira capability:** KAN-103 under KAN-12; Gate 7 remains blocked on
 integrated Gate 6 and final closure evidence.
 
@@ -32,14 +35,28 @@ not make it the default empirical method.
 
 ## 2. Exact current state and active pointers
 
-- The current base is `d64c58fa4366e5d7a0b7ddc5b2e0519edafcffd7`.
-- PR #257 remains an open draft at candidate `dea803490...`; it is an obsolete
-  candidate to close unmerged only after a replacement decision is durable.
-  Its branch and the dirty `C:\Users\steph\TDL` checkout are preserved.
+- The integrated control-reset base is
+  `d65d74912e2edf385702f67c85c4df340c900651`, the merge of PR #259. It is a
+  durable historical anchor, not a pin for later implementation branches.
+- Each implementation slice starts from the exact refreshed `origin/main`
+  after its prerequisites merge and records that SHA in its Jira job before
+  the first write. In particular, STORE starts from the merged result of the
+  review-convergence correction, not from `d65d749...`.
+- PR #257 is closed unmerged at candidate `dea803490...`. The replacement
+  decision became durable through PR #259 before closure. Its branch and the
+  dirty `C:\Users\steph\TDL` checkout are preserved.
 - PR #258 is closed unmerged at
   `94f8bc1fc92bdc5259acab02e73a3958202ab2e`. Its branch is retained as
   historical evidence. The candidate had 145 changed files, 35,796 additions,
   114 review threads, and seven unresolved P1 families.
+- PR #260 is retired unmerged at
+  `53beb174cc90455e31f8091fbe1b4a7424a4db0d`. Formal review cycle 1 at
+  `03e8f0ff2bda23e084d72b7d203c8c3a9c578ef8` produced the first material
+  remediation. Review cycle 2 at `53beb174...` reopened the same shared store
+  and replay invariant families with two P1 findings and two further valid
+  major findings. This meets this plan's mandatory retire/rescope condition;
+  no third remediation commit belongs on PR #260. Its branch is retained as
+  implementation and review evidence, not as a merge candidate.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -58,13 +75,10 @@ not make it the default empirical method.
   `26df87157013fa078849acb14921bbcfcdfe53f1`.
 
 Step 0 is an administrative reset, not an implementation or closure result.
-The documentation writer made no external mutation. The approved plan permits
-the main agent, after its own exact-state checks, to create or clean the named
-branch/worktree, commit and push the documentation reset, create/update the
-replacement PR, update KAN-12 and KAN-103, create six bounded level-0 Tasks,
-parent them to the KAN-12 Epic, make each one block KAN-103, read back both
-ends of every link, and close PR257 unmerged only after the replacement
-decision is durable. It still permits no merge, CodeRabbit trigger or polling,
+Its replacement decision is merged through PR #259 and the obsolete PR #257
+is now closed unmerged. The approved plan permits the remaining Jira control
+updates and readback for KAN-12, KAN-103, and the six bounded level-0 Tasks.
+It still permits no implementation merge, CodeRabbit trigger or polling,
 provider or paid call, live-store write during construction, or final Gate 6
 decision.
 
@@ -132,7 +146,7 @@ invocation: producer, independent-reviewer, owner, and operator actions use
 separate configs, sessions, and grants, and the action registry rejects a
 caller whose registered role does not match the action.
 
-Step 2 introduces and tests `ars store repair-binding` and `ars store
+Step 1 introduces and tests `ars store repair-binding` and `ars store
 advance-binding`, which are absent from the Step-0 base. They and the existing
 `ars store backup` and `ars store verify-restore` commands must share one
 verified binding loader. This plan does not introduce `ars discovery submit`
@@ -165,15 +179,92 @@ job to the KAN-12 Epic, and gives every job an outward `Blocks` link to
 KAN-103. Jira does not permit a Task to be the parent of another Task, so the
 six jobs are KAN-103's blocking siblings rather than its children. KAN-103
 must read back six inward blockers and cannot transition terminal while any
-one remains open. Each job records its
-observable outcome, current gap, next action, authoritative files, closure
-evidence, owner, and dependency links, and reads back those links. It also
-permits the named branch/commit/push/PR work and closing PR257 unmerged only
-after the replacement decision is durable. It does not permit merge, CodeRabbit
-trigger or polling, provider/paid work, live-store mutation during
-construction, or final Gate 6 closure.
+one remains open. Each job records its observable outcome, current gap, next
+action, authoritative files, closure evidence, owner, and dependency links,
+and reads back those links. The remaining Step 0 authority is only that Jira
+mutation and readback. The branch, PR, and PR #257 closure work is already
+complete; Step 0 does not provide standing authority for further Git or review
+operations, provider/paid work, live-store mutation, or final Gate 6 closure.
 
-### Step 1 — `G6-SPEC-SOURCE-1`
+### Review-convergence correction — STORE precedes SOURCE
+
+PR #260 showed that the original order was not dependency-safe. The SOURCE
+candidate had to modify generic immutable-file publication, recovery locking,
+ledger admission, and shared replay callers before the STORE slice supplied
+their verified root and replay context. The resulting optional resolver and
+ad hoc lock/error plumbing let focused tests pass while production backup,
+restore, and projection callers remained unable to replay the new source
+event. The staged-file repair also reopened a substitution window in the same
+publication invariant it was intended to close.
+
+The corrected sequence lands the shared STORE boundary first. SOURCE then uses
+those interfaces and owns only Git/source semantics plus its typed provenance
+verdict. Do not cherry-pick PR #260 wholesale. Reuse a change only after it is
+re-derived against the corrected owner and its negative matrix passes. The
+review concern about `os.link(..., follow_symlinks=False)` is not a defect on
+the sole supported runtime, CPython 3.13.5 on Windows: the exact operation has
+been exercised successfully. STORE nevertheless retains an explicit platform
+control so this fact cannot silently drift.
+
+Keep the existing six Jira implementation jobs; do not create duplicate
+remediation tickets for the PR #260 comments. Change the STORE job to the next
+production action, make the SOURCE job depend on STORE, and attach the four
+valid cycle-2 findings plus the ledger diagnostic failure to those two owning
+jobs. Read back both dependency directions and the revised next actions after
+the plan amendment merges.
+
+### Step 1 — `G6-SPEC-STORE-1`
+
+**Invariant:** one verified snapshot and predecessor governs the whole
+operation. Selection and read happen under the lock, then revalidate before
+publication. Outputs are prevalidated. Marker, object, event, receipt, and
+current binding form one recovery identity. Store contention, integrity
+failure, and unavailable physical state remain distinct typed outcomes.
+
+**Main interfaces:** new `repair-binding` and `advance-binding` parsers and
+handlers; the `SpecOperatorConfig@1.0.0` schema and shared loader that establish
+the canonical root plus exact project/store/route binding for every public
+SPEC command; the existing backup and restore seams,
+`verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
+one shared verified-binding admission. The loader produces one replay context
+that includes the exact registered-content resolver; every production replay,
+projection rebuild, backup, restore, and verification caller consumes that
+context rather than forwarding an optional resolver. A reviewed successor may
+move from the retired binding to integrated `main`; an arbitrary non-descendant
+is forbidden.
+
+**Acceptance boundary:** the governed-code manifest versions code, config,
+schemas, contracts, locks, and the allowed documentation-only descendant. The
+new command parsers and handlers are exercised through their public CLI seam.
+One verified-binding admission is shared by all consumers; local
+administration is distinct from SPEC semantic authority; schemas remain
+append-only. Immutable-file publication stages and fsyncs private bytes, keeps
+the staged identity available through the no-replace claim, verifies that the
+claimed final identity is that exact generation, and rolls back only a claim
+proved to be its own on substitution or failure. The exact internal retry
+discriminant is `research_system.store.lock.WriterLockContentionError`, an
+exported subclass of `ConflictError` raised only when the canonical writer lock
+already exists. Recovery retries that exact subclass, without string matching,
+until the existing 30-second deadline. Identity change, platform failure, and
+every sibling `ConflictError` propagate immediately; the public conflict/error
+and nonzero-exit mapping remains unchanged. Producer tests prove that only
+canonical lock contention emits the subclass, and consumer tests prove retry
+for that subclass plus immediate propagation for every non-retryable sibling.
+The pinned Windows runtime has a direct
+`os.link(..., follow_symlinks=False)` positive control. Negatives cover
+source substitution, final-name substitution, concurrent contenders, every
+crash phase, wrong root, stale binding, drift, documentation descendant,
+separate roots, and historical replay.
+
+Event admission has explicit diagnostic precedence. An inactive or full-only
+schema identity is rejected before producer selection; an active schema with
+the wrong producer is rejected as an unbound producer. The existing
+`test_runtime_ledger_rejects_unbound_full_only_event_schema` becomes a required
+STORE acceptance test, accompanied by the active-schema/wrong-producer
+negative. The STORE slice is not accepted while either case is conflated or
+the complete store module contains another unexplained failure.
+
+### Step 2 — `G6-SPEC-SOURCE-1`
 
 **Invariant:** source evidence binds exact bytes to a causal prefix. A resolver
 must handle heads, lightweight and annotated tags, peeled commits, slash refs,
@@ -181,41 +272,29 @@ direct OIDs, and subpaths. It may declare a source absent only after an
 exhaustive successful check; ambiguity or unavailability is not absence.
 
 **Main interfaces:** the existing source evidence producer/resolver and its
-public SPEC registration path; anchored in-root recovery markers and
-append-only correction records bind prior evidence and its causal prefix. The
-typed `spec_source_observation` document registers the exact resolved Git
-reference and source bytes/hash. Its completion proof separately binds the
-later causal registration event before `OR-029` may bind that observation to a
-Candidate; the document never self-references its own registration.
+public SPEC registration path; the Step-1 registered-content and replay
+context; and append-only correction records that bind prior evidence and its
+causal prefix. The typed `spec_source_observation` document registers the exact
+resolved Git reference and source bytes/hash. Its completion proof separately
+binds the later causal registration event before `OR-029` may bind that
+observation to a Candidate; the document never self-references its own
+registration.
 
 **Acceptance boundary:** accept the `neurips2024` lightweight tag at
 `145efcde673f1a1897eff250b77221d26c34c479`; preserve the corrected source as
 append-only; and reject redirected/junctioned paths, malformed locators,
 ambiguity, transport failure, crash-before-publication, and zero-publication
-cases without durable side effects.
-
-### Step 2 — `G6-SPEC-STORE-1`
-
-**Invariant:** one verified snapshot and predecessor governs the whole
-operation. Selection and read happen under the lock, then revalidate before
-publication. Outputs are prevalidated. Marker, object, event, receipt, and
-current binding form one recovery identity.
-
-**Main interfaces:** new `repair-binding` and `advance-binding` parsers and
-handlers; the `SpecOperatorConfig@1.0.0` schema and shared loader that establish
-the canonical root plus exact project/store/route binding for every public
-SPEC command; the existing backup and restore seams,
-`verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
-one shared verified-binding admission. A reviewed successor may move from the
-retired binding to integrated `main`; an arbitrary non-descendant is forbidden.
-
-**Acceptance boundary:** the governed-code manifest versions code, config,
-schemas, contracts, locks, and the allowed documentation-only descendant. The
-new command parsers and handlers are exercised through their public CLI seam.
-One verified-binding admission is shared by all consumers; local
-administration is distinct from SPEC semantic authority; schemas remain
-append-only. Negatives cover concurrency, crash, wrong root, stale binding,
-drift, documentation descendant, separate roots, and historical replay.
+cases without durable side effects. Provenance-validation errors retain their
+specific cause: malformed or forged provenance is an `IntegrityError`, while
+store contention or physical-state failure propagates as its store-level typed
+fault and is never rewritten as a permanent invalid-history verdict. After the
+first accepted version-2 `spec_source_observation` is registered, one
+cross-slice integration matrix must exercise shared replay verification,
+projection rebuild, governed backup creation, candidate-restore replay,
+restored-store verification, and public Discovery status/replay. Every
+positive asserts the same source identity and terminal projection. A companion
+negative removes the resolver at each seam and proves failure before that seam
+can publish a projection, backup receipt, restore admission, or status result.
 
 ### Step 3 — `G6-SPEC-AUTHORITY-1`
 
@@ -226,7 +305,7 @@ session. An exact completed retry may be read after grant expiry but may create
 no new effect.
 
 **Main interfaces:** the common owner/scoped/SPEC authority validator and the
-existing command service submission seam. After the Step-2 loader has admitted
+existing command service submission seam. After the Step-1 loader has admitted
 the exact store and route, this validator proves that the config-selected
 `operator_actor_id`, `actor_session_id`, and `authority_grant_id` authorize the
 requested semantic effect; possession of the config is never sufficient.
@@ -422,7 +501,9 @@ The PR record must capture PR head, candidate head, merge SHA, composed
 governed-tree equality, test selection, and review conclusion. Squash/queue
 operations must preserve those identities. A second material remediation, or
 reopening a P1 in the same invariant family, retires or rescopes the candidate
-instead of continuing specimen-by-specimen repair.
+instead of continuing specimen-by-specimen repair. PR #260 is the first
+application of this rule: cycle 2 reopened the store-publication and
+shared-replay families, so it is retired without a third remediation commit.
 
 Stephen alone triggers or monitors CodeRabbit and authorizes merge. No agent
 may trigger CodeRabbit, poll it, merge a PR, or infer owner acceptance. No live
@@ -512,11 +593,11 @@ Capability reporting is phase-aware and uses exactly one applicable row:
 - Gate 7 cannot open or dispatch on this evidence alone; it remains blocked on
   integrated Gate 6 and final closure evidence. No scientific promotion is
   implied.
-- Step 0 permits the named branch/commit/push/PR and KAN-12/KAN-103 operations,
-  six sibling-job/blocking-link readbacks, and eventual unmerged PR257 closure
-  after a durable replacement decision. Construction still forbids merge, CodeRabbit
-  trigger or polling, provider/paid calls, and live-store mutation; final Gate
-  6 closure remains Stephen's owner decision.
+- Step 0's remaining authority is limited to KAN-12/KAN-103 and six
+  sibling-job/blocking-link mutations plus exact readback. Its Git and PR #257
+  work is complete; it grants no standing authority for further Git/review
+  operations, provider/paid calls, live-store mutation, or final Gate 6
+  closure.
 
 ## 8. Verification sources
 
