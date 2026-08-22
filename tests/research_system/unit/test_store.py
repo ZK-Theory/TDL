@@ -1008,12 +1008,12 @@ def test_object_target_link_interruption_is_recovered_on_retry(tmp_path, monkeyp
     real_link = os.link
     interrupted = False
 
-    def interrupt_target_link(source, target):
+    def interrupt_target_link(source, target, *args, **kwargs):
         nonlocal interrupted
         if Path(target).suffix == ".json" and not interrupted:
             interrupted = True
             raise OSError("injected target link interruption")
-        return real_link(source, target)
+        return real_link(source, target, *args, **kwargs)
 
     monkeypatch.setattr(object_module.os, "link", interrupt_target_link)
     with pytest.raises(OSError, match="target link interruption"):
@@ -1045,7 +1045,14 @@ def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeyp
     monkeypatch.setattr(object_module, "fsync_directory", observe)
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
-    assert (path.parent, True, True) in observations
+    def normalise_path(candidate):
+        value = object_module.os.path.normcase(object_module.os.fspath(candidate))
+        return value.removeprefix("\\\\?\\")
+
+    assert any(
+        normalise_path(directory) == normalise_path(path.parent) and target_exists
+        for directory, target_exists, _claim_exists in observations
+    )
     assert list(path.parent.glob(".*.tmp")) == []
     assert list(path.parent.glob(".*.publication-claim")) == []
 
@@ -1129,20 +1136,26 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
 
 
 def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monkeypatch):
+    import research_system.store.objects as object_module
+
     store = ObjectStore(tmp_path)
     path = store.write("task", TASK_ID, 1, {"x": 1})
-    original_read_bytes = Path.read_bytes
+    original_open = object_module.os.open
 
-    def fail_read(candidate):
-        if candidate == path:
+    def normalise_path(candidate):
+        value = object_module.os.path.normcase(object_module.os.fspath(candidate))
+        return value.removeprefix("\\\\?\\")
+
+    def fail_open(candidate, *args, **kwargs):
+        if normalise_path(candidate) == normalise_path(path):
             raise OSError("unreadable")
-        return original_read_bytes(candidate)
+        return original_open(candidate, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    monkeypatch.setattr(object_module.os, "open", fail_open)
     with pytest.raises(IntegrityError, match="unreadable"):
         store.read("task", TASK_ID, 1)
 
-    monkeypatch.setattr(Path, "read_bytes", original_read_bytes)
+    monkeypatch.setattr(object_module.os, "open", original_open)
     path.unlink()
     float_bytes = b'{"x":1.5}'
     from research_system.canonical import sha256_hex
@@ -1358,6 +1371,35 @@ def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
                     "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
                     "schema_id": "ars://core/event/DispatchClaimed",
                     "schema_version": "1.0.0",
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "payload": {},
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
+def test_runtime_ledger_rejects_wrong_producer_for_active_full_only_event_schema(tmp_path):
+    schemas = runtime_schema_registry(SCHEMAS)
+    command_identity = schemas.resolve_identity("ars://core/command", "1.0.0")
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=schemas,
+    )
+
+    with pytest.raises(ArsError, match="unbound event producer"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event/DispatchClaimed",
+                    "schema_version": "1.0.0",
+                    "command_type": "WrongDispatchProducer",
                     "command_schema_id": command_identity.schema_id,
                     "command_schema_version": command_identity.schema_version,
                     "command_schema_sha256": command_identity.sha256,

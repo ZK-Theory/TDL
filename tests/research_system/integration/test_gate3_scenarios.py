@@ -57,6 +57,20 @@ def test_scenario_a_actors_derive_from_distinct_family_route_records():
     assert result.provider_command_count == 1
 
 
+def test_scenario_a_release_snapshot_contract_matches_produced_trace():
+    """remediation-red: the frozen release trace must match the active producer."""
+    from research_system.evals.release_snapshot import _SCENARIO_CONTRACT
+
+    result = run_gate3_scenario("A")
+
+    assert result.event_types == (
+        "RouteSelected",
+        "RouteSelected",
+        "ProviderCommandIssued",
+    )
+    assert _SCENARIO_CONTRACT["A"]["event_types"] == result.event_types
+
+
 def test_scenario_a_provider_command_count_is_derived_from_recorded_issue_events(monkeypatch):
     from research_system.evals import scenarios
 

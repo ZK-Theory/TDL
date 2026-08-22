@@ -203,6 +203,12 @@ def _real_lifecycle_service(
         clock=clock,
     )
 
+    def active_schema(schema_id: str):
+        bindings = tuple(binding for binding in schemas.active_bindings() if binding.schema_id == schema_id)
+        if len(bindings) != 1:
+            raise ArsError(f"missing unique active schema binding: {schema_id}")
+        return schemas.resolve_identity(schema_id, bindings[0].schema_version)
+
     def activate(task_id: str) -> str:
         grant_id = f"agr_{task_id.split('_', 1)[1]}"
         try:
@@ -225,14 +231,15 @@ def _real_lifecycle_service(
                 }
             )
         context = authority_resolver.administration_context()
-        grant_schema = schemas.resolve_identity("ars://core/scoped-authority-grant", "2.0.0")
+        grant_schema = active_schema("ars://core/scoped-authority-grant")
+        administration_schema = active_schema("ars://core/owner-authority-administration-decision")
         scope = {
             "project_id": project_id,
             "subject": {"kind": "task", "id": task_id},
         }
         grant = {
-            "schema_id": "ars://core/scoped-authority-grant",
-            "schema_version": "2.0.0",
+            "schema_id": grant_schema.schema_id,
+            "schema_version": grant_schema.schema_version,
             "authority_grant_id": grant_id,
             "actor_id": actor_id,
             "allowed_actor_classes": ["human"],
@@ -247,8 +254,8 @@ def _real_lifecycle_service(
         }
         decision_id = f"arec_{task_id.split('_', 1)[1]}"
         decision = {
-            "schema_id": "ars://core/owner-authority-administration-decision",
-            "schema_version": "1.0.0",
+            "schema_id": administration_schema.schema_id,
+            "schema_version": administration_schema.schema_version,
             "record_id": decision_id,
             "revision": 1,
             "project_id": context.project_id,
@@ -271,11 +278,14 @@ def _real_lifecycle_service(
             "decided_at": "2026-01-01T00:00:00Z",
         }
         authority_objects.write("assurance_record", decision_id, 1, decision)
+        activation_binding = schemas.command_binding("ActivateAuthorityGrant")
+        if activation_binding is None:
+            raise ArsError("missing active command binding: ActivateAuthorityGrant")
         activation = {
             "command_id": f"cmd_{task_id.split('_', 1)[1]}",
             "command_type": "ActivateAuthorityGrant",
-            "schema_id": "ars://core/command/ActivateAuthorityGrant",
-            "schema_version": "1.0.0",
+            "schema_id": activation_binding.schema_id,
+            "schema_version": activation_binding.schema_version,
             "submitted_at": "2026-08-01T00:00:00Z",
             "actor_id": actor_id,
             "on_behalf_of_actor_id": None,

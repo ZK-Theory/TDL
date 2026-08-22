@@ -160,11 +160,19 @@ def calibrate_fixture(
                 return execute_lifecycle_fixture(registration, subject, selected_payload)
         else:
             executor = registration
-    known_bad = _execute_twice("known_bad", payload, pre_expected, executor)
+    declared_mutation_ids = tuple(str(mutation_id) for mutation_id in definition["mutation_ids"])
+    # The authored pre-control is the uncontrolled execution of a declared
+    # mutation.  Most executors can derive that path from the subject alone,
+    # but an executor may require the mutation identity to prepare its
+    # semantic input (S-014 is the current example).  Use one declared
+    # mutation as the representative pre-control input; the dedicated loop
+    # below still executes every declared mutation independently.
+    known_bad_payload = {**payload, "mutation_id": declared_mutation_ids[0]} if declared_mutation_ids else payload
+    known_bad = _execute_twice("known_bad", known_bad_payload, pre_expected, executor)
     known_good = _execute_twice("known_good", payload, post_expected, executor)
     mutations = tuple(
         _execute_mutation(mutation_id, payload, pre_expected, post_expected, executor)
-        for mutation_id in definition["mutation_ids"]
+        for mutation_id in declared_mutation_ids
     )
     live_classes = {row["grader_class"] for row in definition["required_graders"]}.intersection({"M", "H"})
     blocking = "unable_to_grade" if live_classes else None
@@ -181,7 +189,7 @@ def calibrate_fixture(
         known_bad=known_bad,
         known_good=known_good,
         mutations=mutations,
-        declared_mutation_ids=tuple(definition["mutation_ids"]),
+        declared_mutation_ids=declared_mutation_ids,
         mutation_calibration_status="calibrated",
         blocking_verdict=blocking,
     )

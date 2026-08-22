@@ -88,6 +88,7 @@ from research_system.store.identity import (
 from research_system.store.lock import (
     CompositeWriterLock,
     WriterLock,
+    WriterLockContentionError,
     current_process_instance_id,
     inspect_lock,
     remove_stale_lock,
@@ -1042,7 +1043,7 @@ class CommandService:
             )
             try:
                 lock.__enter__()
-            except ConflictError:
+            except WriterLockContentionError:
                 state, observed, _ = inspect_lock(path)
                 if state == "stale" and observed is not None and remove_stale_lock(path, observed):
                     continue
@@ -1886,7 +1887,7 @@ class CommandService:
                 resolver = self._canonical_authority_resolver()
                 if resolver is not None:
                     roots = (self.control_root, resolver.control_root)
-            retry_on_conflict = command_type in {
+            retry_on_contention = command_type in {
                 "PublishReleaseGateDecision",
                 *_LIFECYCLE_COMMAND_TYPES,
                 *_T2_AUTHORITY_COORDINATED_COMMAND_TYPES,
@@ -1900,8 +1901,8 @@ class CommandService:
                 )
                 try:
                     lock.__enter__()
-                except ConflictError:
-                    if not retry_on_conflict or self._monotonic() >= deadline:
+                except WriterLockContentionError:
+                    if not retry_on_contention or self._monotonic() >= deadline:
                         raise
                     self._lock_wait(0.01)
                     continue
@@ -2038,6 +2039,11 @@ class CommandService:
         if command.envelope["command_type"] in _SCOPED_ACTIVATION_COMMAND_TYPES and receipt.status == "accepted":
             self._reconcile_scoped_activation_receipt(command, command_schema)
         self._reconcile_scoped_authority_receipt(command, receipt)
+        if publication:
+            # WP5.3/W2 treats command_id as a submission identifier, not part
+            # of its caller-scoped idempotency key.  Exact retries therefore
+            # return the original accepted or rejected receipt under a new ID.
+            return receipt
         return self._return_scoped_receipt_or_raise(command, receipt)
 
     def _reconcile_scoped_authority_receipt(

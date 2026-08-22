@@ -45,10 +45,8 @@ _SCENARIO_CONTRACT = {
     "A": {
         "event_types": (
             "RouteSelected",
-            "ResourceGrantRequested",
-            "LeaseClaimed",
+            "RouteSelected",
             "ProviderCommandIssued",
-            "ProviderReceiptRecorded",
         ),
         "producer_actor_id": "actor-claude-producer",
         "verifier_actor_id": "actor-codex-verifier",

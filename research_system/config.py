@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,22 @@ _FOUNDATION_REQUIRED_FIELDS = frozenset(
     }
 )
 _FOUNDATION_PLACEHOLDERS = frozenset({"", "null", "none", "placeholder", "todo", "tbd", "unknown"})
+_SPEC_OPERATOR_CONFIG_SCHEMA_ID = "ars://operations/spec-operator-config"
+_SPEC_OPERATOR_CONFIG_SCHEMA_VERSION = "1.0.0"
+_SPEC_OPERATOR_ROUTE_ID = "SPEC-GATE6-RUN-V1"
+_SPEC_OPERATOR_CONFIG_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "control_root",
+        "project_id",
+        "store_identity",
+        "route_id",
+        "operator_actor_id",
+        "actor_session_id",
+        "authority_grant_id",
+    }
+)
 
 
 def _foundation_string(value: Any, field: str) -> str:
@@ -400,6 +417,80 @@ class ControlBinding:
             approved.origin_witness_sha256,
             approved.origin_witness,
             approved.schema_binding_activation_sha256,
+        )
+
+
+@dataclass(frozen=True)
+class SpecOperatorConfig:
+    """Exact, authority-neutral locator for one public SPEC operation.
+
+    This configuration intentionally identifies a caller and claimed grant but
+    does not authorize an effect.  Semantic authority belongs to the action
+    registry; local store administration is admitted through a separate
+    binding transaction.
+    """
+
+    schema_id: str
+    schema_version: str
+    control_root: Path
+    project_id: str
+    store_identity: str
+    route_id: str
+    operator_actor_id: str
+    actor_session_id: str
+    authority_grant_id: str
+
+    @classmethod
+    def load(cls, path: Path) -> "SpecOperatorConfig":
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise ConfigurationError(f"invalid SPEC operator config: {path}") from exc
+        return cls.from_raw(raw)
+
+    @classmethod
+    def from_raw(cls, raw: bytes) -> "SpecOperatorConfig":
+        try:
+            value: Any = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ConfigurationError("SPEC operator config must be JSON") from exc
+        if not isinstance(value, dict) or set(value) != _SPEC_OPERATOR_CONFIG_FIELDS:
+            raise ConfigurationError("SPEC operator config fields are not exact")
+        if value.get("schema_id") != _SPEC_OPERATOR_CONFIG_SCHEMA_ID:
+            raise ConfigurationError("unsupported SPEC operator config schema_id")
+        if value.get("schema_version") != _SPEC_OPERATOR_CONFIG_SCHEMA_VERSION:
+            raise ConfigurationError("unsupported SPEC operator config schema_version")
+        if value.get("route_id") != _SPEC_OPERATOR_ROUTE_ID:
+            raise ConfigurationError("SPEC operator config route_id is not the Gate 6 SPEC route")
+        control_root_value = value.get("control_root")
+        if not isinstance(control_root_value, str) or not control_root_value:
+            raise ConfigurationError("SPEC operator config control_root must be an absolute path")
+        try:
+            control_root = Path(control_root_value)
+        except (OSError, ValueError) as exc:
+            raise ConfigurationError("SPEC operator config control_root is not a valid path") from exc
+        if not control_root.is_absolute():
+            raise ConfigurationError("SPEC operator config control_root must be an absolute path")
+        try:
+            project_id = validate_id(str(value["project_id"]), "project")
+            operator_actor_id = validate_id(str(value["operator_actor_id"]), "actor")
+            authority_grant_id = validate_id(str(value["authority_grant_id"]), "authority_grant")
+        except ValueError as exc:
+            raise ConfigurationError("SPEC operator config identity is invalid") from exc
+        store_identity = _foundation_digest(value["store_identity"], "store_identity")
+        actor_session_id = value.get("actor_session_id")
+        if not isinstance(actor_session_id, str) or not actor_session_id.strip():
+            raise ConfigurationError("SPEC operator config actor_session_id must be a non-empty string")
+        return cls(
+            schema_id=_SPEC_OPERATOR_CONFIG_SCHEMA_ID,
+            schema_version=_SPEC_OPERATOR_CONFIG_SCHEMA_VERSION,
+            control_root=control_root,
+            project_id=project_id,
+            store_identity=store_identity,
+            route_id=_SPEC_OPERATOR_ROUTE_ID,
+            operator_actor_id=operator_actor_id,
+            actor_session_id=actor_session_id,
+            authority_grant_id=authority_grant_id,
         )
 
 
